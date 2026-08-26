@@ -1,0 +1,8 @@
+{
+  "phpRoot": "C:\\Path\\To\\PHP",
+  "nginxRoot": "C:\\Path\\To\\nginx",
+  "listenHost": "127.0.0.1",
+  "listenPort": 8021,
+  "apiPort": 3111,
+  "phpPorts": [9084, 9085, 9086, 9087]
+}

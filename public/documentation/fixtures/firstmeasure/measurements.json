@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "mode": "test",
+  "test_mode": true,
+  "report_id": "fmr_fixture_completed",
+  "measurements": {
+    "schema_version": 1,
+    "source_format": "roofplan",
+    "location": {
+      "address": "1600 Amphitheatre Parkway",
+      "city": "Mountain View",
+      "state": "CA",
+      "postal": "94043",
+      "lat": "37.422",
+      "lng": "-122.0841"
+    },
+    "summary": {
+      "point_count": 4,
+      "line_count": 4,
+      "face_count": 1,
+      "total_roof_area": 1800,
+      "line_counts_by_type": { "EAVE": 2, "RAKE": 2 }
+    },
+    "points": [
+      { "id": "P1", "x": 0, "y": 0, "z": 0 },
+      { "id": "P2", "x": 40, "y": 0, "z": 0 },
+      { "id": "P3", "x": 40, "y": 30, "z": 10 },
+      { "id": "P4", "x": 0, "y": 30, "z": 10 }
+    ],
+    "lines": [
+      { "id": "L1", "type": "EAVE", "start_point_id": "P1", "end_point_id": "P2" },
+      { "id": "L2", "type": "RAKE", "start_point_id": "P2", "end_point_id": "P3" },
+      { "id": "L3", "type": "EAVE", "start_point_id": "P3", "end_point_id": "P4" },
+      { "id": "L4", "type": "RAKE", "start_point_id": "P4", "end_point_id": "P1" }
+    ],
+    "faces": [
+      { "id": "F1", "type": "ROOF", "polygon_id": "PG1", "line_ids": ["L1", "L2", "L3", "L4"], "pitch": 6, "area": 1800 }
+    ]
+  }
+}
+

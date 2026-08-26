@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FirstMate public API documentation.">
+  <title>FirstMate API Documentation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="home">
+  <div class="docs-shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html" aria-label="FirstMate API documentation home">
+        <img class="brand-logo" src="../images/logo_red.png" alt="First Mate" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">
+        <span class="brand-fallback" hidden>First Mate</span><span class="brand-label">API Documentation</span>
+      </a>
+      <button class="button mobile-nav-toggle" id="mobileNavToggle" type="button" aria-expanded="false">Browse docs</button>
+      <div class="search-box"><label for="docsSearch">Search docs</label><input id="docsSearch" type="search" autocomplete="off" placeholder="Search reports, auth, billing"><div class="search-results" id="searchResults" hidden></div></div>
+      <nav class="nav" aria-label="Documentation navigation">
+        <details class="nav-section" open><summary>API Library</summary><div class="nav-links">
+          <a href="index.html" data-nav="home">Overview</a><a href="apis/index.html" data-nav="apis">APIs</a><a href="libraries/index.html" data-nav="libraries">Libraries</a>
+        </div></details>
+        <details class="nav-section" open><summary>FirstMeasure</summary><div class="nav-links">
+          <a href="apis/firstmeasure/index.html" data-nav="firstmeasure">Reference</a>
+          <a href="apis/firstmeasure/index.html#quickstart">Quickstart</a>
+          <a href="apis/firstmeasure/index.html#sandbox">Sandbox mode</a>
+          <a href="apis/firstmeasure/index.html#authentication">Authentication</a>
+          <a href="apis/firstmeasure/index.html#billing">Billing &amp; pricing</a>
+          <div class="endpoint-nav-label">Endpoints</div>
+          <a href="apis/firstmeasure/index.html#endpoint-create-report"><code>POST</code> Create report</a>
+          <a href="apis/firstmeasure/index.html#endpoint-report"><code>GET</code> Report detail</a>
+          <a href="apis/firstmeasure/index.html#endpoint-pdf"><code>GET</code> PDF</a>
+          <a href="apis/firstmeasure/index.html#endpoint-measurements"><code>GET</code> Measurements</a>
+          <a href="apis/firstmeasure/index.html#tester">Sandbox explorer</a>
+        </div></details>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="page-grid">
+        <div class="page-column">
+          <section class="hero">
+            <p class="eyebrow">Public API Library</p>
+            <h1>Build FirstMeasure into your product.</h1>
+            <p class="hero-copy">Order property measurement reports, follow production status, retrieve PDFs and files, and consume structured measurements through the customer API.</p>
+            <div class="hero-actions"><a class="button primary" href="apis/firstmeasure/index.html">Open FirstMeasure reference</a><a class="button" href="apis/firstmeasure/index.html#tester">Try sandbox mode</a></div>
+          </section>
+          <section class="signal-row" aria-label="API summary">
+            <div class="signal"><span>Current API</span><strong>FirstMeasure v1</strong></div>
+            <div class="signal"><span>Authentication</span><strong>Organization Bearer keys</strong></div>
+            <div class="signal"><span>Artifacts</span><strong>PDF, JSON, XML, files</strong></div>
+          </section>
+          <div class="content">
+            <section class="section"><h2>Available APIs</h2><div class="library-grid">
+              <a class="api-card" href="apis/firstmeasure/index.html"><span class="card-kicker">Available now</span><h3>FirstMeasure API</h3><p>Create report requests, monitor status, retrieve artifacts, and inspect billing state.</p></a>
+            </div></section>
+            <section class="section"><h2>Integration model</h2><div class="step-list">
+              <div><span>1</span><p>Receive a test or live organization API key from FirstMate.</p></div>
+              <div><span>2</span><p>Build and verify your integration with persistent $0 sandbox reports.</p></div>
+              <div><span>3</span><p>Use idempotent live report requests from your server.</p></div>
+              <div><span>4</span><p>Poll status and retrieve completed artifacts.</p></div>
+            </div></section>
+          </div>
+        </div>
+        <aside class="right-rail">
+          <div class="rail-card"><h2>API base URL</h2><code class="base-url">https://app.1m8.ai/v1/public/firstmeasure</code><p>Test and live keys use the same host. The key selects sandbox or production behavior.</p></div>
+          <div class="rail-card"><h2>Start safely</h2><p>Use a <code>fmk_test_</code> key in the sandbox explorer. Test reports complete immediately, expose synthetic artifacts, and charge $0.</p><a class="button primary" href="apis/firstmeasure/index.html#tester">Open explorer</a></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,9 @@
+Brand logo sources used for proposal builder option cards:
+
+- GAF: https://commons.wikimedia.org/wiki/File:GAF_logo.svg
+- Owens Corning: https://commons.wikimedia.org/wiki/File:Owens_Corning_logo.svg
+- Malarkey: https://www.malarkeyroofing.com/marketing-assets/
+- CertainTeed: https://worldvectorlogo.com/logo/certainteed
+
+The *-source.svg files are the downloaded source assets. The matching short
+names are square wrapper SVGs used by the app UI.

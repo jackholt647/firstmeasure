@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FirstMeasure customer API reference and test-mode sandbox explorer.">
+  <title>FirstMeasure API Reference | FirstMate Documentation</title>
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body data-page="firstmeasure">
+  <div class="docs-shell">
+    <aside class="sidebar">
+      <a class="brand" href="../../index.html" aria-label="FirstMate API documentation home">
+        <img class="brand-logo" src="../../../images/logo_red.png" alt="First Mate" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">
+        <span class="brand-fallback" hidden>First Mate</span>
+        <span class="brand-label">API Documentation</span>
+      </a>
+      <button class="button mobile-nav-toggle" id="mobileNavToggle" type="button" aria-expanded="false">Browse docs</button>
+      <div class="search-box">
+        <label for="docsSearch">Search docs</label>
+        <input id="docsSearch" type="search" autocomplete="off" placeholder="Search reports, auth, billing">
+        <div class="search-results" id="searchResults" hidden></div>
+      </div>
+      <nav class="nav" aria-label="Documentation navigation">
+        <details class="nav-section" open>
+          <summary>API Library</summary>
+          <div class="nav-links">
+            <a href="../../index.html" data-nav="home">Overview</a>
+            <a href="../index.html" data-nav="apis">APIs</a>
+            <a href="../../libraries/index.html" data-nav="libraries">Libraries</a>
+          </div>
+        </details>
+        <details class="nav-section" open>
+          <summary>FirstMeasure</summary>
+          <div class="nav-links">
+            <a href="index.html" data-nav="firstmeasure">Reference</a>
+            <a href="#quickstart">Quickstart</a>
+            <a href="#sandbox">Sandbox mode</a>
+            <a href="#authentication">Authentication</a>
+            <a href="#workflow">Workflow</a>
+            <a href="#billing">Billing &amp; pricing</a>
+            <a href="#requests">Create report schema</a>
+            <a href="#idempotency">Idempotency</a>
+            <a href="#responses">Statuses</a>
+            <a href="#errors">Errors</a>
+            <a href="#fixtures">Fixtures</a>
+            <div class="endpoint-nav-label">Endpoints</div>
+            <a href="#endpoint-root"><code>GET /</code> Metadata</a>
+            <a href="#endpoint-pricing"><code>GET</code> Pricing</a>
+            <a href="#endpoint-balance"><code>GET</code> Balance</a>
+            <a href="#endpoint-create-report"><code>POST</code> Create report</a>
+            <a href="#endpoint-list-reports"><code>GET</code> List reports</a>
+            <a href="#endpoint-report"><code>GET</code> Report detail</a>
+            <a href="#endpoint-pdf"><code>GET/POST</code> PDF</a>
+            <a href="#endpoint-measurements"><code>GET</code> Measurements</a>
+            <a href="#endpoint-files"><code>GET</code> Files</a>
+            <a href="#endpoint-echo"><code>POST</code> Request echo</a>
+            <a href="#tester">Sandbox explorer</a>
+          </div>
+        </details>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="page-grid">
+        <div class="page-column">
+          <section class="hero">
+            <p class="eyebrow">v1 Customer API</p>
+            <h1>FirstMeasure API Reference</h1>
+            <p class="hero-copy">
+              Order FirstMeasure reports, follow their status, and retrieve PDFs, structured measurements,
+              and files. Test mode provides persistent, completed synthetic reports without charging credits
+              or starting production work.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#tester">Open sandbox explorer</a>
+              <a class="button" href="#quickstart">Read quickstart</a>
+            </div>
+          </section>
+
+          <section class="signal-row" aria-label="FirstMeasure API summary">
+            <div class="signal"><span>Base URL</span><strong>app.1m8.ai · v1</strong></div>
+            <div class="signal"><span>Authentication</span><strong>Bearer API key</strong></div>
+            <div class="signal"><span>Sandbox completion</span><strong>Deterministic and immediate</strong></div>
+          </section>
+
+          <div class="content">
+            <section class="section" id="quickstart">
+              <h2>Quickstart</h2>
+              <p>Use the production host for both test and live keys. A test key selects sandbox behavior; a live key commissions billable production work.</p>
+              <div class="callout warning">
+                Keep API keys on your server. Never embed a live key in browser code, a mobile application, source control, analytics, or logs.
+              </div>
+              <h3>cURL</h3>
+              <pre><code>curl -X POST "https://app.1m8.ai/v1/public/firstmeasure/reports" \
+  -H "Authorization: Bearer fmk_test_your_key" \
+  -H "Idempotency-Key: 73ff1dfa-698f-4b31-bf0b-4dd445bed43a" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "external_id": "customer-order-1001",
+    "address": "1600 Amphitheatre Parkway, Mountain View, CA 94043",
+    "project_type": "residential",
+    "report_mode": "full",
+    "report_expedite_option": "standard_3_6",
+    "lat": 37.422,
+    "lng": -122.0841,
+    "metadata": { "source": "partner-app" }
+  }'</code></pre>
+              <h3>Server-side JavaScript</h3>
+              <pre><code>const response = await fetch(
+  "https://app.1m8.ai/v1/public/firstmeasure/reports",
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.FIRSTMEASURE_API_KEY}`,
+      "Idempotency-Key": crypto.randomUUID(),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(order)
+  }
+);
+
+const result = await response.json();
+if (!response.ok || !result.ok) throw new Error(result.message || result.error);
+console.log(result.report.id);</code></pre>
+            </section>
+
+            <section class="section" id="sandbox">
+              <div class="section-header">
+                <div>
+                  <h2>Sandbox mode</h2>
+                  <p>Test keys begin with <code>fmk_test_</code>.</p>
+                </div>
+                <span class="badge test">Safe testing</span>
+              </div>
+              <ul>
+                <li>Requests are validated and stored as sandbox report records.</li>
+                <li>New reports return a terminal <code>completed</code> status immediately.</li>
+                <li>Sample PDF, Roofplan XML, parsed JSON measurements, and files are deterministic and retrievable through the normal artifact routes.</li>
+                <li><code>billing.amount_charged</code> is always <code>0</code>; <code>billing.quoted_amount</code> shows what the selected configuration would cost.</li>
+                <li>No production queue, FirstMeasure staff work, credit mutation, auto top-up, or live customer delivery is triggered.</li>
+              </ul>
+              <div class="callout">
+                Sandbox reports are persistent and can be fetched again with the same test key. The API currently has no outbound completion webhook. Integrations should poll <code>GET /reports/:id</code>; in test mode it normally returns <code>completed</code> on the first check.
+              </div>
+            </section>
+
+            <section class="section" id="authentication">
+              <h2>Authentication</h2>
+              <p>Send the organization API key in every authenticated request:</p>
+              <pre><code>Authorization: Bearer fmk_test_your_key</code></pre>
+              <p>Keys are organization-scoped and mode-scoped. Test keys can access only that organization's test records; live keys can access only its live records. A key may also be restricted by scopes.</p>
+              <table>
+                <thead><tr><th>Scope</th><th>Allows</th></tr></thead>
+                <tbody>
+                  <tr><td><code>firstmeasure:reports:create</code></td><td>Create reports and read pricing.</td></tr>
+                  <tr><td><code>firstmeasure:reports:read</code></td><td>List reports and read report detail.</td></tr>
+                  <tr><td><code>firstmeasure:pdfs:read</code></td><td>Download report PDFs.</td></tr>
+                  <tr><td><code>firstmeasure:pdfs:write</code></td><td>Request PDF generation or refresh.</td></tr>
+                  <tr><td><code>firstmeasure:measurements:read</code></td><td>Read JSON or Roofplan measurements.</td></tr>
+                  <tr><td><code>firstmeasure:files:read</code></td><td>List and download files.</td></tr>
+                  <tr><td><code>firstmeasure:billing:read</code></td><td>Read credit and billing state.</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="section" id="workflow">
+              <h2>Report workflow</h2>
+              <div class="step-list">
+                <div><span>1</span><p>Create a report with a unique <code>Idempotency-Key</code>, address, project type, and coordinates or structure pins.</p></div>
+                <div><span>2</span><p>Store the returned <code>report.id</code> in your own order record.</p></div>
+                <div><span>3</span><p>Poll <code>GET /reports/:id</code> with bounded exponential backoff until a terminal status is returned.</p></div>
+                <div><span>4</span><p>When completed, download PDFs and read measurements or files through the report-scoped artifact endpoints.</p></div>
+              </div>
+              <p>For the initial public integration, send <code>report_mode: "full"</code>. If pins are omitted for a live full report, provide <code>lat</code> and <code>lng</code> for the property center; the order can enter <code>needs_structure_pins</code> while FirstMeasure identifies all structures on the parcel.</p>
+            </section>
+
+            <section class="section" id="billing">
+              <h2>Billing and pricing</h2>
+              <p>Test-mode responses quote the selected configuration but charge $0. Live report creation charges the organization associated with the key. If configured credits are too low, API auto top-up is attempted; the order is rejected if payment cannot cover it.</p>
+              <table>
+                <thead><tr><th>Item</th><th>Charged price</th><th>Unit</th></tr></thead>
+                <tbody>
+                  <tr><td>Residential full report</td><td>$7</td><td>Per report / primary structure</td></tr>
+                  <tr><td>Commercial or multifamily full report</td><td>$12</td><td>Per structure</td></tr>
+                  <tr><td>Expedite</td><td>Dynamic</td><td>Use <code>GET /pricing</code> for enabled options and current wait-time quote</td></tr>
+                </tbody>
+              </table>
+              <div class="callout warning">
+                The charged behavior above is authoritative for order totals. Always use the selected option and quoted totals returned by the API for customer-facing estimates; expedite options and availability can change with queue conditions and organization feature flags.
+              </div>
+              <p>Expedited service is feature-gated. A request for an option that is not enabled returns <code>feature_not_enabled</code> before the order is created.</p>
+            </section>
+
+            <section class="section" id="requests">
+              <h2>Create report schema</h2>
+              <table>
+                <thead><tr><th>Field</th><th>Type</th><th>Requirement</th></tr></thead>
+                <tbody>
+                  <tr><td><code>address</code></td><td>string</td><td>Required, non-empty property address.</td></tr>
+                  <tr><td><code>external_id</code></td><td>string</td><td>Optional customer order ID; list filtering supports this value.</td></tr>
+                  <tr><td><code>project_type</code></td><td>enum</td><td><code>residential</code>, <code>commercial</code>, or <code>multifamily</code>. Defaults to residential.</td></tr>
+                  <tr><td><code>report_mode</code></td><td>string</td><td>Send <code>full</code> for the supported public launch workflow.</td></tr>
+                  <tr><td><code>lat</code>, <code>lng</code></td><td>number</td><td>Recommended property-center coordinate pair when pins are omitted.</td></tr>
+                  <tr><td><code>pins</code></td><td>array</td><td>Optional array of <code>{ lat, lng }</code> structure locations.</td></tr>
+                  <tr><td><code>report_expedite_option</code></td><td>string</td><td>Use a key returned by <code>GET /pricing</code>; standard is <code>standard_3_6</code>.</td></tr>
+                  <tr><td><code>customer</code>, <code>issuer</code></td><td>object</td><td>Optional contact metadata.</td></tr>
+                  <tr><td><code>cc_emails</code></td><td>string[]</td><td>Optional additional recipients.</td></tr>
+                  <tr><td><code>metadata</code></td><td>object</td><td>Optional integration metadata.</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="section" id="idempotency">
+              <h2>Idempotency</h2>
+              <p>Send a stable, unique <code>Idempotency-Key</code> header with every <code>POST /reports</code>. Generate it before the first attempt, store it with your order, and reuse it only when retrying that exact request.</p>
+              <pre><code>Idempotency-Key: 73ff1dfa-698f-4b31-bf0b-4dd445bed43a</code></pre>
+              <p>A replay returns HTTP 200 with <code>idempotent_replay: true</code> and the existing report. A new report returns HTTP 201. Never reuse a key for a changed request body or a different customer order.</p>
+            </section>
+
+            <section class="section" id="responses">
+              <h2>Statuses and polling</h2>
+              <p>Treat status strings as forward-compatible. The common states below are important, but clients should preserve and display unknown values rather than failing.</p>
+              <table>
+                <thead><tr><th>Status</th><th>Meaning</th><th>Client action</th></tr></thead>
+                <tbody>
+                  <tr><td><code>needs_structure_pins</code></td><td>FirstMeasure still needs structure locations.</td><td>Continue bounded polling.</td></tr>
+                  <tr><td><code>queued</code>, <code>pending</code>, processing states</td><td>Production work is not terminal.</td><td>Poll with backoff; avoid tight loops.</td></tr>
+                  <tr><td><code>completed</code></td><td>Report is terminal and artifacts should be available.</td><td>Fetch PDF, measurements, or files.</td></tr>
+                  <tr><td><code>rejected</code>, <code>failed</code>, <code>cancelled</code></td><td>Terminal failure.</td><td>Stop polling and surface rejection/error details.</td></tr>
+                </tbody>
+              </table>
+              <p>Recommended development loop: check immediately, then after 1, 2, 4, and 8 seconds, cap the interval, and enforce an overall timeout. Production jobs may take longer; continue later according to your application's job scheduler.</p>
+            </section>
+
+            <section class="section" id="errors">
+              <h2>Errors</h2>
+              <pre><code>{
+  "ok": false,
+  "error": "validation_error",
+  "message": "Optional human-readable detail",
+  "details": null
+}</code></pre>
+              <table>
+                <thead><tr><th>HTTP</th><th>Representative code</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td>400</td><td><code>validation_error</code>, <code>unsupported_measurement_format</code></td><td>Correct the request; do not retry unchanged.</td></tr>
+                  <tr><td>401</td><td><code>missing_api_key</code>, <code>invalid_api_key</code></td><td>Provide a valid Bearer key.</td></tr>
+                  <tr><td>403</td><td><code>billing_required</code>, <code>insufficient_credits</code>, <code>feature_not_enabled</code></td><td>Organization billing, scope, or feature configuration must change.</td></tr>
+                  <tr><td>404</td><td>not found</td><td>The report/file does not exist or is not visible to this key.</td></tr>
+                  <tr><td>500</td><td><code>internal_error</code></td><td>Retry safely with the same idempotency key and exponential backoff.</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="section" id="endpoints">
+              <h2>Endpoint reference</h2>
+              <div class="endpoint-list">
+                <article class="endpoint-card" id="endpoint-root"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/</code> Metadata</h3></div><p>API name, version, and route map. No API key is required.</p></article>
+                <article class="endpoint-card" id="endpoint-pricing"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/pricing?project_type=residential&amp;structure_count=1</code></h3></div><p>Returns test/live mode, standard and enabled expedite options, queue estimate, feature flags, and add-on quote metadata. Requires report-create scope.</p></article>
+                <article class="endpoint-card" id="endpoint-balance"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/balance</code></h3></div><p>Returns organization credit, ledger, and auto-top-up state. Test mode includes a no-charge explanation.</p></article>
+                <article class="endpoint-card" id="endpoint-create-report"><div class="endpoint-title"><span class="badge post">POST</span><h3><code>/reports</code></h3></div><p>Creates a report. Send JSON and an <code>Idempotency-Key</code>. Returns 201 for a new report or 200 for a replay.</p></article>
+                <article class="endpoint-card" id="endpoint-list-reports"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/reports?limit=10&amp;external_id=…</code></h3></div><p>Lists mode- and organization-scoped reports. The limit is bounded by the service.</p></article>
+                <article class="endpoint-card" id="endpoint-report"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/reports/:id</code></h3></div><p>Returns report summary plus project detail. Test reports return the persistent synthetic project.</p></article>
+                <article class="endpoint-card" id="endpoint-pdf"><div class="endpoint-title"><span class="badge get">GET</span><span class="badge post">POST</span><h3><code>/reports/:id/pdf</code></h3></div><p>GET downloads a PDF; optional <code>?slot=main</code> or <code>?slot=summary</code>. POST requests generation/refresh and requires PDF-write scope. In test mode POST acknowledges but does not generate production artifacts.</p></article>
+                <article class="endpoint-card" id="endpoint-measurements"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/reports/:id/measurements?format=json|roofplan</code></h3></div><p>Returns parsed JSON or Roofplan XML measurement data.</p></article>
+                <article class="endpoint-card" id="endpoint-files"><div class="endpoint-title"><span class="badge get">GET</span><h3><code>/reports/:id/files</code> and <code>/reports/:id/files/:name</code></h3></div><p>Lists report artifacts and downloads one by name. Use the returned URL rather than constructing a storage path.</p></article>
+                <article class="endpoint-card" id="endpoint-echo"><div class="endpoint-title"><span class="badge post">POST</span><h3><code>/webhooks/test</code> Request echo diagnostic</h3></div><p>This legacy-named route authenticates the caller and echoes its JSON body with receipt metadata. It does not register a webhook, simulate a report event, or send an outbound callback.</p></article>
+              </div>
+            </section>
+
+            <section class="section" id="fixtures">
+              <h2>Static fixtures</h2>
+              <p>These files are optional client-test inputs for parsers, UI states, and contract tests. They are not simulated API events and are never sent by the service.</p>
+              <div class="fixture-list">
+                <a href="../../fixtures/firstmeasure/report-completed.json">Completed report response</a>
+                <a href="../../fixtures/firstmeasure/report-in-progress.json">In-progress report response</a>
+                <a href="../../fixtures/firstmeasure/report-rejected.json">Rejected report response</a>
+                <a href="../../fixtures/firstmeasure/validation-error.json">Validation error response</a>
+                <a href="../../fixtures/firstmeasure/insufficient-credits.json">Insufficient credits response</a>
+                <a href="../../fixtures/firstmeasure/measurements.json">Parsed measurements response</a>
+                <a href="../../fixtures/firstmeasure/model-data.xml">Roofplan XML</a>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <aside class="right-rail" id="tester" aria-label="Sandbox API Explorer">
+          <div class="rail-card">
+            <h2>Production base URL</h2>
+            <code class="base-url" id="productionBase">https://app.1m8.ai/v1/public/firstmeasure</code>
+            <p>The host is fixed. Test and live keys use the same API base; the key selects the mode.</p>
+          </div>
+
+          <div class="rail-card explorer-card">
+            <div class="section-header">
+              <div>
+                <h2>Sandbox API Explorer</h2>
+                <p>Test keys only. Nothing is sent automatically.</p>
+              </div>
+              <span class="badge test">$0</span>
+            </div>
+
+            <div class="field">
+              <label for="apiKey">Test API key</label>
+              <div class="key-row">
+                <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="fmk_test_…">
+                <button class="button" id="toggleKey" type="button">Show</button>
+              </div>
+              <small class="field-help">Kept only in this page's memory/field; never placed in storage, cookies, or the URL. It clears on reload.</small>
+            </div>
+
+            <div class="field">
+              <label for="endpointPreset">Request</label>
+              <select id="endpointPreset">
+                <option value="createReport">Create sandbox report</option>
+                <option value="getReport">Get report detail</option>
+                <option value="pricing">Get pricing</option>
+                <option value="balance">Get balance</option>
+                <option value="listReports">List reports</option>
+                <option value="downloadMainPdf">Download main PDF</option>
+                <option value="downloadSummaryPdf">Download summary PDF</option>
+                <option value="generatePdf">Request PDF generation</option>
+                <option value="measurementsJson">Get measurements JSON</option>
+                <option value="measurementsRoofplan">Download Roofplan XML</option>
+                <option value="listFiles">List report files</option>
+                <option value="downloadFile">Download report file</option>
+                <option value="requestEcho">Request echo diagnostic</option>
+                <option value="root">Get API metadata</option>
+              </select>
+            </div>
+
+            <div class="request-meta">
+              <span class="method" id="requestMethod">POST</span>
+              <span class="request-path mono" id="requestPath">/v1/public/firstmeasure/reports</span>
+            </div>
+
+            <div class="field" id="reportIdContainer">
+              <label for="reportIdField">Report ID</label>
+              <input id="reportIdField" autocomplete="off" spellcheck="false" placeholder="Filled after create">
+            </div>
+
+            <div class="field">
+              <label for="fileNameField">File name</label>
+              <input id="fileNameField" value="model-data.xml" autocomplete="off" spellcheck="false">
+            </div>
+
+            <div class="field" id="idempotencyField">
+              <label for="idempotencyKeyField">Idempotency-Key</label>
+              <input id="idempotencyKeyField" readonly aria-readonly="true">
+              <small class="field-help">Generated automatically. Retry reuses it; a changed body or new request gets a new key.</small>
+            </div>
+
+            <div class="field" id="requestBodyField">
+              <label for="requestBody">JSON body</label>
+              <textarea id="requestBody" spellcheck="false"></textarea>
+            </div>
+
+            <div class="button-row">
+              <button class="button primary" id="sendRequest" type="button">Create sandbox report — $0</button>
+              <button class="button secondary" id="retryRequest" type="button">Retry same request</button>
+              <button class="button" id="newSandboxRequest" type="button">New request</button>
+            </div>
+
+            <div class="progress-steps" aria-label="Sandbox workflow progress">
+              <div class="progress-step active" id="progress-create">Create</div>
+              <div class="progress-step" id="progress-status">Status</div>
+              <div class="progress-step" id="progress-artifacts">Artifacts</div>
+            </div>
+
+            <div class="status-box" id="explorerStatus" aria-live="polite">Ready. No request will be sent until you click the create button.</div>
+
+            <div class="response-actions" aria-label="Artifact shortcuts">
+              <button class="button" type="button" data-artifact-preset="downloadMainPdf">Main PDF</button>
+              <button class="button" type="button" data-artifact-preset="downloadSummaryPdf">Summary PDF</button>
+              <button class="button" type="button" data-artifact-preset="measurementsJson">Measurements</button>
+              <button class="button" type="button" data-artifact-preset="listFiles">Files</button>
+            </div>
+
+            <h3>Response</h3>
+            <pre class="response-output" id="responseOutput">{
+  "ready": true
+}</pre>
+            <p class="download-note">PDF, XML, and file bodies download instead of being printed here.</p>
+
+            <div class="timeline">
+              <h3>Request timeline</h3>
+              <div id="timelineEntries"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <script src="../../app.js"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+{
+  "manifest_version": 3,
+  "name": "FirstMate Sales Bridge",
+  "description": "Coordinates JustCall Auto Dialer and Gmail for rapid sales email workflows.",
+  "version": "1.0.0",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://salesdialer.justcall.io/app/auto_dialer*",
+    "https://mail.google.com/mail/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*/*",
+    "https://*/*",
+    "https://*/measure/sales/firstmate-bridge/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "assets/icon_red.png",
+    "32": "assets/icon_red.png",
+    "48": "assets/icon_red.png",
+    "128": "assets/icon_red.png"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "FirstMate Sales Bridge",
+    "default_icon": {
+      "16": "assets/icon_red.png",
+      "32": "assets/icon_red.png",
+      "48": "assets/icon_red.png",
+      "128": "assets/icon_red.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://salesdialer.justcall.io/app/auto_dialer*"
+      ],
+      "js": [
+        "content/justcall.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://mail.google.com/mail/*"
+      ],
+      "js": [
+        "content/gmail.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/icon_red.png",
+        "assets/fonts/Montserrat-Regular.ttf",
+        "assets/fonts/Montserrat-SemiBold.ttf",
+        "assets/fonts/Montserrat-ExtraBold.ttf"
+      ],
+      "matches": [
+        "https://salesdialer.justcall.io/*",
+        "https://mail.google.com/*"
+      ]
+    }
+  ]
+}

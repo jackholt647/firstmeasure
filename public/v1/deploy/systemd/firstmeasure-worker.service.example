@@ -1,0 +1,25 @@
+[Unit]
+Description=FirstMeasure background worker
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Replace these two values with the User and Group from firstmate-v1.service.
+User=REPLACE_WITH_FIRSTMATE_SERVICE_USER
+Group=REPLACE_WITH_FIRSTMATE_SERVICE_GROUP
+WorkingDirectory=/var/www/ide/v1
+EnvironmentFile=/var/www/.env
+Environment=NODE_ENV=production
+Environment=FIRSTMATE_ENV=production
+Environment=FIRSTMEASURE_PROCESS_ROLE=worker
+Environment=FIRSTMEASURE_JOB_WORKERS=2
+ExecStart=/usr/bin/node --experimental-sqlite --max-old-space-size=4096 dist/src/firstmeasure_worker.js
+Restart=always
+RestartSec=2
+TimeoutStopSec=330
+MemoryMax=6G
+
+[Install]
+WantedBy=multi-user.target

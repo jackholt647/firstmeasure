@@ -1,0 +1,12 @@
+<IfModule mod_authz_core.c>
+  <FilesMatch "\.(json|sqlite|db|log)$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <FilesMatch "\.(json|sqlite|db|log)$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
+

@@ -1,0 +1,39 @@
+# Local machine configuration and runtime state
+local-stack.config.json
+.local-runtime/
+.codex-remote-attachments/
+updates/
+old/
+tmp/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+public/v1/.env
+public/v1/storage/
+public/storage/
+private/*
+!private/provider-keys.example.json
+
+# Node build output and dependencies
+node_modules/
+dist/
+public/v1/output/
+
+# Logs and temporary output
+*.log
+*.out
+*.err
+*.zip
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.pem
+*.key
+public/v1/pdf-page-stream-dump.txt
+_codex_tmp/
+**/_codex_tmp/
+_codex_screenshots/
+**/_codex_screenshots/

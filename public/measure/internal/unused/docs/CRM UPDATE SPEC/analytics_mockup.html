@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics v2 — First Mate CRM</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--red:#d93025;--rd:#a1241c;--rl:#fce8e6;--s9:#1a1f2e;--s8:#252b3b;--s7:#3a4255;--s6:#4d566b;--s5:#6b7588;--s4:#8b95a8;--s3:#b0b8c9;--s2:#d4dae6;--s1:#edf0f5;--s0:#f6f8fb;--w:#fff;--g:#1a8a4a;--gl:#e6f4ec;--o:#c4700a;--ol:#fef3e0;--b:#1a6bd9;--bl:#e8f0fe;--p:#7c3aed;--pl:#f3e8ff;--f:'DM Sans',system-ui,sans-serif;--sidebar:260px;--rs:6px;--rl2:14px}
+html{font-size:14px}body{font-family:var(--f);background:var(--s0);color:var(--s9);min-height:100vh;display:flex}
+input,textarea,select,button{font-family:inherit;font-size:inherit}
+.sidebar{width:var(--sidebar);background:var(--w);border-right:1px solid var(--s2);display:flex;flex-direction:column;height:100vh;position:sticky;top:0;flex-shrink:0}
+.sidebar-logo{padding:20px 20px 16px}.logo{font-weight:900;font-size:17px;color:var(--red)}.logo span{color:var(--s5);font-weight:500}
+.sidebar-desc{padding:0 20px 16px;font-size:12px;color:var(--s5);line-height:1.5;border-bottom:1px solid var(--s1)}
+.sidebar-nav{flex:1;padding:12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nb{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--rs);background:transparent;border:none;color:var(--s5);font-weight:600;font-size:13px;cursor:pointer;text-align:left;width:100%}.nb:hover{background:var(--s0);color:var(--s7)}.nb.active{background:var(--rl);color:var(--red)}.nb i{width:18px;text-align:center;font-size:13px}
+.sidebar-spacer{flex:1}
+.sidebar-user{padding:16px 20px;border-top:1px solid var(--s1)}.su-name{font-weight:800;font-size:13px}.su-email{font-size:11px;color:var(--s5);margin-top:2px}.su-role{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;background:var(--rl);color:var(--red);padding:2px 6px;border-radius:3px;margin-top:4px}
+.main{flex:1;overflow-y:auto;min-height:100vh}.mi{padding:28px 32px 60px;max-width:1400px}
+.page-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.page-hdr h1{font-size:22px;font-weight:900;letter-spacing:-.02em}
+/* FILTERS */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.fsel{padding:8px 12px;border:1px solid var(--s2);border-radius:var(--rs);font-size:12px;font-weight:600;background:var(--w);color:var(--s6);cursor:pointer}.fsel:focus{border-color:var(--b);outline:none}
+.ttog{display:flex;gap:0;border:1px solid var(--s2);border-radius:var(--rs);overflow:hidden}
+.ttog button{padding:8px 16px;font-size:12px;font-weight:700;border:none;background:var(--w);color:var(--s5);cursor:pointer}.ttog button.active{background:var(--s9);color:#fff}
+.compare-sel{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--s2);border-radius:var(--rs);background:var(--w);font-size:12px;font-weight:600;color:var(--s6)}
+.compare-sel i{color:var(--b)}
+/* CARDS */
+.sec{background:var(--w);border:1px solid var(--s2);border-radius:var(--rl2);overflow:hidden;margin-bottom:20px}
+.sec-head{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;background:var(--s0);border-bottom:1px solid var(--s1);flex-wrap:wrap;gap:8px}
+.sec-head h2{font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--s5)}
+.sec-body{padding:20px}
+/* METRICS */
+.metric-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.mc{background:var(--w);border:1px solid var(--s2);border-radius:10px;padding:14px}
+.mc-label{font-size:10px;font-weight:900;text-transform:uppercase;color:var(--s4);letter-spacing:.04em}
+.mc-main{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+.mc-value{font-size:24px;font-weight:900;color:var(--s9)}
+.mc-prev{font-size:13px;font-weight:600;color:var(--s4)}
+.mc-change{font-size:11px;font-weight:700;margin-top:2px}
+.mc-change.up{color:var(--g)}.mc-change.down{color:var(--red)}
+.mc-bar{height:4px;border-radius:2px;background:var(--s1);margin-top:6px;overflow:hidden;position:relative}
+.mc-bar-fill{height:100%;border-radius:2px;position:absolute;left:0;top:0}
+/* LEGEND */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--s6);cursor:pointer;padding:3px 8px;border-radius:999px;border:1px solid transparent}.legend-item:hover{background:var(--s0)}.legend-item.off{opacity:.3}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+/* CHART */
+.chart-area{position:relative;height:300px;border:1px solid var(--s1);border-radius:10px;background:var(--s0);overflow:hidden}
+.chart-y{position:absolute;left:0;top:0;bottom:30px;width:44px;display:flex;flex-direction:column;justify-content:space-between;padding:8px 0}
+.chart-y span{font-size:9px;color:var(--s4);font-weight:700;text-align:right;padding-right:6px}
+.chart-x{position:absolute;bottom:0;left:44px;right:0;height:30px;display:flex;justify-content:space-between;align-items:center;padding:0 10px}
+.chart-x span{font-size:9px;color:var(--s4);font-weight:700}
+.chart-grid{position:absolute;top:8px;bottom:30px;left:44px;right:0}
+.chart-gridline{position:absolute;left:0;right:0;height:1px;background:var(--s1)}
+.chart-svg{position:absolute;top:8px;bottom:30px;left:44px;right:0}
+.chart-note{position:absolute;top:12px;right:14px;font-size:10px;color:var(--s4);font-weight:600;background:rgba(255,255,255,.85);padding:4px 8px;border-radius:4px;border:1px solid var(--s1)}
+/* REP SELECTOR */
+.rep-sel{display:flex;gap:4px;flex-wrap:wrap}
+.rep-chip{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;color:var(--s6);cursor:pointer;display:flex;align-items:center;gap:5px}.rep-chip.active{background:var(--s9);color:#fff;border-color:var(--s9)}
+.av{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:8px;color:#fff}
+.av-1{background:#2563eb}.av-2{background:#7c3aed}.av-3{background:#dc2626}.av-4{background:#059669}.av-5{background:#d97706}.av-6{background:#4f46e5}.av-7{background:#0891b2}.av-8{background:#be185d}
+/* TABLES */
+.dt{width:100%;border-collapse:collapse}
+.dt th{text-align:left;padding:10px 12px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--s4);border-bottom:2px solid var(--s2);white-space:nowrap}.dt th.num{text-align:right}
+.dt td{padding:10px 12px;border-bottom:1px solid var(--s1);font-size:13px}.dt td.num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.dt tr:last-child td{border-bottom:none}.dt tr:hover{background:var(--s0)}.dt tr.total{background:var(--s0);font-weight:800}.dt tr.total td{border-top:2px solid var(--s2);border-bottom:none}
+.pct{padding:2px 6px;border-radius:4px;font-weight:800;font-size:12px}
+.pct.high{background:var(--gl);color:var(--g)}.pct.mid{background:var(--ol);color:var(--o)}.pct.low{background:var(--rl);color:var(--red)}
+.geo-name{font-weight:700;color:var(--s9)}
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--s2);margin-bottom:16px}
+.tab{padding:10px 16px;font-size:13px;font-weight:700;color:var(--s4);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}.tab.active{color:var(--s9);border-bottom-color:var(--red)}.tab:hover{color:var(--s7)}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo"><div class="logo">FirstMate <span>CRM</span></div></div>
+  <div class="sidebar-desc">Sales workspace — leads, pipeline, commissions, and team analytics.</div>
+  <div class="sidebar-nav">
+    <button class="nb"><i class="fas fa-home"></i> Dashboard</button>
+    <button class="nb"><i class="fas fa-columns"></i> Pipeline</button>
+    <button class="nb"><i class="fas fa-list"></i> Lead Lists</button>
+    <button class="nb"><i class="fas fa-users"></i> Leads</button>
+    <button class="nb active"><i class="fas fa-chart-line"></i> Analytics</button>
+    <button class="nb"><i class="fas fa-dollar-sign"></i> Commissions</button>
+    <button class="nb"><i class="fas fa-bolt"></i> Sequences</button>
+    <button class="nb"><i class="fas fa-scroll"></i> Scripts</button>
+    <button class="nb"><i class="fas fa-envelope"></i> Email Templates</button>
+    <button class="nb"><i class="fas fa-paper-plane"></i> Bulk Email</button>
+    <div class="sidebar-spacer"></div>
+    <button class="nb"><i class="fas fa-users-cog"></i> Users & Teams</button>
+    <button class="nb"><i class="fas fa-cog"></i> Settings</button>
+  </div>
+  <div class="sidebar-user"><div class="su-name">Ben Harbert</div><div class="su-email">ben@1m8.ai</div><div class="su-role">Manager</div></div>
+</div>
+
+<div class="main"><div class="mi">
+
+  <div class="page-hdr"><div><h1><i class="fas fa-chart-line" style="color:var(--b);margin-right:6px"></i> Analytics</h1></div></div>
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <div class="ttog">
+      <button onclick="tt(this)">Day</button>
+      <button class="active" onclick="tt(this)">Week</button>
+      <button onclick="tt(this)">Month</button>
+    </div>
+    <input type="date" value="2026-04-07" class="fsel">
+    <span style="color:var(--s4);font-weight:600;font-size:12px">to</span>
+    <input type="date" value="2026-04-13" class="fsel">
+    <select class="fsel"><option>All Reps</option><option>Frank Moseley</option><option>Benjamin Ellis</option><option>Jose Suarez</option><option>Matthäus Leite</option><option>Carly Ellis</option><option>Rory Johnson</option><option>Alvaro Cerdas</option><option>Emerson Solis</option></select>
+    <select class="fsel"><option>All Lists</option><option>Denver Metro Q2</option><option>Colorado Springs</option><option>Fort Collins</option></select>
+    <div style="flex:1"></div>
+    <div class="compare-sel"><i class="fas fa-exchange-alt"></i> Compare to: <select class="fsel" style="margin:0;padding:4px 8px"><option>Last Week</option><option>Yesterday</option><option>Same Day Last Week</option><option>Last Month</option><option>None</option></select></div>
+  </div>
+
+  <!-- SUMMARY METRICS with comparison -->
+  <div class="metric-row">
+    <div class="mc">
+      <div class="mc-label">Info Sent</div>
+      <div class="mc-main"><span class="mc-value">47</span><span class="mc-prev">vs 42</span></div>
+      <div class="mc-change up"><i class="fas fa-arrow-up"></i> +12% vs last week</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:112%;background:var(--b)"></div></div>
+    </div>
+    <div class="mc">
+      <div class="mc-label">Info Received</div>
+      <div class="mc-main"><span class="mc-value">28</span><span class="mc-prev">vs 26</span></div>
+      <div class="mc-change up"><i class="fas fa-arrow-up"></i> +8% vs last week</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:108%;background:var(--p)"></div></div>
+    </div>
+    <div class="mc">
+      <div class="mc-label">Sign-Ups</div>
+      <div class="mc-main"><span class="mc-value">12</span><span class="mc-prev">vs 10</span></div>
+      <div class="mc-change up"><i class="fas fa-arrow-up"></i> +20% vs last week</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:120%;background:var(--g)"></div></div>
+    </div>
+    <div class="mc">
+      <div class="mc-label">Funded $500+</div>
+      <div class="mc-main"><span class="mc-value">5</span><span class="mc-prev">vs 7</span></div>
+      <div class="mc-change down"><i class="fas fa-arrow-down"></i> -29% vs last week</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:71%;background:var(--red)"></div></div>
+    </div>
+    <div class="mc">
+      <div class="mc-label">Funded Value</div>
+      <div class="mc-main"><span class="mc-value">$6,850</span><span class="mc-prev">vs $5,650</span></div>
+      <div class="mc-change up"><i class="fas fa-arrow-up"></i> +$1,200</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:121%;background:var(--g)"></div></div>
+    </div>
+    <div class="mc">
+      <div class="mc-label">Calls (Orum)</div>
+      <div class="mc-main"><span class="mc-value">1,247</span><span class="mc-prev">vs 1,188</span></div>
+      <div class="mc-change up"><i class="fas fa-arrow-up"></i> +5%</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:105%;background:var(--s5)"></div></div>
+    </div>
+    <div class="mc">
+      <div class="mc-label">Conversations</div>
+      <div class="mc-main"><span class="mc-value">186</span><span class="mc-prev">vs 192</span></div>
+      <div class="mc-change down"><i class="fas fa-arrow-down"></i> -3%</div>
+      <div class="mc-bar"><div class="mc-bar-fill" style="width:97%;background:var(--o)"></div></div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="sec">
+    <div class="sec-head">
+      <h2>Performance Over Time</h2>
+      <div class="rep-sel">
+        <button class="rep-chip active"><div class="av" style="background:var(--s5)">T</div> Team</button>
+        <button class="rep-chip"><div class="av av-1">FM</div> Frank</button>
+        <button class="rep-chip"><div class="av av-2">BE</div> Ben E.</button>
+        <button class="rep-chip"><div class="av av-3">JS</div> Jose</button>
+        <button class="rep-chip"><div class="av av-4">ML</div> Matt</button>
+        <button class="rep-chip"><div class="av av-5">CE</div> Carly</button>
+        <button class="rep-chip"><div class="av av-6">RJ</div> Rory</button>
+        <button class="rep-chip"><div class="av av-7">AC</div> Alvaro</button>
+        <button class="rep-chip"><div class="av av-8">ES</div> Emerson</button>
+      </div>
+    </div>
+    <div class="sec-body">
+      <div class="legend">
+        <div class="legend-item" onclick="this.classList.toggle('off')"><div class="legend-dot" style="background:#2563eb"></div> Info Sent</div>
+        <div class="legend-item" onclick="this.classList.toggle('off')"><div class="legend-dot" style="background:#7c3aed"></div> Info Received</div>
+        <div class="legend-item" onclick="this.classList.toggle('off')"><div class="legend-dot" style="background:#059669"></div> Sign-Ups</div>
+        <div class="legend-item" onclick="this.classList.toggle('off')"><div class="legend-dot" style="background:#d97706"></div> Funded</div>
+        <div class="legend-item" onclick="this.classList.toggle('off')"><div class="legend-dot" style="background:#64748b"></div> Calls</div>
+        <div class="legend-item" onclick="this.classList.toggle('off')"><div class="legend-dot" style="background:#0891b2"></div> Conversations</div>
+        <div class="legend-item" style="margin-left:auto;border:1px solid var(--s2);background:var(--s0)"><div class="legend-dot" style="background:transparent;border:2px dashed var(--s4)"></div> Last Week</div>
+      </div>
+      <div class="chart-area">
+        <div class="chart-y"><span>50</span><span>40</span><span>30</span><span>20</span><span>10</span><span>0</span></div>
+        <div class="chart-grid">
+          <div class="chart-gridline" style="top:0%"></div>
+          <div class="chart-gridline" style="top:20%"></div>
+          <div class="chart-gridline" style="top:40%"></div>
+          <div class="chart-gridline" style="top:60%"></div>
+          <div class="chart-gridline" style="top:80%"></div>
+        </div>
+        <svg class="chart-svg" viewBox="0 0 700 270" preserveAspectRatio="none" style="width:100%;height:100%">
+          <!-- PREVIOUS PERIOD - dashed -->
+          <polyline fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="6,6" opacity=".3" points="20,195 120,180 220,165 320,155 420,165 520,145 620,130"/>
+          <polyline fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="6,6" opacity=".3" points="20,215 120,205 220,195 320,185 420,195 520,175 620,160"/>
+          <polyline fill="none" stroke="#059669" stroke-width="1.5" stroke-dasharray="6,6" opacity=".3" points="20,240 120,235 220,228 320,218 420,228 520,215 620,208"/>
+          <!-- CURRENT PERIOD - solid -->
+          <polyline fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="20,180 120,160 220,140 320,120 420,145 520,110 620,100"/>
+          <g fill="#2563eb"><circle cx="20" cy="180" r="4"/><circle cx="120" cy="160" r="4"/><circle cx="220" cy="140" r="4"/><circle cx="320" cy="120" r="4"/><circle cx="420" cy="145" r="4"/><circle cx="520" cy="110" r="4"/><circle cx="620" cy="100" r="4"/></g>
+          <polyline fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="20,200 120,190 220,175 320,160 420,170 520,150 620,140"/>
+          <g fill="#7c3aed"><circle cx="20" cy="200" r="4"/><circle cx="120" cy="190" r="4"/><circle cx="220" cy="175" r="4"/><circle cx="320" cy="160" r="4"/><circle cx="420" cy="170" r="4"/><circle cx="520" cy="150" r="4"/><circle cx="620" cy="140" r="4"/></g>
+          <polyline fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="20,225 120,220 220,210 320,200 420,215 520,195 620,190"/>
+          <g fill="#059669"><circle cx="20" cy="225" r="4"/><circle cx="120" cy="220" r="4"/><circle cx="220" cy="210" r="4"/><circle cx="320" cy="200" r="4"/><circle cx="420" cy="215" r="4"/><circle cx="520" cy="195" r="4"/><circle cx="620" cy="190" r="4"/></g>
+          <polyline fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" points="20,248 120,245 220,240 320,235 420,242 520,230 620,228"/>
+          <g fill="#d97706"><circle cx="20" cy="248" r="3"/><circle cx="120" cy="245" r="3"/><circle cx="220" cy="240" r="3"/><circle cx="320" cy="235" r="3"/><circle cx="420" cy="242" r="3"/><circle cx="520" cy="230" r="3"/><circle cx="620" cy="228" r="3"/></g>
+        </svg>
+        <div class="chart-note"><i class="fas fa-info-circle" style="color:var(--b)"></i> Dashed lines = last week</div>
+        <div class="chart-x"><span>Mon 4/7</span><span>Tue 4/8</span><span>Wed 4/9</span><span>Thu 4/10</span><span>Fri 4/11</span><span>Sat 4/12</span><span>Sun 4/13</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:var(--bl);border-radius:var(--rs);font-size:12px;color:var(--b)">
+        <div><strong>Pacing:</strong> Through Sunday this week: <strong>47 Info Sent</strong> vs 42 through Sunday last week. <strong>+12% ahead.</strong></div>
+        <div style="font-weight:800">📈 On track for best week this month</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILED BREAKDOWN -->
+  <div class="sec">
+    <div class="sec-head"><h2>Detailed Breakdown</h2></div>
+    <div class="sec-body">
+      <div class="tabs">
+        <div class="tab active" onclick="showDt('pipeline',this)">Pipeline by Rep</div>
+        <div class="tab" onclick="showDt('geo',this)">Geographic</div>
+        <div class="tab" onclick="showDt('seq',this)">Sequences</div>
+        <div class="tab" onclick="showDt('velocity',this)">Velocity</div>
+      </div>
+
+      <!-- PIPELINE TABLE -->
+      <div id="dt-pipeline">
+        <div style="overflow-x:auto">
+        <table class="dt">
+          <thead><tr>
+            <th>Rep</th>
+            <th class="num">Leads</th>
+            <th class="num">Contacted</th>
+            <th class="num">C %</th>
+            <th class="num">Info Sent</th>
+            <th class="num">S %</th>
+            <th class="num">Info Recv</th>
+            <th class="num">R %</th>
+            <th class="num">Signed Up</th>
+            <th class="num">Funded</th>
+            <th class="num">Funded $</th>
+            <th class="num">10 Orders</th>
+            <th class="num">Referrals</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-1" style="width:24px;height:24px;font-size:9px">FM</div><span style="font-weight:700">Frank Moseley</span></div></td>
+              <td class="num">312</td><td class="num">187</td><td class="num"><span class="pct high">60%</span></td><td class="num">42</td><td class="num"><span class="pct high">22%</span></td><td class="num">28</td><td class="num"><span class="pct high">67%</span></td><td class="num">12</td><td class="num">5</td><td class="num" style="color:var(--g);font-weight:800">$6,200</td><td class="num">3</td><td class="num">4</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-2" style="width:24px;height:24px;font-size:9px">BE</div><span style="font-weight:700">Benjamin Ellis</span></div></td>
+              <td class="num">285</td><td class="num">162</td><td class="num"><span class="pct high">57%</span></td><td class="num">38</td><td class="num"><span class="pct high">23%</span></td><td class="num">22</td><td class="num"><span class="pct mid">58%</span></td><td class="num">9</td><td class="num">3</td><td class="num" style="color:var(--g);font-weight:800">$3,800</td><td class="num">2</td><td class="num">2</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-3" style="width:24px;height:24px;font-size:9px">JS</div><span style="font-weight:700">Jose Suarez</span></div></td>
+              <td class="num">268</td><td class="num">148</td><td class="num"><span class="pct mid">55%</span></td><td class="num">31</td><td class="num"><span class="pct high">21%</span></td><td class="num">18</td><td class="num"><span class="pct mid">58%</span></td><td class="num">8</td><td class="num">3</td><td class="num" style="color:var(--g);font-weight:800">$2,400</td><td class="num">1</td><td class="num">1</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-4" style="width:24px;height:24px;font-size:9px">ML</div><span style="font-weight:700">Matthäus Leite</span></div></td>
+              <td class="num">195</td><td class="num">120</td><td class="num"><span class="pct high">62%</span></td><td class="num">28</td><td class="num"><span class="pct high">23%</span></td><td class="num">20</td><td class="num"><span class="pct high">71%</span></td><td class="num">6</td><td class="num">2</td><td class="num" style="color:var(--g);font-weight:800">$1,800</td><td class="num">1</td><td class="num">0</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-5" style="width:24px;height:24px;font-size:9px">CE</div><span style="font-weight:700">Carly Ellis</span></div></td>
+              <td class="num">245</td><td class="num">130</td><td class="num"><span class="pct mid">53%</span></td><td class="num">22</td><td class="num"><span class="pct mid">17%</span></td><td class="num">10</td><td class="num"><span class="pct low">45%</span></td><td class="num">4</td><td class="num">1</td><td class="num" style="color:var(--g);font-weight:800">$600</td><td class="num">0</td><td class="num">0</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-6" style="width:24px;height:24px;font-size:9px">RJ</div><span style="font-weight:700">Rory Johnson</span></div></td>
+              <td class="num">210</td><td class="num">98</td><td class="num"><span class="pct low">47%</span></td><td class="num">18</td><td class="num"><span class="pct mid">18%</span></td><td class="num">9</td><td class="num"><span class="pct mid">50%</span></td><td class="num">3</td><td class="num">0</td><td class="num">$0</td><td class="num">0</td><td class="num">0</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-7" style="width:24px;height:24px;font-size:9px">AC</div><span style="font-weight:700">Alvaro Cerdas</span></div></td>
+              <td class="num">178</td><td class="num">82</td><td class="num"><span class="pct low">46%</span></td><td class="num">14</td><td class="num"><span class="pct mid">17%</span></td><td class="num">6</td><td class="num"><span class="pct low">43%</span></td><td class="num">2</td><td class="num">0</td><td class="num">$0</td><td class="num">0</td><td class="num">0</td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="av av-8" style="width:24px;height:24px;font-size:9px">ES</div><span style="font-weight:700">Emerson Solis</span></div></td>
+              <td class="num">156</td><td class="num">68</td><td class="num"><span class="pct low">44%</span></td><td class="num">10</td><td class="num"><span class="pct low">15%</span></td><td class="num">4</td><td class="num"><span class="pct low">40%</span></td><td class="num">1</td><td class="num">0</td><td class="num">$0</td><td class="num">0</td><td class="num">0</td>
+            </tr>
+            <tr class="total">
+              <td style="font-weight:900">Team Total</td>
+              <td class="num">1,849</td><td class="num">995</td><td class="num"><span class="pct mid">54%</span></td><td class="num">203</td><td class="num"><span class="pct mid">20%</span></td><td class="num">117</td><td class="num"><span class="pct mid">58%</span></td><td class="num">45</td><td class="num">14</td><td class="num" style="color:var(--g);font-weight:900">$14,800</td><td class="num">7</td><td class="num">7</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- GEOGRAPHIC TABLE -->
+      <div id="dt-geo" style="display:none">
+        <div style="overflow-x:auto">
+        <table class="dt">
+          <thead><tr><th>State</th><th class="num">Leads</th><th class="num">Info Sent</th><th class="num">Info Recv</th><th class="num">Signed Up</th><th class="num">Funded</th><th class="num">Sent→Recv</th><th class="num">Recv→Signup</th></tr></thead>
+          <tbody>
+            <tr><td class="geo-name">Colorado</td><td class="num">482</td><td class="num">68</td><td class="num">41</td><td class="num">18</td><td class="num">7</td><td class="num"><span class="pct high">60%</span></td><td class="num"><span class="pct high">44%</span></td></tr>
+            <tr><td class="geo-name">Texas</td><td class="num">356</td><td class="num">42</td><td class="num">22</td><td class="num">8</td><td class="num">3</td><td class="num"><span class="pct mid">52%</span></td><td class="num"><span class="pct mid">36%</span></td></tr>
+            <tr><td class="geo-name">Utah</td><td class="num">298</td><td class="num">35</td><td class="num">20</td><td class="num">7</td><td class="num">2</td><td class="num"><span class="pct mid">57%</span></td><td class="num"><span class="pct mid">35%</span></td></tr>
+            <tr><td class="geo-name">Arizona</td><td class="num">245</td><td class="num">28</td><td class="num">14</td><td class="num">5</td><td class="num">1</td><td class="num"><span class="pct mid">50%</span></td><td class="num"><span class="pct mid">36%</span></td></tr>
+            <tr><td class="geo-name">Washington</td><td class="num">198</td><td class="num">18</td><td class="num">12</td><td class="num">4</td><td class="num">1</td><td class="num"><span class="pct high">67%</span></td><td class="num"><span class="pct low">33%</span></td></tr>
+            <tr><td class="geo-name">Oregon</td><td class="num">142</td><td class="num">8</td><td class="num">4</td><td class="num">2</td><td class="num">0</td><td class="num"><span class="pct mid">50%</span></td><td class="num"><span class="pct mid">50%</span></td></tr>
+            <tr><td class="geo-name">Nevada</td><td class="num">128</td><td class="num">4</td><td class="num">4</td><td class="num">1</td><td class="num">0</td><td class="num"><span class="pct high">100%</span></td><td class="num"><span class="pct low">25%</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- SEQUENCES TABLE -->
+      <div id="dt-seq" style="display:none">
+        <div style="overflow-x:auto">
+        <table class="dt">
+          <thead><tr><th>Sequence</th><th class="num">Enrolled</th><th class="num">Active</th><th class="num">Completed</th><th class="num">Paused (Response)</th><th class="num">Paused (Error)</th><th class="num">→ Next Stage</th><th class="num">Conversion</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:700">Info Sent</td><td class="num">203</td><td class="num">42</td><td class="num">87</td><td class="num">61</td><td class="num">3</td><td class="num">117</td><td class="num"><span class="pct high">58%</span></td></tr>
+            <tr><td style="font-weight:700">Info Received</td><td class="num">117</td><td class="num">28</td><td class="num">34</td><td class="num">41</td><td class="num">1</td><td class="num">45</td><td class="num"><span class="pct mid">38%</span></td></tr>
+            <tr><td style="font-weight:700">Signed Up</td><td class="num">45</td><td class="num">18</td><td class="num">12</td><td class="num">9</td><td class="num">0</td><td class="num">14</td><td class="num"><span class="pct low">31%</span></td></tr>
+            <tr><td style="font-weight:700">New Assignment</td><td class="num">8</td><td class="num">5</td><td class="num">2</td><td class="num">1</td><td class="num">0</td><td class="num">2</td><td class="num"><span class="pct low">25%</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- VELOCITY TABLE -->
+      <div id="dt-velocity" style="display:none">
+        <div style="overflow-x:auto">
+        <table class="dt">
+          <thead><tr><th>Stage Transition</th><th class="num">Avg Days</th><th class="num">Median Days</th><th class="num">This Week</th><th class="num">Last Week</th><th class="num">Trend</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:700">Contacted → Info Sent</td><td class="num">3.2</td><td class="num">2</td><td class="num">2.8</td><td class="num">3.5</td><td class="num"><span class="pct high">↑ Faster</span></td></tr>
+            <tr><td style="font-weight:700">Info Sent → Info Received</td><td class="num">4.1</td><td class="num">3</td><td class="num">3.6</td><td class="num">4.3</td><td class="num"><span class="pct high">↑ Faster</span></td></tr>
+            <tr><td style="font-weight:700">Info Received → Signed Up</td><td class="num">6.8</td><td class="num">5</td><td class="num">7.2</td><td class="num">6.1</td><td class="num"><span class="pct low">↓ Slower</span></td></tr>
+            <tr><td style="font-weight:700">Signed Up → Active Customer</td><td class="num">2.1</td><td class="num">1</td><td class="num">1.8</td><td class="num">2.4</td><td class="num"><span class="pct high">↑ Faster</span></td></tr>
+            <tr><td style="font-weight:700">Active → Account Funded</td><td class="num">0.8</td><td class="num">0</td><td class="num">0.6</td><td class="num">1.1</td><td class="num"><span class="pct high">↑ Faster</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div></div>
+
+<script>
+function tt(el){el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));el.classList.add('active')}
+function showDt(id,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');['pipeline','geo','seq','velocity'].forEach(x=>document.getElementById('dt-'+x).style.display=x===id?'block':'none')}
+</script>
+</body>
+</html>

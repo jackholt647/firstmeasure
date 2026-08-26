@@ -1,0 +1,286 @@
+﻿{
+    "moved_at":  "2026-06-01T22:13:21.4346713-07:00",
+    "updated_at":  "2026-06-01T22:14:21.5069648-07:00",
+    "root":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal",
+    "moved":  [
+                  {
+                      "Name":  "codex_local_runtime_probe.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\codex_local_runtime_probe.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\codex_local_runtime_probe.php"
+                  },
+                  {
+                      "Name":  "codex_pdf_standalone_test.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\codex_pdf_standalone_test.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\codex_pdf_standalone_test.php"
+                  },
+                  {
+                      "Name":  "diagnose.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\diagnose.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\diagnose.php"
+                  },
+                  {
+                      "Name":  "__codex_probe_dash.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__codex_probe_dash.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__codex_probe_dash.php"
+                  },
+                  {
+                      "Name":  "__codex_probe_detail.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__codex_probe_detail.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__codex_probe_detail.php"
+                  },
+                  {
+                      "Name":  "__diag_action_leads.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_action_leads.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_action_leads.php"
+                  },
+                  {
+                      "Name":  "__diag_handle_dashboard_jack.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_handle_dashboard_jack.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_handle_dashboard_jack.php"
+                  },
+                  {
+                      "Name":  "__diag_handle_leads.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_handle_leads.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_handle_leads.php"
+                  },
+                  {
+                      "Name":  "__diag_handle_leads_jack.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_handle_leads_jack.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_handle_leads_jack.php"
+                  },
+                  {
+                      "Name":  "__diag_handle_lead_get.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_handle_lead_get.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_handle_lead_get.php"
+                  },
+                  {
+                      "Name":  "__diag_handle_lead_get_jack.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_handle_lead_get_jack.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_handle_lead_get_jack.php"
+                  },
+                  {
+                      "Name":  "__diag_leads.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_leads.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_leads.php"
+                  },
+                  {
+                      "Name":  "__diag_leads2.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_leads2.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_leads2.php"
+                  },
+                  {
+                      "Name":  "__diag_userdir.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_userdir.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_userdir.php"
+                  },
+                  {
+                      "Name":  "__diag_user_jack.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_user_jack.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_user_jack.php"
+                  },
+                  {
+                      "Name":  "__diag_web_session.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__diag_web_session.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__diag_web_session.php"
+                  },
+                  {
+                      "Name":  "__make_diag_session.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__make_diag_session.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__make_diag_session.php"
+                  },
+                  {
+                      "Name":  "__plant_session.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__plant_session.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__plant_session.php"
+                  },
+                  {
+                      "Name":  "__read_web_diag.php",
+                      "Bucket":  "diagnostics",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\__read_web_diag.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\diagnostics\\__read_web_diag.php"
+                  },
+                  {
+                      "Name":  "generate_orgs_temp.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\generate_orgs_temp.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\generate_orgs_temp.php"
+                  },
+                  {
+                      "Name":  "migrate.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\migrate.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\migrate.php"
+                  },
+                  {
+                      "Name":  "migrate_metadata_once.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\migrate_metadata_once.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\migrate_metadata_once.php"
+                  },
+                  {
+                      "Name":  "reconcile.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\reconcile.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\reconcile.php"
+                  },
+                  {
+                      "Name":  "saves_usage.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\saves_usage.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\saves_usage.php"
+                  },
+                  {
+                      "Name":  "test_projects.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\test_projects.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\test_projects.php"
+                  },
+                  {
+                      "Name":  "old_portal.php",
+                      "Bucket":  "old_runtime",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\old_portal.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\old_runtime\\old_portal.php"
+                  },
+                  {
+                      "Name":  "geometry_core_tri.js",
+                      "Bucket":  "old_runtime",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\geometry_core_tri.js",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\old_runtime\\geometry_core_tri.js"
+                  },
+                  {
+                      "Name":  "_deprecated_projects_legacy_unused.php",
+                      "Bucket":  "old_runtime",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\_deprecated_projects_legacy_unused.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\old_runtime\\_deprecated_projects_legacy_unused.php"
+                  },
+                  {
+                      "Name":  "_lead.php.recovery_2026-04-20_older_backup.php",
+                      "Bucket":  "backups",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\_lead.php.recovery_2026-04-20_older_backup.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\backups\\_lead.php.recovery_2026-04-20_older_backup.php"
+                  },
+                  {
+                      "Name":  "update-5-27-26.zip",
+                      "Bucket":  "archives",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\update-5-27-26.zip",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\archives\\update-5-27-26.zip"
+                  },
+                  {
+                      "Name":  "CRM UPDATE SPEC",
+                      "Bucket":  "docs",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\CRM UPDATE SPEC",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\docs\\CRM UPDATE SPEC"
+                  },
+                  {
+                      "Name":  "new_crm",
+                      "Bucket":  "old_runtime",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\new_crm",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\old_runtime\\new_crm"
+                  },
+                  {
+                      "Name":  "config",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\config",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\config"
+                  },
+                  {
+                      "Name":  "coupons",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\coupons",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\coupons"
+                  },
+                  {
+                      "Name":  "lists",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\lists",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\lists"
+                  },
+                  {
+                      "Name":  "logs",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\logs",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\logs"
+                  },
+                  {
+                      "Name":  "meta",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\meta",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\meta"
+                  },
+                  {
+                      "Name":  "organizations",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\organizations",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\organizations"
+                  },
+                  {
+                      "Name":  "stripe_events",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\stripe_events",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\stripe_events"
+                  },
+                  {
+                      "Name":  "stripe_events_live",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\stripe_events_live",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\stripe_events_live"
+                  },
+                  {
+                      "Name":  "stripe_events_test",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\stripe_events_test",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\stripe_events_test"
+                  },
+                  {
+                      "Name":  "territory",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\territory",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\territory"
+                  },
+                  {
+                      "Name":  "users",
+                      "Bucket":  "storage_aliases",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\users",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\storage_aliases\\users"
+                  },
+                  {
+                      "Name":  "gaf_compare.php",
+                      "Bucket":  "migration_tools",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\gaf_compare.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\migration_tools\\gaf_compare.php"
+                  },
+                  {
+                      "Name":  "quadview.php",
+                      "Bucket":  "old_runtime",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\quadview.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\old_runtime\\quadview.php"
+                  },
+                  {
+                      "Name":  "_call_scripts/_deprecated_projects_legacy_unused.php",
+                      "Bucket":  "old_runtime",
+                      "From":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\_call_scripts\\_deprecated_projects_legacy_unused.php",
+                      "To":  "C:\\Users\\jackh\\Code\\2026\\codex\\FirstMate 2.0\\public\\measure\\internal\\unused\\old_runtime\\_call_scripts___deprecated_projects_legacy_unused.php"
+                  }
+              ],
+    "skipped":  [
+
+                ]
+}

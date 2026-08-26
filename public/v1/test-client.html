@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FirstMeasure API Docs</title>
+  <style>
+    :root { --bg:#f4ecdf; --panel:#fffaf3; --ink:#1e1915; --muted:#685b4f; --accent:#8a3b12; --accent2:#355f59; --line:#dccbb6; --code:#211d1a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Georgia,"Times New Roman",serif; color:var(--ink); background:linear-gradient(180deg,#f8f1e8 0%,#eee1cf 100%); }
+    .layout { max-width:1600px; margin:0 auto; padding:18px; display:grid; grid-template-columns:230px minmax(0,1fr) 400px; gap:16px; }
+    .panel { background:rgba(255,250,243,.95); border:1px solid var(--line); border-radius:18px; box-shadow:0 16px 30px rgba(67,43,19,.08); }
+    .sidebar,.tester { position:sticky; top:18px; height:calc(100vh - 36px); overflow:auto; padding:18px; }
+    .content { display:grid; gap:16px; }
+    .intro,.shared,.endpoint { padding:20px; }
+    .eyebrow { display:inline-block; padding:4px 9px; border-radius:999px; background:#f0e2d0; color:var(--accent); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+    h1,h2,h3 { margin:0 0 10px; }
+    p { margin:0 0 12px; color:var(--muted); line-height:1.5; }
+    .nav-group { margin-top:16px; }
+    .nav-group h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    .nav-group a { display:block; padding:8px 10px; margin-bottom:6px; border-radius:12px; text-decoration:none; color:inherit; }
+    .nav-group a.active,.nav-group a:hover { background:#f0e5d7; }
+    .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .mini { padding:14px; border:1px solid var(--line); border-radius:14px; background:#fffdf8; }
+    .mini strong { display:block; margin-bottom:6px; }
+    .endpoint { scroll-margin-top:18px; }
+    .head { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+    .method { min-width:56px; text-align:center; border-radius:999px; padding:5px 10px; font:700 12px/1 system-ui,sans-serif; color:#fff; }
+    .get { background:var(--accent2); } .post { background:var(--accent); } .put { background:#705325; } .patch { background:#7a4e72; }
+    .path { padding:7px 10px; border-radius:12px; background:#f4ece1; font:600 14px/1.4 Consolas,"Courier New",monospace; overflow-wrap:anywhere; }
+    .code { margin:0; padding:12px; border-radius:14px; background:var(--code); color:#f7f1e7; border:1px solid #41352b; white-space:pre-wrap; word-break:break-word; font:12px/1.55 Consolas,"Courier New",monospace; }
+    .actions,.endpoint-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    button { border:0; border-radius:999px; padding:10px 14px; background:var(--accent); color:#fff; cursor:pointer; font-weight:700; }
+    button.secondary { background:#6d6257; }
+    button.ghost { background:#ece0d0; color:var(--ink); }
+    label { display:grid; gap:6px; font-size:14px; color:var(--muted); }
+    input,select,textarea { width:100%; border:1px solid #cfbda6; border-radius:12px; padding:10px 12px; font:inherit; color:var(--ink); background:#fff; }
+    textarea { min-height:230px; resize:vertical; font-family:Consolas,"Courier New",monospace; font-size:13px; }
+    .row { display:grid; grid-template-columns:1fr 132px; gap:10px; }
+    .response { min-height:250px; max-height:360px; overflow:auto; }
+    @media (max-width:1320px) { .layout { grid-template-columns:220px minmax(0,1fr); } .tester { grid-column:1 / -1; position:static; height:auto; } }
+    @media (max-width:880px) { .layout { grid-template-columns:1fr; } .sidebar { position:static; height:auto; } .grid2,.row { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="panel sidebar">
+      <span class="eyebrow">FirstMeasure API</span>
+      <h1>Docs + Tester</h1>
+      <p>Single report model. Use one report endpoint and vary `branding` plus `prepared_for` to get internal or customer-facing output.</p>
+      <div id="nav"></div>
+    </aside>
+
+    <main class="content">
+      <section class="panel intro" id="overview">
+        <span class="eyebrow">Overview</span>
+        <h2>Current Shape</h2>
+        <div class="grid2">
+          <div class="mini"><strong>Internal report</strong><span>Send default branding and omit `prepared_for`.</span></div>
+          <div class="mini"><strong>Customer report</strong><span>Send company branding and include `prepared_for`.</span></div>
+          <div class="mini"><strong>Stored default</strong><span>`GET /projects/:id/pdf` returns the saved default `Report.pdf`.</span></div>
+          <div class="mini"><strong>Gutter option</strong><span>Projects now use `include_gutter_measurements` as a simple boolean.</span></div>
+        </div>
+      </section>
+
+      <section class="panel shared" id="shared-models">
+        <span class="eyebrow">Shared Models</span>
+        <h2>Common Payload Shapes</h2>
+        <div class="grid2">
+          <div class="mini">
+            <strong>`branding`</strong>
+            <pre class="code">{
+  "logo_url": "https://example.com/logo.png",
+  "primary_color": "#8A3B12",
+  "secondary_color": "#E8D6C1"
+}</pre>
+          </div>
+          <div class="mini">
+            <strong>`prepared_for`</strong>
+            <pre class="code">{
+  "name": "Jane Smith",
+  "company": "Smith Roofing",
+  "address_line_1": "123 Main St",
+  "city": "Seattle",
+  "state": "WA",
+  "postal_code": "98101"
+}</pre>
+          </div>
+          <div class="mini">
+            <strong>`include_gutter_measurements`</strong>
+            <pre class="code">{
+  "include_gutter_measurements": true
+}</pre>
+          </div>
+          <div class="mini">
+            <strong>`page` / `pages`</strong>
+            <pre class="code">{
+  "page": {
+    "key": "ventilation",
+    "page_number": 8,
+    "show_page_number": true
+  }
+}</pre>
+          </div>
+        </div>
+      </section>
+
+      <div id="docs"></div>
+    </main>
+
+    <aside class="panel tester">
+      <span class="eyebrow">Live Tester</span>
+      <h2 id="testerTitle">Select an endpoint</h2>
+      <p id="testerDescription">Load an endpoint from the docs to populate this tester.</p>
+      <div class="actions" style="margin-bottom:12px;">
+        <button id="ping" class="secondary" type="button">Quick Ping</button>
+        <button id="copyCurl" class="ghost" type="button">Copy cURL</button>
+      </div>
+      <label>API Base<input id="baseUrl" value="http://127.0.0.1:3111"></label>
+      <div class="row">
+        <label>Project ID<input id="projectId" value="example-project"></label>
+        <label>Method<input id="method" readonly></label>
+      </div>
+      <label>Request URL<input id="url"></label>
+      <label>Content Type<select id="contentType"><option value="application/json" selected>application/json</option><option value="text/plain">text/plain</option></select></label>
+      <label>Request Body<textarea id="body"></textarea></label>
+      <div class="actions"><button id="send">Send Request</button></div>
+      <pre class="code response" id="output">No request sent yet.</pre>
+    </aside>
+  </div>
+
+  <script>
+    const groups = [
+      { id: "basics", title: "Basics", items: [
+        { id: "root", method: "GET", path: "/v1/firstmeasure", title: "API Root", description: "Confirms the module is mounted and returns a short endpoint map.", requestBody: "", responseNotes: "JSON with `ok`, `api`, and endpoint pointers." },
+        { id: "ping-doc", method: "GET", path: "/v1/firstmeasure/ping", title: "Ping", description: "Simple heartbeat route.", requestBody: "", responseNotes: "JSON with method, query, and timestamp." },
+        { id: "echo", method: "POST", path: "/v1/firstmeasure/echo", title: "Echo", description: "Returns the JSON body you send.", requestBody: JSON.stringify({ hello: "world", source: "docs-tester" }, null, 2), responseNotes: "Mirrored JSON response." }
+      ]},
+      { id: "projects", title: "Projects", items: [
+        { id: "list-projects", method: "GET", path: "/v1/firstmeasure/projects", title: "List Projects", description: "Lists all saved project manifests.", requestBody: "", responseNotes: "JSON with `count` and `projects`." },
+        { id: "create-project", method: "POST", path: "/v1/firstmeasure/projects", title: "Create Project", description: "Creates a project and initial manifest.", requestBody: JSON.stringify({ id: "example-project", address: "123 Test Ave, Edmonds, WA 98026", project_type: "residential", include_gutter_measurements: true, branding_defaults: { logo_url: "https://example.com/default-logo.png", primary_color: "#8A3B12", secondary_color: "#E8D6C1" } }, null, 2), responseNotes: "JSON with full project detail." },
+        { id: "query-projects", method: "POST", path: "/v1/firstmeasure/projects/query", title: "Query Projects", description: "Filters the project list.", requestBody: JSON.stringify({ search: "example", statuses: ["queued"], limit: 25, has_report_pdf: false }, null, 2), responseNotes: "Filtered manifest array." },
+        { id: "get-project", method: "GET", path: "/v1/firstmeasure/projects/:id", title: "Get Project", description: "Returns one project's manifest and attached document values.", requestBody: "", responseNotes: "JSON with manifest, metadata, branding defaults, PDF state, and files." },
+        { id: "patch-project", method: "PATCH", path: "/v1/firstmeasure/projects/:id", title: "Patch Project", description: "Deep-merges manifest updates.", requestBody: JSON.stringify({ tech_notes: "Customer version requested.", include_gutter_measurements: false }, null, 2), responseNotes: "Updated manifest and files." },
+        { id: "status-project", method: "POST", path: "/v1/firstmeasure/projects/:id/status", title: "Update Status", description: "Sets a workflow status.", requestBody: JSON.stringify({ status: "awaiting_review" }, null, 2), responseNotes: "Updated manifest." }
+      ]},
+      { id: "documents", title: "Project Documents", items: [
+        { id: "get-app-metadata", method: "GET", path: "/v1/firstmeasure/projects/:id/app-metadata", title: "Get App Metadata", description: "Fetches the opaque editor document.", requestBody: "", responseNotes: "JSON with `value`." },
+        { id: "put-app-metadata", method: "PUT", path: "/v1/firstmeasure/projects/:id/app-metadata", title: "Save App Metadata", description: "Stores the opaque editor document.", requestBody: JSON.stringify({ currentViewId: "overview", uiState: { zoom: 1.15 } }, null, 2), responseNotes: "Echoed saved value." },
+        { id: "get-pdf-state", method: "GET", path: "/v1/firstmeasure/projects/:id/pdf-state", title: "Get PDF State", description: "Fetches the saved report snapshot.", requestBody: "", responseNotes: "JSON with `value`." },
+        { id: "put-pdf-state", method: "PUT", path: "/v1/firstmeasure/projects/:id/pdf-state", title: "Save PDF State", description: "Stores the saved report snapshot.", requestBody: JSON.stringify({ snapshotVersion: 1, address: "123 Test Ave" }, null, 2), responseNotes: "Echoed saved value." },
+        { id: "get-branding", method: "GET", path: "/v1/firstmeasure/projects/:id/branding-defaults", title: "Get Branding Defaults", description: "Fetches project default branding.", requestBody: "", responseNotes: "JSON with `value`." },
+        { id: "put-branding", method: "PUT", path: "/v1/firstmeasure/projects/:id/branding-defaults", title: "Save Branding Defaults", description: "Stores project default branding.", requestBody: JSON.stringify({ logo_url: "https://example.com/company-logo.png", primary_color: "#2E5A88", secondary_color: "#D9E4F0" }, null, 2), responseNotes: "Echoed saved value." }
+      ]},
+      { id: "artifacts", title: "Artifacts", items: [
+        { id: "list-artifacts", method: "GET", path: "/v1/firstmeasure/projects/:id/artifacts", title: "List Artifacts", description: "Lists all files in the project folder.", requestBody: "", responseNotes: "JSON with file names, sizes, and timestamps." },
+        { id: "upload-artifact", method: "POST", path: "/v1/firstmeasure/projects/:id/artifacts", title: "Upload Artifact", description: "Stores a file from JSON content.", requestBody: JSON.stringify({ file_name: "notes.txt", content_text: "Customer report requested." }, null, 2), responseNotes: "JSON with stored artifact name and path." },
+        { id: "get-artifact", method: "GET", path: "/v1/firstmeasure/projects/:id/artifacts/notes.txt", title: "Fetch Artifact", description: "Streams a stored artifact directly.", requestBody: "", responseNotes: "Raw file response." }
+      ]},
+      { id: "queue", title: "Queue", items: [
+        { id: "queue-status", method: "POST", path: "/v1/firstmeasure/queue/status", title: "Queue Status", description: "Returns queue counts for a specific worker using explicit actor context.", requestBody: JSON.stringify({ actor: { email: "worker@example.com", name: "Worker Example", team_id: "default" }, queue_mode: "all" }, null, 2), responseNotes: "JSON with queue counts, blockage reason, and current assignment if one exists." },
+        { id: "queue-claim-next", method: "POST", path: "/v1/firstmeasure/queue/claim-next", title: "Claim Next In Queue", description: "Assigns the next eligible project to the supplied actor, honoring reservations first.", requestBody: JSON.stringify({ actor: { email: "worker@example.com", name: "Worker Example", team_id: "default" }, queue_mode: "all", allow_reserved: true, allow_filler: false }, null, 2), responseNotes: "JSON with the claimed project and the source bucket: reserved, correction, or queue." },
+        { id: "queue-overview", method: "POST", path: "/v1/firstmeasure/queue/admin/overview", title: "Queue Admin Overview", description: "Returns a queue-facing project list with assignment and reservation info.", requestBody: JSON.stringify({ statuses: ["queued", "ready", "correction_needed", "in_progress"] }, null, 2), responseNotes: "JSON with counts by status and a project list." },
+        { id: "queue-reserve", method: "POST", path: "/v1/firstmeasure/projects/:id/queue/reserve", title: "Reserve Project", description: "Reserves a project for a specific worker.", requestBody: JSON.stringify({ reserved_for: { email: "worker@example.com", name: "Worker Example", team_id: "default" } }, null, 2), responseNotes: "JSON with the updated project manifest." },
+        { id: "queue-release-reservation", method: "POST", path: "/v1/firstmeasure/projects/:id/queue/release-reservation", title: "Release Reservation", description: "Clears a project reservation.", requestBody: JSON.stringify({ actor: { email: "manager@example.com", name: "Manager Example" } }, null, 2), responseNotes: "JSON with the updated project manifest." },
+        { id: "queue-release-assignment", method: "POST", path: "/v1/firstmeasure/projects/:id/queue/release-assignment", title: "Release Assignment", description: "Clears a worker assignment and returns an in-progress project to the queue.", requestBody: JSON.stringify({ actor: { email: "manager@example.com", name: "Manager Example" } }, null, 2), responseNotes: "JSON with the updated project manifest." }
+      ]},
+      { id: "reports", title: "Reports", items: [
+        { id: "get-report", method: "GET", path: "/v1/firstmeasure/projects/:id/pdf", title: "Fetch Stored Report", description: "Returns the saved default report without regeneration.", requestBody: "", responseNotes: "Raw PDF for `Report.pdf`." },
+        { id: "assemble-report", method: "POST", path: "/v1/firstmeasure/projects/:id/pdf/assemble", title: "Assemble Custom Report", description: "Generates a custom report. Use `branding` and `prepared_for` to create internal or customer versions.", requestBody: JSON.stringify({ branding: { logo_url: "https://example.com/company-logo.png", primary_color: "#2E5A88", secondary_color: "#D9E4F0" }, prepared_for: { name: "Jane Smith", company: "Smith Roofing", address_line_1: "123 Main St", city: "Seattle", state: "WA", postal_code: "98101" }, persist_files: false }, null, 2), responseNotes: "Raw PDF bytes. Set `persist_files` true to overwrite the saved report." },
+        { id: "render-report", method: "POST", path: "/v1/firstmeasure/projects/:id/render/report", title: "Render Report", description: "Operational saved-project render route using the same single report model.", requestBody: JSON.stringify({ branding: { primary_color: "#8A3B12", secondary_color: "#E8D6C1" }, persist_files: true, update_status: true }, null, 2), responseNotes: "Raw PDF bytes, optionally persisted as the stored report." },
+        { id: "render-pages", method: "POST", path: "/v1/firstmeasure/projects/:id/render/pages", title: "Render Page Bundle", description: "Builds a fragment PDF from selected pages.", requestBody: JSON.stringify({ pages: [{ key: "ventilation", page_number: 8, show_page_number: true }, { key: "notes", show_page_number: false }], branding: { primary_color: "#355F59" } }, null, 2), responseNotes: "Raw PDF for the selected pages." },
+        { id: "render-page", method: "POST", path: "/v1/firstmeasure/projects/:id/render/page", title: "Render Single Page", description: "Builds one selected page as a PDF fragment.", requestBody: JSON.stringify({ page: { key: "ventilation", page_number: 8, show_page_number: true }, prepared_for: { name: "Jane Smith" } }, null, 2), responseNotes: "Raw single-page PDF." },
+        { id: "inline-report", method: "POST", path: "/v1/firstmeasure/render/report", title: "Inline Report Render", description: "Renders a report from inline project data without saving a project.", requestBody: JSON.stringify({ address: "123 Test Ave, Edmonds, WA 98026", project_type: "residential", include_gutter_measurements: true, branding_defaults: { primary_color: "#8A3B12" }, prepared_for: { name: "Jane Smith" } }, null, 2), responseNotes: "Raw PDF bytes from inline data." }
+      ]},
+      { id: "xml", title: "XML", items: [
+        { id: "get-xml", method: "GET", path: "/v1/firstmeasure/projects/:id/xml", title: "Fetch Stored XML", description: "Returns the saved canonical XML file.", requestBody: "", responseNotes: "Raw XML response." },
+        { id: "assemble-xml", method: "POST", path: "/v1/firstmeasure/projects/:id/xml/assemble", title: "Assemble XML", description: "Returns a generated XML view and can optionally persist it.", requestBody: JSON.stringify({ format: "model_data", options: { include_measurements: true, include_gutter_measurements: true }, persist_files: false }, null, 2), responseNotes: "Raw XML text." }
+      ]},
+      { id: "processing", title: "Processing", items: [
+        { id: "process-imagery", method: "POST", path: "/v1/firstmeasure/projects/:id/process/imagery", title: "Queue Imagery", description: "Stub acceptance endpoint for imagery jobs.", requestBody: JSON.stringify({ source: "docs-page" }, null, 2), responseNotes: "JSON with `accepted: true`." },
+        { id: "process-mask", method: "POST", path: "/v1/firstmeasure/projects/:id/process/mask", title: "Queue Mask", description: "Stub acceptance endpoint for mask jobs.", requestBody: JSON.stringify({ source: "docs-page" }, null, 2), responseNotes: "JSON with `accepted: true`." },
+        { id: "process-insights", method: "POST", path: "/v1/firstmeasure/projects/:id/process/insights", title: "Queue Insights", description: "Stub acceptance endpoint for insights jobs.", requestBody: JSON.stringify({ source: "docs-page" }, null, 2), responseNotes: "JSON with `accepted: true`." }
+      ]},
+      { id: "apple", title: "Apple Key", items: [
+        { id: "apple-key-get", method: "GET", path: "/v1/firstmeasure/apple-key", title: "Get Apple Key Info", description: "Returns whether a key exists plus preview metadata.", requestBody: "", responseNotes: "JSON with `has_key`, `key_preview`, and `updated_at_utc`." },
+        { id: "apple-key-set", method: "POST", path: "/v1/firstmeasure/apple-key", title: "Set Apple Key", description: "Stores an Apple access key directly.", requestBody: JSON.stringify({ key: "abcd1234EFGH5678" }, null, 2), responseNotes: "JSON with masked key info." },
+        { id: "apple-key-ingest", method: "POST", path: "/v1/firstmeasure/apple-key/ingest", title: "Ingest Apple Key From URL", description: "Extracts the `accessKey` query param from a URL payload and stores it. `tile_version` is optional; omit it to preserve the current version.", requestBody: JSON.stringify({ url: "https://example.com?foo=bar&accessKey=abcd1234EFGH5678", tile_version: 10401 }, null, 2), responseNotes: "JSON with masked key info and the active tile version." }
+      ]}
+    ];
+
+    const endpointMap = new Map();
+    const nav = document.getElementById("nav");
+    const docs = document.getElementById("docs");
+    const testerTitle = document.getElementById("testerTitle");
+    const testerDescription = document.getElementById("testerDescription");
+    const baseUrlInput = document.getElementById("baseUrl");
+    const projectIdInput = document.getElementById("projectId");
+    const methodInput = document.getElementById("method");
+    const urlInput = document.getElementById("url");
+    const contentTypeInput = document.getElementById("contentType");
+    const bodyInput = document.getElementById("body");
+    const output = document.getElementById("output");
+
+    function esc(value) {
+      return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function buildDocs() {
+      nav.innerHTML = groups.map((group) => `
+        <div class="nav-group">
+          <h2>${esc(group.title)}</h2>
+          ${group.items.map((item) => {
+            endpointMap.set(item.id, item);
+            return `<a href="#${item.id}" data-nav="${item.id}"><strong>${esc(item.title)}</strong><br><span>${esc(item.method)} ${esc(item.path)}</span></a>`;
+          }).join("")}
+        </div>
+      `).join("");
+
+      docs.innerHTML = groups.map((group) => group.items.map((item) => `
+        <section class="panel endpoint" id="${item.id}">
+          <div class="head">
+            <span class="method ${item.method.toLowerCase()}">${esc(item.method)}</span>
+            <code class="path">${esc(item.path)}</code>
+          </div>
+          <h3>${esc(item.title)}</h3>
+          <p>${esc(item.description)}</p>
+          <strong>Sample request</strong>
+          <pre class="code">${esc(item.requestBody || "// No request body")}</pre>
+          <p><strong>Returns:</strong> ${esc(item.responseNotes)}</p>
+          <div class="endpoint-actions">
+            <button type="button" data-load="${item.id}">Load Into Tester</button>
+            <button type="button" class="ghost" data-jump="${item.id}">Load + Jump</button>
+          </div>
+        </section>
+      `).join("")).join("");
+    }
+
+    function resolvePath(pathTemplate) {
+      const base = baseUrlInput.value.trim().replace(/\/$/, "");
+      const projectId = encodeURIComponent(projectIdInput.value.trim() || "example-project");
+      return `${base}${pathTemplate.replaceAll(":id", projectId)}`;
+    }
+
+    function setActive(id) {
+      document.querySelectorAll("[data-nav]").forEach((node) => {
+        node.classList.toggle("active", node.getAttribute("data-nav") === id);
+      });
+    }
+
+    function loadEndpoint(id, scroll) {
+      const endpoint = endpointMap.get(id);
+      if (!endpoint) return;
+      setActive(id);
+      testerTitle.textContent = endpoint.title;
+      testerDescription.textContent = endpoint.description;
+      methodInput.value = endpoint.method;
+      urlInput.value = resolvePath(endpoint.path);
+      bodyInput.value = endpoint.requestBody || "";
+      output.textContent = "No request sent yet.";
+      if (scroll) document.querySelector(".tester").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function currentUrl() {
+      const raw = urlInput.value.trim();
+      if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+      return resolvePath(raw);
+    }
+
+    async function sendRequest(forcePing) {
+      const method = forcePing ? "GET" : (methodInput.value || "GET");
+      const url = forcePing ? `${baseUrlInput.value.trim().replace(/\/$/, "")}/v1/firstmeasure/ping` : currentUrl();
+      output.textContent = "Sending request...";
+      try {
+        const init = { method, headers: {} };
+        if (method !== "GET") {
+          init.headers["Content-Type"] = contentTypeInput.value;
+          init.body = bodyInput.value;
+        }
+        const response = await fetch(url, init);
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/pdf")) {
+          const bytes = await response.arrayBuffer();
+          output.textContent = JSON.stringify({ status: response.status, ok: response.ok, url, contentType, bytes: bytes.byteLength }, null, 2);
+          return;
+        }
+        const text = await response.text();
+        let parsed = text;
+        if (contentType.includes("application/json")) {
+          try { parsed = JSON.parse(text); } catch (_) {}
+        }
+        output.textContent = JSON.stringify({ status: response.status, ok: response.ok, url, contentType, response: parsed }, null, 2);
+      } catch (error) {
+        output.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      }
+    }
+
+    async function copyCurl() {
+      const method = methodInput.value || "GET";
+      const url = currentUrl();
+      const parts = [`curl -X ${method}`];
+      if (method !== "GET") parts.push(`-H "Content-Type: ${contentTypeInput.value}"`);
+      parts.push(`"${url}"`);
+      if (method !== "GET" && bodyInput.value.trim()) parts.push(`--data-raw '${bodyInput.value.replace(/'/g, "'\"'\"'")}'`);
+      const command = parts.join(" ");
+      await navigator.clipboard.writeText(command);
+      output.textContent = JSON.stringify({ copied: true, curl: command }, null, 2);
+    }
+
+    buildDocs();
+    docs.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const load = target.getAttribute("data-load");
+      const jump = target.getAttribute("data-jump");
+      if (load) loadEndpoint(load, false);
+      if (jump) loadEndpoint(jump, true);
+    });
+    nav.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-nav]");
+      if (!(target instanceof HTMLElement)) return;
+      loadEndpoint(target.getAttribute("data-nav"), false);
+    });
+    baseUrlInput.addEventListener("input", () => {
+      const active = document.querySelector("[data-nav].active");
+      if (active instanceof HTMLElement) loadEndpoint(active.getAttribute("data-nav"), false);
+    });
+    projectIdInput.addEventListener("input", () => {
+      const active = document.querySelector("[data-nav].active");
+      if (active instanceof HTMLElement) loadEndpoint(active.getAttribute("data-nav"), false);
+    });
+    document.getElementById("send").addEventListener("click", () => sendRequest(false));
+    document.getElementById("ping").addEventListener("click", () => sendRequest(true));
+    document.getElementById("copyCurl").addEventListener("click", copyCurl);
+    loadEndpoint("create-project", false);
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+[
+  {
+    "username": "admin@example.com",
+    "password_hash": "$2y$10$replace-with-a-local-bcrypt-hash",
+    "access": "root"
+  }
+]

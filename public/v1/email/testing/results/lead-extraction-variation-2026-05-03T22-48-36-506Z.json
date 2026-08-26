@@ -1,0 +1,1135 @@
+{
+  "model": "gpt-5-nano",
+  "runs_per_lead": 5,
+  "payload_count": 8,
+  "generated_at": "2026-05-03T22:50:20.331Z",
+  "summaries": [
+    {
+      "payload_key": "ca3b36545ea45531",
+      "source": "postmark-spool-20260503_152940.json",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "runs": 5,
+      "variants": 3,
+      "variant_counts": [
+        3,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Zoom",
+        "confidence": 0.95,
+        "address": "55 Almaden Blvd., San Jose, CA 95111",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+18327187696",
+              "+18887999666"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "source": "postmark-spool-20260503_152940.json",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "source": "project_08b5e4bcf3890050.json",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "source": "project_1652a3ce3d9baba4.json",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "runs": 5,
+      "variants": 2,
+      "variant_counts": [
+        3,
+        2
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "source": "project_53d82fef3eded744.json",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "runs": 5,
+      "variants": 2,
+      "variant_counts": [
+        4,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "source": "project_a922f331e08196ca.json",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "runs": 5,
+      "variants": 2,
+      "variant_counts": [
+        3,
+        2
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "source": "project_c2e24d366f311e01.json",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "source": "project_cceaeb3473d8ed45.json",
+      "subject": "Test Lead 2",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    }
+  ],
+  "details": [
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Zoom",
+        "confidence": 0.95,
+        "address": "55 Almaden Blvd., San Jose, CA 95111",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+18327187696",
+              "+18887999666"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Zoom",
+        "confidence": 0.95,
+        "address": "55 Almaden Blvd, San Jose, CA 95111",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+18327187696",
+              "+18887999666"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Zoom",
+        "confidence": 0.95,
+        "address": "55 Almaden Blvd., San Jose, CA 95111",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+18327187696",
+              "+18887999666"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Unknown",
+        "confidence": 0.95,
+        "address": "55 Almaden Blvd., San Jose, CA 95111",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+18327187696",
+              "+18887999666"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Zoom",
+        "confidence": 0.95,
+        "address": "55 Almaden Blvd., San Jose, CA 95111",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+18327187696",
+              "+18887999666"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Quinstreet",
+        "confidence": 0.95,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    }
+  ]
+}

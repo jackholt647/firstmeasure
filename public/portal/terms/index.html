@@ -1,0 +1,449 @@
+<!-- /terms/index.html  (SIMPLE, STATIC) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#d93025" />
+  <title>FirstMate — Terms of Service</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="/fonts.css">
+
+  <style>
+    :root{
+      --primary:#d93025;
+      --primary-rgb:217,48,37;
+      --primary-dark:#b0261e;
+      --secondary:#111111;
+
+      --bg:#f0f2f5;
+      --panel:#ffffff;
+      --text:#202124;
+      --muted:#5f6368;
+      --border:#dadce0;
+      --shadow:0 10px 30px rgba(0,0,0,0.08);
+
+      --radius-xl:18px;
+      --radius-lg:14px;
+
+      --maxw: 980px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    }
+
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:rgba(240,242,245,0.85);
+      backdrop-filter: blur(8px);
+      border-bottom:1px solid rgba(0,0,0,0.06);
+    }
+    .topbar-in{
+      max-width: var(--maxw);
+      margin:0 auto;
+      padding:16px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+    }
+    .brand img{
+      display:block;
+      height:34px;
+      width:auto;
+      max-width:200px;
+    }
+    .brand .meta{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      min-width:0;
+    }
+    .brand .title{
+      font-weight:1000;
+      letter-spacing:-.3px;
+      font-size:14px;
+      line-height:1.1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .brand .sub{
+      font-size:12px;
+      font-weight:850;
+      color:#666;
+      line-height:1.1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      border-radius:999px;
+      padding:10px 12px;
+      font-weight:1000;
+      font-size:13px;
+      cursor:pointer;
+      user-select:none;
+      text-decoration:none;
+      transition:.16s ease;
+      border:1px solid rgba(0,0,0,0.12);
+      background:#fff;
+      color:#333;
+    }
+    .btn:hover{transform:translateY(-1px); border-color:rgba(var(--primary-rgb),0.45); color:var(--primary)}
+    .btn:active{transform:translateY(0)}
+
+    .wrap{
+      max-width: var(--maxw);
+      margin: 0 auto;
+      padding: 18px 16px 28px;
+    }
+
+    .card{
+      border:1px solid rgba(0,0,0,0.08);
+      background:#fff;
+      border-radius: var(--radius-xl);
+      box-shadow:0 14px 34px rgba(0,0,0,0.06);
+      overflow:hidden;
+    }
+    .card-in{
+      padding:18px 18px 18px;
+    }
+
+    .pillrow{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid rgba(0,0,0,0.10);
+      border-radius:999px;
+      padding:8px 10px;
+      font-weight:950;
+      font-size:12px;
+      background:#fff;
+      color:#444;
+      white-space:nowrap;
+    }
+    .pill.good{
+      border-color: rgba(var(--primary-rgb),0.35);
+      background: rgba(var(--primary-rgb),0.06);
+      color: var(--primary);
+    }
+
+    h1{
+      margin:0;
+      font-size:22px;
+      font-weight:1000;
+      letter-spacing:-.4px;
+    }
+    .lede{
+      margin:8px 0 0;
+      font-size:13px;
+      font-weight:850;
+      color:#666;
+      line-height:1.4;
+    }
+
+    h2{
+      margin:18px 0 8px;
+      font-size:16px;
+      font-weight:1000;
+      letter-spacing:-.2px;
+    }
+    h3{
+      margin:16px 0 6px;
+      font-size:14px;
+      font-weight:1000;
+      letter-spacing:-.15px;
+    }
+    p, li{
+      font-size:13px;
+      line-height:1.55;
+      color:#333;
+      font-weight:800;
+    }
+    ul{margin:8px 0 0 18px}
+    li{margin:6px 0}
+    .muted{color:#666}
+    .divider{
+      height:1px;
+      background:rgba(0,0,0,0.08);
+      margin:14px 0;
+    }
+
+    .notice{
+      border:1px solid rgba(var(--primary-rgb),0.25);
+      background: rgba(var(--primary-rgb),0.06);
+      border-radius:16px;
+      padding:12px 12px;
+      margin-top:12px;
+    }
+    .notice .t{
+      font-weight:1000;
+      font-size:13px;
+      margin:0 0 6px;
+    }
+    .notice .b{
+      margin:0;
+      color:#333;
+      font-weight:850;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .kbd{
+      font-family: var(--mono);
+      font-size:12px;
+      padding:2px 6px;
+      border-radius:8px;
+      border:1px solid rgba(0,0,0,0.14);
+      background: rgba(0,0,0,0.03);
+    }
+
+    a{color:var(--primary); text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    .footer{
+      text-align:center;
+      color:#888;
+      font-size:12px;
+      font-weight:850;
+      margin-top:14px;
+      line-height:1.4;
+    }
+
+    @media (max-width: 520px){
+      .brand .meta{display:none}
+      .topbar-in{padding:14px 14px}
+      .card-in{padding:16px 14px}
+    }
+  </style>
+
+  <script>
+    // Optional: match org theme if it exists in localStorage (harmless on a static page)
+    (function(){
+      const DEFAULT_LOGO = '/images/logo_red.png';
+      const LS_KEY = 'fm_org_theme_v1';
+
+      function hexToRgbCSV(hex){
+        try{
+          let h = String(hex||'').trim().toUpperCase();
+          if (!h.startsWith('#')) h = '#'+h;
+          if (!/^#[0-9A-F]{6}$/.test(h)) return '217,48,37';
+          const r = parseInt(h.slice(1,3),16);
+          const g = parseInt(h.slice(3,5),16);
+          const b = parseInt(h.slice(5,7),16);
+          return `${r},${g},${b}`;
+        }catch(e){ return '217,48,37'; }
+      }
+      function darken(hex, amt){
+        try{
+          let h = String(hex||'').trim().toUpperCase();
+          if (!h.startsWith('#')) h = '#'+h;
+          if (!/^#[0-9A-F]{6}$/.test(h)) return '#b0261e';
+          const r = parseInt(h.slice(1,3),16), g = parseInt(h.slice(3,5),16), b = parseInt(h.slice(5,7),16);
+          const d = (n)=>Math.max(0,Math.min(255,Math.round(n*(1-amt)))).toString(16).padStart(2,'0').toUpperCase();
+          return '#'+d(r)+d(g)+d(b);
+        }catch(e){ return '#b0261e'; }
+      }
+
+      function setLogo(src){
+        const img = document.getElementById('brandLogo');
+        if (!img) return;
+
+        img.onerror = null;
+        img.onerror = function(){
+          if (img.src.includes(DEFAULT_LOGO)) return;
+          img.src = DEFAULT_LOGO + '?v=' + Date.now();
+        };
+
+        const use = src || DEFAULT_LOGO;
+        img.src = use + (use.includes('?') ? '&' : '?') + 'v=' + Date.now();
+      }
+
+      try{
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) { setLogo(DEFAULT_LOGO); return; }
+        const t = JSON.parse(raw);
+        if (!t || typeof t !== 'object') { setLogo(DEFAULT_LOGO); return; }
+
+        const p = t.primary || t.accent || '#d93025';
+        const s = t.secondary || '#111111';
+
+        document.documentElement.style.setProperty('--primary', p);
+        document.documentElement.style.setProperty('--primary-rgb', hexToRgbCSV(p));
+        document.documentElement.style.setProperty('--primary-dark', darken(p, 0.16));
+        document.documentElement.style.setProperty('--secondary', s);
+
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', p);
+
+        setLogo(t.logo || DEFAULT_LOGO);
+      }catch(e){
+        setLogo(DEFAULT_LOGO);
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-in">
+      <div class="brand">
+        <img id="brandLogo" src="/images/logo_red.png" alt="FirstMate">
+        <div class="meta">
+          <div class="title">FirstMate</div>
+          <div class="sub">Terms of Service</div>
+        </div>
+      </div>
+
+      <a class="btn" href="https://1m8.ai/">
+        <i class="fas fa-house"></i>
+        <span>Home</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <div class="card-in">
+        <h1>Terms of Service</h1>
+        <p class="lede">
+          These terms govern use of FirstMate and the purchase and use of measurement credit.
+        </p>
+
+        <div class="pillrow">
+          <span class="pill good"><i class="fas fa-circle-check"></i> Effective: Feb 1, 2026</span>
+          <span class="pill"><i class="fas fa-clock"></i> Last updated: Feb 1, 2026</span>
+        </div>
+
+        <div class="notice">
+          <p class="t"><i class="fas fa-bolt"></i> Auto Top-Up disclosure</p>
+          <p class="b">
+            If you enable Auto Top-Up and save a card, you authorize FirstMate to charge your saved card for the top-up amount you selected
+            when your organization’s credit balance drops below your threshold.
+          </p>
+        </div>
+
+        <div class="divider"></div>
+
+        <h2>1. Overview</h2>
+        <p>
+          FirstMate provides roof measurement reports and related outputs (“Reports”). You purchase and use prepaid measurement credit (“Credit”)
+          to submit requests. These terms apply to all users and organizations using the service.
+        </p>
+
+        <h2>2. Accounts and access</h2>
+        <ul>
+          <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
+          <li>You are responsible for activity under your account and for managing user permissions within your organization.</li>
+          <li>We may suspend access to protect the service, your account, or other users.</li>
+        </ul>
+
+        <h2>3. Reports and limitations</h2>
+        <ul>
+          <li>Reports are estimates generated from available imagery and inputs and may contain inaccuracies.</li>
+          <li>You should verify measurements and suitability for your specific use case before relying on them.</li>
+          <li>Coverage and available data layers may vary by structure and location.</li>
+        </ul>
+
+        <h2>4. Billing, credit, and Auto Top-Up</h2>
+        <h3>4.1 Credit purchases</h3>
+        <ul>
+          <li>Credit is denominated in USD dollars inside the app and is used to submit measurement requests.</li>
+          <li>When you submit an order, the required Credit is deducted immediately.</li>
+        </ul>
+
+        <h3>4.2 Auto Top-Up</h3>
+        <p>
+          If you enable Auto Top-Up, you set
+          <span class="kbd">Threshold</span> (the balance that triggers a top-up) and
+          <span class="kbd">Top-up amount</span> (the amount charged and added as Credit).
+        </p>
+        <ul>
+          <li>If your balance drops below the threshold, we attempt to charge your saved card for the top-up amount.</li>
+          <li>Auto Top-Up may be paused or disabled if a payment fails or additional authentication is required.</li>
+          <li>You can disable Auto Top-Up at any time in Company Settings → Billing.</li>
+        </ul>
+
+        <h3>4.3 Card authorization (saving a card)</h3>
+        <ul>
+          <li>When you save a card, you authorize FirstMate to store that payment method with our payment processor (Stripe).</li>
+          <li>If Auto Top-Up is enabled, you authorize recurring charges for top-ups under the settings you chose.</li>
+        </ul>
+
+        <h3>4.4 Refunds</h3>
+        <p class="muted">
+          Unless required by law, Credit purchases are non-refundable once applied. If you believe a charge is incorrect, contact support
+          promptly with relevant details.
+        </p>
+
+        <h2>5. Acceptable use</h2>
+        <ul>
+          <li>Do not misuse the service or interfere with system integrity.</li>
+          <li>Do not submit addresses or data you do not have a legitimate right to use for measurement/reporting purposes.</li>
+        </ul>
+
+        <h2>6. Privacy (summary)</h2>
+        <p>
+          We store account information, organization settings, and project artifacts necessary to operate the service. Payment details are handled
+          by Stripe; we store only limited card metadata (brand/last4/expiration) for display.
+        </p>
+
+        <h2>7. Disclaimers</h2>
+        <ul>
+          <li>The service is provided “as is” without warranties of any kind, to the maximum extent permitted by law.</li>
+          <li>Reports are informational outputs and should not be treated as certified measurements.</li>
+        </ul>
+
+        <h2>8. Limitation of liability</h2>
+        <p class="muted">
+          To the maximum extent permitted by law, FirstMate will not be liable for indirect, incidental, special, consequential, or punitive damages,
+          or any loss of profits or revenue, arising from your use of the service.
+        </p>
+
+        <h2>9. Changes</h2>
+        <p>
+          We may update these terms from time to time. Updated terms will be posted on this page with a revised effective date.
+        </p>
+
+        <h2>10. Contact</h2>
+        <p>
+          Support: <a href="mailto:support@1m8.ai">support@1m8.ai</a><br>
+          Billing: <a href="mailto:billing@1m8.ai">billing@1m8.ai</a>
+        </p>
+
+        <div class="divider"></div>
+
+        <p class="footer">
+          © 2026 FirstMate • <a href="mailto:support@1m8.ai">support@1m8.ai</a>
+        </p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

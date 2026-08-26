@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "report": {
+    "id": "fmr_fixture_rejected",
+    "external_id": "fixture-order-1003",
+    "status": "rejected",
+    "address": "Example address",
+    "project_type": "residential",
+    "amount_charged": 7,
+    "created_at": "2026-08-25T19:00:00.000Z",
+    "updated_at": "2026-08-25T19:04:00.000Z",
+    "completed_at": null,
+    "artifacts": {
+      "has_report_pdf": false,
+      "has_summary_pdf": false,
+      "has_model_data": false,
+      "has_pdf_state": false
+    },
+    "rejection": {
+      "reason": "imagery_unavailable",
+      "message": "Suitable imagery was not available for this property.",
+      "email": { "sent": true, "last_attempt_at": "2026-08-25T19:04:00.000Z", "last_error": null }
+    },
+    "metadata": { "source": "static_fixture" }
+  }
+}
+

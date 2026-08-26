@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard v2 — First Mate CRM</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--red:#d93025;--rd:#a1241c;--rl:#fce8e6;--s9:#1a1f2e;--s8:#252b3b;--s7:#3a4255;--s6:#4d566b;--s5:#6b7588;--s4:#8b95a8;--s3:#b0b8c9;--s2:#d4dae6;--s1:#edf0f5;--s0:#f6f8fb;--w:#fff;--g:#1a8a4a;--gl:#e6f4ec;--o:#c4700a;--ol:#fef3e0;--b:#1a6bd9;--bl:#e8f0fe;--p:#7c3aed;--pl:#f3e8ff;--r:10px;--rs:6px;--rl2:14px;--f:'DM Sans',system-ui,sans-serif;--sidebar:260px}
+html{font-size:14px}body{font-family:var(--f);background:var(--s0);color:var(--s9);min-height:100vh;display:flex}
+input,textarea,select,button{font-family:inherit;font-size:inherit}
+.sidebar{width:var(--sidebar);background:var(--w);border-right:1px solid var(--s2);display:flex;flex-direction:column;height:100vh;position:sticky;top:0;flex-shrink:0}
+.sidebar-logo{padding:20px 20px 16px}.logo{font-weight:900;font-size:17px;color:var(--red)}.logo span{color:var(--s5);font-weight:500}
+.sidebar-desc{padding:0 20px 16px;font-size:12px;color:var(--s5);line-height:1.5;border-bottom:1px solid var(--s1)}
+.sidebar-nav{flex:1;padding:12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nb{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--rs);background:transparent;border:none;color:var(--s5);font-weight:600;font-size:13px;cursor:pointer;text-align:left;width:100%}.nb:hover{background:var(--s0);color:var(--s7)}.nb.active{background:var(--rl);color:var(--red)}.nb i{width:18px;text-align:center;font-size:13px}
+.sidebar-spacer{flex:1}
+.sidebar-user{padding:16px 20px;border-top:1px solid var(--s1)}
+.su-name{font-weight:800;font-size:13px}.su-email{font-size:11px;color:var(--s5);margin-top:2px}.su-role{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;background:var(--s1);color:var(--s5);padding:2px 6px;border-radius:3px;margin-top:4px}.su-out{color:var(--red);text-decoration:none;font-weight:700;font-size:12px;margin-top:8px;display:inline-block}
+.main{flex:1;overflow-y:auto;min-height:100vh}.main-inner{padding:28px 32px 60px;max-width:1200px}
+.page-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.page-hdr h1{font-size:22px;font-weight:900;letter-spacing:-.02em}.page-hdr-sub{font-size:12px;color:var(--s4);margin-top:2px}
+.greeting{font-size:15px;color:var(--s5);font-weight:600}
+/* TODAY */
+.today-grid{display:grid;grid-template-columns:280px 1fr;gap:14px;margin-bottom:28px;align-items:start}
+@media(max-width:900px){.today-grid{grid-template-columns:1fr}}
+.today-card{background:var(--w);border:1px solid var(--s2);border-radius:var(--rl2);overflow:hidden}
+.tc-head{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:var(--s0);border-bottom:1px solid var(--s1)}
+.tc-head h3{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--s5)}
+.tc-count{font-size:13px;font-weight:900;color:var(--s9);background:var(--s1);padding:2px 8px;border-radius:999px}
+.tc-count.alert{background:var(--rl);color:var(--red)}
+.tc-body{padding:0;max-height:420px;overflow-y:auto}
+.ti{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--s1);cursor:pointer}.ti:last-child{border:none}.ti:hover{background:var(--s0)}
+.ti-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.ti-icon.meeting{background:var(--bl);color:var(--b)}.ti-icon.fu{background:var(--pl);color:var(--p)}.ti-icon.overdue{background:var(--rl);color:var(--red)}
+.ti-info{flex:1;min-width:0}.ti-title{font-size:13px;font-weight:700;color:var(--s8)}.ti-sub{font-size:11px;color:var(--s4);margin-top:1px}
+.ti-time{font-size:12px;font-weight:700;color:var(--b);white-space:nowrap;flex-shrink:0}.ti-time.overdue{color:var(--red)}
+.ti-meeting-tag{font-size:9px;font-weight:800;text-transform:uppercase;background:var(--bl);color:var(--b);padding:2px 5px;border-radius:3px;margin-left:4px}
+/* OVERDUE HEADER */
+.overdue-divider{padding:8px 16px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--red);background:var(--rl);display:flex;align-items:center;gap:6px}
+.today-divider{padding:8px 16px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--s5);background:var(--s0);display:flex;align-items:center;gap:6px;border-top:1px solid var(--s2)}
+/* LEADERBOARD */
+.lb{background:var(--w);border:1px solid var(--s2);border-radius:var(--rl2);overflow:hidden}
+.lb-head{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;background:var(--s0);border-bottom:1px solid var(--s1);flex-wrap:wrap;gap:10px}
+.lb-head h2{font-size:16px;font-weight:900;letter-spacing:-.02em}
+.lb-toggle{display:flex;gap:0;border:1px solid var(--s2);border-radius:var(--rs);overflow:hidden}
+.lb-toggle button{padding:7px 16px;font-size:12px;font-weight:700;border:none;background:var(--w);color:var(--s5);cursor:pointer}.lb-toggle button.active{background:var(--s9);color:#fff}
+.lb-updated{font-size:10px;color:var(--s4);font-weight:600}
+.lbt{width:100%;border-collapse:collapse}
+.lbt th{text-align:left;padding:10px 14px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--s4);border-bottom:1px solid var(--s2);cursor:pointer;user-select:none;white-space:nowrap}.lbt th:hover{color:var(--s7)}.lbt th.sorted{color:var(--red)}.lbt th.num{text-align:right}
+.lbt td{padding:10px 14px;border-bottom:1px solid var(--s1);font-size:13px}.lbt td.num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.lbt tr:last-child td{border-bottom:none}.lbt tr:hover{background:var(--s0)}.lbt tr.me{background:#fef8f0}
+/* AVATAR */
+.av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:#fff;flex-shrink:0}
+.av-1{background:#2563eb}.av-2{background:#7c3aed}.av-3{background:#dc2626}.av-4{background:#059669}.av-5{background:#d97706}.av-6{background:#4f46e5}.av-7{background:#0891b2}.av-8{background:#be185d}
+.lb-name-cell{display:flex;align-items:center;gap:10px}
+.lb-name{font-weight:700;color:var(--s9)}
+.lb-you{font-size:10px;font-weight:800;color:var(--red);background:var(--rl);padding:1px 5px;border-radius:3px;margin-left:6px}
+.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px}
+.lb-rank.r1{background:#fef3c7;color:#a16207}.lb-rank.r2{background:var(--s1);color:var(--s6)}.lb-rank.r3{background:#fde7d6;color:#c2410c}.lb-rank.rn{background:var(--s0);color:var(--s4)}
+.lb-hl{background:var(--gl);color:var(--g);padding:2px 6px;border-radius:4px;font-weight:800}
+/* PIPELINE */
+.pipe{background:var(--w);border:1px solid var(--s2);border-radius:var(--rl2);overflow:hidden;margin-top:20px}
+.pipe-head{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;background:var(--s0);border-bottom:1px solid var(--s1);flex-wrap:wrap;gap:10px}
+.pipe-head h2{font-size:16px;font-weight:900;letter-spacing:-.02em}
+.pipe-toggle{display:flex;gap:0;border:1px solid var(--s2);border-radius:var(--rs);overflow:hidden}
+.pipe-toggle button{padding:7px 16px;font-size:12px;font-weight:700;border:none;background:var(--w);color:var(--s5);cursor:pointer;display:flex;align-items:center;gap:6px}
+.pipe-toggle button.active{background:var(--s9);color:#fff}
+.pipe-toggle .badge{font-size:10px;font-weight:900;padding:1px 6px;border-radius:999px}
+.pipe-body{padding:0}
+.pipe-row{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--s1);cursor:pointer;font-size:13px}
+.pipe-row:last-child{border:none}
+.pipe-row:hover{background:var(--s0)}
+.pipe-co{font-weight:700;color:var(--s9);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pipe-stage{font-size:10px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:3px}
+.pipe-stage.sent{background:var(--bl);color:var(--b)}
+.pipe-stage.recv{background:var(--pl);color:var(--p)}
+.pipe-days{font-size:11px;font-weight:700;white-space:nowrap}
+.pipe-days.hot{color:var(--g)}
+.pipe-days.cold{color:var(--red)}
+.lb-dollar{color:var(--g);font-weight:800}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo"><div class="logo">FirstMate <span>CRM</span></div></div>
+  <div class="sidebar-desc">Sales workspace — leads, pipeline, commissions, and team analytics.</div>
+  <div class="sidebar-nav">
+    <button class="nb active"><i class="fas fa-home"></i> Dashboard</button>
+    <button class="nb"><i class="fas fa-columns"></i> Pipeline</button>
+    <button class="nb"><i class="fas fa-list"></i> Lead Lists</button>
+    <button class="nb"><i class="fas fa-users"></i> Leads</button>
+    <button class="nb"><i class="fas fa-chart-line"></i> Analytics</button>
+    <button class="nb"><i class="fas fa-dollar-sign"></i> Commissions</button>
+    <button class="nb"><i class="fas fa-bolt"></i> Sequences</button>
+    <button class="nb"><i class="fas fa-scroll"></i> Scripts</button>
+    <button class="nb"><i class="fas fa-envelope"></i> Email Templates</button>
+    <button class="nb"><i class="fas fa-paper-plane"></i> Bulk Email</button>
+    <div class="sidebar-spacer"></div>
+    <button class="nb"><i class="fas fa-users-cog"></i> Users & Teams</button>
+    <button class="nb"><i class="fas fa-cog"></i> Settings</button>
+  </div>
+  <div class="sidebar-user"><div class="su-name">Jose Suarez</div><div class="su-email">jose@1m8.ai</div><div class="su-role">SDR</div><br><a href="#" class="su-out">Sign Out</a></div>
+</div>
+
+<div class="main"><div class="main-inner">
+
+  <div class="page-hdr"><div><h1>Dashboard</h1><div class="page-hdr-sub">Monday, April 13, 2026</div></div><div class="greeting">Good morning, Jose 👋</div></div>
+
+  <!-- LEADERBOARD -->
+  <div class="lb" style="margin-bottom:20px">
+    <div class="lb-head">
+      <div><h2><i class="fas fa-trophy" style="color:#a16207;margin-right:6px"></i> Leaderboard</h2><div class="lb-updated">Orum data last updated: Apr 12, 6:15 PM</div></div>
+      <div class="lb-toggle"><button class="active" onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Today</button><button onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));this.classList.add('active')">This Week</button></div>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="lbt">
+      <thead><tr>
+        <th style="width:46px">#</th>
+        <th>Name</th>
+        <th class="num sorted">Info Sent <i class="fas fa-sort-down" style="font-size:10px"></i></th>
+        <th class="num">Info Received</th>
+        <th class="num">Sign-Ups</th>
+        <th class="num">Funded $500+</th>
+        <th class="num">Funded Value</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><div class="lb-rank r1">1</div></td>
+          <td><div class="lb-name-cell"><div class="av av-1">FM</div><span class="lb-name">Frank Moseley</span></div></td>
+          <td class="num"><span class="lb-hl">8</span></td>
+          <td class="num">5</td>
+          <td class="num">3</td>
+          <td class="num">2</td>
+          <td class="num lb-dollar">$2,400</td>
+        </tr>
+        <tr>
+          <td><div class="lb-rank r2">2</div></td>
+          <td><div class="lb-name-cell"><div class="av av-2">BE</div><span class="lb-name">Benjamin Ellis</span></div></td>
+          <td class="num">7</td>
+          <td class="num">4</td>
+          <td class="num">2</td>
+          <td class="num">1</td>
+          <td class="num lb-dollar">$1,200</td>
+        </tr>
+        <tr class="me">
+          <td><div class="lb-rank r3">3</div></td>
+          <td><div class="lb-name-cell"><div class="av av-3">JS</div><span class="lb-name">Jose Suarez</span><span class="lb-you">You</span></div></td>
+          <td class="num">6</td>
+          <td class="num">3</td>
+          <td class="num">2</td>
+          <td class="num">1</td>
+          <td class="num lb-dollar">$800</td>
+        </tr>
+        <tr>
+          <td><div class="lb-rank rn">4</div></td>
+          <td><div class="lb-name-cell"><div class="av av-4">ML</div><span class="lb-name">Matthäus Leite</span></div></td>
+          <td class="num">5</td>
+          <td class="num">4</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num lb-dollar">$750</td>
+        </tr>
+        <tr>
+          <td><div class="lb-rank rn">5</div></td>
+          <td><div class="lb-name-cell"><div class="av av-5">CE</div><span class="lb-name">Carly Ellis</span></div></td>
+          <td class="num">5</td>
+          <td class="num">2</td>
+          <td class="num">1</td>
+          <td class="num">0</td>
+          <td class="num lb-dollar">$0</td>
+        </tr>
+        <tr>
+          <td><div class="lb-rank rn">6</div></td>
+          <td><div class="lb-name-cell"><div class="av av-6">RJ</div><span class="lb-name">Rory Johnson</span></div></td>
+          <td class="num">4</td>
+          <td class="num">2</td>
+          <td class="num">1</td>
+          <td class="num">0</td>
+          <td class="num lb-dollar">$0</td>
+        </tr>
+        <tr>
+          <td><div class="lb-rank rn">7</div></td>
+          <td><div class="lb-name-cell"><div class="av av-7">AC</div><span class="lb-name">Alvaro Cerdas</span></div></td>
+          <td class="num">3</td>
+          <td class="num">1</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num lb-dollar">$0</td>
+        </tr>
+        <tr>
+          <td><div class="lb-rank rn">8</div></td>
+          <td><div class="lb-name-cell"><div class="av av-8">ES</div><span class="lb-name">Emerson Solis</span></div></td>
+          <td class="num">2</td>
+          <td class="num">1</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num lb-dollar">$0</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="today-grid" style="grid-template-columns:1fr 1fr 1fr">
+
+    <!-- MEETINGS -->
+    <div class="today-card">
+      <div class="tc-head"><h3><i class="fas fa-calendar"></i> &nbsp;Meetings</h3><span class="tc-count">2</span></div>
+      <div class="tc-body">
+        <div class="ti"><div class="ti-icon meeting"><i class="fas fa-video"></i></div><div class="ti-info"><div class="ti-title">Apex Roofing</div><div class="ti-sub">Follow-up w/ Mike Johnson</div></div><div class="ti-time">2:00 PM</div></div>
+        <div class="ti"><div class="ti-icon meeting"><i class="fas fa-phone"></i></div><div class="ti-info"><div class="ti-title">Summit Roofing LLC</div><div class="ti-sub">Demo walkthrough</div></div><div class="ti-time">4:00 PM</div></div>
+      </div>
+    </div>
+
+    <!-- UNREAD -->
+    <div class="today-card">
+      <div class="tc-head"><h3><i class="fas fa-envelope-open-text"></i> &nbsp;Unread</h3><span class="tc-count alert">3</span></div>
+      <div class="tc-body">
+        <div class="ti"><div class="ti-icon" style="background:var(--ol);color:var(--o)"><i class="fas fa-envelope"></i></div><div class="ti-info"><div class="ti-title" style="font-weight:800">Apex Roofing — Re: Measurement Reports</div><div class="ti-sub">"Yeah that sounds great, can you send me..."</div></div><div class="ti-time">11 min ago</div></div>
+        <div class="ti"><div class="ti-icon" style="background:#f0fdf4;color:#15803d"><i class="fas fa-comment"></i></div><div class="ti-info"><div class="ti-title" style="font-weight:800">Peak Performance — SMS</div><div class="ti-sub">"Hey Jose, what was the price again for..."</div></div><div class="ti-time">42 min ago</div></div>
+        <div class="ti"><div class="ti-icon" style="background:var(--ol);color:var(--o)"><i class="fas fa-envelope"></i></div><div class="ti-info"><div class="ti-title" style="font-weight:800">Summit Roofing — Re: Sign Up</div><div class="ti-sub">"I signed up but I'm having trouble with..."</div></div><div class="ti-time">2h ago</div></div>
+      </div>
+    </div>
+
+    <!-- TASKS -->
+    <div class="today-card">
+      <div class="tc-head"><h3><i class="fas fa-tasks"></i> &nbsp;Tasks</h3><span class="tc-count">3</span></div>
+      <div class="tc-body">
+        <div class="ti"><input type="checkbox" style="accent-color:var(--g);width:15px;height:15px;flex-shrink:0;margin-left:16px"><div class="ti-info" style="padding:0"><div class="ti-title">Review cold leads list</div></div></div>
+        <div class="ti"><input type="checkbox" style="accent-color:var(--g);width:15px;height:15px;flex-shrink:0;margin-left:16px"><div class="ti-info" style="padding:0"><div class="ti-title">Follow up on Tier 2 bonus offers</div></div></div>
+        <div class="ti"><input type="checkbox" style="accent-color:var(--g);width:15px;height:15px;flex-shrink:0;margin-left:16px"><div class="ti-info" style="padding:0"><div class="ti-title">Push referral program to top 5 customers</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MORNING / AFTERNOON FOLLOW-UPS -->
+  <div class="today-grid" style="grid-template-columns:1fr 1fr;margin-top:-14px">
+
+    <!-- MORNING -->
+    <div class="today-card">
+      <div class="tc-head" style="background:var(--bl)"><h3><i class="fas fa-sun" style="color:var(--b)"></i> &nbsp;Morning Follow-Ups</h3><span class="tc-count">5</span></div>
+      <div class="tc-body">
+        <div class="overdue-divider"><i class="fas fa-exclamation-triangle"></i> Overdue (2)</div>
+        <div class="ti"><div class="ti-icon overdue"><i class="fas fa-clock"></i></div><div class="ti-info"><div class="ti-title">Colorado Roofing Solutions</div><div class="ti-sub">DM Call Back</div></div><div class="ti-time overdue">Apr 11</div></div>
+        <div class="ti"><div class="ti-icon overdue"><i class="fas fa-clock"></i></div><div class="ti-info"><div class="ti-title">Mile High Roofing</div><div class="ti-sub">Email Check</div></div><div class="ti-time overdue">Apr 10</div></div>
+        <div class="today-divider"><i class="fas fa-sun"></i> Today — Morning</div>
+        <div class="ti"><div class="ti-icon fu"><i class="fas fa-phone"></i></div><div class="ti-info"><div class="ti-title">Peak Performance Roofing</div><div class="ti-sub">DM Call Back</div></div><div class="ti-time">AM</div></div>
+        <div class="ti"><div class="ti-icon fu"><i class="fas fa-envelope"></i></div><div class="ti-info"><div class="ti-title">Rocky Mountain Exteriors</div><div class="ti-sub">Email Check</div></div><div class="ti-time">AM</div></div>
+        <div class="ti"><div class="ti-icon fu"><i class="fas fa-bolt" style="font-size:10px"></i></div><div class="ti-info"><div class="ti-title">Pikes Peak Roofing Co</div><div class="ti-sub">Sequence: Info Sent</div></div><div class="ti-time">AM</div></div>
+      </div>
+    </div>
+
+    <!-- AFTERNOON -->
+    <div class="today-card">
+      <div class="tc-head" style="background:var(--ol)"><h3><i class="fas fa-cloud-sun" style="color:var(--o)"></i> &nbsp;Afternoon Follow-Ups</h3><span class="tc-count">4</span></div>
+      <div class="tc-body">
+        <div class="overdue-divider"><i class="fas fa-exclamation-triangle"></i> Overdue (1)</div>
+        <div class="ti"><div class="ti-icon overdue"><i class="fas fa-clock"></i></div><div class="ti-info"><div class="ti-title">Alpine Exteriors</div><div class="ti-sub">Report Feedback</div></div><div class="ti-time overdue">Apr 9</div></div>
+        <div class="today-divider"><i class="fas fa-cloud-sun"></i> Today — Afternoon</div>
+        <div class="ti"><div class="ti-icon fu"><i class="fas fa-phone"></i></div><div class="ti-info"><div class="ti-title">Front Range Contractors</div><div class="ti-sub">Report Feedback</div></div><div class="ti-time">PM</div></div>
+        <div class="ti"><div class="ti-icon fu"><i class="fas fa-phone"></i></div><div class="ti-info"><div class="ti-title">Denver Pro Roofing</div><div class="ti-sub">DM Call Back</div></div><div class="ti-time">PM</div></div>
+        <div class="ti"><div class="ti-icon fu"><i class="fas fa-bolt" style="font-size:10px"></i></div><div class="ti-info"><div class="ti-title">Aurora Roof & Repair</div><div class="ti-sub">Sequence: Signed Up</div></div><div class="ti-time">PM</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="pipe">
+    <div class="pipe-head">
+      <h2><i class="fas fa-fire" style="color:var(--o);margin-right:6px"></i> My Pipeline</h2>
+      <div class="pipe-toggle">
+        <button class="active" onclick="pt(this,'hot')">🔥 Hot Leads <span class="badge" style="background:var(--gl);color:var(--g)">12</span></button>
+        <button onclick="pt(this,'cold')">❄️ Going Cold <span class="badge" style="background:var(--rl);color:var(--red)">8</span></button>
+      </div>
+    </div>
+    <div class="pipe-body" id="pipe-hot">
+      <div class="pipe-row"><div class="pipe-co">Peak Performance Roofing</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days hot">Today</div></div>
+      <div class="pipe-row"><div class="pipe-co">Summit Roofing LLC</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days hot">1d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Apex Roofing & Construction</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days hot">2d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Front Range Contractors</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days hot">3d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Denver Pro Roofing</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days hot">4d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Rocky Mountain Exteriors</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days hot">5d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Pikes Peak Roofing Co</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days hot">2d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Aurora Roof & Repair</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days hot">3d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Golden State Roofing</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days hot">4d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Highlands Ranch Roofing</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days hot">5d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Broomfield Roofing Co</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days hot">6d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Castle Rock Roofing</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days hot">6d ago</div></div>
+    </div>
+    <div class="pipe-body" id="pipe-cold" style="display:none">
+      <div class="pipe-row"><div class="pipe-co">Centennial Roofing</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days cold">14d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Lakewood Home Solutions</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days cold">12d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Thornton Roofing Inc</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days cold">10d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Westminster Exteriors</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days cold">8d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Arvada Roofing Services</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days cold">9d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Littleton Roof Pros</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days cold">11d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Parker Roofing & Siding</div><div class="pipe-stage sent">Info Sent</div><div class="pipe-days cold">13d ago</div></div>
+      <div class="pipe-row"><div class="pipe-co">Englewood Home Repair</div><div class="pipe-stage recv">Info Recv</div><div class="pipe-days cold">15d ago</div></div>
+    </div>
+  </div>
+
+</div></div>
+
+<script>
+function pt(el,tab){
+  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('pipe-hot').style.display=tab==='hot'?'block':'none';
+  document.getElementById('pipe-cold').style.display=tab==='cold'?'block':'none';
+}
+</script>
+</body>
+</html>

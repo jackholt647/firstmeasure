@@ -1,0 +1,23 @@
+{
+  "google": {
+    "shared_api_key": "",
+    "browser_api_key": "",
+    "customer_browser_api_key": "",
+    "internal_browser_api_key": "",
+    "territory_browser_api_key": "",
+    "server_api_key": "",
+    "solar_api_key": "",
+    "maps_static_api_key": "",
+    "map_tiles_api_key": "",
+    "places_api_key": ""
+  },
+  "gemini": {
+    "api_key": ""
+  },
+  "azure": {
+    "maps_subscription_key": ""
+  },
+  "application": {
+    "internal_api_secret": ""
+  }
+}

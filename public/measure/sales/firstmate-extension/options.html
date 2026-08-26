@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FirstMate Sales Bridge Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1><img src="assets/icon_red.png" alt=""> FirstMate Sales Bridge</h1>
+    <label>
+      Bridge endpoint
+      <input id="endpointUrl" type="url" spellcheck="false">
+    </label>
+    <label>
+      Email tracker endpoint
+      <input id="emailTrackerUrl" type="url" spellcheck="false">
+    </label>
+    <label>
+      Lead lookup endpoint
+      <input id="leadLookupUrl" type="url" spellcheck="false">
+    </label>
+    <label>
+      Lead lookup code
+      <input id="leadLookupCode" type="password" autocomplete="new-password">
+    </label>
+    <label>
+      Shared secret
+      <input id="sharedSecret" type="password" autocomplete="new-password">
+    </label>
+    <label>
+      Default subject
+      <input id="defaultSubject" type="text">
+    </label>
+    <label>
+      Default body
+      <textarea id="defaultBody" rows="8"></textarea>
+    </label>
+    <label>
+      Templates JSON
+      <textarea id="templates" rows="10" spellcheck="false"></textarea>
+    </label>
+    <label>
+      Sample reports JSON
+      <textarea id="sampleReports" rows="6" spellcheck="false"></textarea>
+    </label>
+    <button id="save" type="button">Save</button>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

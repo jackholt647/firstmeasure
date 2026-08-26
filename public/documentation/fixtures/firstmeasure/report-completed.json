@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "mode": "test",
+  "test_mode": true,
+  "report": {
+    "id": "fmr_fixture_completed",
+    "external_id": "fixture-order-1001",
+    "mode": "test",
+    "test_mode": true,
+    "status": "completed",
+    "address": "1600 Amphitheatre Parkway, Mountain View, CA 94043",
+    "project_type": "residential",
+    "amount_charged": 0,
+    "quoted_amount": 7,
+    "created_at": "2026-08-25T19:00:00.000Z",
+    "updated_at": "2026-08-25T19:00:00.000Z",
+    "completed_at": "2026-08-25T19:00:00.000Z",
+    "artifacts": {
+      "has_report_pdf": true,
+      "has_summary_pdf": true,
+      "has_model_data": true,
+      "has_pdf_state": false
+    },
+    "links": {
+      "self": "/v1/public/firstmeasure/reports/fmr_fixture_completed",
+      "pdf": "/v1/public/firstmeasure/reports/fmr_fixture_completed/pdf",
+      "measurements": "/v1/public/firstmeasure/reports/fmr_fixture_completed/measurements"
+    },
+    "rejection": null,
+    "metadata": { "source": "static_fixture" }
+  }
+}
+

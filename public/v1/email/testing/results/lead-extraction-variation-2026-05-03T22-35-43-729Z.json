@@ -1,0 +1,2546 @@
+{
+  "model": "gpt-5-nano",
+  "runs_per_lead": 5,
+  "payload_count": 8,
+  "generated_at": "2026-05-03T22:37:27.865Z",
+  "summaries": [
+    {
+      "payload_key": "ca3b36545ea45531",
+      "source": "postmark-spool-20260503_152940.json",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "Zoom",
+        "confidence": 0.45,
+        "address": "",
+        "summary": "Promotional email about Zoom storage discount and social links. Not a customer service/roofing lead.",
+        "rejection_reason": "Not a roofing lead; marketing/renewal/promotional email not related to a customer site or service request.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": ""
+          },
+          {
+            "key": "product",
+            "value": "Zoom Cloud Storage Promotion"
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Promotional email with promo code, storage offer, and social links."
+          },
+          {
+            "key": "original_city",
+            "value": ""
+          },
+          {
+            "key": "original_state",
+            "value": ""
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "source": "postmark-spool-20260503_152940.json",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "DigitalOcean",
+        "confidence": 0.25,
+        "address": "",
+        "summary": "Invoice email about DigitalOcean account for team FirstMate with attached PDF and billing details; not a customer service/roofing lead.",
+        "rejection_reason": "Invoice/billing notification, not a roofing lead.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "invoice_2026_04_firstmate"
+          },
+          {
+            "key": "product",
+            "value": "billing"
+          },
+          {
+            "key": "campaign",
+            "value": "newsletter_invoice"
+          },
+          {
+            "key": "job_type",
+            "value": "invoice"
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Invoice for FirstMate; attached PDF; Mastercard ending 1077; no action needed."
+          },
+          {
+            "key": "original_city",
+            "value": ""
+          },
+          {
+            "key": "original_state",
+            "value": ""
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "source": "project_08b5e4bcf3890050.json",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.66,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Webform lead for roofing service request from Roxy Clemence. Lead ID 111561193. Property: residence in Bothell, WA. Job type: Install. Material: Asphalt. Lead originated via Inquirly webform.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "111561193"
+          },
+          {
+            "key": "lead_type",
+            "value": "Webform Lead"
+          },
+          {
+            "key": "date_posted",
+            "value": "2026-01-15 17:49:29"
+          },
+          {
+            "key": "property_type",
+            "value": "Residence"
+          },
+          {
+            "key": "job_type",
+            "value": "Install"
+          },
+          {
+            "key": "material",
+            "value": "Asphalt"
+          },
+          {
+            "key": "owner",
+            "value": "Yes"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "source": "project_1652a3ce3d9baba4.json",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.7,
+        "address": "18225 48TH AVE W, Lynnwood, WA 98037",
+        "summary": "Roof install lead inquiry for asphalt shingle in Lynnwood. Name Balraj Bakshi, phone 209-485-8505, email balrajbakshi@gmail.com. Job type Roof Install - Asphalt Shingle. Source Networx.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "BALRAJBAKSHI@GMAIL.COM",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "job_type",
+            "value": "Roof Install - Asphalt Shingle"
+          },
+          {
+            "key": "area",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "homeowner",
+            "value": "Balraj Bakshi"
+          },
+          {
+            "key": "lead_source",
+            "value": "Networx"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "source": "project_53d82fef3eded744.json",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.7,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "QuinStreet lead for roofing service request in Bonney Lake, WA. Customer Lenes Rasmussen, homeowner, Apex Roofing - WA likely the property owner requesting roofing quote.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Lenes Rasmussen",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_key",
+            "value": "62280713033"
+          },
+          {
+            "key": "product",
+            "value": "ROOFING"
+          },
+          {
+            "key": "client_name",
+            "value": "Apex Roofing - WA"
+          },
+          {
+            "key": "homeowner",
+            "value": "Yes"
+          },
+          {
+            "key": "best_time_to_call",
+            "value": "Daytime"
+          },
+          {
+            "key": "clk",
+            "value": "171250730173729023"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "source": "project_a922f331e08196ca.json",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.62,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Quote request from homeowner for roof replacement through Fixr. Lead includes contact name Bernardino Nunez, phone 2534411702, address of site provided, service: Roof Replacement, property owned, roof type shingles, estimated roof costs provided.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Bernardino Nunez",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "6206323"
+          },
+          {
+            "key": "product",
+            "value": "Roof Replacement"
+          },
+          {
+            "key": "campaign",
+            "value": "Thurston & Pierce Counties"
+          },
+          {
+            "key": "lead_sale_type",
+            "value": "Trio"
+          },
+          {
+            "key": "service_provider",
+            "value": "Fixr.com"
+          },
+          {
+            "key": "original_city",
+            "value": "Gig Harbor"
+          },
+          {
+            "key": "original_state",
+            "value": "WA"
+          },
+          {
+            "key": "original_zip",
+            "value": "98332"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "source": "project_c2e24d366f311e01.json",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.74,
+        "address": "Santa Clarita, CA",
+        "summary": "New phone lead from Service Direct. Caller from Santa Clarita, CA. Lead represents a web/phone prospective roofing service inquiry.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+1 6618030228"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "4254522"
+          },
+          {
+            "key": "product",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "campaign",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "job_type",
+            "value": "new_phone_lead"
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": "Apex Roofing NW"
+          },
+          {
+            "key": "comments",
+            "value": "Caller from Santa Clarita, CA. 1:41 call duration. Lead from Service Direct marketplace roofing campaign."
+          },
+          {
+            "key": "original_city",
+            "value": "Austin"
+          },
+          {
+            "key": "original_state",
+            "value": "TX"
+          },
+          {
+            "key": "original_zip",
+            "value": "78745"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "source": "project_cceaeb3473d8ed45.json",
+      "subject": "Test Lead 2",
+      "runs": 5,
+      "variants": 5,
+      "variant_counts": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "test_domain",
+        "confidence": 0.5,
+        "address": "",
+        "summary": "Test lead email with a contact and phone but no roofing service request or clear customer lead context.",
+        "rejection_reason": "Not a customer service/roofing lead; lacks service request, quote request, or marketplace lead context.",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": ""
+          },
+          {
+            "key": "product",
+            "value": ""
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "This is a test lead"
+          }
+        ]
+      }
+    }
+  ],
+  "details": [
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "Zoom",
+        "confidence": 0.45,
+        "address": "",
+        "summary": "Promotional email about Zoom storage discount and social links. Not a customer service/roofing lead.",
+        "rejection_reason": "Not a roofing lead; marketing/renewal/promotional email not related to a customer site or service request.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": ""
+          },
+          {
+            "key": "product",
+            "value": "Zoom Cloud Storage Promotion"
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Promotional email with promo code, storage offer, and social links."
+          },
+          {
+            "key": "original_city",
+            "value": ""
+          },
+          {
+            "key": "original_state",
+            "value": ""
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "Zoom",
+        "confidence": 0.55,
+        "address": "",
+        "summary": "Marketing email promoting Zoom cloud storage offer; not a customer service/roofing lead.",
+        "rejection_reason": "Email is marketing/notification from Zoom, not related to roofing services or a customer service/lead for a roof project.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_source",
+            "value": "Zoom marketing email"
+          },
+          {
+            "key": "product",
+            "value": "Zoom Cloud Storage offer"
+          },
+          {
+            "key": "campaign",
+            "value": "50 meetings celebration / cloud storage promo"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "Zoom",
+        "confidence": 0.4,
+        "address": "",
+        "summary": "Marketing/offer email from Zoom about a promotional discount. Not a customer service/roofing lead.",
+        "rejection_reason": "Not a roofing lead; promotional newsletter/offer from Zoom.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": ""
+          },
+          {
+            "key": "product",
+            "value": "Zoom Cloud Storage Promotion"
+          },
+          {
+            "key": "campaign",
+            "value": "50 meetings congratulations / storage promo"
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Promo valid 15 days; not applicable to government discounts; contains addresses and phone but not relevant for lead"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "Zoom",
+        "confidence": 0.25,
+        "address": "",
+        "summary": "Marketing promotional email from Zoom about discounts and social links. Not a customer service/roofing lead.",
+        "rejection_reason": "Email is promotional/marketing content not related to roofing services or a customer inquiry.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "original_city",
+            "value": "San Jose"
+          },
+          {
+            "key": "original_state",
+            "value": "CA"
+          },
+          {
+            "key": "original_zip",
+            "value": "95111"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "Zoom",
+        "confidence": 0.4,
+        "address": "",
+        "summary": "Marketing/Promotion email from Zoom about a storage offer and hosting 50 meetings. Not a customer service/roofing lead.",
+        "rejection_reason": "Email is marketing/promotional content not related to roofing lead or customer service request.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "subject",
+            "value": "You’ve hosted your first 50 meetings!"
+          },
+          {
+            "key": "from",
+            "value": "Jack H <jack@1m8.ai>"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "DigitalOcean",
+        "confidence": 0.25,
+        "address": "",
+        "summary": "Invoice email about DigitalOcean account for team FirstMate with attached PDF and billing details; not a customer service/roofing lead.",
+        "rejection_reason": "Invoice/billing notification, not a roofing lead.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "invoice_2026_04_firstmate"
+          },
+          {
+            "key": "product",
+            "value": "billing"
+          },
+          {
+            "key": "campaign",
+            "value": "newsletter_invoice"
+          },
+          {
+            "key": "job_type",
+            "value": "invoice"
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Invoice for FirstMate; attached PDF; Mastercard ending 1077; no action needed."
+          },
+          {
+            "key": "original_city",
+            "value": ""
+          },
+          {
+            "key": "original_state",
+            "value": ""
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "DigitalOcean",
+        "confidence": 0.32,
+        "address": "",
+        "summary": "Invoice email about DigitalOcean account team FirstMate with attached PDF invoice. No customer-initiated service request or lead info. Contains billing summary and payment method details.",
+        "rejection_reason": "Not a customer service/roofing lead; this is an invoice notification and marketing-like billing communication.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "2026-04-invoice-firstmate"
+          },
+          {
+            "key": "product",
+            "value": "invoice"
+          },
+          {
+            "key": "campaign",
+            "value": "billing-notice"
+          },
+          {
+            "key": "job_type",
+            "value": "invoice"
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Invoice for 2026-04 for team FirstMate; payment method Mastercard ending 1077"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "DigitalOcean",
+        "confidence": 0.25,
+        "address": "",
+        "summary": "Invoice email about 2026-04 invoice for team FirstMate from DigitalOcean. Includes charges summary and attached PDF. Marked as invoice; no customer service/roofing lead content.",
+        "rejection_reason": "Email is an invoice/notification, not a customer service/roofing lead.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "N/A"
+          },
+          {
+            "key": "product",
+            "value": "invoice"
+          },
+          {
+            "key": "campaign",
+            "value": "N/A"
+          },
+          {
+            "key": "job_type",
+            "value": "N/A"
+          },
+          {
+            "key": "material",
+            "value": "N/A"
+          },
+          {
+            "key": "homeowner",
+            "value": "N/A"
+          },
+          {
+            "key": "original_city",
+            "value": "N/A"
+          },
+          {
+            "key": "original_state",
+            "value": "N/A"
+          },
+          {
+            "key": "original_zip",
+            "value": "N/A"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "DigitalOcean (inbound invoice)",
+        "confidence": 0.42,
+        "address": "",
+        "summary": "Invoice email about 2026-04 invoice for team FirstMate with attached PDF and billing details.",
+        "rejection_reason": "Email is an invoice/notification, not a customer service roofing lead.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "N/A"
+          },
+          {
+            "key": "product",
+            "value": "invoice"
+          },
+          {
+            "key": "campaign",
+            "value": "N/A"
+          },
+          {
+            "key": "job_type",
+            "value": "invoice"
+          },
+          {
+            "key": "material",
+            "value": "N/A"
+          },
+          {
+            "key": "homeowner",
+            "value": "N/A"
+          },
+          {
+            "key": "comments",
+            "value": "Invoice email; balance $0.00 after payment; attached PDF"
+          },
+          {
+            "key": "original_city",
+            "value": "N/A"
+          },
+          {
+            "key": "original_state",
+            "value": "N/A"
+          },
+          {
+            "key": "original_zip",
+            "value": "N/A"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "DigitalOcean",
+        "confidence": 0.6,
+        "address": "",
+        "summary": "Invoice notification for team FirstMate from DigitalOcean. Payment of $322.56 completed; invoice attached; billing settings and support info provided.",
+        "rejection_reason": "Email is an invoice/billing notification, not a customer service roofing lead.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "do:team:1d30e616-d454-4a8a-85df-5ec3079409aa"
+          },
+          {
+            "key": "product",
+            "value": "invoice"
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Summary for FirstMate; Invoice Total 322.56; Amount paid -322.56; Ending balance 0.00"
+          },
+          {
+            "key": "original_city",
+            "value": ""
+          },
+          {
+            "key": "original_state",
+            "value": ""
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.66,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Webform lead for roofing service request from Roxy Clemence. Lead ID 111561193. Property: residence in Bothell, WA. Job type: Install. Material: Asphalt. Lead originated via Inquirly webform.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "111561193"
+          },
+          {
+            "key": "lead_type",
+            "value": "Webform Lead"
+          },
+          {
+            "key": "date_posted",
+            "value": "2026-01-15 17:49:29"
+          },
+          {
+            "key": "property_type",
+            "value": "Residence"
+          },
+          {
+            "key": "job_type",
+            "value": "Install"
+          },
+          {
+            "key": "material",
+            "value": "Asphalt"
+          },
+          {
+            "key": "owner",
+            "value": "Yes"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.66,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Webform lead for roofing service install from Roxy Clemence. Lead ID 111561193. Contact via email and phone. Address present.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "111561193"
+          },
+          {
+            "key": "date_posted",
+            "value": "2026-01-15 17:49:29"
+          },
+          {
+            "key": "lead_type",
+            "value": "Webform Lead"
+          },
+          {
+            "key": "job_type",
+            "value": "Install"
+          },
+          {
+            "key": "property_type",
+            "value": "Residence"
+          },
+          {
+            "key": "material",
+            "value": "Asphalt"
+          },
+          {
+            "key": "project_status",
+            "value": ""
+          },
+          {
+            "key": "address",
+            "value": "16416 3rd Avenue Southeast, Bothell, WA 98012"
+          },
+          {
+            "key": "city",
+            "value": "Bothell"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.72,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Webform lead for roofing service request by Roxy Clemence. Lead ID 111561193. Property: residence in Bothell, WA. Job type: Install (roofing).",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "111561193"
+          },
+          {
+            "key": "date_posted",
+            "value": "2026-01-15 17:49:29"
+          },
+          {
+            "key": "lead_type",
+            "value": "Webform Lead"
+          },
+          {
+            "key": "property_type",
+            "value": "Residence"
+          },
+          {
+            "key": "job_type",
+            "value": "Install"
+          },
+          {
+            "key": "material",
+            "value": "Asphalt"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.58,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Webform roofing lead for installation at 16416 3rd Ave SE, Bothell, WA 98012. Lead ID 111561193. Contact: Roxy Clemence, 206-354-2383, emmalafonnt@gmail.com.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_type",
+            "value": "Webform Lead"
+          },
+          {
+            "key": "lead_id",
+            "value": "111561193"
+          },
+          {
+            "key": "date_posted",
+            "value": "2026-01-15 17:49:29"
+          },
+          {
+            "key": "property_type",
+            "value": "Residence"
+          },
+          {
+            "key": "job_type",
+            "value": "Install"
+          },
+          {
+            "key": "material",
+            "value": "Asphalt"
+          },
+          {
+            "key": "owner",
+            "value": "Yes"
+          },
+          {
+            "key": "city",
+            "value": "Bothell"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98012"
+          },
+          {
+            "key": "comments",
+            "value": ""
+          },
+          {
+            "key": "project_status",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.72,
+        "address": "16416 3rd Avenue Southeast, Bothell, WA 98012",
+        "summary": "Webform lead for roofing install from Roxy Clemence. Lead ID 111561193. Contact: Roxy Clemence, phone +12063542383, email emmalafonnt@gmail.com. Address provided. Project: Roofing installation at residence.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "111561193"
+          },
+          {
+            "key": "lead_type",
+            "value": "Webform Lead"
+          },
+          {
+            "key": "date_posted",
+            "value": "2026-01-15 17:49:29"
+          },
+          {
+            "key": "property_type",
+            "value": "Residence"
+          },
+          {
+            "key": "job_type",
+            "value": "Install"
+          },
+          {
+            "key": "material",
+            "value": "Asphalt"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.7,
+        "address": "18225 48TH AVE W, Lynnwood, WA 98037",
+        "summary": "Roof install lead inquiry for asphalt shingle in Lynnwood. Name Balraj Bakshi, phone 209-485-8505, email balrajbakshi@gmail.com. Job type Roof Install - Asphalt Shingle. Source Networx.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "BALRAJBAKSHI@GMAIL.COM",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "job_type",
+            "value": "Roof Install - Asphalt Shingle"
+          },
+          {
+            "key": "area",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "homeowner",
+            "value": "Balraj Bakshi"
+          },
+          {
+            "key": "lead_source",
+            "value": "Networx"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.55,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof install lead for Balraj Bakshi in Lynnwood, WA. Job Type: Roof Install - Asphalt Shingle. Contact: Balraj Bakshi, phone +1-209-485-8505, email BALRAJBAKSHI@GMAIL.COM. Address: 18225 48TH AVE W, Lynnwood, WA 98037. Source: Networx lead forwarded via email.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "BALRAJBAKSHI@GMAIL.COM",
+            "phones": [
+              "+1-2094858505"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "job_type",
+            "value": "Roof Install - Asphalt Shingle"
+          },
+          {
+            "key": "area",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "lead_source",
+            "value": "Networx"
+          },
+          {
+            "key": "lead_id",
+            "value": "29897032"
+          },
+          {
+            "key": "client_token",
+            "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NzI3MzI4MTUsImlhdCI6MTc3MDE0MDgxNSwidXNlcl9pZCI6MzAwNTIyNCwidHlwZV9pZCI6OTQsImRldmljZV9pZCI6bnVsbCwiYXBwX2RldmljZV9pZCI6bnVsbCwidXNhZ2UiOiJsaW5rIiwiY2xpZW50X2lkIjoyNTEzNzgyfQ.ctLrCNz9BrRnRK-3p_97SrZg4Io6HwmbcWb8qkLcVzw"
+          },
+          {
+            "key": "maps_area",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "city",
+            "value": "Lynnwood"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98037"
+          },
+          {
+            "key": "source_domain",
+            "value": "networx.com"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.55,
+        "address": "18225 48TH AVE W",
+        "summary": "Roof install lead for Balraj Bakshi in Lynnwood, WA (98037). Job type Roof Install - Asphalt Shingle. Phone +1(209)485-8505. Email BALRAJBAKSHI@GMAIL.COM.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "BALRAJBAKSHI@GMAIL.COM",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "29897032"
+          },
+          {
+            "key": "job_type",
+            "value": "Roof Install - Asphalt Shingle"
+          },
+          {
+            "key": "city",
+            "value": "Lynnwood"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98037"
+          },
+          {
+            "key": "product",
+            "value": ""
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": "Balraj Bakshi"
+          },
+          {
+            "key": "comments",
+            "value": ""
+          },
+          {
+            "key": "original_city_state_zip",
+            "value": "Lynnwood, WA 98037"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.58,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof Install - Asphalt Shingle lead for Balraj Bakshi in Lynnwood, WA. Includes contact phone and email and site address.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "BALRAJBAKSHI@GMAIL.COM",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "job_type",
+            "value": "Roof Install - Asphalt Shingle"
+          },
+          {
+            "key": "area",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "original_city_state_zip",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "homeowner",
+            "value": "Balraj Bakshi"
+          },
+          {
+            "key": "notes",
+            "value": "Lead from Networx; potential dashboard lead link in email"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.55,
+        "address": "18225 48th Ave W, Lynnwood, WA 98037",
+        "summary": "Roof install - asphalt shingle lead in Lynnwood. Customer Balraj Bakshi. Phone +1(209)485-8505. Email BALRAJBAKSHI@GMAIL.COM. Job type Roof Install - Asphalt Shingle. Address 18225 48th Ave W, Lynnwood WA 98037.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "BALRAJBAKSHI@GMAIL.COM",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_source",
+            "value": "Networx"
+          },
+          {
+            "key": "job_type",
+            "value": "Roof Install - Asphalt Shingle"
+          },
+          {
+            "key": "city",
+            "value": "Lynnwood"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "postal_code",
+            "value": "98037"
+          },
+          {
+            "key": "original_city_state_zip",
+            "value": "Lynnwood, WA 98037"
+          },
+          {
+            "key": "comments",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.7,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "QuinStreet lead for roofing service request in Bonney Lake, WA. Customer Lenes Rasmussen, homeowner, Apex Roofing - WA likely the property owner requesting roofing quote.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Lenes Rasmussen",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_key",
+            "value": "62280713033"
+          },
+          {
+            "key": "product",
+            "value": "ROOFING"
+          },
+          {
+            "key": "client_name",
+            "value": "Apex Roofing - WA"
+          },
+          {
+            "key": "homeowner",
+            "value": "Yes"
+          },
+          {
+            "key": "best_time_to_call",
+            "value": "Daytime"
+          },
+          {
+            "key": "clk",
+            "value": "171250730173729023"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.72,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Lead from QuinStreet for roofing services. Homeowner contact provided with street address at site.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Lenes Rasmussen",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_key",
+            "value": "62280713033"
+          },
+          {
+            "key": "product",
+            "value": "ROOFING"
+          },
+          {
+            "key": "client_name",
+            "value": "Apex Roofing - WA"
+          },
+          {
+            "key": "city",
+            "value": "BONNEY LAKE"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98391"
+          },
+          {
+            "key": "original_city_state_zip",
+            "value": "BONNEY LAKE WA 98391"
+          },
+          {
+            "key": "homeowner",
+            "value": "Yes"
+          },
+          {
+            "key": "best_time_to_call",
+            "value": "Daytime"
+          },
+          {
+            "key": "street_address",
+            "value": "20519 119th ST E"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.72,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "QuinStreet lead for roofing service request in Bonney Lake, WA. Customer Lenes Rasmussen seeking roofing (homeowner) for Apex Roofing - WA. Lead contains contact email and phone, address, and lead key.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Lenes Rasmussen",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_key",
+            "value": "62280713033"
+          },
+          {
+            "key": "clk",
+            "value": "171250730173729023"
+          },
+          {
+            "key": "product",
+            "value": "ROOFING"
+          },
+          {
+            "key": "home_owner",
+            "value": "Yes"
+          },
+          {
+            "key": "street_address",
+            "value": "20519 119th ST E"
+          },
+          {
+            "key": "city",
+            "value": "BONNEY LAKE"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98391"
+          },
+          {
+            "key": "caller_prefers",
+            "value": "Daytime"
+          },
+          {
+            "key": "client_name",
+            "value": "Apex Roofing - WA"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.72,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "Lead allocation from QuinStreet webform for roofing service in Bonney Lake, WA. Customer Lenes Rasmussen requesting roofing services for Apex Roofing - WA. Contact via email and primary phone provided.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Lenes Rasmussen",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_key",
+            "value": "62280713033"
+          },
+          {
+            "key": "clk",
+            "value": "171250730173729023"
+          },
+          {
+            "key": "product",
+            "value": "ROOFING"
+          },
+          {
+            "key": "client_name",
+            "value": "Apex Roofing - WA"
+          },
+          {
+            "key": "homeowner",
+            "value": "Yes"
+          },
+          {
+            "key": "best_time_to_call",
+            "value": "Daytime"
+          },
+          {
+            "key": "site_street_address",
+            "value": "20519 119th ST E"
+          },
+          {
+            "key": "site_city",
+            "value": "BONNEY LAKE"
+          },
+          {
+            "key": "site_state",
+            "value": "WA"
+          },
+          {
+            "key": "site_zip",
+            "value": "98391"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.78,
+        "address": "20519 119th St E, Bonney Lake, WA 98391",
+        "summary": "QuinStreet roofing lead for Apex Roofing - WA. Customer Lenes Rasmussen, homeowner, contact via primary number 2532498487. Email provided nras31951@gmail.com. Lead key 62280713033. Product ROOFING. Address formatted and cleaned.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Lenes Rasmussen",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_key",
+            "value": "62280713033"
+          },
+          {
+            "key": "product",
+            "value": "ROOFING"
+          },
+          {
+            "key": "client_name",
+            "value": "Apex Roofing - WA"
+          },
+          {
+            "key": "home_owner",
+            "value": "Yes"
+          },
+          {
+            "key": "street_address",
+            "value": "20519 119th ST E"
+          },
+          {
+            "key": "city",
+            "value": "Bonney Lake"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98391"
+          },
+          {
+            "key": "best_time_to_call",
+            "value": "Daytime"
+          },
+          {
+            "key": "clk",
+            "value": "171250730173729023"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.62,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Quote request from homeowner for roof replacement through Fixr. Lead includes contact name Bernardino Nunez, phone 2534411702, address of site provided, service: Roof Replacement, property owned, roof type shingles, estimated roof costs provided.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Bernardino Nunez",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "6206323"
+          },
+          {
+            "key": "product",
+            "value": "Roof Replacement"
+          },
+          {
+            "key": "campaign",
+            "value": "Thurston & Pierce Counties"
+          },
+          {
+            "key": "lead_sale_type",
+            "value": "Trio"
+          },
+          {
+            "key": "service_provider",
+            "value": "Fixr.com"
+          },
+          {
+            "key": "original_city",
+            "value": "Gig Harbor"
+          },
+          {
+            "key": "original_state",
+            "value": "WA"
+          },
+          {
+            "key": "original_zip",
+            "value": "98332"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.6,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332",
+        "summary": "Lead requested a roofing quote via Fixr. Caller provided phone and address; lead type is a service/quote request for roof replacement.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Bernardino Nunez",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12232411702"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "6206323"
+          },
+          {
+            "key": "campaign",
+            "value": "Thurston & Pierce Counties"
+          },
+          {
+            "key": "lead_sale_type",
+            "value": "Trio"
+          },
+          {
+            "key": "requested_by",
+            "value": "Bernardino Nunez - nuvaconstructionllc@gmail.com"
+          },
+          {
+            "key": "phone",
+            "value": "+12534411702"
+          },
+          {
+            "key": "address_of_site",
+            "value": "13019 Point Richmond Beach Road Northwest, Gig Harbor WA 98332"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "Fixr",
+        "confidence": 0.55,
+        "address": "",
+        "summary": "Invoice/marketing lead duplicate content detected; email contains lead data but primary content is marketing/newsletter style; not a customer service inquiry.",
+        "rejection_reason": "Not a clean customer service/roofing lead; contains marketing boilerplate and duplicate sections; no verifiable customer-initiated service request beyond a generic quote request",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "6206323"
+          },
+          {
+            "key": "campaign",
+            "value": "Thurston & Pierce Counties"
+          },
+          {
+            "key": "lead_sale_type",
+            "value": "Trio"
+          },
+          {
+            "key": "requested_by",
+            "value": "Bernardino Nunez - nuvaconstructionllc@gmail.com"
+          },
+          {
+            "key": "phone",
+            "value": "2534411702"
+          },
+          {
+            "key": "address_of_site",
+            "value": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA, 98332"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "Fixr",
+        "confidence": 0.55,
+        "address": "",
+        "summary": "This is an inbound marketing lead for a roofing quote via Fixr. Includes Lead ID 6206323, contact name Bernardino Nunez, phone 2534411702, and site address 13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332. It is not a direct customer service/roofing lead but a marketplace lead. Rejection reason: not a direct customer service inquiry; treated as a marketing/inquiry email.",
+        "rejection_reason": "Not a direct customer service/roofing lead; marketing inquiry from Fixr marketplace.",
+        "contacts": [
+          {
+            "name": "Bernardino Nunez",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "6206323"
+          },
+          {
+            "key": "campaign",
+            "value": "Thurston & Pierce Counties"
+          },
+          {
+            "key": "lead_sale_type",
+            "value": "Trio"
+          },
+          {
+            "key": "requested_by",
+            "value": "Bernardino Nunez - nuvaconstructionllc@gmail.com"
+          },
+          {
+            "key": "phone",
+            "value": "+12534411702"
+          },
+          {
+            "key": "address_of_site",
+            "value": "13019 Point Richmond Beach Road Northwest, Gig Harbor, WA 98332"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "Fixr",
+        "confidence": 0.35,
+        "address": "",
+        "summary": "Lead appears to be a marketing/quote request from Fixr with embedded client contact details. Duplicate content present; no clear customer/site address usable after cleaning rules.",
+        "rejection_reason": "Not a direct customer service/roofing lead; contains marketing/lead-generation content with address that is present but not clearly attributed to a single customer job site in a structured format. Also includes duplicate, boilerplate marketing text and sender/branding not clearly tied to an active service request channel.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "6206323"
+          },
+          {
+            "key": "product",
+            "value": "Roof Replacement - quote request"
+          },
+          {
+            "key": "campaign",
+            "value": "Thurston & Pierce Counties"
+          },
+          {
+            "key": "job_type",
+            "value": "Roofing Quote Request"
+          },
+          {
+            "key": "material",
+            "value": "shingles"
+          },
+          {
+            "key": "homeowner",
+            "value": "Bernardino Nunez"
+          },
+          {
+            "key": "city",
+            "value": "Gig Harbor"
+          },
+          {
+            "key": "state",
+            "value": "WA"
+          },
+          {
+            "key": "zip",
+            "value": "98332"
+          },
+          {
+            "key": "phone",
+            "value": "+12534411702"
+          },
+          {
+            "key": "address",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.74,
+        "address": "Santa Clarita, CA",
+        "summary": "New phone lead from Service Direct. Caller from Santa Clarita, CA. Lead represents a web/phone prospective roofing service inquiry.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+1 6618030228"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "4254522"
+          },
+          {
+            "key": "product",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "campaign",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "job_type",
+            "value": "new_phone_lead"
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": "Apex Roofing NW"
+          },
+          {
+            "key": "comments",
+            "value": "Caller from Santa Clarita, CA. 1:41 call duration. Lead from Service Direct marketplace roofing campaign."
+          },
+          {
+            "key": "original_city",
+            "value": "Austin"
+          },
+          {
+            "key": "original_state",
+            "value": "TX"
+          },
+          {
+            "key": "original_zip",
+            "value": "78745"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.73,
+        "address": "Santa Clarita, CA",
+        "summary": "New phone lead from Service Direct. Caller From Santa Clarita CA, phone number provided. Marketplace - Roofing lead; call duration 01:41; lead_id 4254522.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+1-661-803-0228"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "4254522"
+          },
+          {
+            "key": "product",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "campaign",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": ""
+          },
+          {
+            "key": "original_city",
+            "value": "Santa Clarita"
+          },
+          {
+            "key": "original_state",
+            "value": "CA"
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          },
+          {
+            "key": "call_duration",
+            "value": "01:41"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.72,
+        "address": "",
+        "summary": "New phone lead from Service Direct. Caller from Santa Clarita, CA, phone number 661-803-0228. Lead type: NEW PHONE LEAD / Marketplace - Roofing.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "4254522"
+          },
+          {
+            "key": "product",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "campaign",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "job_type",
+            "value": "New phone lead"
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "Caller From Santa Clarita Ca; Call Duration 01:41; Lead Review; New phone lead; 01/16/26 7:37 am PST"
+          },
+          {
+            "key": "original_city",
+            "value": "Santa Clarita"
+          },
+          {
+            "key": "original_state",
+            "value": "CA"
+          },
+          {
+            "key": "original_zip",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.72,
+        "address": "",
+        "summary": "New phone lead from Service Direct. Caller from Santa Clarita, CA. Phone number: (661) 803-0228. Lead type: NEW PHONE LEAD, marketplace roofing.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Caller from Santa Clarita",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_source",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "lead_type",
+            "value": "NEW PHONE LEAD"
+          },
+          {
+            "key": "lead_id",
+            "value": "4254522"
+          },
+          {
+            "key": "campaign",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "call_duration",
+            "value": "01:41"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.75,
+        "address": "Santa Clarita, CA",
+        "summary": "New phone lead from Service Direct. Caller from Santa Clarita, CA. Phone number provided. Lead captured as marketplace roofing lead.",
+        "rejection_reason": "",
+        "contacts": [
+          {
+            "name": "Apex Roofing NW",
+            "email": "",
+            "phones": [
+              "+1 661-803-0228"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": "4254522"
+          },
+          {
+            "key": "product",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "campaign",
+            "value": "Marketplace - Roofing"
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": "Unknown"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "test_domain",
+        "confidence": 0.5,
+        "address": "",
+        "summary": "Test lead email with a contact and phone but no roofing service request or clear customer lead context.",
+        "rejection_reason": "Not a customer service/roofing lead; lacks service request, quote request, or marketplace lead context.",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "lead_id",
+            "value": ""
+          },
+          {
+            "key": "product",
+            "value": ""
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "This is a test lead"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "test_domain_sender",
+        "confidence": 0.25,
+        "address": "",
+        "summary": "This is a test lead. Email appears to be a test or placeholder; no customer site address provided.",
+        "rejection_reason": "No customer service/roofing lead detected; email appears to be a test message with no actionable lead information.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_source",
+            "value": "test domain sender"
+          },
+          {
+            "key": "lead_id",
+            "value": "N/A"
+          },
+          {
+            "key": "product",
+            "value": "N/A"
+          },
+          {
+            "key": "campaign",
+            "value": "N/A"
+          },
+          {
+            "key": "job_type",
+            "value": "N/A"
+          },
+          {
+            "key": "material",
+            "value": "N/A"
+          },
+          {
+            "key": "homeowner",
+            "value": "N/A"
+          },
+          {
+            "key": "comments",
+            "value": "This is a test lead"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "1m8.ai",
+        "confidence": 0.25,
+        "address": "",
+        "summary": "No actionable roofing lead detected; test email with contact info.",
+        "rejection_reason": "Email appears to be a test/informational message with contact info but no customer-site lead data or service request.",
+        "contacts": [
+          {
+            "name": "",
+            "email": "billsomeone@testdomain.com",
+            "phones": [
+              "+11234567890"
+            ]
+          }
+        ],
+        "fields": [
+          {
+            "key": "note",
+            "value": "No site address detected; test lead content."
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "Unknown",
+        "confidence": 0.4,
+        "address": "",
+        "summary": "Generic test lead email with no actionable customer service/roofing information.",
+        "rejection_reason": "No customer service/roofing request or lead data detected; email appears to be a test/information message with no job-site address or service request.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "lead_source",
+            "value": "unknown"
+          },
+          {
+            "key": "lead_id",
+            "value": ""
+          },
+          {
+            "key": "product",
+            "value": ""
+          },
+          {
+            "key": "campaign",
+            "value": ""
+          },
+          {
+            "key": "job_type",
+            "value": ""
+          },
+          {
+            "key": "material",
+            "value": ""
+          },
+          {
+            "key": "homeowner",
+            "value": ""
+          },
+          {
+            "key": "comments",
+            "value": "This is a test lead"
+          }
+        ]
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.4,
+        "address": "",
+        "summary": "Test lead email with a phone number, not a clear customer service/roofing lead.",
+        "rejection_reason": "Email appears to be a generic test message with no service request, no customer/site address, and no roofing lead context.",
+        "contacts": [],
+        "fields": [
+          {
+            "key": "original_subject",
+            "value": "Test Lead 2"
+          },
+          {
+            "key": "original_from",
+            "value": "jack@1m8.ai"
+          },
+          {
+            "key": "body_snippet",
+            "value": "This is a test lead\n\nbillsomeone@testdomain.com\n(123) 456-7890\n\n\n This is a test lead billsomeone@testdomain.com (123) 456-7890"
+          }
+        ]
+      }
+    }
+  ]
+}

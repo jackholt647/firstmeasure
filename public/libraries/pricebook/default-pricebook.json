@@ -1,0 +1,1266 @@
+{
+  "items": [
+    {
+      "id": "matlab_misc",
+      "name": "MatLab",
+      "category": "misc",
+      "unit": "ea",
+      "unitPrice": 0,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "number",
+            "value": "1"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Placeholder miscellaneous item",
+      "itemTypeId": "matlab_misc",
+      "itemTypeName": "MatLab",
+      "variantId": "generic",
+      "variantName": "MatLab",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "sealant_misc",
+      "name": "Sealant / Miscellaneous",
+      "category": "misc",
+      "unit": "ea",
+      "unitPrice": 65,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "number",
+            "value": "1"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Miscellaneous sealant and small accessories",
+      "itemTypeId": "sealant_misc",
+      "itemTypeName": "Sealant / Miscellaneous",
+      "variantId": "generic",
+      "variantName": "Sealant / Miscellaneous",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "tearoff",
+      "name": "Remove Existing Roofing",
+      "category": "disposal",
+      "manufacturer": "generic",
+      "unit": "sq",
+      "unitPrice": 85,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "roofSquares"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Tear-off and disposal of existing roofing",
+      "itemTypeId": "tearoff",
+      "itemTypeName": "Remove Existing Roofing",
+      "variantId": "generic",
+      "variantName": "Remove Existing Roofing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "laminated_shingles",
+      "name": "Architectural Shingles",
+      "category": "shingle_roofs",
+      "manufacturer": "generic",
+      "unit": "sq",
+      "unitPrice": 365,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": true,
+      "description": "Field shingles with waste applied automatically",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "generic_architectural",
+      "variantName": "Architectural",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "barkwood",
+              "label": "Barkwood"
+            },
+            {
+              "value": "shakewood",
+              "label": "Shakewood"
+            },
+            {
+              "value": "driftwood",
+              "label": "Driftwood"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      }
+    },
+    {
+      "id": "gaf_hd",
+      "name": "GAF Timberline HDZ",
+      "category": "shingle_roofs",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 398,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Architectural laminate shingle",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "gaf_timberline_hdz",
+      "variantName": "Timberline HDZ",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "barkwood",
+              "label": "Barkwood"
+            },
+            {
+              "value": "shakewood",
+              "label": "Shakewood"
+            },
+            {
+              "value": "driftwood",
+              "label": "Driftwood"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      }
+    },
+    {
+      "id": "owens_duration",
+      "name": "Owens Corning Duration",
+      "category": "shingle_roofs",
+      "manufacturer": "owens_corning",
+      "unit": "sq",
+      "unitPrice": 405,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "High-definition laminate shingle",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "owens_corning_duration",
+      "variantName": "Duration",
+      "variantGroupId": "owens_corning",
+      "variantGroupName": "Owens Corning",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "barkwood",
+              "label": "Barkwood"
+            },
+            {
+              "value": "shakewood",
+              "label": "Shakewood"
+            },
+            {
+              "value": "driftwood",
+              "label": "Driftwood"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      }
+    },
+    {
+      "id": "malarkey_vista",
+      "name": "Malarkey Vista",
+      "category": "shingle_roofs",
+      "manufacturer": "malarkey",
+      "unit": "sq",
+      "unitPrice": 418,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Impact-resistant laminate shingle",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "malarkey_vista",
+      "variantName": "Vista",
+      "variantGroupId": "malarkey",
+      "variantGroupName": "Malarkey",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "barkwood",
+              "label": "Barkwood"
+            },
+            {
+              "value": "shakewood",
+              "label": "Shakewood"
+            },
+            {
+              "value": "driftwood",
+              "label": "Driftwood"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      }
+    },
+    {
+      "id": "starter",
+      "name": "Starter Strip",
+      "category": "shingle_roofs",
+      "manufacturer": "generic",
+      "unit": "lf",
+      "unitPrice": 2.45,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "eavesLf"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "rakesLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Starter along eaves and rakes",
+      "itemTypeId": "starter",
+      "itemTypeName": "Starter Strip",
+      "variantId": "generic",
+      "variantName": "Starter Strip",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "ridge_cap",
+      "name": "Ridge Cap",
+      "category": "shingle_roofs",
+      "manufacturer": "generic",
+      "unit": "lf",
+      "unitPrice": 4.25,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "hipsLf"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "ridgesLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Hip and ridge cap shingles",
+      "itemTypeId": "ridge_cap",
+      "itemTypeName": "Ridge Cap",
+      "variantId": "generic",
+      "variantName": "Ridge Cap",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "barkwood",
+              "label": "Barkwood"
+            },
+            {
+              "value": "shakewood",
+              "label": "Shakewood"
+            },
+            {
+              "value": "driftwood",
+              "label": "Driftwood"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      }
+    },
+    {
+      "id": "underlayment",
+      "name": "Underlayment",
+      "category": "underlayments",
+      "manufacturer": "generic",
+      "unit": "sq",
+      "unitPrice": 42,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": true,
+      "description": "Synthetic felt underlayment",
+      "itemTypeId": "underlayment",
+      "itemTypeName": "Underlayment",
+      "variantId": "generic",
+      "variantName": "Underlayment",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "gaf_shinglemate",
+      "name": "GAF ShingleMate",
+      "category": "underlayments",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 48,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "GAF felt roof deck protection",
+      "itemTypeId": "underlayment",
+      "itemTypeName": "Underlayment",
+      "variantId": "gaf_shinglemate",
+      "variantName": "ShingleMate",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "gaf_feltbuster",
+      "name": "GAF FeltBuster",
+      "category": "underlayments",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 54,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "GAF synthetic roof deck protection",
+      "itemTypeId": "underlayment",
+      "itemTypeName": "Underlayment",
+      "variantId": "gaf_feltbuster",
+      "variantName": "FeltBuster",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "gaf_tiger_paw",
+      "name": "GAF Tiger Paw",
+      "category": "underlayments",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 62,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "GAF premium synthetic roof deck protection",
+      "itemTypeId": "underlayment",
+      "itemTypeName": "Underlayment",
+      "variantId": "gaf_tiger_paw",
+      "variantName": "Tiger Paw",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "steep_slope",
+      "name": "Steep Slope Charge",
+      "category": "shingle_roofs",
+      "manufacturer": "generic",
+      "unit": "sq",
+      "unitPrice": 35,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "paren",
+            "value": "("
+          },
+          {
+            "type": "measurement",
+            "value": "pitch9to12Squares"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "pitch13PlusSquares"
+          },
+          {
+            "type": "paren",
+            "value": ")"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Additional labor for steep slope roof sections",
+      "itemTypeId": "steep_slope",
+      "itemTypeName": "Steep Slope Charge",
+      "variantId": "generic",
+      "variantName": "Steep Slope Charge",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "ice_water",
+      "name": "Ice & Water Shield",
+      "category": "leak_barriers",
+      "manufacturer": "generic",
+      "unit": "sq",
+      "unitPrice": 78,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "paren",
+            "value": "("
+          },
+          {
+            "type": "measurement",
+            "value": "valleyLf"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "eavesLf"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "rakesLf"
+          },
+          {
+            "type": "paren",
+            "value": ")"
+          },
+          {
+            "type": "operator",
+            "value": "/"
+          },
+          {
+            "type": "number",
+            "value": "100"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "pitch2to4Squares"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Eaves and valleys ice barrier",
+      "itemTypeId": "leak_barrier",
+      "itemTypeName": "Leak Barrier",
+      "variantId": "generic",
+      "variantName": "Ice & Water Shield",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "gaf_weatherwatch",
+      "name": "GAF WeatherWatch",
+      "category": "leak_barriers",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 92,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Premium leak barrier membrane",
+      "itemTypeId": "leak_barrier",
+      "itemTypeName": "Leak Barrier",
+      "variantId": "gaf_weatherwatch",
+      "variantName": "WeatherWatch",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "owens_weatherlock",
+      "name": "Owens Corning WeatherLock",
+      "category": "leak_barriers",
+      "manufacturer": "owens_corning",
+      "unit": "sq",
+      "unitPrice": 95,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Self-adhered ice and water shield",
+      "itemTypeId": "leak_barrier",
+      "itemTypeName": "Leak Barrier",
+      "variantId": "owens_corning_weatherlock",
+      "variantName": "WeatherLock",
+      "variantGroupId": "owens_corning",
+      "variantGroupName": "Owens Corning",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "drip_edge",
+      "name": "Drip Edge",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "lf",
+      "unitPrice": 3.25,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "eavesLf"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "rakesLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Metal drip edge at perimeter",
+      "itemTypeId": "drip_edge",
+      "itemTypeName": "Drip Edge",
+      "variantId": "generic",
+      "variantName": "Drip Edge",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "black",
+          "required": true,
+          "values": [
+            {
+              "value": "black",
+              "label": "Black"
+            },
+            {
+              "value": "brown",
+              "label": "Brown"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "black"
+      }
+    },
+    {
+      "id": "valley_metal",
+      "name": "Valley Metal",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "lf",
+      "unitPrice": 8.75,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "valleyLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Open valley metal in roof valleys",
+      "itemTypeId": "valley_metal",
+      "itemTypeName": "Valley Metal",
+      "variantId": "generic",
+      "variantName": "Valley Metal",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "black",
+          "required": true,
+          "values": [
+            {
+              "value": "black",
+              "label": "Black"
+            },
+            {
+              "value": "brown",
+              "label": "Brown"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "black"
+      }
+    },
+    {
+      "id": "pipe_boot",
+      "name": "Skylight Flashing",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "ea",
+      "unitPrice": 95,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "skylightsEa"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Replace skylight flashing kits",
+      "itemTypeId": "pipe_boot",
+      "itemTypeName": "Skylight Flashing",
+      "variantId": "generic",
+      "variantName": "Skylight Flashing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "step_flashing",
+      "name": "Step Flashing",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "lf",
+      "unitPrice": 9.5,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "sideWallLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Wall flashing for sloped transitions",
+      "itemTypeId": "step_flashing",
+      "itemTypeName": "Step Flashing",
+      "variantId": "generic",
+      "variantName": "Step Flashing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "headwall_flashing",
+      "name": "Head Wall Flashing",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "lf",
+      "unitPrice": 11.25,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "headWallLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Head wall / apron flashing",
+      "itemTypeId": "headwall_flashing",
+      "itemTypeName": "Head Wall Flashing",
+      "variantId": "generic",
+      "variantName": "Head Wall Flashing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "sidewall_flashing",
+      "name": "Side Wall Flashing",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "lf",
+      "unitPrice": 10.5,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "sideWallLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Continuous side wall flashing",
+      "itemTypeId": "sidewall_flashing",
+      "itemTypeName": "Side Wall Flashing",
+      "variantId": "generic",
+      "variantName": "Side Wall Flashing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "tpo_drain",
+      "name": "TPO Drain Detail",
+      "category": "flashing",
+      "segment": "flat",
+      "unit": "ea",
+      "unitPrice": 145,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "structures"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Flat roof drain flashing detail",
+      "itemTypeId": "tpo_drain",
+      "itemTypeName": "TPO Drain Detail",
+      "variantId": "generic",
+      "variantName": "TPO Drain Detail",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "pipe_jack_paint",
+      "name": "Skylight Trim Kit",
+      "category": "accessories",
+      "unit": "ea",
+      "unitPrice": 28,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "skylightsEa"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Accessory skylight trim and finish pieces",
+      "itemTypeId": "pipe_jack_paint",
+      "itemTypeName": "Skylight Trim Kit",
+      "variantId": "generic",
+      "variantName": "Skylight Trim Kit",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "ridge_vent",
+      "name": "Ridge Vent",
+      "category": "accessories",
+      "unit": "lf",
+      "unitPrice": 7.5,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "ridgesLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "description": "Continuous ridge ventilation",
+      "itemTypeId": "ridge_vent",
+      "itemTypeName": "Ridge Vent",
+      "variantId": "generic",
+      "variantName": "Ridge Vent",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "chimney_flashing",
+      "name": "Chimney Flashing",
+      "category": "accessories",
+      "unit": "ea",
+      "unitPrice": 225,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "chimneysEa"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Counter flashing and base flashing at chimneys",
+      "itemTypeId": "chimney_flashing",
+      "itemTypeName": "Chimney Flashing",
+      "variantId": "generic",
+      "variantName": "Chimney Flashing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "gutter_replace",
+      "name": "K-Style Gutter",
+      "category": "gutters",
+      "unit": "lf",
+      "unitPrice": 14.25,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "gutterLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "5-inch seamless gutter replacement",
+      "itemTypeId": "gutter_replace",
+      "itemTypeName": "K-Style Gutter",
+      "variantId": "generic",
+      "variantName": "K-Style Gutter",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "downspout",
+      "name": "Downspout",
+      "category": "gutters",
+      "unit": "lf",
+      "unitPrice": 11.5,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "downspoutLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Downspout replacement",
+      "itemTypeId": "downspout",
+      "itemTypeName": "Downspout",
+      "variantId": "generic",
+      "variantName": "Downspout",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "tpo_membrane",
+      "name": "TPO Membrane",
+      "category": "flat_roofs",
+      "unit": "sq",
+      "unitPrice": 465,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "flatRoofSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": true,
+      "description": "Single-ply membrane roofing",
+      "itemTypeId": "flat_roof_membrane",
+      "itemTypeName": "Flat Roof Membrane",
+      "variantId": "tpo_membrane",
+      "variantName": "TPO Membrane",
+      "variantGroupId": "single_ply",
+      "variantGroupName": "Single Ply",
+      "variantRole": "standard",
+      "isDefaultVariant": true,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "white",
+          "required": true,
+          "values": [
+            {
+              "value": "white",
+              "label": "White"
+            },
+            {
+              "value": "tan",
+              "label": "Tan"
+            },
+            {
+              "value": "gray",
+              "label": "Gray"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "white"
+      }
+    },
+    {
+      "id": "torch_down",
+      "name": "Torch Down Roofing",
+      "category": "flat_roofs",
+      "unit": "sq",
+      "unitPrice": 425,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "flatRoofSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Modified bitumen torch down roofing",
+      "itemTypeId": "flat_roof_membrane",
+      "itemTypeName": "Flat Roof Membrane",
+      "variantId": "torch_down",
+      "variantName": "Torch Down Roofing",
+      "variantGroupId": "modified_bitumen",
+      "variantGroupName": "Modified Bitumen",
+      "variantRole": "standard",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "transition_metal",
+      "name": "Transition Metal",
+      "category": "flat_roof_accessories",
+      "unit": "lf",
+      "unitPrice": 18.5,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "transitionsLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Transition metal for changing roof planes",
+      "itemTypeId": "transition_metal",
+      "itemTypeName": "Transition Metal",
+      "variantId": "generic",
+      "variantName": "Transition Metal",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "flat_roof_chimney",
+      "name": "Flat Roof Chimney Flashing",
+      "category": "flat_roof_accessories",
+      "unit": "ea",
+      "unitPrice": 185,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "chimneysEa"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Chimney curb and flashing package for flat roofs",
+      "itemTypeId": "flat_roof_chimney",
+      "itemTypeName": "Flat Roof Chimney Flashing",
+      "variantId": "generic",
+      "variantName": "Flat Roof Chimney Flashing",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "termination_bar",
+      "name": "Termination Bar",
+      "category": "flat_roof_accessories",
+      "unit": "lf",
+      "unitPrice": 6.75,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "headWallLf"
+          },
+          {
+            "type": "operator",
+            "value": "+"
+          },
+          {
+            "type": "measurement",
+            "value": "sideWallLf"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Termination bar at walls and parapets",
+      "itemTypeId": "termination_bar",
+      "itemTypeName": "Termination Bar",
+      "variantId": "generic",
+      "variantName": "Termination Bar",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    }
+  ],
+  "schemaVersion": 4,
+  "variationSchemaVersion": 1
+}

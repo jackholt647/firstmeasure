@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Page v5 — First Mate CRM</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--red:#d93025;--rd:#a1241c;--rl:#fce8e6;--s9:#1a1f2e;--s8:#252b3b;--s7:#3a4255;--s6:#4d566b;--s5:#6b7588;--s4:#8b95a8;--s3:#b0b8c9;--s2:#d4dae6;--s1:#edf0f5;--s0:#f6f8fb;--w:#fff;--g:#1a8a4a;--gl:#e6f4ec;--o:#c4700a;--ol:#fef3e0;--b:#1a6bd9;--bl:#e8f0fe;--p:#7c3aed;--pl:#f3e8ff;--r:10px;--rs:6px;--rl2:14px;--f:'DM Sans',system-ui,sans-serif}
+html{font-size:14px}body{font-family:var(--f);background:var(--s0);color:var(--s9);min-height:100vh}input,textarea,select,button{font-family:inherit;font-size:inherit}
+.topbar{background:var(--w);border-bottom:1px solid var(--s2);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-l{display:flex;align-items:center;gap:14px}.logo{font-weight:900;font-size:15px;color:var(--red)}.logo span{color:var(--s5);font-weight:500}
+.back{color:var(--s5);text-decoration:none;font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--rs);border:1px solid var(--s2);background:var(--w)}.back:hover{background:var(--s0)}
+.bp{background:var(--red);color:#fff;border:none;padding:8px 16px;border-radius:var(--rs);font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.bp:hover{background:var(--rd)}
+.bg{background:var(--g);color:#fff;border:none;padding:8px 16px;border-radius:var(--rs);font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.bg:hover{background:#15753e}
+.bs{background:var(--w);color:var(--s6);border:1px solid var(--s2);padding:7px 13px;border-radius:var(--rs);font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.bs:hover{background:var(--s0)}
+.bgh{background:none;border:none;color:var(--s4);font-size:12px;font-weight:700;cursor:pointer;padding:4px 8px;border-radius:var(--rs)}.bgh:hover{color:var(--s6);background:var(--s1)}
+.ib{background:linear-gradient(135deg,#1a6bd9,#2d7fe8);color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}.ib .t{font-size:13px;font-weight:600}.ib button{background:#fff;color:var(--b);font-weight:800;font-size:13px;border:none;padding:7px 16px;border-radius:var(--rs);cursor:pointer}
+.hdr{padding:16px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hdr-l{flex:1;min-width:0}.hdr-r{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.trow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.co{font-size:24px;font-weight:900;letter-spacing:-.03em}
+.stg-top{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:var(--bl);color:var(--b)}
+.sub{font-size:12px;color:var(--s4);margin-top:4px}
+.brow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.seq{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--rs);font-size:11px;font-weight:700;background:var(--pl);color:var(--p);border:1px solid #ddd0f5}
+.seq .stop{background:none;border:1px solid #c4a8e8;color:var(--p);font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;cursor:pointer}
+.ms-tag{display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 9px;border-radius:var(--rs)}
+.ms-tag.show{display:inline-flex}
+.ms-tag.funded{background:var(--gl);color:var(--g);border:1px solid #b8e0c9}
+.ms-tag.orders{background:var(--bl);color:var(--b);border:1px solid #c7d9f2}
+.lt{margin-left:auto;font-size:15px;color:var(--s6);font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}.lt i{color:var(--s4);font-size:13px}
+.lay{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px 80px;align-items:start}
+@media(max-width:1100px){.lay{grid-template-columns:1fr}.rcol{position:static!important;order:2}.lcol{order:1}}
+.lcol{display:flex;flex-direction:column;gap:14px}.rcol{position:sticky;top:52px}
+.sec{background:var(--w);border:1px solid var(--s2);border-radius:var(--rl2);overflow:hidden}
+.sh{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;user-select:none;background:var(--s0);border-bottom:1px solid var(--s1)}.sh:hover{background:var(--s1)}
+.sh h3{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--s5)}.sh .m{font-size:11px;color:var(--s4);font-weight:600}
+.shr{display:flex;align-items:center;gap:6px}.sb{padding:14px}.sec.coll .sb{display:none}
+.ssec{border-top:1px solid var(--s1);padding-top:14px;margin-top:14px}
+.ssec-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ssec-h h4{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--s5)}
+/* FIELDS */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media(max-width:600px){.fg{grid-template-columns:1fr}}
+.fr{display:flex;padding:6px 0;border-bottom:1px solid var(--s1)}.fr:last-child{border:none}
+.fl{color:var(--s4);font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:70px;flex-shrink:0;padding-top:2px}
+.fv{font-weight:600;color:var(--s8);font-size:13px;flex:1;min-width:0}.fv a{color:var(--b);text-decoration:none}
+.fv input{border:none;background:none;font-size:13px;font-weight:600;color:var(--s8);width:100%;outline:none}.fv input:focus{color:var(--b)}
+.si{font-size:10px;color:var(--g);font-weight:700;margin-left:4px;opacity:0;transition:opacity .2s}.si.show{opacity:1}
+.stg-sel{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--s1)}
+.stg-sel label{font-size:10px;font-weight:900;text-transform:uppercase;color:var(--s4);letter-spacing:.04em}
+.stg-sel select{padding:6px 10px;border:1px solid var(--s2);border-radius:var(--rs);font-size:12px;font-weight:700;color:var(--b);background:var(--bl);cursor:pointer}
+.ms-row{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--s1);margin-bottom:12px}
+.ms{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--s6);padding:5px 9px;border-radius:var(--rs);background:var(--s1);border:1px solid var(--s2);cursor:pointer}
+.ms.over{background:var(--ol);color:var(--o);border-color:#f0d6a8}.ms.done{background:var(--gl);color:var(--g);border-color:#b8e0c9}
+.ms input[type="checkbox"]{accent-color:var(--g);width:13px;height:13px}
+/* CONTACTS */
+.crow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;align-items:stretch}
+.cc{min-width:190px;max-width:220px;border:1px solid var(--s2);border-radius:var(--r);padding:10px;flex-shrink:0;display:flex;flex-direction:column}
+.cn{font-size:13px;font-weight:800}.csub{font-size:11px;color:var(--s5);margin-top:2px;flex:1}
+.cacts{display:flex;gap:4px;margin-top:6px}.cbtn{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--s6);cursor:pointer}
+.add-cc{min-width:100px;border:2px dashed var(--s2);border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--s4);font-weight:700;font-size:12px;padding:10px;flex-shrink:0;gap:6px}.add-cc:hover{border-color:var(--s3);color:var(--s6)}
+.cform{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--s1)}
+.cform input{padding:7px 8px;border:1px solid var(--s2);border-radius:var(--rs);font-size:11px;width:100%}
+.croles{display:flex;gap:0;border:1px solid var(--s2);border-radius:var(--rs);overflow:hidden}
+.crole{flex:1;padding:7px;font-size:11px;font-weight:700;color:var(--s6);cursor:pointer;text-align:center;border-right:1px solid var(--s2);background:var(--w)}.crole:last-child{border-right:none}.crole.active{background:var(--red);color:#fff}
+/* ACCOUNT */
+.atabs{display:flex;gap:0;border-bottom:1px solid var(--s2);padding:0}
+.atab{padding:8px 12px;font-size:12px;font-weight:700;color:var(--s4);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}.atab.active{color:var(--s9);border-bottom-color:var(--red)}.atab:hover{color:var(--s7)}
+.ac{display:none;padding-top:12px}.ac.active{display:block}
+.it{width:100%;border-collapse:collapse}.it td{padding:5px 0;font-size:13px;border-bottom:1px solid var(--s1)}.it tr:last-child td{border:none}
+.it .l{color:var(--s4);font-weight:800;font-size:10px;text-transform:uppercase;width:80px;vertical-align:top;padding-top:7px}.it .v{font-weight:600;color:var(--s8)}
+/* ACCOUNT METRICS - multi col */
+.acct-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:8px}
+.acct-m{padding:6px 0;border-bottom:1px solid var(--s1)}
+.acct-m-l{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--s4);letter-spacing:.03em}
+.acct-m-v{font-size:14px;font-weight:800;color:var(--s8);margin-top:1px}
+.autotop{background:var(--bl);border:1px solid #c7d9f2;border-radius:var(--rs);padding:10px;margin-bottom:10px;font-size:12px}
+.autotop strong{color:var(--s8)}.autotop-d{font-size:11px;color:var(--s5);margin-top:2px}
+.bilr{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--s1);font-size:12px}.bilr:last-child{border:none}
+.bilt{font-weight:700;color:var(--s8)}.bild{color:var(--s4);font-size:11px}.bila{font-weight:800}
+.ref-empty{font-size:12px;color:var(--s4);font-style:italic;padding:4px 0}
+/* ACTIVITY */
+.ap{background:var(--w);border:1px solid var(--s2);border-radius:var(--rl2);display:flex;flex-direction:column;max-height:calc(100vh - 68px);overflow:hidden}
+.aphead{padding:12px 14px;background:var(--s0);border-bottom:1px solid var(--s1);flex-shrink:0}
+.aphead-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.aphead-top h3{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--s5)}
+.aphead-top-r{display:flex;gap:6px;align-items:center}
+.schbar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.schbar .lbl{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--s4)}
+.spr{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700;color:var(--s6);cursor:pointer}.spr:hover{background:var(--s0)}
+/* CALENDAR MINI in schedule */
+.cal-mini{margin-bottom:8px;display:none;border:1px solid var(--s2);border-radius:var(--rs);overflow:hidden}
+.cal-mini.show{display:block}
+.cal-mini-h{background:var(--bl);padding:6px 10px;font-size:11px;font-weight:800;color:var(--b);display:flex;justify-content:space-between;align-items:center}
+.cal-ev{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--s1);font-size:11px}
+.cal-ev:last-child{border:none}
+.cal-ev-t{font-weight:800;color:var(--b);width:60px;flex-shrink:0}
+.cal-ev-n{font-weight:600;color:var(--s7);flex:1}
+.cal-ev.hl{background:#fef3e0}
+.note-bar{margin-bottom:8px}
+.note-ta{width:100%;padding:8px 10px;border:1px solid var(--s2);border-radius:var(--rs);font-size:12px;line-height:1.5;resize:none;overflow:hidden;min-height:36px}
+.aflt{display:flex;gap:4px;flex-wrap:wrap}
+.af{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:4px 10px;font-size:10px;font-weight:700;color:var(--s5);cursor:pointer}.af.active{background:var(--s9);color:var(--w);border-color:var(--s9)}
+.ascr{flex:1;overflow-y:auto;padding:0 14px 14px}
+.usec{padding:10px 0;border-bottom:2px solid var(--s2)}
+.ulbl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--o);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.uitem{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--s1);align-items:flex-start}.uitem:last-child{border:none}
+.uic{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.uic.fu{background:var(--pl);color:var(--p)}.uic.sq{background:#fef3c7;color:#a16207}
+.hlbl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--s4);padding:10px 0 6px;display:flex;align-items:center;gap:6px}
+.ai{border-bottom:1px solid var(--s1)}.ai:last-child{border-bottom:none}
+.ai-head{display:flex;gap:10px;padding:10px 0;cursor:pointer;align-items:center}
+.ai-head:hover{background:var(--s0);margin:0 -14px;padding:10px 14px;border-radius:var(--rs)}
+.aic{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.aic.orum{background:var(--bl);color:var(--b)}.aic.rc{background:var(--gl);color:var(--g)}.aic.sms{background:#f0fdf4;color:#15803d}.aic.email{background:var(--ol);color:var(--o)}.aic.note{background:var(--s1);color:var(--s5)}.aic.stg{background:var(--rl);color:var(--red)}.aic.seqi{background:#fef3c7;color:#a16207}
+.ai-sum{flex:1;min-width:0}
+.ai-line{font-size:12px;font-weight:600;color:var(--s8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-meta{font-size:10px;color:var(--s4);margin-top:1px}
+.ai-seq-label{font-size:10px;font-weight:700;color:var(--p);margin-top:1px}
+.ai-expand{font-size:10px;color:var(--s4);transition:transform .15s}
+.ai-body{padding:0 0 10px 38px;display:none;font-size:12px;color:var(--s6);line-height:1.6}
+.ai.open .ai-body{display:block}
+.ai.open .ai-expand{transform:rotate(180deg)}
+.ai-body .det{margin-bottom:6px}
+.ai-body a{color:var(--b);text-decoration:none;font-weight:700;font-size:11px}
+.rci{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.rci select{padding:3px 6px;border:1px solid var(--s2);border-radius:var(--rs);font-size:10px;font-weight:700}.rci input{padding:3px 6px;border:1px solid var(--s2);border-radius:var(--rs);font-size:10px;flex:1;min-width:120px}
+.tag{font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;letter-spacing:.03em;margin-right:4px}
+.to{background:var(--bl);color:var(--b)}.tr{background:var(--gl);color:var(--g)}.ts{background:#f0fdf4;color:#15803d}.te{background:var(--ol);color:var(--o)}.tn{background:var(--s1);color:var(--s5)}.tst{background:var(--rl);color:var(--red)}.tq{background:#fef3c7;color:#a16207}
+/* SMS MODAL */
+.sms-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;display:none;align-items:center;justify-content:center}.sms-ov.open{display:flex}
+.sms-m{background:var(--w);border-radius:var(--rl2);width:480px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.sms-h{padding:14px 16px;border-bottom:1px solid var(--s1);display:flex;justify-content:space-between;align-items:center}.sms-h h3{font-size:14px;font-weight:800}
+.sms-cts{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--s1);overflow-x:auto}
+.sms-ct{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:5px 12px;font-size:11px;font-weight:700;color:var(--s6);cursor:pointer;white-space:nowrap}.sms-ct.active{background:var(--g);color:#fff;border-color:var(--g)}
+.sms-thd{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.sms-msg{max-width:80%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5}
+.sms-msg.out{background:var(--g);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.sms-msg.in{background:var(--s1);color:var(--s8);align-self:flex-start;border-bottom-left-radius:4px}
+.sms-msg-t{font-size:10px;opacity:.7;margin-top:4px}
+.sms-c{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--s1)}
+.sms-c input{flex:1;padding:10px 12px;border:1px solid var(--s2);border-radius:var(--r);font-size:13px}
+/* COMPOSE */
+.cw{position:fixed;bottom:16px;right:24px;width:460px;background:var(--w);border-radius:var(--rl2);box-shadow:0 12px 40px rgba(26,31,46,.12);border:1px solid var(--s2);z-index:200;display:flex;flex-direction:column;max-height:500px}
+.cwh{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--s9);border-radius:var(--rl2) var(--rl2) 0 0;color:#fff}.cwh h4{font-size:13px;font-weight:700}
+.cwha button{background:none;border:none;color:var(--s3);cursor:pointer;font-size:13px;padding:2px 6px;margin-left:6px}
+.cwtpl{display:flex;gap:3px;padding:8px 12px;border-bottom:1px solid var(--s1);flex-wrap:wrap}
+.cwt{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700;color:var(--s6);cursor:pointer}.cwt.active{background:var(--red);border-color:var(--red);color:#fff}
+.cwf{padding:8px 12px;display:grid;gap:4px;border-bottom:1px solid var(--s1)}
+.cwfl{display:flex;align-items:center;gap:6px}.cwfl label{font-size:10px;font-weight:700;color:var(--s4);width:28px}.cwfl input{flex:1;border:none;font-size:12px;padding:4px 0;outline:none;font-weight:500}
+.cwfl .ccl{font-size:10px;color:var(--s4);margin-left:auto;display:flex;gap:6px}.cwfl .ccl span{cursor:pointer}.cwfl .ccl span:hover{color:var(--b)}
+.cwb{flex:1;padding:0 12px;overflow-y:auto}.cwed{min-height:100px;outline:none;font-size:12px;line-height:1.6;color:var(--s8);padding:8px 0}
+.cwsg{padding:8px 0;border-top:1px solid var(--s1);font-size:11px;color:var(--s5)}.cwsn{font-weight:700;color:var(--s8)}.cwsl{color:var(--red);font-weight:900;font-size:10px}
+.cwat{padding:6px 12px;border-top:1px solid var(--s1);display:flex;gap:3px;flex-wrap:wrap}
+.cwab{border:1px solid var(--s2);background:var(--w);border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700;color:var(--s5);cursor:pointer;display:flex;align-items:center;gap:4px}.cwab.on{background:var(--gl);color:var(--g);border-color:#b8e0c9}
+.cwft{padding:8px 12px;border-top:1px solid var(--s1);display:flex;justify-content:flex-end;gap:6px}
+/* TOOLS */
+.td{position:fixed;top:0;right:0;width:400px;height:100vh;background:var(--w);border-left:1px solid var(--s2);box-shadow:-8px 0 30px rgba(26,31,46,.08);z-index:300;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}.td.open{transform:translateX(0)}
+.tdh{padding:12px;border-bottom:1px solid var(--s1)}.tdht{display:flex;justify-content:space-between;align-items:center}
+.tdt{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--s5)}
+.tdtabs{display:flex;gap:4px;margin-top:8px}.tdtab{border:1px solid var(--s2);background:var(--w);border-radius:var(--rs);padding:6px 10px;font-size:11px;font-weight:700;color:var(--s5);cursor:pointer}.tdtab.active{background:var(--s9);color:#fff;border-color:var(--s9)}
+.tdb{flex:1;overflow-y:auto;padding:12px}
+.tsg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:12px}
+.tsb{border:1px solid var(--s2);background:var(--w);border-radius:var(--rs);padding:5px;font-size:10px;font-weight:700;color:var(--s6);cursor:pointer;text-align:center}.tsb.active{background:var(--red);color:#fff;border-color:var(--red)}
+.tcalc{display:grid;gap:10px}.tcalc label{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--s4);margin-bottom:2px;display:block}.tcalc select,.tcalc input{width:100%;padding:8px;border:1px solid var(--s2);border-radius:var(--rs);font-size:12px}
+.cr{background:var(--gl);border:1px solid #b8e0c9;border-radius:var(--r);padding:12px;text-align:center}.cr .big{font-size:26px;font-weight:900;color:var(--g)}.cr .sub{font-size:11px;color:var(--g);font-weight:600;margin-top:2px}
+.ckg{display:grid;grid-template-columns:1fr 1fr;gap:6px}.tcard{background:var(--s0);border:1px solid var(--s1);border-radius:var(--rs);padding:8px}.tcard .k{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--s4)}.tcard .v{font-size:14px;font-weight:800;color:var(--s8);margin-top:2px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-l"><div class="logo">FirstMate <span>CRM</span></div><a href="#" class="back"><i class="fas fa-arrow-left"></i> Back</a></div><div style="font-size:12px;color:var(--s5);font-weight:600">Jose Suarez</div></div>
+<div class="ib"><div class="t"><i class="fas fa-info-circle"></i> &nbsp;Lead is at <strong>Info Sent</strong> — did they confirm receipt?</div><button onclick="this.closest('.ib').style.display='none'"><i class="fas fa-check"></i> Mark Info Received</button></div>
+
+<div class="hdr">
+  <div class="hdr-l">
+    <div class="trow"><h1 class="co">Apex Roofing & Construction</h1><span class="stg-top" id="stgTop"><i class="fas fa-circle" style="font-size:8px"></i> Info Sent</span></div>
+    <div class="sub">Denver Metro Roofers Q2 &bull; Assigned to Jose Suarez &bull; Updated 2h ago</div>
+  </div>
+  <div class="hdr-r">
+    <button class="bp" onclick="document.querySelector('.cw').classList.remove('hidden')"><i class="fas fa-paper-plane"></i> Send Email</button>
+    <button class="bg" onclick="document.querySelector('.sms-ov').classList.add('open')"><i class="fas fa-comment"></i> Send SMS</button>
+    <button class="bs" onclick="document.querySelector('.td').classList.toggle('open')"><i class="fas fa-toolbox"></i> Tools</button>
+  </div>
+</div>
+<div style="padding:0 24px"><div class="brow">
+  <div class="seq"><i class="fas fa-bolt"></i> Info Sent Seq &bull; Step 2/3 &bull; Next: Apr 14 <button class="stop">Stop</button></div>
+  <span class="ms-tag funded" id="fundedTag"><i class="fas fa-check-circle"></i> Account Funded</span>
+  <span class="ms-tag orders" id="ordersTag"><i class="fas fa-check-circle"></i> 10 Orders</span>
+  <div class="lt"><i class="fas fa-clock"></i> Local Time: 2:15 PM EST</div>
+</div></div>
+
+<div class="lay">
+<div class="lcol">
+<div class="sec">
+  <div class="sh" onclick="this.parentElement.classList.toggle('coll')"><h3><i class="fas fa-info-circle"></i> &nbsp;Company Info</h3><div class="shr"><i class="fas fa-chevron-up"></i></div></div>
+  <div class="sb">
+    <div class="stg-sel"><label>Stage</label><select onchange="document.getElementById('stgTop').innerHTML='<i class=\'fas fa-circle\' style=\'font-size:8px\'></i> '+this.value"><option>New</option><option>Contacted</option><option selected>Info Sent</option><option>Info Received</option><option>Signed Up</option><option>Active Customer</option><option>Lost</option><option>Do Not Contact</option></select></div>
+    <div class="ms-row">
+      <label class="ms over"><input type="checkbox" onchange="document.getElementById('fundedTag').classList.toggle('show',this.checked)"> Account Funded <span style="font-size:10px">&bull; Window closed</span></label>
+      <label class="ms"><input type="checkbox" onchange="document.getElementById('ordersTag').classList.toggle('show',this.checked)"> 10 Orders <span style="font-size:10px">&bull; 0/10</span></label>
+    </div>
+    <div class="fg">
+      <div style="padding-right:16px">
+        <div class="fr"><div class="fl">Phone</div><div class="fv">(303) 555-0142</div></div>
+        <div class="fr"><div class="fl">Website</div><div class="fv"><a href="#">apexroofingco.com</a></div></div>
+        <div class="fr"><div class="fl">Rating</div><div class="fv">4.8 <span style="color:var(--s4);font-size:11px">(142 reviews)</span></div></div>
+      </div>
+      <div>
+        <div class="fr"><div class="fl">Email</div><div class="fv"><input type="email" value="info@apexroofingco.com" onblur="let s=document.getElementById('si1');s.classList.add('show');setTimeout(()=>s.classList.remove('show'),1500)"><span class="si" id="si1">✓</span></div></div>
+        <div class="fr"><div class="fl">Address</div><div class="fv">1847 S Federal Blvd, Denver, CO 80219</div></div>
+      </div>
+    </div>
+
+    <!-- CONTACTS -->
+    <div class="ssec">
+      <div class="ssec-h"><h4>Contacts</h4></div>
+      <div class="crow">
+        <div class="cc"><div class="cn"><i class="fas fa-star" style="color:#d97706;font-size:11px;margin-right:3px;cursor:pointer" title="Primary contact"></i>Mike Johnson</div><div class="csub">Owner &bull; mike@apexroofingco.com &bull; (303) 555-0199</div><div class="cacts"><button class="cbtn">Edit</button><button class="cbtn">Add Note</button></div></div>
+        <div class="cc"><div class="cn"><i class="far fa-star" style="color:var(--s3);font-size:11px;margin-right:3px;cursor:pointer" title="Set as primary contact"></i>Sarah</div><div class="csub">Receptionist</div><div class="cacts"><button class="cbtn">Edit</button><button class="cbtn">Add Note</button></div></div>
+        <div class="add-cc" id="addCcBtn" onclick="document.getElementById('cformArea').classList.remove('hidden');this.classList.add('hidden')"><i class="fas fa-plus"></i> Add</div>
+      </div>
+      <div class="cform hidden" id="cformArea">
+        <input placeholder="Contact name" style="font-size:13px;font-weight:600;padding:8px 10px">
+        <div class="croles"><div class="crole active" onclick="sr(this)">Receptionist</div><div class="crole" onclick="sr(this)">Owner</div><div class="crole" onclick="sr(this)">Manager</div><div class="crole" onclick="sr(this);document.getElementById('otherT').classList.remove('hidden')">Other</div></div>
+        <input id="otherT" class="hidden" placeholder="Custom title...">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input placeholder="Direct email"><input placeholder="Direct phone"></div>
+        <textarea style="width:100%;padding:7px 8px;border:1px solid var(--s2);border-radius:var(--rs);font-size:11px;resize:vertical;min-height:34px" placeholder="Quick note"></textarea>
+        <div style="display:flex;gap:6px"><button class="bp" style="font-size:12px;padding:6px 12px">Add Contact</button><button class="bs" style="font-size:12px;padding:6px 12px" onclick="document.getElementById('cformArea').classList.add('hidden');document.getElementById('addCcBtn').classList.remove('hidden')">Cancel</button></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT -->
+    <div class="ssec">
+      <div class="ssec-h"><h4>Account</h4><span style="font-size:10px;color:var(--g);font-weight:700"><i class="fas fa-link"></i> Linked</span></div>
+      <div class="atabs">
+        <div class="atab active" onclick="sta('ov',this)">Overview</div>
+        <div class="atab" onclick="sta('us',this)">Users</div>
+        <div class="atab" onclick="sta('bi',this)">Billing</div>
+      </div>
+      <div class="ac active" id="a-ov">
+        <table class="it"><tr><td class="l">Company</td><td class="v">Apex Roofing & Construction Inc.</td></tr><tr><td class="l">Email</td><td class="v">mike@apexroofingco.com</td></tr><tr><td class="l">Phone</td><td class="v">(303) 555-0142</td></tr></table>
+        <div class="acct-metrics">
+          <div class="acct-m"><div class="acct-m-l">Age</div><div class="acct-m-v">12 days</div></div>
+          <div class="acct-m"><div class="acct-m-l">Orders</div><div class="acct-m-v">3</div></div>
+          <div class="acct-m"><div class="acct-m-l">Revenue</div><div class="acct-m-v">$21</div></div>
+          <div class="acct-m"><div class="acct-m-l">Credits</div><div class="acct-m-v">$0</div></div>
+          <div class="acct-m"><div class="acct-m-l">7-Day</div><div class="acct-m-v">1</div></div>
+          <div class="acct-m"><div class="acct-m-l">Avg/Day</div><div class="acct-m-v">0.25</div></div>
+        </div>
+      </div>
+      <div class="ac" id="a-us">
+        <table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--s2)"><th style="text-align:left;padding:6px 0;font-size:10px;color:var(--s4);font-weight:800;text-transform:uppercase">Name</th><th style="text-align:left;padding:6px;font-size:10px;color:var(--s4);font-weight:800;text-transform:uppercase">Email</th><th style="text-align:left;padding:6px;font-size:10px;color:var(--s4);font-weight:800;text-transform:uppercase">Role</th><th style="text-align:right;padding:6px 0;font-size:10px;color:var(--s4);font-weight:800;text-transform:uppercase">Orders</th></tr></thead><tbody><tr style="border-bottom:1px solid var(--s1)"><td style="padding:8px 0;font-weight:600">Mike Johnson</td><td style="padding:8px">mike@apexroofingco.com</td><td>admin</td><td style="text-align:right;font-weight:700">3</td></tr><tr><td style="padding:8px 0;font-weight:600">Jake M.</td><td style="padding:8px">jake@apexroofingco.com</td><td>viewer</td><td style="text-align:right;font-weight:700">0</td></tr></tbody></table>
+      </div>
+      <div class="ac" id="a-bi">
+        <div class="autotop"><i class="fas fa-sync-alt" style="color:var(--b);margin-right:4px"></i> Auto Top-Up: <strong>ON</strong><div class="autotop-d">Reloads <strong>$100</strong> when balance below <strong>$50</strong> &bull; Visa 4242</div></div>
+        <div style="display:flex;gap:6px;margin-bottom:12px"><button class="bp" style="font-size:12px;padding:6px 12px"><i class="fas fa-credit-card"></i> Charge Card</button><button class="bs" style="font-size:12px;padding:6px 12px"><i class="fas fa-gift"></i> Free Credits</button></div>
+        <div class="bilr"><div><span class="bilt">Stripe Payment</span><br><span class="bild">Apr 8</span></div><div class="bila" style="color:var(--g)">+$50</div></div>
+        <div class="bilr"><div><span class="bilt">Report: 1847 S Federal Blvd</span><br><span class="bild">Apr 7</span></div><div class="bila" style="color:var(--red)">-$7</div></div>
+        <div class="bilr"><div><span class="bilt">Stripe Payment</span><br><span class="bild">Apr 3</span></div><div class="bila" style="color:var(--g)">+$25</div></div>
+      </div>
+    </div>
+
+    <!-- REFERRALS -->
+    <div class="ssec">
+      <div class="ssec-h"><h4>Referrals</h4></div>
+      <div class="ref-empty">No referrals from this company yet.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ACTIVITY -->
+<div class="rcol"><div class="ap">
+  <div class="aphead">
+    <div class="aphead-top">
+      <h3><i class="fas fa-stream"></i> &nbsp;Activity</h3>
+      <div class="aphead-top-r">
+        <button class="bgh" onclick="toggleAll()" id="collapseBtn"><i class="fas fa-compress-alt"></i> Collapse All</button>
+      </div>
+    </div>
+    <div class="schbar">
+      <span class="lbl">Schedule:</span>
+      <button class="spr">Tomorrow</button><button class="spr">3 Days</button><button class="spr">Next Week</button>
+      <span style="color:var(--s2);margin:0 2px">|</span>
+      <button class="spr" style="background:var(--bl);color:var(--b);border-color:#c7d9f2"><i class="fas fa-sun" style="font-size:9px"></i> Morning</button>
+      <button class="spr" style="background:var(--ol);color:var(--o);border-color:#f0d6a8"><i class="fas fa-cloud-sun" style="font-size:9px"></i> Afternoon</button>
+      <input type="date" style="padding:5px 8px;border:1px solid var(--s2);border-radius:var(--rs);font-size:11px">
+      <button class="bs" style="font-size:11px;padding:5px 8px" onclick="document.getElementById('calMini').classList.toggle('show')"><i class="fas fa-clock"></i> Pick Time</button>
+    </div>
+    <div class="cal-mini" id="calMini">
+      <div class="cal-mini-h"><span>Today — Apr 13</span><span style="font-size:10px;font-weight:600;cursor:pointer">Week view →</span></div>
+      <div class="cal-ev"><div class="cal-ev-t">10:00 AM</div><div class="cal-ev-n">Team standup</div></div>
+      <div class="cal-ev hl"><div class="cal-ev-t">2:00 PM</div><div class="cal-ev-n">Follow-up: Apex Roofing</div><div style="font-size:10px;color:var(--s4);font-weight:600;white-space:nowrap">5:00 PM ET</div></div>
+      <div class="cal-ev"><div class="cal-ev-t">4:00 PM</div><div class="cal-ev-n">Follow-up: Summit Roofing LLC</div><div style="font-size:10px;color:var(--s4);font-weight:600;white-space:nowrap">7:00 PM ET</div></div>
+      <div style="padding:8px 10px;border-top:1px solid var(--s1);display:grid;gap:6px">
+        <div style="display:flex;gap:6px;align-items:center;font-size:11px;color:var(--s6)">
+          <span style="font-weight:700">Your time:</span> <span style="font-weight:800;color:var(--b)">2:00 PM PT</span>
+          <span style="margin-left:8px;font-weight:700">Lead's time:</span> <span style="font-weight:800;color:var(--o)">5:00 PM EST</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--s6);cursor:pointer"><input type="checkbox" style="accent-color:var(--b);width:13px;height:13px"> Invite contacts</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--s6);cursor:pointer"><input type="checkbox" style="accent-color:var(--b);width:13px;height:13px"> Add Google Meet</label>
+        </div>
+        <div id="contactInviteList" style="display:none;font-size:11px;color:var(--s5);padding:4px 0">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:2px 0"><input type="checkbox" checked style="accent-color:var(--g);width:12px;height:12px"> Mike Johnson (mike@apexroofingco.com)</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:2px 0"><input type="checkbox" style="accent-color:var(--g);width:12px;height:12px"> Sarah (no email)</label>
+        </div>
+        <button class="bs" style="font-size:10px;padding:5px 8px;width:100%;justify-content:center"><i class="fas fa-plus"></i> Add to Calendar</button>
+      </div>
+    </div>
+    <div class="note-bar"><textarea class="note-ta" placeholder="Add a note..." oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea></div>
+    <div class="aflt"><button class="af active">All</button><button class="af">Calls</button><button class="af">Emails</button><button class="af">Texts</button><button class="af">Notes</button></div>
+  </div>
+  <div class="ascr">
+    <div class="usec"><div class="ulbl"><i class="fas fa-clock"></i> Upcoming</div>
+      <div class="uitem"><input type="checkbox" style="accent-color:var(--g);width:15px;height:15px;flex-shrink:0;cursor:pointer" onchange="this.closest('.uitem').style.opacity=this.checked?'.4':'1';this.closest('.uitem').style.textDecoration=this.checked?'line-through':'none'"><div class="uic fu"><i class="fas fa-phone"></i></div><div style="flex:1"><div style="font-size:12px;font-weight:700">DM Call Back</div><div style="font-size:11px;color:var(--s4)">Tomorrow &bull; 2:00 PM PT / 5:00 PM ET</div></div><div style="font-size:11px;font-weight:700;color:var(--b)">Tomorrow</div></div>
+      <div class="uitem"><input type="checkbox" style="accent-color:var(--g);width:15px;height:15px;flex-shrink:0;cursor:pointer" onchange="this.closest('.uitem').style.opacity=this.checked?'.4':'1';this.closest('.uitem').style.textDecoration=this.checked?'line-through':'none'"><div class="uic sq"><i class="fas fa-bolt"></i></div><div style="flex:1"><div style="font-size:12px;font-weight:700">Follow-up call</div><div style="font-size:10px;color:var(--p);font-weight:700">Sequence: Info Sent</div></div><div style="font-size:11px;font-weight:700;color:var(--b)">Apr 14</div></div>
+    </div>
+    <div class="hlbl"><i class="fas fa-history"></i> History</div>
+
+    <div class="ai open"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic stg"><i class="fas fa-exchange-alt"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag tst">Stage</span>Contacted → Info Sent</div><div class="ai-meta">System &bull; Today 11:02 AM</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">Auto-triggered by info email sent</div></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic email"><i class="fas fa-paper-plane"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag te">Email</span>→ mike@apexroofingco.com &bull; "First Mate - Aerial Roof Measurements"</div><div class="ai-meta">Jose Suarez &bull; Today 11:02 AM</div><div class="ai-seq-label">Sequence: Info Sent</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">Hi Mike, thanks for chatting today! As promised, here's some info on First Mate's aerial roof measurement reports. I've attached a few sample reports so you can see the quality and detail. Sign up at FirstMeasure.com — takes 2 minutes.</div><div>📎 Residential Sample.pdf</div></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic seqi"><i class="fas fa-bolt"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag tq">SMS</span>"Hey, it's Jose at FirstMate. Just sent you over a second email..."</div><div class="ai-meta">Jose Suarez &bull; Today 11:02 AM</div><div class="ai-seq-label">Sequence: Info Sent</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">"Hey, it's Jose at FirstMate. Just sent you over a second email with some other sample reports. Did that email go through?"</div></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic rc"><i class="fas fa-phone"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag tr">RC</span>Outbound &bull; 3m 42s &bull; Conversation</div><div class="ai-meta">Jose Suarez &bull; Today 10:58 AM</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">Spoke with Mike about report options. Interested in residential + commercial samples.</div><a href="#"><i class="fas fa-play-circle"></i> Play Recording</a><div class="rci"><select><option selected>Conversation</option><option>No Answer</option><option>Voicemail</option></select><input value="Spoke with Mike about report options"></div></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic sms"><i class="fas fa-comment"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag ts">SMS</span>Outbound &bull; "Hey Mike, it's Jose from FirstMate..."</div><div class="ai-meta">Jose Suarez &bull; Yesterday 3:15 PM</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">"Hey Mike, it's Jose from FirstMate. Just tried calling — I have some sample reports to send over. What's the best email?"</div></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic orum"><i class="fas fa-phone-alt"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag to">Orum</span>→ Apex Roofing &bull; 1m 12s &bull; Conversation</div><div class="ai-meta">Jose Suarez &bull; Apr 10 2:34 PM</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">Got past receptionist Sarah. Mike available tomorrow morning.</div><a href="#"><i class="fas fa-play-circle"></i> Play Recording</a></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic orum"><i class="fas fa-phone-alt"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag to">Orum</span>→ Apex Roofing &bull; 0:08 &bull; No Answer</div><div class="ai-meta">Jose Suarez &bull; Apr 9 11:22 AM</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><a href="#"><i class="fas fa-play-circle"></i> Play Recording</a></div></div>
+
+    <div class="ai"><div class="ai-head" onclick="this.parentElement.classList.toggle('open')"><div class="aic note"><i class="fas fa-sticky-note"></i></div><div class="ai-sum"><div class="ai-line"><span class="tag tn">Note</span>Calculator: EagleView, 10/wk, $4,160 savings</div><div class="ai-meta">Jose Suarez &bull; Apr 10 2:40 PM</div></div><div class="ai-expand"><i class="fas fa-chevron-down"></i></div></div><div class="ai-body"><div class="det">Calculator: EagleView, 10 reports/week, $4,160 annual savings. Current: $7,800/yr. FM: $3,640/yr.</div></div></div>
+  </div>
+</div></div>
+</div>
+
+<!-- SMS MODAL -->
+<div class="sms-ov" onclick="if(event.target===this)this.classList.remove('open')"><div class="sms-m">
+  <div class="sms-h"><h3><i class="fas fa-comment" style="color:var(--g)"></i> &nbsp;Text Messages</h3><button class="bgh" onclick="document.querySelector('.sms-ov').classList.remove('open')" style="font-size:16px"><i class="fas fa-times"></i></button></div>
+  <div class="sms-cts"><button class="sms-ct active">Mike Johnson</button><button class="sms-ct">Sarah</button><button class="sms-ct">(303) 555-0142</button></div>
+  <div class="sms-thd">
+    <div class="sms-msg out">Hey Mike, it's Jose from FirstMate. Just tried calling — what's the best email?<div class="sms-msg-t">Yesterday 3:15 PM</div></div>
+    <div class="sms-msg in">Hey Jose, send to mike@apexroofingco.com<div class="sms-msg-t">Yesterday 3:22 PM</div></div>
+    <div class="sms-msg out">Just sent you a second email with more sample reports. Did that go through?<div class="sms-msg-t">Today 11:02 AM</div></div>
+  </div>
+  <div class="sms-c"><input placeholder="Type a message..."><select style="padding:10px 8px;border:1px solid var(--s2);border-radius:var(--rs);font-size:11px"><option>Template...</option></select><button class="bg" style="padding:10px 14px"><i class="fas fa-paper-plane"></i></button></div>
+</div></div>
+
+<!-- EMAIL COMPOSE -->
+<div class="cw hidden">
+<div class="cwh"><h4><i class="fas fa-envelope"></i> &nbsp;Email Apex Roofing</h4><span class="cwha"><button><i class="fas fa-minus"></i></button><button onclick="this.closest('.cw').classList.add('hidden')"><i class="fas fa-times"></i></button></span></div>
+<div class="cwtpl"><button class="cwt active">DM Info</button><button class="cwt">General Info</button><button class="cwt">Sign Up</button><button class="cwt">Pre-Signup F/U</button><button class="cwt">Post-Signup F/U</button></div>
+<div class="cwf"><div class="cwfl"><label>To</label><input value="mike@apexroofingco.com"><div class="ccl"><span>Cc</span> <span>Bcc</span></div></div><div class="cwfl"><label>Subj</label><input value="First Mate - Aerial Roof Measurement Reports"></div></div>
+<div class="cwb"><div class="cwed" contenteditable="true">Hi Mike,<br><br>Thanks for chatting today! Here's some info on First Mate's aerial roof measurement reports.<br><br>Sign up at <strong>FirstMeasure.com</strong> — takes 2 minutes.</div><div class="cwsg"><div class="cwsn">Jose Suarez</div><div class="cwsl">FIRST MATE</div>(425) 610-9389 &bull; Jose@1m8.ai</div></div>
+<div class="cwat"><button class="cwab on"><i class="fas fa-paperclip"></i> Residential</button><button class="cwab"><i class="fas fa-paperclip"></i> Commercial</button><button class="cwab"><i class="fas fa-paperclip"></i> Gutters</button><button class="cwab"><i class="fas fa-paperclip"></i> Branded</button></div>
+<div class="cwft"><button class="bs" onclick="this.closest('.cw').classList.add('hidden')">Cancel</button><button class="bp"><i class="fas fa-paper-plane"></i> Send</button></div>
+</div>
+
+<!-- TOOLS -->
+<div class="td" id="td">
+<div class="tdh"><div class="tdht"><div class="tdt">Tools</div><button class="bgh" onclick="document.getElementById('td').classList.remove('open')"><i class="fas fa-times"></i></button></div><div class="tdtabs"><button class="tdtab active" onclick="stb('sc',this)">Scripts</button><button class="tdtab" onclick="stb('ca',this)">Calculator</button><button class="tdtab" onclick="stb('co',this)">Comparison</button></div></div>
+<div class="tdb">
+<div id="t-sc"><div class="tsg"><button class="tsb active">Intro</button><button class="tsb">Objections</button><button class="tsb">Pricing</button><button class="tsb">VM</button><button class="tsb">GK</button><button class="tsb">Close</button></div><div style="font-size:13px;line-height:1.6;color:var(--s8)"><p><strong>"Hi, is this [Decision Maker]?"</strong></p><br><p>"This is Jose with First Mate. We do aerial roof measurement reports. Have you heard of us?"</p><br><p><em>If no:</em> "Same report as EagleView, fraction of the cost. Residential $7, commercial $12."</p><br><p><strong>→</strong> "What are you currently using?"</p></div></div>
+<div id="t-ca" class="hidden"><div class="tcalc"><div><label>Provider</label><select><option>EagleView</option></select></div><div><label>Reports/Wk</label><input type="number" value="10"></div><div><label>Price/Report</label><input type="text" value="$15.00"></div><div class="cr"><div class="sub">Annual Savings</div><div class="big">$4,160</div><div class="sub">$80/wk &bull; $347/mo</div></div><div class="ckg"><div class="tcard"><div class="k">Their Annual</div><div class="v">$7,800</div></div><div class="tcard"><div class="k">FM Annual</div><div class="v">$3,640</div></div></div></div></div>
+<div id="t-co" class="hidden"><h3 style="font-size:15px;font-weight:900;margin-bottom:10px">FM vs EagleView</h3><table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="border-bottom:2px solid var(--s2)"><th style="text-align:left;padding:6px 0;font-size:9px;color:var(--s4);font-weight:800;text-transform:uppercase">Feature</th><th style="text-align:center;padding:6px;font-size:9px;color:var(--red);font-weight:800">FM</th><th style="text-align:center;padding:6px;font-size:9px;color:var(--s4);font-weight:800">EV</th></tr></thead><tbody><tr style="border-bottom:1px solid var(--s1)"><td style="padding:7px 0;font-weight:600">Residential</td><td style="text-align:center;font-weight:800;color:var(--g)">$7</td><td style="text-align:center;color:var(--s5)">$15-25</td></tr><tr style="border-bottom:1px solid var(--s1)"><td style="padding:7px 0;font-weight:600">Commercial</td><td style="text-align:center;font-weight:800;color:var(--g)">$12</td><td style="text-align:center;color:var(--s5)">$30-50+</td></tr><tr style="border-bottom:1px solid var(--s1)"><td style="padding:7px 0;font-weight:600">Turnaround</td><td style="text-align:center;font-weight:700">Same day</td><td style="text-align:center;color:var(--s5)">1-3 days</td></tr><tr><td style="padding:7px 0;font-weight:600">Contract</td><td style="text-align:center;color:var(--g)">None</td><td style="text-align:center;color:var(--red)">Annual</td></tr></tbody></table></div>
+</div></div>
+
+<script>
+function sta(t,el){document.querySelectorAll('.atab').forEach(x=>x.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.ac').forEach(x=>x.classList.remove('active'));document.getElementById('a-'+t).classList.add('active')}
+function stb(t,el){document.querySelectorAll('.tdtab').forEach(x=>x.classList.remove('active'));el.classList.add('active');['sc','ca','co'].forEach(id=>document.getElementById('t-'+id).classList.toggle('hidden',id!==t))}
+function sr(el){document.querySelectorAll('.crole').forEach(x=>x.classList.remove('active'));el.classList.add('active');if(el.textContent!=='Other')document.getElementById('otherT').classList.add('hidden')}
+let allExpanded=true;
+function toggleAll(){
+  allExpanded=!allExpanded;
+  document.querySelectorAll('.ai').forEach(x=>{if(allExpanded)x.classList.add('open');else x.classList.remove('open')});
+  document.getElementById('collapseBtn').innerHTML=allExpanded?'<i class="fas fa-compress-alt"></i> Collapse All':'<i class="fas fa-expand-alt"></i> Expand All';
+}
+document.addEventListener('change',function(e){
+  if(e.target.closest('[type="checkbox"]')&&e.target.closest('label')&&e.target.closest('label').textContent.includes('Invite contacts')){
+    document.getElementById('contactInviteList').style.display=e.target.checked?'block':'none';
+  }
+});
+</script>
+</body>
+</html>

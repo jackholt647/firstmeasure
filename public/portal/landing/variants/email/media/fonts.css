@@ -1,0 +1,35 @@
+/* Fonts */
+@font-face {
+    font-family: 'FuturaLTW01-LightOblique';
+    src: url('fonts/9a7e574c3eda05d71d03345d3f9e268e.eot');
+    src: url('fonts/9a7e574c3eda05d71d03345d3f9e268e.eot?#iefix') format('embedded-opentype'),
+         url('fonts/9a7e574c3eda05d71d03345d3f9e268e.woff2') format('woff2'),
+         url('fonts/9a7e574c3eda05d71d03345d3f9e268e.woff') format('woff'),
+         url('fonts/9a7e574c3eda05d71d03345d3f9e268e.ttf') format('truetype'),
+         url('fonts/9a7e574c3eda05d71d03345d3f9e268e.svg#FuturaLTW01-LightOblique') format('svg');
+}
+
+@font-face {
+    font-family: 'GlacialIndifference-Regular';
+    src: url('fonts/GlacialIndifference-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat-Light';
+    src: url('fonts/Montserrat-Light.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat-Regular';
+    src: url('fonts/Montserrat-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body, div, p, h1, h2, h3, h4, button, a, input, select, textarea, label {
+    font-family: 'Montserrat-Regular', sans-serif;
+}

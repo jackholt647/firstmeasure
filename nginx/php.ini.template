@@ -1,0 +1,44 @@
+[PHP]
+engine = On
+short_open_tag = Off
+precision = 14
+output_buffering = 4096
+zlib.output_compression = Off
+implicit_flush = Off
+serialize_precision = -1
+zend.enable_gc = On
+expose_php = On
+max_execution_time = 300
+max_input_time = 300
+memory_limit = 512M
+error_reporting = E_ALL
+display_errors = On
+display_startup_errors = On
+log_errors = On
+error_log = "__PHP_ERROR_LOG__"
+variables_order = "GPCS"
+request_order = "GP"
+post_max_size = 64M
+upload_max_filesize = 64M
+max_file_uploads = 20
+default_mimetype = "text/html"
+default_charset = "UTF-8"
+
+extension_dir = "__PHP_EXT_DIR__"
+
+extension=curl
+extension=fileinfo
+extension=mbstring
+extension=mysqli
+extension=openssl
+extension=pdo_mysql
+extension=pdo_sqlite
+extension=sqlite3
+
+session.save_handler = files
+session.save_path = "__PHP_SESSION_PATH__"
+session.gc_maxlifetime = 1440
+
+cgi.fix_pathinfo = 1
+fastcgi.logging = 0
+date.timezone = "America/Los_Angeles"

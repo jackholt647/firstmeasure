@@ -1,0 +1,1334 @@
+{
+  "model": "gpt-5-nano",
+  "runs_per_lead": 5,
+  "payload_count": 8,
+  "generated_at": "2026-05-03T22:54:10.728Z",
+  "summaries": [
+    {
+      "payload_key": "ca3b36545ea45531",
+      "source": "postmark-spool-20260503_152940.json",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "source": "postmark-spool-20260503_152940.json",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "source": "project_08b5e4bcf3890050.json",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "16416 3 rd Avenue Southeast",
+          "date_posted": "2026-01-15 17:49:29",
+          "email": "emmalafonnt@gmail.com",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Install",
+          "lead_id": "111561193",
+          "lead_type": "Webform Lead",
+          "material": "Asphalt",
+          "name": "Roxy Clemence",
+          "owner": "Yes",
+          "phone_number": "206-354-2383 <+12063542383>",
+          "property_type": "Residence",
+          "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+          "task": "Roofing"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "source": "project_1652a3ce3d9baba4.json",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "18225 48TH AVE W",
+          "area": "Lynnwood, WA 98037 <http://maps.google.com/maps?q=Lynnwood+WA+98037>",
+          "disclaimer": "Forwarding this email may allow the recipient to access your",
+          "e_mail": "BALRAJBAKSHI@GMAIL.COM",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Roof Install - Asphalt Shingle",
+          "name": "Balraj Bakshi",
+          "phone": "(209) 485-8505 <2094858505>",
+          "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "source": "project_53d82fef3eded744.json",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th ST E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {
+          "best_time_to_call": "Daytime",
+          "city": "BONNEY LAKE",
+          "client_name": "Apex Roofing - WA",
+          "clk": "171250730173729023",
+          "email": "nras31951@gmail.com",
+          "firstname": "Lenes PrimaryNumber: 2532498487 Product:       ROOFING LastName:      Rasmussen WorkPhone:      Email:          nras31951@gmail.com StreetAddress: 20519 119th ST E City:          BONNEY LAKE State:         WA Zip:           98391 HomeOwner:     Yes Client Name:   Apex Roofing - WA Best time to call: Daytime LeadKey:       62280713033 CLK:           171250730173729023",
+          "from": "<jack@1m8.ai>",
+          "homeowner": "Yes",
+          "lastname": "Rasmussen",
+          "leadkey": "62280713033",
+          "primarynumber": "2532498487",
+          "product": "ROOFING",
+          "state": "WA",
+          "streetaddress": "20519 119th ST E",
+          "subject": "Quinstreet lead - Roofing - WA",
+          "zip": "98391"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "source": "project_a922f331e08196ca.json",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {
+          "estimate_low": "22632, Roof Estimate Median: 41103, Roof Estimate High:",
+          "from": "<jack@1m8.ai>",
+          "https": "//www.fixr.com",
+          "lead_id": "6206323 To Apex Roofing, The following person has requested a quote through our website. We strongly recommend you try and call this consumer immediately. Research shows that you are 5x more likely to get in contact with a consumer and make a sale if you call them within a few minutes after they make a request. Campaign : Thurston &amp; Pierce Counties Lead Sale Type:  Trio Requested by:  Bernardino Nunez -  nuvaconstructionllc@gmail.com Phone:  2534411702 Address of site:  13019 Point Richmond Beach Road Northwest, Gig Harbor WA, 98332 Gig Harbor Washington Industry:  Roofing Service:  Roof Replacement Additional information:  Roof Type: shingles, Own Property: yes, Roof Estimate Low: 22632, Roof Estimate Median: 41103, Roof Estimate High: 68149, Roof Replacement Area: 6097 Regards, Fixr https://www.fixr.com Fixr.com 2801 Centerville Rd #120 Wilmington, DE 19808 (866) 953-5377",
+          "subject": "Fixr.com - new lead has requested a quote"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "source": "project_c2e24d366f311e01.json",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {
+          "from": "<jack@1m8.ai>",
+          "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "source": "project_cceaeb3473d8ed45.json",
+      "subject": "Test Lead 2",
+      "runs": 5,
+      "variants": 1,
+      "variant_counts": [
+        5
+      ],
+      "representative": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    }
+  ],
+  "details": [
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "ca3b36545ea45531",
+      "subject": "You’ve hosted your first 50 meetings!",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "You’ve hosted your first 50 meetings!",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "cc8b70f3047dbf07",
+      "subject": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "[DigitalOcean] Your 2026-04 invoice for team: FirstMate is available",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "16416 3 rd Avenue Southeast",
+          "date_posted": "2026-01-15 17:49:29",
+          "email": "emmalafonnt@gmail.com",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Install",
+          "lead_id": "111561193",
+          "lead_type": "Webform Lead",
+          "material": "Asphalt",
+          "name": "Roxy Clemence",
+          "owner": "Yes",
+          "phone_number": "206-354-2383 <+12063542383>",
+          "property_type": "Residence",
+          "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+          "task": "Roofing"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "16416 3 rd Avenue Southeast",
+          "date_posted": "2026-01-15 17:49:29",
+          "email": "emmalafonnt@gmail.com",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Install",
+          "lead_id": "111561193",
+          "lead_type": "Webform Lead",
+          "material": "Asphalt",
+          "name": "Roxy Clemence",
+          "owner": "Yes",
+          "phone_number": "206-354-2383 <+12063542383>",
+          "property_type": "Residence",
+          "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+          "task": "Roofing"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "16416 3 rd Avenue Southeast",
+          "date_posted": "2026-01-15 17:49:29",
+          "email": "emmalafonnt@gmail.com",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Install",
+          "lead_id": "111561193",
+          "lead_type": "Webform Lead",
+          "material": "Asphalt",
+          "name": "Roxy Clemence",
+          "owner": "Yes",
+          "phone_number": "206-354-2383 <+12063542383>",
+          "property_type": "Residence",
+          "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+          "task": "Roofing"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "16416 3 rd Avenue Southeast",
+          "date_posted": "2026-01-15 17:49:29",
+          "email": "emmalafonnt@gmail.com",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Install",
+          "lead_id": "111561193",
+          "lead_type": "Webform Lead",
+          "material": "Asphalt",
+          "name": "Roxy Clemence",
+          "owner": "Yes",
+          "phone_number": "206-354-2383 <+12063542383>",
+          "property_type": "Residence",
+          "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+          "task": "Roofing"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "779a3ce5af1570a0",
+      "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Inquirly",
+        "confidence": 0.95,
+        "address": "16416 3rd Avenue Southeast",
+        "summary": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+        "contacts": [
+          {
+            "name": "Roxy Clemence",
+            "email": "emmalafonnt@gmail.com",
+            "phones": [
+              "+12063542383"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "16416 3 rd Avenue Southeast",
+          "date_posted": "2026-01-15 17:49:29",
+          "email": "emmalafonnt@gmail.com",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Install",
+          "lead_id": "111561193",
+          "lead_type": "Webform Lead",
+          "material": "Asphalt",
+          "name": "Roxy Clemence",
+          "owner": "Yes",
+          "phone_number": "206-354-2383 <+12063542383>",
+          "property_type": "Residence",
+          "subject": "Inquirly Lead 111561193 - 2063542383 Roxy Clemence",
+          "task": "Roofing"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "18225 48TH AVE W",
+          "area": "Lynnwood, WA 98037 <http://maps.google.com/maps?q=Lynnwood+WA+98037>",
+          "disclaimer": "Forwarding this email may allow the recipient to access your",
+          "e_mail": "BALRAJBAKSHI@GMAIL.COM",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Roof Install - Asphalt Shingle",
+          "name": "Balraj Bakshi",
+          "phone": "(209) 485-8505 <2094858505>",
+          "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "18225 48TH AVE W",
+          "area": "Lynnwood, WA 98037 <http://maps.google.com/maps?q=Lynnwood+WA+98037>",
+          "disclaimer": "Forwarding this email may allow the recipient to access your",
+          "e_mail": "BALRAJBAKSHI@GMAIL.COM",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Roof Install - Asphalt Shingle",
+          "name": "Balraj Bakshi",
+          "phone": "(209) 485-8505 <2094858505>",
+          "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "18225 48TH AVE W",
+          "area": "Lynnwood, WA 98037 <http://maps.google.com/maps?q=Lynnwood+WA+98037>",
+          "disclaimer": "Forwarding this email may allow the recipient to access your",
+          "e_mail": "BALRAJBAKSHI@GMAIL.COM",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Roof Install - Asphalt Shingle",
+          "name": "Balraj Bakshi",
+          "phone": "(209) 485-8505 <2094858505>",
+          "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "18225 48TH AVE W",
+          "area": "Lynnwood, WA 98037 <http://maps.google.com/maps?q=Lynnwood+WA+98037>",
+          "disclaimer": "Forwarding this email may allow the recipient to access your",
+          "e_mail": "BALRAJBAKSHI@GMAIL.COM",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Roof Install - Asphalt Shingle",
+          "name": "Balraj Bakshi",
+          "phone": "(209) 485-8505 <2094858505>",
+          "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "ccd80b998757cb86",
+      "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Networx",
+        "confidence": 0.95,
+        "address": "18225 48th Ave W",
+        "summary": "Roof Install - Asphalt Shingle Lead in Lynnwood",
+        "contacts": [
+          {
+            "name": "Balraj Bakshi",
+            "email": "balrajbakshi@gmail.com",
+            "phones": [
+              "+12094858505"
+            ]
+          }
+        ],
+        "fields": {
+          "address": "18225 48TH AVE W",
+          "area": "Lynnwood, WA 98037 <http://maps.google.com/maps?q=Lynnwood+WA+98037>",
+          "disclaimer": "Forwarding this email may allow the recipient to access your",
+          "e_mail": "BALRAJBAKSHI@GMAIL.COM",
+          "from": "<jack@1m8.ai>",
+          "job_type": "Roof Install - Asphalt Shingle",
+          "name": "Balraj Bakshi",
+          "phone": "(209) 485-8505 <2094858505>",
+          "subject": "Roof Install - Asphalt Shingle Lead in Lynnwood"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th ST E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {
+          "best_time_to_call": "Daytime",
+          "city": "BONNEY LAKE",
+          "client_name": "Apex Roofing - WA",
+          "clk": "171250730173729023",
+          "email": "nras31951@gmail.com",
+          "firstname": "Lenes PrimaryNumber: 2532498487 Product:       ROOFING LastName:      Rasmussen WorkPhone:      Email:          nras31951@gmail.com StreetAddress: 20519 119th ST E City:          BONNEY LAKE State:         WA Zip:           98391 HomeOwner:     Yes Client Name:   Apex Roofing - WA Best time to call: Daytime LeadKey:       62280713033 CLK:           171250730173729023",
+          "from": "<jack@1m8.ai>",
+          "homeowner": "Yes",
+          "lastname": "Rasmussen",
+          "leadkey": "62280713033",
+          "primarynumber": "2532498487",
+          "product": "ROOFING",
+          "state": "WA",
+          "streetaddress": "20519 119th ST E",
+          "subject": "Quinstreet lead - Roofing - WA",
+          "zip": "98391"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th ST E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {
+          "best_time_to_call": "Daytime",
+          "city": "BONNEY LAKE",
+          "client_name": "Apex Roofing - WA",
+          "clk": "171250730173729023",
+          "email": "nras31951@gmail.com",
+          "firstname": "Lenes PrimaryNumber: 2532498487 Product:       ROOFING LastName:      Rasmussen WorkPhone:      Email:          nras31951@gmail.com StreetAddress: 20519 119th ST E City:          BONNEY LAKE State:         WA Zip:           98391 HomeOwner:     Yes Client Name:   Apex Roofing - WA Best time to call: Daytime LeadKey:       62280713033 CLK:           171250730173729023",
+          "from": "<jack@1m8.ai>",
+          "homeowner": "Yes",
+          "lastname": "Rasmussen",
+          "leadkey": "62280713033",
+          "primarynumber": "2532498487",
+          "product": "ROOFING",
+          "state": "WA",
+          "streetaddress": "20519 119th ST E",
+          "subject": "Quinstreet lead - Roofing - WA",
+          "zip": "98391"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th ST E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {
+          "best_time_to_call": "Daytime",
+          "city": "BONNEY LAKE",
+          "client_name": "Apex Roofing - WA",
+          "clk": "171250730173729023",
+          "email": "nras31951@gmail.com",
+          "firstname": "Lenes PrimaryNumber: 2532498487 Product:       ROOFING LastName:      Rasmussen WorkPhone:      Email:          nras31951@gmail.com StreetAddress: 20519 119th ST E City:          BONNEY LAKE State:         WA Zip:           98391 HomeOwner:     Yes Client Name:   Apex Roofing - WA Best time to call: Daytime LeadKey:       62280713033 CLK:           171250730173729023",
+          "from": "<jack@1m8.ai>",
+          "homeowner": "Yes",
+          "lastname": "Rasmussen",
+          "leadkey": "62280713033",
+          "primarynumber": "2532498487",
+          "product": "ROOFING",
+          "state": "WA",
+          "streetaddress": "20519 119th ST E",
+          "subject": "Quinstreet lead - Roofing - WA",
+          "zip": "98391"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th ST E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {
+          "best_time_to_call": "Daytime",
+          "city": "BONNEY LAKE",
+          "client_name": "Apex Roofing - WA",
+          "clk": "171250730173729023",
+          "email": "nras31951@gmail.com",
+          "firstname": "Lenes PrimaryNumber: 2532498487 Product:       ROOFING LastName:      Rasmussen WorkPhone:      Email:          nras31951@gmail.com StreetAddress: 20519 119th ST E City:          BONNEY LAKE State:         WA Zip:           98391 HomeOwner:     Yes Client Name:   Apex Roofing - WA Best time to call: Daytime LeadKey:       62280713033 CLK:           171250730173729023",
+          "from": "<jack@1m8.ai>",
+          "homeowner": "Yes",
+          "lastname": "Rasmussen",
+          "leadkey": "62280713033",
+          "primarynumber": "2532498487",
+          "product": "ROOFING",
+          "state": "WA",
+          "streetaddress": "20519 119th ST E",
+          "subject": "Quinstreet lead - Roofing - WA",
+          "zip": "98391"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "5db2c544fdbcfa6c",
+      "subject": "Quinstreet lead - Roofing - WA",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "QuinStreet",
+        "confidence": 0.95,
+        "address": "20519 119th ST E, Bonney Lake, WA 98391",
+        "summary": "Quinstreet lead - Roofing - WA",
+        "contacts": [
+          {
+            "name": "Yes",
+            "email": "nras31951@gmail.com",
+            "phones": [
+              "+12532498487",
+              "+16228071303",
+              "+17125073017"
+            ]
+          }
+        ],
+        "fields": {
+          "best_time_to_call": "Daytime",
+          "city": "BONNEY LAKE",
+          "client_name": "Apex Roofing - WA",
+          "clk": "171250730173729023",
+          "email": "nras31951@gmail.com",
+          "firstname": "Lenes PrimaryNumber: 2532498487 Product:       ROOFING LastName:      Rasmussen WorkPhone:      Email:          nras31951@gmail.com StreetAddress: 20519 119th ST E City:          BONNEY LAKE State:         WA Zip:           98391 HomeOwner:     Yes Client Name:   Apex Roofing - WA Best time to call: Daytime LeadKey:       62280713033 CLK:           171250730173729023",
+          "from": "<jack@1m8.ai>",
+          "homeowner": "Yes",
+          "lastname": "Rasmussen",
+          "leadkey": "62280713033",
+          "primarynumber": "2532498487",
+          "product": "ROOFING",
+          "state": "WA",
+          "streetaddress": "20519 119th ST E",
+          "subject": "Quinstreet lead - Roofing - WA",
+          "zip": "98391"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {
+          "estimate_low": "22632, Roof Estimate Median: 41103, Roof Estimate High:",
+          "from": "<jack@1m8.ai>",
+          "https": "//www.fixr.com",
+          "lead_id": "6206323 To Apex Roofing, The following person has requested a quote through our website. We strongly recommend you try and call this consumer immediately. Research shows that you are 5x more likely to get in contact with a consumer and make a sale if you call them within a few minutes after they make a request. Campaign : Thurston &amp; Pierce Counties Lead Sale Type:  Trio Requested by:  Bernardino Nunez -  nuvaconstructionllc@gmail.com Phone:  2534411702 Address of site:  13019 Point Richmond Beach Road Northwest, Gig Harbor WA, 98332 Gig Harbor Washington Industry:  Roofing Service:  Roof Replacement Additional information:  Roof Type: shingles, Own Property: yes, Roof Estimate Low: 22632, Roof Estimate Median: 41103, Roof Estimate High: 68149, Roof Replacement Area: 6097 Regards, Fixr https://www.fixr.com Fixr.com 2801 Centerville Rd #120 Wilmington, DE 19808 (866) 953-5377",
+          "subject": "Fixr.com - new lead has requested a quote"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {
+          "estimate_low": "22632, Roof Estimate Median: 41103, Roof Estimate High:",
+          "from": "<jack@1m8.ai>",
+          "https": "//www.fixr.com",
+          "lead_id": "6206323 To Apex Roofing, The following person has requested a quote through our website. We strongly recommend you try and call this consumer immediately. Research shows that you are 5x more likely to get in contact with a consumer and make a sale if you call them within a few minutes after they make a request. Campaign : Thurston &amp; Pierce Counties Lead Sale Type:  Trio Requested by:  Bernardino Nunez -  nuvaconstructionllc@gmail.com Phone:  2534411702 Address of site:  13019 Point Richmond Beach Road Northwest, Gig Harbor WA, 98332 Gig Harbor Washington Industry:  Roofing Service:  Roof Replacement Additional information:  Roof Type: shingles, Own Property: yes, Roof Estimate Low: 22632, Roof Estimate Median: 41103, Roof Estimate High: 68149, Roof Replacement Area: 6097 Regards, Fixr https://www.fixr.com Fixr.com 2801 Centerville Rd #120 Wilmington, DE 19808 (866) 953-5377",
+          "subject": "Fixr.com - new lead has requested a quote"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {
+          "estimate_low": "22632, Roof Estimate Median: 41103, Roof Estimate High:",
+          "from": "<jack@1m8.ai>",
+          "https": "//www.fixr.com",
+          "lead_id": "6206323 To Apex Roofing, The following person has requested a quote through our website. We strongly recommend you try and call this consumer immediately. Research shows that you are 5x more likely to get in contact with a consumer and make a sale if you call them within a few minutes after they make a request. Campaign : Thurston &amp; Pierce Counties Lead Sale Type:  Trio Requested by:  Bernardino Nunez -  nuvaconstructionllc@gmail.com Phone:  2534411702 Address of site:  13019 Point Richmond Beach Road Northwest, Gig Harbor WA, 98332 Gig Harbor Washington Industry:  Roofing Service:  Roof Replacement Additional information:  Roof Type: shingles, Own Property: yes, Roof Estimate Low: 22632, Roof Estimate Median: 41103, Roof Estimate High: 68149, Roof Replacement Area: 6097 Regards, Fixr https://www.fixr.com Fixr.com 2801 Centerville Rd #120 Wilmington, DE 19808 (866) 953-5377",
+          "subject": "Fixr.com - new lead has requested a quote"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {
+          "estimate_low": "22632, Roof Estimate Median: 41103, Roof Estimate High:",
+          "from": "<jack@1m8.ai>",
+          "https": "//www.fixr.com",
+          "lead_id": "6206323 To Apex Roofing, The following person has requested a quote through our website. We strongly recommend you try and call this consumer immediately. Research shows that you are 5x more likely to get in contact with a consumer and make a sale if you call them within a few minutes after they make a request. Campaign : Thurston &amp; Pierce Counties Lead Sale Type:  Trio Requested by:  Bernardino Nunez -  nuvaconstructionllc@gmail.com Phone:  2534411702 Address of site:  13019 Point Richmond Beach Road Northwest, Gig Harbor WA, 98332 Gig Harbor Washington Industry:  Roofing Service:  Roof Replacement Additional information:  Roof Type: shingles, Own Property: yes, Roof Estimate Low: 22632, Roof Estimate Median: 41103, Roof Estimate High: 68149, Roof Replacement Area: 6097 Regards, Fixr https://www.fixr.com Fixr.com 2801 Centerville Rd #120 Wilmington, DE 19808 (866) 953-5377",
+          "subject": "Fixr.com - new lead has requested a quote"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "863663f3be94c944",
+      "subject": "Fixr.com - new lead has requested a quote",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Fixr",
+        "confidence": 0.95,
+        "address": "13019 Point Richmond Beach Road Northwest, Gig Harbor",
+        "summary": "Fixr.com - new lead has requested a quote",
+        "contacts": [
+          {
+            "name": "",
+            "email": "nuvaconstructionllc@gmail.com",
+            "phones": [
+              "+12534411702",
+              "+18669535377"
+            ]
+          }
+        ],
+        "fields": {
+          "estimate_low": "22632, Roof Estimate Median: 41103, Roof Estimate High:",
+          "from": "<jack@1m8.ai>",
+          "https": "//www.fixr.com",
+          "lead_id": "6206323 To Apex Roofing, The following person has requested a quote through our website. We strongly recommend you try and call this consumer immediately. Research shows that you are 5x more likely to get in contact with a consumer and make a sale if you call them within a few minutes after they make a request. Campaign : Thurston &amp; Pierce Counties Lead Sale Type:  Trio Requested by:  Bernardino Nunez -  nuvaconstructionllc@gmail.com Phone:  2534411702 Address of site:  13019 Point Richmond Beach Road Northwest, Gig Harbor WA, 98332 Gig Harbor Washington Industry:  Roofing Service:  Roof Replacement Additional information:  Roof Type: shingles, Own Property: yes, Roof Estimate Low: 22632, Roof Estimate Median: 41103, Roof Estimate High: 68149, Roof Replacement Area: 6097 Regards, Fixr https://www.fixr.com Fixr.com 2801 Centerville Rd #120 Wilmington, DE 19808 (866) 953-5377",
+          "subject": "Fixr.com - new lead has requested a quote"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 1,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {
+          "from": "<jack@1m8.ai>",
+          "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 2,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {
+          "from": "<jack@1m8.ai>",
+          "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 3,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {
+          "from": "<jack@1m8.ai>",
+          "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 4,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {
+          "from": "<jack@1m8.ai>",
+          "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8566fc7969c5a8b3",
+      "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+      "run": 5,
+      "output": {
+        "is_lead": true,
+        "provider": "Service Direct",
+        "confidence": 0.8,
+        "address": "",
+        "summary": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228",
+        "contacts": [
+          {
+            "name": "",
+            "email": "",
+            "phones": [
+              "+16618030228"
+            ]
+          }
+        ],
+        "fields": {
+          "from": "<jack@1m8.ai>",
+          "subject": "New Service Direct Phone Lead: Caller From Santa Clarita Ca, (661) 803-0228"
+        },
+        "rejection_reason": ""
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 1,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 2,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 3,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 4,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    },
+    {
+      "payload_key": "8b5764aa9308bd12",
+      "subject": "Test Lead 2",
+      "run": 5,
+      "output": {
+        "is_lead": false,
+        "provider": "",
+        "confidence": 0.1,
+        "address": "",
+        "summary": "Test Lead 2",
+        "contacts": [],
+        "fields": {},
+        "rejection_reason": "Email does not contain a lead/service request with usable contact or job-site information."
+      }
+    }
+  ]
+}

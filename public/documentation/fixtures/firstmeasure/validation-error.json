@@ -1,0 +1,15 @@
+{
+  "ok": false,
+  "error": "validation_error",
+  "issues": [
+    {
+      "code": "too_small",
+      "minimum": 1,
+      "type": "string",
+      "inclusive": true,
+      "path": ["address"],
+      "message": "String must contain at least 1 character(s)"
+    }
+  ]
+}
+

@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "report": {
+    "id": "fmr_fixture_processing",
+    "external_id": "fixture-order-1002",
+    "status": "queued",
+    "address": "625 S 13th Ave, Maywood, IL 60153",
+    "project_type": "residential",
+    "amount_charged": 7,
+    "created_at": "2026-08-25T19:00:00.000Z",
+    "updated_at": "2026-08-25T19:02:00.000Z",
+    "completed_at": null,
+    "artifacts": {
+      "has_report_pdf": false,
+      "has_summary_pdf": false,
+      "has_model_data": false,
+      "has_pdf_state": false
+    },
+    "rejection": null,
+    "metadata": { "source": "static_fixture" }
+  }
+}
+

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FirstMate Embeddable App Smoke</title>
+  <style>
+    body{font-family:Inter,Arial,sans-serif;margin:0;background:#f6f7f9;color:#101828}
+    main{max-width:1100px;margin:0 auto;padding:28px}
+    h1{font-size:22px;margin:0 0 6px}
+    p{margin:0 0 18px;color:#667085;font-weight:700}
+    button{border:0;border-radius:8px;background:#d93025;color:#fff;font-weight:900;padding:10px 14px;cursor:pointer}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden}
+    th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #eef0f3;font-size:13px;vertical-align:top}
+    th{background:#f9fafb;color:#475467;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+    tr:last-child td{border-bottom:0}
+    .status{font-weight:1000}
+    .pending{color:#667085}.pass{color:#067647}.fail{color:#b42318}
+    iframe{position:absolute;width:980px;height:720px;left:-12000px;top:0;border:0}
+    code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+  </style>
+  <script>
+    window.__FM_SMOKE_CACHE = new URLSearchParams(location.search).get('cacheBust') || String(Date.now());
+    window.__fmSmokeLoadScript = function(src){
+      return new Promise(function(resolve, reject){
+        var script = document.createElement('script');
+        var url = new URL(src, document.baseURI);
+        url.searchParams.set('smoke_v', window.__FM_SMOKE_CACHE);
+        script.src = url.href;
+        script.onload = resolve;
+        script.onerror = function(){ reject(new Error('Could not load ' + url.href)); };
+        document.head.appendChild(script);
+      });
+    };
+    window.__FM_SMOKE_READY = window.__fmSmokeLoadScript('../../app-runtime/firstmate-embeddable-apps.js')
+      .then(function(){ return window.__fmSmokeLoadScript('../firstmate-apps-manifest.js'); });
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Embeddable App Independent Load Smoke</h1>
+    <p>Each row loads in a fresh iframe with only its declared dependencies, standard context, and smoke host services.</p>
+    <button id="runSmoke">Run smoke</button>
+    <table aria-label="Independent app smoke results">
+      <thead><tr><th>App</th><th>Kind</th><th>Dependencies</th><th>Status</th><th>Details</th></tr></thead>
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+  <script>
+    window.__FM_SMOKE_READY
+      .then(function(){ return window.__fmSmokeLoadScript('independent-load.js'); })
+      .catch(function(error){
+        var results = document.getElementById('results');
+        if (results) results.innerHTML = '<tr><td colspan="5"><code>' + String(error.message || error) + '</code></td></tr>';
+      });
+  </script>
+</body>
+</html>

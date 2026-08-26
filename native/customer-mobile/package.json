@@ -1,0 +1,24 @@
+{
+  "name": "firstmate-customer-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FirstMate customer-side Capacitor shell.",
+  "scripts": {
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "android": "cap run android",
+    "doctor": "npx cap doctor"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/camera": "^6.1.3",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/preferences": "^6.0.4",
+    "@capacitor/push-notifications": "^6.0.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
+    "typescript": "^6.0.3"
+  }
+}

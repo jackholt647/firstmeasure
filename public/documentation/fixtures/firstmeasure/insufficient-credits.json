@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "error": "insufficient_credits",
+  "message": "This organization does not have enough credits and API auto top-up is not ready.",
+  "details": {
+    "required": 7,
+    "balance": 0,
+    "has_payment_method": false
+  }
+}
+

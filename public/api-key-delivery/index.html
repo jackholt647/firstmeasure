@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <title>Receive your FirstMeasure API key</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="delivery-shell">
+    <section class="delivery-card" aria-labelledby="deliveryTitle">
+      <a class="brand" href="https://app.1m8.ai/" aria-label="FirstMate home">
+        <img src="../images/logo_red.png" alt="First Mate">
+      </a>
+
+      <div id="deliveryReady">
+        <p class="eyebrow">Secure one-time delivery</p>
+        <h1 id="deliveryTitle">Receive your FirstMeasure API key</h1>
+        <p class="lede">This link reveals the key once. Email preview scanners cannot consume it; the key is released only after you press the button below.</p>
+        <div class="notice">
+          <strong>Before you reveal it</strong>
+          <p>Be ready to copy the key into your server-side secret manager. Do not put it in browser code, source control, chat, or application logs.</p>
+        </div>
+        <button class="primary-button" id="revealButton" type="button">Reveal API key</button>
+      </div>
+
+      <div id="deliveryResult" hidden>
+        <p class="eyebrow success">Key revealed</p>
+        <h1>Copy your API key now</h1>
+        <p class="lede">The delivery link has self-destructed and cannot reveal the key again.</p>
+        <dl class="key-meta">
+          <div><dt>Name</dt><dd id="keyName">—</dd></div>
+          <div><dt>Mode</dt><dd id="keyMode">—</dd></div>
+          <div><dt>Key expiration</dt><dd id="keyExpiration">—</dd></div>
+        </dl>
+        <label class="key-field">
+          <span>API key</span>
+          <div class="key-row">
+            <input id="keyValue" type="password" readonly autocomplete="off" spellcheck="false">
+            <button id="toggleKey" type="button">Show</button>
+          </div>
+        </label>
+        <button class="primary-button" id="copyKey" type="button">Copy API key</button>
+        <p class="status success-text" id="copyStatus" aria-live="polite">The key will be cleared from this page after 10 minutes.</p>
+      </div>
+
+      <div id="deliveryError" hidden>
+        <p class="eyebrow error">Link unavailable</p>
+        <h1>This delivery link cannot be used</h1>
+        <p class="lede" id="errorMessage">It may be invalid, expired, replaced, or already used. Ask your FirstMeasure contact to issue a new delivery link.</p>
+      </div>
+
+      <p class="footer-note">FirstMeasure API keys are organization-specific. If this key was not expected, close this page and contact the sender.</p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
+

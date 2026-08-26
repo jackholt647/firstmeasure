@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FirstMate</string>
+    <string name="title_activity_main">FirstMate</string>
+    <string name="package_name">ai.firstmate.management</string>
+    <string name="custom_url_scheme">ai.firstmate.management</string>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ROOFPLAN>
+  <LOCATION address="1600 Amphitheatre Parkway" city="Mountain View" state="CA" postal="94043" lat="37.422" long="-122.0841" />
+  <POINT id="P1" data="0,0,0" />
+  <POINT id="P2" data="40,0,0" />
+  <POINT id="P3" data="40,30,10" />
+  <POINT id="P4" data="0,30,10" />
+  <LINE id="L1" type="EAVE" path="P1,P2" />
+  <LINE id="L2" type="RAKE" path="P2,P3" />
+  <LINE id="L3" type="EAVE" path="P3,P4" />
+  <LINE id="L4" type="RAKE" path="P4,P1" />
+  <FACE id="F1" type="ROOF">
+    <POLYGON id="PG1" path="L1,L2,L3,L4" pitch="6" size="1800" />
+  </FACE>
+</ROOFPLAN>
+

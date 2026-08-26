@@ -1,0 +1,74 @@
+worker_processes  1;
+pid "__NGINX_PID__";
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       "__NGINX_MIME_TYPES__";
+    default_type  application/octet-stream;
+    types {
+        application/manifest+json  webmanifest;
+    }
+
+    sendfile        on;
+    keepalive_timeout  65;
+    client_max_body_size 64m;
+
+    upstream php_backend {
+__PHP_UPSTREAMS__
+    }
+
+    server {
+        listen       __LISTEN_HOST__:__LISTEN_PORT__;
+__EXTRA_LISTEN_DIRECTIVES__
+        server_name  localhost;
+
+        root   "__PUBLIC_ROOT__";
+        index  index.php index.html index.htm;
+
+        access_log  "__ACCESS_LOG__";
+        error_log   "__ERROR_LOG__" info;
+
+        location ^~ /v1/ {
+            proxy_pass http://127.0.0.1:__API_PORT__/v1/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 300;
+        }
+
+        # Public website hosting shell: /sites/<siteKey>[/<pageSlug>] are
+        # virtual paths served by the sites front controller. No ^~ here:
+        # the fallback rewrites to /sites/index.php, which must still hit
+        # the `location ~ \.php$` regex below to be executed (a ^~ prefix
+        # match would suppress it and serve raw PHP source).
+        location /sites/ {
+            try_files $uri $uri/ /sites/index.php?$query_string;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location ~ \.php$ {
+            try_files $uri =404;
+            include "__NGINX_FASTCGI_PARAMS__";
+            fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
+            fastcgi_index index.php;
+            fastcgi_pass php_backend;
+            fastcgi_read_timeout 300;
+        }
+
+        location ~ /\.ht {
+            deny all;
+        }
+    }
+}
