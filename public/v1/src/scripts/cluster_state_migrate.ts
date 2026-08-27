@@ -14,6 +14,12 @@ type MigrationProfile = "cutover" | "development-clone";
 type Options = { apply: boolean; verify: boolean; concurrency: number; profile: MigrationProfile };
 type Counts = Record<string, number>;
 type MigratedObject = { key: string; size: number };
+type PlatformDocumentBatchRow = {
+  organization_id: string;
+  collection: string;
+  id: string;
+  document: JsonObject;
+};
 
 const PLATFORM_COLLECTIONS = new Set([
   "users", "projects", "customers", "branch", "notifications", "action_items", "activity", "customer_portals",
@@ -68,9 +74,33 @@ async function upsertPlatform(table: string, columns: string[], values: unknown[
     ON CONFLICT(${conflictColumns.join(",")}) DO UPDATE SET ${updateColumns.map((column) => `${column}=EXCLUDED.${column}`).join(",")}`, values);
 }
 
+async function upsertPlatformDocumentBatch(rows: PlatformDocumentBatchRow[]) {
+  if (!rows.length) return;
+  await queryPostgres(`
+    INSERT INTO platform_documents(organization_id, collection, id, document)
+    SELECT x.organization_id, x.collection, x.id, x.document
+    FROM jsonb_to_recordset($1::jsonb) AS x(
+      organization_id text,
+      collection text,
+      id text,
+      document jsonb
+    )
+    ON CONFLICT(organization_id, collection, id)
+    DO UPDATE SET document = EXCLUDED.document
+  `, [JSON.stringify(rows)]);
+}
+
 async function migratePlatform(options: Options, counts: Counts, migratedObjects: MigratedObject[]) {
   const platformRoot = root(env.platformStorageRoot);
   if (!(await exists(platformRoot))) return;
+  const platformDocumentBatch: PlatformDocumentBatchRow[] = [];
+  const queuePlatformDocument = async (row: PlatformDocumentBatchRow) => {
+    if (!options.apply) return;
+    platformDocumentBatch.push(row);
+    if (platformDocumentBatch.length < 250) return;
+    await upsertPlatformDocumentBatch(platformDocumentBatch);
+    platformDocumentBatch.length = 0;
+  };
 
   for (const file of await jsonFiles(path.join(platformRoot, "identities"))) {
     const document = await jsonFile<JsonObject>(file);
@@ -103,14 +133,14 @@ async function migratePlatform(options: Options, counts: Counts, migratedObjects
     if (await exists(globalPath)) {
       const document = await jsonFile<JsonObject>(globalPath);
       bump(counts, "platform_documents_seen");
-      if (options.apply) await upsertPlatform("platform_documents", ["organization_id","collection","id","document"], [orgId,"global","global",JSON.stringify(document)], ["organization_id","collection","id"], ["document"]);
+      await queuePlatformDocument({ organization_id: orgId, collection: "global", id: "global", document });
     }
     for (const collection of PLATFORM_COLLECTIONS) {
       for (const file of await jsonFiles(path.join(directory, collection))) {
         const document = await jsonFile<JsonObject>(file);
         const id = String(document.id ?? path.basename(file, ".json"));
         bump(counts, "platform_documents_seen");
-        if (options.apply) await upsertPlatform("platform_documents", ["organization_id","collection","id","document"], [orgId,collection,id,JSON.stringify(document)], ["organization_id","collection","id"], ["document"]);
+        await queuePlatformDocument({ organization_id: orgId, collection, id, document });
       }
     }
     const branches = await readdir(path.join(directory, "branch_data"), { withFileTypes: true }).catch(() => []);
@@ -155,6 +185,7 @@ async function migratePlatform(options: Options, counts: Counts, migratedObjects
       });
     }
   }
+  await upsertPlatformDocumentBatch(platformDocumentBatch);
 }
 
 async function migrateSharedJsonStores(options: Options, counts: Counts, migratedObjects: MigratedObject[]) {
