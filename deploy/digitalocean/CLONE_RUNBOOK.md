@@ -49,10 +49,11 @@ database is not guaranteed to be consistent in a crash-consistent root-disk
 snapshot.
 
 Instead, prepare a self-contained bundle on the attached volume. The helper
-copies the smaller filesystem state and uses SQLite's online-backup API for
-every live database. It neither stops services nor writes to the source
-databases. Run the dry check first, then the applied preparation at idle CPU
-and I/O priority:
+copies the smaller filesystem state and uses transactional `VACUUM INTO`
+snapshots for every live database. Unlike the incremental backup API, this
+does not restart from zero whenever another worker writes to the source. It
+neither stops services nor writes to the source databases. Run the dry check
+first, then the applied preparation at idle CPU and I/O priority:
 
 ```bash
 source_id="legacy-$(date -u +%Y%m%d-%H%M%S)"

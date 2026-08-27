@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import { access, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -21,28 +20,15 @@ await access(destination).then(
 );
 await mkdir(path.dirname(destination), { recursive: true });
 
-const sqlite = await import("node:sqlite");
-const DatabaseSync = sqlite.DatabaseSync;
+const { DatabaseSync } = await import("node:sqlite");
 if (typeof DatabaseSync !== "function") throw new Error("node:sqlite DatabaseSync is unavailable.");
 
 const sourceDb = new DatabaseSync(source, { readOnly: true });
 try {
   sourceDb.exec("PRAGMA busy_timeout = 30000");
-  if (typeof sqlite.backup === "function") {
-    let lastProgressAt = 0;
-    await sqlite.backup(sourceDb, destination, {
-      rate: 4096,
-      progress({ remainingPages, totalPages }) {
-        const now = Date.now();
-        if (now - lastProgressAt < 30_000 && remainingPages !== 0) return;
-        lastProgressAt = now;
-        process.stdout.write(`SQLite backup progress: ${totalPages - remainingPages}/${totalPages} pages (${source})\n`);
-      }
-    });
-  } else {
-    sourceDb.close();
-    await sqliteCliBackup(source, destination);
-  }
+  const quotedDestination = destination.replaceAll("'", "''");
+  process.stdout.write(`Creating transactional SQLite snapshot: ${source} -> ${destination}\n`);
+  sourceDb.exec(`VACUUM INTO '${quotedDestination}'`);
 } finally {
   try { sourceDb.close(); } catch {}
 }
@@ -53,20 +39,4 @@ try {
   process.stdout.write(`SQLite backup complete: ${source} -> ${destination} (${String(row?.count ?? 0)} schema objects)\n`);
 } finally {
   backupDb.close();
-}
-
-async function sqliteCliBackup(sourcePath, destinationPath) {
-  await new Promise((resolve, reject) => {
-    const child = spawn("sqlite3", [sourcePath, ".timeout 30000", `.backup ${destinationPath}`], {
-      stdio: ["ignore", "inherit", "inherit"]
-    });
-    child.once("error", (error) => {
-      reject(new Error(`node:sqlite backup() is unavailable and sqlite3 could not start: ${error.message}`));
-    });
-    child.once("close", (code, signal) => {
-      if (signal) reject(new Error(`sqlite3 backup terminated by ${signal}.`));
-      else if (code !== 0) reject(new Error(`sqlite3 backup exited with status ${code ?? 1}.`));
-      else resolve();
-    });
-  });
 }
