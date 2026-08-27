@@ -60,24 +60,43 @@ async function main() {
     throw new Error("--source-id is required for an applied artifact synchronization.");
   }
 
-  const files = await discoverArtifacts(options.sourceRoot, options.allowEmptySource);
-  if (!files.length && options.apply && !options.allowEmptySource) {
-    throw new Error(`No project artifacts were found under '${options.sourceRoot}'. Refusing an empty applied synchronization.`);
-  }
-  const sourceKeys = new Set(files.map((file) => file.objectKey));
   const remoteFiles = await listProjectArtifactInventory();
-  const remoteByKey = new Map(remoteFiles.map((file) => [file.key, file]));
+  const remoteByKey = new Map(remoteFiles.map((file) => [file.key, { file, sourceSeen: false }]));
   const runId = `${Date.now()}-${randomBytes(8).toString("hex")}`;
   const summary: ArtifactSyncRunSummary = {
-    discovered: files.length,
+    discovered: 0,
     uploaded: 0,
     skipped: 0,
     verified: 0,
     failed: 0,
-    orphaned: remoteFiles.filter((file) => !sourceKeys.has(file.key)).length,
-    sourceBytes: files.reduce((sum, file) => sum + file.size, 0),
+    orphaned: 0,
+    sourceBytes: 0,
     uploadedBytes: 0
   };
+
+  // Keep the source walk memory-bounded. Large legacy volumes can contain
+  // millions of files, so retaining one object per file can exhaust the Node
+  // heap before synchronization begins. The first streaming pass produces the
+  // exact plan; applied runs make a second streaming pass to do the work.
+  for await (const file of iterateArtifacts(options.sourceRoot, options.allowEmptySource)) {
+    summary.discovered += 1;
+    summary.sourceBytes += file.size;
+    const remoteEntry = remoteByKey.get(file.objectKey);
+    if (remoteEntry) remoteEntry.sourceSeen = true;
+    if (!options.apply) {
+      if (remoteEntry?.file.size === file.size) summary.skipped += 1;
+      else {
+        summary.uploaded += 1;
+        summary.uploadedBytes += file.size;
+      }
+    }
+  }
+  if (!summary.discovered && options.apply && !options.allowEmptySource) {
+    throw new Error(`No project artifacts were found under '${options.sourceRoot}'. Refusing an empty applied synchronization.`);
+  }
+  for (const entry of remoteByKey.values()) {
+    if (!entry.sourceSeen) summary.orphaned += 1;
+  }
 
   console.info(JSON.stringify({
     mode: options.apply ? "apply" : "dry-run",
@@ -87,7 +106,7 @@ async function main() {
     target_environment: options.targetEnvironment,
     spaces_bucket: env.spacesBucket,
     spaces_prefix: env.spacesPrefix,
-    files: files.length,
+    files: summary.discovered,
     bytes: summary.sourceBytes,
     existing_objects: remoteFiles.length,
     orphaned_objects: summary.orphaned,
@@ -95,11 +114,6 @@ async function main() {
   }));
 
   if (!options.apply) {
-    summary.skipped = files.filter((file) => remoteByKey.get(file.objectKey)?.size === file.size).length;
-    summary.uploaded = files.length - summary.skipped;
-    summary.uploadedBytes = files
-      .filter((file) => remoteByKey.get(file.objectKey)?.size !== file.size)
-      .reduce((sum, file) => sum + file.size, 0);
     await writeReport(options.reportPath, { run_id: runId, mode: "dry-run", summary });
     console.info(JSON.stringify({ ok: true, mode: "dry-run", summary }));
     return;
@@ -109,9 +123,9 @@ async function main() {
   ledger.startRun(runId, options.sourceId, options.sourceRoot);
   try {
     let completed = 0;
-    await mapWithConcurrency(files, options.concurrency, async (file) => {
+    await mapWithConcurrency(iterateArtifacts(options.sourceRoot, options.allowEmptySource), options.concurrency, async (file) => {
       try {
-        const remote = remoteByKey.get(file.objectKey);
+        const remote = remoteByKey.get(file.objectKey)?.file;
         const previous = ledger.get(file.objectKey);
         const unchanged = previous
           && previous.status === "verified"
@@ -194,10 +208,10 @@ async function main() {
         throw error;
       } finally {
         completed += 1;
-        if (completed % 100 === 0 || completed === files.length) {
+        if (completed % 100 === 0 || completed === summary.discovered) {
           console.info(JSON.stringify({
             progress: completed,
-            total: files.length,
+            total: summary.discovered,
             uploaded: summary.uploaded,
             skipped: summary.skipped,
             failed: summary.failed,
@@ -219,43 +233,41 @@ async function main() {
   }
 }
 
-async function discoverArtifacts(projectsRoot: string, allowEmptySource: boolean) {
+async function* iterateArtifacts(projectsRoot: string, allowEmptySource: boolean): AsyncGenerator<ArtifactFile> {
   const rootInfo = await stat(projectsRoot).catch(() => null);
   if (!rootInfo?.isDirectory()) {
-    if (allowEmptySource) return [];
+    if (allowEmptySource) return;
     throw new Error(`Project artifact source does not exist: ${projectsRoot}`);
   }
   const projectEntries = await readdir(projectsRoot, { withFileTypes: true });
-  const files: ArtifactFile[] = [];
   for (const projectEntry of projectEntries) {
     if (!projectEntry.isDirectory()) continue;
     const projectId = projectEntry.name;
     const projectRoot = path.join(projectsRoot, projectId);
-    await walk(projectRoot, "", projectId, files);
+    yield* walk(projectRoot, "", projectId);
   }
-  return files;
 }
 
-async function walk(root: string, relativeRoot: string, projectId: string, files: ArtifactFile[]) {
+async function* walk(root: string, relativeRoot: string, projectId: string): AsyncGenerator<ArtifactFile> {
   const entries = await readdir(path.join(root, relativeRoot), { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name.startsWith(".") && entry.name.endsWith(".tmp")) continue;
     const relativePath = relativeRoot ? `${relativeRoot}/${entry.name}` : entry.name;
     const absolutePath = path.join(root, ...relativePath.split("/"));
     if (entry.isDirectory()) {
-      await walk(root, relativePath, projectId, files);
+      yield* walk(root, relativePath, projectId);
       continue;
     }
     if (!entry.isFile()) continue;
     const information = await stat(absolutePath);
-    files.push({
+    yield {
       projectId,
       relativePath,
       absolutePath,
       objectKey: projectArtifactKey(projectId, relativePath),
       size: information.size,
       mtimeMs: information.mtimeMs
-    });
+    };
   }
 }
 
@@ -276,16 +288,20 @@ async function assertSourceFileUnchanged(file: ArtifactFile) {
   }
 }
 
-async function mapWithConcurrency<T>(values: T[], limit: number, operation: (value: T) => Promise<void>) {
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(limit, Math.max(1, values.length)) }, async () => {
-    while (true) {
-      const index = next;
-      next += 1;
-      if (index >= values.length) return;
-      await operation(values[index]!);
+async function mapWithConcurrency<T>(values: AsyncIterable<T>, limit: number, operation: (value: T) => Promise<void>) {
+  const active = new Set<Promise<void>>();
+  try {
+    for await (const value of values) {
+      let task!: Promise<void>;
+      task = operation(value).finally(() => active.delete(task));
+      active.add(task);
+      if (active.size >= limit) await Promise.race(active);
     }
-  }));
+    await Promise.all(active);
+  } catch (error) {
+    await Promise.allSettled(active);
+    throw error;
+  }
 }
 
 function parseOptions(argv: string[]): Options {
