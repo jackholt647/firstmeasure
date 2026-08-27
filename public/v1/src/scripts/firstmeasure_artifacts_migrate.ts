@@ -147,7 +147,11 @@ async function main() {
           const remoteMatches = remoteHead?.exists
             && remoteHead.size === file.size
             && remoteHead.metadata["source-sha256"] === sourceSha256
-            && remoteHead.checksum_sha256 === sha256Base64(sourceSha256);
+            // DigitalOcean Spaces accepts ChecksumSHA256 on PUT but currently
+            // omits it from HEAD responses. Enforce the provider checksum when
+            // one is returned; size plus our immutable SHA-256 metadata remain
+            // mandatory for providers that do not expose the native field.
+            && (!remoteHead.checksum_sha256 || remoteHead.checksum_sha256 === sha256Base64(sourceSha256));
 
           if (remoteMatches) {
             summary.skipped += 1;
@@ -183,7 +187,7 @@ async function main() {
               !stored.exists
               || stored.size !== file.size
               || stored.metadata["source-sha256"] !== sourceSha256
-              || stored.checksum_sha256 !== sha256Base64(sourceSha256)
+              || (stored.checksum_sha256 && stored.checksum_sha256 !== sha256Base64(sourceSha256))
             ) {
               throw new Error(`Verification failed for ${file.projectId}/${file.relativePath}.`);
             }
