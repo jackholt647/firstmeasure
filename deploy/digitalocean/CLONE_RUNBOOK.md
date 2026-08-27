@@ -40,6 +40,48 @@ sudo bash deploy/digitalocean/mount-clone-source.sh \
 The helper never formats a device and refuses a writable mount. Confirm the
 restored layout contains the source `v1/storage` directory before continuing.
 
+### Live legacy server with split root and project storage
+
+The legacy FirstMeasure host keeps SQLite and small application state on its
+root disk while `storage/firstmeasure/projects` points to the attached project
+volume. Do not use a live Droplet snapshot for this layout: an active SQLite
+database is not guaranteed to be consistent in a crash-consistent root-disk
+snapshot.
+
+Instead, prepare a self-contained bundle on the attached volume. The helper
+copies the smaller filesystem state and uses SQLite's online-backup API for
+every live database. It neither stops services nor writes to the source
+databases. Run the dry check first, then the applied preparation at idle CPU
+and I/O priority:
+
+```bash
+source_id="legacy-$(date -u +%Y%m%d-%H%M%S)"
+
+sudo bash deploy/digitalocean/prepare-live-clone-bundle.sh \
+  --app-root /var/www/ide/v1 \
+  --volume-root /mnt/volume_sfo3_01 \
+  --source-id "$source_id"
+
+sudo nice -n 19 ionice -c2 -n7 \
+  bash deploy/digitalocean/prepare-live-clone-bundle.sh \
+  --app-root /var/www/ide/v1 \
+  --volume-root /mnt/volume_sfo3_01 \
+  --source-id "$source_id" \
+  --apply --confirm-live-source-read
+```
+
+After the helper reports success, snapshot the attached volume, restore that
+snapshot as a temporary volume on the migration host, and mount it read-only.
+The clone source paths are then:
+
+```text
+/mnt/firstmeasure-snapshots/VOLUME_SNAPSHOT_ID/firstmeasure-clone-sources/SOURCE_ID/v1/storage
+/mnt/firstmeasure-snapshots/VOLUME_SNAPSHOT_ID/firstmeasure-clone-sources/SOURCE_ID/public
+```
+
+The bundle's `firstmeasure/projects` symlink is relative, so it resolves to the
+same snapshot's `measure/internal/saves` directory after restoration.
+
 ## Development rehearsal
 
 Load the development environment and run a dry inventory first:
