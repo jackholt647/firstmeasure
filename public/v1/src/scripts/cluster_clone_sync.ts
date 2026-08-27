@@ -31,6 +31,10 @@ type Options = {
 
 const options = parseOptions(process.argv.slice(2));
 const runId = `clone-${Date.now()}-${randomBytes(6).toString("hex")}`;
+const runningCompiled = path.basename(path.resolve(import.meta.dirname, "../..")) === "dist";
+const applicationRoot = runningCompiled
+  ? path.resolve(import.meta.dirname, "../../..")
+  : path.resolve(import.meta.dirname, "../..");
 
 async function main() {
   assertCloneTargetContract({
@@ -115,7 +119,7 @@ async function main() {
 
     if (options.legacyTargetRoot) {
       const legacyArguments = [
-        path.resolve(import.meta.dirname, "../../../../deploy/digitalocean/sync-legacy-clone.sh"),
+        path.resolve(applicationRoot, "../../deploy/digitalocean/sync-legacy-clone.sh"),
         "--source-storage-root", options.sourceStorageRoot,
         "--source-public-root", options.sourcePublicRoot,
         "--source-id", options.sourceId,
@@ -264,13 +268,16 @@ async function recordCloneRun(status: "running" | "complete" | "failed", report:
 }
 
 async function runStep(name: string, script: string, argumentsList: string[], environment: NodeJS.ProcessEnv) {
-  return runExternalStep(name, process.execPath, ["--experimental-sqlite", "--import", "tsx", script, ...argumentsList], environment);
+  const runtimeArguments = runningCompiled
+    ? ["--experimental-sqlite", script.replace(/^src\//, "dist/src/").replace(/\.ts$/, ".js"), ...argumentsList]
+    : ["--experimental-sqlite", "--import", "tsx", script, ...argumentsList];
+  return runExternalStep(name, process.execPath, runtimeArguments, environment);
 }
 
 async function runExternalStep(name: string, command: string, argumentsList: string[], environment: NodeJS.ProcessEnv) {
   const startedAt = new Date().toISOString();
   const child = spawn(command, argumentsList, {
-    cwd: path.resolve(import.meta.dirname, "../.."),
+    cwd: applicationRoot,
     env: environment,
     stdio: ["ignore", "pipe", "pipe"]
   });

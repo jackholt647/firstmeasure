@@ -102,7 +102,7 @@ Use a restored volume snapshot mounted read-only on a private migration host.
 The clone runner inventories every source family and produces a report:
 
 ```bash
-npm run cluster:clone:sync -- \
+npm run cluster:clone:sync:compiled -- \
   --source-storage-root /mnt/firstmeasure-snapshots/SNAPSHOT_ID/v1/storage \
   --source-id SNAPSHOT_ID --target-environment development \
   --profile development-clone --verify
@@ -112,7 +112,7 @@ Review counts before applying. The verified run fails on a missing PostgreSQL
 record or an unverified object-store upload:
 
 ```bash
-npm run cluster:clone:sync -- \
+npm run cluster:clone:sync:compiled -- \
   --source-storage-root /mnt/firstmeasure-snapshots/SNAPSHOT_ID/v1/storage \
   --source-id SNAPSHOT_ID --target-environment development \
   --profile development-clone --apply --verify \

@@ -51,7 +51,7 @@ source /etc/firstmeasure/data-environment.env
 set +a
 
 cd /opt/firstmeasure/current/public/v1
-npm run cluster:clone:sync -- \
+npm run cluster:clone:sync:compiled -- \
   --source-storage-root /mnt/firstmeasure-snapshots/VOLUME_SNAPSHOT_ID/v1/storage \
   --source-id VOLUME_SNAPSHOT_ID \
   --target-environment development \
@@ -63,7 +63,7 @@ Review the inventory and reports. The applied run requires an explicit
 read-only-source acknowledgement:
 
 ```bash
-npm run cluster:clone:sync -- \
+npm run cluster:clone:sync:compiled -- \
   --source-storage-root /mnt/firstmeasure-snapshots/VOLUME_SNAPSHOT_ID/v1/storage \
   --source-id VOLUME_SNAPSHOT_ID \
   --target-environment development \
@@ -106,7 +106,7 @@ Use the production database, Space, and environment file. Production writes
 require both the production target and the exact confirmation phrase:
 
 ```bash
-npm run cluster:clone:sync -- \
+npm run cluster:clone:sync:compiled -- \
   --source-storage-root /mnt/firstmeasure-snapshots/VOLUME_SNAPSHOT_ID/v1/storage \
   --source-id VOLUME_SNAPSHOT_ID \
   --target-environment production \
