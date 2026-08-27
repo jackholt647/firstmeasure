@@ -15,7 +15,8 @@ FirstMeasure pool. It does not modify the existing production Droplet.
 The legacy service is intentionally private. Web Node APIs proxy
 `/v1/internal` and `/v1/communications` to it with a shared secret. Web NGINX
 routes the old `/measure/internal`, `/measure/sales`, and IDE PHP endpoints to
-the legacy web service. This prevents two Droplets from opening the remaining
+the legacy web service. Its Node listener binds to the VPC interface, while the
+cloud firewall limits port 3101 to the web-pool tag. This prevents two Droplets from opening the remaining
 SQLite databases while allowing all customer and QA traffic to scale out.
 If the legacy service is unavailable, readiness reports that dependency as
 degraded but keeps PostgreSQL/Spaces-backed QA and customer nodes in service.
