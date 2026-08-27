@@ -57,6 +57,44 @@ test("compiled provider-key resolution stays at project-root private storage", a
   assert.equal(path.normalize(provider.PROVIDER_KEYS_PATH).toLowerCase(), path.normalize(expected).toLowerCase());
 });
 
+test("PostgreSQL compatibility nodes do not require local FirstMeasure manifests", async (t) => {
+  const root = await import("node:fs/promises").then(({ mkdtemp }) => mkdtemp(path.join(tmpdir(), "firstmeasure-preflight-postgres-")));
+  const v1Root = path.join(root, "public", "v1");
+  const privateRoot = path.join(root, "private");
+  await Promise.all([mkdir(v1Root, { recursive: true }), mkdir(privateRoot, { recursive: true })]);
+  await Promise.all([
+    writeFile(path.join(v1Root, "package.json"), "{}\n"),
+    writeFile(path.join(privateRoot, "provider-keys.json"), JSON.stringify({
+      google: { shared_api_key: "test-google" },
+      application: { internal_api_secret: "test-internal" }
+    })),
+    writeFile(path.join(privateRoot, "do-ca.crt"), "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n")
+  ]);
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const report = await runProductionPreflight({
+    v1Root,
+    checkDatabase: false,
+    checkPhpRuntime: false,
+    envOverrides: {
+      FIRSTMEASURE_DATABASE_MODE: "postgres",
+      POSTGRES_AUTO_MIGRATE: "false",
+      DATABASE_URL: "postgresql://firstmeasure_app:secret@database.invalid:25060/firstmeasure",
+      DATABASE_CA_CERT_PATH: "../../private/do-ca.crt",
+      PROVIDER_KEYS_PATH: path.join(privateRoot, "provider-keys.json"),
+      GOOGLE_AUTH_CLIENT_ID: "test.apps.googleusercontent.com",
+      TELNYX_API_KEY: "test-telnyx",
+      TELNYX_VERIFY_PROFILE_ID: "test-profile",
+      STRIPE_LIVE_SECRET_KEY: "test-stripe",
+      STRIPE_LIVE_WEBHOOK_SECRET: "test-webhook"
+    }
+  });
+
+  assert.equal(report.stats.projects.manifests, 0);
+  assert.equal(report.checks.find((entry) => entry.name === "project_manifests")?.ok, true);
+  assert.equal(report.ok, true, JSON.stringify(report.checks));
+});
+
 test("compiled PostgreSQL config removes URL SSL overrides when a CA is pinned", async () => {
   const original = process.env.DATABASE_CA_CERT_PATH;
   process.env.DATABASE_CA_CERT_PATH = "private/do-ca.crt";

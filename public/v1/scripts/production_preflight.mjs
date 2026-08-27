@@ -332,8 +332,8 @@ export async function runProductionPreflight(options = {}) {
   const firstMeasureRoot = resolveFromV1(v1Root, environment.FIRSTMEASURE_STORAGE_ROOT, "./storage/firstmeasure");
   const projectScan = await scanProjectManifests(path.join(firstMeasureRoot, "projects"));
   stats.projects = projectScan.stats;
-  check("project_manifests", topology === "cluster" || projectScan.stats.manifests > 0,
-    topology === "cluster" ? `${projectScan.stats.manifests} local manifests found; PostgreSQL is authoritative in cluster mode` : `${projectScan.stats.manifests} project manifests found`);
+  check("project_manifests", mode === "postgres" || projectScan.stats.manifests > 0,
+    mode === "postgres" ? `${projectScan.stats.manifests} local manifests found; PostgreSQL is authoritative` : `${projectScan.stats.manifests} project manifests found`);
   const invalidManifestLimit = Math.max(0, Number.parseInt(String(
     environment.POSTGRES_IMPORT_MAX_INVALID_MANIFESTS ?? (mode === "postgres" ? "100" : "0")
   ), 10) || 0);
