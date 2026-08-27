@@ -7,9 +7,11 @@ import { ensureSharedDocumentsReady, replaceSharedDocument } from "../database/s
 import { getSharedObject, putSharedObject } from "../storage/project_artifacts.js";
 import { ensureInternalStorage, listInternalUsers, saveInternalDocument } from "../../internal/storage.js";
 import { ensurePostgresPlatformStorage } from "../../platform/storage_postgres.js";
+import { developmentCloneExclusions } from "../migration/clone_contract.js";
 
 type JsonObject = Record<string, unknown>;
-type Options = { apply: boolean; verify: boolean; concurrency: number };
+type MigrationProfile = "cutover" | "development-clone";
+type Options = { apply: boolean; verify: boolean; concurrency: number; profile: MigrationProfile };
 type Counts = Record<string, number>;
 type MigratedObject = { key: string; size: number };
 
@@ -26,10 +28,18 @@ function parseOptions(argv: string[]): Options {
     const index = argv.indexOf(name);
     return index >= 0 ? Number(argv[index + 1] ?? fallback) : fallback;
   };
+  const profileValue = (() => {
+    const index = argv.indexOf("--profile");
+    return index >= 0 ? String(argv[index + 1] ?? "") : "cutover";
+  })();
+  if (profileValue !== "cutover" && profileValue !== "development-clone") {
+    throw new Error("--profile must be cutover or development-clone.");
+  }
   return {
     apply: argv.includes("--apply"),
     verify: argv.includes("--verify"),
-    concurrency: Math.max(1, Math.min(16, Math.floor(numberAfter("--concurrency", 4)) || 4))
+    concurrency: Math.max(1, Math.min(16, Math.floor(numberAfter("--concurrency", 4)) || 4)),
+    profile: profileValue
   };
 }
 
@@ -68,7 +78,12 @@ async function migratePlatform(options: Options, counts: Counts, migratedObjects
     if (options.apply) await upsertPlatform("platform_identities", ["id","email","phone_normalized","document"],
       [String(document.id), String(document.email_normalized ?? document.email ?? "").toLowerCase(), String(document.phone_normalized ?? ""), JSON.stringify(document)], ["id"], ["email","phone_normalized","document"]);
   }
+  const exclusions = options.profile === "development-clone" ? developmentCloneExclusions() : null;
   for (const file of await jsonFiles(path.join(platformRoot, "sessions"))) {
+    if (exclusions?.sessions) {
+      bump(counts, "platform_sessions_skipped");
+      continue;
+    }
     const document = await jsonFile<JsonObject>(file);
     bump(counts, "platform_sessions_seen");
     if (options.apply) await upsertPlatform("platform_sessions", ["id_hash","identity_id","expires_at","document"],
@@ -215,8 +230,17 @@ async function migrateSharedJsonStores(options: Options, counts: Counts, migrate
   const platformRoot = root(env.platformStorageRoot);
   await migrateDirectory(path.join(platformRoot,"public_firstmeasure","reports"),"public_firstmeasure","reports");
   await migrateDirectory(path.join(platformRoot,"api_keys","firstmeasure"),"public_firstmeasure","api_keys");
-  await migrateDirectory(path.join(platformRoot,"api_keys","firstmeasure",".secret-vault"),"public_firstmeasure","key_secrets");
-  await migrateDirectory(path.join(platformRoot,"api_keys","firstmeasure",".deliveries"),"public_firstmeasure","key_deliveries");
+  const exclusions = options.profile === "development-clone" ? developmentCloneExclusions() : null;
+  if (exclusions?.apiKeySecrets) {
+    bump(counts, "public_firstmeasure_key_secrets_skipped", (await jsonFiles(path.join(platformRoot,"api_keys","firstmeasure",".secret-vault"))).length);
+  } else {
+    await migrateDirectory(path.join(platformRoot,"api_keys","firstmeasure",".secret-vault"),"public_firstmeasure","key_secrets");
+  }
+  if (exclusions?.apiKeyDeliveries) {
+    bump(counts, "public_firstmeasure_key_deliveries_skipped", (await jsonFiles(path.join(platformRoot,"api_keys","firstmeasure",".deliveries"))).length);
+  } else {
+    await migrateDirectory(path.join(platformRoot,"api_keys","firstmeasure",".deliveries"),"public_firstmeasure","key_deliveries");
+  }
 }
 
 async function inventoryInternalState(counts: Counts) {
@@ -369,9 +393,23 @@ async function main() {
   }
   await migratePlatform(options, counts, migratedObjects);
   await migrateSharedJsonStores(options, counts, migratedObjects);
-  await migrateCommunications(options, counts);
-  await migrateAppleKeyState(options, counts);
-  process.stdout.write(`${JSON.stringify({ mode: options.apply ? "apply" : "dry-run", counts }, null, 2)}\n`);
+  const exclusions = options.profile === "development-clone" ? developmentCloneExclusions() : null;
+  if (exclusions?.communications) {
+    counts.communications_skipped = 1;
+  } else {
+    await migrateCommunications(options, counts);
+  }
+  if (exclusions?.appleProviderState) {
+    counts.apple_provider_state_skipped = 1;
+  } else {
+    await migrateAppleKeyState(options, counts);
+  }
+  process.stdout.write(`${JSON.stringify({
+    mode: options.apply ? "apply" : "dry-run",
+    profile: options.profile,
+    exclusions: exclusions ?? {},
+    counts
+  }, null, 2)}\n`);
   if (options.verify) await verify(counts, migratedObjects, options.concurrency);
 }
 

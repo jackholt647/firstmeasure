@@ -1,6 +1,7 @@
 x-app-environment: &app-environment
   FIRSTMATE_ENV: production
   NODE_ENV: production
+  FIRSTMEASURE_DATA_ENVIRONMENT: test
   DEPLOYMENT_TOPOLOGY: cluster
   FIRSTMEASURE_DATABASE_MODE: postgres
   DATABASE_URL: postgresql://firstmeasure:firstmeasure-local@postgres:5432/firstmeasure
@@ -15,7 +16,7 @@ x-app-environment: &app-environment
   SPACES_ACCESS_KEY_ID: firstmeasure-local
   SPACES_SECRET_ACCESS_KEY: firstmeasure-local-secret
   SPACES_FORCE_PATH_STYLE: "true"
-  SPACES_PREFIX: cluster-test
+  SPACES_PREFIX: test/cluster
   PLATFORM_SESSION_SECRET: local-cluster-shared-session-secret-change-in-production
   V1_HOST: 0.0.0.0
   V1_PORT: "3101"

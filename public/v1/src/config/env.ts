@@ -49,6 +49,8 @@ function readNodeRole(): "web" | "worker" | "legacy" {
 
 type AppEnv = "development" | "staging" | "production" | "test";
 
+export type DataEnvironment = "development" | "production" | "test";
+
 function readAppEnv(): AppEnv {
   const raw = (process.env.FIRSTMATE_ENV ?? process.env.APP_ENV ?? process.env.NODE_ENV ?? "development").toLowerCase();
   if (raw === "prod") return "production";
@@ -57,7 +59,15 @@ function readAppEnv(): AppEnv {
   return "development";
 }
 
+function readDataEnvironment(appEnvironment: AppEnv): DataEnvironment {
+  const raw = String(process.env.FIRSTMEASURE_DATA_ENVIRONMENT ?? "").trim().toLowerCase();
+  if (raw === "development" || raw === "production" || raw === "test") return raw;
+  if (appEnvironment === "test") return "test";
+  return appEnvironment === "production" ? "production" : "development";
+}
+
 const appEnv = readAppEnv();
+const dataEnvironment = readDataEnvironment(appEnv);
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -66,6 +76,9 @@ export const env = {
   isStaging: appEnv === "staging",
   isProduction: appEnv === "production",
   isTest: appEnv === "test",
+  dataEnvironment,
+  dataEnvironmentExplicit: Boolean(String(process.env.FIRSTMEASURE_DATA_ENVIRONMENT ?? "").trim()),
+  requireDataEnvironmentMarker: readBoolean("FIRSTMEASURE_REQUIRE_DATA_ENVIRONMENT_MARKER", false),
   deploymentTopology: readDeploymentTopology(),
   clusterNodeRole: readNodeRole(),
   instanceId: String(process.env.INSTANCE_ID ?? process.env.DROPLET_ID ?? hostname()).trim(),
@@ -83,6 +96,7 @@ export const env = {
   spacesSecretAccessKey: String(process.env.SPACES_SECRET_ACCESS_KEY ?? "").trim(),
   spacesForcePathStyle: readBoolean("SPACES_FORCE_PATH_STYLE", false),
   spacesPrefix: String(process.env.SPACES_PREFIX ?? "firstmeasure").trim().replace(/^\/+|\/+$/g, ""),
+  cloneSyncStatePath: process.env.FIRSTMEASURE_CLONE_SYNC_STATE_PATH ?? "./storage/migration/artifact-sync.sqlite",
   statsigEnvironmentTier: appEnv === "production" ? "production" : appEnv === "staging" ? "staging" : "development",
   host: process.env.V1_HOST ?? "127.0.0.1",
   // Production has historically been proxied to 3101. Local launchers explicitly

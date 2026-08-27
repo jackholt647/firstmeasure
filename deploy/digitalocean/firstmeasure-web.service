@@ -10,6 +10,7 @@ Group=firstmeasure
 WorkingDirectory=/opt/firstmeasure/current/public/v1
 EnvironmentFile=/etc/firstmeasure/common.env
 EnvironmentFile=/etc/firstmeasure/web.env
+EnvironmentFile=-/etc/firstmeasure/data-environment.env
 EnvironmentFile=/opt/firstmeasure/current/release.env
 Environment=INSTANCE_ID=%H
 EnvironmentFile=-/run/firstmeasure/instance.env

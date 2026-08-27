@@ -19,11 +19,13 @@ export type RuntimeReadiness = {
   release_id: string;
   topology: "single" | "cluster";
   database: "sqlite" | "postgres";
+  data_environment: "development" | "production" | "test";
   started_at: string;
   checked_at: string;
   checks: {
     accepting_traffic: boolean;
     database: boolean;
+    data_environment: boolean;
     artifact_storage: boolean;
     cluster_database: boolean;
     cluster_artifact_storage: boolean;
@@ -40,6 +42,7 @@ export function runtimeIdentity() {
     release_id: env.releaseId,
     topology: env.deploymentTopology,
     database: env.firstmeasureDatabaseMode,
+    data_environment: env.dataEnvironment,
     started_at: startedAt
   } as const;
 }
@@ -64,6 +67,7 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
     || env.clusterNodeRole !== "web"
     || Boolean(env.legacyServiceUrl && env.legacyProxySecret);
   let database = true;
+  let dataEnvironment = true;
   let artifactStorage = true;
   let error = "";
   let legacyState = true;
@@ -72,6 +76,18 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
   if (isFirstMeasurePostgresEnabled()) {
     try {
       await withTimeout(queryPostgres("SELECT 1 AS ready"), env.readinessDependencyTimeoutMs, "PostgreSQL readiness timed out.");
+      if (env.requireDataEnvironmentMarker) {
+        const marker = await withTimeout(
+          queryPostgres<{ environment: string }>("SELECT environment FROM firstmeasure_data_environment WHERE singleton = true"),
+          env.readinessDependencyTimeoutMs,
+          "PostgreSQL data-environment verification timed out."
+        );
+        const actual = String(marker.rows[0]?.environment ?? "");
+        if (actual !== env.dataEnvironment) {
+          dataEnvironment = false;
+          throw new Error(`PostgreSQL is marked '${actual || "unmarked"}', expected '${env.dataEnvironment}'.`);
+        }
+      }
     } catch (cause) {
       database = false;
       error = cause instanceof Error ? cause.message : String(cause);
@@ -102,7 +118,7 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
   // The fixed legacy node serves CRM, communications, and older internal
   // tools. Its outage is degraded functionality, but must not remove every
   // otherwise healthy QA/customer web node from the load balancer.
-  const ok = !draining && database && artifactStorage && clusterDatabase && clusterArtifactStorage && clusterLegacyState;
+  const ok = !draining && database && dataEnvironment && artifactStorage && clusterDatabase && clusterArtifactStorage && clusterLegacyState;
   const value: RuntimeReadiness = {
     ok,
     state: draining ? "draining" : (ok ? "ready" : "not_ready"),
@@ -111,6 +127,7 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
     checks: {
       accepting_traffic: !draining,
       database,
+      data_environment: dataEnvironment,
       artifact_storage: artifactStorage,
       cluster_database: clusterDatabase,
       cluster_artifact_storage: clusterArtifactStorage,

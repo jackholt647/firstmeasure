@@ -3,6 +3,12 @@
 This directory contains the checked-in deployment contract for the replacement
 FirstMeasure pool. It does not modify the existing production Droplet.
 
+Development and production-candidate installations use separate PostgreSQL
+databases, private Spaces buckets, legacy volumes, session secrets, and
+`/etc/firstmeasure/data-environment.env` overlays. See `CLONE_RUNBOOK.md`.
+Code releases may move from development to production; customer data cloning is
+one-way from an immutable production snapshot into the selected target.
+
 ## Roles
 
 | Role | Scales horizontally | Authoritative state |
@@ -54,6 +60,11 @@ migration only, run one controlled migration process with `DATABASE_ADMIN_URL`
 and `POSTGRES_AUTO_MIGRATE=true`; do not give the autoscaled web template an
 administrator database credential.
 
+Install either `data-development.env.example` or
+`data-production.env.example` as `/etc/firstmeasure/data-environment.env`.
+The clone runner stamps the target database, and readiness can refuse traffic
+when that marker disagrees with the configured data environment.
+
 ## Immutable releases
 
 GitHub is the source of truth. CI tests every commit. Produce or check out one
@@ -82,22 +93,25 @@ rolling window.
 
 ## Data-loading rehearsal
 
-Use a snapshot copied to a private migration host. Point the storage-root
-environment variables at that snapshot, then run in this order:
+Use a restored volume snapshot mounted read-only on a private migration host.
+The clone runner inventories every source family and produces a report:
 
 ```bash
-npm run cluster:state:migrate
-npm run firstmeasure:artifacts:migrate -- --source-root /snapshot/v1/storage/firstmeasure
+npm run cluster:clone:sync -- \
+  --source-storage-root /mnt/firstmeasure-snapshots/SNAPSHOT_ID/v1/storage \
+  --source-id SNAPSHOT_ID --target-environment development \
+  --profile development-clone --verify
 ```
 
-Those are dry runs. Review counts before applying. The verified run fails on a
-missing PostgreSQL record or a missing/truncated object-store upload:
+Review counts before applying. The verified run fails on a missing PostgreSQL
+record or an unverified object-store upload:
 
 ```bash
-npm run firstmeasure:postgres:verify
-npm run cluster:state:migrate -- --apply --verify --concurrency 4
-npm run firstmeasure:artifacts:migrate -- \
-  --source-root /snapshot/v1/storage/firstmeasure --apply --verify --concurrency 4
+npm run cluster:clone:sync -- \
+  --source-storage-root /mnt/firstmeasure-snapshots/SNAPSHOT_ID/v1/storage \
+  --source-id SNAPSHOT_ID --target-environment development \
+  --profile development-clone --apply --verify \
+  --confirm-read-only-source --concurrency 4
 ```
 
 Copy the unconverted legacy directories to the legacy persistent volume, not to

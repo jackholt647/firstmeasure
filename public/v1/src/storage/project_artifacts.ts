@@ -1,10 +1,12 @@
 import {
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client
 } from "@aws-sdk/client-s3";
+import { createReadStream } from "node:fs";
 
 import { env } from "../config/env.js";
 
@@ -12,6 +14,27 @@ export type ProjectArtifactEntry = {
   name: string;
   size: number;
   updated_at: string;
+};
+
+export type ProjectArtifactInventoryEntry = ProjectArtifactEntry & {
+  project_id: string;
+  key: string;
+  etag: string;
+};
+
+export type ProjectArtifactHead = {
+  exists: boolean;
+  size: number;
+  etag: string;
+  checksum_sha256: string;
+  metadata: Record<string, string>;
+};
+
+export type ProjectArtifactFileOptions = {
+  size: number;
+  sourceSha256: string;
+  sourceMtimeMs: number;
+  syncRunId: string;
 };
 
 let spacesClient: S3Client | null = null;
@@ -125,6 +148,32 @@ export async function putProjectArtifact(projectId: string, fileName: string, co
   return { key, reference: `spaces://${env.spacesBucket}/${key}` };
 }
 
+export async function putProjectArtifactFile(
+  projectId: string,
+  fileName: string,
+  filePath: string,
+  options: ProjectArtifactFileOptions
+) {
+  const key = projectArtifactKey(projectId, fileName);
+  const checksum = Buffer.from(options.sourceSha256, "hex").toString("base64");
+  await client().send(new PutObjectCommand({
+    Bucket: env.spacesBucket,
+    Key: key,
+    Body: createReadStream(filePath),
+    ContentLength: options.size,
+    ContentType: contentTypeFor(fileName),
+    ChecksumSHA256: checksum,
+    Metadata: {
+      "source-sha256": options.sourceSha256,
+      "source-size": String(options.size),
+      "source-mtime-ms": String(Math.floor(options.sourceMtimeMs)),
+      "sync-run-id": options.syncRunId,
+      "data-environment": env.dataEnvironment
+    }
+  }));
+  return { key, reference: `spaces://${env.spacesBucket}/${key}` };
+}
+
 export async function getProjectArtifact(projectId: string, fileName: string) {
   const key = projectArtifactKey(projectId, fileName);
   try {
@@ -133,6 +182,28 @@ export async function getProjectArtifact(projectId: string, fileName: string) {
     return Buffer.from(await response.Body.transformToByteArray());
   } catch (error) {
     if (isMissingObjectError(error)) return null;
+    throw error;
+  }
+}
+
+export async function headProjectArtifact(projectId: string, fileName: string): Promise<ProjectArtifactHead> {
+  try {
+    const response = await client().send(new HeadObjectCommand({
+      Bucket: env.spacesBucket,
+      Key: projectArtifactKey(projectId, fileName),
+      ChecksumMode: "ENABLED"
+    }));
+    return {
+      exists: true,
+      size: Number(response.ContentLength ?? 0),
+      etag: String(response.ETag ?? "").replace(/^"|"$/g, ""),
+      checksum_sha256: String(response.ChecksumSHA256 ?? ""),
+      metadata: Object.fromEntries(Object.entries(response.Metadata ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)]))
+    };
+  } catch (error) {
+    if (isMissingObjectError(error)) {
+      return { exists: false, size: 0, etag: "", checksum_sha256: "", metadata: {} };
+    }
     throw error;
   }
 }
@@ -167,6 +238,35 @@ export async function listProjectArtifacts(projectId: string): Promise<ProjectAr
     continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
   } while (continuationToken);
   return files.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function listProjectArtifactInventory(): Promise<ProjectArtifactInventoryEntry[]> {
+  const prefix = `${sharedPrefix()}projects/`;
+  const files: ProjectArtifactInventoryEntry[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const response = await client().send(new ListObjectsV2Command({
+      Bucket: env.spacesBucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken
+    }));
+    for (const object of response.Contents ?? []) {
+      const key = String(object.Key ?? "");
+      const relative = key.startsWith(prefix) ? key.slice(prefix.length) : "";
+      const separator = relative.indexOf("/");
+      if (separator <= 0 || separator === relative.length - 1) continue;
+      files.push({
+        project_id: relative.slice(0, separator),
+        name: relative.slice(separator + 1),
+        key,
+        size: Number(object.Size ?? 0),
+        etag: String(object.ETag ?? "").replace(/^"|"$/g, ""),
+        updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString()
+      });
+    }
+    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return files;
 }
 
 export async function checkProjectArtifactStorage(timeoutMs = env.readinessDependencyTimeoutMs) {

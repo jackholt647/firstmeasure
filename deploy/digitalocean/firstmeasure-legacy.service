@@ -10,6 +10,7 @@ Group=firstmeasure
 WorkingDirectory=/opt/firstmeasure/current/public/v1
 EnvironmentFile=/etc/firstmeasure/common.env
 EnvironmentFile=/etc/firstmeasure/legacy.env
+EnvironmentFile=-/etc/firstmeasure/data-environment.env
 EnvironmentFile=/opt/firstmeasure/current/release.env
 Environment=INSTANCE_ID=%H
 EnvironmentFile=-/run/firstmeasure/instance.env
@@ -22,7 +23,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/firstmeasure-legacy /var/cache/firstmeasure
+ReadWritePaths=-/var/lib/firstmeasure-legacy -/var/lib/firstmeasure-legacy-development -/var/lib/firstmeasure-legacy-production /var/cache/firstmeasure
 LimitNOFILE=131072
 
 [Install]

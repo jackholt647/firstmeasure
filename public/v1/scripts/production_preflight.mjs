@@ -257,6 +257,19 @@ export async function runProductionPreflight(options = {}) {
     const artifactMode = String(environment.FIRSTMEASURE_ARTIFACT_STORAGE || "").trim().toLowerCase();
     check("cluster_artifact_mode", artifactMode === "spaces", `resolved artifact mode ${artifactMode || "unset"}`);
     check("cluster_spaces_configuration", ["SPACES_ENDPOINT", "SPACES_REGION", "SPACES_BUCKET", "SPACES_ACCESS_KEY_ID", "SPACES_SECRET_ACCESS_KEY"].every((name) => String(environment[name] || "").trim()), "private Spaces endpoint, bucket, region, and credentials are configured");
+    const dataEnvironment = String(environment.FIRSTMEASURE_DATA_ENVIRONMENT || "").trim().toLowerCase();
+    const requireDataEnvironmentMarker = /^(1|true|yes|on)$/i.test(String(environment.FIRSTMEASURE_REQUIRE_DATA_ENVIRONMENT_MARKER || ""));
+    check(
+      "cluster_data_environment",
+      !requireDataEnvironmentMarker || ["development", "production", "test"].includes(dataEnvironment),
+      requireDataEnvironmentMarker ? `explicit data environment ${dataEnvironment || "unset"}` : "data-environment marker enforcement is optional"
+    );
+    const prefixEnvironment = String(environment.SPACES_PREFIX || "").split("/").filter(Boolean)[0] || "";
+    check(
+      "cluster_spaces_environment_prefix",
+      !dataEnvironment || prefixEnvironment === dataEnvironment,
+      `Space prefix '${String(environment.SPACES_PREFIX || "")}' is isolated for ${dataEnvironment || "the configured environment"}`
+    );
     const sessionSecret = String(environment.PLATFORM_SESSION_SECRET || "").trim();
     check("cluster_session_secret", sessionSecret.length >= 32 && !sessionSecret.includes("local-dev"), "shared platform session secret is non-default");
     check("cluster_release_id", Boolean(String(environment.RELEASE_ID || "").trim()) && String(environment.RELEASE_ID).trim() !== "development", "immutable release identifier is configured");

@@ -15,9 +15,9 @@ async function writeJson(filePath: string, value: unknown) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function runMigration(environment: NodeJS.ProcessEnv) {
+async function runMigration(environment: NodeJS.ProcessEnv, extraArguments: string[] = []) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", "tsx", "src/scripts/cluster_state_migrate.ts", "--apply", "--verify", "--concurrency", "2"], {
+    const child = spawn(process.execPath, ["--import", "tsx", "src/scripts/cluster_state_migrate.ts", "--apply", "--verify", "--concurrency", "2", ...extraArguments], {
       cwd: path.resolve(import.meta.dirname, ".."),
       env: environment,
       stdio: ["ignore", "pipe", "pipe"]
@@ -31,7 +31,7 @@ async function runMigration(environment: NodeJS.ProcessEnv) {
   });
 }
 
-test("cluster migration imports and verifies every shared state family", { skip: !databaseUrl }, async (t) => {
+test("cluster migration supports a sanitized development clone and a complete cutover", { skip: !databaseUrl }, async (t) => {
   const reset = new pg.Client({ connectionString: databaseUrl });
   await reset.connect();
   await reset.query("DROP SCHEMA IF EXISTS public CASCADE");
@@ -120,7 +120,7 @@ test("cluster migration imports and verifies every shared state family", { skip:
   await mkdir(path.join(roots.firstmeasure, "logs"), { recursive: true });
   await writeFile(path.join(roots.firstmeasure, "logs", "apple_key_ingest.ndjson"), `${JSON.stringify({ ts_utc: "2026-01-01T00:00:00.000Z", key_changed: true })}\n`);
 
-  const result = await runMigration({
+  const migrationEnvironment = {
     ...process.env,
     FIRSTMATE_ENV: "test",
     FIRSTMEASURE_DATABASE_MODE: "postgres",
@@ -144,7 +144,23 @@ test("cluster migration imports and verifies every shared state family", { skip:
     CANVASSING_STORAGE_ROOT: roots.canvassing,
     PRICEBOOK_STORAGE_ROOT: roots.pricebook,
     COMMUNICATIONS_STORAGE_ROOT: roots.communications
-  });
+  };
+
+  const developmentResult = await runMigration(migrationEnvironment, ["--profile", "development-clone"]);
+  assert.equal(developmentResult.code, 0, developmentResult.stderr || developmentResult.stdout);
+  assert.match(developmentResult.stdout, /"profile": "development-clone"/);
+  assert.equal((await reset.query("SELECT COUNT(*)::int count FROM platform_identities")).rows[0].count, 1);
+  assert.equal((await reset.query("SELECT COUNT(*)::int count FROM platform_sessions")).rows[0].count, 0);
+  assert.equal((await reset.query("SELECT COUNT(*)::int count FROM internal_users_index")).rows[0].count, 1);
+  assert.equal((await reset.query("SELECT COUNT(*)::int count FROM app_shared_documents WHERE namespace='communications'")).rows[0].count, 0);
+  assert.equal((await reset.query("SELECT COUNT(*)::int count FROM app_shared_documents WHERE collection IN ('key_secrets','key_deliveries')")).rows[0].count, 0);
+  assert.equal((await reset.query("SELECT COUNT(*)::int count FROM internal_documents WHERE collection IN ('config','apple_key_audit')")).rows[0].count, 0);
+
+  await reset.query("DROP SCHEMA public CASCADE");
+  await reset.query("CREATE SCHEMA public");
+  objects.clear();
+
+  const result = await runMigration(migrationEnvironment);
   assert.equal(result.code, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /"failures": \[\]/);
   assert.equal((await reset.query("SELECT COUNT(*)::int count FROM platform_identities")).rows[0].count, 1);

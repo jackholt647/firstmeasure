@@ -37,6 +37,12 @@ the pool to scale down. The low-volume legacy role is fixed until its remaining
 CRM/tutorial stores are separately converted; autoscaled nodes proxy those
 routes and never open the legacy SQLite files.
 
+Development and production use separate PostgreSQL databases, private Space
+buckets, legacy volumes, session secrets, and deployment configuration. Data
+may be cloned one-way from an immutable production snapshot into either target.
+Development data is never promoted into production; only tested application
+releases follow that direction.
+
 ## Compatibility contract
 
 The defaults remain compatible with the current single Droplet:
@@ -88,19 +94,23 @@ the cluster integration test pass without sticky sessions.
 2. Create a private Space with a limited application access key.
 3. Start one replacement web Droplet with no public load-balancer traffic.
 4. Import PostgreSQL data from a snapshot of current storage.
-5. Dry-run the artifact inventory:
+5. Dry-run the complete clone inventory from the restored read-only snapshot:
 
    ```bash
-   npm run firstmeasure:artifacts:migrate -- \
-     --source-root /var/www/ide/v1/storage/firstmeasure
+   npm run cluster:clone:sync -- \
+     --source-storage-root /mnt/firstmeasure-snapshots/SNAPSHOT_ID/v1/storage \
+     --source-id SNAPSHOT_ID --target-environment development \
+     --profile development-clone --verify
    ```
 
-6. Upload and verify artifacts. The operation is idempotent:
+6. Import PostgreSQL state and incrementally upload and verify artifacts:
 
    ```bash
-   npm run firstmeasure:artifacts:migrate -- \
-     --source-root /var/www/ide/v1/storage/firstmeasure \
-     --concurrency 4 --apply --verify
+   npm run cluster:clone:sync -- \
+     --source-storage-root /mnt/firstmeasure-snapshots/SNAPSHOT_ID/v1/storage \
+     --source-id SNAPSHOT_ID --target-environment development \
+     --profile development-clone --apply --verify \
+     --confirm-read-only-source --concurrency 4
    ```
 
 7. Reconcile again immediately before cutover for newly created data.
@@ -109,6 +119,11 @@ the cluster integration test pass without sticky sessions.
 9. Lower DNS TTL, freeze only the final mutation window, perform the final
    incremental copy, and point the live hostname at the load balancer.
 10. Keep the old Droplet intact and read-only until the rollback window closes.
+
+The environment-guarded clone command and read-only volume mount procedure are
+documented in `deploy/digitalocean/CLONE_RUNBOOK.md`. Artifact refreshes retain
+a durable fingerprint ledger and upload only new or changed objects. Missing
+source objects are reported but are never deleted automatically.
 
 ## Deployments without downtime
 
