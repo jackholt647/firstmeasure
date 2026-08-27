@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
+import type { IncomingHttpHeaders } from "node:http";
 
 import { registerCanvassingApi } from "../canvassing/api.js";
 import { registerCommunicationsApi } from "../communications/api.js";
@@ -31,6 +32,16 @@ export async function buildApp() {
     }
   });
   installDiagnostics(app);
+
+  if (env.clusterNodeRole === "legacy" && env.legacyProxySecret) {
+    app.addHook("onRequest", async (request, reply) => {
+      if (request.url.startsWith("/v1/health/")) return;
+      if (request.url.split("?", 1)[0] === "/v1/platform/auth/session") return;
+      if (String(request.headers["x-firstmeasure-legacy-proxy"] ?? "") !== env.legacyProxySecret) {
+        return reply.code(403).send({ ok: false, error: "legacy_proxy_required" });
+      }
+    });
+  }
 
   void app.register(cors, {
     origin: true,
@@ -73,12 +84,31 @@ export async function buildApp() {
   void app.register(rootRoutes);
   void app.register(registerCanvassingApi, { prefix: "/v1/canvassing" });
   void app.register(registerCodeReportsApi, { prefix: "/v1/code-reports" });
-  void app.register(registerCommunicationsApi, { prefix: "/v1/communications" });
-  void app.register(registerCrmApi, { prefix: "/v1/internal/crm" });
+  const proxyLegacyState = env.deploymentTopology === "cluster" && env.clusterNodeRole === "web" && Boolean(env.legacyServiceUrl);
+  if (proxyLegacyState) {
+    const { default: httpProxy } = await import("@fastify/http-proxy");
+    const proxyOptions = (prefix: string) => ({
+      upstream: env.legacyServiceUrl,
+      prefix,
+      rewritePrefix: prefix,
+      http2: false as const,
+      replyOptions: {
+        rewriteRequestHeaders: (_request: unknown, headers: IncomingHttpHeaders) => ({
+          ...headers,
+          "x-firstmeasure-legacy-proxy": env.legacyProxySecret
+        })
+      }
+    });
+    void app.register(httpProxy, proxyOptions("/v1/communications"));
+    void app.register(httpProxy, proxyOptions("/v1/internal"));
+  } else {
+    void app.register(registerCommunicationsApi, { prefix: "/v1/communications" });
+    void app.register(registerCrmApi, { prefix: "/v1/internal/crm" });
+    void app.register(registerInternalApi, { prefix: "/v1/internal" });
+  }
   void app.register(registerEmailApi, { prefix: "/v1/email" });
   void app.register(registerFirstMeasureApi, { prefix: "/v1/firstmeasure" });
   void app.register(registerFirstMeasureRemoteApi, { prefix: "/v1/firstmeasure-remote" });
-  void app.register(registerInternalApi, { prefix: "/v1/internal" });
   void app.register(registerLeadIntakeApi, { prefix: "/v1/lead-intake" });
   void app.register(registerLaborApi, { prefix: "/v1/labor" });
   void app.register(registerMaterialsApi, { prefix: "/v1/materials" });

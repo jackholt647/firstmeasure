@@ -6,7 +6,9 @@ const PORTAL_SESSION_LIFETIME_SECONDS = 1209600; // 14 days
 function portalSessionCookieOptions(?int $expires = null): array
 {
     $params = session_get_cookie_params();
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $secure = $forwardedProto === 'https'
+        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
     $options = [
         'expires' => $expires ?? (time() + PORTAL_SESSION_LIFETIME_SECONDS),
         'path' => $params['path'] ?: '/',
@@ -52,12 +54,17 @@ function portalStartSession(): void
 
 function portalNodePlatformBaseUrl(): string
 {
+    $configured = trim((string)(getenv('FIRSTMEASURE_NODE_BASE_URL') ?: ($_SERVER['FIRSTMEASURE_NODE_BASE_URL'] ?? '')));
+    if ($configured !== '') {
+        return rtrim($configured, '/');
+    }
     $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
     $hostOnly = preg_replace('/:\d+$/', '', $host);
     if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost' || $hostOnly === '10.0.2.2') {
         return 'http://127.0.0.1:3111/v1/platform';
     }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $scheme = $forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1/platform';
 }
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { readWeatherReport } from "./storage.js";
 import type { GeoPoint, WeatherEventSummary, WeatherFinding, WeatherModeledHistoryEvent, WeatherRecord, WeatherReport, WeatherStormArea } from "./types.js";
 import { finalizeFirstMatePdf } from "../src/pdf_metadata.js";
@@ -40,10 +41,12 @@ export async function generateWeatherReportPdf(reportId: string) {
   const report = await readWeatherReport(reportId);
   const bytes = await renderWeatherPdfDocument(report);
   const dir = path.resolve(env.weatherStorageRoot, "pdfs");
-  await mkdir(dir, { recursive: true });
   const fileName = weatherPdfFileName(report);
   const filePath = path.join(dir, fileName);
-  await writeFile(filePath, bytes);
+  if (!isFirstMeasurePostgresEnabled()) {
+    await mkdir(dir, { recursive: true });
+    await writeFile(filePath, bytes);
+  }
   return {
     report,
     fileName,

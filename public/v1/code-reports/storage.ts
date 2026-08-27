@@ -3,6 +3,8 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 import { notFound } from "./errors.js";
 import type { CodeReport } from "./types.js";
 
@@ -27,12 +29,22 @@ function reportPath(id: string) {
 }
 
 export async function saveCodeReport(report: CodeReport) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const id = normalizeReportId(report.id);
+    await replaceSharedDocument({ namespace: "code_reports", collection: "reports", id }, report);
+    return `postgres://code-reports/reports/${id}`;
+  }
   const filePath = reportPath(report.id);
   await writeJsonAtomic(filePath, report);
   return filePath;
 }
 
 export async function readCodeReport(id: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const report = await readSharedDocument<CodeReport>({ namespace: "code_reports", collection: "reports", id: normalizeReportId(id) });
+    if (!report) throw notFound("The requested code report was not found.");
+    return report;
+  }
   const raw = await readFile(reportPath(id), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") throw notFound("The requested code report was not found.");
     throw error;

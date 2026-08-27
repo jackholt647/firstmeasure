@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { PlatformError } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { acquireFirstMeasureLock } from "../firstmeasure/locks.js";
 
 type PublicFirstMeasureLockOptions = {
   timeoutMs?: number;
@@ -30,6 +32,20 @@ export async function acquirePublicFirstMeasureLock(
   resource: string,
   options: PublicFirstMeasureLockOptions = {}
 ) {
+  if (isFirstMeasurePostgresEnabled()) {
+    try {
+      return await acquireFirstMeasureLock(`public-firstmeasure:${resource}`, {
+        ttlMs: Math.max(30_000, options.staleMs ?? DEFAULT_STALE_MS),
+        waitMs: Math.max(1_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+        retryMs: 25
+      });
+    } catch (error) {
+      if (String((error as Error)?.message ?? "").includes("Timed out waiting for lock")) {
+        throw new PlatformError("public_firstmeasure_busy", 503, "This customer API resource is busy. Retry the request shortly.");
+      }
+      throw error;
+    }
+  }
   const root = lockRoot();
   const target = lockPath(resource);
   const timeoutMs = Math.max(1_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);

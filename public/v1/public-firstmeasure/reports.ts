@@ -3,6 +3,8 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { listSharedDocuments, mutateSharedDocument, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 import { notFound } from "../platform/errors.js";
 import { asObject, cleanText, normalizeId } from "./util.js";
 
@@ -65,11 +67,20 @@ export async function createPublicFirstMeasureReportRecord(input: Omit<PublicFir
     created_at: now,
     updated_at: now
   };
-  await writeJsonAtomic(reportPath(record.report_id), record);
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "public_firstmeasure", collection: "reports", id: normalizePublicReportId(record.report_id) }, record);
+  } else {
+    await writeJsonAtomic(reportPath(record.report_id), record);
+  }
   return record;
 }
 
 export async function readPublicFirstMeasureReport(reportId: string, orgId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const record = await readSharedDocument<PublicFirstMeasureReportRecord>({ namespace: "public_firstmeasure", collection: "reports", id: normalizePublicReportId(reportId) });
+    if (!record || record.org_id !== orgId) throw notFound("report_not_found", "The requested report was not found.");
+    return record;
+  }
   const raw = await readFile(reportPath(reportId), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") throw notFound("report_not_found", "The requested report was not found.");
     throw error;
@@ -84,6 +95,17 @@ export async function updatePublicFirstMeasureReportRecord(
   orgId: string,
   patch: Partial<Pick<PublicFirstMeasureReportRecord, "amount_charged" | "charge_token" | "metadata">>
 ) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const id = normalizePublicReportId(reportId);
+    return mutateSharedDocument<PublicFirstMeasureReportRecord>(
+      { namespace: "public_firstmeasure", collection: "reports", id },
+      (record) => {
+        if (record.org_id !== orgId) throw notFound("report_not_found", "The requested report was not found.");
+        return { ...record, ...patch, metadata: { ...asObject(record.metadata), ...asObject(patch.metadata) }, updated_at: new Date().toISOString() };
+      },
+      { missing: () => { throw notFound("report_not_found", "The requested report was not found."); } }
+    );
+  }
   const record = await readPublicFirstMeasureReport(reportId, orgId);
   const updated: PublicFirstMeasureReportRecord = {
     ...record,
@@ -104,6 +126,19 @@ export async function listPublicFirstMeasureReports(input: {
   externalId?: string | null;
   limit?: number;
 }) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const records = await listSharedDocuments<PublicFirstMeasureReportRecord>({
+      namespace: "public_firstmeasure",
+      collection: "reports",
+      limit: Math.max(500, Math.floor(input.limit ?? 100))
+    });
+    return records
+      .filter((record) => record.org_id === input.orgId)
+      .filter((record) => !input.mode || (record.mode ?? "live") === input.mode)
+      .filter((record) => !input.externalId || record.external_id === input.externalId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, Math.max(1, Math.min(500, Math.floor(input.limit ?? 100))));
+  }
   await mkdir(publicFirstMeasureReportRoot(), { recursive: true });
   const entries = await readdir(publicFirstMeasureReportRoot(), { withFileTypes: true });
   const records: PublicFirstMeasureReportRecord[] = [];

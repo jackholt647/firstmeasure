@@ -653,7 +653,7 @@ function isClaimableNew(manifest: ProjectManifest, allowFiller: boolean) {
 
 function hasRenderableProjectAsset(manifest: ProjectManifest) {
   const artifacts = asRecord(manifest.artifacts);
-  if (artifacts.has_google_image) return true;
+  if (artifacts.has_renderable_image || artifacts.has_google_image) return true;
   return ["rgb.tif", "google.png", "azure.png", "apple.png"].some((fileName) => (
     existsSync(path.join(projectDir(manifest.id), fileName))
   ));

@@ -9,6 +9,12 @@ import { ZodError } from "zod";
 
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { env } from "../src/config/env.js";
+import {
+  deleteProjectArtifact,
+  getProjectArtifact,
+  isSpacesArtifactStorageEnabled,
+  putProjectArtifact
+} from "../src/storage/project_artifacts.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 
 import { getAppleKeyInfo, setAppleKey } from "./apple.js";
@@ -344,17 +350,25 @@ function pdfSyncUploadChunkPath(directory: string, chunkIndex: number) {
   return path.join(directory, `${String(chunkIndex).padStart(6, "0")}.part`);
 }
 
+function pdfSyncUploadArtifactPath(uploadId: string, fileName: string) {
+  return `.pdf-sync-uploads/${normalizePdfSyncUploadId(uploadId)}/${fileName}`;
+}
+
 async function readPdfSyncUploadManifest(projectId: string, uploadId: string) {
   const directory = pdfSyncUploadDirectory(projectId, uploadId);
   const manifestPath = path.join(directory, "upload.json");
-  if (!existsSync(manifestPath)) {
-    throw badRequest("pdf_sync_upload_not_found", "The PDF sync upload was not found or has expired.");
-  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await readFile(manifestPath, "utf8"));
+    if (isSpacesArtifactStorageEnabled()) {
+      const content = await getProjectArtifact(projectId, pdfSyncUploadArtifactPath(uploadId, "upload.json"));
+      if (!content) throw new Error("missing");
+      parsed = JSON.parse(content.toString("utf8"));
+    } else {
+      if (!existsSync(manifestPath)) throw new Error("missing");
+      parsed = JSON.parse(await readFile(manifestPath, "utf8"));
+    }
   } catch {
-    throw badRequest("invalid_pdf_sync_upload", "The PDF sync upload metadata is invalid.");
+    throw badRequest("pdf_sync_upload_not_found", "The PDF sync upload was not found, is invalid, or has expired.");
   }
   const record = asRecord(parsed);
   const manifest: PdfSyncUploadManifest = {
@@ -3834,8 +3848,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       throw badRequest("invalid_pdf_sync_upload_checksum", "payload_sha256 must be a SHA-256 hex digest.");
     }
     const directory = pdfSyncUploadDirectory(projectId, uploadId);
-    await rm(directory, { recursive: true, force: true });
-    await mkdir(directory, { recursive: true });
+    if (!isSpacesArtifactStorageEnabled()) {
+      await rm(directory, { recursive: true, force: true });
+      await mkdir(directory, { recursive: true });
+    }
     const manifest: PdfSyncUploadManifest = {
       project_id: projectId,
       upload_id: uploadId,
@@ -3844,7 +3860,11 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       payload_sha256: payloadSha256,
       created_at: new Date().toISOString()
     };
-    await writeFile(path.join(directory, "upload.json"), JSON.stringify(manifest));
+    if (isSpacesArtifactStorageEnabled()) {
+      await putProjectArtifact(projectId, pdfSyncUploadArtifactPath(uploadId, "upload.json"), JSON.stringify(manifest));
+    } else {
+      await writeFile(path.join(directory, "upload.json"), JSON.stringify(manifest));
+    }
     reply.code(201);
     return { ok: true, upload_id: uploadId, chunk_count: chunkCount };
   });
@@ -3869,7 +3889,15 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
           `Each PDF sync upload chunk must be between 1 and ${PDF_SYNC_UPLOAD_MAX_CHUNK_BYTES} bytes.`
         );
       }
-      await writeFile(pdfSyncUploadChunkPath(directory, chunkIndex), chunk);
+      if (isSpacesArtifactStorageEnabled()) {
+        await putProjectArtifact(
+          projectId,
+          pdfSyncUploadArtifactPath(uploadId, `${String(chunkIndex).padStart(6, "0")}.part`),
+          chunk
+        );
+      } else {
+        await writeFile(pdfSyncUploadChunkPath(directory, chunkIndex), chunk);
+      }
       reply.code(201);
       return { ok: true, upload_id: uploadId, chunk_index: chunkIndex, chunk_bytes: chunk.length };
     }
@@ -3884,10 +3912,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     let receivedBytes = 0;
     for (let index = 0; index < manifest.chunk_count; index += 1) {
       const chunkPath = pdfSyncUploadChunkPath(directory, index);
-      if (!existsSync(chunkPath)) {
-        throw badRequest("incomplete_pdf_sync_upload", `PDF sync upload chunk ${index} is missing.`);
-      }
-      const chunk = await readFile(chunkPath);
+      const chunk = isSpacesArtifactStorageEnabled()
+        ? await getProjectArtifact(projectId, pdfSyncUploadArtifactPath(uploadId, `${String(index).padStart(6, "0")}.part`))
+        : (existsSync(chunkPath) ? await readFile(chunkPath) : null);
+      if (!chunk) throw badRequest("incomplete_pdf_sync_upload", `PDF sync upload chunk ${index} is missing.`);
       receivedBytes += chunk.length;
       digest.update(chunk);
       chunks.push(chunk);
@@ -3906,7 +3934,16 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     }
     const input = pdfBatchSchema.parse(assembled);
     const result = await enqueueProjectPdfSync(projectId, input, request, reply);
-    await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+    if (isSpacesArtifactStorageEnabled()) {
+      await Promise.all([
+        deleteProjectArtifact(projectId, pdfSyncUploadArtifactPath(uploadId, "upload.json")),
+        ...Array.from({ length: manifest.chunk_count }, (_, index) => (
+          deleteProjectArtifact(projectId, pdfSyncUploadArtifactPath(uploadId, `${String(index).padStart(6, "0")}.part`))
+        ))
+      ]).catch(() => undefined);
+    } else {
+      await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+    }
     return result;
   });
 
@@ -10932,14 +10969,7 @@ async function sendProjectThumbnail(projectId: string, query: Record<string, unk
 }
 
 async function readProjectArtifactFile(projectId: string, fileName: string) {
-  const safeName = sanitizeFileName(fileName);
-  const filePath = path.join(projectDir(projectId), safeName);
-  const content = await readFile(filePath);
-  return {
-    name: safeName,
-    path: filePath,
-    content
-  };
+  return readArtifact(projectId, sanitizeFileName(fileName));
 }
 
 async function readCachedThumbnail(cachedPath: string, reply: FastifyReply) {

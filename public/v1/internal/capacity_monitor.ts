@@ -1,6 +1,9 @@
 import os from "node:os";
 import path from "node:path";
 import { appendFile, mkdir, readFile, readdir, rm, statfs, writeFile } from "node:fs/promises";
+import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled, queryPostgres } from "../src/database/postgres.js";
+import { listSharedDocuments, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 
 type WorkerMinuteSnapshot = {
   schema: 1;
@@ -158,7 +161,7 @@ export function installCapacityMonitor() {
   if ((process.env.NODE_ENV === "test" || process.env.NODE_TEST_CONTEXT) && process.env.CAPACITY_MONITOR_TEST_ENABLED !== "1") return;
   installed = true;
 
-  void mkdir(workerStorageDir(), { recursive: true });
+  if (!isFirstMeasurePostgresEnabled()) void mkdir(workerStorageDir(), { recursive: true });
   if (isCoordinator()) {
     void initializeCoordinator();
     hostTimer = setInterval(() => void sampleHost(), HOST_SAMPLE_INTERVAL_MS);
@@ -197,6 +200,14 @@ export function recordCapacityRuntime(eventLoopP95Ms: number, eventLoopMaxMs: nu
 export async function getCapacityReport(): Promise<CapacityReport> {
   if (latestReport) return latestReport;
   if (Date.now() - reportFileCache.loaded_at_ms < 10_000 && reportFileCache.report) return reportFileCache.report;
+  if (isFirstMeasurePostgresEnabled()) {
+    const parsed = await readSharedDocument<CapacityReport>({ namespace: "diagnostics", collection: "capacity_summary", id: "current" });
+    if (parsed) {
+      reportFileCache = { loaded_at_ms: Date.now(), report: parsed };
+      return parsed;
+    }
+    return buildCapacityReport([], Date.now());
+  }
   try {
     const parsed = JSON.parse(await readFile(summaryPath(), "utf8")) as CapacityReport;
     reportFileCache = { loaded_at_ms: Date.now(), report: parsed };
@@ -210,7 +221,7 @@ export async function getCapacityReport(): Promise<CapacityReport> {
 
 async function initializeCoordinator() {
   try {
-    await mkdir(capacityStorageRoot(), { recursive: true });
+    if (!isFirstMeasurePostgresEnabled()) await mkdir(capacityStorageRoot(), { recursive: true });
     history = await loadHistory();
     latestReport = buildCapacityReport(history, Date.now());
     await writeSummary(latestReport);
@@ -241,8 +252,12 @@ async function flushWorkerMinute() {
     active_requests_peak: snapshot.active_requests_peak
   };
   try {
-    await mkdir(workerStorageDir(), { recursive: true });
-    await writeFile(workerSnapshotPath(), `${JSON.stringify(payload)}\n`, "utf8");
+    if (isFirstMeasurePostgresEnabled()) {
+      await replaceSharedDocument({ namespace: "diagnostics", scope: capacityInstanceId(), collection: "capacity_workers", id: workerId() }, payload);
+    } else {
+      await mkdir(workerStorageDir(), { recursive: true });
+      await writeFile(workerSnapshotPath(), `${JSON.stringify(payload)}\n`, "utf8");
+    }
   } catch {
     return;
   }
@@ -263,7 +278,13 @@ async function aggregateMinute() {
     const bucket = buildMinuteBucket(now, observations, workerSnapshots);
     history.push(bucket);
     history = history.filter((entry) => Date.parse(entry.at) >= now - RETENTION_DAYS * 86_400_000);
-    await appendFile(historyPath(now), `${JSON.stringify(bucket)}\n`, "utf8");
+    if (isFirstMeasurePostgresEnabled()) {
+      const minuteId = new Date(Math.floor(now / 60_000) * 60_000).toISOString();
+      await replaceSharedDocument({ namespace: "diagnostics", scope: capacityInstanceId(), collection: "capacity_minutes", id: minuteId }, bucket);
+      history = await loadHistory();
+    } else {
+      await appendFile(historyPath(now), `${JSON.stringify(bucket)}\n`, "utf8");
+    }
     await cleanupOldHistory(now);
     latestReport = buildCapacityReport(history, now);
     await writeSummary(latestReport);
@@ -367,6 +388,12 @@ async function readDiskUsedPercent() {
 }
 
 async function readFreshWorkerSnapshots(now: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const rows = await listSharedDocuments<WorkerMinuteSnapshot>({
+      namespace: "diagnostics", scope: capacityInstanceId(), collection: "capacity_workers", limit: 2_000
+    });
+    return rows.filter((row) => row.schema === 1 && now - row.ended_at_ms <= AGGREGATE_INTERVAL_MS * 2.5);
+  }
   const snapshots: WorkerMinuteSnapshot[] = [];
   let names: string[] = [];
   try {
@@ -554,6 +581,12 @@ function buildDailyReports(entries: CapacityMinuteBucket[]): CapacityReport["dai
 }
 
 async function loadHistory() {
+  if (isFirstMeasurePostgresEnabled()) {
+    const entries = await listSharedDocuments<CapacityMinuteBucket>({
+      namespace: "diagnostics", collection: "capacity_minutes", allScopes: true, limit: RETENTION_DAYS * 1_440 * 50
+    });
+    return combineClusterMinuteBuckets(entries);
+  }
   let names: string[] = [];
   try {
     names = await readdir(capacityStorageRoot());
@@ -577,6 +610,14 @@ async function loadHistory() {
 }
 
 async function cleanupOldHistory(now: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await queryPostgres(`
+      DELETE FROM app_shared_documents
+      WHERE namespace = 'diagnostics' AND collection IN ('capacity_minutes', 'capacity_workers')
+        AND updated_at < to_timestamp($1 / 1000.0)
+    `, [now - RETENTION_DAYS * 86_400_000]);
+    return;
+  }
   const cutoffDate = new Date(now - RETENTION_DAYS * 86_400_000).toISOString().slice(0, 10);
   let names: string[] = [];
   try {
@@ -591,6 +632,11 @@ async function cleanupOldHistory(now: number) {
 }
 
 async function writeSummary(report: CapacityReport) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "diagnostics", collection: "capacity_summary", id: "current" }, report);
+    reportFileCache = { loaded_at_ms: Date.now(), report };
+    return;
+  }
   await mkdir(capacityStorageRoot(), { recursive: true });
   await writeFile(summaryPath(), `${JSON.stringify(report)}\n`, "utf8");
   reportFileCache = { loaded_at_ms: Date.now(), report };
@@ -649,6 +695,49 @@ function historyPath(now: number) {
 
 function workerId() {
   return String(process.env.V1_CLUSTER_WORKER ?? `single-${process.pid}`).replace(/[^a-zA-Z0-9_.-]/g, "_");
+}
+
+function capacityInstanceId() {
+  return String(env.instanceId || os.hostname()).replace(/[^a-zA-Z0-9_.-]/g, "_");
+}
+
+function combineClusterMinuteBuckets(entries: CapacityMinuteBucket[]) {
+  const groups = new Map<string, CapacityMinuteBucket[]>();
+  for (const entry of entries) {
+    const time = Date.parse(entry.at);
+    if (!Number.isFinite(time)) continue;
+    const key = new Date(Math.floor(time / 60_000) * 60_000).toISOString();
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+  return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([at, values]) => {
+    const cores = Math.max(1, sum(values.map((entry) => entry.cpu_count)));
+    const weightedCpu = sum(values.map((entry) => entry.cpu_busy_avg_percent * Math.max(1, entry.cpu_count))) / cores;
+    return {
+      schema: 1 as const,
+      at,
+      cpu_count: cores,
+      cpu_busy_avg_percent: round(weightedCpu, 1),
+      cpu_busy_p95_percent: round(max(values.map((entry) => entry.cpu_busy_p95_percent)), 1),
+      cpu_busy_max_percent: round(max(values.map((entry) => entry.cpu_busy_max_percent)), 1),
+      cpu_iowait_p95_percent: round(max(values.map((entry) => entry.cpu_iowait_p95_percent)), 1),
+      cpu_steal_p95_percent: round(max(values.map((entry) => entry.cpu_steal_p95_percent)), 1),
+      cpu_pressure_p95_percent: round(max(values.map((entry) => entry.cpu_pressure_p95_percent)), 1),
+      io_pressure_p95_percent: round(max(values.map((entry) => entry.io_pressure_p95_percent)), 1),
+      load_1m_p95: round(sum(values.map((entry) => entry.load_1m_p95)), 2),
+      memory_used_p95_percent: round(max(values.map((entry) => entry.memory_used_p95_percent)), 1),
+      disk_used_percent: round(max(values.map((entry) => entry.disk_used_percent)), 1),
+      web_workers_seen: sum(values.map((entry) => entry.web_workers_seen)),
+      web_workers_expected: sum(values.map((entry) => entry.web_workers_expected)),
+      request_count: sum(values.map((entry) => entry.request_count)),
+      error_count: sum(values.map((entry) => entry.error_count)),
+      slow_count: sum(values.map((entry) => entry.slow_count)),
+      request_p95_ms: max(values.map((entry) => entry.request_p95_ms)),
+      request_max_ms: max(values.map((entry) => entry.request_max_ms)),
+      event_loop_p95_ms: max(values.map((entry) => entry.event_loop_p95_ms)),
+      event_loop_max_ms: max(values.map((entry) => entry.event_loop_max_ms)),
+      active_requests_peak: sum(values.map((entry) => entry.active_requests_peak))
+    } satisfies CapacityMinuteBucket;
+  });
 }
 
 function isCoordinator() {

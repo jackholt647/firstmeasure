@@ -18,7 +18,7 @@ const environment = {
 };
 const port = Number(environment.V1_PORT);
 const timeoutMs = Math.max(60_000, Number(environment.FIRSTMEASURE_STARTUP_TIMEOUT_MS || 30 * 60_000));
-const healthUrl = `http://127.0.0.1:${port}/v1/firstmeasure/ping`;
+const healthUrl = `http://127.0.0.1:${port}/v1/health/ready`;
 
 const child = spawn(process.execPath, ["--experimental-sqlite", entrypoint], {
   cwd: v1Root,

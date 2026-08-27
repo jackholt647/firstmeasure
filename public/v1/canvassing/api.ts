@@ -20,6 +20,8 @@ import {
   type JsonObject
 } from "../platform/storage.js";
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { listSharedDocuments, mutateSharedDocument, readSharedDocument } from "../src/database/shared_documents.js";
 
 const objectBodySchema = z.object({}).passthrough();
 const CANVASSING_MODULE_ID = "canvassing";
@@ -66,6 +68,15 @@ function pinDir(orgId: string, branchId: string) {
 
 function pinPath(orgId: string, branchId: string, pinId: string) {
   return path.join(pinDir(orgId, branchId), `${sanitizeId(pinId, "pin")}.json`);
+}
+
+function pinKey(orgId: string, branchId: string, pinId: string) {
+  return {
+    namespace: "canvassing",
+    scope: `${sanitizeId(orgId, "org")}:${sanitizeId(branchId || DEFAULT_BRANCH_ID, "branch")}`,
+    collection: "pins",
+    id: sanitizeId(pinId, "pin")
+  };
 }
 
 async function writeJsonAtomic(filePath: string, value: unknown) {
@@ -295,6 +306,11 @@ function normalizePin(input: JsonObject, existing: JsonObject | null, settings: 
 }
 
 async function listPins(orgId: string, branchId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const key = pinKey(orgId, branchId, "list");
+    const pins = await listSharedDocuments<JsonObject>({ namespace: key.namespace, scope: key.scope, collection: key.collection });
+    return pins.filter((pin) => cleanText(pin.status_id) !== "deleted").sort((a, b) => cleanText(b.updated_at).localeCompare(cleanText(a.updated_at)));
+  }
   const dir = pinDir(orgId, branchId);
   await mkdir(dir, { recursive: true });
   const entries = await readdir(dir, { withFileTypes: true });
@@ -308,11 +324,24 @@ async function listPins(orgId: string, branchId: string) {
 }
 
 async function readPin(orgId: string, branchId: string, pinId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const pin = await readSharedDocument<JsonObject>(pinKey(orgId, branchId, pinId));
+    if (!pin) throw notFound("pin_not_found", "The requested canvassing pin was not found.");
+    return pin;
+  }
   return await readJson(pinPath(orgId, branchId, pinId));
 }
 
 async function savePin(orgId: string, branchId: string, input: JsonObject, actor: JsonObject) {
   const { settings } = await ensureCanvassingSettings(orgId, branchId);
+  if (isFirstMeasurePostgresEnabled()) {
+    const requestedId = cleanText(input.id) || generatedId("pin");
+    return mutateSharedDocument<JsonObject>(
+      pinKey(orgId, branchId, requestedId),
+      (current) => normalizePin({ ...input, id: requestedId, organization_id: orgId, branch_id: branchId }, Object.keys(current).length ? current : null, settings, actor),
+      { create: () => ({}) }
+    );
+  }
   let existing: JsonObject | null = null;
   const pinId = cleanText(input.id);
   if (pinId) {

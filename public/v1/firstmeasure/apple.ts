@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { env } from "../src/config/env.js";
 import { resolveFirstMeasureStorageRoot } from "./storage.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { asObject, readInternalDocument, saveInternalDocument } from "../internal/storage.js";
 
 type AppleKeyStore = {
   key: string;
@@ -75,6 +77,15 @@ function appleKeyLogPath() {
 }
 
 export async function readAppleKeyStore(): Promise<AppleKeyStore> {
+  if (isFirstMeasurePostgresEnabled()) {
+    const document = await readInternalDocument("config", "apple_key");
+    const source = asObject(document?.data);
+    return {
+      key: String(source.key ?? "").trim(),
+      updated_at_utc: source.updated_at_utc ? String(source.updated_at_utc) : null,
+      tile_version: normalizeTileVersion(source.tile_version)
+    };
+  }
   let fallback: AppleKeyStore | null = null;
   let freshest: { store: AppleKeyStore; ts: number } | null = null;
 
@@ -121,16 +132,22 @@ export async function setAppleKey(input: { key?: string; url?: string; tile_vers
     tile_version: normalizeTileVersion(input.tile_version ?? current.tile_version)
   };
 
-  await writeAppleKeyStore(appleKeyPath(), store);
-  await mirrorAppleKeyStoreToLegacyPaths(store);
-  await appendAppleKeyAudit({
+  const audit = {
     ts_utc: nowUtc,
     actor: input.actor ?? null,
     from_url: Boolean(input.url),
     tile_version: store.tile_version,
     key_changed: hasNewKey,
     key_preview: `${extracted.slice(0, 6)}...${extracted.slice(-4)}`
-  });
+  };
+  if (isFirstMeasurePostgresEnabled()) {
+    await saveInternalDocument("config", "apple_key", { data: store }, { replace: true });
+    await saveInternalDocument("apple_key_audit", `event_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`, { data: audit }, { replace: true });
+  } else {
+    await writeAppleKeyStore(appleKeyPath(), store);
+    await mirrorAppleKeyStoreToLegacyPaths(store);
+    await appendAppleKeyAudit(audit);
+  }
 
   return getAppleKeyInfo();
 }

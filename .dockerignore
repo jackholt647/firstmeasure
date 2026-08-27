@@ -1,0 +1,11 @@
+.git
+.codex-remote-attachments
+.local-runtime
+private
+tmp
+updates
+old
+**/node_modules
+**/dist
+**/storage
+**/*.log

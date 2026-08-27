@@ -8,6 +8,7 @@ const { Pool: PgPool } = pg;
 
 let applicationPool: Pool | null = null;
 let adminPool: Pool | null = null;
+let bootstrapPromise: Promise<{ appUser: string; database: string; grantsAttempted: boolean }> | null = null;
 
 const SSL_CONNECTION_PARAMETERS = [
   "ssl", "sslmode", "sslcert", "sslkey", "sslrootcert", "sslnegotiation", "uselibpqcompat"
@@ -106,7 +107,15 @@ function quoteIdentifier(value: string) {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-export async function bootstrapPostgresApplicationUser() {
+export function bootstrapPostgresApplicationUser() {
+  bootstrapPromise ??= performPostgresApplicationUserBootstrap().catch((error) => {
+    bootstrapPromise = null;
+    throw error;
+  });
+  return bootstrapPromise;
+}
+
+async function performPostgresApplicationUserBootstrap() {
   const appPool = getPostgresPool();
   const appIdentity = await appPool.query<{ current_user: string; current_database: string }>(
     "SELECT current_user, current_database() AS current_database"
@@ -153,5 +162,6 @@ export async function closePostgresPools() {
   const pools = [applicationPool, adminPool].filter((pool): pool is Pool => Boolean(pool));
   applicationPool = null;
   adminPool = null;
+  bootstrapPromise = null;
   await Promise.all(pools.map((pool) => pool.end()));
 }

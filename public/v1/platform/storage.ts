@@ -3,6 +3,8 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { isSpacesArtifactStorageEnabled } from "../src/storage/project_artifacts.js";
 import { badRequest, conflict, notFound } from "./errors.js";
 import { formatIdentityPhone, identifierLooksLikeEmail, normalizeIdentityPhone } from "./identity_phone.js";
 
@@ -11,6 +13,12 @@ export type PlatformCollection = "users" | "projects" | "customers" | "branch" |
 
 const COLLECTIONS: PlatformCollection[] = ["users", "projects", "customers", "branch", "notifications", "action_items", "activity", "customer_portals", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events"];
 const PLATFORM_SCHEMA_VERSION = 1;
+
+let postgresStoragePromise: Promise<typeof import("./storage_postgres.js")> | null = null;
+function postgresStorage() {
+  postgresStoragePromise ??= import("./storage_postgres.js");
+  return postgresStoragePromise;
+}
 
 type StoredDocument = JsonObject & {
   schema_version: number;
@@ -313,6 +321,7 @@ async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): P
 }
 
 export async function withIdentityRegistrationLock<T>(emailValue: string, operation: () => Promise<T>): Promise<T> {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).withIdentityRegistrationLock(emailValue, operation);
   const email = normalizeEmail(emailValue);
   return await withFileLock(path.join(registrationLockRoot(), `${hashId(email)}.lock`), operation);
 }
@@ -439,6 +448,7 @@ function deriveBranchModuleSummary(moduleId: string, data: JsonObject) {
 }
 
 export async function ensurePlatformStorage() {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).ensurePostgresPlatformStorage();
   await mkdir(organizationsRoot(), { recursive: true });
   await mkdir(identitiesRoot(), { recursive: true });
   await mkdir(sessionsRoot(), { recursive: true });
@@ -448,6 +458,7 @@ export async function ensurePlatformStorage() {
 }
 
 export async function createAuthSession(input: JsonObject = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).createAuthSession(input);
   await ensurePlatformStorage();
   const now = nowIso();
   const sessionId = randomBytes(32).toString("base64url");
@@ -475,6 +486,7 @@ export async function createAuthSession(input: JsonObject = {}) {
 }
 
 export async function readAuthSession(sessionId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readAuthSession(sessionId);
   await ensurePlatformStorage();
   const session = await readJsonFile<JsonObject>(sessionPath(sessionId));
   if (session.revoked_at) {
@@ -489,6 +501,7 @@ export async function readAuthSession(sessionId: string) {
 }
 
 export async function touchAuthSession(sessionId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).touchAuthSession(sessionId);
   const session = await readAuthSession(sessionId);
   const next = {
     ...session,
@@ -500,11 +513,13 @@ export async function touchAuthSession(sessionId: string) {
 }
 
 export async function deleteAuthSession(sessionId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteAuthSession(sessionId);
   await ensurePlatformStorage();
   await rm(sessionPath(sessionId), { force: true });
 }
 
 export async function deleteIdentitySessions(identityId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteIdentitySessions(identityId);
   await ensurePlatformStorage();
   const normalizedIdentityId = sanitizeId(identityId, "identity_id");
   const entries = await readdir(sessionsRoot(), { withFileTypes: true });
@@ -521,6 +536,7 @@ export async function deleteIdentitySessions(identityId: string) {
 }
 
 export async function createIdentity(input: JsonObject = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).createIdentity(input);
   await ensurePlatformStorage();
   const email = normalizeEmail(input.email);
   const id = input.id ? sanitizeId(String(input.id), "identity_id") : `identity_${hashId(email).slice(0, 16)}`;
@@ -579,11 +595,13 @@ export async function createIdentity(input: JsonObject = {}) {
 }
 
 export async function readIdentity(identityId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readIdentity(identityId);
   await ensurePlatformStorage();
   return await readJsonFile<JsonObject>(identityPath(identityId));
 }
 
 export async function findIdentityByEmail(emailValue: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).findIdentityByEmail(emailValue);
   await ensurePlatformStorage();
   const email = normalizeEmail(emailValue);
   const index = await readJsonFile<JsonObject>(emailIndexPath(email));
@@ -591,6 +609,7 @@ export async function findIdentityByEmail(emailValue: string) {
 }
 
 export async function identityEmailExists(emailValue: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).identityEmailExists(emailValue);
   await ensurePlatformStorage();
   const email = normalizeEmail(emailValue);
   const identityId = `identity_${hashId(email).slice(0, 16)}`;
@@ -598,6 +617,7 @@ export async function identityEmailExists(emailValue: string) {
 }
 
 export async function deleteIdentity(identityId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteIdentity(identityId);
   await ensurePlatformStorage();
   const identity = await readIdentity(identityId).catch(() => null);
   if (identity) {
@@ -612,6 +632,7 @@ export async function deleteIdentity(identityId: string) {
 }
 
 export async function listIdentitiesByPhone(phoneValue: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listIdentitiesByPhone(phoneValue);
   await ensurePlatformStorage();
   const phone = normalizeIdentityPhone(phoneValue);
   if (!phone) throw badRequest("invalid_phone_number", "A valid mobile phone number is required.");
@@ -626,6 +647,7 @@ export async function listIdentitiesByPhone(phoneValue: string) {
 }
 
 export async function findIdentityByPhone(phoneValue: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).findIdentityByPhone(phoneValue);
   const matches = await listIdentitiesByPhone(phoneValue);
   if (!matches.length) throw notFound("identity_phone_not_found", "No account was found for that phone number.");
   if (matches.length > 1) {
@@ -638,6 +660,7 @@ export async function findIdentityByPhone(phoneValue: string) {
 }
 
 export async function findIdentityByIdentifier(identifierValue: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).findIdentityByIdentifier(identifierValue);
   const identifier = String(identifierValue || "").trim();
   if (!identifier) throw badRequest("missing_login_identifier", "Enter an email address or phone number.");
   return identifierLooksLikeEmail(identifier)
@@ -709,6 +732,7 @@ async function patchIdentityUnlocked(identityId: string, patch: JsonObject) {
 }
 
 export async function patchIdentity(identityId: string, patch: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).patchIdentity(identityId, patch);
   const normalizedIdentityId = sanitizeId(identityId, "identity_id");
   return await withFileLock(
     path.join(identityLockRoot(), `${normalizedIdentityId}.lock`),
@@ -717,6 +741,7 @@ export async function patchIdentity(identityId: string, patch: JsonObject) {
 }
 
 export async function listIdentityMemberships(identityId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listIdentityMemberships(identityId);
   const identity = await readIdentity(identityId);
   const configured = Array.isArray(identity.memberships) ? identity.memberships : [];
   const memberships = [];
@@ -738,6 +763,7 @@ export async function listIdentityMemberships(identityId: string) {
 }
 
 export async function addIdentityMembership(identityId: string, orgId: string, userId: string, role = "member") {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).addIdentityMembership(identityId, orgId, userId, role);
   const normalizedIdentityId = sanitizeId(identityId, "identity_id");
   return await withFileLock(path.join(identityLockRoot(), `${normalizedIdentityId}.lock`), async () => {
     const identity = await readIdentity(normalizedIdentityId);
@@ -762,6 +788,7 @@ export async function addIdentityMembership(identityId: string, orgId: string, u
 }
 
 export async function createOrganization(input: JsonObject = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).createOrganization(input);
   await ensurePlatformStorage();
   const id = input.id ? sanitizeId(String(input.id), "organization_id") : generateId("org");
   const filePath = orgManifestPath(id);
@@ -795,11 +822,13 @@ export async function createOrganization(input: JsonObject = {}) {
 }
 
 export async function deleteOrganization(orgId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteOrganization(orgId);
   await ensurePlatformStorage();
   await rm(orgDir(orgId), { recursive: true, force: true });
 }
 
 export async function listOrganizations() {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listOrganizations();
   await ensurePlatformStorage();
   const entries = await readdir(organizationsRoot(), { withFileTypes: true });
   const organizations = [];
@@ -815,10 +844,12 @@ export async function listOrganizations() {
 }
 
 export async function readOrganization(orgId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readOrganization(orgId);
   return await readJsonFile<JsonObject>(orgManifestPath(orgId));
 }
 
 export async function patchOrganization(orgId: string, patch: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).patchOrganization(orgId, patch);
   const current = await readOrganization(orgId);
   const expectedRevision = Number(patch.expected_revision ?? 0);
   if (expectedRevision && expectedRevision !== Number(current.revision ?? 0)) {
@@ -839,6 +870,7 @@ export async function patchOrganization(orgId: string, patch: JsonObject) {
 }
 
 export async function listDocuments(orgId: string, collectionValue: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listDocuments(orgId, collectionValue) as Promise<StoredDocument[]>;
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   await mkdir(collectionDir(orgId, collection), { recursive: true });
@@ -852,12 +884,14 @@ export async function listDocuments(orgId: string, collectionValue: string) {
 }
 
 export async function readDocument(orgId: string, collectionValue: string, documentId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readDocument(orgId, collectionValue, documentId) as Promise<StoredDocument>;
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   return await readJsonFile<StoredDocument>(documentPath(orgId, collection, documentId));
 }
 
 export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).upsertDocument(orgId, collectionValue, input, options) as Promise<StoredDocument>;
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   const id = input.id ? sanitizeId(String(input.id), "document_id") : generateId(generatedDocumentPrefix(collection));
@@ -900,6 +934,7 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
 }
 
 export async function deleteDocument(orgId: string, collectionValue: string, documentId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteDocument(orgId, collectionValue, documentId);
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   const existing = await readDocument(orgId, collection, documentId);
@@ -908,6 +943,7 @@ export async function deleteDocument(orgId: string, collectionValue: string, doc
 }
 
 export async function readGlobal(orgId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readGlobal(orgId) as Promise<StoredDocument>;
   await readOrganization(orgId);
   if (!(await pathExists(globalPath(orgId)))) {
     const now = nowIso();
@@ -929,6 +965,7 @@ export async function readGlobal(orgId: string) {
 }
 
 export async function saveGlobal(orgId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).saveGlobal(orgId, input, options) as Promise<StoredDocument>;
   const current = await readGlobal(orgId);
   const expectedRevision = Number(input.expected_revision ?? 0);
   if (expectedRevision && expectedRevision !== current.revision) {
@@ -946,6 +983,7 @@ export async function saveGlobal(orgId: string, input: JsonObject = {}, options:
 }
 
 export async function listBranchModules(orgId: string, branchId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listBranchModules(orgId, branchId) as Promise<BranchModuleDocument[]>;
   await readOrganization(orgId);
   const normalizedBranchId = sanitizeId(branchId || "default", "branch_id");
   const root = branchDataDir(orgId, normalizedBranchId);
@@ -964,11 +1002,13 @@ export async function listBranchModules(orgId: string, branchId: string) {
 }
 
 export async function readBranchModule(orgId: string, branchId: string, moduleId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readBranchModule(orgId, branchId, moduleId) as Promise<BranchModuleDocument>;
   await readOrganization(orgId);
   return await readJsonFile<BranchModuleDocument>(branchModulePath(orgId, branchId || "default", moduleId));
 }
 
 export async function saveBranchModule(orgId: string, branchId: string, moduleId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).saveBranchModule(orgId, branchId, moduleId, input, options) as Promise<BranchModuleDocument>;
   await readOrganization(orgId);
   const normalizedOrgId = sanitizeId(orgId, "organization_id");
   const normalizedBranchId = sanitizeId(branchId || "default", "branch_id");
@@ -1058,11 +1098,13 @@ async function upsertBranchModuleReference(orgId: string, branchId: string, modu
 }
 
 export async function readMediaMetadata(orgId: string, mediaId: string) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).readMediaMetadata(orgId, mediaId);
   await readOrganization(orgId);
   return await readJsonFile<JsonObject>(mediaMetadataPath(orgId, mediaId));
 }
 
 export async function storeMediaUpload(orgId: string, input: MediaUploadOptions) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).storeMediaUpload(orgId, input);
   await readOrganization(orgId);
   if (!Buffer.isBuffer(input.bytes) || !input.bytes.length) {
     throw badRequest("empty_media_upload", "The uploaded media file is empty.");
@@ -1264,11 +1306,13 @@ async function writeInitialMarkup(orgId: string, mediaId: string, input: unknown
 }
 
 export async function readMediaMarkupLayer(orgId: string, mediaId: string, layerId: string) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).readMediaMarkupLayer(orgId, mediaId, layerId);
   await readMediaMetadata(orgId, mediaId);
   return await readJsonFile<JsonObject>(mediaMarkupPath(orgId, mediaId, layerId));
 }
 
 export async function saveMediaMarkupLayer(orgId: string, mediaId: string, layerId: string, data: JsonObject = {}, metadata: JsonObject = {}) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).saveMediaMarkupLayer(orgId, mediaId, layerId, data, metadata);
   const normalizedOrgId = sanitizeId(orgId, "organization_id");
   const normalizedMediaId = sanitizeId(mediaId, "media_id");
   const normalizedLayerId = sanitizeId(layerId, "markup_layer_id");
@@ -1329,6 +1373,7 @@ async function writeMediaMarkupLayerFile(orgId: string, mediaId: string, layerId
 }
 
 export async function listMedia(orgId: string) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).listMedia(orgId);
   await readOrganization(orgId);
   const root = path.join(orgDir(orgId), "media");
   await mkdir(root, { recursive: true });
@@ -1346,6 +1391,7 @@ export async function listMedia(orgId: string) {
 }
 
 export async function mediaStorageUsage(orgId: string) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).mediaStorageUsage(orgId);
   const media = await listMedia(orgId);
   const usedBytes = media.reduce<number>((total, item) => {
     const variants = asObject(item.variants);
@@ -1364,6 +1410,7 @@ export async function mediaStorageUsage(orgId: string) {
 }
 
 export async function readMediaFile(orgId: string, mediaId: string, variantValue = "original") {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).readMediaFile(orgId, mediaId, variantValue);
   const metadata = await readMediaMetadata(orgId, mediaId);
   const variant = sanitizeId(variantValue || "original", "variant");
   const variants = asObject(metadata.variants);

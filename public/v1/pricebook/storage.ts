@@ -1,9 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { createSharedDocument, listSharedDocuments, mutateSharedDocument, readSharedDocument } from "../src/database/shared_documents.js";
+import { deleteSharedObject, getSharedObject, isSpacesArtifactStorageEnabled, putSharedObject } from "../src/storage/project_artifacts.js";
 import { DEFAULT_TEMPLATE_KEY, PRICEBOOK_FILE_NAMES, PRICEBOOK_SCHEMA_VERSION } from "./constants.js";
 import { DEFAULT_PRICEBOOK_TEMPLATE } from "./default_template.js";
 import { badRequest, conflict, notFound } from "./errors.js";
@@ -50,6 +53,23 @@ type FileEntry = {
   updated_at: string;
 };
 
+type SharedPricebookRecord = { manifest: PricebookManifest; catalog: PricebookCatalog };
+
+function sharedPricebookKey(pricebookId: string) {
+  return { namespace: "pricebook", collection: "pricebooks", id: sanitizePricebookId(pricebookId) };
+}
+
+function sharedAssetKey(pricebookId: string, storedName: string) {
+  return `pricebooks/${sanitizePricebookId(pricebookId)}/assets/${sanitizeFileName(storedName)}`;
+}
+
+async function readSharedPricebook(pricebookId: string) {
+  const id = sanitizePricebookId(pricebookId);
+  const record = await readSharedDocument<SharedPricebookRecord>(sharedPricebookKey(id));
+  if (!record) throw notFound("pricebook_not_found", `Price book '${id}' does not exist.`);
+  return { manifest: record.manifest, catalog: normalizeCatalog(record.catalog) };
+}
+
 export function resolvePricebookStorageRoot(): string {
   return path.resolve(process.cwd(), env.pricebookStorageRoot);
 }
@@ -63,6 +83,7 @@ function pricebookAssetsRoot(pricebookId: string) {
 }
 
 export async function ensurePricebookStorage() {
+  if (isFirstMeasurePostgresEnabled()) return;
   await mkdir(pricebooksRoot(), { recursive: true });
 }
 
@@ -113,17 +134,17 @@ export function readTemplateCatalog(templateKey: string) {
 }
 
 export async function createPricebook(input: JsonObject = {}) {
-  await ensurePricebookStorage();
   const pricebookId = input.id ? sanitizePricebookId(String(input.id)) : generatePricebookId();
+  await ensurePricebookStorage();
   const manifestPath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.manifest);
-  if (await pathExists(manifestPath)) {
+  if (!isFirstMeasurePostgresEnabled() && await pathExists(manifestPath)) {
     throw conflict("pricebook_already_exists", `Price book '${pricebookId}' already exists.`);
   }
 
   const templateKey = String(input.template_key ?? DEFAULT_TEMPLATE_KEY);
   const catalog = normalizeCatalog(readTemplateCatalog(templateKey));
   const nowSql = toSqlDate(new Date().toISOString());
-  await mkdir(pricebookAssetsRoot(pricebookId), { recursive: true });
+  if (!isFirstMeasurePostgresEnabled()) await mkdir(pricebookAssetsRoot(pricebookId), { recursive: true });
 
   const manifest: PricebookManifest = {
     schema_version: PRICEBOOK_SCHEMA_VERSION,
@@ -149,6 +170,12 @@ export async function createPricebook(input: JsonObject = {}) {
     metadata: asRecord(input.metadata)
   };
 
+  if (isFirstMeasurePostgresEnabled()) {
+    const created = await createSharedDocument(sharedPricebookKey(pricebookId), { manifest, catalog });
+    if (!created) throw conflict("pricebook_already_exists", `Price book '${pricebookId}' already exists.`);
+    return getPricebookDetail(pricebookId);
+  }
+
   await saveManifest(pricebookId, manifest);
   await saveCatalogRaw(pricebookId, catalog);
   return getPricebookDetail(pricebookId);
@@ -167,11 +194,30 @@ export async function clonePricebook(sourceId: string, input: JsonObject = {}) {
       clone_source_pricebook_id: source.manifest.id
     }
   });
+  for (const asset of source.catalog.assets) {
+    const storedName = String(asset.stored_name ?? "");
+    if (!storedName) continue;
+    if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) {
+      const content = await getSharedObject(sharedAssetKey(source.manifest.id, storedName));
+      if (!content) throw notFound("asset_not_found", `Asset '${asset.id}' file is missing for price book '${source.manifest.id}'.`);
+      await putSharedObject(sharedAssetKey(created.manifest.id, storedName), content, String(asset.content_type ?? "application/octet-stream"));
+    } else {
+      await mkdir(pricebookAssetsRoot(created.manifest.id), { recursive: true });
+      await copyFile(
+        path.join(pricebookAssetsRoot(source.manifest.id), storedName),
+        path.join(pricebookAssetsRoot(created.manifest.id), storedName)
+      );
+    }
+  }
   await saveCatalog(created.manifest.id, source.catalog, 1);
   return getPricebookDetail(created.manifest.id);
 }
 
 export async function listPricebookManifests() {
+  if (isFirstMeasurePostgresEnabled()) {
+    const records = await listSharedDocuments<SharedPricebookRecord>({ namespace: "pricebook", collection: "pricebooks" });
+    return records.map((record) => record.manifest);
+  }
   await ensurePricebookStorage();
   const entries = await readdir(pricebooksRoot(), { withFileTypes: true });
   const manifests: PricebookManifest[] = [];
@@ -197,6 +243,7 @@ export async function getPricebookDetail(pricebookId: string) {
 }
 
 export async function readManifest(pricebookId: string): Promise<PricebookManifest> {
+  if (isFirstMeasurePostgresEnabled()) return (await readSharedPricebook(pricebookId)).manifest;
   const filePath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.manifest);
   return readJsonFile<PricebookManifest>(filePath, {
     code: "pricebook_not_found",
@@ -205,6 +252,12 @@ export async function readManifest(pricebookId: string): Promise<PricebookManife
 }
 
 export async function saveManifest(pricebookId: string, manifest: PricebookManifest) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => ({ ...current, manifest }), {
+      create: () => ({ manifest, catalog: normalizeCatalog(DEFAULT_PRICEBOOK_TEMPLATE.catalog) })
+    });
+    return;
+  }
   const directory = pricebookDir(pricebookId);
   await mkdir(directory, { recursive: true });
   const manifestPath = path.join(directory, PRICEBOOK_FILE_NAMES.manifest);
@@ -213,6 +266,20 @@ export async function saveManifest(pricebookId: string, manifest: PricebookManif
 }
 
 export async function patchManifest(pricebookId: string, patch: JsonObject, expectedRevision?: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+      const manifest = current.manifest;
+      assertExpectedRevision(manifest, expectedRevision);
+      const merged = deepMerge(manifest, patch) as PricebookManifest;
+      merged.revision = manifest.revision + 1;
+      merged.timestamps = { ...asRecord(manifest.timestamps), ...asRecord(merged.timestamps), updated_at: toSqlDate(new Date().toISOString()) };
+      (merged.timestamps as JsonObject).archived_at = merged.status === "archived"
+        ? asRecord(merged.timestamps).archived_at || toSqlDate(new Date().toISOString())
+        : null;
+      merged.counts = deriveCounts(normalizeCatalog(current.catalog));
+      return { ...current, manifest: merged };
+    }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } }).then((record) => record.manifest);
+  }
   const manifest = await readManifest(pricebookId);
   assertExpectedRevision(manifest, expectedRevision);
   const merged = deepMerge(manifest, patch) as PricebookManifest;
@@ -234,6 +301,7 @@ export async function patchManifest(pricebookId: string, patch: JsonObject, expe
 }
 
 export async function readCatalog(pricebookId: string): Promise<PricebookCatalog> {
+  if (isFirstMeasurePostgresEnabled()) return (await readSharedPricebook(pricebookId)).catalog;
   const filePath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.catalog);
   const raw = await readJsonFile<PricebookCatalog>(filePath, {
     code: "catalog_not_found",
@@ -243,11 +311,30 @@ export async function readCatalog(pricebookId: string): Promise<PricebookCatalog
 }
 
 async function saveCatalogRaw(pricebookId: string, catalog: PricebookCatalog) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => ({ ...current, catalog }), {
+      missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); }
+    });
+    return;
+  }
   const filePath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.catalog);
   await writeJsonAtomic(filePath, catalog);
 }
 
 export async function saveCatalog(pricebookId: string, catalogInput: unknown, expectedRevision?: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+      assertExpectedRevision(current.manifest, expectedRevision);
+      const catalog = normalizeCatalog(catalogInput);
+      const manifest = {
+        ...current.manifest,
+        revision: current.manifest.revision + 1,
+        timestamps: { ...asRecord(current.manifest.timestamps), updated_at: toSqlDate(new Date().toISOString()) },
+        counts: deriveCounts(catalog)
+      };
+      return { manifest, catalog };
+    }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } });
+  }
   const manifest = await readManifest(pricebookId);
   assertExpectedRevision(manifest, expectedRevision);
   const catalog = normalizeCatalog(catalogInput);
@@ -263,6 +350,16 @@ export async function saveCatalog(pricebookId: string, catalogInput: unknown, ex
 }
 
 export async function createItem(pricebookId: string, itemInput: Record<string, unknown>, expectedRevision?: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+      assertExpectedRevision(current.manifest, expectedRevision);
+      const catalog = normalizeCatalog(current.catalog);
+      const itemId = String(itemInput.id ?? "").trim();
+      if (catalog.items.some((item) => String(item.id ?? "") === itemId)) throw conflict("item_already_exists", `Item '${itemId}' already exists in price book '${pricebookId}'.`);
+      catalog.items = [...catalog.items, normalizeItem(itemInput, catalog.items.length)].sort(compareItems);
+      return nextCatalogRecord(current, catalog);
+    }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } });
+  }
   const catalog = await readCatalog(pricebookId);
   const itemId = String(itemInput.id ?? "").trim();
   if (catalog.items.some((item) => String(item.id ?? "") === itemId)) {
@@ -274,6 +371,17 @@ export async function createItem(pricebookId: string, itemInput: Record<string, 
 }
 
 export async function patchItem(pricebookId: string, itemId: string, patch: Record<string, unknown>, expectedRevision?: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+      assertExpectedRevision(current.manifest, expectedRevision);
+      const catalog = normalizeCatalog(current.catalog);
+      const index = catalog.items.findIndex((item) => String(item.id ?? "") === itemId);
+      if (index < 0) throw notFound("item_not_found", `Item '${itemId}' was not found in price book '${pricebookId}'.`);
+      catalog.items[index] = normalizeItem({ ...catalog.items[index], ...patch, id: itemId }, index);
+      catalog.items.sort(compareItems);
+      return nextCatalogRecord(current, catalog);
+    }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } });
+  }
   const catalog = await readCatalog(pricebookId);
   const index = catalog.items.findIndex((item) => String(item.id ?? "") === itemId);
   if (index < 0) {
@@ -285,6 +393,16 @@ export async function patchItem(pricebookId: string, itemId: string, patch: Reco
 }
 
 export async function deleteItem(pricebookId: string, itemId: string, expectedRevision?: number) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+      assertExpectedRevision(current.manifest, expectedRevision);
+      const catalog = normalizeCatalog(current.catalog);
+      const nextItems = catalog.items.filter((item) => String(item.id ?? "") !== itemId);
+      if (nextItems.length === catalog.items.length) throw notFound("item_not_found", `Item '${itemId}' was not found in price book '${pricebookId}'.`);
+      catalog.items = nextItems;
+      return nextCatalogRecord(current, catalog);
+    }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } });
+  }
   const catalog = await readCatalog(pricebookId);
   const nextItems = catalog.items.filter((item) => String(item.id ?? "") !== itemId);
   if (nextItems.length === catalog.items.length) {
@@ -309,6 +427,27 @@ export async function saveAsset(pricebookId: string, input: {
   metadata?: Record<string, unknown>;
   expectedRevision?: number;
 }) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) {
+    const safeName = sanitizeFileName(input.fileName);
+    const assetId = generateAssetId();
+    const storedName = `${assetId}_${safeName}`;
+    const bytes = typeof input.content === "string" ? Buffer.from(input.content) : Buffer.from(input.content);
+    await putSharedObject(sharedAssetKey(pricebookId, storedName), bytes, input.contentType ?? "application/octet-stream");
+    const nowIso = new Date().toISOString();
+    const asset: CatalogAsset = { id: assetId, file_name: safeName, stored_name: storedName, content_type: input.contentType ?? null, size: bytes.length, kind: input.kind ?? inferAssetKind(safeName, input.contentType), label: input.label ?? null, alt_text: input.altText ?? null, created_at: nowIso, updated_at: nowIso, metadata: input.metadata ?? {} };
+    try {
+      const result = await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+        assertExpectedRevision(current.manifest, input.expectedRevision);
+        const catalog = normalizeCatalog(current.catalog);
+        catalog.assets = [...catalog.assets, asset];
+        return nextCatalogRecord(current, catalog);
+      }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } });
+      return { ...result, asset };
+    } catch (error) {
+      await deleteSharedObject(sharedAssetKey(pricebookId, storedName)).catch(() => undefined);
+      throw error;
+    }
+  }
   const catalog = await readCatalog(pricebookId);
   const safeName = sanitizeFileName(input.fileName);
   const assetId = generateAssetId();
@@ -342,6 +481,11 @@ export async function readAsset(pricebookId: string, assetId: string) {
   if (!asset) {
     throw notFound("asset_not_found", `Asset '${assetId}' was not found in price book '${pricebookId}'.`);
   }
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) {
+    const content = await getSharedObject(sharedAssetKey(pricebookId, String(asset.stored_name)));
+    if (!content) throw notFound("asset_not_found", `Asset '${assetId}' file is missing for price book '${pricebookId}'.`);
+    return { asset, path: `spaces://${sharedAssetKey(pricebookId, String(asset.stored_name))}`, content };
+  }
   const assetPath = path.join(pricebookAssetsRoot(pricebookId), String(asset.stored_name));
   const content = await readFile(assetPath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
@@ -353,6 +497,23 @@ export async function readAsset(pricebookId: string, assetId: string) {
 }
 
 export async function deleteAsset(pricebookId: string, assetId: string, expectedRevision?: number) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) {
+    let deletedStoredName = "";
+    const result = await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => {
+      assertExpectedRevision(current.manifest, expectedRevision);
+      const catalog = normalizeCatalog(current.catalog);
+      const asset = catalog.assets.find((entry) => entry.id === assetId);
+      if (!asset) throw notFound("asset_not_found", `Asset '${assetId}' was not found in price book '${pricebookId}'.`);
+      deletedStoredName = String(asset.stored_name);
+      catalog.assets = catalog.assets.filter((entry) => entry.id !== assetId);
+      catalog.items = catalog.items.map((item) => ({ ...item, images: Array.isArray(item.images) ? item.images.filter((image) => String(asRecord(image).asset_id ?? "") !== assetId) : [] }));
+      return nextCatalogRecord(current, catalog);
+    }, { missing: () => { throw notFound("pricebook_not_found", `Price book '${pricebookId}' does not exist.`); } });
+    if (deletedStoredName) {
+      await deleteSharedObject(sharedAssetKey(pricebookId, deletedStoredName)).catch(() => undefined);
+    }
+    return { ...result, deleted_asset_id: assetId };
+  }
   const catalog = await readCatalog(pricebookId);
   const asset = catalog.assets.find((entry) => entry.id === assetId);
   if (!asset) {
@@ -371,6 +532,15 @@ export async function deleteAsset(pricebookId: string, assetId: string, expected
 }
 
 export async function listPricebookFiles(pricebookId: string): Promise<FileEntry[]> {
+  if (isFirstMeasurePostgresEnabled()) {
+    const record = await readSharedPricebook(pricebookId);
+    const updatedAt = String(asRecord(record.manifest.timestamps).updated_at || new Date(0).toISOString());
+    return [
+      { name: PRICEBOOK_FILE_NAMES.manifest, size: Buffer.byteLength(JSON.stringify(record.manifest)), updated_at: updatedAt },
+      { name: PRICEBOOK_FILE_NAMES.catalog, size: Buffer.byteLength(JSON.stringify(record.catalog)), updated_at: updatedAt },
+      ...record.catalog.assets.map((asset) => ({ name: `assets/${asset.stored_name}`, size: Number(asset.size || 0), updated_at: asset.updated_at }))
+    ].sort((a, b) => a.name.localeCompare(b.name));
+  }
   await readManifest(pricebookId);
   const files: FileEntry[] = [];
   const rootEntries = await readdir(pricebookDir(pricebookId), { withFileTypes: true });
@@ -483,6 +653,18 @@ function normalizeAsset(value: Record<string, unknown>): CatalogAsset {
 
 function deriveCounts(catalog: PricebookCatalog) {
   return { items: catalog.items.length, assets: catalog.assets.length };
+}
+
+function nextCatalogRecord(current: SharedPricebookRecord, catalog: PricebookCatalog): SharedPricebookRecord {
+  return {
+    catalog,
+    manifest: {
+      ...current.manifest,
+      revision: current.manifest.revision + 1,
+      timestamps: { ...asRecord(current.manifest.timestamps), updated_at: toSqlDate(new Date().toISOString()) },
+      counts: deriveCounts(catalog)
+    }
+  };
 }
 
 function compareItems(a: Record<string, unknown>, b: Record<string, unknown>) {

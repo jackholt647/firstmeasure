@@ -1,0 +1,255 @@
+x-app-environment: &app-environment
+  FIRSTMATE_ENV: production
+  NODE_ENV: production
+  DEPLOYMENT_TOPOLOGY: cluster
+  FIRSTMEASURE_DATABASE_MODE: postgres
+  DATABASE_URL: postgresql://firstmeasure:firstmeasure-local@postgres:5432/firstmeasure
+  DATABASE_ADMIN_URL: postgresql://firstmeasure:firstmeasure-local@postgres:5432/firstmeasure
+  POSTGRES_POOL_MAX: "8"
+  POSTGRES_AUTO_MIGRATE: "true"
+  POSTGRES_ALLOW_EMPTY_IMPORT: "true"
+  FIRSTMEASURE_ARTIFACT_STORAGE: spaces
+  SPACES_ENDPOINT: http://minio:9000
+  SPACES_REGION: us-east-1
+  SPACES_BUCKET: firstmeasure-local
+  SPACES_ACCESS_KEY_ID: firstmeasure-local
+  SPACES_SECRET_ACCESS_KEY: firstmeasure-local-secret
+  SPACES_FORCE_PATH_STYLE: "true"
+  SPACES_PREFIX: cluster-test
+  PLATFORM_SESSION_SECRET: local-cluster-shared-session-secret-change-in-production
+  V1_HOST: 0.0.0.0
+  V1_PORT: "3101"
+  V1_WEB_WORKERS: "0"
+  RELEASE_ID: local-cluster
+  ROLLING_DRAIN_MS: "1000"
+  LEGACY_SERVICE_URL: http://legacy:3101
+  LEGACY_PROXY_SECRET: local-cluster-legacy-proxy-secret
+  PLATFORM_HEARTBEAT_DISABLED: "1"
+  FIRSTMEASURE_PROCESS_ROLE: web
+  FIRSTMEASURE_STORAGE_ROOT: /tmp/firstmeasure
+  PLATFORM_STORAGE_ROOT: /tmp/platform
+  INTERNAL_STORAGE_ROOT: /tmp/internal
+  CRM_STORAGE_ROOT: /tmp/crm
+  PRICEBOOK_STORAGE_ROOT: /tmp/pricebook
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: firstmeasure
+      POSTGRES_PASSWORD: firstmeasure-local
+      POSTGRES_DB: firstmeasure
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firstmeasure -d firstmeasure"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: firstmeasure-local
+      MINIO_ROOT_PASSWORD: firstmeasure-local-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 firstmeasure-local firstmeasure-local-secret &&
+        mc mb --ignore-existing local/firstmeasure-local
+
+  web-a:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: local-web-a
+      CLUSTER_NODE_ROLE: web
+    ports:
+      - "3211:3101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      legacy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+
+  web-b:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: local-web-b
+      CLUSTER_NODE_ROLE: web
+    ports:
+      - "3212:3101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      legacy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile
+    command: ["node", "--experimental-sqlite", "dist/src/firstmeasure_worker.js"]
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: local-worker
+      CLUSTER_NODE_ROLE: worker
+      FIRSTMEASURE_PROCESS_ROLE: worker
+      FIRSTMEASURE_JOB_WORKERS: "2"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  legacy:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile
+    environment:
+      <<: *app-environment
+      DEPLOYMENT_TOPOLOGY: single
+      CLUSTER_NODE_ROLE: legacy
+      INSTANCE_ID: local-legacy
+      LEGACY_SERVICE_URL: ""
+      CRM_STORAGE_ROOT: /state/crm
+      COMMUNICATIONS_STORAGE_ROOT: /state/communications
+      MEASURE_INTERNAL_TUTORIALS_ROOT: /state/tutorials
+    ports:
+      - "3213:3101"
+    volumes:
+      - legacy-state:/state
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+
+  php-a:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile.php
+    environment:
+      FIRSTMEASURE_NODE_BASE_URL: http://web-a:3101/v1/platform
+    volumes:
+      - ../../public:/app/public:ro
+    depends_on:
+      web-a:
+        condition: service_healthy
+
+  php-b:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile.php
+    environment:
+      FIRSTMEASURE_NODE_BASE_URL: http://web-b:3101/v1/platform
+    volumes:
+      - ../../public:/app/public:ro
+    depends_on:
+      web-b:
+        condition: service_healthy
+
+  legacy-php:
+    build:
+      context: ../..
+      dockerfile: deploy/local-cluster/Dockerfile.php
+    environment:
+      FIRSTMEASURE_NODE_BASE_URL: http://legacy:3101/v1/platform
+    volumes:
+      - ../../public:/app/public:ro
+      - legacy-state:/app/public/v1/storage
+      - legacy-public-storage:/app/public/storage
+    depends_on:
+      legacy:
+        condition: service_healthy
+
+  legacy-web:
+    image: nginx:stable-alpine
+    volumes:
+      - ../../public:/app/public:ro
+      - ./legacy-nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - legacy-php
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/portal/login.php"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+
+  load-balancer:
+    image: nginx:stable-alpine
+    ports:
+      - "8088:8080"
+    volumes:
+      - ../../public:/app/public:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      web-a:
+        condition: service_healthy
+      web-b:
+        condition: service_healthy
+      php-a:
+        condition: service_started
+      php-b:
+        condition: service_started
+      legacy-web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/v1/health/ready"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+
+volumes:
+  postgres-data:
+  minio-data:
+  legacy-state:
+  legacy-public-storage:

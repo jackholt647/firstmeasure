@@ -19,6 +19,31 @@ test("background process roles do not depend on a web cluster worker id", () => 
   assert.equal(shouldRunFirstMeasureBackgroundProcessor("combined", "45"), false);
 });
 
+test("cluster services default to exactly one dedicated background role", () => {
+  const previousTopology = process.env.DEPLOYMENT_TOPOLOGY;
+  const previousNodeRole = process.env.CLUSTER_NODE_ROLE;
+  const previousProcessRole = process.env.FIRSTMEASURE_PROCESS_ROLE;
+  try {
+    delete process.env.FIRSTMEASURE_PROCESS_ROLE;
+    process.env.DEPLOYMENT_TOPOLOGY = "cluster";
+    process.env.CLUSTER_NODE_ROLE = "web";
+    assert.equal(getFirstMeasureProcessRole(), "web");
+    assert.equal(shouldRunFirstMeasureBackgroundProcessor(), false);
+    process.env.CLUSTER_NODE_ROLE = "legacy";
+    assert.equal(getFirstMeasureProcessRole(), "web");
+    process.env.CLUSTER_NODE_ROLE = "worker";
+    assert.equal(getFirstMeasureProcessRole(), "worker");
+    assert.equal(shouldRunFirstMeasureBackgroundProcessor(), true);
+  } finally {
+    if (previousTopology === undefined) delete process.env.DEPLOYMENT_TOPOLOGY;
+    else process.env.DEPLOYMENT_TOPOLOGY = previousTopology;
+    if (previousNodeRole === undefined) delete process.env.CLUSTER_NODE_ROLE;
+    else process.env.CLUSTER_NODE_ROLE = previousNodeRole;
+    if (previousProcessRole === undefined) delete process.env.FIRSTMEASURE_PROCESS_ROLE;
+    else process.env.FIRSTMEASURE_PROCESS_ROLE = previousProcessRole;
+  }
+});
+
 test("a crashed cluster worker is restarted in its original logical slot", () => {
   const slots = new Map<number, number>([
     [101, 1],

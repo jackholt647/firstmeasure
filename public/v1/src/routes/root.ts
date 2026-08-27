@@ -3,9 +3,24 @@ import path from "node:path";
 
 import type { FastifyPluginAsync } from "fastify";
 
+import { inspectRuntimeReadiness, runtimeIdentity } from "../runtime_health.js";
+
 const v1Root = process.cwd();
 
 export const rootRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/v1/health/live", async () => ({
+    ok: true,
+    state: "live",
+    ...runtimeIdentity(),
+    checked_at: new Date().toISOString()
+  }));
+
+  app.get("/v1/health/ready", async (_request, reply) => {
+    const readiness = await inspectRuntimeReadiness();
+    if (!readiness.ok) reply.code(503);
+    return readiness;
+  });
+
   app.get("/v1", async () => {
     return {
       ok: true,

@@ -9,6 +9,8 @@ import {
   getFirstMeasureProjectIndexDb
 } from "./project_index.js";
 import { resolveFirstMeasureStorageRoot } from "./storage.js";
+import { mutateSharedDocument, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
+import { acquireFirstMeasureLock } from "./locks.js";
 
 export const RUSH_BONUS_PERCENT = 25;
 
@@ -148,6 +150,10 @@ function normalizeAutomationSnapshot(value: unknown): RushAutomationSnapshot | n
 }
 
 async function readRushStore(): Promise<RushModeStore> {
+  if (isFirstMeasurePostgresEnabled()) {
+    const stored = await readSharedDocument<RushModeStore>({ namespace: "firstmeasure", collection: "runtime", id: "rush_modes" });
+    return normalizeStore(stored);
+  }
   try {
     const raw = await readFile(rushStorePath(), "utf8");
     return normalizeStore(JSON.parse(raw));
@@ -161,6 +167,10 @@ async function readRushStore(): Promise<RushModeStore> {
 }
 
 async function writeRushStore(store: RushModeStore) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "firstmeasure", collection: "runtime", id: "rush_modes" }, normalizeStore(store));
+    return;
+  }
   await writeFileAtomic(rushStorePath(), JSON.stringify(normalizeStore(store), null, 2));
 }
 
@@ -195,6 +205,18 @@ export async function getRushAutomationSettings() {
 }
 
 export async function updateRushAutomationSettings(input: Record<string, unknown>) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const store = await mutateSharedDocument<RushModeStore>(
+      { namespace: "firstmeasure", collection: "runtime", id: "rush_modes" },
+      (current) => {
+        const normalized = normalizeStore(current);
+        normalized.automation_settings = normalizeAutomationSettings({ ...normalized.automation_settings, ...input });
+        return normalized;
+      },
+      { create: () => normalizeStore(null) }
+    );
+    return { ok: true, success: true, settings: store.automation_settings, last_evaluation: store.last_automation_snapshot };
+  }
   const store = await readRushStore();
   store.automation_settings = normalizeAutomationSettings({
     ...store.automation_settings,
@@ -265,13 +287,37 @@ export async function createRushMode(input: {
     trigger_snapshot: input.trigger_snapshot ?? null
   };
 
-  const store = await readRushStore();
-  store.rush_modes.push(mode);
-  await writeRushStore(store);
+  if (isFirstMeasurePostgresEnabled()) {
+    await mutateSharedDocument<RushModeStore>(
+      { namespace: "firstmeasure", collection: "runtime", id: "rush_modes" },
+      (current) => {
+        const store = normalizeStore(current);
+        store.rush_modes.push(mode);
+        return store;
+      },
+      { create: () => normalizeStore(null) }
+    );
+  } else {
+    const store = await readRushStore();
+    store.rush_modes.push(mode);
+    await writeRushStore(store);
+  }
   return rushModeWithComputedFields(mode);
 }
 
 export async function evaluateAutomaticRushMode() {
+  if (isFirstMeasurePostgresEnabled()) {
+    const release = await acquireFirstMeasureLock("rush-mode-automatic-evaluation", { ttlMs: 120_000, waitMs: 5_000 });
+    try {
+      return await evaluateAutomaticRushModeUnlocked();
+    } finally {
+      await release();
+    }
+  }
+  return evaluateAutomaticRushModeUnlocked();
+}
+
+async function evaluateAutomaticRushModeUnlocked() {
   const store = await readRushStore();
   const settings = store.automation_settings;
   const nowMs = Date.now();

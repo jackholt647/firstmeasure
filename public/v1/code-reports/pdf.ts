@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { codeReportStorageRoot, readCodeReport } from "./storage.js";
 import type { CodeReport } from "./types.js";
 import { finalizeFirstMatePdf } from "../src/pdf_metadata.js";
@@ -35,10 +36,12 @@ export async function generateCodeReportPdf(reportId: string) {
   const report = await readCodeReport(reportId);
   const bytes = await renderCodeReportPdfDocument(report);
   const dir = path.join(codeReportStorageRoot(), "pdfs");
-  await mkdir(dir, { recursive: true });
   const fileName = codeReportPdfFileName(report);
   const filePath = path.join(dir, fileName);
-  await writeFile(filePath, bytes);
+  if (!isFirstMeasurePostgresEnabled()) {
+    await mkdir(dir, { recursive: true });
+    await writeFile(filePath, bytes);
+  }
   return { report, bytes, fileName, filePath };
 }
 

@@ -5,6 +5,9 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { FirstMeasureError, badRequest, notFound } from "./errors.js";
 import { projectDir } from "./storage.js";
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { getProjectArtifact, isSpacesArtifactStorageEnabled, putProjectArtifact } from "../src/storage/project_artifacts.js";
+import { acquireFirstMeasureLock } from "./locks.js";
 
 const GOOGLE_3D_DIR_NAME = "google_3d";
 const GOOGLE_3D_TILES_DIR_NAME = "tiles";
@@ -86,6 +89,9 @@ export function buildProjectGoogle3dManifestRoute(projectId: string) {
 }
 
 export async function projectGoogle3dCaptureExists(projectId: string) {
+  if (isSpacesArtifactStorageEnabled()) {
+    return Boolean(await getProjectArtifact(projectId, `${GOOGLE_3D_DIR_NAME}/manifest.json`));
+  }
   try {
     await stat(projectGoogle3dManifestPath(projectId));
     return true;
@@ -95,6 +101,11 @@ export async function projectGoogle3dCaptureExists(projectId: string) {
 }
 
 export async function readProjectGoogle3dManifest(projectId: string): Promise<Google3dManifest> {
+  if (isSpacesArtifactStorageEnabled()) {
+    const content = await getProjectArtifact(projectId, `${GOOGLE_3D_DIR_NAME}/manifest.json`);
+    if (!content) throw notFound("google_3d_manifest_not_found", `Google 3D tiles have not been captured for project '${projectId}'.`);
+    return JSON.parse(content.toString("utf8")) as Google3dManifest;
+  }
   const raw = await readFile(projectGoogle3dManifestPath(projectId), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
       throw notFound("google_3d_manifest_not_found", `Google 3D tiles have not been captured for project '${projectId}'.`);
@@ -107,6 +118,11 @@ export async function readProjectGoogle3dManifest(projectId: string): Promise<Go
 
 export async function readProjectGoogle3dTile(projectId: string, fileName: string): Promise<ProjectGoogle3dTileFile> {
   const safeName = sanitizeProjectGoogle3dTileName(fileName);
+  if (isSpacesArtifactStorageEnabled()) {
+    const content = await getProjectArtifact(projectId, `${GOOGLE_3D_DIR_NAME}/${GOOGLE_3D_TILES_DIR_NAME}/${safeName}`);
+    if (!content) throw notFound("google_3d_tile_not_found", `Google 3D tile '${safeName}' was not found for project '${projectId}'.`);
+    return { name: safeName, content };
+  }
   const filePath = path.join(projectGoogle3dTilesDir(projectId), safeName);
   const content = await readFile(filePath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
@@ -122,6 +138,18 @@ export async function readProjectGoogle3dTile(projectId: string, fileName: strin
 }
 
 export async function ensureProjectGoogle3dCapture(input: CaptureGoogle3dInput): Promise<Google3dManifest> {
+  if (isFirstMeasurePostgresEnabled()) {
+    const release = await acquireFirstMeasureLock(`google-3d-capture:${input.projectId}`, { ttlMs: 30 * 60_000, waitMs: 120_000 });
+    try {
+      return await ensureProjectGoogle3dCaptureUnlocked(input);
+    } finally {
+      await release();
+    }
+  }
+  return ensureProjectGoogle3dCaptureUnlocked(input);
+}
+
+async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput): Promise<Google3dManifest> {
   const projectId = input.projectId;
   if (!input.force) {
     const existing = await readExistingProjectGoogle3dManifest(projectId);
@@ -148,10 +176,10 @@ export async function ensureProjectGoogle3dCapture(input: CaptureGoogle3dInput):
       ? Math.min(60, Math.floor(Number(input.maxDepth)))
       : DEFAULT_MAX_DEPTH;
 
-    if (input.force) {
+    if (input.force && !isSpacesArtifactStorageEnabled()) {
       await rm(outputDir, { recursive: true, force: true });
     }
-    await mkdir(tilesDir, { recursive: true });
+    if (!isSpacesArtifactStorageEnabled()) await mkdir(tilesDir, { recursive: true });
 
     const ecefTarget = geodeticToECEF(input.lat, input.lon, 0);
     const rootUrl = makeAbsoluteGoogleTileUrl("/v1/3dtiles/root.json", googleApiKey);
@@ -259,7 +287,11 @@ export async function ensureProjectGoogle3dCapture(input: CaptureGoogle3dInput):
           .digest("hex")
           .slice(0, 16);
         const filename = `${String(myIndex + 1).padStart(4, "0")}-${hash}${extFromPath(parsed.pathname, contentType)}`;
-        await writeFile(path.join(tilesDir, filename), buffer);
+        if (isSpacesArtifactStorageEnabled()) {
+          await putProjectArtifact(projectId, `${GOOGLE_3D_DIR_NAME}/${GOOGLE_3D_TILES_DIR_NAME}/${filename}`, buffer);
+        } else {
+          await writeFile(path.join(tilesDir, filename), buffer);
+        }
 
         manifestTiles[myIndex] = {
           file: filename,
@@ -290,7 +322,11 @@ export async function ensureProjectGoogle3dCapture(input: CaptureGoogle3dInput):
       tiles: manifestTiles
     };
 
-    await writeFile(projectGoogle3dManifestPath(projectId), JSON.stringify(manifest, null, 2));
+    if (isSpacesArtifactStorageEnabled()) {
+      await putProjectArtifact(projectId, `${GOOGLE_3D_DIR_NAME}/manifest.json`, JSON.stringify(manifest, null, 2));
+    } else {
+      await writeFile(projectGoogle3dManifestPath(projectId), JSON.stringify(manifest, null, 2));
+    }
     return manifest;
   })().catch((error) => {
     if (error instanceof FirstMeasureError) {

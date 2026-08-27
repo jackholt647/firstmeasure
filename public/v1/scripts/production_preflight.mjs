@@ -214,7 +214,11 @@ async function databaseConnectivity(environment, caCertificate) {
     }
   };
   const application = await connect(environment.DATABASE_URL);
-  const administrator = await connect(environment.DATABASE_ADMIN_URL);
+  const adminUrl = String(environment.DATABASE_ADMIN_URL || "").trim();
+  if (!adminUrl) {
+    return { server_version: String(application.version || ""), database_match: true, separate_users: null };
+  }
+  const administrator = await connect(adminUrl);
   if (String(application.database) !== String(administrator.database)) throw new Error("Application and administrator URLs connect to different databases.");
   if (String(application.username) === String(administrator.username)) throw new Error("Application and administrator URLs use the same database account.");
   return { server_version: String(application.version || ""), database_match: true, separate_users: true };
@@ -237,13 +241,32 @@ export async function runProductionPreflight(options = {}) {
   check("production_port", port === 3101 || environment.FIRSTMEASURE_ALLOW_NONSTANDARD_PORT === "1", `resolved port ${port}`);
 
   const mode = configuredDatabaseMode(environment);
+  const topology = String(environment.DEPLOYMENT_TOPOLOGY || "single").trim().toLowerCase();
+  const nodeRole = String(environment.CLUSTER_NODE_ROLE || "web").trim().toLowerCase();
+  const autoMigrate = !/^(0|false|no|off)$/i.test(String(environment.POSTGRES_AUTO_MIGRATE ?? "true"));
+  const adminRequired = autoMigrate;
   check("database_mode", mode === "postgres", `resolved mode ${mode}`);
   const applicationDb = databaseIdentity(environment.DATABASE_URL);
   const administratorDb = databaseIdentity(environment.DATABASE_ADMIN_URL);
   check("database_application_url", Boolean(applicationDb?.database && applicationDb?.username), "application PostgreSQL URL is configured");
-  check("database_admin_url", Boolean(administratorDb?.database && administratorDb?.username), "administrator PostgreSQL URL is configured");
-  check("database_targets_match", Boolean(applicationDb && administratorDb && applicationDb.database === administratorDb.database), "both URLs select the same database");
-  check("database_users_separate", Boolean(applicationDb && administratorDb && applicationDb.username !== administratorDb.username), "application and administrator accounts are distinct");
+  check("database_admin_url", !adminRequired || Boolean(administratorDb?.database && administratorDb?.username), adminRequired ? "administrator PostgreSQL URL is configured" : "administrator URL is optional after cluster schema migration");
+  check("database_targets_match", !administratorDb || Boolean(applicationDb && applicationDb.database === administratorDb.database), "configured URLs select the same database");
+  check("database_users_separate", !administratorDb || Boolean(applicationDb && applicationDb.username !== administratorDb.username), "configured application and administrator accounts are distinct");
+
+  if (topology === "cluster") {
+    const artifactMode = String(environment.FIRSTMEASURE_ARTIFACT_STORAGE || "").trim().toLowerCase();
+    check("cluster_artifact_mode", artifactMode === "spaces", `resolved artifact mode ${artifactMode || "unset"}`);
+    check("cluster_spaces_configuration", ["SPACES_ENDPOINT", "SPACES_REGION", "SPACES_BUCKET", "SPACES_ACCESS_KEY_ID", "SPACES_SECRET_ACCESS_KEY"].every((name) => String(environment[name] || "").trim()), "private Spaces endpoint, bucket, region, and credentials are configured");
+    const sessionSecret = String(environment.PLATFORM_SESSION_SECRET || "").trim();
+    check("cluster_session_secret", sessionSecret.length >= 32 && !sessionSecret.includes("local-dev"), "shared platform session secret is non-default");
+    check("cluster_release_id", Boolean(String(environment.RELEASE_ID || "").trim()) && String(environment.RELEASE_ID).trim() !== "development", "immutable release identifier is configured");
+    check("cluster_instance_id", Boolean(String(environment.INSTANCE_ID || environment.DROPLET_ID || "").trim()), "unique instance identifier is configured");
+    if (nodeRole === "web") {
+      check("cluster_legacy_proxy", Boolean(String(environment.LEGACY_SERVICE_URL || "").trim() && String(environment.LEGACY_PROXY_SECRET || "").trim()), "legacy state service and shared proxy secret are configured");
+    }
+    const processRole = String(environment.FIRSTMEASURE_PROCESS_ROLE || (nodeRole === "worker" ? "worker" : "web")).trim().toLowerCase();
+    check("cluster_process_role", nodeRole === "worker" ? processRole === "worker" : processRole === "web", `${nodeRole} node resolves background role ${processRole}`);
+  }
   const availableCpus = Math.max(1, availableParallelism());
   const configuredWorkers = Number.parseInt(String(environment.V1_WEB_WORKERS ?? ""), 10);
   const webWorkers = Number.isFinite(configuredWorkers) && configuredWorkers > 0
@@ -252,11 +275,12 @@ export async function runProductionPreflight(options = {}) {
   const poolMax = Math.max(1, Number.parseInt(String(environment.POSTGRES_POOL_MAX || "1"), 10) || 1);
   const connectionLimit = Math.max(1, Number.parseInt(String(environment.POSTGRES_CONNECTION_LIMIT || "97"), 10) || 97);
   const reservedConnections = Math.max(5, Number.parseInt(String(environment.POSTGRES_RESERVED_CONNECTIONS || "10"), 10) || 10);
-  const projectedConnections = webWorkers * poolMax;
+  const connectionProcesses = topology === "cluster" && nodeRole !== "web" ? 1 : webWorkers;
+  const projectedConnections = connectionProcesses * poolMax;
   check(
     "database_connection_budget",
     projectedConnections <= Math.max(1, connectionLimit - reservedConnections),
-    `${webWorkers} web workers x pool ${poolMax} = ${projectedConnections} projected connections (limit ${connectionLimit}, reserve ${reservedConnections})`
+    `${connectionProcesses} ${nodeRole === "web" ? "web workers" : "service process"} x pool ${poolMax} = ${projectedConnections} projected connections (limit ${connectionLimit}, reserve ${reservedConnections})`
   );
 
   const caPath = resolveFromV1(v1Root, environment.DATABASE_CA_CERT_PATH, "");
@@ -308,7 +332,8 @@ export async function runProductionPreflight(options = {}) {
   const firstMeasureRoot = resolveFromV1(v1Root, environment.FIRSTMEASURE_STORAGE_ROOT, "./storage/firstmeasure");
   const projectScan = await scanProjectManifests(path.join(firstMeasureRoot, "projects"));
   stats.projects = projectScan.stats;
-  check("project_manifests", projectScan.stats.manifests > 0, `${projectScan.stats.manifests} project manifests found`);
+  check("project_manifests", topology === "cluster" || projectScan.stats.manifests > 0,
+    topology === "cluster" ? `${projectScan.stats.manifests} local manifests found; PostgreSQL is authoritative in cluster mode` : `${projectScan.stats.manifests} project manifests found`);
   const invalidManifestLimit = Math.max(0, Number.parseInt(String(
     environment.POSTGRES_IMPORT_MAX_INVALID_MANIFESTS ?? (mode === "postgres" ? "100" : "0")
   ), 10) || 0);

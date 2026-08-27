@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { env } from "../src/config/env.js";
 import { listOrganizations, readOrganization } from "../platform/storage.js";
-import { asObject, listInternalDocuments, listInternalUsers, readInternalDocument, readInternalUser, saveInternalDocument } from "./storage.js";
+import { asObject, deleteInternalDocument, listInternalDocuments, listInternalUsers, readInternalDocument, readInternalUser, saveInternalDocument } from "./storage.js";
 
 type JsonObject = Record<string, unknown>;
 type Actor = {
@@ -213,7 +213,7 @@ async function readSession(id: string) {
 async function deleteSession(id: string) {
   const document = await readInternalDocument(SESSIONS_COLLECTION, id);
   if (!document) return null;
-  await rm(path.join(storageRoot(), "state", SESSIONS_COLLECTION, `${id}.json`), { force: true });
+  await deleteInternalDocument(SESSIONS_COLLECTION, id);
   return normalizeSessionDocument(document);
 }
 

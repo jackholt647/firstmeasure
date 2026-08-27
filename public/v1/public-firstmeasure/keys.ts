@@ -13,6 +13,8 @@ import {
 } from "./key_secret_vault.js";
 import { asObject, cleanText, normalizeId } from "./util.js";
 import { withPublicFirstMeasureLock } from "./locks.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { deleteSharedDocument, listSharedDocuments, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 
 export const PUBLIC_FIRSTMEASURE_KEY_SCOPES = [
   "firstmeasure:reports:create",
@@ -112,6 +114,11 @@ export function parsePublicFirstMeasureApiKey(value: string) {
 }
 
 export async function readPublicFirstMeasureApiKey(keyId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const record = await readSharedDocument<PublicFirstMeasureApiKeyRecord>({ namespace: "public_firstmeasure", collection: "api_keys", id: normalizeKeyId(keyId) });
+    if (!record) throw unauthorized("invalid_api_key", "The API key is invalid.");
+    return record;
+  }
   const raw = await readFile(keyPath(keyId), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") throw unauthorized("invalid_api_key", "The API key is invalid.");
     throw error;
@@ -120,6 +127,10 @@ export async function readPublicFirstMeasureApiKey(keyId: string) {
 }
 
 export async function listPublicFirstMeasureApiKeys(orgId?: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const records = await listSharedDocuments<PublicFirstMeasureApiKeyRecord>({ namespace: "public_firstmeasure", collection: "api_keys" });
+    return records.filter((record) => !orgId || record.org_id === orgId).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
   await mkdir(publicFirstMeasureKeyRoot(), { recursive: true });
   const entries = await readdir(publicFirstMeasureKeyRoot(), { withFileTypes: true });
   const records: PublicFirstMeasureApiKeyRecord[] = [];
@@ -176,7 +187,11 @@ export async function createPublicFirstMeasureApiKey(input: {
   };
   await storePublicFirstMeasureApiKeySecret(keyId, fullKey);
   try {
-    await writeJsonAtomic(keyPath(keyId), record);
+    if (isFirstMeasurePostgresEnabled()) {
+      await replaceSharedDocument({ namespace: "public_firstmeasure", collection: "api_keys", id: keyId }, record);
+    } else {
+      await writeJsonAtomic(keyPath(keyId), record);
+    }
   } catch (error) {
     await deletePublicFirstMeasureApiKeySecret(keyId).catch(() => undefined);
     throw error;
@@ -194,7 +209,11 @@ export async function revokePublicFirstMeasureApiKey(keyId: string) {
         status: "revoked",
         revoked_at: record.revoked_at ?? new Date().toISOString()
       };
-      await writeJsonAtomic(keyPath(normalizedKeyId), next);
+      if (isFirstMeasurePostgresEnabled()) {
+        await replaceSharedDocument({ namespace: "public_firstmeasure", collection: "api_keys", id: normalizedKeyId }, next);
+      } else {
+        await writeJsonAtomic(keyPath(normalizedKeyId), next);
+      }
       await deletePublicFirstMeasureApiKeySecret(normalizedKeyId);
       return next;
     });
@@ -225,7 +244,11 @@ export async function authenticatePublicFirstMeasureRequest(request: FastifyRequ
     const lastUsedTime = Date.parse(cleanText(current.last_used_at));
     if (!Number.isFinite(lastUsedTime) || Date.now() - lastUsedTime >= 60_000) {
       const updated = { ...current, last_used_at: new Date().toISOString() };
-      await writeJsonAtomic(keyPath(current.key_id), updated);
+      if (isFirstMeasurePostgresEnabled()) {
+        await replaceSharedDocument({ namespace: "public_firstmeasure", collection: "api_keys", id: current.key_id }, updated);
+      } else {
+        await writeJsonAtomic(keyPath(current.key_id), updated);
+      }
       return updated;
     }
     return current;

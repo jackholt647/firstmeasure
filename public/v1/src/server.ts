@@ -4,6 +4,7 @@ import { availableParallelism } from "node:os";
 import { buildApp } from "./app.js";
 import { takeClusterWorkerSlot } from "./cluster_worker_slots.js";
 import { env } from "./config/env.js";
+import { beginRuntimeDrain, validateRuntimeTopology } from "./runtime_health.js";
 
 type WorkerHealthMessage = {
   type: "v1-worker-health";
@@ -59,14 +60,21 @@ export function resolveWebWorkerSizing(): WebWorkerSizing {
 }
 
 async function start() {
+  validateRuntimeTopology();
   const app = await buildApp();
 
   let stopping = false;
   const stop = (signal: NodeJS.Signals) => {
     if (stopping) return;
     stopping = true;
+    beginRuntimeDrain();
     app.log.info({ signal }, "Stopping v1 HTTP worker gracefully.");
-    void app.close()
+    const drainMs = env.deploymentTopology === "cluster" ? env.rollingDrainMs : 0;
+    const close = async () => {
+      if (drainMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, drainMs));
+      await app.close();
+    };
+    void close()
       .then(() => process.exit(0))
       .catch((error) => {
         app.log.error({ err: error }, "Graceful v1 HTTP worker shutdown failed.");

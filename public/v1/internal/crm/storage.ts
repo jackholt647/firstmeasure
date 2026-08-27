@@ -3,6 +3,14 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import path from "node:path";
 
 import { env } from "../../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../../src/database/postgres.js";
+import {
+  deleteSharedDocument,
+  ensureSharedDocumentsReady,
+  listSharedDocuments,
+  mutateSharedDocument,
+  readSharedDocument
+} from "../../src/database/shared_documents.js";
 import { badRequest, notFound } from "../../platform/errors.js";
 
 export type JsonObject = Record<string, unknown>;
@@ -82,6 +90,15 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function postgresKey(scope: "global" | "organization", collection: CrmCollection, documentId: string, orgId?: string) {
+  return {
+    namespace: "crm",
+    scope: scope === "organization" ? sanitizeId(orgId, "organization_id") : "global",
+    collection,
+    id: sanitizeId(documentId, "document_id")
+  };
+}
+
 export function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
 }
@@ -129,6 +146,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
 }
 
 export async function ensureCrmStorage() {
+  if (isFirstMeasurePostgresEnabled()) return ensureSharedDocumentsReady();
   await mkdir(globalRoot(), { recursive: true });
   await mkdir(path.join(storageRoot(), "organizations"), { recursive: true });
   for (const collection of CRM_COLLECTIONS) {
@@ -137,8 +155,12 @@ export async function ensureCrmStorage() {
 }
 
 export async function listCrmDocuments(scope: "global" | "organization", collectionValue: string, orgId?: string) {
-  await ensureCrmStorage();
   const collection = assertCollection(collectionValue);
+  if (isFirstMeasurePostgresEnabled()) {
+    const key = postgresKey(scope, collection, "list", orgId);
+    return listSharedDocuments<CrmDocument>({ namespace: key.namespace, scope: key.scope, collection: key.collection });
+  }
+  await ensureCrmStorage();
   const root = collectionRoot(scope, collection, orgId);
   await mkdir(root, { recursive: true });
   const entries = await readdir(root, { withFileTypes: true });
@@ -155,8 +177,13 @@ export async function listCrmDocuments(scope: "global" | "organization", collect
 }
 
 export async function readCrmDocument(scope: "global" | "organization", collectionValue: string, documentId: string, orgId?: string) {
-  await ensureCrmStorage();
   const collection = assertCollection(collectionValue);
+  if (isFirstMeasurePostgresEnabled()) {
+    const document = await readSharedDocument<CrmDocument>(postgresKey(scope, collection, documentId, orgId));
+    if (!document) throw notFound("crm_document_not_found", "The requested CRM record was not found.");
+    return document;
+  }
+  await ensureCrmStorage();
   return await readJsonFile<CrmDocument>(documentPath(scope, collection, documentId, orgId));
 }
 
@@ -166,11 +193,8 @@ export async function upsertCrmDocument(
   input: JsonObject = {},
   options: { replace?: boolean; orgId?: string } = {}
 ) {
-  await ensureCrmStorage();
   const collection = assertCollection(collectionValue);
   const id = input.id ? sanitizeId(input.id, "document_id") : generateId(collection);
-  const filePath = documentPath(scope, collection, id, options.orgId);
-  const exists = await pathExists(filePath);
   const now = nowIso();
   const data = asObject(input.data ?? input);
   delete data.id;
@@ -178,6 +202,39 @@ export async function upsertCrmDocument(
   delete data.expected_revision;
   const metadata = asObject(input.metadata);
   const expectedRevision = Number(input.expected_revision ?? 0);
+
+  if (isFirstMeasurePostgresEnabled()) {
+    const key = postgresKey(scope, collection, id, options.orgId);
+    return mutateSharedDocument<CrmDocument>(key, (current) => {
+      if (current && expectedRevision && expectedRevision !== Number(current.revision ?? 0)) {
+        throw badRequest("crm_revision_conflict", "CRM record revision does not match.");
+      }
+      return current
+        ? {
+            ...current,
+            data: options.replace ? data : { ...asObject(current.data), ...data },
+            metadata: options.replace ? metadata : { ...asObject(current.metadata), ...metadata },
+            revision: Number(current.revision ?? 0) + 1,
+            updated_at: now
+          }
+        : {
+            schema_version: CRM_SCHEMA_VERSION,
+            id,
+            scope,
+            organization_id: scope === "organization" ? sanitizeId(options.orgId, "organization_id") : null,
+            collection,
+            data,
+            metadata,
+            revision: 1,
+            created_at: now,
+            updated_at: now
+          };
+    }, { create: () => null as unknown as CrmDocument });
+  }
+
+  await ensureCrmStorage();
+  const filePath = documentPath(scope, collection, id, options.orgId);
+  const exists = await pathExists(filePath);
 
   const current = exists ? await readJsonFile<CrmDocument>(filePath) : null;
   if (current && expectedRevision && expectedRevision !== Number(current.revision ?? 0)) {
@@ -210,6 +267,12 @@ export async function upsertCrmDocument(
 }
 
 export async function deleteCrmDocument(scope: "global" | "organization", collectionValue: string, documentId: string, orgId?: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const collection = assertCollection(collectionValue);
+    const existing = await deleteSharedDocument<CrmDocument>(postgresKey(scope, collection, documentId, orgId));
+    if (!existing) throw notFound("crm_document_not_found", "The requested CRM record was not found.");
+    return existing;
+  }
   const existing = await readCrmDocument(scope, collectionValue, documentId, orgId);
   await rm(documentPath(scope, assertCollection(collectionValue), documentId, orgId), { force: true });
   return existing;

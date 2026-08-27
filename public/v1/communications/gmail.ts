@@ -4,9 +4,11 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { ensureLeadDatabase, withLeadDb } from "../internal/crm/leads.js";
-import { asObject, readInternalDocument, readInternalUser, saveInternalDocument, saveInternalUser, type JsonObject } from "../internal/storage.js";
+import { asObject, deleteInternalDocument, readInternalDocument, readInternalUser, saveInternalDocument, saveInternalUser, type JsonObject } from "../internal/storage.js";
 import { badRequest } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { deleteSharedDocument, listSharedDocuments, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 
 type GmailData = JsonObject & {
   access_token?: string;
@@ -126,10 +128,17 @@ function oauthStatePath(state: string) {
 }
 
 async function writeOauthState(state: string, payload: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "communications", collection: "gmail_oauth_state", id: safeKey(state) }, { ...payload, state, created_at: nowUnix() });
+    return;
+  }
   await writeJson(oauthStatePath(state), { ...payload, state, created_at: nowUnix() });
 }
 
 async function readOauthState(state: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return await deleteSharedDocument<JsonObject>({ namespace: "communications", collection: "gmail_oauth_state", id: safeKey(state) }) ?? {};
+  }
   const filePath = oauthStatePath(state);
   const payload = await readJson<JsonObject>(filePath, {});
   await rm(filePath, { force: true });
@@ -209,6 +218,12 @@ function syncRunPath(mailboxEmail: string, runId: string) {
 }
 
 async function readMailboxState(mailboxEmail: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    return await readSharedDocument<JsonObject>({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection: "gmail_mailbox_state", id: "mailbox" }) ?? {
+      mailbox_email: normalizeEmail(mailboxEmail), mailbox_key: mailboxKey(mailboxEmail), actors: [], history_id: "",
+      initial_sync_complete: false, message_count: 0, unmatched_count: 0, sync_run_count: 0
+    };
+  }
   return await readJson<JsonObject>(mailboxStatePath(mailboxEmail), {
     mailbox_email: normalizeEmail(mailboxEmail),
     mailbox_key: mailboxKey(mailboxEmail),
@@ -222,6 +237,12 @@ async function readMailboxState(mailboxEmail: string) {
 }
 
 async function writeMailboxState(mailboxEmail: string, state: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection: "gmail_mailbox_state", id: "mailbox" }, {
+      ...state, mailbox_email: normalizeEmail(mailboxEmail), mailbox_key: mailboxKey(mailboxEmail), updated_at: nowUnix()
+    });
+    return;
+  }
   await writeJson(mailboxStatePath(mailboxEmail), {
     ...state,
     mailbox_email: normalizeEmail(mailboxEmail),
@@ -649,11 +670,21 @@ function upsertLeadActivity(db: DatabaseSync, leadId: string, actorEmail: string
 }
 
 async function writeMatchedMessage(mailboxEmail: string, message: JsonObject, leadIds: string[]) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const id = safeKey(stringValue(message.gmail_message_id));
+    await replaceSharedDocument({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection: "gmail_messages", id }, { ...message, lead_ids: leadIds, association_status: "matched", updated_at: nowUnix() });
+    await deleteSharedDocument({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection: "gmail_unmatched", id });
+    return;
+  }
   await writeJson(messagePath(mailboxEmail, stringValue(message.gmail_message_id)), { ...message, lead_ids: leadIds, association_status: "matched", updated_at: nowUnix() });
   await rm(unmatchedPath(mailboxEmail, stringValue(message.gmail_message_id)), { force: true });
 }
 
 async function writeUnmatchedMessage(mailboxEmail: string, message: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection: "gmail_unmatched", id: safeKey(stringValue(message.gmail_message_id)) }, { ...message, lead_ids: [], association_status: "unmatched", updated_at: nowUnix() });
+    return;
+  }
   await writeJson(unmatchedPath(mailboxEmail, stringValue(message.gmail_message_id)), { ...message, lead_ids: [], association_status: "unmatched", updated_at: nowUnix() });
 }
 
@@ -668,11 +699,20 @@ async function listCollection(dir: string, limit = 100) {
   return rows.sort((a, b) => Number(b.happened_at ?? b.started_at ?? 0) - Number(a.happened_at ?? a.started_at ?? 0)).slice(0, limit);
 }
 
+async function listMailboxCollection(mailboxEmail: string, collection: "gmail_messages" | "gmail_unmatched" | "gmail_sync_runs", limit = 100) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const rows = await listSharedDocuments<JsonObject>({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection, limit: Math.max(1, limit) });
+    return rows.sort((a, b) => Number(b.happened_at ?? b.started_at ?? 0) - Number(a.happened_at ?? a.started_at ?? 0)).slice(0, limit);
+  }
+  const directory = collection === "gmail_messages" ? "messages" : collection === "gmail_unmatched" ? "unmatched" : "sync_runs";
+  return listCollection(path.join(mailboxDir(mailboxEmail), directory), limit);
+}
+
 async function refreshMailboxCounts(mailboxEmail: string) {
   const state = await readMailboxState(mailboxEmail);
-  const messages = await listCollection(path.join(mailboxDir(mailboxEmail), "messages"), 100000);
-  const unmatched = await listCollection(path.join(mailboxDir(mailboxEmail), "unmatched"), 100000);
-  const runs = await listCollection(path.join(mailboxDir(mailboxEmail), "sync_runs"), 100000);
+  const messages = await listMailboxCollection(mailboxEmail, "gmail_messages", 100000);
+  const unmatched = await listMailboxCollection(mailboxEmail, "gmail_unmatched", 100000);
+  const runs = await listMailboxCollection(mailboxEmail, "gmail_sync_runs", 100000);
   await writeMailboxState(mailboxEmail, {
     ...state,
     message_count: messages.length,
@@ -726,7 +766,7 @@ export async function syncMailboxForActor(actorEmail: string, options: JsonObjec
     last_sync_reason: reason,
     history_id: stringValue(gmail.history_id || state.history_id)
   });
-  await writeJson(syncRunPath(mailboxEmail, runId), {
+  const syncRun = {
     id: runId,
     status: "ok",
     mode: force ? "force" : "recent",
@@ -737,20 +777,30 @@ export async function syncMailboxForActor(actorEmail: string, options: JsonObjec
     stored_messages: matched,
     unmatched_messages: unmatched,
     assigned_activities: matched
-  });
+  };
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "communications", scope: mailboxKey(mailboxEmail), collection: "gmail_sync_runs", id: safeKey(runId) }, syncRun);
+  } else {
+    await writeJson(syncRunPath(mailboxEmail, runId), syncRun);
+  }
   await refreshMailboxCounts(mailboxEmail);
   return { ok: true, success: true, mailbox_email: mailboxEmail, examined: messageRefs.length, matched, unmatched };
 }
 
 export async function debugSnapshot(actorEmail: string, mailboxKeyValue = "", limit = 150) {
-  await mkdir(mailboxRoot(), { recursive: true });
-  const entries = await readdir(mailboxRoot(), { withFileTypes: true }).catch(() => []);
-  const states: JsonObject[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const state = await readJson<JsonObject>(path.join(mailboxRoot(), entry.name, "mailbox.json"), {});
-    if (state.mailbox_email) states.push(state);
-  }
+  const states: JsonObject[] = isFirstMeasurePostgresEnabled()
+    ? await listSharedDocuments<JsonObject>({ namespace: "communications", collection: "gmail_mailbox_state", allScopes: true })
+    : await (async () => {
+        await mkdir(mailboxRoot(), { recursive: true });
+        const entries = await readdir(mailboxRoot(), { withFileTypes: true }).catch(() => []);
+        const result: JsonObject[] = [];
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const state = await readJson<JsonObject>(path.join(mailboxRoot(), entry.name, "mailbox.json"), {});
+          if (state.mailbox_email) result.push(state);
+        }
+        return result;
+      })();
   const current = await readGmailData(actorEmail);
   const viewerMailbox = mailboxEmailForActor(actorEmail, current);
   const selected = states.find((state) => stringValue(state.mailbox_key) === stringValue(mailboxKeyValue))
@@ -767,9 +817,9 @@ export async function debugSnapshot(actorEmail: string, mailboxKeyValue = "", li
 
 async function mailboxDetail(state: JsonObject, limit: number) {
   const mailboxEmail = normalizeEmail(state.mailbox_email);
-  const messages = await listCollection(path.join(mailboxDir(mailboxEmail), "messages"), limit);
-  const unmatched = await listCollection(path.join(mailboxDir(mailboxEmail), "unmatched"), limit);
-  const runs = await listCollection(path.join(mailboxDir(mailboxEmail), "sync_runs"), 50);
+  const messages = await listMailboxCollection(mailboxEmail, "gmail_messages", limit);
+  const unmatched = await listMailboxCollection(mailboxEmail, "gmail_unmatched", limit);
+  const runs = await listMailboxCollection(mailboxEmail, "gmail_sync_runs", 50);
   return {
     summary: state,
     matched_messages: messages,

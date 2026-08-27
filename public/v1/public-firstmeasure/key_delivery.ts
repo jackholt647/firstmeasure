@@ -8,6 +8,8 @@ import { publicFirstMeasureApiKeySecret, publicFirstMeasureKeyRoot } from "./key
 import { readPublicFirstMeasureApiKeySecret } from "./key_secret_vault.js";
 import { withPublicFirstMeasureLock } from "./locks.js";
 import { cleanText } from "./util.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { listSharedDocuments, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 
 export const DEFAULT_PUBLIC_FIRSTMEASURE_DELIVERY_TTL_HOURS = 72;
 export const MAX_PUBLIC_FIRSTMEASURE_DELIVERY_TTL_HOURS = 24 * 7;
@@ -74,6 +76,11 @@ async function writeJsonAtomic(filePath: string, value: unknown) {
 }
 
 async function readDeliveryRecord(deliveryId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const record = await readSharedDocument<PublicFirstMeasureKeyDeliveryRecord>({ namespace: "public_firstmeasure", collection: "key_deliveries", id: normalizeDeliveryId(deliveryId) });
+    if (!record) throw notFound("key_delivery_unavailable", "This API key delivery link is invalid, expired, or already used.");
+    return record;
+  }
   const raw = await readFile(deliveryPath(deliveryId), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") throw notFound("key_delivery_unavailable", "This API key delivery link is invalid, expired, or already used.");
     throw error;
@@ -82,6 +89,9 @@ async function readDeliveryRecord(deliveryId: string) {
 }
 
 async function listDeliveryRecords() {
+  if (isFirstMeasurePostgresEnabled()) {
+    return listSharedDocuments<PublicFirstMeasureKeyDeliveryRecord>({ namespace: "public_firstmeasure", collection: "key_deliveries" });
+  }
   await mkdir(deliveryRoot(), { recursive: true });
   const entries = await readdir(deliveryRoot(), { withFileTypes: true });
   const records: PublicFirstMeasureKeyDeliveryRecord[] = [];
@@ -94,6 +104,14 @@ async function listDeliveryRecords() {
     }
   }
   return records;
+}
+
+async function saveDeliveryRecord(record: PublicFirstMeasureKeyDeliveryRecord) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "public_firstmeasure", collection: "key_deliveries", id: record.delivery_id }, record);
+  } else {
+    await writeJsonAtomic(deliveryPath(record.delivery_id), record);
+  }
 }
 
 function normalizeTtlHours(value: unknown) {
@@ -137,7 +155,7 @@ export async function createPublicFirstMeasureKeyDelivery(input: {
       .filter((record) => record.key_id === keyId && !record.consumed_at && !record.superseded_at)
       .map(async (record) => {
         const next = { ...record, superseded_at: now.toISOString() };
-        await writeJsonAtomic(deliveryPath(record.delivery_id), next);
+        await saveDeliveryRecord(next);
       }));
 
     const deliveryId = randomBytes(10).toString("hex");
@@ -156,7 +174,7 @@ export async function createPublicFirstMeasureKeyDelivery(input: {
       consumed_at: null,
       superseded_at: null
     };
-    await writeJsonAtomic(deliveryPath(deliveryId), record);
+    await saveDeliveryRecord(record);
     return {
       token,
       delivery: {
@@ -192,7 +210,7 @@ export async function revealPublicFirstMeasureKeyDelivery(tokenValue: unknown) {
     if (!fullKey) throw deliveryUnavailable();
 
     const next = { ...record, consumed_at: new Date().toISOString() };
-    await writeJsonAtomic(deliveryPath(record.delivery_id), next);
+    await saveDeliveryRecord(next);
     return {
       key: fullKey,
       key_id: keyRecord.key_id,

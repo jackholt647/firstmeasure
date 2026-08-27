@@ -348,6 +348,17 @@ async function initializePostgresUserIndex() {
           key text PRIMARY KEY,
           applied_at timestamptz NOT NULL DEFAULT now()
         );
+        CREATE TABLE IF NOT EXISTS internal_documents (
+          collection text NOT NULL,
+          id text NOT NULL,
+          document_json jsonb NOT NULL,
+          revision integer NOT NULL DEFAULT 1,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY (collection, id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_internal_documents_updated
+          ON internal_documents (collection, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_internal_users_email ON internal_users_index (email);
         CREATE INDEX IF NOT EXISTS idx_internal_users_account_type ON internal_users_index (account_type);
         CREATE INDEX IF NOT EXISTS idx_internal_users_status ON internal_users_index (status);
@@ -365,10 +376,46 @@ async function initializePostgresUserIndex() {
           "INSERT INTO internal_storage_migrations (key) VALUES ('users_json_import_v1') ON CONFLICT (key) DO NOTHING"
         );
       }
+      const documentsMigrated = await client.query<{ migrated: boolean }>(
+        "SELECT EXISTS(SELECT 1 FROM internal_storage_migrations WHERE key = 'documents_json_import_v1') AS migrated"
+      );
+      if (!documentsMigrated.rows[0]?.migrated) {
+        await importPostgresInternalDocumentsWithClient(client);
+        await client.query(
+          "INSERT INTO internal_storage_migrations (key) VALUES ('documents_json_import_v1') ON CONFLICT (key) DO NOTHING"
+        );
+      }
     } finally {
       await client.query("SELECT pg_advisory_unlock(hashtext($1))", ["firstmeasure-internal-users-v1"]).catch(() => undefined);
     }
   });
+}
+
+async function importPostgresInternalDocumentsWithClient(client: import("pg").PoolClient) {
+  const stateRoot = path.join(storageRoot(), "state");
+  const collections = await readdir(stateRoot, { withFileTypes: true }).catch(() => []);
+  for (const collectionEntry of collections) {
+    if (!collectionEntry.isDirectory()) continue;
+    const collection = sanitizeId(collectionEntry.name, "collection");
+    const root = path.join(stateRoot, collectionEntry.name);
+    const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      try {
+        const document = asObject(await readJsonFile<JsonObject>(path.join(root, entry.name)));
+        const id = sanitizeId(document.id ?? entry.name.replace(/\.json$/i, ""), "document");
+        const createdAt = String(document.created_at ?? document.updated_at ?? new Date().toISOString());
+        const updatedAt = String(document.updated_at ?? createdAt);
+        await client.query(`
+          INSERT INTO internal_documents (collection, id, document_json, revision, created_at, updated_at)
+          VALUES ($1, $2, $3::jsonb, $4, $5::timestamptz, $6::timestamptz)
+          ON CONFLICT (collection, id) DO NOTHING
+        `, [collection, id, JSON.stringify(document), Number(document.revision ?? 1) || 1, createdAt, updatedAt]);
+      } catch {
+        // Preserve readable documents and leave damaged legacy files untouched.
+      }
+    }
+  }
 }
 
 async function rebuildPostgresUserIndexWithClient(client: import("pg").PoolClient) {
@@ -460,7 +507,8 @@ async function ensureUserIndex() {
 export async function rebuildInternalUserIndex() {
   if (isFirstMeasurePostgresEnabled()) {
     await ensurePostgresUserIndex();
-    const count = await withPostgresClient((client) => rebuildPostgresUserIndexWithClient(client));
+    const countResult = await queryPostgres<{ count: string }>("SELECT COUNT(*)::text AS count FROM internal_users_index");
+    const count = Number(countResult.rows[0]?.count ?? 0);
     return {
       ok: true,
       success: true,
@@ -592,11 +640,7 @@ export async function readInternalUser(userIdOrEmail: string) {
       [email, id]
     );
     if (result.rows[0]) return userFromIndexRow(result.rows[0]);
-    const directPath = userPath(userIdOrEmail);
-    if (!(await pathExists(directPath))) return null;
-    const user = normalizeInternalUser(await readJsonFile<JsonObject>(directPath));
-    await upsertPostgresUser(user);
-    return user;
+    return null;
   }
   await ensureInternalStorage();
   const directPath = userPath(userIdOrEmail);
@@ -629,7 +673,43 @@ export async function readInternalUser(userIdOrEmail: string) {
 }
 
 export async function saveInternalUser(input: JsonObject = {}, options: SaveInternalUserOptions = {}) {
-  await ensureInternalStorage();
+  if (isFirstMeasurePostgresEnabled()) {
+    await ensurePostgresUserIndex();
+    return withPostgresClient(async (client) => {
+      await client.query("BEGIN");
+      try {
+        const requested = String(input.id || input.email || "");
+        const email = normalizeEmail(requested);
+        const id = sanitizeId(requested, "user");
+        const result = await client.query<UserIndexRow>(
+          "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY id LIMIT 1 FOR UPDATE",
+          [email, id]
+        );
+        const existing = result.rows[0] ? userFromIndexRow(result.rows[0]) : null;
+        if (!existing && !normalizeEmail(input.email)) throw new Error("internal_user_email_required");
+        const user = normalizeInternalUser(input, existing ?? {});
+        const previousTeamId = normalizeInternalTeamId(existing?.team_id);
+        const nextTeamId = normalizeInternalTeamId(user.team_id);
+        if (existing && previousTeamId !== nextTeamId) {
+          const history = Array.isArray(existing.team_assignment_history)
+            ? existing.team_assignment_history.filter((entry) => entry && typeof entry === "object").slice(-99)
+            : [];
+          user.team_assignment_history = [...history, {
+            from_team_id: previousTeamId || null,
+            to_team_id: nextTeamId || null,
+            changed_at: new Date().toISOString(),
+            changed_by: String(options.changedBy ?? "").trim().toLowerCase() || null
+          }];
+        }
+        await upsertPostgresUsers(client, [user]);
+        await client.query("COMMIT");
+        return user;
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      }
+    });
+  }
   const existing = await readInternalUser(String(input.id || input.email || "")).catch(() => null);
   if (!existing && !normalizeEmail(input.email)) {
     throw new Error("internal_user_email_required");
@@ -651,16 +731,14 @@ export async function saveInternalUser(input: JsonObject = {}, options: SaveInte
       }
     ];
   }
+  await ensureInternalStorage();
   await writeJsonAtomic(userPath(user.id), user);
-  if (isFirstMeasurePostgresEnabled()) await upsertPostgresUser(user);
-  else {
     const db = await ensureUserIndex();
     try {
       upsertUserIndexSync(db, user);
     } finally {
       db.close();
     }
-  }
   return user;
 }
 
@@ -699,10 +777,6 @@ export async function patchInternalUser(userId: string, patch: JsonObject = {}) 
           ];
         }
         await upsertPostgresUsers(client, [user]);
-        // Keep the compatibility JSON mirror ordered behind the same row lock
-        // so concurrent heartbeat/activity patches cannot commit in one order
-        // and overwrite the mirror in the opposite order.
-        await writeJsonAtomic(userPath(user.id), user);
         await client.query("COMMIT");
         return user;
       } catch (error) {
@@ -723,12 +797,12 @@ export async function patchInternalUser(userId: string, patch: JsonObject = {}) 
 export async function deleteInternalUser(userId: string) {
   const existing = await readInternalUser(userId);
   if (!existing) return false;
-  await rm(userPath(existing.id), { force: true });
   if (isFirstMeasurePostgresEnabled()) {
     await ensurePostgresUserIndex();
     await queryPostgres("DELETE FROM internal_users_index WHERE id = $1 OR email = $2", [existing.id, existing.email]);
     return true;
   }
+  await rm(userPath(existing.id), { force: true });
   const db = await ensureUserIndex();
   try {
     db.prepare("DELETE FROM users_index WHERE id = ? OR email = ?").run(existing.id, existing.email);
@@ -743,6 +817,17 @@ export function asObject(value: unknown): JsonObject {
 }
 
 export async function listInternalDocuments(collection: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await ensurePostgresUserIndex();
+    const normalizedCollection = sanitizeId(collection, "collection");
+    const result = await queryPostgres<{ document_json: JsonObject }>(`
+      SELECT document_json
+      FROM internal_documents
+      WHERE collection = $1
+      ORDER BY updated_at DESC
+    `, [normalizedCollection]);
+    return result.rows.map((row) => asObject(row.document_json));
+  }
   await ensureInternalStorage();
   const root = collectionRoot(collection);
   await mkdir(root, { recursive: true });
@@ -760,12 +845,71 @@ export async function listInternalDocuments(collection: string) {
 }
 
 export async function readInternalDocument(collection: string, documentId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await ensurePostgresUserIndex();
+    const result = await queryPostgres<{ document_json: JsonObject }>(`
+      SELECT document_json
+      FROM internal_documents
+      WHERE collection = $1 AND id = $2
+    `, [sanitizeId(collection, "collection"), sanitizeId(documentId, "document")]);
+    return result.rows[0] ? asObject(result.rows[0].document_json) : null;
+  }
   await ensureInternalStorage();
   if (!(await pathExists(collectionDocumentPath(collection, documentId)))) return null;
   return await readJsonFile<JsonObject>(collectionDocumentPath(collection, documentId));
 }
 
 export async function saveInternalDocument(collection: string, documentId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await ensurePostgresUserIndex();
+    const normalizedCollection = sanitizeId(collection, "collection");
+    const id = sanitizeId(documentId, "document");
+    return withPostgresClient(async (client) => {
+      await client.query("BEGIN");
+      try {
+        const current = await client.query<{ document_json: JsonObject }>(`
+          SELECT document_json
+          FROM internal_documents
+          WHERE collection = $1 AND id = $2
+          FOR UPDATE
+        `, [normalizedCollection, id]);
+        const existing = current.rows[0] ? asObject(current.rows[0].document_json) : null;
+        const now = new Date().toISOString();
+        const next = existing
+          ? {
+              ...existing,
+              ...(options.replace ? input : { data: { ...asObject(existing.data), ...asObject(input.data ?? input) } }),
+              id,
+              collection: normalizedCollection,
+              revision: Number(existing.revision ?? 0) + 1,
+              updated_at: now
+            }
+          : {
+              schema_version: 1,
+              id,
+              collection: normalizedCollection,
+              data: asObject(input.data ?? input),
+              metadata: asObject(input.metadata),
+              revision: 1,
+              created_at: now,
+              updated_at: now
+            };
+        await client.query(`
+          INSERT INTO internal_documents (collection, id, document_json, revision, created_at, updated_at)
+          VALUES ($1, $2, $3::jsonb, $4, $5::timestamptz, $6::timestamptz)
+          ON CONFLICT (collection, id) DO UPDATE SET
+            document_json = EXCLUDED.document_json,
+            revision = EXCLUDED.revision,
+            updated_at = EXCLUDED.updated_at
+        `, [normalizedCollection, id, JSON.stringify(next), next.revision, next.created_at, next.updated_at]);
+        await client.query("COMMIT");
+        return next;
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      }
+    });
+  }
   await ensureInternalStorage();
   const existing = await readInternalDocument(collection, documentId);
   const now = new Date().toISOString();
@@ -794,6 +938,15 @@ export async function saveInternalDocument(collection: string, documentId: strin
 }
 
 export async function deleteInternalDocument(collection: string, documentId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await ensurePostgresUserIndex();
+    const result = await queryPostgres<{ document_json: JsonObject }>(`
+      DELETE FROM internal_documents
+      WHERE collection = $1 AND id = $2
+      RETURNING document_json
+    `, [sanitizeId(collection, "collection"), sanitizeId(documentId, "document")]);
+    return result.rows[0] ? asObject(result.rows[0].document_json) : null;
+  }
   const existing = await readInternalDocument(collection, documentId);
   if (!existing) return null;
   await rm(collectionDocumentPath(collection, documentId), { force: true });

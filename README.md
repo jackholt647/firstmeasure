@@ -2,6 +2,11 @@
 
 This clone runs independently from FirstMate 2.0.
 
+See [MULTI_DROPLET_MIGRATION.md](MULTI_DROPLET_MIGRATION.md) for the active
+horizontal-scaling conversion and zero-downtime cutover sequence.
+Production role files and immutable rolling-release instructions are in
+[deploy/digitalocean/README.md](deploy/digitalocean/README.md).
+
 ## Repository scope
 
 This repository contains the standalone FirstMeasure application stack:

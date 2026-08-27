@@ -3,6 +3,8 @@ import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path";
 
 import { publicFirstMeasureApiKeySecret, publicFirstMeasureKeyRoot } from "./key_material.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { deleteSharedDocument, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
 
 type SecretVaultRecord = {
   schema_version: 1;
@@ -60,17 +62,22 @@ export async function storePublicFirstMeasureApiKeySecret(keyId: string, fullKey
     ciphertext: ciphertext.toString("base64url"),
     created_at: new Date().toISOString()
   };
-  await writeJsonAtomic(vaultPath(normalizedKeyId), record);
+  if (isFirstMeasurePostgresEnabled()) {
+    await replaceSharedDocument({ namespace: "public_firstmeasure", collection: "key_secrets", id: normalizedKeyId }, record);
+  } else {
+    await writeJsonAtomic(vaultPath(normalizedKeyId), record);
+  }
 }
 
 export async function readPublicFirstMeasureApiKeySecret(keyId: string) {
   const normalizedKeyId = normalizeKeyId(keyId);
-  const raw = await readFile(vaultPath(normalizedKeyId), "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") return "";
-    throw error;
-  });
-  if (!raw) return "";
-  const record = JSON.parse(raw) as SecretVaultRecord;
+  const record = isFirstMeasurePostgresEnabled()
+    ? await readSharedDocument<SecretVaultRecord>({ namespace: "public_firstmeasure", collection: "key_secrets", id: normalizedKeyId })
+    : await readFile(vaultPath(normalizedKeyId), "utf8").then((raw) => JSON.parse(raw) as SecretVaultRecord).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      });
+  if (!record) return "";
   if (record.schema_version !== 1 || record.algorithm !== "aes-256-gcm" || record.key_id !== normalizedKeyId) {
     throw new Error("API key delivery vault record is invalid.");
   }
@@ -87,6 +94,9 @@ export async function hasPublicFirstMeasureApiKeySecret(keyId: string) {
 }
 
 export async function deletePublicFirstMeasureApiKeySecret(keyId: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await deleteSharedDocument({ namespace: "public_firstmeasure", collection: "key_secrets", id: normalizeKeyId(keyId) });
+    return;
+  }
   await rm(vaultPath(keyId), { force: true });
 }
-

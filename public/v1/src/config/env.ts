@@ -1,4 +1,5 @@
 import { config as loadDotEnv } from "dotenv";
+import { hostname } from "node:os";
 import { azureMapsProviderKey, geminiProviderKey, googleProviderKey, internalApiSecret } from "./provider_keys.js";
 
 loadDotEnv();
@@ -29,6 +30,23 @@ function readDatabaseMode(): "sqlite" | "postgres" {
   return String(process.env.DATABASE_URL ?? "").trim() ? "postgres" : "sqlite";
 }
 
+function readDeploymentTopology(): "single" | "cluster" {
+  return String(process.env.DEPLOYMENT_TOPOLOGY ?? "single").trim().toLowerCase() === "cluster"
+    ? "cluster"
+    : "single";
+}
+
+function readArtifactStorageMode(): "local" | "spaces" {
+  return String(process.env.FIRSTMEASURE_ARTIFACT_STORAGE ?? "local").trim().toLowerCase() === "spaces"
+    ? "spaces"
+    : "local";
+}
+
+function readNodeRole(): "web" | "worker" | "legacy" {
+  const value = String(process.env.CLUSTER_NODE_ROLE ?? "web").trim().toLowerCase();
+  return value === "worker" || value === "legacy" ? value : "web";
+}
+
 type AppEnv = "development" | "staging" | "production" | "test";
 
 function readAppEnv(): AppEnv {
@@ -48,6 +66,23 @@ export const env = {
   isStaging: appEnv === "staging",
   isProduction: appEnv === "production",
   isTest: appEnv === "test",
+  deploymentTopology: readDeploymentTopology(),
+  clusterNodeRole: readNodeRole(),
+  instanceId: String(process.env.INSTANCE_ID ?? process.env.DROPLET_ID ?? hostname()).trim(),
+  releaseId: String(process.env.RELEASE_ID ?? process.env.GIT_COMMIT ?? "development").trim(),
+  readinessCacheMs: readNumber("READINESS_CACHE_MS", 2_000),
+  readinessDependencyTimeoutMs: readNumber("READINESS_DEPENDENCY_TIMEOUT_MS", 2_000),
+  rollingDrainMs: readNumber("ROLLING_DRAIN_MS", 25_000),
+  legacyServiceUrl: String(process.env.LEGACY_SERVICE_URL ?? "").trim().replace(/\/$/, ""),
+  legacyProxySecret: String(process.env.LEGACY_PROXY_SECRET ?? "").trim(),
+  firstmeasureArtifactStorage: readArtifactStorageMode(),
+  spacesEndpoint: String(process.env.SPACES_ENDPOINT ?? "").trim().replace(/\/$/, ""),
+  spacesRegion: String(process.env.SPACES_REGION ?? "").trim(),
+  spacesBucket: String(process.env.SPACES_BUCKET ?? "").trim(),
+  spacesAccessKeyId: String(process.env.SPACES_ACCESS_KEY_ID ?? "").trim(),
+  spacesSecretAccessKey: String(process.env.SPACES_SECRET_ACCESS_KEY ?? "").trim(),
+  spacesForcePathStyle: readBoolean("SPACES_FORCE_PATH_STYLE", false),
+  spacesPrefix: String(process.env.SPACES_PREFIX ?? "firstmeasure").trim().replace(/^\/+|\/+$/g, ""),
   statsigEnvironmentTier: appEnv === "production" ? "production" : appEnv === "staging" ? "staging" : "development",
   host: process.env.V1_HOST ?? "127.0.0.1",
   // Production has historically been proxied to 3101. Local launchers explicitly

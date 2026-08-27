@@ -5,6 +5,13 @@ import path from "node:path";
 import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import {
+  getProjectArtifact,
+  isSpacesArtifactStorageEnabled,
+  listProjectArtifacts,
+  projectArtifactReference,
+  putProjectArtifact
+} from "../src/storage/project_artifacts.js";
+import {
   FIRSTMEASURE_FILE_NAMES,
   FIRSTMEASURE_SCHEMA_VERSION,
   PDF_FILE_NAMES,
@@ -478,6 +485,10 @@ export async function patchManifest(
 }
 
 export async function writeProjectManifestMirror(projectId: string, manifest: ProjectManifest) {
+  if (isSpacesArtifactStorageEnabled()) {
+    await putProjectArtifact(projectId, FIRSTMEASURE_FILE_NAMES.manifest, JSON.stringify(manifest, null, 2));
+    return;
+  }
   const directory = projectDir(projectId);
   await mkdir(directory, { recursive: true });
   const manifestPath = path.join(directory, FIRSTMEASURE_FILE_NAMES.manifest);
@@ -501,9 +512,9 @@ export async function updateStatus(projectId: string, status: string) {
 export async function getProjectDetail(projectId: string) {
   const manifest = await readManifest(projectId);
   const [appMetadata, pdfState, brandingDefaults] = await Promise.all([
-    readOptionalJson(path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.appMetadata)),
-    readOptionalJson(path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.pdfState)),
-    readOptionalJson(path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.brandingDefaults))
+    readAppMetadata(projectId),
+    readPdfState(projectId),
+    readBrandingDefaults(projectId)
   ]);
 
   return {
@@ -516,6 +527,10 @@ export async function getProjectDetail(projectId: string) {
 }
 
 export async function listProjectFiles(projectId: string): Promise<FileEntry[]> {
+  if (isSpacesArtifactStorageEnabled()) {
+    await assertProjectExists(projectId);
+    return listProjectArtifacts(projectId);
+  }
   const directory = projectDir(projectId);
   const entries = await readdir(directory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
@@ -538,19 +553,28 @@ export async function listProjectFiles(projectId: string): Promise<FileEntry[]> 
 
 export async function saveAppMetadata(projectId: string, value: unknown) {
   await assertProjectExists(projectId);
+  if (isSpacesArtifactStorageEnabled()) {
+    await putProjectArtifact(projectId, FIRSTMEASURE_FILE_NAMES.appMetadata, JSON.stringify(value, null, 2));
+    return value;
+  }
   const filePath = path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.appMetadata);
   await writeJsonAtomic(filePath, value);
   return value;
 }
 
 export async function readAppMetadata(projectId: string) {
+  if (isSpacesArtifactStorageEnabled()) return readOptionalProjectJson(projectId, FIRSTMEASURE_FILE_NAMES.appMetadata);
   return readOptionalJson(path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.appMetadata));
 }
 
 export async function savePdfState(projectId: string, value: unknown) {
   await assertProjectExists(projectId);
-  const filePath = path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.pdfState);
-  await writeJsonAtomic(filePath, value);
+  if (isSpacesArtifactStorageEnabled()) {
+    await putProjectArtifact(projectId, FIRSTMEASURE_FILE_NAMES.pdfState, JSON.stringify(value, null, 2));
+  } else {
+    const filePath = path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.pdfState);
+    await writeJsonAtomic(filePath, value);
+  }
   await patchManifest(projectId, {
     artifacts: { has_pdf_state: true }
   });
@@ -558,25 +582,34 @@ export async function savePdfState(projectId: string, value: unknown) {
 }
 
 export async function readPdfState(projectId: string) {
+  if (isSpacesArtifactStorageEnabled()) return readOptionalProjectJson(projectId, FIRSTMEASURE_FILE_NAMES.pdfState);
   return readOptionalJson(path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.pdfState));
 }
 
 export async function saveBrandingDefaults(projectId: string, value: unknown) {
   await assertProjectExists(projectId);
+  if (isSpacesArtifactStorageEnabled()) {
+    await putProjectArtifact(projectId, FIRSTMEASURE_FILE_NAMES.brandingDefaults, JSON.stringify(value, null, 2));
+    return value;
+  }
   const filePath = path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.brandingDefaults);
   await writeJsonAtomic(filePath, value);
   return value;
 }
 
 export async function readBrandingDefaults(projectId: string) {
+  if (isSpacesArtifactStorageEnabled()) return readOptionalProjectJson(projectId, FIRSTMEASURE_FILE_NAMES.brandingDefaults);
   return readOptionalJson(path.join(projectDir(projectId), FIRSTMEASURE_FILE_NAMES.brandingDefaults));
 }
 
 export async function saveArtifact(projectId: string, fileName: string, content: Uint8Array | string) {
   await assertProjectExists(projectId);
   const safeName = sanitizeFileName(fileName);
-  const filePath = path.join(projectDir(projectId), safeName);
-  await writeFileAtomic(filePath, content);
+  const filePath = isSpacesArtifactStorageEnabled()
+    ? projectArtifactReference(projectId, safeName)
+    : path.join(projectDir(projectId), safeName);
+  if (isSpacesArtifactStorageEnabled()) await putProjectArtifact(projectId, safeName, content);
+  else await writeFileAtomic(filePath, content);
   if (isFirstMeasurePostgresEnabled()) {
     const { mutatePostgresManifest } = await import("./project_index_postgres.js");
     const updated = await mutatePostgresManifest(projectId, async (manifest) => {
@@ -604,6 +637,15 @@ export async function saveArtifact(projectId: string, fileName: string, content:
 export async function readArtifact(projectId: string, fileName: string) {
   await assertProjectExists(projectId);
   const safeName = sanitizeFileName(fileName);
+  if (isSpacesArtifactStorageEnabled()) {
+    const content = await getProjectArtifact(projectId, safeName);
+    if (!content) throw notFound("artifact_not_found", `Artifact '${safeName}' was not found for project '${projectId}'.`);
+    return {
+      name: safeName,
+      path: projectArtifactReference(projectId, safeName),
+      content
+    };
+  }
   const filePath = path.join(projectDir(projectId), safeName);
   const content = await readFile(filePath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
@@ -652,6 +694,7 @@ export async function refreshArtifactFlags(projectId: string, manifest: ProjectM
     has_instant_pdf: names.has("Instant Report.pdf"),
     has_model_data: names.has(FIRSTMEASURE_FILE_NAMES.xmlStored),
     has_google_image: names.has("google.png"),
+    has_renderable_image: ["rgb.tif", "google.png", "azure.png", "apple.png"].some((name) => names.has(name)),
     has_mask_tif: names.has("mask.tif"),
     has_dsm_tif: names.has("dsm.tif")
   };
@@ -686,6 +729,9 @@ function applyArtifactNameToManifest(manifest: ProjectManifest, fileName: string
   }
   if (lower === "google.png") {
     artifacts.has_google_image = true;
+  }
+  if (["rgb.tif", "google.png", "azure.png", "apple.png"].includes(lower)) {
+    artifacts.has_renderable_image = true;
   }
   if (lower === "mask.tif") {
     artifacts.has_mask_tif = true;
@@ -729,6 +775,15 @@ async function readJsonFile<T>(
 async function readOptionalJson(filePath: string) {
   try {
     return await readJsonFile(filePath);
+  } catch {
+    return null;
+  }
+}
+
+async function readOptionalProjectJson(projectId: string, fileName: string) {
+  try {
+    const content = await getProjectArtifact(projectId, fileName);
+    return content ? JSON.parse(content.toString("utf8")) : null;
   } catch {
     return null;
   }
