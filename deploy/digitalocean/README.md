@@ -43,7 +43,12 @@ degraded but keeps PostgreSQL/Spaces-backed QA and customer nodes in service.
    traffic. Only the load balancer should expose public web ports.
 
 Install `/etc/firstmeasure/common.env` and the applicable role file from the
-examples. Store them with mode `0600`. Install the relevant systemd unit under
+examples. Store them with mode `0600`. Create `/etc/firstmeasure` as
+`root:www-data` with mode `0750`, and store files that PHP must open directly
+(including `provider-keys.json`) as `root:www-data` with mode `0640`. The
+`firstmeasure` service account must remain a member of `www-data`, allowing both
+the Node service and PHP-FPM to read those shared credentials without making
+them world-readable. Install the relevant systemd unit under
 `/etc/systemd/system/`. Create `/var/cache/firstmeasure` for the `firstmeasure`
 user. The legacy node additionally needs `/var/lib/firstmeasure-legacy` on its
 persistent volume. Install the private provider-key JSON at
