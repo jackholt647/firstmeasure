@@ -39,7 +39,9 @@ Install `/etc/firstmeasure/common.env` and the applicable role file from the
 examples. Store them with mode `0600`. Install the relevant systemd unit under
 `/etc/systemd/system/`. Create `/var/cache/firstmeasure` for the `firstmeasure`
 user. The legacy node additionally needs `/var/lib/firstmeasure-legacy` on its
-persistent volume.
+persistent volume. Install the private provider-key JSON at
+`/etc/firstmeasure/provider-keys.json`; the checked-in NGINX configurations
+pass that path to PHP, while `common.env` supplies it to Node.
 
 `POSTGRES_AUTO_MIGRATE=false` is the normal steady-state setting. For the first
 migration only, run one controlled migration process with `DATABASE_ADMIN_URL`

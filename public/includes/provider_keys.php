@@ -6,6 +6,8 @@
  */
 
 function fm_provider_keys_path() {
+    $configured = trim((string)getenv('PROVIDER_KEYS_PATH'));
+    if ($configured !== '') return $configured;
     return dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'provider-keys.json';
 }
 

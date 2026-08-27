@@ -33,6 +33,7 @@ server {
         try_files $uri =404;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PROVIDER_KEYS_PATH /etc/firstmeasure/provider-keys.json;
         fastcgi_param FIRSTMEASURE_NODE_BASE_URL http://127.0.0.1:3101/v1/platform;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
         fastcgi_read_timeout 300s;
