@@ -40,7 +40,7 @@ try {
   const databaseUrl = `postgresql://${user}:${encodeURIComponent(password)}@127.0.0.1:${port}/${database}`;
   const testFiles = process.argv.slice(2);
   const child = spawn(process.execPath, [
-    "--import", "tsx", "--test", "--test-force-exit", ...(testFiles.length ? testFiles : ["tests/firstmeasure-postgres.test.ts"])
+    "--import", "tsx", "--test", "--test-concurrency=1", "--test-force-exit", ...(testFiles.length ? testFiles : ["tests/firstmeasure-postgres.test.ts"])
   ], {
     cwd: process.cwd(),
     env: { ...process.env, TEST_POSTGRES_URL: databaseUrl },
