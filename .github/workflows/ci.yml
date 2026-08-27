@@ -22,6 +22,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: TypeScript and complete smoke suite
+        env:
+          FIRSTMEASURE_INTERNAL_API_SECRET: ci-test-internal-service-secret
         run: npm run test:smoke
       - name: PostgreSQL FirstMeasure integration
         run: npm run test:firstmeasure:postgres:local
