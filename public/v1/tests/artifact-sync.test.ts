@@ -36,8 +36,13 @@ test("artifact synchronization uploads once, verifies, and skips unchanged files
   const sourceRoot = path.join(fixtureRoot, "firstmeasure");
   const projectRoot = path.join(sourceRoot, "projects", "project-1");
   await mkdir(path.join(projectRoot, "nested"), { recursive: true });
+  await mkdir(path.join(projectRoot, "manifest_backups"), { recursive: true });
+  await mkdir(path.join(projectRoot, "_thumbnails"), { recursive: true });
   await writeFile(path.join(projectRoot, "manifest.json"), JSON.stringify({ id: "project-1" }));
+  await writeFile(path.join(projectRoot, "insights.json"), JSON.stringify({ ok: true }));
   await writeFile(path.join(projectRoot, "nested", "report.pdf"), Buffer.from("pdf-version-one"));
+  await writeFile(path.join(projectRoot, "manifest_backups", "manifest_old.json"), JSON.stringify({ id: "project-1" }));
+  await writeFile(path.join(projectRoot, "_thumbnails", "cached.webp"), Buffer.from("disposable-cache"));
 
   const objects = new Map<string, StoredObject>();
   let putCount = 0;

@@ -252,6 +252,8 @@ async function* walk(root: string, relativeRoot: string, projectId: string): Asy
   const entries = await readdir(path.join(root, relativeRoot), { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name.startsWith(".") && entry.name.endsWith(".tmp")) continue;
+    if (!relativeRoot && entry.isDirectory() && ["manifest_backups", "_thumbnails"].includes(entry.name)) continue;
+    if (!relativeRoot && entry.isFile() && entry.name === "manifest.json") continue;
     const relativePath = relativeRoot ? `${relativeRoot}/${entry.name}` : entry.name;
     const absolutePath = path.join(root, ...relativePath.split("/"));
     if (entry.isDirectory()) {
