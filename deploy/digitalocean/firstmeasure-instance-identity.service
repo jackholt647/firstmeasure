@@ -1,0 +1,12 @@
+[Unit]
+Description=Resolve the unique DigitalOcean Droplet identity
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/firstmeasure/current/deploy/digitalocean/write-instance-identity.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

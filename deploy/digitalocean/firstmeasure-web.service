@@ -1,7 +1,7 @@
 [Unit]
 Description=FirstMeasure stateless web API
-After=network-online.target
-Wants=network-online.target
+After=network-online.target firstmeasure-instance-identity.service
+Wants=network-online.target firstmeasure-instance-identity.service
 
 [Service]
 Type=simple
@@ -12,6 +12,7 @@ EnvironmentFile=/etc/firstmeasure/common.env
 EnvironmentFile=/etc/firstmeasure/web.env
 EnvironmentFile=/opt/firstmeasure/current/release.env
 Environment=INSTANCE_ID=%H
+EnvironmentFile=-/run/firstmeasure/instance.env
 ExecStart=/usr/bin/node --experimental-sqlite dist/src/server.js
 Restart=always
 RestartSec=3

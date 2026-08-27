@@ -44,6 +44,11 @@ persistent volume. Install the private provider-key JSON at
 `/etc/firstmeasure/provider-keys.json`; the checked-in NGINX configurations
 pass that path to PHP, while `common.env` supplies it to Node.
 
+Install and enable `firstmeasure-instance-identity.service` on every Droplet.
+It writes the unique DigitalOcean Droplet id to a volatile environment file
+before the application starts, so autoscaled nodes never share a hostname-based
+instance id copied from an image.
+
 `POSTGRES_AUTO_MIGRATE=false` is the normal steady-state setting. For the first
 migration only, run one controlled migration process with `DATABASE_ADMIN_URL`
 and `POSTGRES_AUTO_MIGRATE=true`; do not give the autoscaled web template an
