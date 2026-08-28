@@ -37,6 +37,10 @@ export type ProjectArtifactFileOptions = {
   syncRunId: string;
 };
 
+const PROJECT_ARTIFACT_UPLOAD_ATTEMPTS = 6;
+const PROJECT_ARTIFACT_UPLOAD_RETRY_BASE_MS = 250;
+const PROJECT_ARTIFACT_UPLOAD_RETRY_MAX_MS = 5_000;
+
 let spacesClient: S3Client | null = null;
 
 export function isSpacesArtifactStorageEnabled() {
@@ -156,22 +160,59 @@ export async function putProjectArtifactFile(
 ) {
   const key = projectArtifactKey(projectId, fileName);
   const checksum = Buffer.from(options.sourceSha256, "hex").toString("base64");
-  await client().send(new PutObjectCommand({
-    Bucket: env.spacesBucket,
-    Key: key,
-    Body: createReadStream(filePath),
-    ContentLength: options.size,
-    ContentType: contentTypeFor(fileName),
-    ChecksumSHA256: checksum,
-    Metadata: {
-      "source-sha256": options.sourceSha256,
-      "source-size": String(options.size),
-      "source-mtime-ms": String(Math.floor(options.sourceMtimeMs)),
-      "sync-run-id": options.syncRunId,
-      "data-environment": env.dataEnvironment
+  for (let attempt = 1; attempt <= PROJECT_ARTIFACT_UPLOAD_ATTEMPTS; attempt += 1) {
+    // The AWS SDK cannot replay a consumed Node stream. Constructing the
+    // command inside this loop gives every retry a fresh file descriptor and
+    // stream while preserving the same idempotent object key and checksum.
+    const body = createReadStream(filePath);
+    try {
+      await client().send(new PutObjectCommand({
+        Bucket: env.spacesBucket,
+        Key: key,
+        Body: body,
+        ContentLength: options.size,
+        ContentType: contentTypeFor(fileName),
+        ChecksumSHA256: checksum,
+        Metadata: {
+          "source-sha256": options.sourceSha256,
+          "source-size": String(options.size),
+          "source-mtime-ms": String(Math.floor(options.sourceMtimeMs)),
+          "sync-run-id": options.syncRunId,
+          "data-environment": env.dataEnvironment
+        }
+      }));
+      break;
+    } catch (error) {
+      body.destroy();
+      if (attempt >= PROJECT_ARTIFACT_UPLOAD_ATTEMPTS || !isRetryableObjectUploadError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, objectUploadRetryDelayMs(attempt)));
     }
-  }));
+  }
   return { key, reference: `spaces://${env.spacesBucket}/${key}` };
+}
+
+function isRetryableObjectUploadError(error: unknown) {
+  const value = error as {
+    name?: string;
+    code?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
+  const status = Number(value?.$metadata?.httpStatusCode ?? 0);
+  if (status) return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+  const name = String(value?.name ?? value?.code ?? "");
+  if (["AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "NoSuchBucket"].includes(name)) return false;
+  // Transport failures from a streaming request often surface from the SDK as
+  // UnknownError without an HTTP status. Retrying here is safe because PUT to
+  // this immutable key is idempotent and the next attempt opens a new stream.
+  return true;
+}
+
+function objectUploadRetryDelayMs(attempt: number) {
+  const exponential = Math.min(
+    PROJECT_ARTIFACT_UPLOAD_RETRY_MAX_MS,
+    PROJECT_ARTIFACT_UPLOAD_RETRY_BASE_MS * (2 ** Math.max(0, attempt - 1))
+  );
+  return exponential + Math.floor(Math.random() * Math.max(1, Math.floor(exponential / 4)));
 }
 
 export async function getProjectArtifact(projectId: string, fileName: string) {
