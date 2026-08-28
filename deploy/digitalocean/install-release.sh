@@ -58,8 +58,10 @@ else
     --exclude='*/node_modules' \
     --exclude='dist' \
     --exclude='*/dist' \
-    --exclude='storage' \
-    --exclude='*/storage' \
+    --exclude='./storage' \
+    --exclude='./storage/*' \
+    --exclude='./public/v1/storage' \
+    --exclude='./public/v1/storage/*' \
     -cf - . | tar -xf - -C "$staging_directory"
 fi
 chown -R firstmeasure:firstmeasure "$staging_directory"
