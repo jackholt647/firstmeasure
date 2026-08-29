@@ -30,6 +30,21 @@ function backendNodeBaseUrl(): string
     return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1';
 }
 
+function backendPublicNodeBaseUrl(): string
+{
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+    $hostOnly = preg_replace('/:\d+$/', '', $host);
+    if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
+        return backendNodeBaseUrl();
+    }
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $scheme = $forwardedProto === 'http' ? 'http' : 'https';
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        $scheme = 'https';
+    }
+    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1';
+}
+
 function backendJsonResponse(int $status, array $payload): void
 {
     http_response_code($status);
@@ -100,7 +115,7 @@ function backendInternalGet(string $path, string $actorEmail = '', string $actor
     if ($actorName !== '') {
         $headers[] = 'X-Internal-User-Name: ' . $actorName;
     }
-    return backendCurlJson(backendNodeBaseUrl() . '/internal/' . ltrim($path, '/'), $headers);
+    return backendCurlJson(backendPublicNodeBaseUrl() . '/internal/' . ltrim($path, '/'), $headers);
 }
 
 function backendFetchInternalUser(string $email, string $actorEmail = '', string $actorName = ''): ?array
@@ -236,7 +251,10 @@ function backendHydratePhpSessionFromNode(): void
         backendJsonResponse(401, ['success' => false, 'error' => 'node_session_missing_email']);
     }
 
-    $internal = backendCurlJson($base . '/internal/me', [
+    // The fixed legacy role protects non-session APIs with a private proxy
+    // secret. Route staff lookups through the public cluster web tier, which
+    // reads the same PostgreSQL index and applies the normal API policy.
+    $internal = backendCurlJson(backendPublicNodeBaseUrl() . '/internal/me', [
         'X-Internal-User-Email: ' . $email,
         'X-Internal-User-Name: ' . (string)($identity['name'] ?? $email),
     ]);
