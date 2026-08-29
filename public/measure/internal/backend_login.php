@@ -233,7 +233,9 @@ function backendStopInternalImpersonation(): void
 function backendHydratePhpSessionFromNode(): void
 {
     $cookie = (string)($_SERVER['HTTP_COOKIE'] ?? '');
-    if ($cookie === '' || strpos($cookie, 'fm_platform_session=') === false) {
+    $configuredCookie = trim((string)(getenv('PLATFORM_SESSION_COOKIE_NAME') ?: ($_SERVER['PLATFORM_SESSION_COOKIE_NAME'] ?? '')));
+    $platformCookie = preg_match('/^[A-Za-z0-9_-]{1,80}$/', $configuredCookie) ? $configuredCookie : 'fm_platform_session';
+    if ($cookie === '' || strpos($cookie, $platformCookie . '=') === false) {
         backendJsonResponse(401, ['success' => false, 'error' => 'missing_node_session']);
     }
 

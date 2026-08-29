@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { guardDevelopmentEmail } from "../src/environment_safety.js";
 
 export type TransactionalEmailInput = {
   to: string;
@@ -82,19 +83,29 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput) {
     return { ok: false, success: false, skipped: true, reason: "email_outbound_disabled" };
   }
 
+  const guarded = guardDevelopmentEmail({ recipients: [to], subject });
+  if (!guarded.allowed) {
+    return { ok: false, success: false, skipped: true, reason: guarded.reason };
+  }
+
   const token = await readPostmarkToken();
   if (!token) return { ok: false, success: false, error: "postmark_token_missing" };
 
   const fallbackHtml = `<div>${escapeEmailHtml(textBody).replace(/\n/g, "<br>")}</div>`;
   const payload = {
     From: cleanText(input.from) || "noreply@1m8.ai",
-    To: to,
-    Subject: subject,
+    To: guarded.recipients[0],
+    Subject: guarded.subject,
     TextBody: wrapEmailText(textBody),
     HtmlBody: wrapEmailHtml(input.htmlBody || fallbackHtml),
     ReplyTo: cleanText(input.replyTo) || "support@1m8.ai",
     ...(cleanText(input.tag) ? { Tag: cleanText(input.tag) } : {}),
-    ...(input.metadata && Object.keys(input.metadata).length ? { Metadata: input.metadata } : {})
+    ...((input.metadata && Object.keys(input.metadata).length) || guarded.rewritten ? {
+      Metadata: {
+        ...(input.metadata ?? {}),
+        ...(guarded.rewritten ? { development_intended_recipient: guarded.original_recipients.join(",") } : {})
+      }
+    } : {})
   };
 
   const response = await fetch("https://api.postmarkapp.com/email", {

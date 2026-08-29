@@ -9,6 +9,7 @@ import { badRequest } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { deleteSharedDocument, listSharedDocuments, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
+import { guardDevelopmentEmail } from "../src/environment_safety.js";
 
 type GmailData = JsonObject & {
   access_token?: string;
@@ -539,13 +540,29 @@ export async function sendGmailMessage(actorEmail: string, payload: JsonObject) 
   const gmail = await readGmailData(actorEmail);
   const fromEmail = stringValue(gmail.send_as_email || gmail.email || actorEmail);
   const fromName = stringValue(gmail.send_as_display_name);
-  const message = mimeMessage({
+  const intendedRecipients = [payload.to, payload.cc, payload.bcc]
+    .flatMap((value) => extractEmails(String(value ?? "")));
+  const guarded = guardDevelopmentEmail({
+    recipients: intendedRecipients,
+    subject: stringValue(payload.subject)
+  });
+  if (!guarded.allowed) {
+    return { ok: false, success: false, skipped: true, error: guarded.reason };
+  }
+  const guardedPayload: JsonObject = guarded.rewritten ? {
     ...payload,
-    from: payload.from || (fromName ? `${fromName} <${fromEmail}>` : fromEmail),
-    reply_to: payload.reply_to || stringValue(gmail.send_as_reply_to || fromEmail)
+    to: guarded.recipients.join(", "),
+    cc: "",
+    bcc: "",
+    subject: guarded.subject
+  } : payload;
+  const message = mimeMessage({
+    ...guardedPayload,
+    from: guardedPayload.from || (fromName ? `${fromName} <${fromEmail}>` : fromEmail),
+    reply_to: guardedPayload.reply_to || stringValue(gmail.send_as_reply_to || fromEmail)
   });
   const request: JsonObject = { raw: base64Url(message) };
-  if (payload.thread_id) request.threadId = stringValue(payload.thread_id);
+  if (guardedPayload.thread_id) request.threadId = stringValue(guardedPayload.thread_id);
   const sent = await googleRequest(actorEmail, "POST", "https://gmail.googleapis.com/gmail/v1/users/me/messages/send", request, { "Content-Type": "application/json" });
   if (!sent.ok) return sent;
   return { ok: true, success: true, ...asObject(sent.data), data: sent.data };

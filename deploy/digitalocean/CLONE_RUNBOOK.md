@@ -124,6 +124,10 @@ deleted automatically.
 Development-clone mode imports identities and password hashes so authorized
 staff can test login, but excludes production sessions, API secret-vault
 contents, API-key deliveries, Gmail mailbox state, and Apple provider state.
+After the import, the runner also removes copied Gmail OAuth tokens and provider
+configuration, deletes background jobs and transient queue events, and clears
+active project assignment/reservation/QA ownership. Development workers then
+create and claim their own leases without inheriting production work.
 
 Stage the remaining legacy filesystem state on the development legacy volume:
 

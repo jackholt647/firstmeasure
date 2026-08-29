@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 const PORTAL_SESSION_LIFETIME_SECONDS = 1209600; // 14 days
 
+function portalPlatformSessionCookieName(): string
+{
+    $configured = trim((string)(getenv('PLATFORM_SESSION_COOKIE_NAME') ?: ($_SERVER['PLATFORM_SESSION_COOKIE_NAME'] ?? '')));
+    return preg_match('/^[A-Za-z0-9_-]{1,80}$/', $configured) ? $configured : 'fm_platform_session';
+}
+
 function portalSessionCookieOptions(?int $expires = null): array
 {
     $params = session_get_cookie_params();
@@ -71,7 +77,7 @@ function portalNodePlatformBaseUrl(): string
 function portalHydrateSessionFromNodeAuth(): void
 {
     $cookie = (string)($_SERVER['HTTP_COOKIE'] ?? '');
-    if ($cookie === '' || strpos($cookie, 'fm_platform_session=') === false) {
+    if ($cookie === '' || strpos($cookie, portalPlatformSessionCookieName() . '=') === false) {
         portalClearNodeBackedSessionState();
         return;
     }
@@ -179,8 +185,9 @@ function portalExpireSessionCookie(): void
     }
 
     setcookie(session_name(), '', portalSessionCookieOptions(time() - 3600));
-    setcookie('fm_platform_session', '', portalSessionCookieOptions(time() - 3600));
-    setcookie('fm_platform_session_csrf', '', array_merge(portalSessionCookieOptions(time() - 3600), ['httponly' => false]));
+    $platformCookie = portalPlatformSessionCookieName();
+    setcookie($platformCookie, '', portalSessionCookieOptions(time() - 3600));
+    setcookie($platformCookie . '_csrf', '', array_merge(portalSessionCookieOptions(time() - 3600), ['httponly' => false]));
 }
 
 function portalExtendSessionSetCookieHeader(string $headerValue): string

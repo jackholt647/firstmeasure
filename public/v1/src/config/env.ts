@@ -24,6 +24,13 @@ function readBoolean(name: string, fallback: boolean): boolean {
   return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
 }
 
+function readCsv(name: string): readonly string[] {
+  return String(process.env[name] ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function readDatabaseMode(): "sqlite" | "postgres" {
   const raw = String(process.env.FIRSTMEASURE_DATABASE_MODE ?? "").trim().toLowerCase();
   if (raw === "sqlite" || raw === "postgres") return raw;
@@ -186,6 +193,12 @@ export const env = {
   postmarkServerToken: process.env.POSTMARK_SERVER_TOKEN ?? process.env.POSTMARK_TOKEN ?? "",
   postmarkFrom: process.env.POSTMARK_FROM ?? "noreply@1m8.ai",
   postmarkReplyTo: process.env.POSTMARK_REPLY_TO ?? "support@1m8.ai",
+  developmentEmailMode: String(process.env.DEVELOPMENT_EMAIL_MODE ?? "block").trim().toLowerCase(),
+  developmentEmailAllowedDomains: readCsv("DEVELOPMENT_EMAIL_ALLOWED_DOMAINS"),
+  developmentEmailCatchall: String(process.env.DEVELOPMENT_EMAIL_CATCHALL ?? "").trim().toLowerCase(),
+  developmentSmsMode: String(process.env.DEVELOPMENT_SMS_MODE ?? "block").trim().toLowerCase(),
+  developmentSmsAllowedE164: readCsv("DEVELOPMENT_SMS_ALLOWED_E164"),
+  developmentWorkerEnabled: readBoolean("DEVELOPMENT_WORKER_ENABLED", false),
   telnyxApiKey: process.env.TELNYX_API_KEY ?? "",
   telnyxBaseUrl: process.env.TELNYX_BASE_URL ?? "https://api.telnyx.com/v2",
   telnyxVerifyProfileId: process.env.TELNYX_VERIFY_PROFILE_ID ?? "",

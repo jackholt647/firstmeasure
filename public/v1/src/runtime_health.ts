@@ -7,6 +7,7 @@ import {
   isSpacesArtifactStorageEnabled,
   validateArtifactStorageConfiguration
 } from "./storage/project_artifacts.js";
+import { assertRuntimeEnvironmentSafety, inspectEnvironmentSafety } from "./environment_safety.js";
 
 const startedAt = new Date().toISOString();
 let draining = false;
@@ -31,7 +32,9 @@ export type RuntimeReadiness = {
     cluster_artifact_storage: boolean;
     legacy_state: boolean;
     cluster_legacy_state: boolean;
+    environment_safety: boolean;
   };
+  outbound_safety: ReturnType<typeof inspectEnvironmentSafety>;
   error?: string;
   warnings?: string[];
 };
@@ -72,6 +75,7 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
   let error = "";
   let legacyState = true;
   const warnings: string[] = [];
+  const outboundSafety = inspectEnvironmentSafety();
 
   if (isFirstMeasurePostgresEnabled()) {
     try {
@@ -118,7 +122,7 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
   // The fixed legacy node serves CRM, communications, and older internal
   // tools. Its outage is degraded functionality, but must not remove every
   // otherwise healthy QA/customer web node from the load balancer.
-  const ok = !draining && database && dataEnvironment && artifactStorage && clusterDatabase && clusterArtifactStorage && clusterLegacyState;
+  const ok = !draining && database && dataEnvironment && artifactStorage && clusterDatabase && clusterArtifactStorage && clusterLegacyState && outboundSafety.ok;
   const value: RuntimeReadiness = {
     ok,
     state: draining ? "draining" : (ok ? "ready" : "not_ready"),
@@ -132,8 +136,10 @@ export async function inspectRuntimeReadiness(options: { fresh?: boolean } = {})
       cluster_database: clusterDatabase,
       cluster_artifact_storage: clusterArtifactStorage,
       legacy_state: legacyState,
-      cluster_legacy_state: clusterLegacyState
+      cluster_legacy_state: clusterLegacyState,
+      environment_safety: outboundSafety.ok
     },
+    outbound_safety: outboundSafety,
     ...(error ? { error } : {}),
     ...(warnings.length ? { warnings } : {})
   };
@@ -160,6 +166,7 @@ async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message:
 }
 
 export function validateRuntimeTopology() {
+  assertRuntimeEnvironmentSafety();
   validateArtifactStorageConfiguration();
   if (env.deploymentTopology === "cluster" && !isFirstMeasurePostgresEnabled()) {
     throw new Error(

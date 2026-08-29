@@ -39,6 +39,7 @@
     "cluster:state:migrate": "tsx src/scripts/cluster_state_migrate.ts",
     "cluster:clone:sync": "node --experimental-sqlite --import tsx src/scripts/cluster_clone_sync.ts",
     "cluster:clone:sync:compiled": "node --experimental-sqlite dist/src/scripts/cluster_clone_sync.js",
+    "cluster:clone:sanitize-development": "node --import tsx src/scripts/development_clone_sanitize.ts --confirm-development-sanitize SANITIZE_DEVELOPMENT_CLONE",
     "cluster:local:up": "docker compose -f ../../deploy/local-cluster/compose.yml up --build -d --wait",
     "cluster:local:down": "docker compose -f ../../deploy/local-cluster/compose.yml down",
     "cluster:local:reset": "docker compose -f ../../deploy/local-cluster/compose.yml down --volumes --remove-orphans",

@@ -101,6 +101,15 @@ async function main() {
     if (options.verify) stateArguments.push("--verify");
     (report.steps as unknown[]).push(await runStep("state", "src/scripts/cluster_state_migrate.ts", stateArguments, environment));
 
+    if (options.apply && options.profile === "development-clone") {
+      (report.steps as unknown[]).push(await runStep(
+        "development-sanitize",
+        "src/scripts/development_clone_sanitize.ts",
+        ["--confirm-development-sanitize", "SANITIZE_DEVELOPMENT_CLONE"],
+        environment
+      ));
+    }
+
     const artifactReport = path.join(options.reportDirectory, `${runId}-artifacts.json`);
     const artifactArguments = [
       "--source-root", roots.firstmeasure,

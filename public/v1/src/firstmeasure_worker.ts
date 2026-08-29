@@ -9,6 +9,9 @@ const [{ default: Fastify }, { registerFirstMeasureApi }, { env }] = await Promi
   import("./config/env.js")
 ]);
 
+const { validateRuntimeTopology } = await import("./runtime_health.js");
+validateRuntimeTopology();
+
 const app = Fastify({
   logger: { level: env.logLevel }
 });

@@ -1,4 +1,5 @@
 import { normalizeIdentityPhone } from "../platform/identity_phone.js";
+import { guardDevelopmentSms } from "../src/environment_safety.js";
 
 export type TelnyxVerifyClientOptions = {
   apiKey?: string;
@@ -109,6 +110,10 @@ export class TelnyxVerifyClient {
   async startSms(phoneNumber: string) {
     const phone = normalizeE164Phone(phoneNumber);
     if (!phone) throw new TelnyxVerifyError("A valid mobile phone number is required.", 400, { code: "invalid_phone_number" });
+    const guard = guardDevelopmentSms(phone);
+    if (!guard.allowed) {
+      throw new TelnyxVerifyError("SMS delivery is blocked by the development safety policy.", 403, { code: guard.reason });
+    }
     const payload = await this.request("/verifications/sms", {
       phone_number: phone,
       verify_profile_id: this.profileId
@@ -126,6 +131,8 @@ export class TelnyxVerifyClient {
     const phone = normalizeE164Phone(phoneNumber);
     const otp = cleanText(code);
     if (!phone || !/^\d{4,10}$/.test(otp)) return "rejected" as TelnyxVerificationResult;
+    const guard = guardDevelopmentSms(phone);
+    if (!guard.allowed) return "rejected" as TelnyxVerificationResult;
     const payload = await this.request(`/verifications/by_phone_number/${encodeURIComponent(phone)}/actions/verify`, {
       code: otp,
       verify_profile_id: this.profileId
