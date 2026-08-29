@@ -49,15 +49,14 @@ function normalizedAllowedPhones() {
   return new Set(env.developmentSmsAllowedE164.map((phone) => clean(phone)).filter(Boolean));
 }
 
-export function isExplicitDevelopmentCluster() {
+export function isExplicitDevelopmentEnvironment() {
   return env.dataEnvironmentExplicit
-    && env.dataEnvironment === "development"
-    && env.deploymentTopology === "cluster";
+    && env.dataEnvironment === "development";
 }
 
 export function guardDevelopmentEmail(input: EmailGuardInput) {
   const recipients = Array.from(new Set(input.recipients.map(normalizeEmail).filter(Boolean)));
-  if (!isExplicitDevelopmentCluster()) {
+  if (!isExplicitDevelopmentEnvironment()) {
     counters.email_allowed += 1;
     return { allowed: true, recipients, subject: input.subject, rewritten: false, original_recipients: recipients } as const;
   }
@@ -93,7 +92,7 @@ export function guardDevelopmentEmail(input: EmailGuardInput) {
 
 export function guardDevelopmentSms(phone: string) {
   const normalized = clean(phone);
-  if (!isExplicitDevelopmentCluster()) {
+  if (!isExplicitDevelopmentEnvironment()) {
     counters.sms_allowed += 1;
     return { allowed: true, phone: normalized } as const;
   }
@@ -106,7 +105,7 @@ export function guardDevelopmentSms(phone: string) {
 }
 
 export function inspectEnvironmentSafety() {
-  const development = isExplicitDevelopmentCluster();
+  const development = isExplicitDevelopmentEnvironment();
   const stripeKey = configuredStripeKey();
   const allowedDomains = [...normalizedAllowedDomains()];
   const emailCatchallDomain = emailDomain(env.developmentEmailCatchall);
