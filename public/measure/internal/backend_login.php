@@ -10,12 +10,23 @@ session_start();
 
 function backendNodeBaseUrl(): string
 {
+    $configured = trim((string)(getenv('FIRSTMEASURE_NODE_BASE_URL') ?: ($_SERVER['FIRSTMEASURE_NODE_BASE_URL'] ?? '')));
+    if ($configured !== '') {
+        $base = rtrim($configured, '/');
+        // The shared PHP configuration points at the Platform API, while this
+        // bridge also calls /v1/internal endpoints. Normalize it to /v1.
+        if (substr($base, -9) === '/platform') {
+            $base = substr($base, 0, -9);
+        }
+        return rtrim($base, '/');
+    }
     $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
     $hostOnly = preg_replace('/:\d+$/', '', $host);
     if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
         return 'http://127.0.0.1:3111/v1';
     }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $scheme = $forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1';
 }
 
