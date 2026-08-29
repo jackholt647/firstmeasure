@@ -104,9 +104,29 @@ function parseCookies(header: unknown) {
   return cookies;
 }
 
+function cookieValues(header: unknown, cookieName: string) {
+  const values: string[] = [];
+  for (const part of String(header || "").split(";")) {
+    const index = part.indexOf("=");
+    if (index <= 0) continue;
+    const key = decodeURIComponent(part.slice(0, index).trim());
+    if (key !== cookieName) continue;
+    values.push(decodeURIComponent(part.slice(index + 1).trim()));
+  }
+  return values;
+}
+
 export function platformSessionIdFromRequest(request: FastifyRequest) {
-  const cookies = parseCookies(request.headers.cookie);
-  return verifySignedCookie(cookies[env.platformSessionCookieName] || "");
+  // A browser may send both a host-only development cookie and an older
+  // parent-domain production cookie with the same name. Cookie headers allow
+  // duplicate names and do not define which one an application should keep.
+  // Accept the first correctly signed value instead of letting an invalid
+  // duplicate overwrite a valid session during parsing.
+  for (const value of cookieValues(request.headers.cookie, env.platformSessionCookieName)) {
+    const sessionId = verifySignedCookie(value);
+    if (sessionId) return sessionId;
+  }
+  return null;
 }
 
 function isHttpsRequest(request: FastifyRequest) {
