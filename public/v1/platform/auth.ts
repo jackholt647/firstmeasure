@@ -116,17 +116,34 @@ function cookieValues(header: unknown, cookieName: string) {
   return values;
 }
 
-export function platformSessionIdFromRequest(request: FastifyRequest) {
+export function platformSessionIdsFromRequest(request: FastifyRequest) {
+  const sessionIds: string[] = [];
   // A browser may send both a host-only development cookie and an older
   // parent-domain production cookie with the same name. Cookie headers allow
   // duplicate names and do not define which one an application should keep.
-  // Accept the first correctly signed value instead of letting an invalid
-  // duplicate overwrite a valid session during parsing.
   for (const value of cookieValues(request.headers.cookie, env.platformSessionCookieName)) {
     const sessionId = verifySignedCookie(value);
-    if (sessionId) return sessionId;
+    if (sessionId && !sessionIds.includes(sessionId)) sessionIds.push(sessionId);
   }
-  return null;
+  return sessionIds;
+}
+
+export function platformSessionIdFromRequest(request: FastifyRequest) {
+  return platformSessionIdsFromRequest(request)[0] ?? null;
+}
+
+export function selectNewestPlatformSessionCandidate<T extends { sessionId: string; session: JsonObject }>(candidates: T[]) {
+  let selected: T | null = null;
+  let selectedCreatedAt = Number.NEGATIVE_INFINITY;
+  for (const candidate of candidates) {
+    const createdAt = Date.parse(String(candidate.session.created_at ?? ""));
+    const comparableCreatedAt = Number.isFinite(createdAt) ? createdAt : Number.NEGATIVE_INFINITY;
+    if (!selected || comparableCreatedAt > selectedCreatedAt) {
+      selected = candidate;
+      selectedCreatedAt = comparableCreatedAt;
+    }
+  }
+  return selected;
 }
 
 function isHttpsRequest(request: FastifyRequest) {
@@ -379,10 +396,18 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
 }
 
 export async function authContextFromRequest(request: FastifyRequest) {
-  const sessionId = platformSessionIdFromRequest(request);
-  if (!sessionId) return null;
-  const session = await touchAuthSession(sessionId);
-  return await buildAuthContext(sessionId, session);
+  const candidates: Array<{ sessionId: string; session: JsonObject }> = [];
+  for (const sessionId of platformSessionIdsFromRequest(request)) {
+    try {
+      candidates.push({ sessionId, session: await readAuthSession(sessionId) });
+    } catch {
+      // Another cookie with the same name may still contain an active session.
+    }
+  }
+  const selected = selectNewestPlatformSessionCandidate(candidates);
+  if (!selected) return null;
+  const session = await touchAuthSession(selected.sessionId);
+  return await buildAuthContext(selected.sessionId, session);
 }
 
 export function hasPermission(ctx: PlatformAuthContext, permission?: string) {
