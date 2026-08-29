@@ -79,10 +79,55 @@ function sharedPrefix() {
   return env.spacesPrefix ? `${env.spacesPrefix}/` : "";
 }
 
-function safeSharedObjectKey(value: string) {
-  const segments = String(value).replace(/\\/g, "/").split("/").filter(Boolean);
+function fallbackPrefix() {
+  return env.spacesReadFallbackPrefix ? `${env.spacesReadFallbackPrefix}/` : "";
+}
+
+function overlayEnabled() {
+  return Boolean(fallbackPrefix());
+}
+
+function objectKeyForPrefix(prefix: string, logicalKey: string) {
+  const segments = String(logicalKey).replace(/\\/g, "/").split("/").filter(Boolean);
   if (!segments.length) throw new Error("Invalid shared object key.");
-  return `${sharedPrefix()}${segments.map((segment) => safeSegment(segment, "object key")).join("/")}`;
+  return `${prefix}${segments.map((segment) => safeSegment(segment, "object key")).join("/")}`;
+}
+
+function tombstoneKey(logicalKey: string) {
+  return objectKeyForPrefix(`${sharedPrefix()}__overlay_tombstones/`, logicalKey);
+}
+
+async function objectExists(key: string) {
+  try {
+    await client().send(new HeadObjectCommand({ Bucket: env.spacesBucket, Key: key }));
+    return true;
+  } catch (error) {
+    if (isMissingObjectError(error)) return false;
+    throw error;
+  }
+}
+
+async function isTombstoned(logicalKey: string) {
+  return overlayEnabled() && await objectExists(tombstoneKey(logicalKey));
+}
+
+async function clearTombstone(logicalKey: string) {
+  if (!overlayEnabled()) return;
+  await client().send(new DeleteObjectCommand({ Bucket: env.spacesBucket, Key: tombstoneKey(logicalKey) }));
+}
+
+async function writeTombstone(logicalKey: string) {
+  if (!overlayEnabled()) return;
+  await client().send(new PutObjectCommand({
+    Bucket: env.spacesBucket,
+    Key: tombstoneKey(logicalKey),
+    Body: Buffer.alloc(0),
+    Metadata: { "data-environment": env.dataEnvironment }
+  }));
+}
+
+function safeSharedObjectKey(value: string) {
+  return objectKeyForPrefix(sharedPrefix(), value);
 }
 
 export async function putSharedObject(keyValue: string, content: Uint8Array | string, contentType = "application/octet-stream") {
@@ -93,6 +138,7 @@ export async function putSharedObject(keyValue: string, content: Uint8Array | st
     Body: typeof content === "string" ? Buffer.from(content, "utf8") : content,
     ContentType: contentType
   }));
+  await clearTombstone(keyValue);
   return { key, reference: `spaces://${env.spacesBucket}/${key}` };
 }
 
@@ -103,7 +149,20 @@ export async function getSharedObject(keyValue: string) {
     if (!response.Body) return null;
     return Buffer.from(await response.Body.transformToByteArray());
   } catch (error) {
-    if (isMissingObjectError(error)) return null;
+    if (isMissingObjectError(error)) {
+      if (!overlayEnabled() || await isTombstoned(keyValue)) return null;
+      try {
+        const response = await client().send(new GetObjectCommand({
+          Bucket: env.spacesBucket,
+          Key: objectKeyForPrefix(fallbackPrefix(), keyValue)
+        }));
+        if (!response.Body) return null;
+        return Buffer.from(await response.Body.transformToByteArray());
+      } catch (fallbackError) {
+        if (isMissingObjectError(fallbackError)) return null;
+        throw fallbackError;
+      }
+    }
     throw error;
   }
 }
@@ -113,6 +172,7 @@ export async function deleteSharedObject(keyValue: string) {
     Bucket: env.spacesBucket,
     Key: safeSharedObjectKey(keyValue)
   }));
+  await writeTombstone(keyValue);
 }
 
 function safeSegment(value: string, label: string, lowercase = false) {
@@ -132,6 +192,14 @@ function projectPrefix(projectId: string) {
   return `${sharedPrefix()}projects/${safeSegment(projectId, "project id", true)}/`;
 }
 
+function fallbackProjectPrefix(projectId: string) {
+  return `${fallbackPrefix()}projects/${safeSegment(projectId, "project id", true)}/`;
+}
+
+function logicalProjectArtifactKey(projectId: string, fileName: string) {
+  return `projects/${safeSegment(projectId, "project id", true)}/${safeObjectPath(fileName)}`;
+}
+
 export function projectArtifactKey(projectId: string, fileName: string) {
   return `${projectPrefix(projectId)}${safeObjectPath(fileName)}`;
 }
@@ -149,6 +217,7 @@ export async function putProjectArtifact(projectId: string, fileName: string, co
     Body: typeof content === "string" ? Buffer.from(content, "utf8") : content,
     ContentType: contentTypeFor(fileName)
   }));
+  await clearTombstone(logicalProjectArtifactKey(projectId, fileName));
   return { key, reference: `spaces://${env.spacesBucket}/${key}` };
 }
 
@@ -181,6 +250,7 @@ export async function putProjectArtifactFile(
           "data-environment": env.dataEnvironment
         }
       }));
+      await clearTombstone(logicalProjectArtifactKey(projectId, fileName));
       break;
     } catch (error) {
       body.destroy();
@@ -222,7 +292,21 @@ export async function getProjectArtifact(projectId: string, fileName: string) {
     if (!response.Body) return null;
     return Buffer.from(await response.Body.transformToByteArray());
   } catch (error) {
-    if (isMissingObjectError(error)) return null;
+    if (isMissingObjectError(error)) {
+      const logicalKey = logicalProjectArtifactKey(projectId, fileName);
+      if (!overlayEnabled() || await isTombstoned(logicalKey)) return null;
+      try {
+        const response = await client().send(new GetObjectCommand({
+          Bucket: env.spacesBucket,
+          Key: `${fallbackProjectPrefix(projectId)}${safeObjectPath(fileName)}`
+        }));
+        if (!response.Body) return null;
+        return Buffer.from(await response.Body.transformToByteArray());
+      } catch (fallbackError) {
+        if (isMissingObjectError(fallbackError)) return null;
+        throw fallbackError;
+      }
+    }
     throw error;
   }
 }
@@ -243,6 +327,25 @@ export async function headProjectArtifact(projectId: string, fileName: string): 
     };
   } catch (error) {
     if (isMissingObjectError(error)) {
+      const logicalKey = logicalProjectArtifactKey(projectId, fileName);
+      if (overlayEnabled() && !await isTombstoned(logicalKey)) {
+        try {
+          const response = await client().send(new HeadObjectCommand({
+            Bucket: env.spacesBucket,
+            Key: `${fallbackProjectPrefix(projectId)}${safeObjectPath(fileName)}`,
+            ChecksumMode: "ENABLED"
+          }));
+          return {
+            exists: true,
+            size: Number(response.ContentLength ?? 0),
+            etag: String(response.ETag ?? "").replace(/^"|"$/g, ""),
+            checksum_sha256: String(response.ChecksumSHA256 ?? ""),
+            metadata: Object.fromEntries(Object.entries(response.Metadata ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)]))
+          };
+        } catch (fallbackError) {
+          if (!isMissingObjectError(fallbackError)) throw fallbackError;
+        }
+      }
       return { exists: false, size: 0, etag: "", checksum_sha256: "", metadata: {} };
     }
     throw error;
@@ -254,31 +357,44 @@ export async function deleteProjectArtifact(projectId: string, fileName: string)
     Bucket: env.spacesBucket,
     Key: projectArtifactKey(projectId, fileName)
   }));
+  await writeTombstone(logicalProjectArtifactKey(projectId, fileName));
 }
 
 export async function listProjectArtifacts(projectId: string): Promise<ProjectArtifactEntry[]> {
-  const prefix = projectPrefix(projectId);
-  const files: ProjectArtifactEntry[] = [];
-  let continuationToken: string | undefined;
-  do {
-    const response = await client().send(new ListObjectsV2Command({
-      Bucket: env.spacesBucket,
-      Prefix: prefix,
-      ContinuationToken: continuationToken
-    }));
-    for (const object of response.Contents ?? []) {
-      const key = String(object.Key ?? "");
-      const name = key.startsWith(prefix) ? key.slice(prefix.length) : "";
-      if (!name || name.includes("/")) continue;
-      files.push({
-        name,
-        size: Number(object.Size ?? 0),
-        updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString()
-      });
+  const listAtPrefix = async (prefix: string) => {
+    const files: ProjectArtifactEntry[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const response = await client().send(new ListObjectsV2Command({
+        Bucket: env.spacesBucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken
+      }));
+      for (const object of response.Contents ?? []) {
+        const key = String(object.Key ?? "");
+        const name = key.startsWith(prefix) ? key.slice(prefix.length) : "";
+        if (!name || name.includes("/")) continue;
+        files.push({
+          name,
+          size: Number(object.Size ?? 0),
+          updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString()
+        });
+      }
+      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return files;
+  };
+
+  const fallback = overlayEnabled() ? await listAtPrefix(fallbackProjectPrefix(projectId)) : [];
+  const primary = await listAtPrefix(projectPrefix(projectId));
+  const merged = new Map(fallback.map((entry) => [entry.name, entry]));
+  for (const entry of primary) merged.set(entry.name, entry);
+  if (overlayEnabled()) {
+    for (const name of [...merged.keys()]) {
+      if (await isTombstoned(logicalProjectArtifactKey(projectId, name))) merged.delete(name);
     }
-    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
-  } while (continuationToken);
-  return files.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function listProjectArtifactInventory(): Promise<ProjectArtifactInventoryEntry[]> {
@@ -318,6 +434,13 @@ export async function checkProjectArtifactStorage(timeoutMs = env.readinessDepen
     Prefix: env.spacesPrefix ? `${env.spacesPrefix}/` : undefined,
     MaxKeys: 1
   }), { abortSignal: AbortSignal.timeout(Math.max(250, timeoutMs)) });
+  if (overlayEnabled()) {
+    await client().send(new ListObjectsV2Command({
+      Bucket: env.spacesBucket,
+      Prefix: fallbackPrefix(),
+      MaxKeys: 1
+    }), { abortSignal: AbortSignal.timeout(Math.max(250, timeoutMs)) });
+  }
   return { ok: true, mode: "spaces" as const };
 }
 

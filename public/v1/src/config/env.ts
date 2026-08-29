@@ -103,6 +103,7 @@ export const env = {
   spacesSecretAccessKey: String(process.env.SPACES_SECRET_ACCESS_KEY ?? "").trim(),
   spacesForcePathStyle: readBoolean("SPACES_FORCE_PATH_STYLE", false),
   spacesPrefix: String(process.env.SPACES_PREFIX ?? "firstmeasure").trim().replace(/^\/+|\/+$/g, ""),
+  spacesReadFallbackPrefix: String(process.env.SPACES_READ_FALLBACK_PREFIX ?? "").trim().replace(/^\/+|\/+$/g, ""),
   cloneSyncStatePath: process.env.FIRSTMEASURE_CLONE_SYNC_STATE_PATH ?? "./storage/migration/artifact-sync.sqlite",
   statsigEnvironmentTier: appEnv === "production" ? "production" : appEnv === "staging" ? "staging" : "development",
   host: process.env.V1_HOST ?? "127.0.0.1",

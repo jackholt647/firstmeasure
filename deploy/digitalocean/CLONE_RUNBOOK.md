@@ -121,6 +121,12 @@ remote inventory and durable synchronization ledger and are not uploaded
 again. Objects absent from the source are reported as orphans and never
 deleted automatically.
 
+For a fast development refresh, `SPACES_READ_FALLBACK_PREFIX=production` may
+provide a read-only base layer in the same private bucket. Development writes
+go only to its own prefix, and deletions create development tombstones instead
+of touching production objects. This removes the need to duplicate hundreds of
+gigabytes before testing while retaining strict write isolation.
+
 Development-clone mode imports identities and password hashes so authorized
 staff can test login, but excludes production sessions, API secret-vault
 contents, API-key deliveries, Gmail mailbox state, and Apple provider state.

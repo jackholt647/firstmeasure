@@ -112,6 +112,8 @@ export function inspectEnvironmentSafety() {
   const emailCatchallDomain = emailDomain(env.developmentEmailCatchall);
   const checks = {
     isolated_session_cookie: !development || env.platformSessionCookieName !== "fm_platform_session",
+    isolated_artifact_writes: !development || !env.spacesReadFallbackPrefix || env.spacesReadFallbackPrefix !== env.spacesPrefix,
+    read_fallback_development_only: !env.spacesReadFallbackPrefix || development,
     stripe_test_mode: !development || env.stripeTestMode,
     stripe_test_credentials: !development || (!stripeKey || isStripeTestKey(stripeKey)),
     stripe_live_credentials_absent: !development || !clean(env.stripeLiveSecretKey),
@@ -151,6 +153,11 @@ export function inspectEnvironmentSafety() {
       mode: env.stripeTestMode ? "test" : "live",
       credential_configured: Boolean(stripeKey),
       credential_is_test: Boolean(stripeKey && isStripeTestKey(stripeKey))
+    },
+    artifacts: {
+      write_prefix: env.spacesPrefix,
+      read_fallback_prefix: env.spacesReadFallbackPrefix || null,
+      overlay_enabled: Boolean(env.spacesReadFallbackPrefix)
     },
     worker: {
       role: env.clusterNodeRole,
