@@ -9,20 +9,40 @@ production independently of customer data.
 
 Create two isolated targets:
 
-| Target | PostgreSQL database | Private Space | Legacy volume |
-| --- | --- | --- | --- |
-| Development | `firstmeasure_development` | `private-firstmeasure-development` | `firstmeasure-legacy-development` |
-| Production candidate/live | `firstmeasure_production` | `private-firstmeasure-production` | `firstmeasure-legacy-production` |
+| Target | Compute/VPC/LB | PostgreSQL database | Private Space | Legacy volume |
+| --- | --- | --- | --- | --- |
+| Development | Dedicated | `firstmeasure_development` | Dedicated development bucket | `firstmeasure-legacy-development` |
+| Production candidate/live | Dedicated | `firstmeasure_production` | Dedicated production bucket | `firstmeasure-legacy-production` |
 
 Use separate application database users, session secrets, Space access keys,
-and provider configuration. Install the appropriate `data-*.env.example` as
-`/etc/firstmeasure/data-environment.env` on each role.
+and provider configuration. Do not run development and production services on
+the same Droplets, even when their ports and systemd units differ. Install the
+appropriate `data-*.env.example` as `/etc/firstmeasure/data-environment.env` on
+each role.
 
-Do not enable live email, SMS, payment, Gmail synchronization, or webhook
-credentials in development. Restrict `dev.1m8.ai` before loading customer data.
-The development overlay starts with background job workers disabled. Enable a
-small development-only worker count only after sandbox provider credentials and
-outbound-message sinks have been verified.
+Before routing `dev.1m8.ai`, verify all of the following on the development load
+balancer:
+
+1. `/v1/health/ready` returns `release_id` matching the intended Git release.
+2. `data_environment` is `development`, and every readiness check is true.
+3. `outbound_safety.enforced` is true: Stripe is test-only, email is rewritten
+   to the internal domain/catchall, SMS is blocked or allowlisted, cookies and
+   artifact writes are isolated, and live credentials are absent.
+4. The development worker is stopped. Start it only after the DNS cutover and
+   a successful real internal-staff login test.
+5. PostgreSQL exact row-count output from `verify-postgres-row-counts.sql`, the
+   compatibility-volume file count/bytes, and the Spaces fingerprint all match
+   the stopped source snapshot.
+
+Development may use real Google Maps, Solar, Google OAuth, Gmail/provider, and
+other read/integration APIs when their credentials and redirect origins are
+explicitly authorized for development. Stripe must use test credentials and
+test webhooks. Customer-directed email is rewritten to the `1m8.ai` allowlist
+and catchall, SMS is blocked or allowlisted, and other webhook destinations use
+test endpoints or sinks. Restrict `dev.1m8.ai` before loading customer data. The
+development overlay starts with background job workers disabled. Enable a small
+development-only worker count only after these provider checks and outbound
+sinks have been verified.
 
 ## Snapshot source
 

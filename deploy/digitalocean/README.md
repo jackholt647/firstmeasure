@@ -9,6 +9,11 @@ databases, private Spaces buckets, legacy volumes, session secrets, and
 Code releases may move from development to production; customer data cloning is
 one-way from an immutable production snapshot into the selected target.
 
+The separation boundary also includes compute and networking. Development and
+production must not share web, worker, or compatibility Droplets, a VPC, load
+balancer, database cluster, Space access key, or persistent volume. Sharing a
+Git commit is expected; sharing runtime credentials or writable state is not.
+
 ## Roles
 
 | Role | Scales horizontally | Authoritative state |
@@ -41,6 +46,20 @@ degraded but keeps PostgreSQL/Spaces-backed QA and customer nodes in service.
    check. Use the web-pool tag as the backend selector.
 7. Restrict PostgreSQL, the legacy API, and the legacy web server to private VPC
    traffic. Only the load balancer should expose public web ports.
+
+For development, install the checked-in `firstmeasure-development-*.service`
+units and `nginx-development-*.conf` files. The development worker is installed
+disabled and remains stopped until `/v1/health/ready` reports every outbound
+safety check as enforced. `assemble-development-config.sh` creates a sanitized
+configuration from a seed without retaining production database, object-store,
+session, internal-proxy, or Meta CAPI credentials.
+
+For a one-time Space-to-Space split, use `copy-spaces-bucket.mjs`. It checkpoints
+only after a complete 1,000-object page, so a stopped process repeats at most
+one page. Verify the result with `verify-spaces-bucket.mjs`, which compares the
+ordered key, size, and ETag fingerprint without loading millions of keys into
+memory. Use a fresh checkpoint and `--prefix=development/` for the stopped-state
+cutover delta.
 
 Install `/etc/firstmeasure/common.env` and the applicable role file from the
 examples. Store them with mode `0600`. Create `/etc/firstmeasure` as

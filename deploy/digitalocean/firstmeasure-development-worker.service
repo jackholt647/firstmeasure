@@ -1,0 +1,33 @@
+[Unit]
+Description=FirstMeasure isolated development durable background worker
+After=network-online.target firstmeasure-instance-identity.service
+Wants=network-online.target firstmeasure-instance-identity.service
+
+[Service]
+Type=simple
+User=firstmeasure
+Group=firstmeasure
+WorkingDirectory=/opt/firstmeasure/current/public/v1
+EnvironmentFile=/etc/firstmeasure/common.env
+EnvironmentFile=/etc/firstmeasure/worker.env
+EnvironmentFile=/etc/firstmeasure/development.env
+EnvironmentFile=/opt/firstmeasure/current/release.env
+Environment=INSTANCE_ID=%H-development-worker
+Environment=CLUSTER_NODE_ROLE=worker
+Environment=FIRSTMEASURE_PROCESS_ROLE=worker
+Environment=FIRSTMEASURE_JOB_WORKERS=2
+Environment=DEVELOPMENT_WORKER_ENABLED=true
+ExecStart=/usr/bin/env CLUSTER_NODE_ROLE=worker FIRSTMEASURE_PROCESS_ROLE=worker FIRSTMEASURE_JOB_WORKERS=2 DEVELOPMENT_WORKER_ENABLED=true /usr/bin/node --experimental-sqlite --max-old-space-size=4096 dist/src/firstmeasure_worker.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=60
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/cache/firstmeasure-development
+LimitNOFILE=131072
+
+[Install]
+WantedBy=multi-user.target

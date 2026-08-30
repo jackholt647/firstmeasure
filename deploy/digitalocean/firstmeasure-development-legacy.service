@@ -1,0 +1,35 @@
+[Unit]
+Description=FirstMeasure isolated development compatibility API
+After=network-online.target firstmeasure-instance-identity.service
+Wants=network-online.target firstmeasure-instance-identity.service
+
+[Service]
+Type=simple
+User=firstmeasure
+Group=firstmeasure
+WorkingDirectory=/opt/firstmeasure/current/public/v1
+EnvironmentFile=/etc/firstmeasure/common.env
+EnvironmentFile=/etc/firstmeasure/legacy.env
+EnvironmentFile=/etc/firstmeasure/development.env
+EnvironmentFile=/opt/firstmeasure/current/release.env
+Environment=INSTANCE_ID=%H-development-legacy
+Environment=V1_HOST=0.0.0.0
+Environment=V1_PORT=3201
+Environment=V1_WEB_WORKERS=1
+Environment=CLUSTER_NODE_ROLE=legacy
+Environment=FIRSTMEASURE_PROCESS_ROLE=web
+Environment=FIRSTMEASURE_JOB_WORKERS=0
+ExecStart=/usr/bin/env V1_HOST=0.0.0.0 V1_PORT=3201 V1_WEB_WORKERS=1 CLUSTER_NODE_ROLE=legacy FIRSTMEASURE_PROCESS_ROLE=web FIRSTMEASURE_JOB_WORKERS=0 /usr/bin/node --experimental-sqlite dist/src/server.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=45
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/firstmeasure-legacy-development /mnt/firstmeasure_development_legacy_data /var/cache/firstmeasure-development
+LimitNOFILE=131072
+
+[Install]
+WantedBy=multi-user.target
