@@ -1,5 +1,9 @@
 # FirstMeasure local development stack
 
+For production architecture, the Codex development-to-deployment workflow, and
+required release checks, start with [DEPLOYMENT.md](DEPLOYMENT.md). Its completed
+cutover state supersedes older migration documents' pre-cutover assumptions.
+
 This clone runs independently from FirstMate 2.0.
 
 See [MULTI_DROPLET_MIGRATION.md](MULTI_DROPLET_MIGRATION.md) for the active

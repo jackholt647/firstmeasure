@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/_storage.php';
+require_once __DIR__ . '/_permission_options_defaults.php';
 
 function permissionOptionsSchema() {
     static $schema = null;
@@ -8,7 +9,9 @@ function permissionOptionsSchema() {
     $path = storagePath('data/permission_options.json', true);
     $raw = @file_get_contents($path);
     $data = json_decode((string)$raw, true);
-    if (!is_array($data)) $data = [];
+    if (!is_array($data) || empty($data['sections']) || empty($data['permissions']) || empty($data['roles'])) {
+        $data = permissionOptionsBundledDefaults();
+    }
 
     $sections = [];
     $sectionMap = [];

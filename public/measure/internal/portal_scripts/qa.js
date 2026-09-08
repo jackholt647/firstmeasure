@@ -1565,6 +1565,12 @@
       .qa-check-item-header .status-badge.fixed { background: #e8f0fe; color: #1a73e8; }
       .qa-check-item-header .status-badge.resolved { background: #e6f4ea; color: #137333; }
       .qa-check-item-header .status-badge.closed { background: #f1f3f4; color: #5f6368; }
+      .qa-check-item-header .severity-badge,
+      .qa-thread-panel .severity-badge {
+        padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 900; text-transform: uppercase;
+      }
+      .severity-badge.minor { background: #e8f0fe; color: #174ea6; }
+      .severity-badge.major { background: #fce8e6; color: #b0261e; }
       .qa-check-item-header .toggle-btn {
         width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
         border: 1px solid #e0e0e0; border-radius: 8px; background: #fff;
@@ -2219,7 +2225,7 @@
                 <div class="qa-manager-section" id="qaManagerSection" style="display:none;">
                   <div class="qa-manager-section-header">
                     <span class="icon"><i class="fas fa-user-shield"></i></span>
-                    Manager Sign-off — VIP Projects
+                    Manager Sign-off — Required Reviews
                     <span class="count" id="qaManagerCount">0</span>
                   </div>
                   <div style="padding:0 18px 12px;">
@@ -3090,21 +3096,31 @@
     const message = document.getElementById('qaConfirmMessage');
     const ok = document.getElementById('qaConfirmOkBtn');
     const cancel = document.getElementById('qaConfirmCancelBtn');
-    if (!overlay || !ok || !cancel) return Promise.resolve(window.confirm(options?.message || 'Are you sure?'));
+    if (!overlay || !ok || !cancel) return Promise.resolve(options?.promptValue !== undefined ? null : window.confirm(options?.message || 'Are you sure?'));
     if (title) title.textContent = options?.title || 'Are you sure?';
     if (message) message.textContent = options?.message || '';
+    const input = options?.promptValue !== undefined ? document.createElement('textarea') : null;
+    if (input && message) {
+      input.value = String(options.promptValue);
+      input.setAttribute('aria-label', 'Resolution note');
+      input.style.cssText = 'display:block;width:100%;box-sizing:border-box;margin-top:12px;min-height:80px;';
+      message.after(input);
+    }
     ok.innerHTML = options?.confirmHtml || 'Confirm';
     cancel.textContent = options?.cancelText || 'Cancel';
     cancel.style.display = options?.alertOnly ? 'none' : '';
     overlay.classList.add('show');
+    if (input) input.focus();
     return new Promise((resolve) => {
       const cleanup = (value) => {
+        const result = input ? (value ? input.value : null) : value;
+        if (input) input.remove();
         overlay.classList.remove('show');
         cancel.style.display = '';
         ok.onclick = null;
         cancel.onclick = null;
         overlay.onclick = null;
-        resolve(value);
+        resolve(result);
       };
       ok.onclick = () => cleanup(true);
       cancel.onclick = () => cleanup(false);
@@ -3717,11 +3733,14 @@
 
     const merged = [];
     const seen = new Set();
+    const latestChange = (thread) => Math.max(0, ...(Array.isArray(thread?.history) ? thread.history : [])
+      .map((event) => Date.parse(event.ts || '') || 0));
 
     for (const thread of baseThreads) {
       const id = String(thread && thread.id || '');
       const draft = id ? localDrafts.find((item) => String(item && item.id || '') === id) : null;
-      if (draft && typeof draft === 'object') {
+      if (id) seen.add(id);
+      if (draft && typeof draft === 'object' && latestChange(draft) >= latestChange(thread)) {
         merged.push({
           ...thread,
           ...draft,
@@ -3804,11 +3823,14 @@
     return `${window.location.origin.replace(/\/+$/, '')}/v1/firstmeasure`;
   }
 
-  function resolveFirstMeasureAssetUrl(url){
+  function resolveFirstMeasureAssetUrl(url, allowSubmissionSourceFallback = false){
     const raw = String(url || '').trim();
     if (!raw) return '';
     if (/^[a-z]+:\/\//i.test(raw) || raw.startsWith('data:')) return raw;
-    if (currentId && !/[\\/]/.test(raw)) return fmArtifactUrl(currentId, raw);
+    if (currentId && !/[\\/]/.test(raw)) {
+      const resolved = fmArtifactUrl(currentId, raw);
+      return allowSubmissionSourceFallback ? `${resolved}?submission_source=1` : resolved;
+    }
     const apiBase = firstMeasureApiBase();
     if (raw.startsWith('/v1/firstmeasure/')) {
       const apiOrigin = apiBase.replace(/\/v1\/firstmeasure\/?$/i, '');
@@ -3830,7 +3852,7 @@
     const notes = typeof finalizeState.notes === 'string' ? finalizeState.notes : '';
     const images = Array.isArray(finalizeState.images) ? finalizeState.images.map((entry, index) => {
       if (entry && typeof entry === 'object') {
-        const rawUrl = String(entry.url || entry.file_name || entry.name || entry.filename || entry.dataUrl || '').trim();
+        const rawUrl = String(entry.url || entry.file_name || entry.dataUrl || entry.name || entry.filename || '').trim();
         if (!rawUrl) return null;
         return {
           url: rawUrl,
@@ -3850,11 +3872,11 @@
     const notes = typeof rawSources.notes === 'string' ? rawSources.notes : '';
     const images = Array.isArray(rawSources.images) ? rawSources.images.map((entry, index) => {
       const image = (entry && typeof entry === 'object') ? entry : { url: entry };
-      const rawUrl = String(image.url || image.file_name || image.name || image.filename || '').trim();
+      const rawUrl = String(image.url || image.file_name || image.dataUrl || image.name || image.filename || '').trim();
       if (!rawUrl) return null;
       return {
         ...image,
-        url: resolveFirstMeasureAssetUrl(rawUrl),
+        url: resolveFirstMeasureAssetUrl(rawUrl, true),
         original_name: String(image.original_name || image.name || image.file_name || image.filename || `source_${index + 1}`)
       };
     }).filter(Boolean) : [];
@@ -3871,14 +3893,18 @@
     const meta = getCurrentAppMetadata();
     if (hasOwn(meta, 'submission_sources')) {
       const normalized = normalizeSubmissionSources(meta.submission_sources);
-      if (qaPdfDebugEnabled()) console.log('[QA References] using app_metadata.submission_sources', normalized, meta.submission_sources);
-      return normalized;
+      if (normalized.notes.trim() || normalized.images.length) {
+        if (qaPdfDebugEnabled()) console.log('[QA References] using app_metadata.submission_sources', normalized, meta.submission_sources);
+        return normalized;
+      }
     }
 
     if (currentManifest && hasOwn(currentManifest, 'submission_sources')) {
       const normalized = normalizeSubmissionSources(currentManifest.submission_sources);
-      if (qaPdfDebugEnabled()) console.log('[QA References] using manifest.submission_sources', normalized, currentManifest.submission_sources);
-      return normalized;
+      if (normalized.notes.trim() || normalized.images.length) {
+        if (qaPdfDebugEnabled()) console.log('[QA References] using manifest.submission_sources', normalized, currentManifest.submission_sources);
+        return normalized;
+      }
     }
 
     const pdfState = getQaPdfState();
@@ -4488,7 +4514,11 @@
     return matches.find(t => t.status !== 'resolved' && t.status !== 'closed') || matches[0];
   }
 
-  function createThread(itemId, text, images = []){
+  function normalizeThreadSeverity(value){
+    return String(value || '').trim().toLowerCase() === 'minor' ? 'minor' : 'major';
+  }
+
+  function createThread(itemId, text, images = [], severity = 'major'){
     const item = ALL_CHECKLIST_ITEMS.find(i => i.id === itemId);
     const myRole = isManagerReviewMode ? 'manager' : 'qa';
     const thread = {
@@ -4496,6 +4526,7 @@
       item_id: itemId,
       label: item ? item.label : itemId,
       category: item ? item.category : 'unknown',
+      severity: normalizeThreadSeverity(severity),
       status: 'open',
       created_at: new Date().toISOString(),
       created_by: cfg().user?.email || myRole,
@@ -4552,16 +4583,18 @@
   }
 
   // ----------------- RESOLVE ALL ISSUES -----------------
-  function resolveAllIssues(){
+  async function resolveAllIssues(){
     const stats = getThreadStats();
     const toResolve = qaThreads.filter(t => t.status !== 'resolved' && t.status !== 'closed');
     if (toResolve.length === 0) return;
 
     const countLabel = toResolve.length === 1 ? '1 open issue' : `${toResolve.length} open issues`;
-    const note = prompt(
-      `Resolve all ${countLabel}?\n\nThis marks every flagged item as resolved so you can approve the project.\nAdd an optional note (e.g. "Reviewed — no actual issues found"):`,
-      'Reviewed — no corrections needed'
-    );
+    const note = await qaConfirm({
+      title: `Resolve all ${countLabel}?`,
+      message: 'This marks every flagged item as resolved so you can approve the project. Add an optional resolution note:',
+      promptValue: 'Reviewed — no corrections needed',
+      confirmHtml: 'Resolve Issues'
+    });
     if (note === null) return; // cancelled
 
     const myRole = isManagerReviewMode ? 'manager' : 'qa';
@@ -4823,6 +4856,9 @@
           const statusLabels = { open: 'Open', disputed: 'Disputed', fixed: 'Fixed', resolved: 'Resolved', closed: 'Closed' };
           statusBadge = `<span class="status-badge ${thread.status}">${statusLabels[thread.status] || thread.status}</span>`;
         }
+        const severityBadge = thread
+          ? `<span class="severity-badge ${normalizeThreadSeverity(thread.severity)}">${normalizeThreadSeverity(thread.severity)}</span>`
+          : '';
 
         itemDiv.innerHTML = `
           <div class="qa-check-item-header">
@@ -4830,6 +4866,7 @@
               <div class="label">${esc(item.label)}</div>
               ${item.hint ? `<div class="hint">${esc(item.hint)}</div>` : ''}
             </div>
+            ${severityBadge}
             ${statusBadge}
             <div class="toggle-btn ${thread ? 'active' : ''}" title="${thread ? 'View/Edit Issue' : 'Flag Issue'}">
               <i class="fas ${thread ? 'fa-comment-dots' : 'fa-flag'}"></i>
@@ -4882,6 +4919,13 @@
       panel.innerHTML = `
         <div class="qa-reply-composer">
           <textarea placeholder="Describe the issue with this item..." id="qaNewIssueText_${itemId}"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:12px;font-weight:800;color:#444;">
+            Severity
+            <select id="qaNewIssueSeverity_${itemId}" style="padding:7px 10px;border:1px solid #dadce0;border-radius:8px;background:#fff;">
+              <option value="major">Major — technician correction required</option>
+              <option value="minor">Minor — QA can correct</option>
+            </select>
+          </label>
           <div class="image-upload-area">
             <label class="upload-btn">
               <i class="fas fa-image"></i> Add Image
@@ -4900,13 +4944,15 @@
       document.getElementById(`qaCreateIssueBtn_${itemId}`).onclick = async () => {
         const text = document.getElementById(`qaNewIssueText_${itemId}`).value.trim();
         if (!text) { alert('Please describe the issue.'); return; }
+        const severity = document.getElementById(`qaNewIssueSeverity_${itemId}`)?.value || 'major';
         const images = await uploadPendingImages(`qaNewIssuePreview_${itemId}`);
-        createThread(itemId, text, images);
+        createThread(itemId, text, images, severity);
         renderChecklist();
         toggleItemPanel(itemId);
       };
     } else {
       let historyHtml = '<div class="qa-thread-history">';
+      historyHtml += `<div><span class="severity-badge ${normalizeThreadSeverity(thread.severity)}">${normalizeThreadSeverity(thread.severity)} issue</span></div>`;
       for (const msg of thread.history){
         const actionBadges = {
           marked_fixed: '<span class="action-badge marked_fixed"><i class="fas fa-wrench"></i> Marked as Fixed</span>',
@@ -8449,8 +8495,8 @@
     });
 
     let todayHistory = history.filter(item => {
-      const d = item.completed_at || item.date || '';
-      return isToday(d) && item.status === 'completed';
+      const d = item.qa_approved_at || item.completed_at || item.date || '';
+      return isToday(d) && (item.status === 'completed' || !!item.qa_approved_at);
     });
 
     for (const mgrItem of managerHistoryList) {
@@ -8484,7 +8530,7 @@
     updateQaHistoryPager();
     if (showWorkerView) {
       const claimedCount = Number(qaQueueStats.claimed_count || claimedByMe.length || 0);
-      const queueEmpty = displayPending.length < 1;
+      const queueEmpty = !claimedCount && !qaQueueStats.has_available_next && !qaQueueStats.next_candidate_id && displayPending.length < 1;
       if (statPending) statPending.style.display = '';
       if (statHistory) statHistory.style.display = '';
       if (statManager) statManager.style.display = queueEmpty ? '' : 'none';
@@ -8938,7 +8984,7 @@
             tr.innerHTML = `
               <td class="addr-cell">
                 <strong>${esc(item.address || '')}</strong>
-                ${vipPill(true)}
+                ${vipPill(!!item.is_vip)}
                 ${fillerPill(!!item.is_filler)}
               </td>
               <td class="nowrap muted" title="${esc(fmtDate(item.created_at || ''))}">${esc(fmtDateShort(item.created_at || ''))}</td>

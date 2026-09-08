@@ -119,11 +119,14 @@
 
     const merged = [];
     const seen = new Set();
+    const latestChange = (thread) => Math.max(0, ...(Array.isArray(thread?.history) ? thread.history : [])
+      .map((event) => Date.parse(event.ts || '') || 0));
 
     for (const thread of baseThreads) {
       const id = thread && thread.id ? String(thread.id) : '';
       const draft = id ? localDrafts.find((item) => String(item && item.id || '') === id) : null;
-      if (draft && typeof draft === 'object') {
+      if (id) seen.add(id);
+      if (draft && typeof draft === 'object' && latestChange(draft) >= latestChange(thread)) {
         merged.push({
           ...thread,
           ...draft,
@@ -711,6 +714,16 @@
       .qa-thread-header .status.disputed { background: #fff7e0; color: #856404; }
       .qa-thread-header .status.resolved { background: #e6f4ea; color: #137333; }
       .qa-thread-header .status.closed { background: #f1f3f4; color: #5f6368; }
+      .qa-thread-header .severity {
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .qa-thread-header .severity.minor { background: #e8f0fe; color: #174ea6; }
+      .qa-thread-header .severity.major { background: #fce8e6; color: #b0261e; }
       .qa-thread-header .source {
         font-size: 10px;
         font-weight: 900;
@@ -1316,6 +1329,10 @@
   }
   
   // ---------- render ----------
+  function normalizeThreadSeverity(value){
+    return String(value || '').trim().toLowerCase() === 'minor' ? 'minor' : 'major';
+  }
+
   function renderThreads(){
     if (!ui.body) return;
 
@@ -1385,6 +1402,13 @@
         <div class="qa-review-composer qa-reply-composer">
           <div class="composer-title"><i class="fas fa-plus-circle"></i> Add QA Feedback</div>
           <textarea placeholder="Describe what the technician needs to fix..." id="qaReplyText_qaNewIssue"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:12px;font-weight:800;color:#444;">
+            Severity
+            <select id="qaReplySeverity_qaNewIssue" style="padding:7px 10px;border:1px solid #dadce0;border-radius:8px;background:#fff;">
+              <option value="major">Major — technician correction required</option>
+              <option value="minor">Minor — QA can correct</option>
+            </select>
+          </label>
           <div class="upload-row">
             <label class="upload-btn">
               <i class="fas fa-image"></i> Add Image
@@ -1466,6 +1490,7 @@
       const readOnly = Boolean(thread.__fm_read_only);
       const sourceScope = thread.__fm_scope === 'manager' ? 'manager' : 'qa';
       const sourceLabel = sourceScope === 'manager' ? 'Manager' : 'QA';
+      const severity = normalizeThreadSeverity(thread.severity);
       const statusLabels = {
         open: 'Open',
         fixed: 'Marked Fixed',
@@ -1548,6 +1573,7 @@
           <div class="qa-thread-header">
             <div class="label">${esc(thread.label)}</div>
             <span class="source ${sourceScope}">${sourceLabel}</span>
+            <span class="severity ${severity}">${severity}</span>
             <span class="status ${thread.status}">${statusLabels[thread.status] || thread.status}</span>
             <i class="fas fa-chevron-down chevron"></i>
           </div>
@@ -1640,6 +1666,8 @@
     if (!isQaEmbedMode()) return;
     const textEl = document.getElementById('qaReplyText_qaNewIssue');
     const text = textEl ? textEl.value.trim() : '';
+    const severityEl = document.getElementById('qaReplySeverity_qaNewIssue');
+    const severity = normalizeThreadSeverity(severityEl ? severityEl.value : 'major');
     if (!text && !(pendingImages.qaNewIssue && pendingImages.qaNewIssue.length)) {
       alert('Please add a comment or image for the QA feedback.');
       return;
@@ -1652,6 +1680,7 @@
       item_id: id,
       category: 'general',
       label: 'QA Feedback',
+      severity,
       status: 'open',
       created_at: new Date().toISOString(),
       history: [{
@@ -1679,6 +1708,7 @@
     const text = String(payload && payload.text || '').trim();
     if (!text) return { success: false, threads: cloneJson(qaThreads, []) };
     const resolved = !!(payload && (payload.resolved || payload.corrected));
+    const severity = normalizeThreadSeverity(payload && payload.severity);
     const actor = getActorInfo('QA');
     const id = `qa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     qaThreads.push({
@@ -1686,6 +1716,7 @@
       item_id: id,
       category: 'pdf_review',
       label,
+      severity,
       status: resolved ? 'resolved' : 'open',
       created_at: new Date().toISOString(),
       history: [{

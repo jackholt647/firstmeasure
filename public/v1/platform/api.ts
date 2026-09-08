@@ -8,6 +8,8 @@ import { ZodError, z } from "zod";
 import { registerPricebookApi } from "../pricebook/api.js";
 import { createTelnyxVerifyClient, maskPhoneNumber, normalizeE164Phone, TelnyxVerifyError } from "../sms/telnyx_verify.js";
 import { env } from "../src/config/env.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { runPostgresPlatformHeartbeat } from "./heartbeat_postgres.js";
 import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey } from "../firstmeasure/expedite.js";
 import {
   firstMeasureReportAmount as sharedFirstMeasureReportAmount,
@@ -56,6 +58,7 @@ import {
   readBranchModule,
   readDocument,
   readGlobal,
+  mutateGlobal,
   readMediaFile,
   readMediaMetadata,
   readOrganization,
@@ -932,7 +935,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
         { balance, required: amount }
       );
     }
-    const charge = await applyCreditDelta(orgId, { ...body, amount: -amount, reason: body.reason || "order_submitted" }, ctx.identity.email);
+    const charge = await applyCreditDelta(orgId, { ...body, amount: -amount, reason: body.reason || "order_submitted" }, ctx.identity.email, true);
     const autoTopup = await stripeMaybeAutoTopup(orgId, String(ctx.identity.email || ""), charge.balance, charge.ledger_entry);
     return {
       ok: true,
@@ -3484,8 +3487,8 @@ function eventHasCompleted(event: Record<string, unknown>, now = Date.now()) {
   return start.getTime() + durationMinutes * 60000 <= now;
 }
 
-async function processCompletedProjectEventsForOrg(orgId: string) {
-  const projects = await listDocuments(orgId, "projects");
+async function processCompletedProjectEventsForOrg(orgId: string, candidates?: Record<string, unknown>[]) {
+  const projects = candidates ?? await listDocuments(orgId, "projects");
   for (const document of projects) {
     const project = asObject(document.data);
     const events = Array.isArray(project.events) ? project.events.map((event) => asObject(event)) : [];
@@ -3525,6 +3528,13 @@ async function runPlatformHeartbeat(app: { log?: { warn: (value: unknown, messag
   if (heartbeatRunning) return;
   heartbeatRunning = true;
   try {
+    if (isFirstMeasurePostgresEnabled()) {
+      await runPostgresPlatformHeartbeat(
+        (orgId, project) => processCompletedProjectEventsForOrg(orgId, [project]),
+        (error, orgId) => app.log?.warn({ err: error, orgId }, "Platform heartbeat failed for organization.")
+      );
+      return;
+    }
     const organizations = await listOrganizations();
     for (const org of organizations) {
       const orgId = String(asObject(org).id || "");
@@ -3651,76 +3661,134 @@ function shouldRepairIdentityStatus(identity: JsonObject, nextStatus: string) {
   return ["invited", "pending"].includes(current);
 }
 
-async function applyCreditDelta(orgId: string, body: Record<string, unknown>, actorEmail: unknown) {
+async function applyCreditDelta(
+  orgId: string,
+  body: Record<string, unknown>,
+  actorEmail: unknown,
+  requireAvailableCredits = false,
+  freeExpediteMutation?: { amount: number; reason: string; meta: JsonObject }
+) {
   const amount = numericValue(body.amount ?? body.delta);
-  if (amount === 0) throw badRequest("invalid_credit_amount", "Credit amount must be non-zero.");
-  const global = await readGlobal(orgId);
-  const data = asObject(global.data);
-  const balance = numericValue(data.credits_balance);
-  const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
-  const entry = {
-    ts: new Date().toISOString(),
-    delta: amount,
-    reason: String(body.reason || "adjustment"),
-    by_email: String(actorEmail || ""),
-    applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
-    meta: asObject(body.meta),
-    unit: String(body.unit || "usd_dollars"),
-    balance_after: Math.round((balance + amount) * 100) / 100
-  };
-  ledger.push(entry);
-  const document = await saveGlobal(orgId, {
-    data: {
-      credits_balance: entry.balance_after,
-      credits_ledger: ledger
-    },
-    metadata: {
-      last_credit_mutation_at: entry.ts,
-      last_credit_mutation_reason: entry.reason
+  if (amount === 0 && !freeExpediteMutation) throw badRequest("invalid_credit_amount", "Credit amount must be non-zero.");
+  let freeExpedite: { free_expedite_uses: number; free_expedite_ledger_entry: JsonObject; free_expedite_ledger_count: number } | null = null;
+  let outcome = { balance: 0, ledger_entry: {} as JsonObject, ledger_count: 0 };
+  const document = await mutateGlobal(orgId, (global) => {
+    const data = asObject(global.data);
+    const balance = numericValue(data.credits_balance);
+    if (requireAvailableCredits && amount < 0 && Math.round((balance + amount) * 100) < 0) {
+      throw new PlatformError("insufficient_credits", 402, "This organization does not have enough credits for this charge.", { balance, required: Math.abs(amount) });
     }
+    const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
+    // Checkout fulfillment can arrive from the webhook and browser together;
+    // Stripe retry IDs must be checked in the same transaction as the credit.
+    const reason = String(body.reason ?? "");
+    const paymentMeta = asObject(body.meta);
+    const paymentKey = reason === "stripe_checkout_paid"
+      ? String(paymentMeta.stripe_checkout_session_id ?? paymentMeta.session_id ?? "")
+      : (reason === "stripe_auto_topup" ? String(paymentMeta.payment_intent_id ?? "") : "");
+    const duplicate = amount > 0 && paymentKey ? ledger.find((value) => {
+      const previous = asObject(value);
+      const meta = asObject(previous.meta);
+      const key = reason === "stripe_checkout_paid"
+        ? String(meta.stripe_checkout_session_id ?? meta.session_id ?? "")
+        : String(meta.payment_intent_id ?? "");
+      return String(previous.reason ?? "") === reason && Number(previous.delta) > 0 && key === paymentKey;
+    }) : null;
+    if (duplicate) {
+      outcome = { balance, ledger_entry: asObject(duplicate), ledger_count: ledger.length };
+      return {};
+    }
+    // The discount and its coupon must be committed with the debit, before
+    // creating/upgrading a report. A stale coupon quote fails without charging
+    // more than the customer agreed to, or creating a discounted report.
+    const couponPatch: JsonObject = {};
+    const couponMetadata: JsonObject = {};
+    if (freeExpediteMutation) {
+      const couponDelta = Math.round(freeExpediteMutation.amount);
+      if (!Number.isFinite(couponDelta) || couponDelta === 0) throw badRequest("invalid_free_expedite_amount", "Free expedite uses amount must be non-zero.");
+      const current = Math.max(0, Math.round(numericValue(data.free_expedite_uses)));
+      const next = current + couponDelta;
+      if (next < 0) throw badRequest("insufficient_free_expedite_uses", "The free expedite was used by another order. Refresh the price and try again.");
+      const couponLedger = Array.isArray(data.free_expedite_ledger) ? [...data.free_expedite_ledger] : [];
+      const couponEntry = {
+        ts: new Date().toISOString(), delta: couponDelta, reason: freeExpediteMutation.reason,
+        by_email: String(actorEmail || ""), meta: freeExpediteMutation.meta, balance_after: next
+      };
+      couponLedger.push(couponEntry);
+      Object.assign(couponPatch, { free_expedite_uses: next, free_expedite_ledger: couponLedger });
+      Object.assign(couponMetadata, { last_free_expedite_mutation_at: couponEntry.ts, last_free_expedite_mutation_reason: couponEntry.reason });
+      freeExpedite = { free_expedite_uses: next, free_expedite_ledger_entry: couponEntry, free_expedite_ledger_count: couponLedger.length };
+    }
+    const entry = {
+      ts: new Date().toISOString(),
+      delta: amount,
+      reason: String(body.reason || "adjustment"),
+      by_email: String(actorEmail || ""),
+      applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
+      meta: asObject(body.meta),
+      unit: String(body.unit || "usd_dollars"),
+      balance_after: Math.round((balance + amount) * 100) / 100
+    };
+    if (amount !== 0) ledger.push(entry);
+    outcome = {
+      balance: entry.balance_after,
+      ledger_entry: entry,
+      ledger_count: ledger.length
+    };
+    return {
+      data: {
+        credits_balance: entry.balance_after,
+        credits_ledger: ledger,
+        ...couponPatch
+      },
+      metadata: {
+        last_credit_mutation_at: entry.ts,
+        last_credit_mutation_reason: entry.reason,
+        ...couponMetadata
+      }
+    };
   });
-  return {
-    balance: entry.balance_after,
-    ledger_entry: entry,
-    ledger_count: ledger.length,
-    document
-  };
+
+  return { ...outcome, document, free_expedite: freeExpedite };
 }
 
 async function applyFreeExpediteDelta(orgId: string, body: Record<string, unknown>, actorEmail: unknown) {
   const amount = Math.round(numericValue(body.amount ?? body.delta));
   if (amount === 0) throw badRequest("invalid_free_expedite_amount", "Free expedite uses amount must be non-zero.");
-  const global = await readGlobal(orgId);
-  const data = asObject(global.data);
-  const current = Math.max(0, Math.round(numericValue(data.free_expedite_uses)));
-  const next = current + amount;
-  if (next < 0) throw badRequest("insufficient_free_expedite_uses", "This organization does not have enough free expedite uses.");
-  const ledger = Array.isArray(data.free_expedite_ledger) ? [...data.free_expedite_ledger] : [];
-  const entry = {
-    ts: new Date().toISOString(),
-    delta: amount,
-    reason: String(body.reason || "free_expedite_adjustment"),
-    by_email: String(actorEmail || ""),
-    meta: asObject(body.meta),
-    balance_after: next
-  };
-  ledger.push(entry);
-  const document = await saveGlobal(orgId, {
-    data: {
+  let outcome = { free_expedite_uses: 0, free_expedite_ledger_entry: {} as JsonObject, free_expedite_ledger_count: 0 };
+  const document = await mutateGlobal(orgId, (global) => {
+    const data = asObject(global.data);
+    const current = Math.max(0, Math.round(numericValue(data.free_expedite_uses)));
+    const next = current + amount;
+    if (next < 0) throw badRequest("insufficient_free_expedite_uses", "This organization does not have enough free expedite uses.");
+    const ledger = Array.isArray(data.free_expedite_ledger) ? [...data.free_expedite_ledger] : [];
+    const entry = {
+      ts: new Date().toISOString(),
+      delta: amount,
+      reason: String(body.reason || "free_expedite_adjustment"),
+      by_email: String(actorEmail || ""),
+      meta: asObject(body.meta),
+      balance_after: next
+    };
+    ledger.push(entry);
+    outcome = {
       free_expedite_uses: next,
-      free_expedite_ledger: ledger
-    },
-    metadata: {
-      last_free_expedite_mutation_at: entry.ts,
-      last_free_expedite_mutation_reason: entry.reason
-    }
+      free_expedite_ledger_entry: entry,
+      free_expedite_ledger_count: ledger.length
+    };
+    return {
+      data: {
+        free_expedite_uses: next,
+        free_expedite_ledger: ledger
+      },
+      metadata: {
+        last_free_expedite_mutation_at: entry.ts,
+        last_free_expedite_mutation_reason: entry.reason
+      }
+    };
   });
-  return {
-    free_expedite_uses: next,
-    free_expedite_ledger_entry: entry,
-    free_expedite_ledger_count: ledger.length,
-    document
-  };
+
+  return { ...outcome, document };
 }
 
 async function creditChargeForToken(orgId: string, chargeToken: string) {
@@ -7920,7 +7988,7 @@ async function portalExpediteQueuedProject(app: FastifyInstance, orgId: string, 
         free_expedite_discount: expediteDiscount,
         free_expedite_applied: freeExpediteApplied
       }
-    }, actor.email)
+    }, actor.email, true)
     : null;
 
   const patch = {
@@ -8175,7 +8243,7 @@ async function portalSubmitReportReworkRequest(app: FastifyInstance, orgId: stri
         free_expedite_discount: chargeQuote?.free_expedite_discount ?? 0,
         free_expedite_applied: chargeQuote?.free_expedite_applied ?? false
       }
-    }, actor.email)
+    }, actor.email, true)
     : null;
 
   const requestRecord = {
@@ -8536,7 +8604,7 @@ async function portalQueueProject(app: FastifyInstance, orgId: string, actor: Re
       free_expedite_discount: chargeQuote.free_expedite_discount,
       free_expedite_applied: chargeQuote.free_expedite_applied
     }
-  }, actor.email);
+  }, actor.email, true);
   const response = await app.inject({
     method: "POST",
     url: reportMode === "instant" ? "/v1/firstmeasure/instants" : "/v1/firstmeasure/projects/queue",

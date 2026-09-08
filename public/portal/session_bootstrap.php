@@ -97,6 +97,12 @@ function portalHydrateSessionFromNodeAuth(): void
         ],
     ]);
     $raw = @file_get_contents($url, false, $context);
+    $status = 0;
+    foreach (($http_response_header ?? []) as $line) {
+        if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $line, $match)) {
+            $status = (int)$match[1];
+        }
+    }
     if ((!is_string($raw) || $raw === '') && function_exists('curl_init')) {
         $ch = curl_init($url);
         if ($ch !== false) {
@@ -109,17 +115,15 @@ function portalHydrateSessionFromNodeAuth(): void
                 CURLOPT_SSL_VERIFYHOST => false,
             ]);
             $curlRaw = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             curl_close($ch);
             if (is_string($curlRaw) && $curlRaw !== '') {
                 $raw = $curlRaw;
             }
         }
     }
-    if (!is_string($raw) || $raw === '') {
-        return;
-    }
-    $data = json_decode($raw, true);
-    if (!is_array($data) || empty($data['authenticated'])) {
+    $data = portalDecodeAuthSessionResponse($raw, $status);
+    if (empty($data['authenticated'])) {
         portalClearNodeBackedSessionState();
         return;
     }
@@ -152,6 +156,25 @@ function portalHydrateSessionFromNodeAuth(): void
     } else {
         unset($_SESSION['is_impersonating'], $_SESSION['impersonating_from_email'], $_SESSION['impersonation_started_at']);
     }
+}
+
+function portalDecodeAuthSessionResponse($raw, int $status): array
+{
+    if ($status === 401 || $status === 403) {
+        return ['authenticated' => false];
+    }
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if ($status !== 200 || !is_array($data) || !array_key_exists('authenticated', $data)) {
+        // A transport/backend failure is not evidence that the user's session
+        // expired. Fail closed without clearing auth state or redirecting to login.
+        http_response_code(503);
+        header('Retry-After: 2');
+        header('Cache-Control: no-store');
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>Portal temporarily unavailable</title><p>The portal is temporarily unavailable. Please refresh in a moment.</p></html>';
+        exit;
+    }
+    return $data;
 }
 
 function portalClearNodeBackedSessionState(): void

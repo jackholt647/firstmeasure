@@ -49,6 +49,9 @@ test("VIP projects and projects approved by trainee QA both require manager revi
         },
         timestamps: { created_at: now, queued_at: now, updated_at: now }
       } as unknown as ProjectManifest);
+      // Approval requires a previously reviewed PDF. This test covers routing,
+      // not rendering, and background workers remain disabled.
+      await storage.saveStoredPdf(id, "main", Buffer.from("%PDF-1.4\nsynthetic routing fixture\n%%EOF"));
     };
 
     await saveClaimedProject("trainee-standard-project", trainee, false);

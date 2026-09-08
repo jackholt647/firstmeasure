@@ -9,6 +9,7 @@ import { ZodError } from "zod";
 
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { env } from "../src/config/env.js";
+import { guardDevelopmentEmail } from "../src/environment_safety.js";
 import {
   deleteProjectArtifact,
   getProjectArtifact,
@@ -311,7 +312,7 @@ const weatherReportGenerationQueue = new Set<string>();
 let legacyProjectSearchCache: LegacyProjectSearchCache | null = null;
 const queueOverviewCompatCache = new Map<string, QueueOverviewCacheEntry>();
 const qaTechQueueCache = new Map<string, QaQueueCacheEntry>();
-const qaShiftLeaderboardCache = new Map<string, { expiresAt: number; value: ReturnType<typeof buildQaShiftLeaderboard> }>();
+const qaShiftLeaderboardCache = new Map<string, { expiresAt: number; value: ReturnType<typeof buildQaShiftLeaderboard>; activity: Record<string, unknown>[] }>();
 const qaTechQueueBuilds = new Map<string, Promise<QaRankedProject[]>>();
 const qaProjectClaimLocks = new Map<string, Promise<void>>();
 let reportReleaseHoldTimer: ReturnType<typeof setInterval> | null = null;
@@ -1608,7 +1609,18 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/projects/:id/artifacts/:name", async (request, reply) => {
-    const artifact = await readArtifact(getProjectId(request.params), getFileName(request.params));
+    const projectId = getProjectId(request.params);
+    const requestedName = getFileName(request.params);
+    let artifact;
+    try {
+      artifact = await readArtifact(projectId, requestedName);
+    } catch (error) {
+      if (String(asRecord(request.query).submission_source ?? "") !== "1") throw error;
+      const files = await listProjectFiles(projectId).catch(() => []);
+      const fallbackName = findSubmissionSourceArtifactName(requestedName, files);
+      if (!fallbackName) throw error;
+      artifact = await readArtifact(projectId, fallbackName);
+    }
     return sendArtifactContent(artifact, reply);
   });
 
@@ -1677,8 +1689,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       active_project: status.active_project,
       queue_breakdown: status.queue_breakdown,
       queue_mode: queueModeValue.selected,
-      on_break: false,
-      break_started_at: null,
+      on_break: status.on_break,
+      break_started_at: status.break_started_at,
       ...(activeProjects ? {
         active_projects: activeProjects,
         active_project_count: activeProjects.length
@@ -1845,112 +1857,130 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       throw badRequest("missing_actor", "A queue claim actor email is required.");
     }
 
-    const manifest = await readManifest(projectId);
-    const workflow = asRecord(manifest.workflow);
-    const legacy = buildLegacyManifest(manifest);
-    const status = String(legacy.status ?? manifest.status ?? "").trim().toLowerCase();
-    const assignedEmail = String(legacy.assigned_to_email ?? "").trim().toLowerCase();
-    const reservedEmail = String(legacy.reserved_to_email ?? "").trim().toLowerCase();
-    const claimableStatuses = new Set(["queued", "ready", "processing", "in_progress", "correction_needed", "requeue"]);
+    const claimingUser = await readInternalUser(actorEmail);
+    if (claimingUser?.on_break === true) {
+      throw conflict("on_break", "End your break before claiming a project.");
+    }
 
-    if (assignedEmail) {
-      if (assignedEmail === actorEmail) {
-        if (status === "queued" || status === "ready") {
-          const now = new Date().toISOString();
-          const nowSql = toSqlDateString(new Date());
-          const timestamps = asRecord(manifest.timestamps);
-          const nextManifest = {
-            ...manifest,
-            status: "in_progress",
-            timestamps: {
-              ...timestamps,
-              started_at: timestamps.started_at ?? nowSql,
-              updated_at: nowSql
-            },
-            workflow: {
-              ...workflow,
-              assigned_to: asRecord(workflow.assigned_to).email ? workflow.assigned_to : actor,
-              assigned_at: workflow.assigned_at ?? now,
-              reserved_to: null,
-              reserved_at: null
-            }
-          } as ProjectManifest;
-          await saveManifest(projectId, nextManifest);
+    const claimSelected = async (manifest: ProjectManifest, persist: boolean) => {
+      const workflow = asRecord(manifest.workflow);
+      const legacy = buildLegacyManifest(manifest);
+      const status = String(legacy.status ?? manifest.status ?? "").trim().toLowerCase();
+      const assignedEmail = String(legacy.assigned_to_email ?? "").trim().toLowerCase();
+      const reservedEmail = String(legacy.reserved_to_email ?? "").trim().toLowerCase();
+      const claimableStatuses = new Set(["queued", "ready", "processing", "in_progress", "correction_needed", "requeue"]);
+
+      if (assignedEmail) {
+        if (assignedEmail === actorEmail) {
+          if (status === "queued" || status === "ready") {
+            const now = new Date().toISOString();
+            const nowSql = toSqlDateString(new Date());
+            const timestamps = asRecord(manifest.timestamps);
+            const nextManifest = {
+              ...manifest,
+              status: "in_progress",
+              timestamps: {
+                ...timestamps,
+                started_at: timestamps.started_at ?? nowSql,
+                updated_at: nowSql
+              },
+              workflow: {
+                ...workflow,
+                assigned_to: asRecord(workflow.assigned_to).email ? workflow.assigned_to : actor,
+                assigned_at: workflow.assigned_at ?? now,
+                reserved_to: null,
+                reserved_at: null
+              }
+            } as ProjectManifest;
+            if (persist) await saveManifest(projectId, nextManifest);
+            return {
+              ok: true,
+              success: true,
+              folder: projectId,
+              project: nextManifest,
+              manifest: buildLegacyManifest(nextManifest),
+              resumed: true,
+              repaired_status: true
+            };
+          }
           return {
             ok: true,
             success: true,
             folder: projectId,
-            project: nextManifest,
-            manifest: buildLegacyManifest(nextManifest),
-            resumed: true,
-            repaired_status: true
+            project: manifest,
+            manifest: buildLegacyManifest(manifest),
+            resumed: true
           };
         }
-        return {
-          ok: true,
-          success: true,
-          folder: projectId,
-          project: manifest,
-          manifest: buildLegacyManifest(manifest),
-          resumed: true
-        };
+        throw conflict("project_already_assigned", "Selected project is already assigned.", {
+          assigned_to_email: assignedEmail
+        });
       }
-      throw conflict("project_already_assigned", "Selected project is already assigned.", {
-        assigned_to_email: assignedEmail
-      });
-    }
 
-    if (reservedEmail && reservedEmail !== actorEmail) {
-      throw conflict("project_reserved_for_other_user", "Selected project is reserved for another user.", {
-        reserved_to_email: reservedEmail
-      });
-    }
-
-    if (!claimableStatuses.has(status)) {
-      throw conflict("project_not_claimable", "Selected project is not in a claimable status.", {
-        status
-      });
-    }
-
-    const now = new Date().toISOString();
-    const nowSql = toSqlDateString(new Date());
-    const timestamps = asRecord(manifest.timestamps);
-    const event = ["correction_needed", "requeue"].includes(status) ? "claimed_correction" : "claimed_new";
-    const nextManifest = {
-      ...manifest,
-      status: "in_progress",
-      timestamps: {
-        ...timestamps,
-        started_at: timestamps.started_at ?? nowSql,
-        updated_at: nowSql
-      },
-      workflow: {
-        ...workflow,
-        assigned_to: actor,
-        assigned_at: now,
-        reserved_to: null,
-        reserved_at: null,
-        history: [
-          ...(Array.isArray(workflow.history) ? workflow.history : []),
-          {
-            ts: now,
-            event,
-            actor
-          }
-        ]
+      if (reservedEmail && reservedEmail !== actorEmail) {
+        throw conflict("project_reserved_for_other_user", "Selected project is reserved for another user.", {
+          reserved_to_email: reservedEmail
+        });
       }
-    } as ProjectManifest;
-    await saveManifest(projectId, nextManifest);
 
-    return {
-      ok: true,
-      success: true,
-      folder: projectId,
-      source: "project_claim",
-      project: nextManifest,
-      manifest: buildLegacyManifest(nextManifest),
-      resumed: false
+      if (!claimableStatuses.has(status)) {
+        throw conflict("project_not_claimable", "Selected project is not in a claimable status.", {
+          status
+        });
+      }
+
+      const now = new Date().toISOString();
+      const nowSql = toSqlDateString(new Date());
+      const timestamps = asRecord(manifest.timestamps);
+      const event = ["correction_needed", "requeue"].includes(status) ? "claimed_correction" : "claimed_new";
+      const nextManifest = {
+        ...manifest,
+        status: "in_progress",
+        timestamps: {
+          ...timestamps,
+          started_at: timestamps.started_at ?? nowSql,
+          updated_at: nowSql
+        },
+        workflow: {
+          ...workflow,
+          assigned_to: actor,
+          assigned_at: now,
+          reserved_to: null,
+          reserved_at: null,
+          history: [
+            ...(Array.isArray(workflow.history) ? workflow.history : []),
+            {
+              ts: now,
+              event,
+              actor
+            }
+          ]
+        }
+      } as ProjectManifest;
+      if (persist) await saveManifest(projectId, nextManifest);
+
+      return {
+        ok: true,
+        success: true,
+        folder: projectId,
+        source: "project_claim",
+        project: nextManifest,
+        manifest: buildLegacyManifest(nextManifest),
+        resumed: false
+      };
     };
+
+    if (isFirstMeasurePostgresEnabled()) {
+      const { mutatePostgresManifest } = await import("./project_index_postgres.js");
+      let result: Awaited<ReturnType<typeof claimSelected>> | undefined;
+      const updated = await mutatePostgresManifest(projectId, async (current) => {
+        result = await claimSelected(current, false);
+        return result.project;
+      });
+      if (!updated || !result) throw new FirstMeasureError("project_not_found", 404, "Project not found.");
+      return result;
+    }
+    return claimSelected(await readManifest(projectId), true);
   });
 
   app.post("/projects/:id/queue/release-reservation", async (request) => {
@@ -2934,7 +2964,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const drafterRanks = normalizeDrafterRankMap(body.drafter_ranks);
     const includeClaimed = Boolean(criteria.include_claimed);
-    const results = await mapWithConcurrency(ids.slice(0, 250), 8, async (id) => {
+    const results = await mapWithConcurrency(ids.slice(0, 250), 8, async (id) => withQaProjectClaimLock(id, async () => {
       const manifest = await readManifest(id).catch(() => null);
       if (!manifest) {
         return { type: "skipped", id, reason: "not_found" };
@@ -2955,7 +2985,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       const result = await approveQaProjectFromBulk(manifest, actor, criteria);
       if (result.success) return { type: "approved", id, score: rank.error_score, email_result: result.email_result ?? null };
       return { type: "skipped", id, reason: result.error ?? "approval_failed" };
-    });
+    }));
 
     const approved = results.filter((row) => row.type === "approved").map(({ type, ...row }) => row);
     const skipped = results.filter((row) => row.type === "skipped").map(({ type, ...row }) => row);
@@ -3102,6 +3132,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/projects/:id/qa/decision", async (request) => {
     const projectId = getProjectId(request.params);
+    // The status/owner check and the decision must share the same cross-node
+    // lock as claim/release and bulk approval. Otherwise simultaneous retries
+    // can both approve a stale manifest and enqueue duplicate report emails.
+    return withQaProjectClaimLock(projectId, async () => {
     const body = asRecord(request.body);
     const decision = String(body.status ?? "").trim().toLowerCase();
     const actor = normalizeOptionalPortalActor(body.actor);
@@ -3394,14 +3428,17 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     }
 
     throw badRequest("invalid_qa_decision", "QA status must be approved or rejected.");
+    });
   });
 
   app.post("/projects/:id/manager/decision", async (request) => {
     const projectId = getProjectId(request.params);
+    return withQaProjectClaimLock(projectId, async () => {
     const body = asRecord(request.body);
     const decision = String(body.status ?? "").trim().toLowerCase();
     const actor = normalizeOptionalPortalActor(body.actor);
     const actorEmail = actor?.email ?? "";
+    await requireQaManagerReviewActor(actorEmail);
     const actorName = actor?.name ?? actorEmail;
     const nowIso = new Date().toISOString();
     const nowSql = toSqlDateString(new Date());
@@ -3528,6 +3565,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     }
 
     throw badRequest("invalid_manager_decision", "Manager status must be approved or rejected.");
+    });
   });
 
   app.post("/projects/:id/drafter/qa-response", async (request) => {
@@ -5950,6 +5988,18 @@ async function requireQaBulkApprovalAdmin(actorEmail: string) {
   return user;
 }
 
+async function requireQaManagerReviewActor(actorEmail: string) {
+  const user = actorEmail ? await readInternalUser(actorEmail.toLowerCase()).catch(() => null) : null;
+  const role = String(user?.role ?? "").trim().toLowerCase();
+  const permissions = asRecord(user?.permissions);
+  if (!user || !(["admin", "manager", "system_admin"].includes(role)
+    || Boolean(user.is_admin) || Boolean(permissions.is_admin_legacy)
+    || Boolean(permissions.platform_admin) || Boolean(permissions.manage_qa_queue))) {
+    throw new FirstMeasureError("manager_required", 403, "Manager access is required to finalize this QA review.");
+  }
+  return user;
+}
+
 async function maybeEvaluateAutomaticRushMode(app: FastifyInstance, projectId: string) {
   try {
     const result = await evaluateAutomaticRushMode();
@@ -7527,6 +7577,18 @@ async function sendPostmarkEmail(input: {
   htmlBody?: string;
   attachments?: Array<{ Name: string; Content: string; ContentType: string }>;
 }) {
+  if (process.env.EMAIL_OUTBOUND_DISABLED === "1" || process.env.EMAIL_OUTBOUND_DISABLED === "true") {
+    return { ok: false, error: "email_outbound_disabled" };
+  }
+  // Guard the complete To list, including the customer CCs flattened by callers.
+  const recipients = input.to.split(",").map((recipient) => recipient.trim()).filter(Boolean);
+  if (!recipients.length || recipients.some((recipient) => !/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(recipient))) {
+    return { ok: false, error: "invalid_email_recipient" };
+  }
+  const guarded = guardDevelopmentEmail({ recipients, subject: input.subject });
+  if (!guarded.allowed) {
+    return { ok: false, error: guarded.reason };
+  }
   const token = await readPostmarkToken();
   if (!token) {
     return { ok: false, error: "Postmark token missing" };
@@ -7534,8 +7596,8 @@ async function sendPostmarkEmail(input: {
 
   const payload = {
     From: "noreply@1m8.ai",
-    To: input.to,
-    Subject: input.subject,
+    To: guarded.recipients.join(","),
+    Subject: guarded.subject,
     TextBody: wrapEmailText(input.textBody),
     HtmlBody: wrapEmailHtml(input.htmlBody ?? `<div>${escapeHtml(input.textBody).replace(/\n/g, "<br>")}</div>`),
     ReplyTo: "support@1m8.ai",
@@ -8488,16 +8550,20 @@ async function withQaProjectClaimLock<T>(projectId: string, fn: () => Promise<T>
   const tail = previous.then(() => current, () => current);
   qaProjectClaimLocks.set(key, tail);
   await previous.catch(() => undefined);
-  const releaseSharedLock = await acquireFirstMeasureLock(`qa-claim:${key}`, {
-    ttlMs: 60_000,
-    waitMs: 15_000,
-    retryMs: 25,
-    owner: `${process.pid}:qa:${key}`
-  });
+  let releaseSharedLock: (() => Promise<void>) | undefined;
   try {
+    // Let the lock provider generate a unique owner. PIDs can coincide on
+    // separate droplets, and repeated owner strings permit lock re-entry.
+    releaseSharedLock = await acquireFirstMeasureLock(`qa-claim:${key}`, {
+      ttlMs: 60_000,
+      waitMs: 15_000,
+      retryMs: 25
+    });
     return await fn();
   } finally {
-    await releaseSharedLock().catch(() => undefined);
+    // Acquisition can itself fail (timeout/database reconnect). Always release
+    // the local queue tail, or every later attempt for this project hangs.
+    if (releaseSharedLock) await releaseSharedLock().catch(() => undefined);
     release();
     if (qaProjectClaimLocks.get(key) === tail) {
       qaProjectClaimLocks.delete(key);
@@ -8600,6 +8666,10 @@ async function buildQaTechnicianStatus(
     claimedManifests.map(async (manifest) => buildProjectListViewRow(manifest, request, "card"))
   );
   const myShiftRow = leaderboardToday.leaderboard.find((row) => row.email === actorEmail);
+  const activityKey = `${(teamId || "all").toLowerCase()}|${qaShiftDateKey()}`;
+  const activity = (qaShiftLeaderboardCache.get(activityKey)?.activity ?? []).filter((row) => row.qa_email === actorEmail);
+  const approved = activity.filter((row) => row.decision === "approved");
+  const durations = activity.map((row) => Number(row.decision_ms)).filter((ms) => Number.isFinite(ms) && ms >= 0);
   const hasAvailableNext = (counts.groups.qa_waiting ?? 0) > 0 || claimedProjects.length > 0;
   return {
     can_manage_queue: false,
@@ -8607,12 +8677,18 @@ async function buildQaTechnicianStatus(
     can_manager_review: false,
     pending: claimedProjects,
     claimed_projects: claimedProjects,
-    history: [],
+    history: approved.slice(0, 100),
     manager: [],
     manager_history: [],
     stats: {
       claimed_count: claimedProjects.length,
       reviewed_today_count: myShiftRow?.approved_count ?? 0,
+      personal_qa: {
+        submitted_projects: activity.length,
+        approved_projects: approved.length,
+        kickback_projects: activity.filter((row) => row.decision === "rejected").length,
+        average_decision_ms: durations.length ? durations.reduce((sum, ms) => sum + ms, 0) / durations.length : null
+      },
       qa_rates_today: [],
       qa_leaderboard_today: leaderboardToday,
       preferred_project_id: "",
@@ -8731,9 +8807,33 @@ async function loadQaShiftLeaderboard(date: string, teamId?: string | null, forc
     .map((manifest) => qaShiftPointEventFromManifest(manifest as ProjectManifest))
     .filter((event): event is QaShiftPointEvent => Boolean(event));
   const value = buildQaShiftLeaderboard(events, normalizedDate);
+  // Reuse the bounded, indexed reporting read; do not rescan projects per QA user.
+  const day = managementDayBounds(normalizedDate);
+  const activity: Record<string, unknown>[] = [];
+  for (const manifest of result.projects) {
+    const legacy = buildLegacyManifest(manifest as ProjectManifest);
+    const history = Array.isArray(legacy.qa_history) ? legacy.qa_history : [];
+    for (const item of history) {
+      const event = asRecord(item);
+      const at = parseDateLikeTimestamp(event.ts);
+      if (!at || at < day.startMs || at >= day.endExclusiveMs) continue;
+      const decision = String(event.decision ?? "");
+      if (!["approved", "rejected"].includes(decision)) continue;
+      const claims = (Array.isArray(legacy.work_history) ? legacy.work_history : []).map(asRecord)
+        .filter((entry) => entry.event === "qa_claimed" && String(entry.qa_email ?? "").toLowerCase() === String(event.qa_email ?? "").toLowerCase())
+        .map((entry) => parseDateLikeTimestamp(entry.ts)).filter((time): time is number => Boolean(time && time <= at));
+      const claimedAt = claims.length ? Math.max(...claims) : null;
+      activity.push({ id: manifest.id, address: legacy.address, status: legacy.status,
+        date: event.ts, qa_approved_at: decision === "approved" ? event.ts : null,
+        completed_at: legacy.completed_at, qa_email: String(event.qa_email ?? "").toLowerCase(),
+        decision, decision_ms: claimedAt === null ? undefined : at - claimedAt });
+    }
+  }
+  activity.sort((a, b) => String(b.date).localeCompare(String(a.date)));
   qaShiftLeaderboardCache.set(cacheKey, {
     expiresAt: Date.now() + (normalizedDate === qaShiftDateKey() ? 15_000 : 3_600_000),
-    value
+    value,
+    activity
   });
   if (qaShiftLeaderboardCache.size > 250) {
     const oldestKey = qaShiftLeaderboardCache.keys().next().value;
@@ -8930,10 +9030,12 @@ function qaBulkApprovalMatches(
   const maxScore = Number(criteria.max_score ?? 10);
   if (Number.isFinite(maxScore) && rank.error_score > maxScore) return false;
 
-  const maxHeightPoints = Number(criteria.max_height_points ?? "");
+  const maxHeightPoints = criteria.max_height_points == null || criteria.max_height_points === ""
+    ? NaN : Number(criteria.max_height_points);
   if (Number.isFinite(maxHeightPoints) && rank.height_quality_points > maxHeightPoints) return false;
 
-  const maxProjectPoints = Number(criteria.max_project_points ?? "");
+  const maxProjectPoints = criteria.max_project_points == null || criteria.max_project_points === ""
+    ? NaN : Number(criteria.max_project_points);
   if (Number.isFinite(maxProjectPoints) && rank.project_points > maxProjectPoints) return false;
 
   const allowedRanks = Array.isArray(criteria.drafter_ranks)
@@ -9536,7 +9638,9 @@ async function runBackgroundPdfSyncJob(job: {
     ? payload.outputs as SharedPdfOutputSpec[]
     : [];
   const recipeVersion = String(payload.pdf_render_recipe_version ?? "").trim();
-  const assetBaseUrl = String(payload.asset_base_url ?? "").trim();
+  // Jobs may originate on a different host. Its loopback URL is not reachable
+  // from a dedicated worker; prefer this worker's explicitly configured runtime.
+  const assetBaseUrl = String(process.env.FIRSTMEASURE_PDF_RUNTIME_BASE_URL || payload.asset_base_url || "").trim();
   if (!projectId || !revision || !snapshot || !outputs.length || !assetBaseUrl || recipeVersion !== PDF_RENDER_RECIPE_VERSION) {
     throw new Error("Background PDF sync job is missing required payload fields.");
   }
@@ -9702,7 +9806,16 @@ async function resolveProjectPdfSyncReference(
   const latestRevision = String(pdfSync.latest_revision ?? '').trim();
   const jobId = requestedJobId || latestJobId;
   const revision = requestedRevision || latestRevision;
-  if (!jobId || !revision) return null;
+  if (!jobId || !revision) {
+    const storedPdf = await readStoredPdf(projectId, "main").catch((error) => {
+      if (error?.code === "artifact_not_found") return null;
+      throw error;
+    });
+    if (!storedPdf?.content?.length) {
+      throw conflict('missing_pdf', 'The server has no report PDF for this project. Generate and synchronize the preview before approving it.');
+    }
+    return null;
+  }
 
   if (requestedJobId && (requestedJobId !== latestJobId || requestedRevision !== latestRevision)) {
     throw conflict('stale_pdf_sync_reference', 'The reviewed PDF is no longer the latest synchronized revision. Regenerate the preview and try again.', {
@@ -10870,6 +10983,38 @@ function stableFileVersion(file: { size?: number; updated_at?: string }) {
   const size = Number(file.size);
   const sizePart = Number.isFinite(size) && size >= 0 ? String(size) : "";
   return [updatedAt, sizePart].filter(Boolean).join("-");
+}
+
+export function findSubmissionSourceArtifactName(
+  requestedName: string,
+  files: Array<{ name?: string; updated_at?: string }>
+) {
+  const requested = sanitizeFileName(requestedName);
+  if (!/\.(?:avif|bmp|gif|heic|heif|jpe?g|png|tiff?|webp)$/i.test(requested)) return null;
+
+  const exactCaseInsensitive = files.find((file) =>
+    String(file.name ?? "").toLowerCase() === requested.toLowerCase()
+  );
+  if (exactCaseInsensitive?.name) return exactCaseInsensitive.name;
+
+  const extensionMatch = requested.match(/\.([a-z0-9]+)$/i);
+  const extension = extensionMatch?.[1]?.toLowerCase() || "jpg";
+  const safeBase = requested
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-z0-9_-]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "source";
+  const expectedSuffix = `${safeBase}.${extension}`.toLowerCase();
+
+  const candidates = files.filter((file) => {
+    const name = String(file.name ?? "");
+    const match = name.match(/^source_\d+_\d+_(.+)$/i);
+    return Boolean(match?.[1] && match[1].toLowerCase() === expectedSuffix);
+  });
+  candidates.sort((left, right) =>
+    String(right.updated_at ?? "").localeCompare(String(left.updated_at ?? ""))
+  );
+  return candidates[0]?.name || null;
 }
 
 function buildProjectThumbnailUrl(

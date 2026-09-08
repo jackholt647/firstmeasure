@@ -7036,7 +7036,7 @@ function resolveQaSubmissionSourceUrl(rawUrl, state) {
     }
     const folderId = String(state?.folderId || window.currentProjectId || '').trim();
     if (folderId && typeof window.firstMeasureBuildUrl === 'function') {
-        return window.firstMeasureBuildUrl(`/projects/${encodeURIComponent(folderId)}/artifacts/${encodeURIComponent(raw)}`);
+        return window.firstMeasureBuildUrl(`/projects/${encodeURIComponent(folderId)}/artifacts/${encodeURIComponent(raw)}?submission_source=1`);
     }
     return raw;
 }
@@ -7049,11 +7049,13 @@ function normalizeQaSubmissionSourcesForReview(state) {
         state?.finalizeSources,
         window.currentProjectLoadedAppMetadata?.pdfConfig?.finalizeSources
     ];
-    const source = candidates.find((item) => item && typeof item === 'object') || {};
+    const source = candidates.find((item) => item && typeof item === 'object' && (
+        String(item.notes || '').trim() || (Array.isArray(item.images) && item.images.length > 0)
+    )) || {};
     const notes = String(source.notes || '').trim();
     const images = Array.isArray(source.images) ? source.images.map((entry, index) => {
         const image = entry && typeof entry === 'object' ? entry : { url: entry };
-        const rawUrl = String(image.url || image.file_name || image.name || image.filename || image.dataUrl || '').trim();
+        const rawUrl = String(image.url || image.file_name || image.dataUrl || image.name || image.filename || '').trim();
         const url = resolveQaSubmissionSourceUrl(rawUrl, state);
         if (!url) return null;
         return {
@@ -7275,6 +7277,7 @@ async function addQaPdfReviewFailuresToThreads(state, options = {}) {
         const result = await window.DrafterQA.addFeedback({
             label: item.label,
             text: comment,
+            severity: resolveImmediately ? 'minor' : 'major',
             resolved: resolveImmediately,
             corrected: resolveImmediately,
             resolveText: resolveImmediately ? 'Corrected by QA before approval.' : ''
@@ -8041,6 +8044,7 @@ async function uploadSubmissionSourcesAndPersist(state, setOverlay) {
     };
 
     await persistSubmissionSourceMetadata(state.folderId, payload);
+    state.finalizeSources = cloneSubmissionSourcesValue(payload, payload);
     return payload;
 }
 

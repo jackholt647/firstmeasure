@@ -982,6 +982,20 @@ export async function saveGlobal(orgId: string, input: JsonObject = {}, options:
   return next;
 }
 
+// The callback is synchronous and must contain no provider calls or queries.
+// Compute read/modify/write values under the same lock instead of saving a
+// balance/ledger that was derived from a stale readGlobal snapshot.
+export async function mutateGlobal(orgId: string, mutation: (current: JsonObject) => JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).mutateGlobal(orgId, mutation) as Promise<StoredDocument>;
+  const normalizedId = sanitizeId(orgId, "organization_id");
+  const lockPath = path.join(path.dirname(globalPath(normalizedId)), ".global-mutation.lock");
+  return withFileLock(lockPath, async () => {
+    const current = await readGlobal(normalizedId);
+    const patch = mutation(current);
+    return saveGlobal(normalizedId, { ...patch, expected_revision: current.revision });
+  });
+}
+
 export async function listBranchModules(orgId: string, branchId: string) {
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listBranchModules(orgId, branchId) as Promise<BranchModuleDocument[]>;
   await readOrganization(orgId);

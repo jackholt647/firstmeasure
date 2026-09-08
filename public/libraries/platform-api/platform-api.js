@@ -72,7 +72,13 @@
   }
 
   function csrfToken(){
-    return decodeURIComponent(cookieValue('fm_platform_session_csrf') || '');
+    const sessionName = cleanText(APP.platformSessionCookieName || 'fm_platform_session');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    try {
+      return decodeURIComponent(cookieValue(sessionName + '_csrf') || '');
+    } catch {
+      return '';
+    }
   }
 
   async function request(path, options = {}){
@@ -1583,6 +1589,22 @@
   };
 
   const projectMedia = {
+    // Cloned manifests can contain absolute URLs from a different environment.
+    // Rebase only our authenticated artifact route, never arbitrary external media.
+    artifactUrl(value, options = {}) {
+      if (!value) return value;
+      try {
+        const parsed = new URL(String(value), location.origin);
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return value;
+        if (parsed.origin !== location.origin && !/^(app|dev|prerelease)\.1m8\.ai$/i.test(parsed.hostname)) return value;
+        const match = parsed.pathname.match(/^\/v1\/firstmeasure\/(projects\/[^/]+\/artifacts\/.+)$/);
+        if (!match) return value;
+        const target = firstMeasurePath(options, match[1]);
+        return target ? target + parsed.search + parsed.hash : value;
+      } catch {
+        return value;
+      }
+    },
     TOP_DOWN_THUMBNAIL_ID: 'top_down_thumbnail',
     TOP_DOWN_THUMBNAIL_DESIGNATOR: 'top_down_thumbnail',
     mediaKind,

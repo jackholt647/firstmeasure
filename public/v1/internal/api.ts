@@ -42,6 +42,7 @@ import {
   patchOrganization,
   patchIdentity,
   readGlobal,
+  mutateGlobal,
   readOrganization,
   saveGlobal,
   upsertDocument
@@ -3119,6 +3120,29 @@ async function organizationMatchesCustomerEmail(orgId: string, needle: string) {
   return emails.some((email) => String(email ?? "").trim().toLowerCase().includes(needle));
 }
 
+async function organizationIdsMatchingCustomerEmail(orgIds: string[], needle: string) {
+  if (!needle || !orgIds.length) return new Set(orgIds);
+  const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
+  if (isFirstMeasurePostgresEnabled()) {
+    // Search only the requested organizations and email fields, without loading
+    // every user document or taking readGlobal's write locks. POSITION keeps
+    // percent/underscore characters literal, matching the filesystem behavior.
+    const result = await queryPostgres<{ organization_id: string }>(`
+      SELECT DISTINCT organization_id FROM platform_documents
+      WHERE organization_id = ANY($1::text[]) AND collection IN ('users', 'global')
+      AND (
+        position($2 in lower(coalesce(document #>> '{data,email}', ''))) > 0
+        OR position($2 in lower(coalesce(document #>> '{data,contact,email}', ''))) > 0
+        OR (collection = 'users' AND position($2 in lower(coalesce(document #>> '{data,profile,email}', ''))) > 0)
+        OR (collection = 'global' AND position($2 in lower(coalesce(document #>> '{data,billing_email}', ''))) > 0)
+      )`, [orgIds, needle.trim().toLowerCase()]);
+    return new Set(result.rows.map((row) => row.organization_id));
+  }
+  const matches = await mapCustomerOrganizationsWithConcurrency(orgIds, 16,
+    (orgId) => organizationMatchesCustomerEmail(orgId, needle));
+  return new Set(orgIds.filter((_, index) => matches[index]));
+}
+
 function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
   const direction = sortDirection === "desc" ? -1 : 1;
   const numericColumns = new Set(["users", "lifetimeOrders", "rolling7", "avgOrdersDay", "credits", "created"]);
@@ -3242,12 +3266,9 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
       });
     }
     if (emailFilter) {
-      const emailMatches = await mapCustomerOrganizationsWithConcurrency(
-        manifests,
-        16,
-        async (org) => organizationMatchesCustomerEmail(String(org.id ?? ""), emailFilter)
-      );
-      manifests = manifests.filter((_, index) => emailMatches[index]);
+      const emailMatches = await organizationIdsMatchingCustomerEmail(
+        manifests.map((org) => String(org.id ?? "")), emailFilter);
+      manifests = manifests.filter((org) => emailMatches.has(String(org.id ?? "")));
     }
     manifests.sort((a, b) => {
       if (sortColumn === "created") {
@@ -4367,40 +4388,43 @@ async function applyCreditDelta(orgId: string, body: JsonObject, actorEmail: str
   if (direction === "deduct" && amount > 0) amount = -amount;
   if ((direction === "add" || direction === "credit") && amount < 0) amount = Math.abs(amount);
   if (amount === 0) throw badRequest("invalid_credit_amount", "Credit amount must be non-zero.");
-  const global = await readGlobal(orgId);
-  const data = asObject(global.data);
-  const balance = numberValue(data.credits_balance);
-  const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
-  const entry = {
-    ts: new Date().toISOString(),
-    delta: Math.round(amount * 100) / 100,
-    reason: String(body.reason || "internal_adjustment"),
-    by_email: actorEmail || null,
-    applied_for_user_email: body.applied_for_user_email ?? null,
-    meta: asObject(body.meta),
-    unit: String(body.unit || "usd_dollars"),
-    balance_after: Math.round((balance + amount) * 100) / 100
-  };
-  ledger.push(entry);
-  const document = await saveGlobal(orgId, {
-    data: {
-      credits_balance: entry.balance_after,
-      credits_ledger: ledger
-    },
-    metadata: {
-      last_credit_mutation_at: entry.ts,
-      last_credit_mutation_reason: entry.reason
-    }
+  let outcome = { balance: 0, ledger_entry: {} as JsonObject, ledger_count: 0, org_id: orgId };
+  const document = await mutateGlobal(orgId, (global) => {
+    const data = asObject(global.data);
+    const balance = numberValue(data.credits_balance);
+    const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
+    const entry = {
+      ts: new Date().toISOString(),
+      delta: Math.round(amount * 100) / 100,
+      reason: String(body.reason || "internal_adjustment"),
+      by_email: actorEmail || null,
+      applied_for_user_email: body.applied_for_user_email ?? null,
+      meta: asObject(body.meta),
+      unit: String(body.unit || "usd_dollars"),
+      balance_after: Math.round((balance + amount) * 100) / 100
+    };
+    ledger.push(entry);
+    outcome = {
+      org_id: orgId,
+      balance: entry.balance_after,
+      ledger_entry: entry,
+      ledger_count: ledger.length
+    };
+    return {
+      data: {
+        credits_balance: entry.balance_after,
+        credits_ledger: ledger
+      },
+      metadata: {
+        last_credit_mutation_at: entry.ts,
+        last_credit_mutation_reason: entry.reason
+      }
+    };
   });
   clearOrganizationSummaryCache();
   clearStatsCreditRevenueCache();
-  return {
-    org_id: orgId,
-    balance: entry.balance_after,
-    ledger_entry: entry,
-    ledger_count: ledger.length,
-    document
-  };
+
+  return { ...outcome, document };
 }
 
 async function applyFreeExpediteDelta(orgId: string, body: JsonObject, actorEmail: string) {
@@ -4409,38 +4433,41 @@ async function applyFreeExpediteDelta(orgId: string, body: JsonObject, actorEmai
   if (direction === "deduct" && amount > 0) amount = -amount;
   if ((direction === "add" || direction === "credit") && amount < 0) amount = Math.abs(amount);
   if (amount === 0) throw badRequest("invalid_free_expedite_amount", "Free expedite uses amount must be non-zero.");
-  const global = await readGlobal(orgId);
-  const data = asObject(global.data);
-  const balance = Math.max(0, Math.round(numberValue(data.free_expedite_uses)));
-  const next = balance + amount;
-  if (next < 0) throw badRequest("insufficient_free_expedite_uses", "Cannot deduct more free expedite uses than the organization has.");
-  const ledger = Array.isArray(data.free_expedite_ledger) ? [...data.free_expedite_ledger] : [];
-  const entry = {
-    ts: new Date().toISOString(),
-    delta: amount,
-    reason: String(body.reason || "internal_free_expedite_adjustment"),
-    by_email: actorEmail || null,
-    meta: asObject(body.meta),
-    balance_after: next
-  };
-  ledger.push(entry);
-  const document = await saveGlobal(orgId, {
-    data: {
+  let outcome = { org_id: orgId, free_expedite_uses: 0, free_expedite_ledger_entry: {} as JsonObject, free_expedite_ledger_count: 0 };
+  const document = await mutateGlobal(orgId, (global) => {
+    const data = asObject(global.data);
+    const balance = Math.max(0, Math.round(numberValue(data.free_expedite_uses)));
+    const next = balance + amount;
+    if (next < 0) throw badRequest("insufficient_free_expedite_uses", "Cannot deduct more free expedite uses than the organization has.");
+    const ledger = Array.isArray(data.free_expedite_ledger) ? [...data.free_expedite_ledger] : [];
+    const entry = {
+      ts: new Date().toISOString(),
+      delta: amount,
+      reason: String(body.reason || "internal_free_expedite_adjustment"),
+      by_email: actorEmail || null,
+      meta: asObject(body.meta),
+      balance_after: next
+    };
+    ledger.push(entry);
+    outcome = {
+      org_id: orgId,
       free_expedite_uses: next,
-      free_expedite_ledger: ledger
-    },
-    metadata: {
-      last_free_expedite_mutation_at: entry.ts,
-      last_free_expedite_mutation_reason: entry.reason
-    }
+      free_expedite_ledger_entry: entry,
+      free_expedite_ledger_count: ledger.length
+    };
+    return {
+      data: {
+        free_expedite_uses: next,
+        free_expedite_ledger: ledger
+      },
+      metadata: {
+        last_free_expedite_mutation_at: entry.ts,
+        last_free_expedite_mutation_reason: entry.reason
+      }
+    };
   });
-  return {
-    org_id: orgId,
-    free_expedite_uses: next,
-    free_expedite_ledger_entry: entry,
-    free_expedite_ledger_count: ledger.length,
-    document
-  };
+
+  return { ...outcome, document };
 }
 
 function internalUserCanCancelProjects(user: JsonObject | null) {
@@ -4897,13 +4924,17 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
     case "shift_session_stats":
     case "shift_personal_snapshot": {
       const document = await readInternalDocument("shifts", action === "shift_session_stats" ? "session_stats" : `personal_${actor.email || "anonymous"}`);
+      const staff = await readInternalUser(String(actor.email || ""));
+      const permissions = asObject(staff?.permissions);
+      const isQa = staff?.role === "qa" || Boolean(permissions.manage_qa);
+      const qaStatus = isQa ? asObject(await injectJson(app, "POST", "/v1/firstmeasure/qa/me/status", { actor })) : {};
       return {
         ok: true,
         success: true,
         shift: asObject(asObject(document?.data).shift),
         stats: {
           technician: asObject(asObject(document?.data).technician),
-          qa: asObject(asObject(document?.data).qa)
+          qa: isQa ? asObject(asObject(qaStatus.stats).personal_qa) : asObject(asObject(document?.data).qa)
         },
         data: document?.data ?? {}
       };
@@ -5270,8 +5301,18 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       return await handleCancelProjectLegacyAction(app, body, actor);
     case "reopen_completed_project":
       return await injectProject(app, body, "/status", { status: "not_started", actor });
-    case "set_break_status":
-      return { ok: true, success: true };
+    case "set_break_status": {
+      const email = String(actor.email ?? "").trim().toLowerCase();
+      if (!email) throw unauthorized("not_logged_in", "Sign in before changing break status.");
+      const user = await readInternalUser(email);
+      if (!user) throw notFound("user_not_found", "Internal user not found.");
+      const onBreak = body.on_break === true || body.on_break === 1 || body.on_break === "1" || body.on_break === "true";
+      const startedAt = onBreak
+        ? (user.on_break === true && user.break_started_at ? user.break_started_at : new Date().toISOString())
+        : null;
+      await patchInternalUser(email, { on_break: onBreak, break_started_at: startedAt });
+      return { ok: true, success: true, on_break: onBreak, break_started_at: startedAt };
+    }
     case "manager_review_data":
       return await managerReviewData(app, actor, false, body);
     case "manager_review_results":
@@ -7318,7 +7359,14 @@ async function injectJson(app: FastifyInstance, method: "GET" | "POST" | "PATCH"
     method,
     url,
     payload: payload as any,
-    headers: payload === undefined ? undefined : { "content-type": "application/json" }
+    headers: {
+      ...(payload === undefined ? {} : { "content-type": "application/json" }),
+      // In-process dispatch still runs the compatibility host's proxy guard.
+      // This credential stays server-side and is never returned to the browser.
+      ...(env.clusterNodeRole === "legacy" && env.legacyProxySecret
+        ? { "x-firstmeasure-legacy-proxy": env.legacyProxySecret }
+        : {})
+    }
   });
   const parsed = response.body ? JSON.parse(response.body) : {};
   if (response.statusCode >= 400) {

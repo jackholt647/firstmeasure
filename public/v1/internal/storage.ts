@@ -319,7 +319,6 @@ async function ensurePostgresUserIndex() {
 }
 
 async function initializePostgresUserIndex() {
-  await ensureInternalStorage();
   await bootstrapPostgresApplicationUser();
   await withPostgresClient(async (client) => {
     await client.query("SELECT pg_advisory_lock(hashtext($1))", ["firstmeasure-internal-users-v1"]);
@@ -371,6 +370,10 @@ async function initializePostgresUserIndex() {
         "SELECT EXISTS(SELECT 1 FROM internal_storage_migrations WHERE key = 'users_json_import_v1') AS migrated"
       );
       if (!migrated.rows[0]?.migrated) {
+        if (env.deploymentTopology === "cluster" && env.clusterNodeRole !== "legacy") {
+          throw new Error("Internal user migration must run on the compatibility host before web or worker startup.");
+        }
+        await ensureInternalStorage();
         await rebuildPostgresUserIndexWithClient(client);
         await client.query(
           "INSERT INTO internal_storage_migrations (key) VALUES ('users_json_import_v1') ON CONFLICT (key) DO NOTHING"
@@ -380,6 +383,10 @@ async function initializePostgresUserIndex() {
         "SELECT EXISTS(SELECT 1 FROM internal_storage_migrations WHERE key = 'documents_json_import_v1') AS migrated"
       );
       if (!documentsMigrated.rows[0]?.migrated) {
+        if (env.deploymentTopology === "cluster" && env.clusterNodeRole !== "legacy") {
+          throw new Error("Internal document migration must run on the compatibility host before web or worker startup.");
+        }
+        await ensureInternalStorage();
         await importPostgresInternalDocumentsWithClient(client);
         await client.query(
           "INSERT INTO internal_storage_migrations (key) VALUES ('documents_json_import_v1') ON CONFLICT (key) DO NOTHING"

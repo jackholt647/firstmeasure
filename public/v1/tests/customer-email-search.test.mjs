@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const src=await readFile('../../outputs/qa-pass-build/internal/api.js','utf8');
+const a=src.indexOf('async function organizationIdsMatchingCustomerEmail('),b=src.indexOf('function sortCustomerDashboardRows(',a);
+let calls=0,sql,params;
+const ctx=vm.createContext({database:{isFirstMeasurePostgresEnabled:()=>true,queryPostgres:async(s,p)=>{calls++;sql=s;params=p;return {rows:[{organization_id:'a'}]}}}});
+vm.runInContext(src.slice(a,b).replace('await import("../src/database/postgres.js")','database'),ctx);
+assert.equal((await vm.runInContext("organizationIdsMatchingCustomerEmail([], 'x')",ctx)).size,0);
+const result=await vm.runInContext("organizationIdsMatchingCustomerEmail(['a','b'], 'USER_%@1M8.AI')",ctx);
+assert.equal(calls,1);assert.equal(result.has('a'),true);assert.equal(result.has('b'),false);
+assert.equal(params[1],'user_%@1m8.ai');assert.equal(params[0].length,2);
+assert.match(sql,/ANY\(\$1::text\[\]\)/);assert.match(sql,/position\(\$2/);assert.doesNotMatch(sql,/FOR UPDATE|INSERT|DELETE|ILIKE/);
+console.log('PASS: one scoped read-only query; literal substring parameters; empty input fast path.');

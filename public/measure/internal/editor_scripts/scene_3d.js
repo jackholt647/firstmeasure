@@ -129,6 +129,9 @@ let _enh = {
 let _geomDirty3D = false;
 let _lastGeomRebuild = 0;
 const GEOM_REBUILD_INTERVAL_MS = 150;
+let _sceneDirty3D = true;
+let _lastSceneRender3D = 0;
+const IDLE_SCENE_RENDER_INTERVAL_MS = 100;
 let threeContainerResizeObserver = null;
 let threeViewportResizeRAF = 0;
 
@@ -1553,6 +1556,7 @@ function init3D() {
     controls.maxPolarAngle = Math.PI/2; controls.minDistance = 0.1;
     controls.mouseButtons = { LEFT:null, MIDDLE:THREE.MOUSE.ROTATE, RIGHT:THREE.MOUSE.PAN };
     controls.addEventListener('change', () => {
+        _sceneDirty3D = true;
         if (selectedLines.size > 0 || selectedPoints.size > 0) _geomDirty3D = true;
         if (_enh.showPitchLabels) renderPitchLabels();
     });
@@ -2013,6 +2017,7 @@ function getFaceSignature(face) {
 function renderGeometry3D() {
     if (!window.enable3D) return;
     if (!scene || !geometryGroup || !activeGeometry || !layerData.dsm) return;
+    _sceneDirty3D = true;
     while (geometryGroup.children.length > 0) {
         const child = geometryGroup.children[0];
         if (child.geometry) child.geometry.dispose();
@@ -5859,10 +5864,17 @@ function cullOccludedBottomFaces(faces) {
 function _animate3D() {
     if(!window.enable3D) return;
     requestAnimationFrame(_animate3D);
-    if(typeof controls!=='undefined'&&controls) controls.update();
-    if(_geomDirty3D){const now=performance.now();if(now-_lastGeomRebuild>GEOM_REBUILD_INTERVAL_MS){_geomDirty3D=false;_lastGeomRebuild=now;renderGeometry3D();}}
-    if(typeof renderer!=='undefined'&&renderer&&typeof scene!=='undefined'&&scene&&typeof camera!=='undefined'&&camera) renderer.render(scene,camera);
-    _updateAxisWidget();
+    const now=performance.now();
+    const controlsChanged=!!(typeof controls!=='undefined'&&controls&&controls.update());
+    if(controlsChanged) _sceneDirty3D=true;
+    if(_geomDirty3D&&now-_lastGeomRebuild>GEOM_REBUILD_INTERVAL_MS){_geomDirty3D=false;_lastGeomRebuild=now;renderGeometry3D();}
+    const shouldRender=_sceneDirty3D||now-_lastSceneRender3D>=IDLE_SCENE_RENDER_INTERVAL_MS;
+    if(shouldRender&&typeof renderer!=='undefined'&&renderer&&typeof scene!=='undefined'&&scene&&typeof camera!=='undefined'&&camera){
+        renderer.render(scene,camera);
+        _updateAxisWidget();
+        _sceneDirty3D=false;
+        _lastSceneRender3D=now;
+    }
 }
 // =========================================================
 // §18  CROP, TEXTURE, IMAGE TOGGLE

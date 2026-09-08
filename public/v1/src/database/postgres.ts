@@ -80,6 +80,15 @@ export async function queryPostgres<T extends QueryResultRow = QueryResultRow>(
   return getPostgresPool().query<T>(text, values);
 }
 
+// Session advisory locks must not occupy the application's only pool slot.
+// Callers own this connection and must close it in finally to release the lock.
+export function createPostgresDedicatedClient(applicationName: string) {
+  if (!isFirstMeasurePostgresEnabled() || !env.databaseUrl.trim()) {
+    throw new Error("A PostgreSQL application connection is required.");
+  }
+  return new pg.Client({ ...poolConfig(env.databaseUrl, 1), application_name: applicationName });
+}
+
 export async function withPostgresClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await getPostgresPool().connect();
   try {

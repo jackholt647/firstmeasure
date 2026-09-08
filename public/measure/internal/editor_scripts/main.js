@@ -3399,8 +3399,38 @@ function firstMeasureIsSolarImageryOverThreeYearsOld(date) {
     return date < cutoff;
 }
 
-function firstMeasureShowOldHeightMapFootageModal(imageryDate) {
-    if (!(imageryDate instanceof Date) || Number.isNaN(imageryDate.getTime())) return;
+function firstMeasureNormalizeHeightMapQuality(value) {
+    const normalized = String(value || '').trim().toUpperCase();
+    return ['HIGH', 'MEDIUM', 'LOW', 'BASE'].includes(normalized) ? normalized : '';
+}
+
+function firstMeasureHeightMapWarningState(manifest, insights) {
+    const manifestDate = manifest && typeof manifest === 'object'
+        ? firstMeasureParseSolarImageryDate(manifest.solar_imagery_date)
+        : null;
+    const insightsDate = insights && typeof insights === 'object'
+        ? firstMeasureParseSolarImageryDate(insights.imageryDate)
+        : null;
+    const manifestQuality = manifest && typeof manifest === 'object'
+        ? (manifest.height_map_quality || manifest.solar_imagery_quality)
+        : '';
+    const insightsQuality = insights && typeof insights === 'object' ? insights.imageryQuality : '';
+    const imageryQuality = firstMeasureNormalizeHeightMapQuality(manifestQuality || insightsQuality);
+    const imageryDate = manifestDate || insightsDate;
+    return {
+        imageryDate,
+        imageryQuality,
+        oldFootage: firstMeasureIsSolarImageryOverThreeYearsOld(imageryDate),
+        lowQuality: ['MEDIUM', 'LOW', 'BASE'].includes(imageryQuality)
+    };
+}
+
+function firstMeasureShowOldHeightMapFootageModal(warning) {
+    const imageryDate = warning && warning.imageryDate;
+    const oldFootage = !!(warning && warning.oldFootage);
+    const lowQuality = !!(warning && warning.lowQuality);
+    const imageryQuality = firstMeasureNormalizeHeightMapQuality(warning && warning.imageryQuality);
+    if (!oldFootage && !lowQuality) return;
     if (document.getElementById('old-height-map-footage-modal')) return;
 
     const overlay = document.createElement('div');
@@ -3432,13 +3462,28 @@ function firstMeasureShowOldHeightMapFootageModal(imageryDate) {
 
     const title = document.createElement('div');
     title.id = 'oldHeightMapFootageTitle';
-    title.textContent = 'Height map footage is over three years old';
+    title.textContent = oldFootage && lowQuality
+        ? 'Height map imagery needs extra verification'
+        : (oldFootage ? 'Height map footage is over three years old' : 'Height map quality needs extra verification');
     title.style.cssText = 'font-size:18px;font-weight:700;margin-bottom:10px;';
 
     const body = document.createElement('div');
     const formattedDate = firstMeasureFormatSolarImageryDate(imageryDate);
     const ageYears = firstMeasureSolarImageryAgeYears(imageryDate);
-    body.textContent = `The Google Solar height map footage${formattedDate ? ` was taken on ${formattedDate}` : ''}${Number.isFinite(ageYears) ? `, about ${ageYears} years ago` : ''}. Be sure to check Google Earth's historical view to confirm that the property has not changed since the footage was taken.`;
+    const messages = [];
+    if (oldFootage) {
+        messages.push(`The Google Solar height map footage${formattedDate ? ` was taken on ${formattedDate}` : ''}${Number.isFinite(ageYears) ? `, about ${ageYears} years ago` : ''}. Cross-reference Google Earth for newer imagery and confirm that the property has not changed.`);
+    }
+    if (lowQuality) {
+        const qualityLabel = imageryQuality ? `${imageryQuality.charAt(0)}${imageryQuality.slice(1).toLowerCase()} resolution` : 'lower resolution';
+        messages.push(`The height map is ${qualityLabel}. Cross-reference the scale in Google Earth and the pitch in Street View, then upload reference screenshots that confirm both before submitting.`);
+    }
+    messages.forEach(message => {
+        const paragraph = document.createElement('p');
+        paragraph.textContent = message;
+        paragraph.style.cssText = 'margin:0 0 10px;';
+        body.append(paragraph);
+    });
     body.style.cssText = 'font-size:14px;line-height:1.5;color:#3c4043;margin-bottom:18px;';
 
     const actions = document.createElement('div');
@@ -3463,21 +3508,15 @@ function firstMeasureShowOldHeightMapFootageModal(imageryDate) {
 }
 
 function firstMeasureMaybeWarnOldHeightMapFootage(manifest, insights) {
-    const manifestDate = manifest && typeof manifest === 'object'
-        ? firstMeasureParseSolarImageryDate(manifest.solar_imagery_date)
-        : null;
-    const insightsDate = insights && typeof insights === 'object'
-        ? firstMeasureParseSolarImageryDate(insights.imageryDate)
-        : null;
-    const imageryDate = manifestDate || insightsDate;
-    if (!firstMeasureIsSolarImageryOverThreeYearsOld(imageryDate)) return;
+    const warning = firstMeasureHeightMapWarningState(manifest, insights);
+    if (!warning.oldFootage && !warning.lowQuality) return;
 
     const projectId = String(window.currentProjectId || '').trim();
     window.__firstMeasureOldHeightMapWarningsShown = window.__firstMeasureOldHeightMapWarningsShown || new Set();
     if (projectId && window.__firstMeasureOldHeightMapWarningsShown.has(projectId)) return;
     if (projectId) window.__firstMeasureOldHeightMapWarningsShown.add(projectId);
 
-    setTimeout(() => firstMeasureShowOldHeightMapFootageModal(imageryDate), 250);
+    setTimeout(() => firstMeasureShowOldHeightMapFootageModal(warning), 250);
 }
 
 async function patchPreviousReportCandidateStatus(candidate, status, extra = {}) {

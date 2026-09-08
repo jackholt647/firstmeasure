@@ -2,9 +2,16 @@
 Description=FirstMeasure isolated development durable background worker
 After=network-online.target firstmeasure-instance-identity.service
 Wants=network-online.target firstmeasure-instance-identity.service
+StartLimitIntervalSec=0
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=all
+WatchdogSec=120
+WatchdogSignal=SIGKILL
+TimeoutStartSec=300
+OOMPolicy=kill
+MemoryMax=6G
 User=firstmeasure
 Group=firstmeasure
 WorkingDirectory=/opt/firstmeasure/current/public/v1
@@ -19,7 +26,7 @@ Environment=FIRSTMEASURE_JOB_WORKERS=2
 Environment=DEVELOPMENT_WORKER_ENABLED=true
 ExecStart=/usr/bin/env CLUSTER_NODE_ROLE=worker FIRSTMEASURE_PROCESS_ROLE=worker FIRSTMEASURE_JOB_WORKERS=2 DEVELOPMENT_WORKER_ENABLED=true /usr/bin/node --experimental-sqlite --max-old-space-size=4096 dist/src/firstmeasure_worker.js
 Restart=always
-RestartSec=3
+RestartSec=5
 TimeoutStopSec=60
 KillSignal=SIGTERM
 NoNewPrivileges=true

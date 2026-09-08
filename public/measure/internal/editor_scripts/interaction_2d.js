@@ -2292,6 +2292,10 @@ window.printRenderFrameAnalytics = function() {
   console.info('[RenderAnalytics]', summary);
   return summary;
 };
+function firstMeasureInteractive3DRenderIntervalMs(pointCount) {
+  return Number(pointCount || 0) >= 180 ? (1000 / 30) : 0;
+}
+
 function requestGeoRender() {
   if (__geoRAF) return;
   __geoRAF = requestAnimationFrame(() => {
@@ -2693,9 +2697,13 @@ function setup2DListeners() {
                     renderGeometry2D();
                     render2DMs = performance.now() - t;
                 }
-                if (typeof renderGeometry3D === 'function' &&
+                const interactive3DInterval = firstMeasureInteractive3DRenderIntervalMs(activeGeometry?.points?.length || 0);
+                const canRenderInteractive3D = interactive3DInterval <= 0 ||
+                    performance.now() - Number(viewport.__lastGeo3DRenderAt || 0) >= interactive3DInterval;
+                if (typeof renderGeometry3D === 'function' && canRenderInteractive3D &&
                     (interactState === 'MOVING' || interactState === 'NEW_POINT')) {
                     const t3 = performance.now();
+                    viewport.__lastGeo3DRenderAt = t3;
                     renderGeometry3D();
                     render3DMs = performance.now() - t3;
                     if (typeof renderFinalPass === 'function') {

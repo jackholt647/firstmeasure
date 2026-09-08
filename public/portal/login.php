@@ -818,11 +818,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     let passwordRecoveryIdentifier = '';
 
     function googleErrorMessage(error) {
-        const code = String(error && error.code || '');
-        if (code === 'google_account_mismatch') return 'This email is already linked to a different Google account. Contact support if you need help.';
-        if (code === 'membership_required') return 'Your Google email is recognized, but it is not assigned to a company yet.';
-        if (code === 'identity_inactive' || code === 'user_disabled') return 'This account is disabled. Contact your company administrator.';
-        return String(error && error.message || 'Google sign-in could not be completed. Please try again.');
+        return authErrorMessage(error, 'Google sign-in could not be completed. Please try again.');
     }
 
     function showGoogleError(error, targetId) {
@@ -927,15 +923,55 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             },
             body: JSON.stringify(payload)
         });
-        return await res.json();
+        const data = await res.json();
+        return { ...data, status_code: res.status };
     }
 
-    function loginErrorMessage(data) {
-        const code = String(data && data.error || '').trim();
-        if (code === 'invalid_credentials') return 'The password you entered is incorrect.';
-        if (code === 'identity_phone_ambiguous') return 'This phone number is connected to multiple accounts. Sign in with email or contact support.';
-        if (code === 'not_found' || code === 'identity_phone_not_found') return "We couldn't find an account with that email or phone number.";
-        return String(data && data.message || 'Unable to log in. Please try again.');
+    function authErrorMessage(data, fallback = 'We could not complete your request. Please try again. If this continues, contact support@1m8.ai.') {
+        const code = String(data && (data.error || data.code) || '').trim();
+        const messages = {
+            identity_phone_exists: 'That phone number is already connected to an existing account. Log in to that account or use a different phone number.',
+            identity_email_exists: 'That email address is already connected to an existing account. Log in or use Forgot Password to recover access.',
+            identity_exists: 'An account with these details already exists. Log in or use Forgot Password to recover access.',
+            invalid_credentials: 'The email, phone number, or password you entered is incorrect.',
+            identity_phone_ambiguous: 'This phone number is connected to multiple accounts. Sign in with email or contact support.',
+            not_found: "We couldn't find an account with that email or phone number.",
+            identity_phone_not_found: "We couldn't find an account with that phone number.",
+            invalid_email: 'Enter a valid email address.',
+            invalid_phone_number: 'Enter a valid ten-digit mobile phone number.',
+            missing_login_identifier: 'Enter your email address or phone number.',
+            registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
+            identity_inactive: 'This account is disabled. Contact your company administrator or support.',
+            user_disabled: 'This account is disabled. Contact your company administrator or support.',
+            membership_required: 'Your account is not assigned to a company yet. Contact your company administrator or support.',
+            google_account_mismatch: 'This email is linked to a different Google account. Try that Google account or contact support.',
+            google_credential_required: 'Google sign-in did not finish. Please try again.',
+            invalid_google_credential: 'Google could not verify this sign-in. Please try again.',
+            unverified_google_email: 'Verify your email with Google before signing in.',
+            invalid_recovery_token: 'Your password reset session has expired. Use Forgot Password to request a new code.',
+            sms_phone_unavailable: 'This account does not have a valid mobile phone number. Use email recovery or contact support.',
+            telnyx_verify_send_failed: 'We could not send a text verification code. Please try again later or use email recovery.',
+            postmark_send_failed: 'We could not send the verification email. Please try again later or contact support.',
+            authentication_required: 'Your session expired. Please log in again.',
+            session_expired: 'Your session expired. Please log in again.',
+            session_revoked: 'Your session expired. Please log in again.',
+            csrf_required: 'Please refresh this page and try again.',
+            connection_error: 'We could not connect to the server. Check your connection and try again.',
+            'Missing required account fields.': 'Complete all required account fields.',
+            'Enter a valid ten-digit mobile phone number.': 'Enter a valid ten-digit mobile phone number.',
+            'Invalid or expired code.': 'That verification code is incorrect or has expired. Request a new code and try again.',
+            'Password too short': 'Use a password with at least 6 characters.',
+            'Password reset is not authorized.': 'Verify your recovery code before setting a new password. Start again with Forgot Password.'
+        };
+        if (Number(data && data.status_code) === 429) return 'Too many attempts. Please wait a few minutes and try again.';
+        // Do not expose raw provider messages, database details or unknown codes.
+        return Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] : fallback;
+    }
+
+    function showAuthError(element, data) {
+        element.innerText = authErrorMessage(data);
+        element.style.display = 'block';
+        requestAnimationFrame(() => setFormAreaHeightTo(element.closest('form.auth-form')));
     }
 
     function attributionPayload(extra = {}) {
@@ -1280,12 +1316,10 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                 showOtp(data.email, data.message || "Verification Required");
             }
             else {
-                err.innerText = loginErrorMessage(data);
-                err.style.display='block';
+                showAuthError(err, data);
             }
         } catch(e) {
-            err.innerText='Connection Error';
-            err.style.display='block';
+            showAuthError(err, { error: 'connection_error' });
         }
     });
 
@@ -1347,8 +1381,8 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                     window.location.href = onboardingDestination();
                 }
             }
-            else { err.innerText = data.error || 'Failed'; err.style.display='block'; }
-        } catch(e) { err.innerText='Connection Error'; err.style.display='block'; }
+            else { showAuthError(err, data); }
+        } catch(e) { showAuthError(err, { error: 'connection_error' }); }
         finally { resetSubmitting(); }
     });
 
@@ -1369,8 +1403,8 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                 passwordRecoveryIdentifier = String(fd.get('identifier') || '');
                 showOtp(data.masked_destination || '', data.message || "Password reset code sent.");
             }
-            else { err.innerText = data.message || data.error || 'Unable to send code.'; err.style.display='block'; }
-        } catch(e) { err.innerText='Connection Error'; err.style.display='block'; }
+            else { showAuthError(err, data); }
+        } catch(e) { showAuthError(err, { error: 'connection_error' }); }
         finally {
             form.dataset.submitting = 'false';
             if (submitButton) { submitButton.disabled = false; submitButton.innerText = 'Send Code'; }
@@ -1394,8 +1428,8 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                 if(data.first_login) window.location.href = onboardingDestination();
                 else window.location.href = redirectTarget;
             }
-            else { err.innerText = data.error; err.style.display='block'; }
-        } catch(e) { err.innerText='Connection Error'; err.style.display='block'; }
+            else { showAuthError(err, data); }
+        } catch(e) { showAuthError(err, { error: 'connection_error' }); }
     });
 
     // 5. RESET PASS
@@ -1420,8 +1454,8 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                 } else {
                     setTimeout(() => window.location.href = 'login.php?identifier=' + encodeURIComponent(passwordRecoveryIdentifier) + '&redirect=' + encodeURIComponent(redirectTarget || './'), 1200);
                 }
-            } else { err.innerText = data.error; err.style.display='block'; }
-        } catch(e) { err.innerText='Connection Error'; err.style.display='block'; }
+            } else { showAuthError(err, data); }
+        } catch(e) { showAuthError(err, { error: 'connection_error' }); }
     });
 
     // ---------------------------

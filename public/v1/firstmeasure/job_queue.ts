@@ -7,6 +7,8 @@ import {
 } from "./project_index.js";
 
 export type FirstMeasureJobStatus = "queued" | "running" | "completed" | "failed";
+// An attempt is a fencing token: even the same process must not settle an old claim.
+export type FirstMeasureJobClaim = Pick<FirstMeasureJobRow, "lease_owner" | "attempts">;
 
 export type FirstMeasureJobRow = {
   id: string;
@@ -324,11 +326,35 @@ export async function claimNextFirstMeasureJob(
   }
 }
 
-export async function completeFirstMeasureJob(id: string, result: Record<string, unknown>) {
-  if (isFirstMeasurePostgresEnabled()) return (await import("./job_queue_postgres.js")).completePostgresJob(id, result);
+export async function renewFirstMeasureJobLease(id: string, claim: FirstMeasureJobClaim, leaseMs: number) {
+  if (isFirstMeasurePostgresEnabled()) return (await import("./job_queue_postgres.js")).renewPostgresJobLease(id, claim, leaseMs);
+  await ensureJobSchema();
+  const now = Date.now();
+  return Number(getFirstMeasureProjectIndexDb().prepare(`UPDATE firstmeasure_jobs
+    SET lease_until_ms=$until, updated_at=$at WHERE id=$id AND status='running'
+    AND lease_owner=$owner AND attempts=$attempt AND lease_until_ms>$now`).run({
+    id, owner: claim.lease_owner, attempt: claim.attempts, now,
+    until: now + Math.max(1000, Math.floor(leaseMs)), at: nowIso()
+  }).changes) === 1;
+}
+
+export async function reapExhaustedFirstMeasureJobs(types: string[]) {
+  if (isFirstMeasurePostgresEnabled()) return (await import("./job_queue_postgres.js")).reapExhaustedPostgresJobs(types);
+  await ensureJobSchema();
+  if (!types.length) return 0;
+  const params = Object.fromEntries(types.map((type, i) => [`type${i}`, type]));
+  return Number(getFirstMeasureProjectIndexDb().prepare(`UPDATE firstmeasure_jobs
+    SET status='failed', error='Worker lease expired after final attempt.', lease_owner='',
+    lease_until_ms=0, updated_at=$at, finished_at=$at
+    WHERE status='running' AND lease_until_ms<=$now AND attempts>=max_attempts
+    AND type IN (${types.map((_, i) => `$type${i}`).join(',')})`).run({ ...params, now: Date.now(), at: nowIso() }).changes);
+}
+
+export async function completeFirstMeasureJob(id: string, result: Record<string, unknown>, claim: FirstMeasureJobClaim) {
+  if (isFirstMeasurePostgresEnabled()) return (await import("./job_queue_postgres.js")).completePostgresJob(id, result, claim);
   await ensureJobSchema();
   const at = nowIso();
-  getFirstMeasureProjectIndexDb().prepare(`
+  const updated = getFirstMeasureProjectIndexDb().prepare(`
     UPDATE firstmeasure_jobs
     SET status = 'completed',
       result_json = $resultJson,
@@ -338,19 +364,20 @@ export async function completeFirstMeasureJob(id: string, result: Record<string,
       available_at_ms = 0,
       updated_at = $at,
       finished_at = $at
-    WHERE id = $id
-  `).run({ id, resultJson: JSON.stringify(result ?? {}), at });
+    WHERE id = $id AND status='running' AND lease_owner=$owner AND attempts=$attempt AND lease_until_ms>$now
+  `).run({ id, resultJson: JSON.stringify(result ?? {}), at, owner: claim.lease_owner, attempt: claim.attempts, now: Date.now() });
+  return Number(updated.changes) === 1;
 }
 
-export async function failFirstMeasureJob(id: string, error: unknown) {
-  if (isFirstMeasurePostgresEnabled()) return (await import("./job_queue_postgres.js")).failPostgresJob(id, error);
+export async function failFirstMeasureJob(id: string, error: unknown, claim: FirstMeasureJobClaim) {
+  if (isFirstMeasurePostgresEnabled()) return (await import("./job_queue_postgres.js")).failPostgresJob(id, error, claim);
   await ensureJobSchema();
   const at = nowIso();
   const db = getFirstMeasureProjectIndexDb();
   const row = await getFirstMeasureJob(id);
   const canRetry = row ? row.attempts < row.max_attempts : false;
   const retryDelayMs = row && canRetry ? getFirstMeasureJobRetryDelayMs(row) : 0;
-  db.prepare(`
+  const updated = db.prepare(`
     UPDATE firstmeasure_jobs
     SET status = $status,
       error = $error,
@@ -359,14 +386,15 @@ export async function failFirstMeasureJob(id: string, error: unknown) {
       available_at_ms = $availableAtMs,
       updated_at = $at,
       finished_at = CASE WHEN $status = 'failed' THEN $at ELSE finished_at END
-    WHERE id = $id
+    WHERE id = $id AND status='running' AND lease_owner=$owner AND attempts=$attempt AND lease_until_ms>$now
   `).run({
     id,
     status: canRetry ? "queued" : "failed",
     error: error instanceof Error ? error.message : String(error),
     availableAtMs: canRetry ? Date.now() + retryDelayMs : 0,
-    at
+    at, owner: claim.lease_owner, attempt: claim.attempts, now: Date.now()
   });
+  return Number(updated.changes) === 1;
 }
 
 export function getFirstMeasureJobRetryDelayMs(job: Pick<FirstMeasureJobRow, "type" | "attempts">) {

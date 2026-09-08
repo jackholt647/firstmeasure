@@ -4,9 +4,17 @@ import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import type { FastifyInstance } from "fastify";
+import { PDFDocument } from "pdf-lib";
 
 let app: FastifyInstance;
 let root = "";
+
+async function saveSyntheticReport(projectId: string) {
+  const pdf = await PDFDocument.create();
+  pdf.addPage().drawText("Synthetic team statistics test report");
+  const { saveStoredPdf } = await import("../firstmeasure/storage.js");
+  await saveStoredPdf(projectId, "main", await pdf.save());
+}
 
 async function request(
   method: "GET" | "POST" | "PUT" | "PATCH",
@@ -149,6 +157,7 @@ test("internal teams persist names, managers, stats, and tracked assignments", a
   }, 200, "tech@example.test");
   assert.equal(resumedProject.resumed, true);
   assert.equal(resumedProject.folder, "team-leaderboard-project");
+  await saveSyntheticReport("team-leaderboard-project");
   await request("POST", "/v1/firstmeasure/projects/team-leaderboard-project/status", { status: "completed" });
 
   await request("POST", "/v1/firstmeasure/projects", {
@@ -157,6 +166,7 @@ test("internal teams persist names, managers, stats, and tracked assignments", a
     complexity: 2,
     team_ref: { id: created.team.id }
   }, 201);
+  await saveSyntheticReport("team-qa-stats-project");
   await request("PATCH", "/v1/firstmeasure/projects/team-qa-stats-project", {
     qa_approved_by: "qa@example.test",
     qa_approved_by_name: "Quinn QA",

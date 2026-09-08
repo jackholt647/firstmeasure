@@ -86,6 +86,18 @@
   // AFK detection: if no recent activity within this threshold, consider worker AFK
   const AFK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
 
+  function workerLatestActivityMs(worker, parseTimestamp){
+    const w = worker || {};
+    const values = [w.last_activity_at, w.last_qa_activity_at, w.last_qa_heartbeat_at];
+    (Array.isArray(w.projects) ? w.projects : []).forEach(project => {
+      values.push(project?.started_at, project?.editor_presence?.at);
+    });
+    (Array.isArray(w.qa_items) ? w.qa_items : []).forEach(project => {
+      values.push(project?.qa_claimed_at, project?.editor_presence?.at);
+    });
+    return values.reduce((latest, value) => Math.max(latest, parseTimestamp(value) || 0), 0);
+  }
+
   // ---- date helpers (all LOCAL) ----
   function ymdLocal(d){
     const y = d.getFullYear();
@@ -1277,23 +1289,7 @@
         w.is_afk = false;
         w.idle_since = 0;
 
-        let latestActivity = 0;
-
-        // Check in-progress project start times
-        w.projects.forEach(p => {
-          if (p.started_at) {
-            const t = new Date(p.started_at).getTime();
-            if (t > latestActivity) latestActivity = t;
-          }
-        });
-
-        // Check QA claim times
-        w.qa_items.forEach(q => {
-          if (q.qa_claimed_at) {
-            const t = new Date(q.qa_claimed_at).getTime();
-            if (t > latestActivity) latestActivity = t;
-          }
-        });
+        const latestActivity = workerLatestActivityMs(w, value => this.timerTimestampMs(value));
 
         // Worker is AFK if they have assigned work but nothing recent
         const hasWork = w.projects.length > 0 || w.qa_items.length > 0;
@@ -1627,6 +1623,19 @@
       Object.values(workerMap).forEach(worker => {
         const rosterRank = this.rankForEmail(worker.email);
         if (rosterRank) worker.drafter_rank = rosterRank;
+      });
+
+      // Presence heartbeats are stored on the shared user record. The old
+      // single-host dashboard could get away with treating assignment start as
+      // activity, but long-running work on the cluster must use these live
+      // timestamps or every assignment older than an hour appears AFK.
+      dashboardRoster.forEach(person => {
+        const email = String(person?.email || '').toLowerCase().trim();
+        const worker = workerMap[email];
+        if (!worker) return;
+        for (const key of ['last_activity_at', 'last_qa_activity_at', 'last_qa_heartbeat_at']) {
+          if (person?.[key]) worker[key] = person[key];
+        }
       });
 
       const workers = Object.values(workerMap);

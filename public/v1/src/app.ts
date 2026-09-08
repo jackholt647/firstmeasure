@@ -1,6 +1,8 @@
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import type { FastifyReplyFromHooks } from "@fastify/reply-from";
 import Fastify from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import type { IncomingHttpHeaders } from "node:http";
 
 import { registerCanvassingApi } from "../canvassing/api.js";
@@ -23,6 +25,26 @@ import { registerWeatherApi } from "../weather/api.js";
 import { env } from "./config/env.js";
 import { devConsoleRoutes } from "./routes/dev_console.js";
 import { rootRoutes } from "./routes/root.js";
+
+export function legacyProxyReplyOptions(
+  request: Pick<FastifyRequest, "body" | "headers">,
+  options: FastifyReplyFromHooks
+): FastifyReplyFromHooks {
+  const rawContentType = request.headers["content-type"];
+  const contentType = String(Array.isArray(rawContentType) ? rawContentType[0] ?? "" : rawContentType ?? "")
+    .split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (contentType !== "application/x-www-form-urlencoded") return options;
+  if (!request.body || typeof request.body !== "object" || Buffer.isBuffer(request.body)) return options;
+
+  // The application-wide form parser has already converted the payload into an
+  // object before @fastify/http-proxy sees it. Passing that object implicitly
+  // makes reply-from treat it as raw form bytes and Buffer.byteLength throws.
+  // Supplying it as an explicit body makes reply-from JSON-encode it and update
+  // the upstream content type, which the compatibility API accepts.
+  return { ...options, contentType: undefined, body: request.body };
+}
 
 export async function buildApp() {
   const app = Fastify({
@@ -92,6 +114,12 @@ export async function buildApp() {
       prefix,
       rewritePrefix: prefix,
       http2: false as const,
+      handler: (
+        request: FastifyRequest,
+        reply: FastifyReply,
+        destination: string,
+        options: FastifyReplyFromHooks
+      ) => reply.from(destination, legacyProxyReplyOptions(request, options)),
       replyOptions: {
         rewriteRequestHeaders: (_request: unknown, headers: IncomingHttpHeaders) => ({
           ...headers,

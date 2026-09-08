@@ -1,4 +1,4 @@
-import { readGlobal, saveGlobal } from "../platform/storage.js";
+import { readGlobal, saveGlobal, mutateGlobal } from "../platform/storage.js";
 import { badRequest, forbidden } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
 import { firstMeasureReportAmount } from "../firstmeasure/pricing.js";
@@ -59,7 +59,7 @@ export async function chargePublicFirstMeasureOrder(input: {
       amount: -Math.abs(input.amount),
       reason: "api_firstmeasure_order_submitted",
       meta: input.meta
-    }, input.actorEmail);
+    }, input.actorEmail, !(hasPaymentMethod && autoTopupEnabled));
 
     let topup: Awaited<ReturnType<typeof stripeMaybeAutoTopup>> = null;
     try {
@@ -109,40 +109,65 @@ export async function refundPublicFirstMeasureOrder(input: {
   }, input.actorEmail));
 }
 
-async function applyCreditDelta(orgId: string, body: Record<string, unknown>, actorEmail: unknown) {
+async function applyCreditDelta(orgId: string, body: Record<string, unknown>, actorEmail: unknown, requireAvailableCredits = false) {
   const amount = numericValue(body.amount ?? body.delta);
   if (amount === 0) throw badRequest("invalid_credit_amount", "Credit amount must be non-zero.");
-  const global = await readGlobal(orgId);
-  const data = asObject(global.data);
-  const balance = numericValue(data.credits_balance);
-  const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
-  const entry = {
-    ts: new Date().toISOString(),
-    delta: moneyAmount(amount),
-    reason: cleanText(body.reason) || "adjustment",
-    by_email: cleanText(actorEmail),
-    applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
-    meta: asObject(body.meta),
-    unit: cleanText(body.unit) || "usd_dollars",
-    balance_after: moneyAmount(balance + amount)
-  };
-  ledger.push(entry);
-  const document = await saveGlobal(orgId, {
-    data: {
-      credits_balance: entry.balance_after,
-      credits_ledger: ledger
-    },
-    metadata: {
-      last_credit_mutation_at: entry.ts,
-      last_credit_mutation_reason: entry.reason
+  let outcome = { balance: 0, ledger_entry: {} as JsonObject, ledger_count: 0 };
+  const document = await mutateGlobal(orgId, (global) => {
+    const data = asObject(global.data);
+    const balance = numericValue(data.credits_balance);
+    if (requireAvailableCredits && amount < 0 && moneyAmount(balance + amount) < 0) {
+      throw forbidden("insufficient_credits", "This organization does not have enough credits and API auto top-up is not ready.", { balance, required: Math.abs(amount) });
     }
+    const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
+    // Checkout fulfillment can arrive from the webhook and browser together;
+    // Stripe retry IDs must be checked in the same transaction as the credit.
+    const reason = String(body.reason ?? "");
+    const paymentMeta = asObject(body.meta);
+    const paymentKey = reason === "stripe_checkout_paid"
+      ? String(paymentMeta.stripe_checkout_session_id ?? paymentMeta.session_id ?? "")
+      : (reason === "stripe_auto_topup" ? String(paymentMeta.payment_intent_id ?? "") : "");
+    const duplicate = amount > 0 && paymentKey ? ledger.find((value) => {
+      const previous = asObject(value);
+      const meta = asObject(previous.meta);
+      const key = reason === "stripe_checkout_paid"
+        ? String(meta.stripe_checkout_session_id ?? meta.session_id ?? "")
+        : String(meta.payment_intent_id ?? "");
+      return String(previous.reason ?? "") === reason && Number(previous.delta) > 0 && key === paymentKey;
+    }) : null;
+    if (duplicate) {
+      outcome = { balance, ledger_entry: asObject(duplicate), ledger_count: ledger.length };
+      return {};
+    }
+    const entry = {
+      ts: new Date().toISOString(),
+      delta: moneyAmount(amount),
+      reason: cleanText(body.reason) || "adjustment",
+      by_email: cleanText(actorEmail),
+      applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
+      meta: asObject(body.meta),
+      unit: cleanText(body.unit) || "usd_dollars",
+      balance_after: moneyAmount(balance + amount)
+    };
+    ledger.push(entry);
+    outcome = {
+      balance: entry.balance_after,
+      ledger_entry: entry,
+      ledger_count: ledger.length
+    };
+    return {
+      data: {
+        credits_balance: entry.balance_after,
+        credits_ledger: ledger
+      },
+      metadata: {
+        last_credit_mutation_at: entry.ts,
+        last_credit_mutation_reason: entry.reason
+      }
+    };
   });
-  return {
-    balance: entry.balance_after,
-    ledger_entry: entry,
-    ledger_count: ledger.length,
-    document
-  };
+
+  return { ...outcome, document };
 }
 
 function safeBillingView(value: unknown) {

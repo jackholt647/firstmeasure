@@ -154,9 +154,8 @@ async function selectCandidate(
 
 async function hasAvailableSeniorTechnicianPostgres(
   client: import("pg").PoolClient,
-  teamId?: string
+  onlineSeniorEmails: string[]
 ) {
-  const onlineSeniorEmails = await onlineSeniorTechnicianEmails(teamId);
   if (!onlineSeniorEmails.length) return false;
   const busy = await client.query<{ email: string }>(`
     SELECT DISTINCT lower(assigned_to_email) AS email
@@ -173,11 +172,17 @@ export async function getPostgresClaimableQueueStatus(input: QueueClaimInput) {
   const eligibility = await resolveTechnicianPriorityEligibility(input.actor);
   const rank = eligibility.rank;
   const settings = await readProductionQueuePrioritySettings();
+  // Internal-user reads use the shared pool. Load the current roster before
+  // checking out a transaction client, or concurrent requests can each hold one
+  // client while waiting for a second and exhaust even an otherwise healthy pool.
+  const onlineSeniorEmails = rank === "standard" && eligibility.p1Eligible === undefined
+    ? await onlineSeniorTechnicianEmails(input.team_id ?? input.actor.team_id)
+    : [];
   return withPostgresTransaction(async (client) => {
     const status = await statusWithClient(client, input);
     if (status.queue_blocked) return { ...status, claimable_count: 0, claimable_next_id: null, claimable_source: null };
     const seniorAvailable = rank === "standard" && eligibility.p1Eligible === undefined
-      ? await hasAvailableSeniorTechnicianPostgres(client, input.team_id ?? input.actor.team_id)
+      ? await hasAvailableSeniorTechnicianPostgres(client, onlineSeniorEmails)
       : false;
     const candidate = await selectCandidate(client, input, false, rank, settings.priorities[rank], seniorAvailable, eligibility.p1Eligible, eligibility.p2Eligible);
     const manifest = candidate.row ? manifestValue(candidate.row.manifest_json) : null;
@@ -196,11 +201,16 @@ export async function claimNextPostgresQueue(input: QueueClaimInput) {
   const eligibility = await resolveTechnicianPriorityEligibility(input.actor);
   const rank = eligibility.rank;
   const settings = await readProductionQueuePrioritySettings();
+  // Keep pool-backed roster reads outside the claim transaction; the busy check
+  // and FOR UPDATE SKIP LOCKED selection below still share its single client.
+  const onlineSeniorEmails = rank === "standard" && eligibility.p1Eligible === undefined
+    ? await onlineSeniorTechnicianEmails(input.team_id ?? input.actor.team_id)
+    : [];
   const claimed = await withPostgresTransaction(async (client) => {
     const status = await statusWithClient(client, input);
     if (status.queue_blocked) throw conflict("queue_blocked", `Queue is blocked: ${status.queue_blocked_reason ?? "unknown"}`);
     const seniorAvailable = rank === "standard" && eligibility.p1Eligible === undefined
-      ? await hasAvailableSeniorTechnicianPostgres(client, input.team_id ?? input.actor.team_id)
+      ? await hasAvailableSeniorTechnicianPostgres(client, onlineSeniorEmails)
       : false;
     const candidate = await selectCandidate(client, input, true, rank, settings.priorities[rank], seniorAvailable, eligibility.p1Eligible, eligibility.p2Eligible);
     if (!candidate.row) throw notFound("queue_empty", "No eligible project was found in the queue.");

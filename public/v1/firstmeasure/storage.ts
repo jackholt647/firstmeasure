@@ -681,7 +681,14 @@ export async function saveStoredXml(projectId: string, content: string) {
 }
 
 export async function refreshArtifactFlags(projectId: string, manifest: ProjectManifest) {
-  const detail = await listProjectFiles(projectId).catch(() => []);
+  // The caller already loaded this manifest (often under a PostgreSQL row lock).
+  // Avoid listProjectFiles' redundant database existence lookup in Spaces mode:
+  // it would acquire a second pool connection while the first is still held.
+  // A failed listing is not an empty project. Let the mutation roll back instead
+  // of incorrectly clearing every PDF/image flag after a transient storage error.
+  const detail = isSpacesArtifactStorageEnabled()
+    ? await listProjectArtifacts(projectId)
+    : await listProjectFiles(projectId);
   const names = new Set(detail.map((entry) => entry.name));
 
   manifest.artifacts = {

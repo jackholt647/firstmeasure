@@ -6,6 +6,7 @@ import {
   getFirstMeasureJobRetryDelayMs,
   type EnqueueFirstMeasureJobOptions,
   type FirstMeasureJobRow,
+  type FirstMeasureJobClaim,
   type FirstMeasureWorkerHealth
 } from "./job_queue.js";
 
@@ -132,23 +133,50 @@ export async function claimNextPostgresJob(workerId: string, types: string[], le
   });
 }
 
-export async function completePostgresJob(id: string, result: Record<string, unknown>) {
+export async function renewPostgresJobLease(id: string, claim: FirstMeasureJobClaim, leaseMs: number) {
   await ensurePostgresProjectIndexReady();
-  await queryPostgres(`UPDATE firstmeasure_jobs SET status='completed', result_json=$2::jsonb, error='',
-    lease_owner='', lease_until_ms=0, available_at_ms=0, updated_at=now(), finished_at=now() WHERE id=$1`,
-  [id, JSON.stringify(result ?? {})]);
+  const result = await queryPostgres(`UPDATE firstmeasure_jobs SET
+    lease_until_ms=floor(extract(epoch from clock_timestamp())*1000)+$4, updated_at=now()
+    WHERE id=$1 AND status='running' AND lease_owner=$2 AND attempts=$3
+      AND lease_until_ms>floor(extract(epoch from clock_timestamp())*1000)`,
+  [id, claim.lease_owner, claim.attempts, Math.max(1000, Math.floor(leaseMs))]);
+  return result.rowCount === 1;
 }
 
-export async function failPostgresJob(id: string, error: unknown) {
+export async function reapExhaustedPostgresJobs(types: string[]) {
   await ensurePostgresProjectIndexReady();
-  await withPostgresTransaction(async (client) => {
-    const result = await client.query<Record<string, unknown>>("SELECT * FROM firstmeasure_jobs WHERE id=$1 FOR UPDATE", [id]);
-    if (!result.rows[0]) return;
+  const result = await queryPostgres(`UPDATE firstmeasure_jobs SET status='failed',
+    error='Worker lease expired after final attempt.', lease_owner='', lease_until_ms=0,
+    updated_at=now(), finished_at=now() WHERE id IN (
+      SELECT id FROM firstmeasure_jobs WHERE type=ANY($1::text[]) AND status='running'
+        AND attempts>=max_attempts AND lease_until_ms<=floor(extract(epoch from clock_timestamp())*1000)
+      LIMIT 100 FOR UPDATE SKIP LOCKED)`, [types]);
+  return result.rowCount ?? 0;
+}
+
+export async function completePostgresJob(id: string, result: Record<string, unknown>, claim: FirstMeasureJobClaim) {
+  await ensurePostgresProjectIndexReady();
+  const updated = await queryPostgres(`UPDATE firstmeasure_jobs SET status='completed', result_json=$2::jsonb, error='',
+    lease_owner='', lease_until_ms=0, available_at_ms=0, updated_at=now(), finished_at=now()
+    WHERE id=$1 AND status='running' AND lease_owner=$3 AND attempts=$4
+      AND lease_until_ms>floor(extract(epoch from clock_timestamp())*1000)`,
+  [id, JSON.stringify(result ?? {}), claim.lease_owner, claim.attempts]);
+  return updated.rowCount === 1;
+}
+
+export async function failPostgresJob(id: string, error: unknown, claim: FirstMeasureJobClaim) {
+  await ensurePostgresProjectIndexReady();
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query<Record<string, unknown>>(`SELECT * FROM firstmeasure_jobs
+      WHERE id=$1 AND status='running' AND lease_owner=$2 AND attempts=$3
+        AND lease_until_ms>floor(extract(epoch from clock_timestamp())*1000) FOR UPDATE`, [id, claim.lease_owner, claim.attempts]);
+    if (!result.rows[0]) return false;
     const job = normalize(result.rows[0]);
     const retry = job.attempts < job.max_attempts;
     const delay = retry ? getFirstMeasureJobRetryDelayMs(job) : 0;
     await client.query(`UPDATE firstmeasure_jobs SET status=$2, error=$3, lease_owner='', lease_until_ms=0,
       available_at_ms=$4, updated_at=now(), finished_at=CASE WHEN $2='failed' THEN now() ELSE finished_at END WHERE id=$1`,
     [id, retry ? "queued" : "failed", error instanceof Error ? error.message : String(error), retry ? Date.now() + delay : 0]);
+    return true;
   });
 }

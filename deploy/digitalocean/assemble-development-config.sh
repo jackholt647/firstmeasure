@@ -3,7 +3,8 @@ set -euo pipefail
 
 seed=/root/firstmeasure-development-config-seed
 target=/etc/firstmeasure
-install -d -m 750 -o root -g firstmeasure "$target"
+usermod -a -G www-data firstmeasure
+install -d -m 750 -o root -g www-data "$target"
 
 strip_sensitive() {
   awk -F= '
@@ -40,7 +41,7 @@ install -m 640 -o root -g firstmeasure "$seed/web.env" "$target/web.env"
 install -m 640 -o root -g firstmeasure "$seed/worker.env" "$target/worker.env"
 install -m 640 -o root -g firstmeasure "$seed/legacy.env" "$target/legacy.env"
 install -m 640 -o root -g firstmeasure "$seed/ca-certificate.crt" "$target/ca-certificate.crt"
-install -m 640 -o root -g firstmeasure "$seed/provider-keys.json" "$target/provider-keys.json"
+install -m 640 -o root -g www-data "$seed/provider-keys.json" "$target/provider-keys.json"
 chown root:firstmeasure "$target/common.env" "$target/development.env"
 chmod 640 "$target/common.env" "$target/development.env"
 

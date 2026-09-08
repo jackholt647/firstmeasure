@@ -9,7 +9,9 @@ function nodePlatformStripeWebhookUrl(): string {
     if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
         return 'http://' . $hostOnly . ':3111/v1/platform/stripe-webhook-proxy';
     }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    // TLS terminates at the trusted load balancer, before this PHP request.
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $forwardedProto === 'https') ? 'https' : 'http';
     return $scheme . '://' . $host . '/v1/platform/stripe-webhook-proxy';
 }
 

@@ -37,6 +37,8 @@ test("technician corrections return to the original QA within their priority", a
         timestamps: { created_at: now, queued_at: now, updated_at: now },
         ...extra
       } as unknown as ProjectManifest);
+      // Resubmitting a correction must retain a reviewed report artifact.
+      await storage.saveStoredPdf(id, "main", Buffer.from("%PDF-1.4\nsynthetic routing fixture\n%%EOF"));
     };
 
     await saveProject("fresh-p1", "awaiting_review", 1);

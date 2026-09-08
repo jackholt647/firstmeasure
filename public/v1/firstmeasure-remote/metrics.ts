@@ -1,4 +1,5 @@
 import { getFirstMeasureProjectIndexDb, getIndexedQueueCounts } from "../firstmeasure/project_index.js";
+import { isFirstMeasurePostgresEnabled, queryPostgres } from "../src/database/postgres.js";
 
 type JsonObject = Record<string, unknown>;
 type SqlValue = string | number | null;
@@ -78,8 +79,21 @@ function currentDayBounds(timezone: string, now = new Date()) {
   };
 }
 
-function countProjects(options: { statuses?: string[]; dateColumn?: string; startMs?: number; endMs?: number; teamId?: string }) {
-  const db = getFirstMeasureProjectIndexDb();
+// SQL comes only from the fixed templates below; request values stay bound.
+async function aggregateRows<T extends Record<string, unknown>>(sql: string, params: Record<string, SqlValue>): Promise<T[]> {
+  if (!isFirstMeasurePostgresEnabled()) {
+    return getFirstMeasureProjectIndexDb().prepare(sql).all(params) as T[];
+  }
+  const names: string[] = [];
+  const positional = sql.replace(/\$([A-Za-z][A-Za-z0-9]*)/g, (_match, name: string) => {
+    if (!Object.hasOwn(params, name)) throw new Error("Unbound remote aggregate parameter.");
+    if (!names.includes(name)) names.push(name);
+    return `$${names.indexOf(name) + 1}`;
+  });
+  return (await queryPostgres<T>(positional, names.map((name) => params[name]))).rows;
+}
+
+async function countProjects(options: { statuses?: string[]; dateColumn?: string; startMs?: number; endMs?: number; teamId?: string }) {
   const where = ["instant_only = 0"];
   const params: Record<string, SqlValue> = {};
   if (options.teamId) {
@@ -98,7 +112,7 @@ function countProjects(options: { statuses?: string[]; dateColumn?: string; star
     params.startMs = options.startMs;
     params.endMs = options.endMs;
   }
-  const row = db.prepare(`SELECT COUNT(*) AS count FROM projects WHERE ${where.join(" AND ")}`).get(params) as { count?: number } | undefined;
+  const [row] = await aggregateRows<{ count?: number | string }>(`SELECT COUNT(*) AS count FROM projects WHERE ${where.join(" AND ")}`, params);
   return Number(row?.count ?? 0);
 }
 
@@ -118,10 +132,10 @@ export async function buildRemoteSummary(input: JsonObject = {}) {
   const queryTeamNote = teamId ? { team_id: teamId } : {};
 
   // Cohort counts use created_at; completed_today uses completed_at independently.
-  const total = countProjects({ teamId });
-  const orderedToday = countProjects({ teamId, dateColumn: "created_at_ms", startMs: day.startMs, endMs: day.endMs });
-  const orderedTodayCompleted = countProjects({ teamId, statuses: ["completed"], dateColumn: "created_at_ms", startMs: day.startMs, endMs: day.endMs });
-  const completedToday = countProjects({ teamId, statuses: ["completed"], dateColumn: "completed_at_ms", startMs: day.startMs, endMs: day.endMs });
+  const total = await countProjects({ teamId });
+  const orderedToday = await countProjects({ teamId, dateColumn: "created_at_ms", startMs: day.startMs, endMs: day.endMs });
+  const orderedTodayCompleted = await countProjects({ teamId, statuses: ["completed"], dateColumn: "created_at_ms", startMs: day.startMs, endMs: day.endMs });
+  const completedToday = await countProjects({ teamId, statuses: ["completed"], dateColumn: "completed_at_ms", startMs: day.startMs, endMs: day.endMs });
 
   return {
     ok: true,
@@ -153,7 +167,7 @@ function parseDate(value: unknown, field: string) {
   return parsed;
 }
 
-export function runRemoteAggregateQuery(input: JsonObject = {}) {
+export async function runRemoteAggregateQuery(input: JsonObject = {}) {
   const dateField = text(input.date_field || "created") as keyof typeof DATE_COLUMNS;
   const dateColumn = DATE_COLUMNS[dateField];
   if (!dateColumn) throw new RemoteMetricsInputError("invalid_date_field", `date_field must be one of: ${Object.keys(DATE_COLUMNS).join(", ")}.`);
@@ -185,17 +199,18 @@ export function runRemoteAggregateQuery(input: JsonObject = {}) {
   }
 
   let groupExpression = "'all'";
-  if (groupBy === "day") groupExpression = `strftime('%Y-%m-%d', ${dateColumn} / 1000, 'unixepoch')`;
+  if (groupBy === "day") groupExpression = isFirstMeasurePostgresEnabled()
+    ? `to_char(to_timestamp(${dateColumn} / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD')`
+    : `strftime('%Y-%m-%d', ${dateColumn} / 1000, 'unixepoch')`;
   else if (groupColumn) groupExpression = `COALESCE(NULLIF(${groupColumn}, ''), 'unknown')`;
-  const db = getFirstMeasureProjectIndexDb();
-  const rows = db.prepare(`
+  const rows = await aggregateRows<{ group_key?: string; project_count?: number | string }>(`
     SELECT ${groupExpression} AS group_key, COUNT(*) AS project_count
     FROM projects
     WHERE ${where.join(" AND ")}
     GROUP BY group_key
     ORDER BY project_count DESC, group_key ASC
     LIMIT 500
-  `).all(params) as Array<{ group_key?: string; project_count?: number }>;
+  `, params);
 
   return {
     ok: true,

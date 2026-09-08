@@ -144,6 +144,12 @@ before cutover so data created during the rehearsal is included.
 
 ## Capacity settings
 
+For the measured September 7 development pool, use
+[DEV_AUTOSCALING_CAPACITY.md](DEV_AUTOSCALING_CAPACITY.md). That configuration
+uses two HTTP workers per web node, four PostgreSQL connections per process,
+and four explicit background-job slots on the separate worker. The initial
+sizing example below is not the configuration measured in that campaign.
+
 Begin with 8 Node HTTP workers per web Droplet and a PostgreSQL pool maximum of
 1 per process. Two web Droplets therefore reserve about 16 application
 connections, leaving room for the worker, legacy service, migrations, and

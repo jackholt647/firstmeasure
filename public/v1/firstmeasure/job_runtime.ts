@@ -1,4 +1,5 @@
-import { availableParallelism } from "node:os";
+import { availableParallelism, hostname } from "node:os";
+import { randomUUID } from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -9,8 +10,11 @@ import {
   completeFirstMeasureJob,
   failFirstMeasureJob,
   recordFirstMeasureWorkerHeartbeat,
+  renewFirstMeasureJobLease,
+  reapExhaustedFirstMeasureJobs,
   type FirstMeasureJobRow
 } from "./job_queue.js";
+import { runWithJobLease } from "./job_lease.js";
 
 type Logger = {
   info?: (value: unknown, message?: string) => void;
@@ -26,6 +30,14 @@ type FirstMeasureJobHandler = (
 const registeredJobHandlers = new Map<string, FirstMeasureJobHandler>();
 
 let runtimeStarted = false;
+let runtimeStopping = false;
+let dispatcher: Promise<void> | null = null;
+const activeJobs = new Set<Promise<void>>();
+const runtimeId = `${hostname()}:${process.pid}:${randomUUID()}`;
+const JOB_LEASE_MS = 300_000;
+const requestedMaxRuntime = Number(process.env.FIRSTMEASURE_JOB_MAX_RUNTIME_MS ?? 30 * 60_000);
+const MAX_JOB_RUNTIME_MS = Number.isFinite(requestedMaxRuntime)
+  ? Math.max(60_000, Math.min(6 * 60 * 60_000, requestedMaxRuntime)) : 30 * 60_000;
 let runtimeHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let runtimeState = {
   workerCount: 0,
@@ -102,7 +114,9 @@ function runWorkerThread(job: FirstMeasureJobRow) {
     });
     worker.once("error", reject);
     worker.once("exit", (code) => {
-      if (code !== 0) reject(new Error(`Worker exited with code ${code}.`));
+      // If a result already arrived this reject is harmless. Even exit(0)
+      // without a result must release the occupied job slot.
+      reject(new Error(`Worker exited with code ${code} without a result.`));
     });
   });
 }
@@ -111,29 +125,51 @@ async function executeClaimedJob(job: FirstMeasureJobRow, logger?: Logger) {
   runtimeState.claimed += 1;
   try {
     const handler = registeredJobHandlers.get(job.type);
-    const result = handler
-      ? await handler(job, logger)
-      : await runWorkerThread(job);
-    await completeFirstMeasureJob(job.id, result);
+    const result = await runWithJobLease({
+      execute: () => handler ? handler(job, logger) : runWorkerThread(job),
+      renew: () => renewFirstMeasureJobLease(job.id, job, JOB_LEASE_MS),
+      leaseUntilMs: job.lease_until_ms,
+      leaseMs: JOB_LEASE_MS,
+      intervalMs: 10_000,
+      safetyMarginMs: 30_000,
+      maxRuntimeMs: MAX_JOB_RUNTIME_MS,
+      warn: (err) => logger?.warn?.({ err, jobId: job.id }, "Job lease renewal failed; retrying before expiry."),
+      fatal: (reason) => {
+        logger?.error?.({ reason, jobId: job.id }, "Worker stopping to prevent unsafe job execution; supervisor will restart it.");
+        process.exit(1);
+      }
+    });
+    if (!await completeFirstMeasureJob(job.id, result, job)) throw new Error("Job completion rejected: claim is no longer owned.");
     runtimeState.completed += 1;
   } catch (error) {
-    await failFirstMeasureJob(job.id, error);
+    await failFirstMeasureJob(job.id, error, job);
     runtimeState.failed += 1;
     logger?.warn?.({ err: error, jobId: job.id, type: job.type }, "FirstMeasure job failed.");
   }
 }
 
 async function dispatcherLoop(workerCount: number, logger?: Logger) {
-  const workerId = `${process.pid}:fm-job-dispatcher`;
-  const active = new Set<Promise<void>>();
-  while (true) {
+  const workerId = `${runtimeId}:dispatcher`;
+  const active = activeJobs;
+  let nextReapAt = 0;
+  while (!runtimeStopping) {
     try {
+      const registeredTypes = ["stress.cpu", ...registeredJobHandlers.keys()];
+      const allowedTypes = String(process.env.FIRSTMEASURE_JOB_TYPES ?? "")
+        .split(",").map((type) => type.trim()).filter(Boolean);
+      const jobTypes = allowedTypes.length
+        ? registeredTypes.filter((type) => allowedTypes.includes(type))
+        : registeredTypes;
+      if (Date.now() >= nextReapAt) {
+        const reaped = await reapExhaustedFirstMeasureJobs(jobTypes);
+        if (reaped) logger?.warn?.({ count: reaped }, "Expired final-attempt jobs marked failed; operator review required.");
+        nextReapAt = Date.now() + 30_000;
+      }
       if (active.size >= workerCount) {
-        await Promise.race(active);
+        await Promise.race([...active, sleep(250)]);
         continue;
       }
-      const jobTypes = ["stress.cpu", ...registeredJobHandlers.keys()];
-      const job = await claimNextFirstMeasureJob(workerId, jobTypes, 300_000);
+      const job = await claimNextFirstMeasureJob(workerId, jobTypes, JOB_LEASE_MS);
       if (!job) {
         if (active.size > 0) {
           await Promise.race([Promise.race(active), sleep(250)]);
@@ -172,9 +208,12 @@ export function startFirstMeasureJobRuntime(logger?: Logger) {
     logger?.info?.({ workerCount }, "FirstMeasure job runtime disabled.");
     return runtimeState;
   }
-  void dispatcherLoop(workerCount, logger);
-  const workerId = `${process.pid}:fm-runtime`;
+  dispatcher = dispatcherLoop(workerCount, logger);
+  const workerId = `${runtimeId}:runtime`;
+  let heartbeatPending = false;
   const recordHeartbeat = async () => {
+    if (heartbeatPending) return;
+    heartbeatPending = true;
     try {
       const heartbeatAtMs = await recordFirstMeasureWorkerHeartbeat(
         workerId,
@@ -184,7 +223,7 @@ export function startFirstMeasureJobRuntime(logger?: Logger) {
       runtimeState.heartbeatAt = new Date(heartbeatAtMs).toISOString();
     } catch (error) {
       logger?.error?.({ err: error, workerId }, "FirstMeasure worker heartbeat failed.");
-    }
+    } finally { heartbeatPending = false; }
   };
   void recordHeartbeat();
   runtimeHeartbeatTimer = setInterval(() => void recordHeartbeat(), 30_000);
@@ -194,5 +233,19 @@ export function startFirstMeasureJobRuntime(logger?: Logger) {
 }
 
 export function getFirstMeasureJobRuntimeStatus() {
-  return { ...runtimeState };
+  return { ...runtimeState, activeJobs: activeJobs.size, stopping: runtimeStopping };
+}
+
+export async function stopFirstMeasureJobRuntime(timeoutMs = 45_000) {
+  runtimeStopping = true;
+  let timeout: ReturnType<typeof setTimeout>;
+  try {
+    return await Promise.race([
+      (async () => { await dispatcher; await Promise.allSettled([...activeJobs]); return true; })(),
+      new Promise<false>((resolve) => { timeout = setTimeout(() => resolve(false), timeoutMs); })
+    ]);
+  } finally {
+    clearTimeout(timeout!);
+    if (runtimeHeartbeatTimer) clearInterval(runtimeHeartbeatTimer);
+  }
 }

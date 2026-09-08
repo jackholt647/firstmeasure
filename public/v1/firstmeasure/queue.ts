@@ -192,6 +192,24 @@ export async function getQueueStatus(input: QueueStatusInput) {
 }
 
 export async function getClaimableQueueStatus(input: QueueClaimInput) {
+  const status = await getClaimableQueueStatusWithoutBreak(input);
+  const user = input.actor.email ? await readInternalUser(input.actor.email.trim().toLowerCase()) : null;
+  const onBreak = user?.on_break === true;
+  return {
+    ...status,
+    on_break: onBreak,
+    break_started_at: onBreak ? user?.break_started_at ?? null : null,
+    ...(onBreak ? {
+      queue_blocked: true,
+      queue_blocked_reason: "on_break",
+      claimable_count: 0,
+      claimable_next_id: null,
+      claimable_source: null
+    } : {})
+  };
+}
+
+async function getClaimableQueueStatusWithoutBreak(input: QueueClaimInput) {
   if (isFirstMeasurePostgresEnabled()) return (await import("./queue_postgres.js")).getPostgresClaimableQueueStatus(input);
   const actor = normalizeActor(input.actor);
   const status = await getQueueStatus({
@@ -286,6 +304,10 @@ export async function getClaimableQueueStatus(input: QueueClaimInput) {
 }
 
 export async function claimNextInQueue(input: QueueClaimInput) {
+  const user = input.actor.email ? await readInternalUser(input.actor.email.trim().toLowerCase()) : null;
+  if (user?.on_break === true) {
+    throw conflict("on_break", "End your break before claiming another project.");
+  }
   if (isFirstMeasurePostgresEnabled()) return (await import("./queue_postgres.js")).claimNextPostgresQueue(input);
   const actor = normalizeActor(input.actor);
   const status = await getQueueStatus({

@@ -5505,7 +5505,10 @@
     const reportUrl = hasReportFlag ? (p.report_url || p.pdf_url || (base ? (base + 'Report.pdf') : null)) : null;
     const summaryUrl = hasReportFlag ? (p.summary_url || (base ? (base + 'Summary.pdf') : null)) : null;
     const xmlUrl = p.xml_url || (base ? (base + 'model_data.xml') : null);
-    return { base, reportUrl, summaryUrl, xmlUrl, hasReportFlag, isRejected };
+    const artifactUrl = (value) => window.PlatformAPI?.projectMedia?.artifactUrl
+      ? window.PlatformAPI.projectMedia.artifactUrl(value, { firstMeasureUrlBuilder: fmUrl })
+      : value;
+    return { base, reportUrl: artifactUrl(reportUrl), summaryUrl: artifactUrl(summaryUrl), xmlUrl: artifactUrl(xmlUrl), hasReportFlag, isRejected };
   }
   function xmlDownloadName(project){
     return `model_${String(project?.id || '').slice(0,12) || 'data'}.xml`;

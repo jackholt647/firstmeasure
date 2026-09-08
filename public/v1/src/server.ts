@@ -81,8 +81,10 @@ async function start() {
         process.exit(1);
       });
   };
-  process.once("SIGINT", stop);
-  process.once("SIGTERM", stop);
+  // systemd may signal the cgroup while the primary also forwards its signal.
+  // Keep handlers installed so a duplicate signal cannot bypass the drain.
+  process.on("SIGINT", () => stop("SIGINT"));
+  process.on("SIGTERM", () => stop("SIGTERM"));
 
   try {
     await app.listen({
@@ -232,8 +234,8 @@ function startCluster() {
     for (const timer of restartTimers) clearTimeout(timer);
     for (const worker of Object.values(cluster.workers ?? {})) worker?.kill(signal);
   };
-  process.once("SIGINT", stopCluster);
-  process.once("SIGTERM", stopCluster);
+  process.on("SIGINT", () => stopCluster("SIGINT"));
+  process.on("SIGTERM", () => stopCluster("SIGTERM"));
 }
 
 startCluster();

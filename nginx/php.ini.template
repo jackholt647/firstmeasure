@@ -36,6 +36,7 @@ extension=pdo_sqlite
 extension=sqlite3
 
 session.save_handler = files
+session.name = FIRSTMEASURESESSID
 session.save_path = "__PHP_SESSION_PATH__"
 session.gc_maxlifetime = 1440
 

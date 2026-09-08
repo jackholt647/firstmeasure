@@ -2,9 +2,16 @@
 Description=FirstMeasure durable background worker
 After=network-online.target firstmeasure-instance-identity.service
 Wants=network-online.target firstmeasure-instance-identity.service
+StartLimitIntervalSec=0
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=all
+WatchdogSec=120
+WatchdogSignal=SIGKILL
+TimeoutStartSec=300
+OOMPolicy=kill
+MemoryMax=6G
 User=firstmeasure
 Group=firstmeasure
 WorkingDirectory=/opt/firstmeasure/current/public/v1
@@ -16,7 +23,7 @@ Environment=INSTANCE_ID=%H
 EnvironmentFile=-/run/firstmeasure/instance.env
 ExecStart=/usr/bin/node --experimental-sqlite --max-old-space-size=4096 dist/src/firstmeasure_worker.js
 Restart=always
-RestartSec=3
+RestartSec=5
 TimeoutStopSec=60
 KillSignal=SIGTERM
 NoNewPrivileges=true

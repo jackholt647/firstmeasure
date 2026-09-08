@@ -823,6 +823,7 @@ session_write_close();
       userCompany: <?= json_encode($userCompany) ?>,
       userOrgId: <?= json_encode($userOrgId) ?>,
       userBranchId: <?= json_encode($userBranchId) ?>,
+      platformSessionCookieName: <?= json_encode(portalPlatformSessionCookieName()) ?>,
       showTutorial: <?= $showTutorial ? 'true' : 'false' ?>,
       stripePaidFlag: <?= ($paidFlag === null ? 'null' : json_encode($paidFlag)) ?>,
       serverEndpoint: (function(){

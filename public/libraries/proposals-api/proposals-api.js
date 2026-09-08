@@ -46,7 +46,13 @@
   }
 
   function csrfToken(){
-    return decodeURIComponent(cookieValue('fm_platform_session_csrf') || '');
+    const sessionName = cleanText(APP.platformSessionCookieName || 'fm_platform_session');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    try {
+      return decodeURIComponent(cookieValue(sessionName + '_csrf') || '');
+    } catch {
+      return '';
+    }
   }
 
   function jsonBody(body){

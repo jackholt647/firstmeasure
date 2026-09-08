@@ -496,7 +496,7 @@ async function renderInstantPdfDocument(input: {
           }
           .brandLogoFallback{
             display:block;
-            width:${Math.round(REPORT_LOGO_HEIGHT_PX * 3.2)}px;
+            width:${Math.round(payload.layout.logoHeight * 3.2)}px;
             height:${payload.layout.logoHeight}px;
             background:var(--line-primary);
             -webkit-mask:var(--brand-logo-url) left center / contain no-repeat;

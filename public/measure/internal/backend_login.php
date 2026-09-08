@@ -262,7 +262,11 @@ function backendHydratePhpSessionFromNode(): void
     ]);
     $internalData = is_array($internal['data'] ?? null) ? $internal['data'] : [];
     $user = is_array($internalData['user'] ?? null) ? $internalData['user'] : [];
-    if (!$internal['ok'] || !backendUserCanAccessInternal($user)) {
+    if (!$internal['ok']) {
+        error_log('FirstMeasure staff lookup failed: HTTP ' . (int)$internal['status']);
+        backendJsonResponse(502, ['success' => false, 'error' => 'Could not verify staff access. Please try again or contact support.']);
+    }
+    if (!backendUserCanAccessInternal($user)) {
         backendJsonResponse(403, ['success' => false, 'error' => 'This account is not an internal staff account.']);
     }
 

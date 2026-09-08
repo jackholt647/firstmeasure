@@ -334,6 +334,18 @@ export async function findIdentityByIdentifier(identifierValue: string) {
   return identifierLooksLikeEmail(identifier) ? findIdentityByEmail(identifier) : findIdentityByPhone(identifier);
 }
 
+export function resolvePostgresIdentityPhonePatch(current: JsonObject, patch: JsonObject) {
+  const phonePatched = Object.prototype.hasOwnProperty.call(patch, "phone");
+  const rawPhone = phonePatched ? String(patch.phone ?? "").trim() : String(current.phone ?? "");
+  const phoneNormalized = phonePatched
+    ? (rawPhone ? normalizeIdentityPhone(rawPhone) : "")
+    : String(current.phone_normalized ?? "");
+  if (phonePatched && rawPhone && !phoneNormalized) {
+    throw badRequest("invalid_phone_number", "A valid mobile phone number is required.");
+  }
+  return { phonePatched, rawPhone, phoneNormalized };
+}
+
 export async function patchIdentity(identityId: string, patch: JsonObject) {
   await ensurePostgresPlatformStorage();
   const id = sanitizeId(identityId, "identity_id");
@@ -343,10 +355,7 @@ export async function patchIdentity(identityId: string, patch: JsonObject) {
     if (expected && expected !== Number(current.revision ?? 0)) throw conflict("revision_conflict", "Identity revision does not match.");
     const currentEmail = normalizeEmail(current.email);
     const email = Object.prototype.hasOwnProperty.call(patch, "email") ? normalizeEmail(patch.email) : currentEmail;
-    const phonePatched = Object.prototype.hasOwnProperty.call(patch, "phone");
-    const rawPhone = phonePatched ? String(patch.phone ?? "").trim() : String(current.phone ?? "");
-    const phoneNormalized = rawPhone ? normalizeIdentityPhone(rawPhone) : "";
-    if (rawPhone && !phoneNormalized) throw badRequest("invalid_phone_number", "A valid mobile phone number is required.");
+    const { phonePatched, rawPhone, phoneNormalized } = resolvePostgresIdentityPhonePatch(current, patch);
     if (phonePatched && phoneNormalized && phoneNormalized !== String(current.phone_normalized ?? "")) {
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`platform-phone:${phoneNormalized}`]);
       const duplicate = await client.query<{ exists:boolean }>("SELECT EXISTS(SELECT 1 FROM platform_identities WHERE phone_normalized=$1 AND id<>$2) AS exists", [phoneNormalized, id]);
@@ -531,6 +540,23 @@ export async function saveGlobal(orgId: string, input: JsonObject = {}, options:
     if (expected && expected !== Number(current.revision ?? 0)) throw conflict("revision_conflict", "Global revision does not match.");
     const next = { ...current, data: options.replace ? asObject(input.data) : { ...asObject(current.data), ...asObject(input.data) }, metadata: options.replace ? asObject(input.metadata) : { ...asObject(current.metadata), ...asObject(input.metadata) }, revision: Number(current.revision ?? 0) + 1, updated_at: nowIso() };
     await client.query("UPDATE platform_documents SET document = $2::jsonb, updated_at = now() WHERE organization_id = $1 AND collection = 'global' AND id = 'global'", [organizationId, JSON.stringify(next)]);
+    return next;
+  });
+}
+
+export async function mutateGlobal(orgId: string, mutation: (current: JsonObject) => JsonObject) {
+  await ensurePostgresPlatformStorage();
+  const organizationId = sanitizeId(orgId, "organization_id");
+  return withPostgresTransaction(async (client) => {
+    await ensureOrg(client, organizationId);
+    const now = nowIso();
+    const seed = { schema_version: SCHEMA_VERSION, id: "global", organization_id: organizationId, collection: "global", data: {}, metadata: {}, revision: 1, created_at: now, updated_at: now };
+    await client.query("INSERT INTO platform_documents(organization_id,collection,id,document) VALUES ($1,'global','global',$2::jsonb) ON CONFLICT DO NOTHING", [organizationId, JSON.stringify(seed)]);
+    const result = await client.query<DocumentRow>("SELECT document FROM platform_documents WHERE organization_id=$1 AND collection='global' AND id='global' FOR UPDATE", [organizationId]);
+    const current = asObject(result.rows[0]?.document);
+    const patch = mutation(current);
+    const next = { ...current, data: { ...asObject(current.data), ...asObject(patch.data) }, metadata: { ...asObject(current.metadata), ...asObject(patch.metadata) }, revision: Number(current.revision ?? 0) + 1, updated_at: nowIso() };
+    await client.query("UPDATE platform_documents SET document=$2::jsonb,updated_at=now() WHERE organization_id=$1 AND collection='global' AND id='global'", [organizationId, JSON.stringify(next)]);
     return next;
   });
 }

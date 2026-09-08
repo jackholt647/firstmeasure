@@ -10,6 +10,17 @@ Read-only, aggregate-only access to FirstMeasure production metrics.
 
 Every route requires `Authorization: Bearer <key>`. The API returns no project IDs, addresses, customer information, employee names, files, or arbitrary database rows. The query endpoint uses allowlisted filters and groupings and never accepts SQL.
 
+The metrics implementation supports both SQLite and PostgreSQL through the
+configured application database. Summary days use the requested timezone;
+historical `group_by: "day"` uses UTC on both backends. Queries return at most 500
+groups and `total` sums those returned rows. Narrow the range before treating a
+500-group result as exhaustive.
+
+The portable co-founder client and command reference are in
+`tools/firstmeasure-remote-share/` at the repository root. It reads the existing
+shared bearer key from a private local credential file and never needs a customer
+API account or server SSH key.
+
 ## Configuration
 
 Generate a key and hash using the `Generate-Remote-Key.ps1` script in the separate **FirstMeasure Remote** client folder. Put only the hash in the v1 service environment:
@@ -30,12 +41,14 @@ Browser-origin requests are rejected unless explicitly allowlisted. The supplied
 
 ## Deployment
 
-Upload this entire folder to `public/v1/firstmeasure-remote/` and upload the modified `public/v1/src/app.ts`. Then, from `public/v1` on the server:
+Include the reviewed Remote API code in the environment's curated release.
+Do not deploy the entire dirty working tree. Keep its existing route registration
+in `public/v1/src/app.ts`, preserve the shared key hash on every serving web node,
+and use the normal verified release activation procedure.
 
-```bash
-npm run check
-npm run build
-# restart the existing v1 service using its normal service manager
-```
-
-No dependency installation or database migration is required.
+When migrating from SQLite to PostgreSQL, include the metrics compatibility
+change: older Remote API code calls the direct SQLite accessor and fails under
+PostgreSQL. Verify authenticated ping, summary and a bounded query before and
+after cutover through the stable production hostname. No dependency installation
+or database migration is required for this compatibility change. A `service_locked`
+503 means the key hash is missing or invalid; it is not a successful auth check.
