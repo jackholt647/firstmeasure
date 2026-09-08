@@ -491,6 +491,16 @@ function isValidImageProjectionContext(ctx) {
         && ctx.height > 0;
 }
 
+function imageProjectionContextsMatch(left, right) {
+    if (!isValidImageProjectionContext(left) || !isValidImageProjectionContext(right)) return false;
+    return Math.abs(left.centerLat - right.centerLat) < 1e-12
+        && Math.abs(left.centerLng - right.centerLng) < 1e-12
+        && Math.abs(left.radius - right.radius) < 1e-9
+        && Math.abs(getContextMetersPerPx(left) - getContextMetersPerPx(right)) < 1e-12
+        && Math.abs(left.width - right.width) < 1e-9
+        && Math.abs(left.height - right.height) < 1e-9;
+}
+
 function imagePointToLatLngForContext(pt, ctx) {
     if (!pt || !isValidImageProjectionContext(ctx)) return null;
     const mLat = 111132;
@@ -517,16 +527,7 @@ function latLngToImagePointForContext(latLng, ctx) {
 
 function reprojectActiveGeometryForImageContext(fromCtx, toCtx) {
     if (!activeGeometry || !isValidImageProjectionContext(fromCtx) || !isValidImageProjectionContext(toCtx)) return false;
-    if (
-        Math.abs(fromCtx.centerLat - toCtx.centerLat) < 1e-12
-        && Math.abs(fromCtx.centerLng - toCtx.centerLng) < 1e-12
-        && Math.abs(fromCtx.radius - toCtx.radius) < 1e-9
-        && Math.abs(getContextMetersPerPx(fromCtx) - getContextMetersPerPx(toCtx)) < 1e-12
-        && Math.abs(fromCtx.width - toCtx.width) < 1e-9
-        && Math.abs(fromCtx.height - toCtx.height) < 1e-9
-    ) {
-        return false;
-    }
+    if (imageProjectionContextsMatch(fromCtx, toCtx)) return false;
     const items = [
         ...(Array.isArray(activeGeometry.points) ? activeGeometry.points : []),
         ...(Array.isArray(activeGeometry.vents) ? activeGeometry.vents : [])
@@ -543,6 +544,35 @@ function reprojectActiveGeometryForImageContext(fromCtx, toCtx) {
 }
 window.reprojectActiveGeometryForImageContext = reprojectActiveGeometryForImageContext;
 window.getCurrentImageProjectionContext = getCurrentImageProjectionContext;
+
+function invalidateProjectionSizedViewCanvases() {
+    ['solar', 'height', 'google', 'azure', 'apple'].forEach((viewId) => {
+        delete viewCanvases[viewId];
+        delete adjustedViewCanvases[viewId];
+    });
+    maskedViewCanvases = {};
+}
+
+function rebuildProviderRgbForProjection() {
+    const provider = layerData.google ? 'google' : (layerData.azure ? 'azure' : (layerData.apple ? 'apple' : ''));
+    if (!provider || typeof ensureViewCanvas !== 'function') return false;
+    const canvas = ensureViewCanvas(provider);
+    const ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+    if (!canvas || !ctx || canvas.width !== imageWidth || canvas.height !== imageHeight) return false;
+    const pixels = ctx.getImageData(0, 0, imageWidth, imageHeight).data;
+    const count = imageWidth * imageHeight;
+    const r = new Uint8Array(count);
+    const g = new Uint8Array(count);
+    const b = new Uint8Array(count);
+    for (let i = 0; i < count; i++) {
+        r[i] = pixels[i * 4];
+        g[i] = pixels[i * 4 + 1];
+        b[i] = pixels[i * 4 + 2];
+    }
+    layerData.rgb = [r, g, b];
+    viewCanvases.solar = canvas;
+    return true;
+}
 
 function is2DWorkspaceOutOfSyncWithImageSize() {
     if (!Number.isFinite(imageWidth) || imageWidth <= 0 || !Number.isFinite(imageHeight) || imageHeight <= 0) return false;
@@ -604,6 +634,7 @@ function scheduleDeferredProjectTiffLoad(projectId, assets, options = {}) {
         }
         const loaded = { rgb: false, dsm: false, mask: false };
         const previousImageContext = getCurrentImageProjectionContext();
+        let dsmProjectionSource = null;
         const jobs = [];
         if (tiffAssets.rgb) {
             jobs.push(fetchProjectTiffRasters(tiffAssets.rgb).then(({ image, rasters, metersPerPx }) => {
@@ -622,10 +653,18 @@ function scheduleDeferredProjectTiffLoad(projectId, assets, options = {}) {
             }));
         }
         if (tiffAssets.dsm) {
-            jobs.push(fetchProjectTiffRasters(tiffAssets.dsm).then(({ rasters }) => {
+            jobs.push(fetchProjectTiffRasters(tiffAssets.dsm).then(({ image, rasters, metersPerPx }) => {
                 if (runId !== deferredProjectTiffLoadRun) return;
                 layerData.dsm = rasters;
                 loaded.dsm = true;
+                // Some projects legitimately have a DSM but no Solar RGB TIFF. In
+                // that case the initially painted provider image may have different
+                // dimensions from the height raster. The DSM is the canonical pixel
+                // grid for geometry/height sampling, so adopt its projection and
+                // reproject the saved editor geometry after all deferred loads settle.
+                if (!tiffAssets.rgb) {
+                    dsmProjectionSource = { image, metersPerPx };
+                }
             }));
         }
         if (tiffAssets.mask) {
@@ -643,8 +682,38 @@ function scheduleDeferredProjectTiffLoad(projectId, assets, options = {}) {
         if (options.ensureMissingMask && !layerData.mask && typeof fetchAndAttachProjectMask === 'function') {
             loaded.mask = await fetchAndAttachProjectMask(projectId);
         }
-        if (loaded.rgb) {
+        if (dsmProjectionSource) {
+            const nextWidth = Number(dsmProjectionSource.image && dsmProjectionSource.image.getWidth());
+            const nextHeight = Number(dsmProjectionSource.image && dsmProjectionSource.image.getHeight());
+            if (Number.isFinite(nextWidth) && nextWidth > 0 && Number.isFinite(nextHeight) && nextHeight > 0) {
+                imageWidth = nextWidth;
+                imageHeight = nextHeight;
+                if (window.setImageMetersPerPx) {
+                    const measuredMetersPerPx = Number(dsmProjectionSource.metersPerPx);
+                    const radius = window.getRadiusMeters ? Number(window.getRadiusMeters()) : Number(window.RADIUS_METERS || 20);
+                    window.setImageMetersPerPx(
+                        Number.isFinite(measuredMetersPerPx) && measuredMetersPerPx > 0
+                            ? measuredMetersPerPx
+                            : ((Number.isFinite(radius) && radius > 0) ? (radius * 2) / nextWidth : null)
+                    );
+                }
+            }
+        }
+        if (loaded.rgb || dsmProjectionSource) {
             const nextImageContext = getCurrentImageProjectionContext();
+            const projectionChanged = !imageProjectionContextsMatch(previousImageContext, nextImageContext);
+            if (projectionChanged) {
+                invalidateProjectionSizedViewCanvases();
+                if (dsmProjectionSource && !tiffAssets.rgb) {
+                    // The initial RGB fallback was sampled on the provider image's
+                    // grid. Rebuild it at the DSM dimensions before constructing the
+                    // 3D surface so the color and elevation arrays stay index-aligned.
+                    layerData.rgb = null;
+                    if (!rebuildProviderRgbForProjection()) {
+                        console.warn('[ProjectLoad] Unable to rebuild provider imagery at DSM dimensions.');
+                    }
+                }
+            }
             const reprojected = reprojectActiveGeometryForImageContext(previousImageContext, nextImageContext);
             if (reprojected && typeof window.refreshStructureMode === 'function') {
                 window.refreshStructureMode();
