@@ -1427,6 +1427,39 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     };
   });
 
+  app.post("/projects/:id/editor/qa-thread-drafts", async (request) => {
+    const projectId = getProjectId(request.params);
+    const body = asRecord(request.body);
+    const scope = String(body.scope ?? "").trim().toLowerCase();
+    if (scope !== "qa" && scope !== "manager") {
+      throw badRequest("invalid_qa_thread_draft_scope", "QA thread draft scope must be qa or manager.");
+    }
+
+    const clear = body.clear === true;
+    if (!clear && !Array.isArray(body.threads)) {
+      throw badRequest("invalid_qa_thread_drafts", "QA thread drafts must be an array.");
+    }
+
+    const savedAt = new Date().toISOString();
+    const manifest = await patchManifest(projectId, {
+      qa_thread_drafts: {
+        [scope]: clear ? null : {
+          saved_at: savedAt,
+          threads: body.threads
+        }
+      }
+    }, { backup: false });
+
+    return {
+      ok: true,
+      success: true,
+      folder: projectId,
+      scope,
+      saved_at: savedAt,
+      drafts: asRecord(manifest.qa_thread_drafts)
+    };
+  });
+
   app.post("/projects/:id/editor/presence", async (request) => {
     const projectId = getProjectId(request.params);
     const body = asRecord(request.body);
@@ -3598,6 +3631,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         )
       );
     const normalizedThreads = Array.isArray(incomingThreads) ? incomingThreads : [];
+    assertQaFeedbackHandledBeforeResubmission(
+      isManagerCorrection && Array.isArray(legacy.manager_threads) ? legacy.manager_threads : legacy.qa_threads,
+      normalizedThreads
+    );
     const workHistory = Array.isArray(legacy.work_history) ? [...legacy.work_history] : [];
 
     let fixedCount = 0;
@@ -8135,6 +8172,59 @@ function projectHasTechnicianCorrection(workHistory: Array<Record<string, unknow
   });
 }
 
+function qaFeedbackThreadStatus(thread: unknown) {
+  return String(asRecord(thread).status ?? "open").trim().toLowerCase() || "open";
+}
+
+function assertQaFeedbackHandledBeforeResubmission(currentThreads: unknown, incomingThreads: unknown[]) {
+  const current = Array.isArray(currentThreads) ? currentThreads : [];
+  const incoming = Array.isArray(incomingThreads) ? incomingThreads : [];
+  const incomingById = new Map(
+    incoming
+      .map((thread) => [String(asRecord(thread).id ?? "").trim(), thread] as const)
+      .filter(([id]) => id !== "")
+  );
+  const unresolvedIncoming = incoming.filter((thread) => qaFeedbackThreadStatus(thread) === "open");
+  const unresolvedCurrent = current.filter((thread) => qaFeedbackThreadStatus(thread) === "open");
+  const missingHandledResponses = unresolvedCurrent.filter((thread, index) => {
+    const id = String(asRecord(thread).id ?? "").trim();
+    const response = id ? incomingById.get(id) : incoming[index];
+    return !response || qaFeedbackThreadStatus(response) === "open";
+  });
+  if (unresolvedIncoming.length > 0 || missingHandledResponses.length > 0) {
+    throw conflict(
+      "qa_feedback_unresolved",
+      "Mark every open QA feedback item as Fixed or Disputed before resubmitting.",
+      { unresolved_count: Math.max(unresolvedIncoming.length, missingHandledResponses.length) }
+    );
+  }
+}
+
+function correctionFeedbackThreads(manifest: ProjectManifest, currentStatus: string) {
+  const legacy = buildLegacyManifest(manifest);
+  const workflow = asRecord(manifest.workflow);
+  if (["correction_needed", "requeue"].includes(currentStatus)) {
+    const histories = [legacy.work_history, workflow.work_history, workflow.history];
+    for (const history of histories) {
+      if (!Array.isArray(history)) continue;
+      for (let index = history.length - 1; index >= 0; index -= 1) {
+        const event = String(asRecord(history[index]).event ?? asRecord(history[index]).type ?? "").trim().toLowerCase();
+        if (["manager_sent_back_to_tech", "manager_rejected"].includes(event)) {
+          return Array.isArray(legacy.manager_threads) ? legacy.manager_threads : [];
+        }
+        if (["qa_sent_back_to_tech", "qa_rejected"].includes(event)) {
+          return Array.isArray(legacy.qa_threads) ? legacy.qa_threads : [];
+        }
+      }
+    }
+  }
+  const managerThreads = Array.isArray(legacy.manager_threads) ? legacy.manager_threads : [];
+  const managerScope = Boolean(legacy.is_vip ?? manifest.is_vip)
+    && Boolean(legacy.qa_reviewed_at ?? manifest.qa_reviewed_at)
+    && (["correction_needed", "requeue"].includes(currentStatus) || managerThreads.length > 0);
+  return managerScope ? managerThreads : (Array.isArray(legacy.qa_threads) ? legacy.qa_threads : []);
+}
+
 async function buildRushBonusPatchForSubmission(
   currentStatus: string,
   workHistory: Array<Record<string, unknown>>,
@@ -8175,6 +8265,12 @@ export async function updateStatusForSubmission(projectId: string, requestedStat
   const nextStatus = REVIEW_SUBMISSION_STATUSES.has(currentStatus) && REVIEW_SUBMISSION_STATUSES.has(normalizedRequested)
     ? currentStatus
     : normalizedRequested;
+  if (
+    ["correction_needed", "requeue"].includes(currentStatus)
+    && REVIEW_SUBMISSION_STATUSES.has(nextStatus)
+  ) {
+    assertQaFeedbackHandledBeforeResubmission(correctionFeedbackThreads(manifest, currentStatus), []);
+  }
   if (REVIEW_SUBMISSION_STATUSES.has(nextStatus) && !REVIEW_SUBMISSION_STATUSES.has(currentStatus)) {
     const nowIso = new Date().toISOString();
     const workflow = asRecord(manifest.workflow);
@@ -10821,9 +10917,14 @@ async function buildEditorBundle(
     assets.google_3d_manifest = buildAbsoluteApiUrl(request, buildProjectGoogle3dManifestRoute(projectId));
   }
 
+  const appMetadata = asRecord(detail.app_metadata);
+  const durableQaThreadDrafts = asRecord(detail.manifest.qa_thread_drafts);
+
   return {
     manifest: detail.manifest,
-    app_metadata: detail.app_metadata ?? {},
+    app_metadata: Object.keys(durableQaThreadDrafts).length > 0
+      ? { ...appMetadata, qa_thread_drafts: durableQaThreadDrafts }
+      : appMetadata,
     pdf_state: detail.pdf_state ?? null,
     pdf_state_asset: buildAbsoluteApiUrl(request, `/projects/${encodeURIComponent(projectId)}/editor/pdf-state`),
     assets,

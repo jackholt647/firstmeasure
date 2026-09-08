@@ -101,6 +101,14 @@
     return { ...cloneJson(bundleMeta, {}), ...cloneJson(loaded, {}) };
   }
 
+  let qaThreadDraftSaveQueue = Promise.resolve();
+
+  function queueQaThreadDraftSave(operation){
+    const queued = qaThreadDraftSaveQueue.catch(() => {}).then(operation);
+    qaThreadDraftSaveQueue = queued;
+    return queued;
+  }
+
   function getDraftThreadsFromMeta(meta, scope){
     const drafts = meta && typeof meta === 'object' ? meta[getDraftMetaKey()] : null;
     const bucket = drafts && typeof drafts === 'object' ? drafts[scope] : null;
@@ -172,33 +180,44 @@
 
   async function persistThreadDrafts(){
     if (!lastFolderId || typeof window.firstMeasureFetchJson !== 'function') return false;
+    const folderId = lastFolderId;
+    const scope = activeThreadScope;
+    const threads = cloneJson(qaThreads, []);
+    return queueQaThreadDraftSave(async () => {
     const nextMeta = getCurrentAppMetadata();
     const draftKey = getDraftMetaKey();
     const drafts = (nextMeta[draftKey] && typeof nextMeta[draftKey] === 'object')
       ? cloneJson(nextMeta[draftKey], {})
       : {};
-    drafts[activeThreadScope] = {
+    drafts[scope] = {
       saved_at: new Date().toISOString(),
-      threads: cloneJson(qaThreads, [])
+      threads
     };
     nextMeta[draftKey] = drafts;
 
-    await window.firstMeasureFetchJson(`/projects/${encodeURIComponent(lastFolderId)}/editor/save`, {
+    const data = await window.firstMeasureFetchJson(`/projects/${encodeURIComponent(folderId)}/editor/qa-thread-drafts`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ metadata: nextMeta })
+      body: JSON.stringify({ scope, threads })
     });
+
+    if (data && data.drafts && typeof data.drafts === 'object') {
+      nextMeta[draftKey] = cloneJson(data.drafts, {});
+    }
 
     currentBundleMeta = cloneJson(nextMeta, {});
     window.currentProjectLoadedAppMetadata = cloneJson(nextMeta, {});
     return true;
+    });
   }
 
   async function clearThreadDrafts(scope = activeThreadScope){
     if (!lastFolderId || typeof window.firstMeasureFetchJson !== 'function') return false;
+    const folderId = lastFolderId;
+    return queueQaThreadDraftSave(async () => {
     const nextMeta = getCurrentAppMetadata();
     const draftKey = getDraftMetaKey();
     const drafts = (nextMeta[draftKey] && typeof nextMeta[draftKey] === 'object')
@@ -208,18 +227,23 @@
     if (Object.keys(drafts).length > 0) nextMeta[draftKey] = drafts;
     else delete nextMeta[draftKey];
 
-    await window.firstMeasureFetchJson(`/projects/${encodeURIComponent(lastFolderId)}/editor/save`, {
+    const data = await window.firstMeasureFetchJson(`/projects/${encodeURIComponent(folderId)}/editor/qa-thread-drafts`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ metadata: nextMeta })
+      body: JSON.stringify({ scope, clear: true })
     });
+
+    if (data && data.drafts && typeof data.drafts === 'object') {
+      nextMeta[draftKey] = cloneJson(data.drafts, {});
+    }
 
     currentBundleMeta = cloneJson(nextMeta, {});
     window.currentProjectLoadedAppMetadata = cloneJson(nextMeta, {});
     return true;
+    });
   }
 
   function getThreadScopeForManifest(manifest){

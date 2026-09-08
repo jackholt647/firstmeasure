@@ -3720,6 +3720,14 @@
       : {};
   }
 
+  let qaThreadDraftSaveQueue = Promise.resolve();
+
+  function queueQaThreadDraftSave(operation){
+    const queued = qaThreadDraftSaveQueue.catch(() => {}).then(operation);
+    qaThreadDraftSaveQueue = queued;
+    return queued;
+  }
+
   function getDraftThreadsFromMeta(meta, scope){
     const drafts = meta && typeof meta === 'object' ? meta[getDraftMetaKey()] : null;
     const bucket = drafts && typeof drafts === 'object' ? drafts[scope] : null;
@@ -3763,33 +3771,44 @@
 
   async function persistThreadDrafts(){
     if (!currentId) return false;
+    const folderId = currentId;
+    const scope = getDraftScope();
+    const threads = cloneJson(qaThreads, []);
+    return queueQaThreadDraftSave(async () => {
     const nextMeta = getCurrentAppMetadata();
     const draftKey = getDraftMetaKey();
     const drafts = (nextMeta[draftKey] && typeof nextMeta[draftKey] === 'object')
       ? cloneJson(nextMeta[draftKey], {})
       : {};
-    drafts[getDraftScope()] = {
+    drafts[scope] = {
       saved_at: new Date().toISOString(),
-      threads: cloneJson(qaThreads, [])
+      threads
     };
     nextMeta[draftKey] = drafts;
 
-    await Portal.fmJson(`projects/${encodeURIComponent(currentId)}/editor/save`, {
+    const data = await Portal.fmJson(`projects/${encodeURIComponent(folderId)}/editor/qa-thread-drafts`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ metadata: nextMeta })
+      body: JSON.stringify({ scope, threads })
     });
 
+    if (data && data.drafts && typeof data.drafts === 'object') {
+      nextMeta[draftKey] = cloneJson(data.drafts, {});
+    }
+
     currentAppMetadata = cloneJson(nextMeta, {});
-    updateQaEditorBundleCache(currentId, { app_metadata: currentAppMetadata });
+    updateQaEditorBundleCache(folderId, { app_metadata: currentAppMetadata });
     return true;
+    });
   }
 
   async function clearThreadDrafts(scope = getDraftScope()){
     if (!currentId) return false;
+    const folderId = currentId;
+    return queueQaThreadDraftSave(async () => {
     const nextMeta = getCurrentAppMetadata();
     const draftKey = getDraftMetaKey();
     const drafts = (nextMeta[draftKey] && typeof nextMeta[draftKey] === 'object')
@@ -3799,18 +3818,23 @@
     if (Object.keys(drafts).length > 0) nextMeta[draftKey] = drafts;
     else delete nextMeta[draftKey];
 
-    await Portal.fmJson(`projects/${encodeURIComponent(currentId)}/editor/save`, {
+    const data = await Portal.fmJson(`projects/${encodeURIComponent(folderId)}/editor/qa-thread-drafts`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ metadata: nextMeta })
+      body: JSON.stringify({ scope, clear: true })
     });
 
+    if (data && data.drafts && typeof data.drafts === 'object') {
+      nextMeta[draftKey] = cloneJson(data.drafts, {});
+    }
+
     currentAppMetadata = cloneJson(nextMeta, {});
-    updateQaEditorBundleCache(currentId, { app_metadata: currentAppMetadata });
+    updateQaEditorBundleCache(folderId, { app_metadata: currentAppMetadata });
     return true;
+    });
   }
 
   function firstMeasureApiBase(){

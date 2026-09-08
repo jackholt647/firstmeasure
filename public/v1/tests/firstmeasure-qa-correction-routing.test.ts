@@ -22,6 +22,7 @@ test("technician corrections return to the original QA within their priority", a
     const storage = await import("../firstmeasure/storage.js");
     const index = await import("../firstmeasure/project_index.js");
     const internalStorage = await import("../internal/storage.js");
+    const { updateStatusForSubmission } = await import("../firstmeasure/api.js");
     const { buildApp } = await import("../src/app.js");
     await index.ensureFirstMeasureProjectIndexReady();
 
@@ -67,6 +68,37 @@ test("technician corrections return to the original QA within their priority", a
     const app = await buildApp();
     await app.ready();
     try {
+      const qaDraftThread = { id: "draft-qa-1", status: "open", history: [{ text: "Missing ridge note" }] };
+      const saveQaDraft = await app.inject({
+        method: "POST",
+        url: "/v1/firstmeasure/projects/fresh-p1/editor/qa-thread-drafts",
+        payload: { scope: "qa", threads: [qaDraftThread] }
+      });
+      assert.equal(saveQaDraft.statusCode, 200, saveQaDraft.body);
+
+      const staleEditorSave = await app.inject({
+        method: "POST",
+        url: "/v1/firstmeasure/projects/fresh-p1/editor/save",
+        payload: { metadata: { geometry: { large_project_save: true }, qa_thread_drafts: {} } }
+      });
+      assert.equal(staleEditorSave.statusCode, 200, staleEditorSave.body);
+
+      const editorWithDurableDraft = await app.inject({
+        method: "GET",
+        url: "/v1/firstmeasure/projects/fresh-p1/editor"
+      });
+      assert.equal(editorWithDurableDraft.statusCode, 200, editorWithDurableDraft.body);
+      assert.deepEqual(editorWithDurableDraft.json().app_metadata.qa_thread_drafts.qa.threads, [qaDraftThread],
+        "a slower full editor metadata save must not erase a newer QA feedback draft");
+
+      const clearQaDraft = await app.inject({
+        method: "POST",
+        url: "/v1/firstmeasure/projects/fresh-p1/editor/qa-thread-drafts",
+        payload: { scope: "qa", clear: true }
+      });
+      assert.equal(clearQaDraft.statusCode, 200, clearQaDraft.body);
+      assert.equal(clearQaDraft.json().drafts.qa, null);
+
       const rosterTeamBootstrap = await app.inject({
         method: "POST",
         url: "/v1/firstmeasure/qa/bootstrap",
@@ -171,6 +203,39 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(offlineRejection.json().worker_online, false);
       assert.equal(offlineRejection.json().manifest.status, "queued");
       assert.equal(Boolean(offlineRejection.json().manifest.reserved_to_email), false);
+
+      await saveProject("open-feedback-return", "correction_needed", 2, {
+        correction_requested_by: originalQa.email,
+        qa_threads: [{ id: "open-feedback-1", status: "open", history: [] }]
+      });
+      await assert.rejects(
+        () => updateStatusForSubmission("open-feedback-return", "awaiting_review"),
+        (error: unknown) => (error as { code?: string }).code === "qa_feedback_unresolved"
+      );
+
+      const submittedOpenFeedback = await app.inject({
+        method: "POST",
+        url: "/v1/firstmeasure/projects/open-feedback-return/drafter/qa-response",
+        payload: {
+          actor: { email: "tech@example.test", name: "Tech" },
+          threads: [{ id: "open-feedback-1", status: "open", history: [] }]
+        }
+      });
+      assert.equal(submittedOpenFeedback.statusCode, 409, submittedOpenFeedback.body);
+      assert.equal(submittedOpenFeedback.json().error, "qa_feedback_unresolved");
+
+      const handledFeedback = await app.inject({
+        method: "POST",
+        url: "/v1/firstmeasure/projects/open-feedback-return/drafter/qa-response",
+        payload: {
+          actor: { email: "tech@example.test", name: "Tech" },
+          threads: [{ id: "open-feedback-1", status: "fixed", history: [] }]
+        }
+      });
+      assert.equal(handledFeedback.statusCode, 200, handledFeedback.body);
+      assert.equal(handledFeedback.json().manifest.status, "awaiting_review");
+      assert.equal(handledFeedback.json().manifest.qa_threads[0].status, "fixed");
+      await storage.updateStatus("open-feedback-return", "completed");
 
       const p2Correction = await app.inject({
         method: "POST",
@@ -301,8 +366,13 @@ test("technician corrections return to the original QA within their priority", a
       await saveProject("manager-return", "correction_needed", 2, {
         is_vip: true,
         qa_reviewed_at: new Date().toISOString(),
+        work_history: [{ event: "manager_sent_back_to_tech", ts: new Date().toISOString() }],
         manager_threads: [{ status: "open" }]
       });
+      await assert.rejects(
+        () => updateStatusForSubmission("manager-return", "awaiting_manager_review"),
+        (error: unknown) => (error as { code?: string }).code === "qa_feedback_unresolved"
+      );
       const managerCorrection = await app.inject({
         method: "POST",
         url: "/v1/firstmeasure/projects/manager-return/drafter/qa-response",
