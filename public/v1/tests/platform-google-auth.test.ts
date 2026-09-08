@@ -159,6 +159,31 @@ test("Google authentication registers, links, and logs in exact-email accounts",
     assert.equal(passwordLogin.statusCode, 200, passwordLogin.body);
   });
 
+  await t.test("rejects logged-out portal actions even when actor fields name a real user", async () => {
+    const authStatus = await app.inject({
+      method: "POST",
+      url: "/v1/platform/portal-action",
+      payload: { action: "auth_status", actor_email: "owner@example.com" }
+    });
+    assert.equal(authStatus.statusCode, 200, authStatus.body);
+    assert.equal(authStatus.json().authenticated, false);
+    assert.equal(authStatus.json().user_email, null);
+
+    const queued = await app.inject({
+      method: "POST",
+      url: "/v1/platform/portal-action",
+      payload: {
+        action: "queue",
+        actor_email: "owner@example.com",
+        actor_org_id: "spoofed-organization",
+        address: "123 Logged Out Way"
+      }
+    });
+    assert.equal(queued.statusCode, 401, queued.body);
+    assert.equal(queued.json().success, false);
+    assert.equal(queued.json().error, "Authentication required.");
+  });
+
   await t.test("rejects a different Google subject after an email is linked", async () => {
     const response = await app.inject({
       method: "POST",

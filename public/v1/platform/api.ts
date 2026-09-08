@@ -5258,12 +5258,24 @@ async function parsePortalActionRequest(request: unknown) {
 }
 
 async function handlePortalAction(app: FastifyInstance, action: string, body: JsonObject, request?: FastifyRequest, reply?: FastifyReply) {
-  const actor = portalActor(body);
-  if (action === "auth_status") return { success: true, authenticated: Boolean(actor.email), user_email: actor.email || null };
   if (action === "referral_public_lookup") return publicReferralLookup(cleanText(body.referral_code || body.code || body.ref), request ? publicRequestBaseUrl(request) : "");
   if (action === "acquisition_public_track") return publicAcquisitionLookup(withAcquisitionRequestMetadata(body, request), request ? publicRequestBaseUrl(request) : "");
-  if (!actor.email) return { success: false, status_code: 401, error: "Authentication required." };
-  const ctx = await portalContext(actor, body);
+  const session = request ? await authContextFromRequest(request) : null;
+  if (action === "auth_status") {
+    return {
+      success: true,
+      authenticated: Boolean(session),
+      user_email: session ? cleanText(session.identity.email).toLowerCase() : null
+    };
+  }
+  if (!session) return { success: false, status_code: 401, error: "Authentication required." };
+  const actor = {
+    email: cleanText(session.identity.email).toLowerCase(),
+    name: cleanText(session.identity.name || session.user.name),
+    organization_id: session.orgId,
+    team_id: session.branchId
+  };
+  const ctx = { orgId: session.orgId, userDoc: session.userDocument };
   switch (action) {
     case "org_get_my":
       return await portalGetOrg(ctx.orgId, ctx.userDoc);
