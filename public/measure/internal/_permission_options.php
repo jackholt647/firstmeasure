@@ -2,6 +2,47 @@
 require_once __DIR__ . '/_storage.php';
 require_once __DIR__ . '/_permission_options_defaults.php';
 
+function permissionOptionsMergeByKey($primary, $fallback) {
+    $merged = [];
+    $positions = [];
+    foreach ((array)$primary as $item) {
+        if (!is_array($item)) continue;
+        $key = trim((string)($item['key'] ?? ''));
+        if ($key === '' || isset($positions[$key])) continue;
+        $positions[$key] = count($merged);
+        $merged[] = $item;
+    }
+    foreach ((array)$fallback as $item) {
+        if (!is_array($item)) continue;
+        $key = trim((string)($item['key'] ?? ''));
+        if ($key === '') continue;
+        if (isset($positions[$key])) {
+            $index = $positions[$key];
+            $merged[$index] = array_merge($item, $merged[$index]);
+            continue;
+        }
+        $positions[$key] = count($merged);
+        $merged[] = $item;
+    }
+    return $merged;
+}
+
+function permissionOptionsMergeBundledDefaults($data) {
+    $bundled = permissionOptionsBundledDefaults();
+    if (!is_array($data)) return $bundled;
+
+    $merged = array_merge($bundled, $data);
+    $merged['version'] = max((int)($bundled['version'] ?? 1), (int)($data['version'] ?? 1));
+    $merged['default_create_role'] = array_merge(
+        (array)($bundled['default_create_role'] ?? []),
+        (array)($data['default_create_role'] ?? [])
+    );
+    $merged['sections'] = permissionOptionsMergeByKey($data['sections'] ?? [], $bundled['sections'] ?? []);
+    $merged['permissions'] = permissionOptionsMergeByKey($data['permissions'] ?? [], $bundled['permissions'] ?? []);
+    $merged['roles'] = permissionOptionsMergeByKey($data['roles'] ?? [], $bundled['roles'] ?? []);
+    return $merged;
+}
+
 function permissionOptionsSchema() {
     static $schema = null;
     if ($schema !== null) return $schema;
@@ -9,9 +50,9 @@ function permissionOptionsSchema() {
     $path = storagePath('data/permission_options.json', true);
     $raw = @file_get_contents($path);
     $data = json_decode((string)$raw, true);
-    if (!is_array($data) || empty($data['sections']) || empty($data['permissions']) || empty($data['roles'])) {
-        $data = permissionOptionsBundledDefaults();
-    }
+    // Mutable deployments can override labels, presets, and defaults, but an
+    // older partial catalog must not erase code-owned permission choices.
+    $data = permissionOptionsMergeBundledDefaults($data);
 
     $sections = [];
     $sectionMap = [];

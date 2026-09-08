@@ -2,6 +2,34 @@
 
 require_once __DIR__ . '/../../measure/internal/_permission_options.php';
 
+$legacyOverride = permissionOptionsMergeBundledDefaults([
+    'version' => 1,
+    'sections' => [['key' => 'production', 'label' => 'Legacy Production']],
+    'permissions' => [[
+        'key' => 'manage_queue',
+        'label' => 'Legacy Queue Label',
+        'section' => 'production',
+        'type' => 'boolean'
+    ]],
+    'roles' => [[
+        'key' => 'manager',
+        'label' => 'Legacy Manager',
+        'preset_permissions' => ['manage_queue' => true]
+    ]]
+]);
+$legacyPermissionKeys = array_column($legacyOverride['permissions'], 'key');
+foreach (['create_projects', 'manage_company_users', 'manage_crews', 'manage_notifications', 'platform_admin'] as $key) {
+    if (!in_array($key, $legacyPermissionKeys, true)) {
+        fwrite(STDERR, "Incomplete mutable schema erased bundled permission: {$key}\n");
+        exit(1);
+    }
+}
+$legacyQueue = array_values(array_filter($legacyOverride['permissions'], fn($item) => ($item['key'] ?? '') === 'manage_queue'));
+if (($legacyQueue[0]['label'] ?? '') !== 'Legacy Queue Label') {
+    fwrite(STDERR, "Mutable permission overrides were not preserved.\n");
+    exit(1);
+}
+
 $schema = permissionOptionsSchema();
 $keys = array_column($schema['permissions'], 'key');
 $roles = array_column($schema['roles'], 'key');
