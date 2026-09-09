@@ -31,6 +31,7 @@ Those are placeholders; supply all verified sources. Dry-run is the default and 
 - Preserves attribution IDs, campaign partner IDs, public bonus tokens, and original signup times. An exact existing viewed attribution can be upgraded to its completed signup; completed records never revert to views.
 - Retains unknown metadata and existing advertised tokens. Preserves reward attribution relationships but does not fulfill rewards, grant credit, send email, charge customers, or alter PostgreSQL organizations.
 - Existing IDs are not added twice. A second dry-run after successful application should have zero inserts/updates.
+- `--scope attributions` restricts recovery to attribution rows (both original visits and completed signups). It refuses missing partner/code mappings instead of creating configuration, and never inserts or updates events or rewards. Review its precise count/digest separately from an all-table plan.
 - Conflicting organization identities, different partner IDs for the same code, divergent overlapping event counters, duplicate completed-signup attribution IDs for one organization, and conflicting or duplicate logical rewards **block the entire merge**. Review those records; do not silently discard them or add financial totals together.
 - Apply requires the exact reviewed digest and a new backup path. It backs up the canonical database, obtains an immediate write transaction, replans under that lock, and aborts if the plan changed. Changes are atomic; SQLite quick-check failure rolls them back. Existing backups cannot be overwritten.
 
@@ -52,3 +53,9 @@ Briefly acquiring the SQLite write lock can queue concurrent referral writes. Ru
 - The numeric ad campaign in the second 1M8-170 URL is a separate unresolved assignment: two active configured campaigns share its landing page. Ben must identify the intended campaign. This recovery deliberately does not invent or change that assignment.
 
 Local tests: `tests/referral-ledger-reconcile.test.ts` exercises dry-run immutability, code-ID remapping, shared attribution upgrade, event/reward overlap, backup preservation, idempotence, and full abort on conflicts. `tests/referral-cluster.test.ts` exercises the runtime repair with SQLite and embedded PostgreSQL.
+
+## Actual legacy-index finding
+
+The first all-table recovery attempt was atomically rolled back: the compatibility database retains `idx_referral_events_unique`, a unique index on `(partner_id, actor_email, actor_org_id, event_type)` absent from newly created web ledgers. Distinct source event IDs can collide with this logical key. All 109 candidate completed-signup IDs remained absent after rollback, and the pre-attempt backup passed quick-check. Do not reuse that backup filename.
+
+The tool now detects those unique event-key collisions during dry-run. Attribution-only recovery can proceed with its own reviewed digest; historical events remain unresolved. Do not sum event counters, discard events, or drop the legacy index as part of that scoped recovery. Attribution preflight also covers the actual legacy partial unique index `idx_referral_attr_org_unique ON referral_attributions(referred_org_id) WHERE referred_org_id <> ''`, including noncompleted rows that already occupy an organization ID. Regression fixtures retain both indexes.

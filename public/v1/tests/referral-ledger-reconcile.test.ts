@@ -78,4 +78,58 @@ test("historical reconciliation preserves relationships, upgrades overlapping ID
     check.close();
     assert.throws(() => reconcileReferralLedgers({ target, sources: [nodeA], apply: true, confirmPlan: repeat.digest, backup }), /new path/);
   });
+
+  await t.test("legacy target unique event index is detected during dry-run; attribution-only recovery leaves it intact", async () => {
+    const legacy = await fixture("legacy-unique-target", "legacy-code", true);
+    const legacyDb = new DatabaseSync(legacy);
+    legacyDb.exec("CREATE UNIQUE INDEX idx_referral_events_unique ON referral_events(partner_id,actor_email,actor_org_id,event_type)");
+    legacyDb.exec("CREATE UNIQUE INDEX idx_referral_attr_org_unique ON referral_attributions(referred_org_id) WHERE referred_org_id<>''");
+    legacyDb.exec("INSERT INTO referral_events(id,partner_id,code_id,event_type,event_count,created_at,updated_at) VALUES ('older-event','campaign','legacy-code','landing',17,'2026-09-01','2026-09-09')");
+    legacyDb.close();
+    const full = reconcileReferralLedgers({ target: legacy, sources: [nodeA, nodeB] });
+    assert.equal(full.conflicts.filter(conflict => /UNIQUE event key/.test(conflict.reason)).length, 2);
+    assert.throws(() => reconcileReferralLedgers({ target: legacy, sources: [nodeA, nodeB], apply: true, confirmPlan: full.digest, backup: path.join(root, "must-not-apply-unique.sqlite") }), /contains conflicts/);
+    const attributionOnly = reconcileReferralLedgers({ target: legacy, sources: [nodeA, nodeB], scope: "attributions" });
+    assert.deepEqual(attributionOnly.conflicts, []);
+    assert.deepEqual(attributionOnly.counts.referral_attributions, { insert: 3, update: 0 });
+    assert.deepEqual(attributionOnly.counts.referral_events, { insert: 0, update: 0 });
+    assert.deepEqual(attributionOnly.counts.referral_reward_ledger, { insert: 0, update: 0 });
+    reconcileReferralLedgers({ target: legacy, sources: [nodeA, nodeB], scope: "attributions", apply: true, confirmPlan: attributionOnly.digest, backup: path.join(root, "before-attribution-only.sqlite") });
+    const check = new DatabaseSync(legacy, { readOnly: true });
+    assert.equal(check.prepare("SELECT COUNT(*) n FROM referral_attributions").get()?.n, 3);
+    assert.equal(check.prepare("SELECT event_count FROM referral_events").get()?.event_count, 17);
+    assert.equal(check.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='idx_referral_events_unique'").get()?.n, 1);
+    assert.equal(check.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='idx_referral_attr_org_unique'").get()?.n, 1);
+    check.close();
+    const again = reconcileReferralLedgers({ target: legacy, sources: [nodeA, nodeB], scope: "attributions" });
+    assert.ok(Object.values(again.counts).every(count => count.insert === 0 && count.update === 0));
+  });
+
+  await t.test("attribution-only preflight covers noncompleted org uniqueness, scope purity, and existing bonus conflicts", async () => {
+    const occupied = await fixture("noncompleted-org-target", "occupied-code", true);
+    attribution(occupied, "held-org-id", "occupied-code", "org-a", "viewed");
+    const occupiedDb = new DatabaseSync(occupied);
+    occupiedDb.exec("CREATE UNIQUE INDEX idx_referral_attr_org_unique ON referral_attributions(referred_org_id) WHERE referred_org_id<>''");
+    occupiedDb.close();
+    const noncompleted = reconcileReferralLedgers({ target: occupied, sources: [nodeA], scope: "attributions" });
+    assert.ok(noncompleted.conflicts.some(conflict => /different attribution ID/.test(conflict.reason)));
+
+    const unmapped = await fixture("unmapped-source", "unmapped-code", false);
+    const unmappedDb = new DatabaseSync(unmapped);
+    unmappedDb.exec("UPDATE referral_codes SET code='NEW-UNAPPROVED-CODE'");
+    unmappedDb.close();
+    attribution(unmapped, "unmapped-attribution", "unmapped-code", "unmapped-org");
+    const unknownCode = reconcileReferralLedgers({ target, sources: [unmapped], scope: "attributions" });
+    assert.ok(unknownCode.conflicts.some(conflict => /cannot create a missing code/.test(conflict.reason)));
+    assert.deepEqual(unknownCode.counts.referral_codes, { insert: 0, update: 0 });
+    assert.deepEqual(unknownCode.counts.referral_partners, { insert: 0, update: 0 });
+
+    const bonusConflict = await fixture("bonus-conflict-target", "bonus-code", true);
+    attribution(bonusConflict, "shared-landing-id", "bonus-code", "org-overlap");
+    const bonusDb = new DatabaseSync(bonusConflict);
+    bonusDb.exec(`UPDATE referral_attributions SET metadata_json='{"acquisition_bonus_token":"canonical-token"}'`);
+    bonusDb.close();
+    const bonusPlan = reconcileReferralLedgers({ target: bonusConflict, sources: [nodeA], scope: "attributions" });
+    assert.ok(bonusPlan.conflicts.some(conflict => /different advertised bonus token/.test(conflict.reason)), "completed rows must not bypass token conflict checks");
+  });
 });

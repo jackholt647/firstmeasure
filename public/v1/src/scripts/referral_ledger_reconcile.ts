@@ -10,7 +10,9 @@ type Row = Record<string, SQLInputValue>;
 type Snapshot = Record<Table, Row[]>;
 type Mutation = { table: Table; kind: "insert" | "update"; row: Row };
 type Conflict = { table: Table; id: string; reason: string };
-type Options = { target: string; sources: string[]; apply?: boolean; confirmPlan?: string; backup?: string };
+type Scope = "all" | "attributions";
+type Options = { target: string; sources: string[]; apply?: boolean; confirmPlan?: string; backup?: string; scope?: Scope };
+type PlanOptions = { scope?: Scope; eventUniqueKeys?: string[][] };
 const text = (value: unknown) => String(value ?? "");
 const lower = (value: unknown) => text(value).trim().toLowerCase();
 
@@ -26,14 +28,23 @@ function metadata(value: SQLInputValue | undefined) {
   return parsed as Record<string, unknown>;
 }
 
-export function planReferralLedgerReconciliation(target: Snapshot, sources: Snapshot[]) {
+export function planReferralLedgerReconciliation(target: Snapshot, sources: Snapshot[], options: PlanOptions = {}) {
   const current = Object.fromEntries(TABLES.map(table => [table, new Map(target[table].map(row => [text(row.id), { ...row }]))])) as Record<Table, Map<string, Row>>;
   const mutations = new Map<string, Mutation>();
   const conflicts: Conflict[] = [];
   const canonicalCodes = new Map(target.referral_codes.map(row => [lower(row.code), row]));
   const completedOrgs = new Map<string, string>();
+  const eventUniqueKeys = (options.eventUniqueKeys || []).map(columns => ({ columns, owners: new Map<string, string>() }));
+  const uniqueKey = (row: Row, columns: string[]) => columns.some(column => row[column] === null || row[column] === undefined)
+    ? null : JSON.stringify(columns.map(column => row[column]));
+  for (const constraint of eventUniqueKeys) {
+    for (const row of target.referral_events) {
+      const key = uniqueKey(row, constraint.columns);
+      if (key !== null) constraint.owners.set(key, text(row.id));
+    }
+  }
   for (const row of target.referral_attributions) {
-    if (row.status === "signup_completed" && row.referred_org_id) completedOrgs.set(text(row.referred_org_id), text(row.id));
+    if (row.referred_org_id) completedOrgs.set(text(row.referred_org_id), text(row.id));
   }
   const conflict = (table: Table, row: Row, reason: string) => conflicts.push({ table, id: text(row.id), reason });
   const seenCodes = new Set<string>();
@@ -61,6 +72,7 @@ export function planReferralLedgerReconciliation(target: Snapshot, sources: Snap
       const existing = current.referral_partners.get(canonicalId);
       if (existing && existing.type !== incoming.type) { conflict("referral_partners", incoming, "partner type differs"); continue; }
       if (existing && ["linked_org_id", "linked_user_email"].some(key => existing[key] && incoming[key] && lower(existing[key]) !== lower(incoming[key]))) { conflict("referral_partners", incoming, "partner identity differs"); continue; }
+      if (!existing && options.scope === "attributions") { conflict("referral_partners", incoming, "attribution-only scope cannot create a missing partner"); continue; }
       partnerMap.set(sourceId, canonicalId);
       // Compatibility campaign configuration always wins. Node-local auto-created
       // partners must never erase its offers, status, or landing-page assignment.
@@ -76,12 +88,14 @@ export function planReferralLedgerReconciliation(target: Snapshot, sources: Snap
         continue;
       }
       if (current.referral_codes.has(text(incoming.id))) { conflict("referral_codes", incoming, "code ID collides with another code"); continue; }
+      if (options.scope === "attributions") { conflict("referral_codes", incoming, "attribution-only scope cannot create a missing code"); continue; }
       const next: Row = { ...incoming, partner_id: partnerId };
       codeMap.set(text(incoming.id), text(next.id));
       canonicalCodes.set(lower(next.code), next);
       write("referral_codes", next);
     }
     for (const table of ["referral_attributions", "referral_events", "referral_reward_ledger"] as const) {
+      if (options.scope === "attributions" && table !== "referral_attributions") continue;
       for (const incoming of source[table]) {
         const partnerId = incoming.partner_id ? partnerMap.get(text(incoming.partner_id)) : "";
         const codeId = incoming.code_id ? codeMap.get(text(incoming.code_id)) : "";
@@ -92,22 +106,32 @@ export function planReferralLedgerReconciliation(target: Snapshot, sources: Snap
         // in PostgreSQL organization records and can still be in customer URLs.
         const existing = current[table].get(text(next.id));
         if (existing && (existing.partner_id !== next.partner_id || existing.code_id !== next.code_id)) { conflict(table, next, "overlapping ID has different relationships"); continue; }
+        if (table === "referral_events") {
+          const collision = eventUniqueKeys.some(constraint => {
+            const key = uniqueKey(next, constraint.columns);
+            const owner = key === null ? undefined : constraint.owners.get(key);
+            return owner && owner !== text(next.id);
+          });
+          if (collision) { conflict(table, next, "target UNIQUE event key collides with a different event ID; no counter aggregation or index change permitted"); continue; }
+        }
         if (table === "referral_attributions") {
           if (existing?.referred_org_id && next.referred_org_id && existing.referred_org_id !== next.referred_org_id) { conflict(table, next, "overlapping attribution belongs to another organization"); continue; }
-          if (next.status === "signup_completed" && next.referred_org_id) {
+          if (next.referred_org_id) {
             const existingId = completedOrgs.get(text(next.referred_org_id));
-            if (existingId && existingId !== next.id) { conflict(table, next, "organization has a different completed attribution; manual deduplication required"); continue; }
+            if (existingId && existingId !== next.id) { conflict(table, next, "organization has a different attribution ID; manual deduplication required"); continue; }
             completedOrgs.set(text(next.referred_org_id), text(next.id));
           }
           if (existing) {
             // Upgrade the exact original landing attribution, never turn a
             // completed signup back into a view and never rewrite its identity.
-            if (existing.status === "signup_completed" || next.status !== "signup_completed") continue;
-            next.created_at = existing.created_at ?? "";
             const priorMetadata = metadata(existing.metadata_json);
             const incomingMetadata = metadata(next.metadata_json);
             if (priorMetadata.acquisition_bonus_token && incomingMetadata.acquisition_bonus_token && priorMetadata.acquisition_bonus_token !== incomingMetadata.acquisition_bonus_token) { conflict(table, next, "overlapping attribution has a different advertised bonus token"); continue; }
-            next.metadata_json = JSON.stringify({ ...priorMetadata, ...incomingMetadata, ...(priorMetadata.acquisition_bonus_token ? { acquisition_bonus_token: priorMetadata.acquisition_bonus_token } : {}) });
+            const advertisedFields = ["acquisition_bonus_offer_id", "acquisition_bonus_token", "acquisition_bonus_set_id", "acquisition_bonus_label", "acquisition_bonus_tiers"];
+            if (advertisedFields.some(key => priorMetadata[key] && incomingMetadata[key] && JSON.stringify(priorMetadata[key]) !== JSON.stringify(incomingMetadata[key]))) { conflict(table, next, "overlapping attribution has different advertised bonus terms"); continue; }
+            if (existing.status === "signup_completed" || next.status !== "signup_completed") continue;
+            next.created_at = existing.created_at ?? "";
+            next.metadata_json = JSON.stringify({ ...priorMetadata, ...incomingMetadata, ...Object.fromEntries(advertisedFields.filter(key => priorMetadata[key]).map(key => [key, priorMetadata[key]])) });
           }
         } else if (table === "referral_events" && existing) {
           if (["actor_email", "actor_org_id", "event_type"].some(key => existing[key] !== next[key])) { conflict(table, next, "overlapping event has different actor/type"); continue; }
@@ -122,7 +146,13 @@ export function planReferralLedgerReconciliation(target: Snapshot, sources: Snap
           }
           if ([...current.referral_reward_ledger.values()].some(row => row.attribution_id === next.attribution_id && row.reward_type === next.reward_type)) { conflict(table, next, "duplicate logical reward with another ID; manual review required"); continue; }
         }
-        if (!existing || table === "referral_attributions") write(table, next);
+        if (!existing || table === "referral_attributions") {
+          write(table, next);
+          if (table === "referral_events") for (const constraint of eventUniqueKeys) {
+            const key = uniqueKey(next, constraint.columns);
+            if (key !== null) constraint.owners.set(key, text(next.id));
+          }
+        }
       }
     }
   }
@@ -136,6 +166,7 @@ export function planReferralLedgerReconciliation(target: Snapshot, sources: Snap
 }
 
 export function reconcileReferralLedgers(options: Options) {
+  if (options.scope && !["all", "attributions"].includes(options.scope)) throw new Error("Unsupported recovery scope.");
   const targetPath = realpathSync(options.target);
   const sourcePaths = options.sources.map(source => realpathSync(source));
   if (!sourcePaths.length || new Set(sourcePaths).size !== sourcePaths.length || sourcePaths.includes(targetPath)) throw new Error("Specify distinct source snapshots, separate from the target.");
@@ -147,16 +178,24 @@ export function reconcileReferralLedgers(options: Options) {
   const target = new DatabaseSync(targetPath, { readOnly: !options.apply });
   try {
     target.exec("PRAGMA busy_timeout=5000");
+    // Migrated compatibility databases can retain indexes absent from today's
+    // CREATE TABLE fixture. Account for their constraints before approving any
+    // plan rather than discovering a collision halfway through application.
+    const eventUniqueKeys = target.prepare("PRAGMA index_list(referral_events)").all()
+      .filter(index => Number(index.unique) === 1 && Number(index.partial) === 0)
+      .map(index => target.prepare(`PRAGMA index_info("${text(index.name).replace(/"/g, '""')}")`).all().map(column => text(column.name)))
+      .filter(columns => columns.length && columns.every(Boolean));
+    const planOptions: PlanOptions = { scope: options.scope, eventUniqueKeys };
     if (options.apply) {
       if (!options.confirmPlan || !options.backup) throw new Error("Apply requires the reviewed --confirm-plan digest and a new --backup path.");
       const backup = path.resolve(options.backup);
       if (existsSync(backup) || sourcePaths.includes(backup) || backup === targetPath) throw new Error("Backup must be a new path, separate from all inputs.");
-      const preview = planReferralLedgerReconciliation(readSnapshot(target), sources);
+      const preview = planReferralLedgerReconciliation(readSnapshot(target), sources, planOptions);
       if (preview.conflicts.length || preview.digest !== options.confirmPlan) throw new Error("Plan changed or contains conflicts. Rerun dry-run and review before applying.");
       target.prepare("VACUUM INTO ?").run(backup);
       target.exec("BEGIN IMMEDIATE");
     } else target.exec("BEGIN");
-    const plan = planReferralLedgerReconciliation(readSnapshot(target), sources);
+    const plan = planReferralLedgerReconciliation(readSnapshot(target), sources, planOptions);
     if (options.apply) {
       if (plan.conflicts.length || plan.digest !== options.confirmPlan) throw new Error("Target changed while preparing backup; no changes applied. Review a fresh dry-run.");
       for (const change of plan.changes) {
@@ -175,7 +214,7 @@ export function reconcileReferralLedgers(options: Options) {
       if (text(target.prepare("PRAGMA quick_check").get()?.quick_check) !== "ok") throw new Error("SQLite verification failed; changes rolled back.");
     }
     target.exec(options.apply ? "COMMIT" : "ROLLBACK");
-    return { applied: Boolean(options.apply), digest: plan.digest, counts: plan.counts, conflicts: plan.conflicts };
+    return { applied: Boolean(options.apply), scope: options.scope || "all", digest: plan.digest, counts: plan.counts, conflicts: plan.conflicts };
   } catch (error) {
     try { target.exec("ROLLBACK"); } catch { /* no transaction started */ }
     throw error;
@@ -187,7 +226,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const value = (name: string) => { const index = argv.indexOf(name); return index < 0 ? "" : argv[index + 1] || ""; };
   const sources = argv.flatMap((arg, index) => arg === "--source" ? [argv[index + 1] || ""] : []);
   if (!argv.includes("--target") || !sources.length) throw new Error("Usage: referral_ledger_reconcile --target CANONICAL.sqlite --source WEB-SNAPSHOT.sqlite [--source ...] [--apply --confirm-plan DIGEST --backup NEW.sqlite]");
-  const result = reconcileReferralLedgers({ target: value("--target"), sources, apply: argv.includes("--apply"), confirmPlan: value("--confirm-plan"), backup: value("--backup") });
+  const scope = value("--scope") || "all";
+  if (scope !== "all" && scope !== "attributions") throw new Error("--scope must be all or attributions.");
+  const result = reconcileReferralLedgers({ target: value("--target"), sources, apply: argv.includes("--apply"), confirmPlan: value("--confirm-plan"), backup: value("--backup"), scope });
   console.log(JSON.stringify(result, null, 2));
   if (result.conflicts.length) process.exitCode = 2;
 }
