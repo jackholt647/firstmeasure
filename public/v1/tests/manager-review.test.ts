@@ -215,10 +215,16 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     assert.deepEqual(resultsJson.results[0].attachments, [{ name: "manager-review-test-roof.png", original_name: "roof problem.png" }]);
     assert.equal(resultsJson.summary.eligible, 2);
     assert.equal(resultsJson.summary.reviewed, 1);
-    assert.equal(resultsJson.summary.issues, 1);
+    assert.equal(resultsJson.summary.issues, 0);
+    assert.equal(resultsJson.summary.excluded, 1);
+    assert.equal(resultsJson.summary.minor_excluded, 1);
+    assert.equal(resultsJson.summary.pass_rate, null);
+    assert.equal(resultsJson.results[0].score_excluded, false);
+    assert.equal(resultsJson.results[0].score_exclusion_reason, "minor");
     assert.equal(resultsJson.results[0].severity, "minor");
     const minorResults = await legacy("manager_review_results", "admin@example.test", { severity: "minor" });
-    assert.equal(minorResults.json().summary.issues, 1);
+    assert.equal(minorResults.json().summary.issues, 0);
+    assert.equal(minorResults.json().summary.pass_rate, null);
     const majorResults = await legacy("manager_review_results", "admin@example.test", { severity: "major" });
     assert.equal(majorResults.json().summary.issues, 0);
     const invalidSeverity = await legacy("manager_audit_mark", "reviewer@example.test", {
@@ -226,7 +232,9 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     });
     assert.equal(invalidSeverity.statusCode, 400);
     assert.equal(resultsJson.groups.qa[0].key, "qa@example.test");
-    assert.equal(resultsJson.groups.qa[0].average_quality, 0);
+    assert.equal(resultsJson.groups.qa[0].average_quality, null);
+    assert.equal(resultsJson.groups.qa[0].minor_excluded, 1);
+    assert.equal(resultsJson.groups.team[0].pass_rate, null);
     assert.equal(resultsJson.groups.team[0].key, "quality-west");
     assert.equal(resultsJson.pagination.page_size, 25);
     assert.equal(resultsJson.summary.range_days, 14);
@@ -302,11 +310,23 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     });
     assert.equal(majorMark.statusCode, 200);
     assert.equal((await storage.readManifest("blind-sample-2")).manager_audit_severity, "major");
+    const majorAndMinor = (await legacy("manager_review_results", "admin@example.test")).json();
+    assert.equal(majorAndMinor.summary.pass_rate, 0);
+    assert.equal(majorAndMinor.summary.issues, 1);
+    assert.equal(majorAndMinor.summary.excluded, 1);
     const passedMark = await legacy("manager_audit_mark", "reviewer@example.test", {
       folder: "blind-sample-2", audit_status: "reviewed", severity: "major"
     });
     assert.equal(passedMark.statusCode, 200);
     assert.equal((await storage.readManifest("blind-sample-2")).manager_audit_severity, null);
+    const passAndMinor = (await legacy("manager_review_results", "admin@example.test")).json();
+    assert.equal(passAndMinor.summary.pass_rate, 100);
+    assert.equal(passAndMinor.groups.qa[0].pass_rate, 100);
+    assert.equal(passAndMinor.groups.team[0].pass_rate, 100);
+    await legacy("manager_review_override", "manager@example.test", { folder: "blind-sample-1", excluded: false });
+    const restoredMinor = (await legacy("manager_review_results", "admin@example.test")).json();
+    assert.equal(restoredMinor.summary.pass_rate, 100, "restoring a manual skip must not count a minor finding");
+    assert.equal(restoredMinor.summary.excluded, 1);
 
     await app.close();
   } finally {

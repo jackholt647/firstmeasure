@@ -5815,6 +5815,12 @@ async function managerReviewData(app: FastifyInstance, actor: JsonObject, includ
   };
 }
 
+function managerReviewScoreExclusion(row: JsonObject): "minor" | "manual" | null {
+  // A minor finding is neither a pass nor a failure, including historic reviews.
+  if (row.audit_status === "flagged" && row.severity === "minor") return "minor";
+  return row.score_excluded ? "manual" : null;
+}
+
 function managerReviewAggregate(rows: JsonObject[], keyField: string, labelField: string) {
   const groups = new Map<string, JsonObject[]>();
   for (const row of rows) {
@@ -5825,7 +5831,7 @@ function managerReviewAggregate(rows: JsonObject[], keyField: string, labelField
   }
   return [...groups.entries()].map(([key, group]) => {
     const reviewed = group.filter((row) => Boolean(row.audit_status));
-    const scored = reviewed.filter((row) => !row.score_excluded);
+    const scored = reviewed.filter((row) => !managerReviewScoreExclusion(row));
     const issues = scored.filter((row) => row.audit_status === "flagged");
     return {
       key,
@@ -5835,6 +5841,7 @@ function managerReviewAggregate(rows: JsonObject[], keyField: string, labelField
       unreviewed: group.length - reviewed.length,
       issues: issues.length,
       excluded: reviewed.length - scored.length,
+      minor_excluded: reviewed.filter((row) => managerReviewScoreExclusion(row) === "minor").length,
       average_quality: scored.length ? 100 * (scored.length - issues.length) / scored.length : null,
       pass_rate: scored.length ? 100 * (scored.length - issues.length) / scored.length : null
     };
@@ -5940,6 +5947,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
     if (user) qaUsers.set(email, asObject(user));
   }));
   for (const row of allRows) {
+    row.score_exclusion_reason = managerReviewScoreExclusion(row);
     const qaUser = qaUsers.get(String(row.qa_email ?? "").trim().toLowerCase());
     if (!qaUser) continue;
     const userTeamId = managerReviewText(qaUser.team_id, qaUser.team);
@@ -5974,7 +5982,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
     return true;
   });
   const reviewed = rows.filter((row) => Boolean(row.audit_status));
-  const scored = reviewed.filter((row) => !row.score_excluded);
+  const scored = reviewed.filter((row) => !managerReviewScoreExclusion(row));
   const issues = scored.filter((row) => row.audit_status === "flagged");
   const page = Math.max(1, Math.floor(Number(body.page) || 1));
   const pageSize = Math.max(10, Math.min(100, Math.floor(Number(body.page_size) || 25)));
@@ -6003,6 +6011,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
       unreviewed: rows.length - reviewed.length,
       issues: issues.length,
       excluded: reviewed.length - scored.length,
+      minor_excluded: reviewed.filter((row) => managerReviewScoreExclusion(row) === "minor").length,
       average_quality: scored.length ? 100 * (scored.length - issues.length) / scored.length : null,
       pass_rate: scored.length ? 100 * (scored.length - issues.length) / scored.length : null,
       range_days: rangeDays,
