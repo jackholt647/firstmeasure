@@ -73,4 +73,7 @@ test("Google button waits for a visible container and follows its actual width",
   width = 320;
   resizeCallback?.();
   assert.deepEqual(renderedWidths, [286, 320]);
+  width = 560;
+  resizeCallback?.();
+  assert.deepEqual(renderedWidths, [286, 320, 400]);
 });

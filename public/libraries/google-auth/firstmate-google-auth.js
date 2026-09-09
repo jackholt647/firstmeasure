@@ -131,7 +131,7 @@
     if (initializedClientId) {
       let renderedWidth = 0;
       const render = () => {
-        const width = Math.floor(container.getBoundingClientRect().width || container.clientWidth || 0);
+        const width = Math.min(400, Math.floor(container.getBoundingClientRect().width || container.clientWidth || 0));
         if (width < 1 || width === renderedWidth) return;
         renderedWidth = width;
         container.replaceChildren();

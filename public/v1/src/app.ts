@@ -9,6 +9,7 @@ import { registerCanvassingApi } from "../canvassing/api.js";
 import { registerCommunicationsApi } from "../communications/api.js";
 import { registerCodeReportsApi } from "../code-reports/api.js";
 import { registerCrmApi } from "../internal/crm/api.js";
+import { referralServiceRoutes } from "../internal/crm/referrals_service.js";
 import { registerFirstMeasureApi } from "../firstmeasure/api.js";
 import { registerFirstMeasureRemoteApi } from "../firstmeasure-remote/api.js";
 import { registerEmailApi } from "../email/api.js";
@@ -130,6 +131,11 @@ export async function buildApp() {
     void app.register(httpProxy, proxyOptions("/v1/communications"));
     void app.register(httpProxy, proxyOptions("/v1/internal"));
   } else {
+    // Not under /internal: that public proxy adds the service secret, so an RPC
+    // placed there would let callers bypass platform authentication.
+    if (env.clusterNodeRole === "legacy") {
+      void app.register(referralServiceRoutes(env.legacyProxySecret), { prefix: "/v1/private/referrals" });
+    }
     void app.register(registerCommunicationsApi, { prefix: "/v1/communications" });
     void app.register(registerCrmApi, { prefix: "/v1/internal/crm" });
     void app.register(registerInternalApi, { prefix: "/v1/internal" });

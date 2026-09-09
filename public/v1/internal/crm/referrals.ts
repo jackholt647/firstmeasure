@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { badRequest, notFound } from "../../platform/errors.js";
 import { listOrganizations, patchOrganization, readGlobal, readOrganization } from "../../platform/storage.js";
 import { asObject } from "./storage.js";
+import { isFirstMeasurePostgresEnabled, queryPostgres } from "../../src/database/postgres.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -197,6 +198,9 @@ export async function ensureReferralDatabase() {
       CREATE INDEX IF NOT EXISTS idx_referral_codes_partner ON referral_codes(partner_id);
       CREATE INDEX IF NOT EXISTS idx_referral_attributions_partner ON referral_attributions(partner_id);
       CREATE INDEX IF NOT EXISTS idx_referral_attributions_org ON referral_attributions(referred_org_id);
+      CREATE INDEX IF NOT EXISTS idx_referral_attributions_created ON referral_attributions(created_at);
+      CREATE INDEX IF NOT EXISTS idx_referral_attributions_signup ON referral_attributions(signup_completed_at);
+      CREATE INDEX IF NOT EXISTS idx_referral_events_created ON referral_events(created_at);
       CREATE INDEX IF NOT EXISTS idx_referral_rewards_attribution ON referral_reward_ledger(attribution_id);
     `);
   });
@@ -364,30 +368,40 @@ export async function acquisitionCampaignReport(input: JsonObject) {
   const campaignIds = new Set(campaignRows.map((campaign) => String(campaign.id ?? "")));
   if (campaignId !== "all" && !campaignIds.size) throw notFound("campaign_not_found", "Campaign was not found.");
 
+  const reportParams = { campaign_id: campaignId, start: range.start.toISOString(), end: range.end.toISOString() };
+
   const attributionRows = rows(`
     SELECT ra.*, rp.display_name AS campaign_name, rc.campaign_type, rc.landing_variant, rc.landing_views
     FROM referral_attributions ra
     LEFT JOIN referral_partners rp ON rp.id = ra.partner_id
     LEFT JOIN referral_codes rc ON rc.id = ra.code_id
     WHERE rp.type = 'acquisition_campaign'
+      AND (:campaign_id = 'all' OR ra.partner_id = :campaign_id)
+      AND (ra.created_at BETWEEN :start AND :end
+        OR (ra.status = 'signup_completed'
+          AND COALESCE(NULLIF(ra.signup_completed_at, ''), NULLIF(ra.updated_at, ''), ra.created_at) BETWEEN :start AND :end))
     ORDER BY ra.created_at ASC
-    LIMIT 20000
-  `).filter((entry) => campaignIds.has(String(entry.partner_id ?? "")));
+  `, reportParams);
   const eventRows = rows(`
     SELECT re.*, rp.display_name AS campaign_name
     FROM referral_events re
     LEFT JOIN referral_partners rp ON rp.id = re.partner_id
     WHERE rp.type = 'acquisition_campaign'
+      AND (:campaign_id = 'all' OR re.partner_id = :campaign_id)
+      AND re.created_at BETWEEN :start AND :end
     ORDER BY re.created_at ASC
-    LIMIT 20000
-  `).filter((entry) => campaignIds.has(String(entry.partner_id ?? "")));
+  `, reportParams);
 
   const viewsInRange = attributionRows.filter((entry) => inRange(String(entry.created_at ?? ""), range));
   const signupsInRange = attributionRows.filter((entry) => String(entry.status ?? "") === "signup_completed" && inRange(String(entry.signup_completed_at || entry.updated_at || entry.created_at || ""), range));
-  const orgIds = [...new Set(attributionRows
-    .filter((entry) => String(entry.status ?? "") === "signup_completed")
-    .map((entry) => String(entry.referred_org_id ?? "").trim())
-    .filter(Boolean))];
+  // Spend in this period can belong to a customer who signed up earlier. Fetch
+  // those IDs separately instead of loading/truncating the entire visitor log.
+  const orgIds = rows(`
+    SELECT DISTINCT ra.referred_org_id FROM referral_attributions ra
+    JOIN referral_partners rp ON rp.id = ra.partner_id
+    WHERE rp.type = 'acquisition_campaign' AND ra.status = 'signup_completed'
+      AND ra.referred_org_id != '' AND (:campaign_id = 'all' OR ra.partner_id = :campaign_id)
+  `, { campaign_id: campaignId }).map((entry) => String(entry.referred_org_id));
   const orgSpend = await spendForOrganizations(orgIds, range);
   const spendByOrg = new Map(orgSpend.organizations.map((entry) => [entry.org_id, entry]));
   const spendTotal = orgSpend.total_spend;
@@ -1360,7 +1374,7 @@ export function updateReferralRewardStatus(rewardId: string, statusInput: string
 function normalizeBonusOfferSets(value: unknown, existingState: JsonObject = {}, existingSets: JsonObject = {}) {
   const rawSets = Array.isArray(value)
     ? value
-    : Array.isArray(asObject(value).sets) ? asObject(value).sets as unknown[] : [];
+    : Array.isArray(asObject(value).sets) ? asObject(value).sets as unknown[] : Object.values(asObject(value));
   const existingById = new Map<string, JsonObject>();
   Object.values(existingSets).forEach((entry) => {
     const set = asObject(entry);
@@ -2262,10 +2276,21 @@ function normalizeVisitorIp(value: unknown) {
 async function spendForOrganizations(orgIds: string[], range: { start: Date; end: Date }) {
   const organizations: { org_id: string; spend: number; orders: number }[] = [];
   const ledger: JsonObject[] = [];
+  // readGlobal acquires a write lock (and creates missing documents). Reporting
+  // thousands of signups must not do one such transaction per organization.
+  const sharedLedgers = isFirstMeasurePostgresEnabled() && orgIds.length
+    ? new Map((await queryPostgres<{ organization_id: string; credits_ledger: unknown }>(`
+        SELECT organization_id, document->'data'->'credits_ledger' AS credits_ledger
+        FROM platform_documents
+        WHERE collection = 'global' AND id = 'global' AND organization_id = ANY($1::text[])
+      `, [orgIds])).rows.map((entry) => [entry.organization_id, entry.credits_ledger]))
+    : null;
   for (const orgId of orgIds) {
     try {
-      const global = await readGlobal(orgId);
-      const entries = Array.isArray(asObject(global.data).credits_ledger) ? asObject(global.data).credits_ledger as unknown[] : [];
+      const rawLedger = sharedLedgers
+        ? sharedLedgers.get(orgId)
+        : asObject((await readGlobal(orgId)).data).credits_ledger;
+      const entries = Array.isArray(rawLedger) ? rawLedger : [];
       let spend = 0;
       let orders = 0;
       for (const rawEntry of entries) {

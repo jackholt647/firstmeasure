@@ -1000,8 +1000,15 @@ function createReportPanel() {
         .qa-src-modal.show { display:flex; }
         .qa-src-modal-shell { position:relative; z-index:2147483001; width:min(980px,100%); height:min(720px,100%); display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:12px; }
         .qa-src-modal-main { min-width:0; min-height:0; display:flex; flex-direction:column; gap:8px; }
-        .qa-src-modal-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; position:relative; }
-        .qa-src-modal-img { max-width:100%; max-height:100%; object-fit:contain; border-radius:8px; box-shadow:0 10px 34px rgba(0,0,0,.36); }
+        .qa-src-modal-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+        .qa-src-modal-img { max-width:100%; max-height:100%; object-fit:contain; border-radius:8px; box-shadow:0 10px 34px rgba(0,0,0,.36); transform-origin:center; user-select:none; touch-action:none; cursor:zoom-in; }
+        .qa-src-modal-img.zoomed { cursor:grab; }
+        .qa-src-modal-img.dragging { cursor:grabbing; }
+        .qa-src-zoom { position:absolute; z-index:2; bottom:10px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:6px; padding:6px; border-radius:8px; background:rgba(0,0,0,.8); color:white; }
+        .qa-src-zoom[hidden] { display:none; }
+        .qa-src-zoom button { min-width:36px; height:32px; border:1px solid #888; border-radius:5px; background:#333; color:white; cursor:pointer; }
+        .qa-src-zoom button:disabled { opacity:.4; }
+        .qa-src-zoom output { min-width:48px; text-align:center; font:12px sans-serif; }
         .qa-src-modal-img.empty { display:none; }
         .qa-src-modal-nav {
             position:absolute; z-index:2147483002; top:50%; transform:translateY(-50%); width:38px; height:48px; border:1px solid rgba(255,255,255,.24);
@@ -7077,8 +7084,8 @@ function renderQaSubmissionSourcesReviewHtml(state) {
     const hasNotes = !!sources.notes;
     const hasImages = sources.images.length > 0;
     const meta = sources.submitted_at
-        ? `Submitted ${sources.submitted_at}${sources.submitted_by ? ` by ${sources.submitted_by}` : ''}`
-        : (sources.submitted_by ? `Submitted by ${sources.submitted_by}` : (hasImages ? `${sources.images.length} image${sources.images.length === 1 ? '' : 's'}` : ''));
+        ? `Submitted ${sources.submitted_at}`
+        : (hasImages ? `${sources.images.length} image${sources.images.length === 1 ? '' : 's'}` : '');
 
     return `
         <div class="qa-src-review" id="qaSrcReviewCard">
@@ -7103,8 +7110,14 @@ function renderQaSubmissionSourcesReviewHtml(state) {
                     <div class="qa-src-modal-main">
                         <div class="qa-src-modal-stage">
                             <button type="button" class="qa-src-modal-nav prev" data-qa-src-prev title="Previous"><i class="fas fa-chevron-left"></i></button>
-                            <img class="qa-src-modal-img" alt="Reference image">
+                            <img class="qa-src-modal-img" alt="Reference image" draggable="false">
                             <button type="button" class="qa-src-modal-nav next" data-qa-src-next title="Next"><i class="fas fa-chevron-right"></i></button>
+                            <div class="qa-src-zoom" data-qa-src-zoom-tools>
+                                <button type="button" data-qa-src-zoom="out" aria-label="Zoom out">−</button>
+                                <output data-qa-src-zoom-value aria-live="polite">100%</output>
+                                <button type="button" data-qa-src-zoom="in" aria-label="Zoom in">+</button>
+                                <button type="button" data-qa-src-zoom="fit">Fit</button>
+                            </div>
                         </div>
                         <div class="qa-src-modal-rail"></div>
                     </div>
@@ -7129,7 +7142,28 @@ function wireQaSubmissionSourcesReview(container, state) {
         if (staleModal !== modal) staleModal.remove();
     });
     let index = 0;
+    const image = modal.querySelector('.qa-src-modal-img');
+    const stage = modal.querySelector('.qa-src-modal-stage');
+    let zoom = 1, panX = 0, panY = 0, drag = null;
+    const applyZoom = () => {
+        if (!image) return;
+        image.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        image.classList.toggle('zoomed', zoom > 1);
+        image.classList.toggle('dragging', !!drag);
+        const value = modal.querySelector('[data-qa-src-zoom-value]');
+        if (value) value.textContent = `${Math.round(zoom * 100)}%`;
+        modal.querySelectorAll('[data-qa-src-zoom]').forEach((button) => {
+            const action = button.getAttribute('data-qa-src-zoom');
+            button.disabled = action === 'out' ? zoom <= 1 : action === 'in' ? zoom >= 6 : false;
+        });
+    };
+    const setZoom = (next) => {
+        zoom = Math.min(6, Math.max(1, next));
+        if (zoom === 1) { panX = 0; panY = 0; drag = null; }
+        applyZoom();
+    };
     const render = () => {
+        setZoom(1);
         const item = items[index] || {};
         const image = modal.querySelector('.qa-src-modal-img');
         const title = modal.querySelector('[data-qa-src-title]');
@@ -7140,6 +7174,8 @@ function wireQaSubmissionSourcesReview(container, state) {
             image.src = item.url || '';
             image.classList.toggle('empty', !item.url);
         }
+        const zoomTools = modal.querySelector('[data-qa-src-zoom-tools]');
+        if (zoomTools) zoomTools.hidden = !item.url;
         if (title) title.textContent = item.title || 'Technician Reference';
         if (count) count.textContent = items.length > 1 ? `${index + 1} / ${items.length}` : '';
         if (notes) {
@@ -7170,10 +7206,13 @@ function wireQaSubmissionSourcesReview(container, state) {
         }
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
+        modal.tabIndex = -1;
+        modal.focus();
     };
     const close = () => {
         modal.classList.remove('show');
         modal.setAttribute('aria-hidden', 'true');
+        setZoom(1);
     };
     const step = (delta) => {
         if (items.length <= 1) return;
@@ -7188,11 +7227,44 @@ function wireQaSubmissionSourcesReview(container, state) {
     modal.querySelector('[data-qa-src-prev]')?.addEventListener('click', () => step(-1));
     modal.querySelector('[data-qa-src-next]')?.addEventListener('click', () => step(1));
     modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
-    window.addEventListener('keydown', (event) => {
+    modal.querySelectorAll('[data-qa-src-zoom]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const action = button.getAttribute('data-qa-src-zoom');
+            setZoom(action === 'fit' ? 1 : zoom + (action === 'in' ? .5 : -.5));
+        });
+    });
+    stage?.addEventListener('wheel', (event) => {
+        if (!items[index]?.url) return;
+        event.preventDefault();
+        setZoom(zoom + (event.deltaY < 0 ? .5 : -.5));
+    }, { passive:false });
+    image?.addEventListener('dblclick', () => setZoom(zoom > 1 ? 1 : 2));
+    image?.addEventListener('pointerdown', (event) => {
+        if (zoom <= 1 || event.button !== 0) return;
+        event.preventDefault();
+        drag = { x:event.clientX, y:event.clientY, panX, panY };
+        image.setPointerCapture(event.pointerId);
+        applyZoom();
+    });
+    image?.addEventListener('pointermove', (event) => {
+        if (!drag) return;
+        panX = drag.panX + event.clientX - drag.x;
+        panY = drag.panY + event.clientY - drag.y;
+        applyZoom();
+    });
+    const stopDrag = () => { drag = null; applyZoom(); };
+    image?.addEventListener('pointerup', stopDrag);
+    image?.addEventListener('pointercancel', stopDrag);
+    image?.addEventListener('lostpointercapture', stopDrag);
+    modal.addEventListener('keydown', (event) => {
         if (!modal.classList.contains('show')) return;
         if (event.key === 'Escape') { event.preventDefault(); close(); }
         if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
         if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+        if (items[index]?.url && ['+', '=', '-', '0'].includes(event.key)) {
+            event.preventDefault();
+            setZoom(event.key === '0' ? 1 : zoom + (event.key === '-' ? -.5 : .5));
+        }
     });
 }
 
@@ -7277,7 +7349,6 @@ async function addQaPdfReviewFailuresToThreads(state, options = {}) {
         const result = await window.DrafterQA.addFeedback({
             label: item.label,
             text: comment,
-            severity: resolveImmediately ? 'minor' : 'major',
             resolved: resolveImmediately,
             corrected: resolveImmediately,
             resolveText: resolveImmediately ? 'Corrected by QA before approval.' : ''

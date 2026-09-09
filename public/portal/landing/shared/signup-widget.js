@@ -136,29 +136,11 @@
     .fm-google-block { margin-bottom: 18px; }
     .fm-google-button {
       width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center;
-      min-width: 0; padding: 0; overflow: hidden; border: 0; border-radius: 8px; background: transparent;
+      min-width: 0; padding: 0; border: 0; background: transparent;
     }
-    .fm-google-button > div,
-    .fm-google-button > div > div {
-      width: 100% !important; max-width: none !important;
-      display: flex !important; justify-content: center;
-    }
-    .fm-google-button [role="button"] {
-      width: 100% !important; min-width: 100% !important; max-width: none !important;
-      height: 44px !important; min-height: 44px !important;
-      border: 1px solid #ddd !important; border-radius: 8px !important;
-      box-shadow: none !important; color: #111 !important;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-      font-size: 14px !important;
-    }
-    .fm-google-button [role="button"] span:not(#button-label) {
-      color: #111 !important;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-      font-size: 14px !important;
-    }
-    .fm-google-button iframe {
-      display: block !important; width: 100% !important; max-width: 100% !important;
-    }
+    /* GIS owns its descendants, including a placeholder beside its iframe.
+       Turning that wrapper into flex or overriding iframe width shifts/clips
+       the personalized button. Center the untouched widget as a single item. */
     .fm-google-divider {
       display: flex; align-items: center; gap: 10px; margin: 20px 0 0;
       color: #8a9099; font-size: 11px; font-weight: 800; text-transform: uppercase;

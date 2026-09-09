@@ -16,7 +16,7 @@ import {
   firstMeasureReportCharge as sharedFirstMeasureReportCharge
 } from "../firstmeasure/pricing.js";
 import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
-import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals.js";
+import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals_service.js";
 import { publicProposalWorkflow } from "../proposals/storage.js";
 import { appFlagState, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppVariantInput } from "./app_flags.js";
 import {

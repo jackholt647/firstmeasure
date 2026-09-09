@@ -2084,6 +2084,18 @@ function tutorialCurriculumPath(courseId: string) {
   return path.join(tutorialCourseBaseDir(courseId), "master", "curriculum.json");
 }
 
+async function readTutorialCurriculum(courseId: string) {
+  const primary = tutorialCurriculumPath(courseId);
+  if (await pathExists(primary)) return await readJsonFile(primary, { chapters: [] });
+  // The cutover retained PHP's curriculum under public-storage, while Node's
+  // configured tutorial root already contains new student progress. Read only
+  // missing curriculum from that retained tree; never redirect progress writes
+  // or override a deliberately empty curriculum saved in the configured root.
+  const retainedRoot = path.join(path.dirname(tutorialStorageRoot()), "public-storage", "measure", "internal", "tutorials");
+  const retainedCourse = courseId === "default" ? retainedRoot : path.join(retainedRoot, "courses", courseId);
+  return await readJsonFile(path.join(retainedCourse, "master", "curriculum.json"), { chapters: [] });
+}
+
 function tutorialUserCourseDir(courseId: string, email: string) {
   return path.join(tutorialStorageRoot(), "users", tutorialSafeUser(email), "courses", courseId || "default");
 }
@@ -2403,7 +2415,7 @@ function tutorialProjectSourceId(projectRaw: unknown) {
 }
 
 async function startTutorialTestAttempt(courseId: string, actorEmail: string, body: JsonObject) {
-  const curriculum = asObject(await readJsonFile(tutorialCurriculumPath(courseId), { chapters: [] }));
+  const curriculum = asObject(await readTutorialCurriculum(courseId));
   const chapters = Array.isArray(curriculum.chapters) ? curriculum.chapters.map(asObject) : [];
   const chapterNumber = Math.max(1, Math.floor(Number(body.chapter_id ?? body.chapter)) || 1);
   const chapter = chapters[chapterNumber - 1];
@@ -2750,7 +2762,7 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
   const actorEmail = String(actor.email ?? body.actor_email ?? body.user_email ?? "").trim().toLowerCase();
 
   if (action === "fetch_curriculum") {
-    const curriculum = await readJsonFile(tutorialCurriculumPath(courseId), { chapters: [] });
+    const curriculum = await readTutorialCurriculum(courseId);
     const isAdmin = await canManageTutorials(actor);
     const progress = actorEmail ? await readTutorialProgress(courseId, actorEmail) : tutorialDefaultProgress();
     return {
@@ -5874,6 +5886,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
         team_id: managerReviewText(entry.team_id, auditSample.team_id, "default"),
         team_name: managerReviewText(entry.team_name, auditSample.team_name, entry.team_id, auditSample.team_id, "Default"),
         audit_status: managerReviewText(audit.status),
+        severity: audit.status === "flagged" ? (audit.severity === "minor" ? "minor" : "major") : null,
         quality_score: Number.isFinite(score) ? score : null,
         note: managerReviewText(audit.note) || null,
         issue_categories: Array.isArray(audit.issue_categories)
@@ -5905,6 +5918,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
         team_id: managerReviewText(sample.team_id, "default"),
         team_name: managerReviewText(sample.team_name, sample.team_id, "Default"),
         audit_status: managerReviewText(audit.status),
+        severity: audit.status === "flagged" ? (audit.severity === "minor" ? "minor" : "major") : null,
         quality_score: Number.isFinite(score) ? score : null,
         note: managerReviewText(audit.note) || null,
         issue_categories: Array.isArray(audit.issue_categories)
@@ -5945,9 +5959,14 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
   const qaEmail = access.isManager ? managerReviewText(body.qa_email).toLowerCase() : viewerEmail;
   const teamId = access.isManager ? managerReviewText(body.team_id) : "";
   const auditStatus = managerReviewText(body.audit_status).toLowerCase();
+  const severityFilter = managerReviewText(body.severity).toLowerCase();
+  if (severityFilter && !["minor", "major"].includes(severityFilter)) {
+    throw badRequest("invalid_manager_audit_severity", "Issue severity must be minor or major.");
+  }
   const rows = dateRows.filter((row) => {
     if (qaEmail && row.qa_email !== qaEmail) return false;
     if (teamId && row.team_id !== teamId) return false;
+    if (severityFilter && row.severity !== severityFilter) return false;
     if (auditStatus === "unreviewed" && row.audit_status) return false;
     if (auditStatus && auditStatus !== "unreviewed" && row.audit_status !== auditStatus) return false;
     return true;
@@ -5973,7 +5992,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
   return {
     ok: true,
     success: true,
-    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId },
+    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId, audit_status: auditStatus, severity: severityFilter },
     access: { can_view_all: access.isManager, can_override: access.canOverride, viewer_email: viewerEmail },
     settings,
     summary: {
@@ -6079,7 +6098,10 @@ async function managerReviewMarkAudit(body: JsonObject, actor: JsonObject) {
     throw badRequest("invalid_manager_audit_category", "One or more issue categories are invalid.");
   }
   const issueCategory = issueCategories[0] ?? null;
-  const severity = null;
+  const severity = status === "flagged" ? String(body.severity ?? "major").trim().toLowerCase() : null;
+  if (severity !== null && !["minor", "major"].includes(severity)) {
+    throw badRequest("invalid_manager_audit_severity", "Issue severity must be minor or major.");
+  }
   const rawAttachments = Array.isArray(body.attachments) ? body.attachments : [];
   if (rawAttachments.length > 5) {
     throw badRequest("manager_audit_too_many_attachments", "A manager review can include up to five screenshots.");

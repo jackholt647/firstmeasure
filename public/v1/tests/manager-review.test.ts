@@ -160,6 +160,7 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
       audit_status: "flagged",
       issue_categories: ["missing_section", "missing_skylight_chimney", "wrong_line_types"],
       note: "Synthetic missed measurement.",
+      severity: "minor",
       attachments: [{ name: "manager-review-test-roof.png", original_name: "roof problem.png" }],
       annotations: { "0": { strokes: [{ type: "text", text: "Check area" }] } }
     });
@@ -169,6 +170,7 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     const persisted = await storage.readManifest("blind-sample-1") as Record<string, unknown>;
     assert.equal(persisted.manager_audit_status, "flagged");
     assert.equal(persisted.manager_audit_quality_score, 0);
+    assert.equal(persisted.manager_audit_severity, "minor");
     assert.deepEqual(persisted.manager_audit_issue_categories, ["missing_section", "missing_skylight_chimney", "wrong_line_types"]);
     assert.deepEqual(persisted.manager_audit_attachments, [{ name: "manager-review-test-roof.png", original_name: "roof problem.png" }]);
     assert.equal((persisted.manager_audit_history as unknown[]).length, 1);
@@ -201,6 +203,15 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     assert.equal(resultsJson.summary.eligible, 2);
     assert.equal(resultsJson.summary.reviewed, 1);
     assert.equal(resultsJson.summary.issues, 1);
+    assert.equal(resultsJson.results[0].severity, "minor");
+    const minorResults = await legacy("manager_review_results", "admin@example.test", { severity: "minor" });
+    assert.equal(minorResults.json().summary.issues, 1);
+    const majorResults = await legacy("manager_review_results", "admin@example.test", { severity: "major" });
+    assert.equal(majorResults.json().summary.issues, 0);
+    const invalidSeverity = await legacy("manager_audit_mark", "reviewer@example.test", {
+      folder: "blind-sample-2", audit_status: "flagged", issue_categories: ["wrong_line_types"], severity: "critical"
+    });
+    assert.equal(invalidSeverity.statusCode, 400);
     assert.equal(resultsJson.groups.qa[0].key, "qa@example.test");
     assert.equal(resultsJson.groups.qa[0].average_quality, 0);
     assert.equal(resultsJson.groups.team[0].key, "quality-west");
@@ -272,6 +283,17 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
       url: "/v1/internal/state/manager_review_samples?actor_email=reviewer@example.test"
     });
     assert.equal(reviewerSampleState.statusCode, 403);
+
+    const majorMark = await legacy("manager_audit_mark", "reviewer@example.test", {
+      folder: "blind-sample-2", audit_status: "flagged", issue_categories: ["wrong_line_types"], severity: "major"
+    });
+    assert.equal(majorMark.statusCode, 200);
+    assert.equal((await storage.readManifest("blind-sample-2")).manager_audit_severity, "major");
+    const passedMark = await legacy("manager_audit_mark", "reviewer@example.test", {
+      folder: "blind-sample-2", audit_status: "reviewed", severity: "major"
+    });
+    assert.equal(passedMark.statusCode, 200);
+    assert.equal((await storage.readManifest("blind-sample-2")).manager_audit_severity, null);
 
     await app.close();
   } finally {

@@ -643,7 +643,7 @@ export async function readInternalUser(userIdOrEmail: string) {
     const email = normalizeEmail(userIdOrEmail);
     const id = sanitizeId(userIdOrEmail, "user");
     const result = await queryPostgres<UserIndexRow>(
-      "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY id LIMIT 1",
+      "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY CASE WHEN id = $2 THEN 0 ELSE 1 END, updated_at DESC, id LIMIT 1",
       [email, id]
     );
     if (result.rows[0]) return userFromIndexRow(result.rows[0]);
@@ -689,12 +689,12 @@ export async function saveInternalUser(input: JsonObject = {}, options: SaveInte
         const email = normalizeEmail(requested);
         const id = sanitizeId(requested, "user");
         const result = await client.query<UserIndexRow>(
-          "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY id LIMIT 1 FOR UPDATE",
+          "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY CASE WHEN id = $2 THEN 0 ELSE 1 END, updated_at DESC, id LIMIT 1 FOR UPDATE",
           [email, id]
         );
         const existing = result.rows[0] ? userFromIndexRow(result.rows[0]) : null;
         if (!existing && !normalizeEmail(input.email)) throw new Error("internal_user_email_required");
-        const user = normalizeInternalUser(input, existing ?? {});
+        const user = normalizeInternalUser(existing ? { ...input, id: existing.id } : input, existing ?? {});
         const previousTeamId = normalizeInternalTeamId(existing?.team_id);
         const nextTeamId = normalizeInternalTeamId(user.team_id);
         if (existing && previousTeamId !== nextTeamId) {
@@ -721,7 +721,7 @@ export async function saveInternalUser(input: JsonObject = {}, options: SaveInte
   if (!existing && !normalizeEmail(input.email)) {
     throw new Error("internal_user_email_required");
   }
-  const user = normalizeInternalUser(input, existing ?? {});
+  const user = normalizeInternalUser(existing ? { ...input, id: existing.id } : input, existing ?? {});
   const previousTeamId = normalizeInternalTeamId(existing?.team_id);
   const nextTeamId = normalizeInternalTeamId(user.team_id);
   if (existing && previousTeamId !== nextTeamId) {
@@ -758,7 +758,7 @@ export async function patchInternalUser(userId: string, patch: JsonObject = {}) 
         const email = normalizeEmail(userId);
         const id = sanitizeId(userId, "user");
         const result = await client.query<UserIndexRow>(
-          "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY id LIMIT 1 FOR UPDATE",
+          "SELECT * FROM internal_users_index WHERE email = $1 OR id = $2 ORDER BY CASE WHEN id = $2 THEN 0 ELSE 1 END, updated_at DESC, id LIMIT 1 FOR UPDATE",
           [email, id]
         );
         if (!result.rows[0]) {

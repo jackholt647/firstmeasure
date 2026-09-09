@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import vm from 'node:vm';
 
 const files = [
   '../measure/internal/portal_scripts/qa.js',
@@ -9,19 +8,14 @@ const files = [
 
 for (const file of files) {
   const source = await readFile(file, 'utf8');
-  const start = source.indexOf('function normalizeThreadSeverity(');
-  const end = source.indexOf('\n  function ', start + 10);
-  assert.ok(start >= 0 && end > start, `${file} exposes severity normalization`);
-  const context = vm.createContext({});
-  vm.runInContext(source.slice(start, end), context);
-  assert.equal(vm.runInContext("normalizeThreadSeverity('minor')", context), 'minor');
-  assert.equal(vm.runInContext("normalizeThreadSeverity('major')", context), 'major');
-  assert.equal(vm.runInContext("normalizeThreadSeverity('')", context), 'major');
-  assert.match(source, /severity[^\n]+minor/);
-  assert.match(source, /severity[^\n]+major/);
+  assert.doesNotMatch(source, /qaNewIssueSeverity|qaReplySeverity|normalizeThreadSeverity|severity-badge/);
 }
 
 const reportSource = await readFile('../measure/internal/editor_scripts/report.js', 'utf8');
-assert.match(reportSource, /severity:\s*resolveImmediately\s*\?\s*'minor'\s*:\s*'major'/);
+assert.doesNotMatch(reportSource, /severity:\s*resolveImmediately/);
+const qualitySource = await readFile('../measure/internal/portal_scripts/manager_review.js', 'utf8');
+assert.match(qualitySource, /id="mraReviewSeverity"/);
+assert.match(qualitySource, /severity:selected.length/);
+assert.match(qualitySource, /id="mraRFSeverity"/);
 
-console.log('PASS: QA feedback records and displays minor/major severity with a major fallback for legacy threads.');
+console.log('PASS: minor/major severity belongs to QA Quality, not regular QA feedback.');

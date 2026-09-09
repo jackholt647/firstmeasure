@@ -1570,12 +1570,6 @@
       .qa-check-item-header .status-badge.fixed { background: #e8f0fe; color: #1a73e8; }
       .qa-check-item-header .status-badge.resolved { background: #e6f4ea; color: #137333; }
       .qa-check-item-header .status-badge.closed { background: #f1f3f4; color: #5f6368; }
-      .qa-check-item-header .severity-badge,
-      .qa-thread-panel .severity-badge {
-        padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 900; text-transform: uppercase;
-      }
-      .severity-badge.minor { background: #e8f0fe; color: #174ea6; }
-      .severity-badge.major { background: #fce8e6; color: #b0261e; }
       .qa-check-item-header .toggle-btn {
         width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
         border: 1px solid #e0e0e0; border-radius: 8px; background: #fff;
@@ -4625,11 +4619,7 @@
     return matches.find(t => t.status !== 'resolved' && t.status !== 'closed') || matches[0];
   }
 
-  function normalizeThreadSeverity(value){
-    return String(value || '').trim().toLowerCase() === 'minor' ? 'minor' : 'major';
-  }
-
-  function createThread(itemId, text, images = [], severity = 'major'){
+  function createThread(itemId, text, images = []){
     const item = ALL_CHECKLIST_ITEMS.find(i => i.id === itemId);
     const myRole = isManagerReviewMode ? 'manager' : 'qa';
     const thread = {
@@ -4637,7 +4627,6 @@
       item_id: itemId,
       label: item ? item.label : itemId,
       category: item ? item.category : 'unknown',
-      severity: normalizeThreadSeverity(severity),
       status: 'open',
       created_at: new Date().toISOString(),
       created_by: cfg().user?.email || myRole,
@@ -4755,8 +4744,8 @@
 
     const notes = String(sources.notes || '').trim();
     const submittedMeta = sources.submitted_at
-      ? `Submitted ${fmtDate(sources.submitted_at)}${sources.submitted_by ? ` by ${sources.submitted_by}` : ''}`
-      : (sources.submitted_by ? `Submitted by ${sources.submitted_by}` : '');
+      ? `Submitted ${fmtDate(sources.submitted_at)}`
+      : '';
     const items = hasImages
       ? sources.images
           .map((img, index) => {
@@ -4967,9 +4956,6 @@
           const statusLabels = { open: 'Open', disputed: 'Disputed', fixed: 'Fixed', resolved: 'Resolved', closed: 'Closed' };
           statusBadge = `<span class="status-badge ${thread.status}">${statusLabels[thread.status] || thread.status}</span>`;
         }
-        const severityBadge = thread
-          ? `<span class="severity-badge ${normalizeThreadSeverity(thread.severity)}">${normalizeThreadSeverity(thread.severity)}</span>`
-          : '';
 
         itemDiv.innerHTML = `
           <div class="qa-check-item-header">
@@ -4977,7 +4963,6 @@
               <div class="label">${esc(item.label)}</div>
               ${item.hint ? `<div class="hint">${esc(item.hint)}</div>` : ''}
             </div>
-            ${severityBadge}
             ${statusBadge}
             <div class="toggle-btn ${thread ? 'active' : ''}" title="${thread ? 'View/Edit Issue' : 'Flag Issue'}">
               <i class="fas ${thread ? 'fa-comment-dots' : 'fa-flag'}"></i>
@@ -5030,13 +5015,6 @@
       panel.innerHTML = `
         <div class="qa-reply-composer">
           <textarea placeholder="Describe the issue with this item..." id="qaNewIssueText_${itemId}"></textarea>
-          <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:12px;font-weight:800;color:#444;">
-            Severity
-            <select id="qaNewIssueSeverity_${itemId}" style="padding:7px 10px;border:1px solid #dadce0;border-radius:8px;background:#fff;">
-              <option value="major">Major — technician correction required</option>
-              <option value="minor">Minor — QA can correct</option>
-            </select>
-          </label>
           <div class="image-upload-area">
             <label class="upload-btn">
               <i class="fas fa-image"></i> Add Image
@@ -5055,15 +5033,13 @@
       document.getElementById(`qaCreateIssueBtn_${itemId}`).onclick = async () => {
         const text = document.getElementById(`qaNewIssueText_${itemId}`).value.trim();
         if (!text) { alert('Please describe the issue.'); return; }
-        const severity = document.getElementById(`qaNewIssueSeverity_${itemId}`)?.value || 'major';
         const images = await uploadPendingImages(`qaNewIssuePreview_${itemId}`);
-        createThread(itemId, text, images, severity);
+        createThread(itemId, text, images);
         renderChecklist();
         toggleItemPanel(itemId);
       };
     } else {
       let historyHtml = '<div class="qa-thread-history">';
-      historyHtml += `<div><span class="severity-badge ${normalizeThreadSeverity(thread.severity)}">${normalizeThreadSeverity(thread.severity)} issue</span></div>`;
       for (const msg of thread.history){
         const actionBadges = {
           marked_fixed: '<span class="action-badge marked_fixed"><i class="fas fa-wrench"></i> Marked as Fixed</span>',
