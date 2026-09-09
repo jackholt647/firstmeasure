@@ -20,10 +20,22 @@ if [[ ! -f "$release_directory/public/v1/dist/src/server.js" ]]; then
 fi
 
 previous_target="$(readlink -f /opt/firstmeasure/current 2>/dev/null || true)"
+php_fpm_service="${FIRSTMEASURE_PHP_FPM_SERVICE:-php8.3-fpm.service}"
+
+restart_release_services() {
+  systemctl restart "$service_name" || return 1
+  if [[ "$service_name" == "firstmeasure-legacy.service" ]]; then
+    # The compatibility host serves the PHP staff portal from the `current`
+    # symlink. Restart FPM as part of the release so its realpath/opcache does
+    # not keep executing PHP from the previous release directory.
+    systemctl restart "$php_fpm_service" || return 1
+  fi
+}
+
 ln -sfn "$release_directory" /opt/firstmeasure/current.next
 mv -Tf /opt/firstmeasure/current.next /opt/firstmeasure/current
 
-if systemctl restart "$service_name"; then
+if restart_release_services; then
   if [[ "$service_name" == "firstmeasure-worker.service" ]]; then
     worker_started_at="$(systemctl show "$service_name" --property=ActiveEnterTimestamp --value)"
     deadline=$((SECONDS + 180))
@@ -48,6 +60,6 @@ echo "Activation failed; restoring the previous release." >&2
 if [[ -n "$previous_target" && -d "$previous_target" ]]; then
   ln -sfn "$previous_target" /opt/firstmeasure/current.next
   mv -Tf /opt/firstmeasure/current.next /opt/firstmeasure/current
-  systemctl restart "$service_name"
+  restart_release_services
 fi
 exit 1
