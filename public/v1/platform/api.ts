@@ -1702,9 +1702,15 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.put("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
     const body = objectBodySchema.parse(request.body ?? {});
     const documentId = getParam(request.params, "documentId");
+    if (collection === "users") {
+      await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_user_permissions" });
+    }
+    if (collection === "users" && documentId === ctx.userId) {
+      throw forbidden("self_user_replacement_forbidden", "You cannot replace your own organization user record.");
+    }
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, true)
       : await upsertDocument(
@@ -1720,9 +1726,15 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.patch("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
     const body = objectBodySchema.parse(request.body ?? {});
     const documentId = getParam(request.params, "documentId");
+    if (collection === "users" && platformOrgUserPermissionMutation(body)) {
+      await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_user_permissions" });
+    }
+    if (collection === "users" && documentId === ctx.userId && platformOrgUserPermissionMutation(body)) {
+      throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
+    }
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, false)
       : await upsertDocument(
@@ -1738,11 +1750,15 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.delete("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    const documentId = getParam(request.params, "documentId");
+    if (collection === "users" && documentId === ctx.userId) {
+      throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
+    }
     const deleted = await deleteDocument(
       orgId,
       collection,
-      getParam(request.params, "documentId")
+      documentId
     );
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
     return {
@@ -3937,6 +3953,12 @@ function platformOrgUserPermissionState(data: JsonObject) {
   };
 }
 
+function platformOrgUserPermissionMutation(body: JsonObject) {
+  const data = asObject(body.data && typeof body.data === "object" ? body.data : body);
+  return ["role", "roles", "org_permissions", "org_permission_level", "permission_level", "perm_level", "permissions", "perm_items", "perm_items_json"]
+    .some((key) => Object.prototype.hasOwnProperty.call(data, key));
+}
+
 function customerPortalDocumentId(projectId: string) {
   const id = cleanText(projectId).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   if (!id) throw badRequest("invalid_project_id", "Project id is required.");
@@ -5302,7 +5324,8 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "org_users_delete_my":
       return await portalSetOrgUserDisabled(ctx.orgId, { ...body, disabled: "true", delete_user: "true" });
     case "org_users_set_perms_my":
-      return await portalSetOrgUserPermissions(ctx.orgId, body);
+      if (request) await requirePlatformAuth(request, { orgId: ctx.orgId, permission: "manage_company_user_permissions" });
+      return await portalSetOrgUserPermissions(ctx.orgId, body, ctx.userDoc);
     case "org_upload_logo_my":
       return await portalUploadLogo(ctx.orgId, body);
     case "org_users_upload_avatar_my":
@@ -6240,9 +6263,15 @@ async function portalSetOrgUserDisabled(orgId: string, body: JsonObject) {
   return { success: true, user: portalUserView(next) };
 }
 
-async function portalSetOrgUserPermissions(orgId: string, body: JsonObject) {
+async function portalSetOrgUserPermissions(orgId: string, body: JsonObject, actorUserDoc: JsonObject | null = null) {
   const userId = cleanText(body.user_id);
   const current = await readDocument(orgId, "users", userId);
+  const actorId = cleanText(actorUserDoc?.id);
+  const actorEmail = cleanText(asObject(actorUserDoc?.data).email).toLowerCase();
+  const targetEmail = cleanText(asObject(current.data).email).toLowerCase();
+  if ((actorId && userId === actorId) || (actorEmail && targetEmail === actorEmail)) {
+    throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
+  }
   const data = asObject(current.data);
   const level = cleanText(body.perm_level) || "viewer";
   const items = asObject(tryParseJsonField(body.perm_items_json, {}));

@@ -246,6 +246,44 @@ test("Google authentication registers, links, and logs in exact-email accounts",
     const userId = String((identity.memberships as Array<Record<string, unknown>>)[0]?.user_id || "");
     const userBeforeOnboarding = await storage.readDocument(organizationId, "users", userId);
     assert.equal((userBeforeOnboarding.data as Record<string, unknown>).phone, "");
+    assert.equal((userBeforeOnboarding.data as Record<string, unknown>).role, "owner");
+    assert.equal(((userBeforeOnboarding.data as Record<string, unknown>).permissions as Record<string, unknown>)["*"], true);
+
+    const setCookie = String(response.headers["set-cookie"]);
+    const sessionCookie = setCookie.match(/fm_platform_session=[^;,]+/)?.[0] || "";
+    const csrfCookie = setCookie.match(/fm_platform_session_csrf=[^;,]+/)?.[0] || "";
+    const csrfToken = decodeURIComponent(csrfCookie.split("=").slice(1).join("="));
+    const selfDemotion = await app.inject({
+      method: "PATCH",
+      url: `/v1/platform/organizations/${encodeURIComponent(organizationId)}/users/${encodeURIComponent(userId)}`,
+      headers: {
+        cookie: `${sessionCookie}; ${csrfCookie}`,
+        "x-platform-csrf": csrfToken
+      },
+      payload: {
+        data: {
+          role: "viewer",
+          org_permissions: { level: "viewer", items: {} },
+          permissions: { view_reports: true }
+        }
+      }
+    });
+    assert.equal(selfDemotion.statusCode, 403, selfDemotion.body);
+    assert.equal(selfDemotion.json().error, "self_permission_change_forbidden");
+
+    const legacySelfDemotion = await app.inject({
+      method: "POST",
+      url: "/v1/platform/portal-action",
+      headers: { cookie: sessionCookie },
+      payload: {
+        action: "org_users_set_perms_my",
+        user_id: userId,
+        perm_level: "viewer",
+        perm_items_json: "{}"
+      }
+    });
+    assert.equal(legacySelfDemotion.statusCode, 403, legacySelfDemotion.body);
+    assert.equal(legacySelfDemotion.json().error, "self_permission_change_forbidden");
 
     const onboarding = await app.inject({
       method: "POST",

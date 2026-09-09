@@ -3305,9 +3305,9 @@ async function drawStructuresBatch(doc, structs, state, x, y, w, h) {
         else if (t.includes('hip')) stats.Hips += lenFt;
         else if (t.includes('valley')) stats.Valleys += lenFt;
         else if (t.includes('step') || t.includes('wall') || t.includes('trans')) stats.Trans += lenFt;
-        else if (t.includes('skylight')) skylights += 0.25;
-        else if (t.includes('chimney')) chimneys += 0.25;
       });
+      skylights = countConnectedRoofFeatures(s.lines, ['skylight']);
+      chimneys = countConnectedRoofFeatures(s.lines, ['chimney_edge', 'chimney_back', 'chimney_front']);
     }
     
     let statsY = imgY + maxImgH + 8;
@@ -8089,13 +8089,17 @@ function calculateTotalLinear(report) {
 }
 
 function countSkylights(report) {
-    const skyLines = report.lines.filter(l => l.type === 'skylight');
-    return Math.round(skyLines.length / 4);
+    return countConnectedRoofFeatures(report.lines, ['skylight']);
 }
 
 function countChimneys(report) {
-    const chimLines = report.lines.filter(l => l.type === 'chimney_edge' || l.type === 'chimney_back' || l.type === 'chimney_front');
-    return Math.round(chimLines.length / 4);
+    return countConnectedRoofFeatures(report.lines, ['chimney_edge', 'chimney_back', 'chimney_front']);
+}
+
+function countConnectedRoofFeatures(lines, acceptedTypes) {
+    const typeSet = new Set(acceptedTypes);
+    const featureLines = (Array.isArray(lines) ? lines : []).filter(line => typeSet.has(line && line.type));
+    return featureLines.length > 0 ? groupSkylightsCorrectly(featureLines).length : 0;
 }
 
 function formatLineType(typeId) {

@@ -6386,9 +6386,9 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         <div class="pm-qtools-row" id="pmQueueActionsRow">
           <select class="pm-qtools-select" id="pmReserveSelect" title="Reserve this project for a trained user"><option value="">Clear reservation</option><option value="_loading">Loading users…</option></select>
           <button class="pm-qtools-btn primary" id="pmReserveSaveBtn"><i class="fas fa-bookmark"></i> Save Reservation</button>
-          <button class="pm-qtools-btn" id="pmForceRequeueBtn" ${canForceRequeue ? '' : 'disabled'}><i class="fas fa-rotate-left"></i> Force Re-Queue</button>
+          <button class="pm-qtools-btn" id="pmForceRequeueBtn" ${canForceRequeue ? '' : 'disabled'}><i class="fas fa-user-slash"></i> Force Kick</button>
         </div>
-        <div class="pm-qtools-small" id="pmQueueToolsNote">${canForceRequeue ? "Reserved jobs jump to the front for that user and are hidden from everyone else's queue. Force Re-Queue moves the project into re-queue and boots any active editor." : 'Completed, rejected, and cancelled jobs cannot be force re-queued.'}</div>
+        <div class="pm-qtools-small" id="pmQueueToolsNote">${canForceRequeue ? "Reserved jobs jump to the front for that user and are hidden from everyone else's queue. Force Kick returns the project to the regular drafting queue and boots any active editor." : 'Completed, rejected, and cancelled jobs cannot be force kicked.'}</div>
       `;
       const sel = document.getElementById('pmReserveSelect');
       const saveBtn = document.getElementById('pmReserveSaveBtn');
@@ -6451,13 +6451,13 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       }
       if (forceBtn && canForceRequeue) {
         forceBtn.onclick = async () => {
-          if (!confirm('Force this project into re-queue? Any active editor on it will be booted out.')) return;
+          if (!confirm('Force kick the current technician and return this project to the regular drafting queue? Any active editor on it will be booted out.')) return;
           forceBtn.disabled = true;
           const orig = forceBtn.innerHTML;
-          forceBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Re-Queueingâ€¦`;
+          forceBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Kicking…`;
           try {
             const res = await this.fmPost(`projects/${encodeURIComponent(folderId)}/requeue/force`, {});
-            if (!res || !res.success) { alert(res?.error || 'Force re-queue failed.'); return; }
+            if (!res || !res.success) { alert(res?.error || 'Force kick failed.'); return; }
             const pill = document.getElementById('pmReservePill');
             if (pill) pill.textContent = 'No reservation';
             if (sel) sel.value = '';
@@ -6465,7 +6465,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             try { await this.refreshQueueButton(true); } catch {}
             if (res?.message) alert(res.message);
             this.openProjectModal(folderId).catch(() => {});
-          } catch { alert('Force re-queue failed (network).'); }
+          } catch { alert('Force kick failed (network).'); }
           finally { forceBtn.disabled = false; forceBtn.innerHTML = orig; }
         };
       }

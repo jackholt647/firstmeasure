@@ -2468,13 +2468,16 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         updated_at: nowSql
       }
     });
-    const updated = await updateStatus(projectId, "requeue");
+    // An administrative force-kick is an assignment reset, not a QA
+    // correction. Put the project back in the normal drafting queue while the
+    // pending force-kick keeps the removed technician from reclaiming it.
+    const updated = await updateStatus(projectId, "queued");
     return {
       ok: true,
       success: true,
       message: kickEmail
-        ? `Project moved to re-queue. ${kickName || kickEmail} will be removed from the editor.`
-        : "Project moved to re-queue.",
+        ? `Project returned to the drafting queue. ${kickName || kickEmail} will be removed from the editor.`
+        : "Project returned to the drafting queue.",
       manifest: buildLegacyManifest(updated)
     };
   });
