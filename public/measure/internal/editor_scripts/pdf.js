@@ -8098,7 +8098,12 @@ function countChimneys(report) {
 
 function countConnectedRoofFeatures(lines, acceptedTypes) {
     const typeSet = new Set(acceptedTypes);
-    const featureLines = (Array.isArray(lines) ? lines : []).filter(line => typeSet.has(line && line.type));
+    // Finalized report lines use `points`; structure geometry uses `start/end`
+    // (and older snapshots wrap those in `conn`). Normalize before grouping.
+    const featureLines = (Array.isArray(lines) ? lines : [])
+        .filter(line => typeSet.has(line && line.type))
+        .map(line => ({ ...line, points: getPdfLinePointPair(line) }))
+        .filter(line => line.points.every(point => point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))));
     return featureLines.length > 0 ? groupSkylightsCorrectly(featureLines).length : 0;
 }
 

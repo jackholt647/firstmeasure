@@ -6387,12 +6387,14 @@ Note: Our coverage is based on individual structure, not area - so we may have c
           <select class="pm-qtools-select" id="pmReserveSelect" title="Reserve this project for a trained user"><option value="">Clear reservation</option><option value="_loading">Loading users…</option></select>
           <button class="pm-qtools-btn primary" id="pmReserveSaveBtn"><i class="fas fa-bookmark"></i> Save Reservation</button>
           <button class="pm-qtools-btn" id="pmForceRequeueBtn" ${canForceRequeue ? '' : 'disabled'}><i class="fas fa-user-slash"></i> Force Kick</button>
+          <button class="pm-qtools-btn" id="pmManualRequeueBtn" ${canForceRequeue ? '' : 'disabled'}><i class="fas fa-rotate-left"></i> Re-Queue</button>
         </div>
-        <div class="pm-qtools-small" id="pmQueueToolsNote">${canForceRequeue ? "Reserved jobs jump to the front for that user and are hidden from everyone else's queue. Force Kick returns the project to the regular drafting queue and boots any active editor." : 'Completed, rejected, and cancelled jobs cannot be force kicked.'}</div>
+        <div class="pm-qtools-small" id="pmQueueToolsNote">${canForceRequeue ? "Reserved jobs jump to the front for that user and are hidden from everyone else's queue. Force Kick returns the project to the regular drafting queue and boots any active editor. Re-Queue holds the project out of active drafting until a manager sends it back to the queue." : 'Completed, rejected, and cancelled jobs cannot be force kicked or re-queued.'}</div>
       `;
       const sel = document.getElementById('pmReserveSelect');
       const saveBtn = document.getElementById('pmReserveSaveBtn');
       const forceBtn = document.getElementById('pmForceRequeueBtn');
+      const manualRequeueBtn = document.getElementById('pmManualRequeueBtn');
       const reservePill = document.getElementById('pmReservePill');
       const queueRow = document.getElementById('pmQueueActionsRow');
       const queueNote = document.getElementById('pmQueueToolsNote');
@@ -6449,15 +6451,19 @@ Note: Our coverage is based on individual structure, not area - so we may have c
           finally { saveBtn.disabled = false; saveBtn.innerHTML = orig; }
         };
       }
-      if (forceBtn && canForceRequeue) {
-        forceBtn.onclick = async () => {
-          if (!confirm('Force kick the current technician and return this project to the regular drafting queue? Any active editor on it will be booted out.')) return;
-          forceBtn.disabled = true;
-          const orig = forceBtn.innerHTML;
-          forceBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Kicking…`;
+      for (const [actionBtn, destination] of [[forceBtn, 'queued'], [manualRequeueBtn, 'requeue']]) {
+        if (!actionBtn || !canForceRequeue) continue;
+        actionBtn.onclick = async () => {
+          const manual = destination === 'requeue';
+          if (!confirm(manual
+            ? 'Move this project to manual Re-Queue? It will be held out of active drafting, and any active editor will be booted out.'
+            : 'Force kick the current technician and return this project to the regular drafting queue? Any active editor on it will be booted out.')) return;
+          forceBtn.disabled = manualRequeueBtn.disabled = true;
+          const orig = actionBtn.innerHTML;
+          actionBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${manual ? 'Re-Queueing' : 'Kicking'}…`;
           try {
-            const res = await this.fmPost(`projects/${encodeURIComponent(folderId)}/requeue/force`, {});
-            if (!res || !res.success) { alert(res?.error || 'Force kick failed.'); return; }
+            const res = await this.fmPost(`projects/${encodeURIComponent(folderId)}/requeue/force`, { destination });
+            if (!res || !res.success) { alert(res?.error || 'Queue action failed.'); return; }
             const pill = document.getElementById('pmReservePill');
             if (pill) pill.textContent = 'No reservation';
             if (sel) sel.value = '';
@@ -6465,8 +6471,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             try { await this.refreshQueueButton(true); } catch {}
             if (res?.message) alert(res.message);
             this.openProjectModal(folderId).catch(() => {});
-          } catch { alert('Force kick failed (network).'); }
-          finally { forceBtn.disabled = false; forceBtn.innerHTML = orig; }
+          } catch { alert('Queue action failed (network).'); }
+          finally { forceBtn.disabled = manualRequeueBtn.disabled = false; actionBtn.innerHTML = orig; }
         };
       }
       if (cancelBtn && canCancelProject) {

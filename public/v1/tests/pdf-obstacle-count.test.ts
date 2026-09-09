@@ -16,6 +16,7 @@ test("PDF chimney count uses connected outlines instead of raw duplicated segmen
     "utf8"
   );
   const context = vm.createContext({});
+  vm.runInContext(extractFunction(source, "getPdfLinePointPair", "getPdfLineEndpointKey"), context);
   vm.runInContext(extractFunction(source, "countConnectedRoofFeatures", "formatLineType"), context);
   vm.runInContext(extractFunction(source, "groupSkylightsCorrectly", "getClusterCenter"), context);
 
@@ -46,4 +47,17 @@ test("PDF chimney count uses connected outlines instead of raw duplicated segmen
     2,
     "separate chimney outlines still count separately"
   );
+  for (const shape of ['start/end', 'conn']) {
+    context.lines = [...duplicatedEdges, ...secondRectangle].map(line => ({
+      type: line.type,
+      ...(shape === 'conn'
+        ? { conn: { start: line.points[0], end: line.points[1] } }
+        : { start: line.points[0], end: line.points[1] })
+    }));
+    assert.equal(vm.runInContext("countConnectedRoofFeatures(lines, ['chimney_edge', 'chimney_back', 'chimney_front'])", context), 2, `${shape} structure geometry renders without crashing or duplicating chimneys`);
+    context.lines = context.lines.map((line: object) => ({ ...line, type: 'skylight' }));
+    assert.equal(vm.runInContext("countConnectedRoofFeatures(lines, ['skylight'])", context), 2);
+  }
+  context.lines = [{ type: 'skylight' }, { type: 'skylight', points: [null, null] }];
+  assert.equal(vm.runInContext("countConnectedRoofFeatures(lines, ['skylight'])", context), 0);
 });

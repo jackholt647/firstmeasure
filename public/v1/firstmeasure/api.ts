@@ -2378,6 +2378,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
   app.post("/projects/:id/requeue/force", async (request) => {
     const projectId = getProjectId(request.params);
     const body = asRecord(request.body);
+    // Keep manual holding separate from force-kicking back to active drafting.
+    const destination = body.destination === "requeue" ? "requeue" : "queued";
     const actor = normalizeOptionalPortalActor(body.actor);
     const now = new Date();
     const nowIso = now.toISOString();
@@ -2429,6 +2431,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     workHistory.push({
       ts: nowIso,
       event: "force_requeued",
+      destination,
       actor_email: actor?.email ?? null,
       actor_name: actor?.name ?? actor?.email ?? null,
       previous_status: status || null,
@@ -2468,16 +2471,14 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         updated_at: nowSql
       }
     });
-    // An administrative force-kick is an assignment reset, not a QA
-    // correction. Put the project back in the normal drafting queue while the
-    // pending force-kick keeps the removed technician from reclaiming it.
-    const updated = await updateStatus(projectId, "queued");
+    const updated = await updateStatus(projectId, destination);
+    const destinationLabel = destination === "requeue" ? "manual re-queue" : "the drafting queue";
     return {
       ok: true,
       success: true,
       message: kickEmail
-        ? `Project returned to the drafting queue. ${kickName || kickEmail} will be removed from the editor.`
-        : "Project returned to the drafting queue.",
+        ? `Project returned to ${destinationLabel}. ${kickName || kickEmail} will be removed from the editor.`
+        : `Project returned to ${destinationLabel}.`,
       manifest: buildLegacyManifest(updated)
     };
   });
