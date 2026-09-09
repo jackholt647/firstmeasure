@@ -129,15 +129,29 @@
     container.addEventListener('focusin', () => { activeEntry = entry; });
     const google = await ensureInitialized(apiBaseUrl);
     if (initializedClientId) {
-      google.accounts.id.renderButton(container, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        shape: 'rectangular',
-        text: options.text === 'signup_with' ? 'signup_with' : 'signin_with',
-        logo_alignment: 'center',
-        width: Math.max(200, Math.floor(container.clientWidth || container.getBoundingClientRect().width || 320))
-      });
+      let renderedWidth = 0;
+      const render = () => {
+        const width = Math.floor(container.getBoundingClientRect().width || container.clientWidth || 0);
+        if (width < 1 || width === renderedWidth) return;
+        renderedWidth = width;
+        container.replaceChildren();
+        google.accounts.id.renderButton(container, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          shape: 'rectangular',
+          text: options.text === 'signup_with' ? 'signup_with' : 'signin_with',
+          logo_alignment: 'center',
+          width
+        });
+      };
+      render();
+      if (typeof global.ResizeObserver === 'function') {
+        const observer = new global.ResizeObserver(render);
+        observer.observe(container);
+      } else {
+        global.requestAnimationFrame(render);
+      }
     }
     return { submit: (credential, details) => postCredential(entry, credential, details) };
   }

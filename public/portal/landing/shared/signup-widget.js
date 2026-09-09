@@ -136,7 +136,7 @@
     .fm-google-block { margin-bottom: 18px; }
     .fm-google-button {
       width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center;
-      padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent;
+      min-width: 0; padding: 0; overflow: hidden; border: 0; border-radius: 8px; background: transparent;
     }
     .fm-google-button > div,
     .fm-google-button > div > div {
@@ -155,6 +155,9 @@
       color: #111 !important;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
       font-size: 14px !important;
+    }
+    .fm-google-button iframe {
+      display: block !important; width: 100% !important; max-width: 100% !important;
     }
     .fm-google-divider {
       display: flex; align-items: center; gap: 10px; margin: 20px 0 0;
@@ -702,7 +705,38 @@
         },
         body: JSON.stringify(payload)
       });
-      return await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+      return { ...data, status_code: res.status };
+    }
+
+    function authErrorMessage(data, fallback) {
+      const code = String(data && (data.error || data.code) || '').trim();
+      const messages = {
+        identity_phone_exists: 'That phone number is already connected to an existing account. Log in to that account or use a different phone number.',
+        identity_email_exists: 'That email address is already connected to an existing account. Log in or use Forgot Password to recover access.',
+        identity_exists: 'An account with these details already exists. Log in or use Forgot Password to recover access.',
+        invalid_credentials: 'The email, phone number, or password you entered is incorrect.',
+        identity_phone_ambiguous: 'This phone number is connected to multiple accounts. Sign in with email or contact support.',
+        not_found: "We couldn't find an account with that email or phone number.",
+        identity_phone_not_found: "We couldn't find an account with that phone number.",
+        invalid_email: 'Enter a valid email address.',
+        invalid_phone_number: 'Enter a valid ten-digit mobile phone number.',
+        missing_login_identifier: 'Enter your email address or phone number.',
+        registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
+        invalid_recovery_token: 'Your password reset session has expired. Use Forgot Password to request a new code.',
+        sms_phone_unavailable: 'This account does not have a valid mobile phone number. Use email recovery or contact support.',
+        telnyx_verify_send_failed: 'We could not send a text verification code. Please try again later or use email recovery.',
+        postmark_send_failed: 'We could not send the verification email. Please try again later or contact support.',
+        csrf_required: 'Please refresh this page and try again.',
+        'Missing required account fields.': 'Complete all required account fields.',
+        'Invalid or expired code.': 'That verification code is incorrect or has expired. Request a new code and try again.',
+        'Password too short': 'Use a password with at least 6 characters.',
+        'Password reset is not authorized.': 'Verify your recovery code before setting a new password. Start again with Forgot Password.'
+      };
+      if (Number(data && data.status_code) === 429) return 'Too many attempts. Please wait a few minutes and try again.';
+      return Object.prototype.hasOwnProperty.call(messages, code)
+        ? messages[code]
+        : (fallback || 'We could not complete your request. Please try again. If this continues, contact support@1m8.ai.');
     }
 
     function loginErrorMessage(data) {
@@ -1175,7 +1209,7 @@
           }
         } else {
           trackSignupInteraction('register_error', { error: data.error || 'registration_failed' });
-          showRegisterNotice(data.error || 'Registration failed.', 'error');
+          showRegisterNotice(authErrorMessage(data, 'We could not create your account. Please try again or contact support@1m8.ai.'), 'error');
           emit(host, 'signup-error', data);
         }
       } catch (e) {
@@ -1240,7 +1274,7 @@
           showForm('otp');
         } else {
           trackSignupInteraction('forgot_error', { error: data.error || 'unable_to_send_code' });
-          showNotice(data.error || 'Unable to send code.', 'error');
+          showNotice(authErrorMessage(data, 'We could not send a recovery code. Please try again or contact support@1m8.ai.'), 'error');
         }
       } catch (e) {
         trackSignupInteraction('forgot_error', { error: 'connection_error' });
@@ -1273,7 +1307,7 @@
           redirectAfterAuth(data);
         } else {
           trackSignupInteraction('otp_error', { error: data.error || 'verification_failed' });
-          showNotice(data.error || 'Code verification failed.', 'error');
+          showNotice(authErrorMessage(data, 'We could not verify that code. Request a new code and try again.'), 'error');
         }
       } catch (e) {
         trackSignupInteraction('otp_error', { error: 'connection_error' });
@@ -1306,7 +1340,7 @@
           setTimeout(() => redirectAfterAuth(loginData && loginData.success ? loginData : data), 700);
         } else {
           trackSignupInteraction('reset_error', { error: data.error || 'password_update_failed' });
-          showNotice(data.error || 'Password update failed.', 'error');
+          showNotice(authErrorMessage(data, 'We could not update your password. Please try again or contact support@1m8.ai.'), 'error');
         }
       } catch (e) {
         trackSignupInteraction('reset_error', { error: 'connection_error' });

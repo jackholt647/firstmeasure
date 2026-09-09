@@ -2669,6 +2669,36 @@
     return `<span class="qa-badge correction"><i class="fas fa-triangle-exclamation"></i> ${esc(status || 'Unknown')}</span>`;
   }
 
+  function managerReviewReasonInfo(item) {
+    const supplied = Array.isArray(item?.manager_review_reasons)
+      ? item.manager_review_reasons.map((reason) => String(reason || '').trim().toLowerCase())
+      : [];
+    const reasons = new Set(supplied);
+    if (!reasons.size) {
+      if (item?.is_vip) reasons.add('vip');
+      if (item?.qa_reviewer_was_trainee) reasons.add('qa_trainee');
+    }
+    const vip = reasons.has('vip');
+    const trainee = reasons.has('qa_trainee');
+    if (vip && trainee) return { key: 'both', label: 'VIP + New QA', title: 'Manager sign-off is required because this is a VIP project and the QA reviewer is new.' };
+    if (vip) return { key: 'vip', label: 'VIP project', title: 'Manager sign-off is required because this is a VIP project.' };
+    if (trainee) return { key: 'trainee', label: 'New QA reviewer', title: 'Manager sign-off is required because the QA reviewer is new.' };
+    return { key: 'other', label: 'Manager review', title: 'This project requires manager sign-off.' };
+  }
+
+  function managerReviewReasonPill(item) {
+    const reason = managerReviewReasonInfo(item);
+    const palette = reason.key === 'vip'
+      ? 'background:#fff8e1;color:#7a4b00;border:1px solid #f9ab00;'
+      : (reason.key === 'trainee'
+        ? 'background:#e8f0fe;color:#174ea6;border:1px solid #8ab4f8;'
+        : (reason.key === 'both'
+          ? 'background:#f3e8ff;color:#6b21a8;border:1px solid #c084fc;'
+          : 'background:#ede7f6;color:#5e35b1;border:1px solid #d1c4e9;'));
+    const icon = reason.key === 'vip' ? 'fa-star' : (reason.key === 'trainee' ? 'fa-user-graduate' : 'fa-user-shield');
+    return ` <span class="qa-badge manager-review-reason ${reason.key}" style="${palette}" title="${esc(reason.title)}"><i class="fas ${icon}"></i> ${esc(reason.label)}</span>`;
+  }
+
   function normalizeCustomerReworkType(value){
     const key = String(value || '').trim().toLowerCase();
     if (key === 'additional_structure') return 'additional_structure';
@@ -9065,7 +9095,7 @@
             tr.innerHTML = `
               <td class="addr-cell">
                 <strong>${esc(item.address || '')}</strong>
-                ${vipPill(!!item.is_vip)}
+                ${managerReviewReasonPill(item)}
                 ${fillerPill(!!item.is_filler)}
               </td>
               <td class="nowrap muted" title="${esc(fmtDate(item.created_at || ''))}">${esc(fmtDateShort(item.created_at || ''))}</td>
@@ -9230,7 +9260,7 @@
         if (isVip) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#f9ab00;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">VIP</span>';
         if (isExpedited) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#0f766e;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">EXPEDITED</span>';
         if (customerRework.isRework) extra += ' <span class="qa-badge customer-rework"><i class="fas fa-screwdriver-wrench"></i> Customer Rework</span>';
-        if (isManagerReviewMode) extra += ' <span class="qa-manager-mode-pill"><i class="fas fa-user-shield"></i> Manager Review</span>';
+        if (isManagerReviewMode) extra += managerReviewReasonPill(currentManifest || item || {});
         addrEl.innerHTML = esc(addrText) + extra;
         setEmbeddedHeaderText(esc(addrText) + extra, document.getElementById('qaEmbeddedSub')?.textContent || '');
       }
@@ -9239,7 +9269,8 @@
         let subText = '';
         if (isManagerReviewMode) {
           const qaBy = getQaApprovalMeta(item, currentManifest).display || 'QA';
-          subText = `Manager Sign-off - QA approved by: ${qaBy} - Drafter: ${drafter}`;
+          const reason = managerReviewReasonInfo(currentManifest || item || {});
+          subText = `Manager Sign-off (${reason.label}) - QA approved by: ${qaBy} - Drafter: ${drafter}`;
         } else if (canSeeQaTechnicianIdentity()) {
           subText = `Drafter: ${drafter} - Submitted: ${fmtDate((item && item.date) || '')}`;
           if (currentProjectStatus === 'pending_rejection') subText += ' - REJECTION REQUESTED';
@@ -9332,7 +9363,8 @@
     if (subEl && item) {
       const drafter = getTechnicianLabel(item);
       if (isManagerReviewMode) {
-        subEl.textContent = `Manager Sign-off • Drafter: ${drafter}`;
+        const reason = managerReviewReasonInfo(item);
+        subEl.textContent = `Manager Sign-off (${reason.label}) • Drafter: ${drafter}`;
       } else {
         setQaHeaderSubline(subEl, canSeeQaTechnicianIdentity()
           ? `Drafter: ${drafter} • Submitted: ${fmtDate(item.date || item.uploaded_at || '')}`
@@ -9376,7 +9408,7 @@
         if (isVip) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#f9ab00;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">⭐ VIP</span>';
         if (isExpedited) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#0f766e;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">EXPEDITED</span>';
         if (customerRework.isRework) extra += ' <span class="qa-badge customer-rework"><i class="fas fa-screwdriver-wrench"></i> Customer Rework</span>';
-        if (isManagerReviewMode) extra += ' <span class="qa-manager-mode-pill"><i class="fas fa-user-shield"></i> Manager Review</span>';
+        if (isManagerReviewMode) extra += managerReviewReasonPill(currentManifest || item || {});
         addrEl.innerHTML = esc(addrText) + extra;
       }
       
@@ -9384,7 +9416,8 @@
         const drafter = getTechnicianLabel(item, currentManifest);
         if (isManagerReviewMode) {
           const qaBy = getQaApprovalMeta(item, currentManifest).display || 'QA';
-          subEl.textContent = `Manager Sign-off • QA approved by: ${qaBy} • Drafter: ${drafter}`;
+          const reason = managerReviewReasonInfo(currentManifest || item || {});
+          subEl.textContent = `Manager Sign-off (${reason.label}) • QA approved by: ${qaBy} • Drafter: ${drafter}`;
         } else {
           let subText = canSeeQaTechnicianIdentity()
             ? `Drafter: ${drafter} • Submitted: ${fmtDate((item && item.date) || '')}`
