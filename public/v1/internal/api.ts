@@ -5511,6 +5511,18 @@ function managerReviewSampleDate(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : new Date().toISOString().slice(0, 10);
 }
 
+function managerReviewResultsDate(value: unknown, fallback: string, label: string) {
+  const requested = String(value ?? "").trim();
+  if (!requested) return fallback;
+  const parsed = new Date(`${requested}T00:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(requested)
+    || !Number.isFinite(parsed.getTime())
+    || parsed.toISOString().slice(0, 10) !== requested) {
+    throw badRequest("invalid_manager_review_date", `${label} must be a valid date.`);
+  }
+  return requested;
+}
+
 function managerReviewDatesAfter(startDate: string, endDate: string) {
   const dates: string[] = [];
   const cursor = new Date(`${startDate}T00:00:00.000Z`);
@@ -5923,8 +5935,12 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
 
   const today = new Date().toISOString().slice(0, 10);
   const rollingStart = new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const start = rollingStart;
-  const end = today;
+  const start = managerReviewResultsDate(body.date_start, rollingStart, "Start date");
+  const end = managerReviewResultsDate(body.date_end, today, "End date");
+  if (start > end) {
+    throw badRequest("invalid_manager_review_date_range", "Start date must be on or before end date.");
+  }
+  const rangeDays = Math.round((Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) / (24 * 60 * 60 * 1000)) + 1;
   const dateRows = allRows.filter((row) => String(row.sample_date) >= start && String(row.sample_date) <= end);
   const qaEmail = access.isManager ? managerReviewText(body.qa_email).toLowerCase() : viewerEmail;
   const teamId = access.isManager ? managerReviewText(body.team_id) : "";
@@ -5968,7 +5984,8 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
       excluded: reviewed.length - scored.length,
       average_quality: scored.length ? 100 * (scored.length - issues.length) / scored.length : null,
       pass_rate: scored.length ? 100 * (scored.length - issues.length) / scored.length : null,
-      rolling_days: 14
+      range_days: rangeDays,
+      rolling_days: rangeDays
     },
     groups: {
       qa: managerReviewAggregate(rows, "qa_email", "qa_name"),

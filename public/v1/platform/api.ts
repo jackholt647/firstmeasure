@@ -15,6 +15,7 @@ import {
   firstMeasureReportAmount as sharedFirstMeasureReportAmount,
   firstMeasureReportCharge as sharedFirstMeasureReportCharge
 } from "../firstmeasure/pricing.js";
+import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
 import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals.js";
 import { publicProposalWorkflow } from "../proposals/storage.js";
 import { appFlagState, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppVariantInput } from "./app_flags.js";
@@ -7263,6 +7264,7 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     customer: customerId,
     client_reference_id: email,
     "payment_intent_data[setup_future_usage]": "off_session",
+    "payment_intent_data[description]": stripeCreditReceiptDescription(totalCredit),
     "metadata[user_email]": email,
     "metadata[org_id]": orgId,
     "metadata[credit_dollars]": totalCredit,
@@ -7624,7 +7626,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: `FirstMate auto top-up for ${orgId}`,
+    description: stripeCreditReceiptDescription(topup),
     "metadata[type]": "org_auto_topup",
     "metadata[org_id]": orgId,
     "metadata[topup_dollars]": topup,

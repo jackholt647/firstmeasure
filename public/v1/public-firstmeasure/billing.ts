@@ -2,6 +2,7 @@ import { readGlobal, saveGlobal, mutateGlobal } from "../platform/storage.js";
 import { badRequest, forbidden } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
 import { firstMeasureReportAmount } from "../firstmeasure/pricing.js";
+import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
 import { asObject, cleanText, moneyAmount, numericValue, stableHash } from "./util.js";
 import { withPublicFirstMeasureLock } from "./locks.js";
 
@@ -280,6 +281,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
+    description: stripeCreditReceiptDescription(topup),
     "metadata[org_id]": orgId,
     "metadata[source]": "public_firstmeasure_api",
     "metadata[trigger_reason]": cleanText(triggerEntry.reason),

@@ -60,6 +60,9 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     const twoDaysAgoValue = new Date(`${today}T12:00:00.000Z`);
     twoDaysAgoValue.setUTCDate(twoDaysAgoValue.getUTCDate() - 2);
     const twoDaysAgo = twoDaysAgoValue.toISOString().slice(0, 10);
+    const historicValue = new Date(`${today}T12:00:00.000Z`);
+    historicValue.setUTCDate(historicValue.getUTCDate() - 30);
+    const historicDate = historicValue.toISOString().slice(0, 10);
     await internalStorage.saveInternalDocument("manager_review_config", "settings", { data: { daily_target: 1 } }, { replace: true });
     await internalStorage.saveInternalDocument("manager_review_samples", twoDaysAgo, {
       data: { sample_date: twoDaysAgo, configured_target: 1, entries: [] }
@@ -171,6 +174,21 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     assert.equal((persisted.manager_audit_history as unknown[]).length, 1);
     assert.equal((persisted.work_history as unknown[]).length, 2);
 
+    await internalStorage.saveInternalDocument("manager_review_samples", historicDate, {
+      data: {
+        sample_date: historicDate,
+        configured_target: 1,
+        entries: [{
+          project_id: "historic-sample",
+          address: "30 Historic Sample Way",
+          qa_email: "qa@example.test",
+          qa_name: "Named QA",
+          team_id: "quality-west",
+          team_name: "Quality West"
+        }]
+      }
+    }, { replace: true });
+
     const reviewerResults = await legacy("manager_review_results", "reviewer@example.test");
     assert.equal(reviewerResults.statusCode, 403);
     const adminResults = await legacy("manager_review_results", "admin@example.test");
@@ -187,6 +205,32 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     assert.equal(resultsJson.groups.qa[0].average_quality, 0);
     assert.equal(resultsJson.groups.team[0].key, "quality-west");
     assert.equal(resultsJson.pagination.page_size, 25);
+    assert.equal(resultsJson.summary.range_days, 14);
+
+    const historicResults = await legacy("manager_review_results", "admin@example.test", {
+      date_start: historicDate,
+      date_end: historicDate
+    });
+    assert.equal(historicResults.statusCode, 200);
+    assert.equal(historicResults.json().filters.date_start, historicDate);
+    assert.equal(historicResults.json().filters.date_end, historicDate);
+    assert.equal(historicResults.json().summary.eligible, 1);
+    assert.equal(historicResults.json().summary.range_days, 1);
+    assert.equal(historicResults.json().results[0].project_id, "historic-sample");
+
+    const invalidResultsDate = await legacy("manager_review_results", "admin@example.test", {
+      date_start: "2026-02-30",
+      date_end: today
+    });
+    assert.equal(invalidResultsDate.statusCode, 400);
+    assert.equal(invalidResultsDate.json().error, "invalid_manager_review_date");
+
+    const reversedResultsDates = await legacy("manager_review_results", "admin@example.test", {
+      date_start: today,
+      date_end: yesterday
+    });
+    assert.equal(reversedResultsDates.statusCode, 400);
+    assert.equal(reversedResultsDates.json().error, "invalid_manager_review_date_range");
 
     const qaResults = await legacy("manager_review_results", "qa@example.test", { qa_email: "someone-else@example.test" });
     assert.equal(qaResults.statusCode, 200);

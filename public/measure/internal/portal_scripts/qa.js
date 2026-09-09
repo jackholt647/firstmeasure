@@ -354,6 +354,11 @@
   let qaPdfLastSyncJobId = '';
   let qaPdfLastSyncRevision = '';
   let qaLightboxItems = [];
+  let qaLightboxZoom = 1;
+  let qaLightboxPanX = 0;
+  let qaLightboxPanY = 0;
+  let qaLightboxDragging = false;
+  let qaLightboxDragStart = null;
 
   function loadQaPendingPageSize(){
     try {
@@ -1903,8 +1908,16 @@
       .qa-lightbox.show { display: flex; }
       .qa-lightbox-shell { width:min(1180px, 100%); height:min(820px, 100%); display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:14px; align-items:stretch; }
       .qa-lightbox-main { min-width:0; min-height:0; display:flex; flex-direction:column; gap:10px; }
-      .qa-lightbox-stage { position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; }
-      .qa-lightbox img.qa-lightbox-image { max-width: 100%; max-height: 100%; border-radius: 8px; object-fit:contain; box-shadow:0 10px 40px rgba(0,0,0,.38); }
+      .qa-lightbox-stage { position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:10px; }
+      .qa-lightbox img.qa-lightbox-image { max-width: 100%; max-height: 100%; border-radius: 8px; object-fit:contain; box-shadow:0 10px 40px rgba(0,0,0,.38); transform-origin:center center; user-select:none; -webkit-user-drag:none; cursor:zoom-in; }
+      .qa-lightbox img.qa-lightbox-image.zoomed { cursor:grab; }
+      .qa-lightbox img.qa-lightbox-image.dragging { cursor:grabbing; }
+      .qa-lightbox-zoom-tools { position:absolute; z-index:3; left:50%; bottom:10px; transform:translateX(-50%); display:flex; align-items:center; gap:6px; padding:6px; border:1px solid rgba(255,255,255,.2); border-radius:10px; background:rgba(0,0,0,.68); backdrop-filter:blur(5px); }
+      .qa-lightbox-zoom-tools[hidden] { display:none; }
+      .qa-lightbox-zoom-tools button { height:32px; min-width:34px; border:1px solid rgba(255,255,255,.18); border-radius:7px; background:rgba(255,255,255,.1); color:#fff; cursor:pointer; font-weight:900; }
+      .qa-lightbox-zoom-tools button:hover { background:rgba(255,255,255,.2); }
+      .qa-lightbox-zoom-tools button:disabled { opacity:.35; cursor:default; }
+      .qa-lightbox-zoom-value { min-width:48px; color:#fff; text-align:center; font-size:11px; font-weight:900; }
       .qa-lightbox-nav { position:absolute; top:50%; transform:translateY(-50%); width:42px; height:52px; border:1px solid rgba(255,255,255,.22); border-radius:10px; background:rgba(0,0,0,.44); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; }
       .qa-lightbox-nav:hover { background:rgba(255,255,255,.14); }
       .qa-lightbox-nav.prev { left:0; }
@@ -2493,8 +2506,14 @@
           <div class="qa-lightbox-main">
             <div class="qa-lightbox-stage">
               <button type="button" class="qa-lightbox-nav prev" data-lightbox-nav="prev" title="Previous image"><i class="fas fa-chevron-left"></i></button>
-              <img class="qa-lightbox-image" src="" alt="Preview">
+              <img class="qa-lightbox-image" src="" alt="Preview" draggable="false" title="Scroll or use the controls to zoom; drag while zoomed to pan">
               <button type="button" class="qa-lightbox-nav next" data-lightbox-nav="next" title="Next image"><i class="fas fa-chevron-right"></i></button>
+              <div class="qa-lightbox-zoom-tools" id="qaLightboxZoomTools">
+                <button type="button" data-lightbox-zoom="out" title="Zoom out"><i class="fas fa-minus"></i></button>
+                <span class="qa-lightbox-zoom-value" id="qaLightboxZoomValue">100%</span>
+                <button type="button" data-lightbox-zoom="in" title="Zoom in"><i class="fas fa-plus"></i></button>
+                <button type="button" data-lightbox-zoom="fit" title="Reset to fit">Fit</button>
+              </div>
             </div>
             <div class="qa-lightbox-rail" id="qaLightboxRail"></div>
           </div>
@@ -4424,6 +4443,40 @@
   }
 
   // ----------------- LIGHTBOX -----------------
+  function applyLightboxZoom(){
+    const lb = document.getElementById('qaLightbox');
+    const img = lb?.querySelector('.qa-lightbox-image');
+    const value = document.getElementById('qaLightboxZoomValue');
+    if (img) {
+      img.style.transform = `translate(${qaLightboxPanX}px, ${qaLightboxPanY}px) scale(${qaLightboxZoom})`;
+      img.classList.toggle('zoomed', qaLightboxZoom > 1);
+      img.classList.toggle('dragging', qaLightboxDragging);
+    }
+    if (value) value.textContent = `${Math.round(qaLightboxZoom * 100)}%`;
+    lb?.querySelectorAll('[data-lightbox-zoom]').forEach((button) => {
+      if (button.dataset.lightboxZoom === 'out') button.disabled = qaLightboxZoom <= 1;
+      if (button.dataset.lightboxZoom === 'in') button.disabled = qaLightboxZoom >= 6;
+    });
+  }
+
+  function setLightboxZoom(nextZoom){
+    qaLightboxZoom = clamp(Number(nextZoom) || 1, 1, 6);
+    if (qaLightboxZoom === 1) {
+      qaLightboxPanX = 0;
+      qaLightboxPanY = 0;
+    }
+    applyLightboxZoom();
+  }
+
+  function resetLightboxZoom(){
+    qaLightboxZoom = 1;
+    qaLightboxPanX = 0;
+    qaLightboxPanY = 0;
+    qaLightboxDragging = false;
+    qaLightboxDragStart = null;
+    applyLightboxZoom();
+  }
+
   function renderLightbox(){
     const lb = document.getElementById('qaLightbox');
     if (!lb) return;
@@ -4435,6 +4488,9 @@
     const rail = document.getElementById('qaLightboxRail');
     if (img) img.src = item.url || '';
     if (img) img.style.display = item.url ? '' : 'none';
+    const zoomTools = document.getElementById('qaLightboxZoomTools');
+    if (zoomTools) zoomTools.hidden = !item.url;
+    resetLightboxZoom();
     if (title) title.textContent = item.title || item.original_name || item.name || 'Reference Image';
     if (count) count.textContent = qaLightboxItems.length > 1 ? `${qaLightboxIndex + 1} / ${qaLightboxItems.length}` : '';
     if (notes) {
@@ -4479,6 +4535,7 @@
   function hideLightbox(){
     const lb = document.getElementById('qaLightbox');
     if (lb) lb.classList.remove('show');
+    resetLightboxZoom();
   }
   function stepLightbox(delta){
     if (!document.getElementById('qaLightbox')?.classList.contains('show')) return;
@@ -9754,6 +9811,21 @@
           stepLightbox(1);
           return;
         }
+        if (event.key === '+' || event.key === '=') {
+          event.preventDefault();
+          setLightboxZoom(qaLightboxZoom + 0.5);
+          return;
+        }
+        if (event.key === '-' || event.key === '_') {
+          event.preventDefault();
+          setLightboxZoom(qaLightboxZoom - 0.5);
+          return;
+        }
+        if (event.key === '0') {
+          event.preventDefault();
+          resetLightboxZoom();
+          return;
+        }
       }
       if (event.key === 'Escape' && document.getElementById('qaBulkApprovePanel')?.classList.contains('show')) {
         setBulkApprovalModalOpen(false);
@@ -9897,6 +9969,47 @@
       lb.querySelector('[data-lightbox-nav="next"]')?.addEventListener('click', (e) => {
         e.stopPropagation();
         stepLightbox(1);
+      });
+      lb.querySelectorAll('[data-lightbox-zoom]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const action = button.dataset.lightboxZoom;
+          if (action === 'in') setLightboxZoom(qaLightboxZoom + 0.5);
+          else if (action === 'out') setLightboxZoom(qaLightboxZoom - 0.5);
+          else resetLightboxZoom();
+        });
+      });
+      const stage = lb.querySelector('.qa-lightbox-stage');
+      const lightboxImage = lb.querySelector('.qa-lightbox-image');
+      stage?.addEventListener('wheel', (event) => {
+        if (!lightboxImage?.src) return;
+        event.preventDefault();
+        setLightboxZoom(qaLightboxZoom + (event.deltaY < 0 ? 0.5 : -0.5));
+      }, { passive:false });
+      lightboxImage?.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (qaLightboxZoom > 1) resetLightboxZoom();
+        else setLightboxZoom(2);
+      });
+      lightboxImage?.addEventListener('mousedown', (event) => {
+        if (qaLightboxZoom <= 1 || event.button !== 0) return;
+        event.preventDefault();
+        qaLightboxDragging = true;
+        qaLightboxDragStart = { x:event.clientX, y:event.clientY, panX:qaLightboxPanX, panY:qaLightboxPanY };
+        applyLightboxZoom();
+      });
+      window.addEventListener('mousemove', (event) => {
+        if (!qaLightboxDragging || !qaLightboxDragStart) return;
+        qaLightboxPanX = qaLightboxDragStart.panX + event.clientX - qaLightboxDragStart.x;
+        qaLightboxPanY = qaLightboxDragStart.panY + event.clientY - qaLightboxDragStart.y;
+        applyLightboxZoom();
+      });
+      window.addEventListener('mouseup', () => {
+        if (!qaLightboxDragging) return;
+        qaLightboxDragging = false;
+        qaLightboxDragStart = null;
+        applyLightboxZoom();
       });
     }
 
