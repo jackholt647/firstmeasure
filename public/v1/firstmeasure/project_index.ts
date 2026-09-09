@@ -439,6 +439,25 @@ export async function queryIndexedProjectManifests(
   };
 }
 
+export async function readIndexedProjectManifestsByIds(projectIds: string[]): Promise<ProjectManifest[]> {
+  const ids = [...new Set(projectIds.map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) return [];
+  await ensureFirstMeasureProjectIndexReady();
+  const manifests: ProjectManifest[] = [];
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const batch = ids.slice(offset, offset + 500);
+    if (isFirstMeasurePostgresEnabled()) {
+      manifests.push(...await (await postgresIndex()).readPostgresManifestsByIds(batch));
+    } else {
+      const rows = getFirstMeasureProjectIndexDb().prepare(
+        `SELECT manifest_json FROM projects WHERE id IN (${batch.map(() => "?").join(",")})`
+      ).all(...batch) as Array<{ manifest_json: string }>;
+      manifests.push(...rows.map((row) => JSON.parse(row.manifest_json) as ProjectManifest));
+    }
+  }
+  return manifests;
+}
+
 export async function queryIndexedQaCandidateManifests(options: {
   team_id?: string;
   limit?: number;

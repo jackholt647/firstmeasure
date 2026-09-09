@@ -1030,6 +1030,15 @@ export async function readPostgresManifestById(projectId: string): Promise<Proje
   return result.rows[0] ? manifestFromValue(result.rows[0].manifest_json) : null;
 }
 
+export async function readPostgresManifestsByIds(projectIds: string[]): Promise<ProjectManifest[]> {
+  if (!projectIds.length) return [];
+  await ensurePostgresProjectIndexReady();
+  const result = await queryPostgres<{ manifest_json: unknown }>(
+    "SELECT manifest_json FROM projects WHERE id = ANY($1::text[])", [projectIds]
+  );
+  return result.rows.map((row) => manifestFromValue(row.manifest_json));
+}
+
 export async function mutatePostgresManifest(
   projectId: string,
   mutate: (manifest: ProjectManifest) => ProjectManifest | Promise<ProjectManifest>,

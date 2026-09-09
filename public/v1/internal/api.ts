@@ -7,7 +7,7 @@ import { ZodError, z } from "zod";
 
 import { handleCommunicationsLegacyAction } from "../communications/api.js";
 import { getAppleKeyInfo, readAppleKeyStore, setAppleKey } from "../firstmeasure/apple.js";
-import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
+import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
 import { getCurrentRushMode, listRushModes } from "../firstmeasure/rush.js";
 import { MANAGEMENT_TIME_ZONE, managementDateKey, managementDayBounds } from "../firstmeasure/reporting_time.js";
 import {
@@ -17,7 +17,7 @@ import {
   qaShiftQueryWindow,
   type QaShiftPointEvent
 } from "../firstmeasure/qa_shifts.js";
-import { getProjectDetail, listProjectFiles, patchManifest, saveAppMetadata } from "../firstmeasure/storage.js";
+import { getProjectDetail, listProjectFiles, patchManifest, readManifest, saveAppMetadata } from "../firstmeasure/storage.js";
 import { env } from "../src/config/env.js";
 import {
   attachReferralOrganization,
@@ -5612,7 +5612,7 @@ async function managerReviewSettings(actor: JsonObject, save: boolean, body: Jso
 async function managerReviewQueryProjects(app: FastifyInstance, target: number): Promise<JsonObject[]> {
   void app;
   const result = await queryIndexedProjectManifests({
-    statuses: ["completed", "rejected", "rejected_no_coverage"],
+    statuses: ["completed"],
     activityStartMs: Date.now() - 30 * 24 * 60 * 60 * 1000,
     activityFields: ["completed", "rejected", "updated"],
     includeInstantOnly: true,
@@ -5659,6 +5659,18 @@ async function managerReviewData(app: FastifyInstance, actor: JsonObject, includ
   const manifests = await managerReviewQueryProjects(app, configuredTarget);
   const manifestsById = new Map(manifests.map((manifest) => [managerReviewText(manifest.id, manifest.folder, manifest.project_id), manifest]));
   const sampleDocuments = await listInternalDocuments("manager_review_samples");
+  // Resolve carried-over samples before counting today's assignments. A project
+  // rejected after sampling must neither reappear nor consume today's quota.
+  const missingIds = [...new Set(sampleDocuments.flatMap((document) => {
+    const entries = managerReviewDocumentData(document).entries;
+    return (Array.isArray(entries) ? entries : []).map((entry) => managerReviewText(asObject(entry).project_id));
+  }).filter((id) => id && !manifestsById.has(id)))];
+  // A failed database read must abort before rewriting today's assignments.
+  // A successful bulk read distinguishes deleted rows from transient errors,
+  // and avoids one pool roundtrip per historical sample.
+  for (const manifest of await readIndexedProjectManifestsByIds(missingIds)) {
+    manifestsById.set(managerReviewText(manifest.id), asObject(manifest));
+  }
   const existingSample = managerReviewDocumentData(sampleDocuments.find((document) => String(document.id ?? "") === sampleDate));
 
   const sampledIds = new Set<string>();
@@ -5707,7 +5719,7 @@ async function managerReviewData(app: FastifyInstance, actor: JsonObject, includ
 
   const existingEntries = (Array.isArray(existingSample.entries) ? existingSample.entries : [])
     .map((entry) => asObject(entry))
-    .filter((entry) => Boolean(managerReviewText(entry.project_id)));
+    .filter((entry) => String(manifestsById.get(managerReviewText(entry.project_id))?.status ?? "").toLowerCase() === "completed");
 
   const previouslySampled = new Set<string>();
   for (const document of sampleDocuments) {
@@ -5748,17 +5760,6 @@ async function managerReviewData(app: FastifyInstance, actor: JsonObject, includ
     ...priorEntries,
     ...entries.map((entry) => ({ entry, sample_date: sampleDate }))
   ];
-  const missingIds = allQueueEntries
-    .map(({ entry }) => managerReviewText(entry.project_id))
-    .filter((id) => id && !manifestsById.has(id));
-  await Promise.all(missingIds.map(async (id) => {
-    try {
-      manifestsById.set(id, asObject((await getProjectDetail(id)).manifest));
-    } catch {
-      // Keep the assignment stable even if an old project is no longer available.
-    }
-  }));
-
   const now = new Date().toISOString();
   await saveInternalDocument("manager_review_samples", sampleDate, {
     data: {
@@ -5776,6 +5777,7 @@ async function managerReviewData(app: FastifyInstance, actor: JsonObject, includ
     const id = managerReviewText(entry.project_id);
     const manifest = manifestsById.get(id);
     if (!id || !manifest || queueProjectIds.has(id)) return false;
+    if (String(manifest.status ?? "").toLowerCase() !== "completed") return false;
     const audit = managerReviewAuditRecord(manifest);
     const isCurrentAssignment = assignmentDate === sampleDate;
     const wasCaughtUpToday = Boolean(audit?.reviewed_at && String(audit.reviewed_at).slice(0, 10) === sampleDate);
@@ -5983,7 +5985,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
   await Promise.all(pageRows.map(async (row) => {
     if (row.address || !row.project_id) return;
     try {
-      const manifest = asObject((await getProjectDetail(String(row.project_id))).manifest);
+      const manifest = asObject(await readManifest(String(row.project_id)));
       row.address = managerReviewText(manifest.address, manifest.formatted_address, row.project_id);
     } catch {
       row.address = row.project_id;
@@ -6081,8 +6083,8 @@ async function managerReviewMarkAudit(body: JsonObject, actor: JsonObject) {
   const detail = await getProjectDetail(projectId);
   const manifest = asObject(detail.manifest);
   const projectStatus = String(manifest.status ?? "").trim().toLowerCase();
-  if (!["completed", "rejected", "rejected_no_coverage"].includes(projectStatus)) {
-    throw badRequest("manager_audit_project_not_eligible", "Only completed or rejected projects can be audited.");
+  if (projectStatus !== "completed") {
+    throw badRequest("manager_audit_project_not_eligible", "Only completed projects can be audited.");
   }
   const now = new Date().toISOString();
   const qualityScore = status === "reviewed" ? 100 : 0;

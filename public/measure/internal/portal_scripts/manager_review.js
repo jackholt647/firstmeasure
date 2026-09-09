@@ -37,6 +37,7 @@
   let techProjects=[],displayProjects=[],projectFilter='all';
   let currentProjectIdx=-1,currentProject=null,currentManifest=null;
   let currentSlide='techs',loadSeq=0,inspectorSeq=0;
+  let queueLoadPromise=null,queueLoadedAt=0;
   let uiWired=false,inView=false,showFillers=true;
   // Quad
   let quadMaps={n:null,e:null,s:null,w:null},quadMarkers={n:null,e:null,s:null,w:null};
@@ -326,7 +327,29 @@
   function periodCutoff(){const now=Date.now();switch(currentPeriod){case'today':return new Date(new Date().toDateString()).getTime();case'week':return now-7*864e5;case'month':return now-30*864e5;default:return 0}}
   function filteredByPeriod(){return allProjects}
   function deriveTechs(){const projects=allProjects;techList=[{email:'blind-review-queue',name:'Blind Review Queue',projects,total:projects.length,unreviewed:projects.filter(p=>!p.manager_audit_status).length,flagged:projects.filter(p=>p.manager_audit_status==='flagged').length,reviewed:projects.filter(p=>p.manager_audit_status==='reviewed').length}]}
-  async function loadAllData(){const mySeq=++loadSeq;const body=document.getElementById('mraTechBody');if(body)body.innerHTML='<div class="mra-empty-state"><div class="icon"><i class="fas fa-spinner fa-spin"></i></div><div class="title">Loading…</div></div>';try{const res=await apiPost({action:'manager_review_data',sample_date:localDate()},30000);if(mySeq!==loadSeq||!inView)return;if(!res?.success)throw new Error(res?.message||res?.error||'Failed to load blind review queue');allProjects=Array.isArray(res.projects)?res.projects:[];dailySample=Object.assign({},dailySample,res.sample||{});deriveTechs();renderTechList()}catch(e){if(mySeq!==loadSeq)return;if(body)body.innerHTML='<div class="mra-empty-state"><div class="icon"><i class="fas fa-exclamation-circle"></i></div><div class="title">Error</div><div class="sub">'+esc(e.message||'')+'</div></div>'}}
+  async function loadAllData(force=false){
+    if(queueLoadPromise)return queueLoadPromise;
+    if(!force&&queueLoadedAt&&Date.now()-queueLoadedAt<15000){deriveTechs();renderTechList();return}
+    const mySeq=++loadSeq;
+    const body=document.getElementById('mraTechBody');
+    if(body)body.innerHTML='<div class="mra-empty-state"><div class="icon"><i class="fas fa-spinner fa-spin"></i></div><div class="title">Loading…</div></div>';
+    queueLoadPromise=(async()=>{
+      try{
+        const res=await apiPost({action:'manager_review_data',sample_date:localDate()},30000);
+        if(mySeq!==loadSeq)return;
+        if(!res?.success)throw new Error(res?.message||res?.error||'Failed to load blind review queue');
+        allProjects=Array.isArray(res.projects)?res.projects:[];
+        dailySample=Object.assign({},dailySample,res.sample||{});
+        queueLoadedAt=Date.now();
+        deriveTechs();
+        if(inView)renderTechList();
+      }catch(e){
+        if(mySeq!==loadSeq)return;
+        if(body)body.innerHTML='<div class="mra-empty-state"><div class="icon"><i class="fas fa-exclamation-circle"></i></div><div class="title">Error</div><div class="sub">'+esc(e.message||'')+'</div></div>';
+      }finally{queueLoadPromise=null}
+    })();
+    return queueLoadPromise;
+  }
 
   // ==================== SLIDES ====================
   function showSlide(name){currentSlide=name;const wrap=document.getElementById('mraWrap');if(!wrap)return;wrap.classList.toggle('inspector-mode',name==='inspector');wrap.classList.toggle('list-mode',name!=='inspector');const s1=document.getElementById('mraSlideTechs'),s2=document.getElementById('mraSlideProjects');if(s1)s1.className='mra-slide'+(name==='techs'?'':' hidden');if(s2)s2.className='mra-slide'+(name==='projects'?'':' off-right');document.getElementById('mraKbdHint')?.classList.toggle('show',name==='inspector');if(name==='inspector')setTimeout(resizeQuad,300)}
@@ -431,7 +454,7 @@
   // ==================== WIRE UI ====================
   function wireUIOnce(){
     if(uiWired)return;uiWired=true;
-    document.getElementById('mraRefreshBtn').onclick=()=>{if(activeWorkspace==='results'){resultsLoaded=false;loadResults(true);return}loadAllData()};
+    document.getElementById('mraRefreshBtn').onclick=()=>{if(activeWorkspace==='results'){resultsLoaded=false;loadResults(true);return}loadAllData(true)};
     document.getElementById('mraReviewTab')?.addEventListener('click',()=>switchWorkspace('review'));
     document.getElementById('mraResultsTab')?.addEventListener('click',()=>switchWorkspace('results'));
     document.getElementById('mraProjBack').onclick=()=>{showSlide('techs');deriveTechs();renderTechList()};

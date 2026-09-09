@@ -112,6 +112,11 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
       workflow: { assigned_to: { email: "technician@example.test", name: "Named Technician" } }
     });
 
+    await storage.createProject({ id: "rejected-sample", address: "Rejected sample", status: "rejected_no_coverage" });
+    await internalStorage.saveInternalDocument("manager_review_samples", today, {
+      data: { sample_date: today, configured_target: 1, entries: [{ project_id: "rejected-sample", project_status: "completed" }] }
+    }, { replace: true });
+
     const app = await buildApp();
     await app.ready();
     const legacy = (action: string, actor: string, extra: Record<string, unknown> = {}) => app.inject({
@@ -133,6 +138,14 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     assert.equal(blindQueue.json().sample.sample_days, 2);
     const blindProjects = blindQueue.json().projects as Array<Record<string, unknown>>;
     assert.equal(blindProjects.length, 2);
+    assert.equal(blindProjects.some((project) => project.id === "rejected-sample"), false);
+    const activeSample = await internalStorage.readInternalDocument("manager_review_samples", today);
+    assert.equal(JSON.stringify(activeSample).includes("rejected-sample"), false, "a rejected stale assignment must not consume today's quota");
+    const rejectedAudit = await legacy("manager_audit_mark", "reviewer@example.test", {
+      folder: "rejected-sample", audit_status: "reviewed"
+    });
+    assert.equal(rejectedAudit.statusCode, 400);
+    assert.equal(rejectedAudit.json().error, "manager_audit_project_not_eligible");
     assert.equal(blindProjects[0]?.sample_date, yesterday);
     const blindProject = blindProjects.find((project) => project.id === "blind-sample-1");
     assert.ok(blindProject);
