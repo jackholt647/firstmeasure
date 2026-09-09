@@ -1198,6 +1198,21 @@ async function ensureGoogleTileSurfaceLoaded(options = {}) {
             return false;
         }
         let manifest = await getGoogleTileManifest();
+        // Older captures used a sphere at sea level and can contain only coarse,
+        // overlapping ancestors. Refresh on an explicit TILE request, never in
+        // the background preload (which must remain read-only).
+        if (Number(manifest.capture?.selectionVersion || 0) < 2) {
+            if (!allowGenerate) {
+                googleTileState.error = 'This saved tile capture needs a refresh. Select TILE to rebuild it.';
+                clearGoogleTileSurface();
+                return false;
+            }
+            await requestProjectGoogleTileCapture(false);
+            manifest = await getGoogleTileManifest(true);
+            if (Number(manifest.capture?.selectionVersion || 0) < 2) {
+                throw new Error('The tile capture service needs updating before this surface can be refreshed.');
+            }
+        }
         let manifestMatchesProject = validateManifestForProject(manifest);
         if (!manifestMatchesProject && allowGenerate) {
             await requestProjectGoogleTileCapture(true);

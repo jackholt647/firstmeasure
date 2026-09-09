@@ -8,6 +8,7 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { getProjectArtifact, isSpacesArtifactStorageEnabled, putProjectArtifact } from "../src/storage/project_artifacts.js";
 import { acquireFirstMeasureLock } from "./locks.js";
+import { google3dFootprint, google3dBoxIntersectsFootprint, google3dBoxFootprintDistance, type Google3dFootprint } from "./google3d_bounds.js";
 
 const GOOGLE_3D_DIR_NAME = "google_3d";
 const GOOGLE_3D_TILES_DIR_NAME = "tiles";
@@ -16,7 +17,7 @@ const MIN_CAPTURE_RADIUS_METERS = 80;
 const MAX_CAPTURE_RADIUS_METERS = 180;
 const DEFAULT_MAX_DEPTH = 40;
 const DOWNLOAD_CONCURRENCY = 6;
-const FALLBACK_TILE_LIMIT = 24;
+const CAPTURE_SELECTION_VERSION = 2;
 
 const captureLocks = new Map<string, Promise<Google3dManifest>>();
 
@@ -39,6 +40,7 @@ export type Google3dManifest = {
     radiusMeters: number;
   };
   capture: {
+    selectionVersion?: number;
     maxDepth: number;
     deepestLeafCount: number;
   };
@@ -153,7 +155,7 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
   const projectId = input.projectId;
   if (!input.force) {
     const existing = await readExistingProjectGoogle3dManifest(projectId);
-    if (existing) return existing;
+    if (existing && existing.capture?.selectionVersion === CAPTURE_SELECTION_VERSION) return existing;
   }
 
   const googleApiKey = String(env.googleMapTilesApiKey ?? "").trim();
@@ -182,6 +184,7 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
     if (!isSpacesArtifactStorageEnabled()) await mkdir(tilesDir, { recursive: true });
 
     const ecefTarget = geodeticToECEF(input.lat, input.lon, 0);
+    const footprint = google3dFootprint(input.lat, input.lon, ecefTarget);
     const rootUrl = makeAbsoluteGoogleTileUrl("/v1/3dtiles/root.json", googleApiKey);
     const rootTileset = await fetchJson(rootUrl) as { root?: TileNode };
     if (!rootTileset?.root) {
@@ -197,14 +200,13 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
     ];
     const jsonVisited = new Set([cleanUrlForHash(rootUrl)]);
     const selectedLeafTiles: SelectedLeafTile[] = [];
-    const fallbackContentTiles: SelectedLeafTile[] = [];
 
     while (queue.length > 0) {
       const next = queue.shift();
       if (!next) break;
       const { tile, depth, session } = next;
 
-      if (!intersectsTarget(tile, ecefTarget, radiusMeters)) continue;
+      if (!intersectsTarget(tile, footprint, radiusMeters)) continue;
 
       const children = normalizeChildren(tile.children);
       let nextSession = session;
@@ -217,11 +219,11 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
 
       if (tile.content?.uri) {
         const contentUrl = makeAbsoluteGoogleTileUrl(tile.content.uri, googleApiKey, session);
-        if (contentUrl.includes(".json")) {
+        if (contentUrlLooksLikeJson(contentUrl)) {
           const marker = cleanUrlForHash(contentUrl);
           if (!jsonVisited.has(marker)) {
             jsonVisited.add(marker);
-            const externalTileset = await fetchJson(contentUrl).catch(() => null) as { root?: TileNode } | null;
+            const externalTileset = await fetchJson(contentUrl) as { root?: TileNode } | null;
             if (externalTileset?.root) {
               queue.push({ tile: externalTileset.root, depth: depth + 1, session: nextSession });
             }
@@ -231,14 +233,7 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
             url: contentUrl,
             depth,
             geometricError: Number(tile.geometricError ?? 0),
-            distanceMeters: tileDistanceMeters(tile, ecefTarget)
-          });
-        } else {
-          fallbackContentTiles.push({
-            url: contentUrl,
-            depth,
-            geometricError: Number(tile.geometricError ?? 0),
-            distanceMeters: tileDistanceMeters(tile, ecefTarget)
+            distanceMeters: tileDistanceMeters(tile, footprint)
           });
         }
       }
@@ -250,17 +245,9 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
       }
     }
 
-    const uniqueLeaves = uniqueGoogle3dTiles(selectedLeafTiles);
-    const tilesToDownload = uniqueLeaves.length > 0
-      ? uniqueLeaves
-      : uniqueGoogle3dTiles(fallbackContentTiles)
-        .filter(tile => !contentUrlLooksLikeJson(tile.url))
-        .sort((a, b) => {
-          if (a.depth !== b.depth) return b.depth - a.depth;
-          if (a.geometricError !== b.geometricError) return a.geometricError - b.geometricError;
-          return a.distanceMeters - b.distanceMeters;
-        })
-        .slice(0, FALLBACK_TILE_LIMIT);
+    // Ancestors overlap their descendants and are not a coherent surface.
+    // Never silently save a mixed-LOD fallback as a successful capture.
+    const tilesToDownload = uniqueGoogle3dTiles(selectedLeafTiles);
 
     if (!tilesToDownload.length) {
       throw new FirstMeasureError(
@@ -316,6 +303,7 @@ async function ensureProjectGoogle3dCaptureUnlocked(input: CaptureGoogle3dInput)
         radiusMeters
       },
       capture: {
+        selectionVersion: CAPTURE_SELECTION_VERSION,
         maxDepth,
         deepestLeafCount: manifestTiles.length
       },
@@ -416,37 +404,14 @@ function geodeticToECEF(latDeg: number, lonDeg: number, hMeters = 0): EcefPoint 
   };
 }
 
-function boxToSphere(box: number[]) {
-  return {
-    x: box[0] ?? 0,
-    y: box[1] ?? 0,
-    z: box[2] ?? 0,
-    r:
-      Math.hypot(box[3] ?? 0, box[4] ?? 0, box[5] ?? 0) +
-      Math.hypot(box[6] ?? 0, box[7] ?? 0, box[8] ?? 0) +
-      Math.hypot(box[9] ?? 0, box[10] ?? 0, box[11] ?? 0)
-  };
-}
-
-function intersectsTarget(tile: TileNode | undefined, ecefTarget: EcefPoint, radiusMeters: number) {
+function intersectsTarget(tile: TileNode | undefined, footprint: Google3dFootprint, radiusMeters: number) {
   if (!tile?.boundingVolume?.box) return true;
-  const sphere = boxToSphere(tile.boundingVolume.box);
-  const distance = Math.hypot(
-    sphere.x - ecefTarget.x,
-    sphere.y - ecefTarget.y,
-    sphere.z - ecefTarget.z
-  );
-  return distance <= sphere.r + radiusMeters;
+  return google3dBoxIntersectsFootprint(tile.boundingVolume.box, footprint, radiusMeters);
 }
 
-function tileDistanceMeters(tile: TileNode | undefined, ecefTarget: EcefPoint) {
+function tileDistanceMeters(tile: TileNode | undefined, footprint: Google3dFootprint) {
   if (!tile?.boundingVolume?.box) return Number.POSITIVE_INFINITY;
-  const sphere = boxToSphere(tile.boundingVolume.box);
-  return Math.hypot(
-    sphere.x - ecefTarget.x,
-    sphere.y - ecefTarget.y,
-    sphere.z - ecefTarget.z
-  );
+  return google3dBoxFootprintDistance(tile.boundingVolume.box, footprint);
 }
 
 function makeAbsoluteGoogleTileUrl(input: string, googleApiKey: string, inheritedSession: string | null = null) {
@@ -464,7 +429,7 @@ function makeAbsoluteGoogleTileUrl(input: string, googleApiKey: string, inherite
 async function fetchJson(url: string) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch JSON ${url} (${response.status})`);
+    throw new Error(`Failed to fetch Google tile metadata (${response.status}).`);
   }
   return response.json();
 }
@@ -472,7 +437,7 @@ async function fetchJson(url: string) {
 async function fetchBinary(url: string) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch tile ${url} (${response.status})`);
+    throw new Error(`Failed to fetch Google tile content (${response.status}).`);
   }
   return {
     contentType: response.headers.get("content-type") || "application/octet-stream",
