@@ -2,6 +2,8 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 9 follow-up: see [bug-fix releases and verification](deploy/digitalocean/releases-20260909.md), including the unresolved autoscale replacement-code risk. The launch release below is historical, not the current active code.
+
 ## Start here
 
 - Develop locally, test in isolated development, then promote the exact tested release to production when authorized.
