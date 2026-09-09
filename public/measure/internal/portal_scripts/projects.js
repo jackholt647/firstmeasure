@@ -4890,10 +4890,11 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       }
       const canManageQueueTools = !!cfg().flags?.is_queue_admin || !!(cfg().perms && (cfg().perms.manage_queue || cfg().perms.assign_teams));
       const canManageQaPriority = !!cfg().user?.is_admin || !!cfg().flags?.is_queue_admin || !!(cfg().perms && cfg().perms.manage_qa_queue);
+      const canReserveQa = !!cfg().user?.is_admin || !!cfg().flags?.is_manager_role || !!cfg().perms?.manage_qa_queue;
       const canCancelProjects = !!(cfg().perms && cfg().perms.cancel_projects);
       const canRejectNoCoverage = !!cfg().flags?.is_manager_role || !!cfg().flags?.is_queue_admin || !!(cfg().perms && cfg().perms.manage_queue);
       const canReopenCompletedProject = !!cfg().user?.is_admin && String(m.status || '').toLowerCase() === 'completed';
-      if (canManageQueueTools || canCancelProjects || canRejectNoCoverage || canReopenCompletedProject) {
+      if (canManageQueueTools || canReserveQa || canCancelProjects || canRejectNoCoverage || canReopenCompletedProject) {
         this.renderProjectModalQueueTools({
           folderId: id,
           address: address || id,
@@ -4901,6 +4902,9 @@ Note: Our coverage is based on individual structure, not area - so we may have c
           reservedToName: m.reserved_to_name || '',
           status: m.status || '',
           canManageQueue: canManageQueueTools,
+          canManageQa: canReserveQa,
+          qaReservedToEmail: m.qa_reserved_to_email || m.workflow?.qa_reserved_to?.email || '',
+          qaReservedToName: m.qa_reserved_to_name || m.workflow?.qa_reserved_to?.name || '',
           canCancelProjects,
           canRejectNoCoverage,
           canReopenCompletedProject
@@ -6361,7 +6365,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       style.textContent = `.pm-qtools-card{margin-top:14px;border:1px solid #eee;border-radius:12px;padding:12px;background:#fff;}.pm-qtools-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}.pm-qtools-title{font-weight:950;font-size:12px;color:#444;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.3px;}.pm-qtools-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}.pm-qtools-btn{border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer;border:1px solid #ddd;background:#fff;color:#333;display:inline-flex;align-items:center;gap:8px;user-select:none;}.pm-qtools-btn.primary{border-color:#1a73e8;background:#1a73e8;color:#fff;}.pm-qtools-btn.danger{border-color:#f4b4ae;background:#fce8e6;color:#b0261e;}.pm-qtools-btn:disabled{opacity:.55;cursor:not-allowed;}.pm-qtools-select{min-width:260px;border:1px solid #ddd;border-radius:10px;padding:9px 10px;font-weight:800;background:#fff;color:#111;}.pm-qtools-small{margin-top:8px;font-size:11px;color:#777;font-weight:800;}.pm-qtools-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:950;border:1px solid #eee;background:#fafafa;color:#333;white-space:nowrap;}`;
       document.head.appendChild(style);
     },
-    renderProjectModalQueueTools({ folderId, address, reservedToEmail, reservedToName, status, canManageQueue, canCancelProjects, canRejectNoCoverage, canReopenCompletedProject }){
+    renderProjectModalQueueTools({ folderId, address, reservedToEmail, reservedToName, status, canManageQueue, canManageQa, qaReservedToEmail, qaReservedToName, canCancelProjects, canRejectNoCoverage, canReopenCompletedProject }){
       this.ensureProjectModalQueueToolsUI();
       const modal = document.getElementById('projModal');
       if (!modal) return;
@@ -6430,6 +6434,10 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         `);
       }
       const cancelBtn = document.getElementById('pmCancelProjectBtn');
+      if (canManageQa && ['awaiting_review','submission_failed'].includes(normalizedStatus)) {
+        box.insertAdjacentHTML('beforeend', `<div class="pm-qtools-title" style="margin-top:14px">QA reservation</div><div class="pm-qtools-row"><select class="pm-qtools-select" id="pmQaReserveSelect" aria-label="Reserve for QA reviewer" disabled><option>Loading QA reviewers…</option></select><button class="pm-qtools-btn primary" id="pmQaReserveSave" disabled>Save QA reservation</button></div><div class="pm-qtools-small" id="pmQaReserveNote">${Portal.escapeHtml(qaReservedToEmail ? 'Reserved for '+(qaReservedToName||qaReservedToEmail) : 'No QA reservation')}. Reservations persist while the reviewer is offline; other QAs cannot claim this project.</div>`);
+        this.wireQaReservation(folderId, qaReservedToEmail || '');
+      }
       const rejectCoverageBtn = document.getElementById('pmRejectCoverageBtn');
       const reopenBtn = document.getElementById('pmReopenProjectBtn');
       if (saveBtn) {
@@ -6488,6 +6496,33 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       if (reopenBtn && canReopenProject) {
         reopenBtn.onclick = () => this.openReopenProjectModal(folderId, address || folderId);
       }
+    },
+    async wireQaReservation(folderId, selectedEmail){
+      const select=document.getElementById('pmQaReserveSelect'),button=document.getElementById('pmQaReserveSave'),note=document.getElementById('pmQaReserveNote');
+      if(!select||!button)return;
+      try{
+        const response=await this.fmPost('qa/reservation/users',{});
+        if(!response.success)throw new Error(response.message||response.error||'Sign in again to manage QA reservations.');
+        const users=Array.isArray(response.users)?response.users:[];
+        select.innerHTML='<option value="">Clear QA reservation</option>'+users.map(user=>`<option value="${Portal.escapeHtml(user.email)}">${Portal.escapeHtml(user.name||user.email)}</option>`).join('');
+        if(selectedEmail&&!users.some(user=>user.email===selectedEmail))select.insertAdjacentHTML('beforeend',`<option value="${Portal.escapeHtml(selectedEmail)}">${Portal.escapeHtml(selectedEmail)} (unavailable — clear or reassign)</option>`);
+        select.value=selectedEmail;select.disabled=false;button.disabled=false;
+        button.onclick=async()=>{
+          button.disabled=true;select.disabled=true;
+          try{
+            const sessionUrl=this.fmUrl('').replace(/\/firstmeasure\/?$/,'/platform/auth/session');
+            const sessionResponse=await fetch(sessionUrl,{credentials:'include'});
+            const session=await sessionResponse.json();
+            if(!sessionResponse.ok||!session.csrf_token)throw new Error('Sign in again to manage QA reservations.');
+            const saved=await fetch(this.fmUrl(`projects/${encodeURIComponent(folderId)}/qa/reservation`),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Platform-CSRF':session.csrf_token},body:JSON.stringify({reserved_for:select.value?{email:select.value}:null})});
+            const data=await saved.json();
+            if(!saved.ok||!data.success)throw new Error(data.message||data.error||'QA reservation failed.');
+            queueOverviewStore.invalidate();
+            await this.openProjectModal(folderId);
+          }catch(error){if(note)note.textContent=error.message||'QA reservation failed.';}
+          finally{button.disabled=false;select.disabled=false;}
+        };
+      }catch(error){if(note)note.textContent=error.message||'Unable to load QA reviewers.';}
     },
     populateReserveSelect(selectEl, reservedToEmail, reservedToName=''){
       if (!selectEl) return;

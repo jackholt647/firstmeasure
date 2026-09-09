@@ -8745,6 +8745,17 @@
     };
     
     const getClaimStatus = (item) => {
+      const reservedFor = String(item.qa_reserved_to_email || '').toLowerCase();
+      if (reservedFor && reservedFor !== currentUserEmail) {
+        return { type:'locked',rowClass:'claimed-by-other',canReview:false,
+          indicator:`<span class="qa-claim-indicator locked"><i class="fas fa-bookmark"></i> Reserved for ${esc(displayQaActorName(item.qa_reserved_to_name||reservedFor,'another QA reviewer'))}</span>`,
+          buttonClass:'disabled-claim',buttonText:'Reserved' };
+      }
+      if (reservedFor && !item.qa_claimed_by_email) {
+        return { type:'yours',rowClass:'claimed-by-self',canReview:canDoQA(),
+          indicator:'<span class="qa-claim-indicator yours"><i class="fas fa-bookmark"></i> Reserved for you</span>',
+          buttonClass:'primary',buttonText:'Review' };
+      }
       const claimedBy = (item.qa_claimed_by_email || '').toLowerCase();
       const claimedByName = item.qa_claimed_by_name || item.qa_claimed_by_email || 'Someone';
       const publicClaimedByName = displayQaActorName(claimedByName, 'Another QA reviewer');

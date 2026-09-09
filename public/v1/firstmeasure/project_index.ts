@@ -43,6 +43,8 @@ type ProjectIndexRow = {
 };
 
 type ProjectIndexQueueSnapshot = {
+  qa_reserved_to_email: string;
+  manifest_json?: unknown;
   id: string;
   status: string;
   team_id: string;
@@ -915,6 +917,7 @@ export async function upsertProjectIndex(
   const db = getFirstMeasureProjectIndexDb();
   const current = db.prepare(`
     SELECT
+      manifest_json,
       thumbnail_artifact_name,
       id,
       status,
@@ -2196,7 +2199,9 @@ function pruneProjectQueueEvents(db: DatabaseSync) {
 }
 
 function projectQueueSnapshotFromIndexed(value: Partial<ProjectIndexQueueSnapshot>): ProjectIndexQueueSnapshot {
+  const manifest = typeof value.manifest_json === "string" ? JSON.parse(value.manifest_json) : value.manifest_json;
   return {
+    qa_reserved_to_email: String((manifest as Record<string, unknown> | undefined)?.qa_reserved_to_email ?? ""),
     id: String(value.id ?? ""),
     status: String(value.status ?? ""),
     team_id: String(value.team_id ?? ""),
@@ -2212,6 +2217,7 @@ function queueSnapshotChanged(previous: ProjectIndexQueueSnapshot, next: Project
     || previous.team_id !== next.team_id
     || previous.assigned_to_email !== next.assigned_to_email
     || previous.reserved_to_email !== next.reserved_to_email
+    || previous.qa_reserved_to_email !== next.qa_reserved_to_email
     || previous.correction_to_email !== next.correction_to_email
     || previous.qa_claimed_by_email !== next.qa_claimed_by_email;
 }

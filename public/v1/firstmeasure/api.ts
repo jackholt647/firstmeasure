@@ -16,7 +16,7 @@ import {
   isSpacesArtifactStorageEnabled,
   putProjectArtifact
 } from "../src/storage/project_artifacts.js";
-import { requirePlatformAuth } from "../platform/auth.js";
+import { authContextFromRequest, requirePlatformAuth } from "../platform/auth.js";
 
 import { getAppleKeyInfo, setAppleKey } from "./apple.js";
 import { FIRSTMEASURE_FILE_NAMES, PDF_FILE_NAMES, firstMeasurePointValueForComplexity, type PdfSlot } from "./constants.js";
@@ -71,7 +71,7 @@ import {
 } from "./job_runtime.js";
 import { shouldRunFirstMeasureBackgroundProcessor } from "./background_role.js";
 import { acquireFirstMeasureLock } from "./locks.js";
-import { patchInternalUser, readInternalUser } from "../internal/storage.js";
+import { listInternalUsers, patchInternalUser, readInternalUser } from "../internal/storage.js";
 import {
   claimNextInQueue,
   getClaimableQueueStatus,
@@ -2823,7 +2823,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     });
 
     const actorEmail = String(actor.email ?? "").trim().toLowerCase();
-    const claimedByMe = pending.filter((item) => qaClaimEmailFromLegacyRow(item) === actorEmail);
+    pending.sort((a, b) => Number(qaReservationEmail(b) === actorEmail) - Number(qaReservationEmail(a) === actorEmail));
+    const claimedByMe = pending.filter((item) => qaClaimEmailFromLegacyRow(item) === actorEmail && qaReservationAvailableForActor(item, actorEmail));
     const nextCandidate = claimedByMe[0] ?? pending.find((item) => qaClaimAvailableForActor(item, actorEmail)) ?? null;
     const pendingTotalCount = pending.length;
     const pendingTotalPages = Math.max(1, Math.ceil(pendingTotalCount / pendingLimit));
@@ -2943,7 +2944,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     });
     const limit = Math.max(1, Math.min(100, Number(body.limit ?? 50) || 50));
     const projects = await Promise.all(
-      ranked.slice(0, limit).map((entry) => buildQaRankedProjectRow(entry, request, "card"))
+      prioritizeQaReservations(ranked, String(actor?.email ?? "").toLowerCase()).slice(0, limit).map((entry) => buildQaRankedProjectRow(entry, request, "card"))
     );
     return {
       ok: true,
@@ -2964,6 +2965,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const teamId = normalizeQaTeamFilter(body.team_id ?? body.team);
     const result = await reserveNextQaProjects({
       actor,
+      authenticatedEmail: String((await authContextFromRequest(request).catch(() => null))?.identity.email ?? "").toLowerCase(),
       teamId,
       count,
       drafterRanks: normalizeDrafterRankMap(body.drafter_ranks)
@@ -3015,6 +3017,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       if (claimedBy && claimedBy !== actorEmail && !includeClaimed) {
         return { type: "skipped", id, reason: "claimed", claimed_by: claimedBy };
       }
+      if (qaReservationEmail(manifest)) {
+        return { type: "skipped", id, reason: "manually_reserved", reserved_for: qaReservationEmail(manifest) };
+      }
       const rank = await buildQaRankMeta(manifest, drafterRanks);
       if (!qaBulkApprovalMatches(manifest, rank, criteria)) {
         return { type: "skipped", id, reason: "criteria_mismatch", score: rank.error_score };
@@ -3036,6 +3041,56 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       approved,
       skipped
     };
+  });
+
+  app.post("/qa/reservation/users", async (request) => {
+    const auth = await requirePlatformAuth(request);
+    await requireQaManagerReviewActor(String(auth.identity.email ?? "").toLowerCase());
+    const users = await listInternalUsers({});
+    return { ok: true, success: true, users: users.filter(isQaReservationUser).map(user => ({
+      email: user.email, name: user.name || user.email
+    })) };
+  });
+
+  app.post("/projects/:id/qa/reservation", async (request) => {
+    const body = asRecord(request.body);
+    const auth = await requirePlatformAuth(request, { csrf: true });
+    const user = await requireQaManagerReviewActor(String(auth.identity.email ?? "").toLowerCase());
+    const actor = { email: user.email, name: String(user.name || user.email) };
+    const targetEmail = String(asRecord(body.reserved_for).email ?? "").trim().toLowerCase();
+    const target = targetEmail ? await readInternalUser(targetEmail).catch(() => null) : null;
+    if (targetEmail && (!target || !isQaReservationUser(target))) {
+      throw badRequest("invalid_qa_reviewer", "Choose an active QA reviewer.");
+    }
+    const project = await withQaProjectClaimLock(getProjectId(request.params), async () => {
+      let manifest = await readManifest(getProjectId(request.params));
+      if (!["awaiting_review", "submission_failed"].includes(String(manifest.status ?? ""))) {
+        throw conflict("project_not_in_qa_queue", "Only projects waiting for QA can be reserved.");
+      }
+      const claimedBy = qaClaimEmail(manifest);
+      if (targetEmail && claimedBy && claimedBy !== targetEmail && !(await isQaClaimStale(claimedBy, qaClaimedAt(manifest), manifest))) {
+        throw conflict("item_claimed_by_other_user", "Release the active QA claim before changing its reservation.");
+      }
+      if (targetEmail && claimedBy && claimedBy !== targetEmail) {
+        manifest = await releaseQaClaimOnManifest(manifest, actor, "manager_reservation_reassigned");
+      }
+      const now = new Date().toISOString();
+      const reservedFor = target ? { email: targetEmail, name: String(target.name || targetEmail) } : null;
+      const legacyHistory = buildLegacyManifest(manifest).work_history;
+      const updated = await patchManifest(manifest.id, {
+        qa_reserved_to_email: reservedFor?.email ?? null,
+        qa_reserved_to_name: reservedFor?.name ?? null,
+        qa_reserved_at: reservedFor ? now : null,
+        workflow: { ...asRecord(manifest.workflow), qa_reserved_to: reservedFor },
+        work_history: [...(Array.isArray(legacyHistory) ? legacyHistory : []), {
+          ts: now, event: reservedFor ? "qa_reserved" : "qa_reservation_cleared",
+          actor, reserved_to: reservedFor
+        }]
+      }, { backup: false });
+      clearQaClaimCaches();
+      return updated;
+    });
+    return { ok: true, success: true, project };
   });
 
   app.post("/projects/:id/qa/claim", async (request) => {
@@ -3061,6 +3116,15 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         };
       }
 
+      if (!qaReservationAvailableForActor(manifest, actorEmail)) {
+        return { ok: true, success: false, error: "item_reserved_for_other_qa", reserved_for: qaReservationEmail(manifest) };
+      }
+      if (qaReservationEmail(manifest)) {
+        const auth = await requirePlatformAuth(request);
+        if (String(auth.identity.email ?? "").toLowerCase() !== actorEmail.toLowerCase()) {
+          throw new FirstMeasureError("qa_actor_mismatch", 403, "Sign in as the reserved QA reviewer to claim this project.");
+        }
+      }
       const workflow = asRecord(manifest.workflow);
       const qaClaim = asRecord(workflow.qa_claim);
       const claimedByEmail = String(legacy.qa_claimed_by_email ?? qaClaim.email ?? "").trim().toLowerCase();
@@ -3192,6 +3256,13 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     if (!actorEmail) {
       throw badRequest("missing_actor", "A QA actor email is required to submit a QA decision.");
+    }
+    if (qaReservationEmail(manifest)) {
+      const auth = await requirePlatformAuth(request);
+      if (!qaReservationAvailableForActor(manifest, actorEmail)
+        || String(auth.identity.email ?? "").toLowerCase() !== actorEmail.toLowerCase()) {
+        throw new FirstMeasureError("qa_reservation_owner_required", 403, "Only the reserved QA reviewer can submit this decision.");
+      }
     }
 
     const qaClaim = asRecord(workflow.qa_claim);
@@ -5299,6 +5370,8 @@ function buildProjectListViewRow(
     correction_to_email: String(legacy.correction_to_email ?? ""),
     correction_to_name: String(legacy.correction_to_name ?? ""),
     qa_claimed_by_email: qaClaimedByEmail,
+    qa_reserved_to_email: qaReservationEmail(legacy),
+    qa_reserved_to_name: String(legacy.qa_reserved_to_name ?? ""),
     qa_claimed_by_name: String(legacy.qa_claimed_by_name ?? ""),
     qa_claimed_at: legacy.qa_claimed_at ?? null,
     qa_available: !hasQaClaim,
@@ -8811,7 +8884,29 @@ function qaClaimEmailFromLegacyRow(row: Record<string, unknown>) {
   return String(row.qa_claimed_by_email ?? claim.email ?? "").trim().toLowerCase();
 }
 
+function isQaReservationUser(user: Record<string, unknown>) {
+  if (user.disabled || ["disabled", "inactive", "suspended", "terminated"].includes(String(user.status ?? "").toLowerCase())) return false;
+  const permissions = asRecord(user.permissions);
+  return String(user.role ?? "").toLowerCase() === "qa" || Boolean(permissions.manage_qa);
+}
+
+function qaReservationEmail(row: Record<string, unknown>) {
+  if (["completed", "cancelled", "rejected", "rejected_no_coverage"].includes(String(row.status ?? "").toLowerCase())) return "";
+  return String(row.qa_reserved_to_email ?? asRecord(asRecord(row.workflow).qa_reserved_to).email ?? "").trim().toLowerCase();
+}
+
+function qaReservationAvailableForActor(row: Record<string, unknown>, actorEmail: string) {
+  const reservedFor = qaReservationEmail(row);
+  return !reservedFor || reservedFor === actorEmail.trim().toLowerCase();
+}
+
+function prioritizeQaReservations(entries: QaRankedProject[], actorEmail: string) {
+  return entries.filter(entry => qaReservationAvailableForActor(entry.manifest, actorEmail))
+    .sort((a, b) => Number(qaReservationEmail(b.manifest) === actorEmail) - Number(qaReservationEmail(a.manifest) === actorEmail));
+}
+
 function qaClaimAvailableForActor(row: Record<string, unknown>, actorEmail: string) {
+  if (!qaReservationAvailableForActor(row, actorEmail)) return false;
   const claimedBy = qaClaimEmailFromLegacyRow(row);
   if (!claimedBy || claimedBy === actorEmail) return true;
   if (String(row.qa_availability_reason ?? "").trim().toLowerCase() === "claimer_offline") return true;
@@ -9311,6 +9406,7 @@ async function getRankedQaQueueManifests(input: {
 
 async function reserveNextQaProjects(input: {
   actor: ReturnType<typeof normalizeOptionalPortalActor>;
+  authenticatedEmail?: string;
   teamId?: string | null;
   count: number;
   drafterRanks: Map<string, DrafterRank>;
@@ -9322,8 +9418,16 @@ async function reserveNextQaProjects(input: {
     live: true,
     drafterRanks: input.drafterRanks
   });
-  for (const entry of existing) {
-    if (qaClaimEmail(entry.manifest) === actorEmail && !isQaCorrectionReturn(entry.manifest)) reserved.push(entry);
+  for (const entry of prioritizeQaReservations(existing, actorEmail)) {
+    if (qaClaimEmail(entry.manifest) !== actorEmail || isQaCorrectionReturn(entry.manifest)) continue;
+    await withQaProjectClaimLock(entry.manifest.id, async () => {
+      const fresh = await readManifest(entry.manifest.id).catch(() => null);
+      if (fresh && ["awaiting_review", "submission_failed"].includes(String(fresh.status))
+        && qaClaimEmail(fresh) === actorEmail && qaReservationAvailableForActor(fresh, actorEmail)
+        && (!qaReservationEmail(fresh) || input.authenticatedEmail === actorEmail)) {
+        reserved.push({ manifest: fresh, rank: entry.rank });
+      }
+    });
   }
 
   const ranked = await getRankedQaQueueManifests({
@@ -9338,13 +9442,15 @@ async function reserveNextQaProjects(input: {
     ? "cache"
     : "live";
   const queueCacheAgeMs = cached ? Math.max(0, QA_TECH_QUEUE_CACHE_TTL_MS - (cached.expiresAt - Date.now())) : 0;
-  for (const entry of ranked) {
+  for (const entry of prioritizeQaReservations(ranked, actorEmail)) {
     if (reserved.length >= input.count) break;
     const id = String(entry.manifest.id ?? "");
     if (!id || reserved.some((item) => item.manifest.id === id)) continue;
     const claimed = await withQaProjectClaimLock(id, async () => {
       const fresh = await readManifest(id).catch(() => null);
       if (!fresh || !["awaiting_review", "submission_failed"].includes(String(fresh.status ?? "").trim().toLowerCase())) return null;
+      if (!qaReservationAvailableForActor(fresh, actorEmail)) return null;
+      if (qaReservationEmail(fresh) && input.authenticatedEmail !== actorEmail) return null;
       const claimedBy = qaClaimEmail(fresh);
       if (claimedBy && claimedBy !== actorEmail && !(await isQaClaimStale(claimedBy, qaClaimedAt(fresh), fresh))) return null;
       if (claimedBy && claimedBy !== actorEmail) {

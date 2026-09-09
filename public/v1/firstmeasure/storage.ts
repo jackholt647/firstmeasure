@@ -384,6 +384,15 @@ export async function readManifest(projectId: string): Promise<ProjectManifest> 
   return manifest;
 }
 
+function clearTerminalQaReservation(manifest: ProjectManifest) {
+  if (!isImmutableTerminalProjectStatus(normalizeProjectStatus(manifest.status))) return;
+  if (!manifest.qa_reserved_to_email && !asRecord(manifest.workflow).qa_reserved_to) return;
+  manifest.qa_reserved_to_email = null;
+  manifest.qa_reserved_to_name = null;
+  manifest.qa_reserved_at = null;
+  manifest.workflow = { ...asRecord(manifest.workflow), qa_reserved_to: null };
+}
+
 export async function saveManifest(
   projectId: string,
   manifest: ProjectManifest,
@@ -396,6 +405,7 @@ export async function saveManifest(
   await mkdir(directory, { recursive: true });
   const manifestPath = path.join(directory, FIRSTMEASURE_FILE_NAMES.manifest);
   enforceProjectLifecycleStatus(manifest);
+  clearTerminalQaReservation(manifest);
   normalizeProjectPriorityFlags(manifest);
   normalizeProjectPointValue(manifest);
   if (isFirstMeasurePostgresEnabled()) {
@@ -438,6 +448,7 @@ export async function patchManifest(
         const terminalKey = currentStatus === "completed" ? "completed_at" : currentStatus === "cancelled" ? "cancelled_at" : "rejected_at";
         if (current.timestamps?.[terminalKey]) (merged.timestamps as JsonObject)[terminalKey] = current.timestamps[terminalKey];
       }
+      clearTerminalQaReservation(merged);
       normalizeProjectPriorityFlags(merged);
       normalizeProjectPointValue(merged);
       merged.timestamps = {
@@ -471,6 +482,7 @@ export async function patchManifest(
         (merged.timestamps as JsonObject)[terminalKey] = current.timestamps[terminalKey];
       }
     }
+    clearTerminalQaReservation(merged);
     normalizeProjectPriorityFlags(merged);
     normalizeProjectPointValue(merged);
     merged.timestamps = {

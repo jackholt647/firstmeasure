@@ -685,7 +685,7 @@ async function upsertDocumentBatch(client: PoolClient, documents: IndexedDocumen
   const previous = recordEvent
     ? await client.query<Record<string, unknown>>(`
         SELECT id, status, team_id, assigned_to_email, reserved_to_email, correction_to_email, qa_claimed_by_email,
-          queue_group, queue_priority
+          queue_group, queue_priority, manifest_json
         FROM projects WHERE id = ANY($1::text[])
       `, [documents.map((document) => document.id)])
     : { rows: [] as Record<string, unknown>[] };
@@ -1229,6 +1229,7 @@ function queueGroupOrderSql(p: string, group: FirstMeasureQueueGroup) {
 }
 
 type QueueSnapshot = {
+  qa_reserved_to_email: string;
   id: string;
   status: string;
   team_id: string;
@@ -1240,7 +1241,9 @@ type QueueSnapshot = {
   queue_priority: number;
 };
 function snapshot(value: Record<string, unknown>): QueueSnapshot {
+  const manifest = typeof value.manifest_json === "string" ? JSON.parse(value.manifest_json) : value.manifest_json;
   return { id: String(value.id ?? ""), status: String(value.status ?? ""), team_id: String(value.team_id ?? ""),
+    qa_reserved_to_email: String((manifest as Record<string, unknown> | undefined)?.qa_reserved_to_email ?? ""),
     assigned_to_email: String(value.assigned_to_email ?? ""), reserved_to_email: String(value.reserved_to_email ?? ""),
     correction_to_email: String(value.correction_to_email ?? ""), qa_claimed_by_email: String(value.qa_claimed_by_email ?? ""),
     queue_group: String(value.queue_group ?? ""), queue_priority: Number(value.queue_priority ?? 3) };
@@ -1248,7 +1251,7 @@ function snapshot(value: Record<string, unknown>): QueueSnapshot {
 function snapshotChanged(a: QueueSnapshot, b: QueueSnapshot) {
   return a.status !== b.status || a.team_id !== b.team_id || a.assigned_to_email !== b.assigned_to_email ||
     a.reserved_to_email !== b.reserved_to_email || a.correction_to_email !== b.correction_to_email ||
-    a.qa_claimed_by_email !== b.qa_claimed_by_email || a.queue_group !== b.queue_group ||
+    a.qa_claimed_by_email !== b.qa_claimed_by_email || a.qa_reserved_to_email !== b.qa_reserved_to_email || a.queue_group !== b.queue_group ||
     a.queue_priority !== b.queue_priority;
 }
 function queueGroupFromSnapshot(value: QueueSnapshot) {

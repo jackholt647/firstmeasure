@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-const src=await readFile('../../outputs/qa-pass-build/firstmeasure/api.js','utf8');
-const section=(a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));
+import ts from 'typescript';
+const src=await readFile(new URL('../firstmeasure/api.ts',import.meta.url),'utf8');
+const section=(a,b)=>{
+ const start=src.indexOf(a),end=src.indexOf(b,start+a.length);
+ assert.ok(start>=0&&end>start,`Missing source boundary: ${a}`);
+ return ts.transpileModule(src.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+};
 let stored=null;
 const ctx=vm.createContext({readManifest:async()=>({}),asRecord:x=>x||{},readStoredPdf:async()=>stored,
  conflict:(code,message)=>Object.assign(new Error(message),{code}),buildLegacyManifest:x=>x,drafterEmailForQaRank:()=>''});

@@ -17,6 +17,7 @@ function section(start, end) {
 }
 const lockSource = section('async function withQaProjectClaimLock<', 'async function listQaClaimedManifestsForActor(');
 const routesSource = [
+  section('function qaReservationEmail(', 'function prioritizeQaReservations('),
   section('  app.post("/qa/bulk-approve"', '  app.post("/projects/:id/qa/claim"'),
   section('  app.post("/projects/:id/qa/decision"', '  app.post("/projects/:id/drafter/qa-response"'),
   section('async function approveQaProjectFromBulk(', 'function qaQueueCacheKey('),
@@ -119,7 +120,7 @@ for (const kind of ['qa', 'manager', 'bulk', 'qa-versus-bulk']) {
       return node.routes.get(url)({ params: { id: 'fixture' }, body: { actor, status: 'approved', threads: [], project_ids: ['fixture'], criteria: {} } });
     });
     const results = await Promise.allSettled(requests);
-    assert.equal(deliveries.length, 1, `duplicate jobs: ${deliveries.length}; results: ${results.map(r => r.status).join(',')}`);
+    assert.equal(deliveries.length, 1, `jobs: ${deliveries.length}; results: ${results.map(r => r.status === 'rejected' ? r.reason?.stack || r.reason : r.status).join('\n')}`);
     assert.equal(state.get('fixture').status, 'completed');
     assert.equal(state.get('fixture').work_history.length, 1);
   });
@@ -137,7 +138,8 @@ for (const kind of ['qa', 'manager']) {
     const results = await Promise.allSettled(nodes.map((node, index) => node.routes.get(`/projects/:id/${kind}/decision`)({
       params: { id: 'fixture' }, body: { actor, status: index ? 'approved' : 'rejected', threads: [], failures: [] }
     })));
-    assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+    assert.equal(results.filter(result => result.status === 'fulfilled').length, 1,
+      results.map(result => result.status === 'rejected' ? result.reason?.stack || result.reason : result.status).join('\n'));
     assert.equal(state.get('fixture').work_history.length, 1);
     assert.equal(deliveries.length, state.get('fixture').status === 'completed' ? 1 : 0);
   });
