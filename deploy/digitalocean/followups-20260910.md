@@ -3,7 +3,7 @@
 Branch: `codex/september-10-production-followups`, based on `15e643a` from
 `codex/september-8-bugfixes`. Release
 `e35b8847eb42d390ba01d734f4b32bb5abe5611c` was activated on all three development
-roles on September 10, 2026. Production is held. Linear 1M8-152, 178, 179, 180
+roles on September 10, 2026. Production activation is pending. Linear 1M8-152, 178, 179, 180
 and 181 are Done in Dev. Production promotion was subsequently authorized;
 see [promotion preparation](production-promotion-20260910.md) for current status.
 Synthetic recovery checks do not establish recovery of

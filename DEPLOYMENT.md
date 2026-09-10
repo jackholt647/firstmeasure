@@ -2,6 +2,10 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 10: [production promotion preparation](deploy/digitalocean/production-promotion-20260910.md)
+records the authorized follow-up release, signed channel and inactive staging on
+all eight hosts. Image rehearsal and production activation remain pending.
+
 September 9 live-incident follow-up: [503 and staff-page recovery](deploy/digitalocean/incident-20260909-503.md)
 records the editor session-lock repair, PHP capacity adjustment, and production
 readiness environment-file override. Preserve these during subsequent releases.

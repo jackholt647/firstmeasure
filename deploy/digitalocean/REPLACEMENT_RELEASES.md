@@ -1,5 +1,10 @@
 # Production replacement-node release delivery
 
+September 10 update: [production promotion preparation](production-promotion-20260910.md)
+records signing-key provisioning, a published signed channel and staged inactive
+releases on all eight hosts. The image/new-node rehearsal and production
+activation remain pending. The September 9 status below is historical.
+
 September 9, 2026: **prepared and tested; not installed or enabled in production**.
 No database resize, restart, autoscale-template change, signing-key creation or
 production release-channel publication was performed during preparation.

@@ -20,7 +20,8 @@ match their recorded Git baseline. Preserve the runtime configuration separately
 
 The compatibility controller now has a dedicated Ed25519 release-signing key at
 the documented private path, mode 0600. Only its public key was pinned on the six
-web hosts. No signed channel has been published. No existing service restarted.
+web hosts and worker. The signed private channel has now been published and
+verified; no existing service restarted.
 
 ## Runtime artifact and bootstrap preparation
 
@@ -37,14 +38,30 @@ its selected application source remains the exact tested e35b884 commit.
 Artifact on development worker:
 `/home/dev/code/followups-e35b884-runtime-v2.tar.gz`, 249430211 bytes,
 SHA-256 `5912483f4dd22f7a785104f44a6ed568eaef2164f67b57a1f799387ccc47f25a`.
-Transfer to the controller and independent archive verification remain pending.
+Transfer to the controller and independent checksum/archive verification passed.
+Large SSH uploads reset; a resumable transfer retained verified matching chunks.
+The controller published the initial signed manifest using the `none` previous
+target guard and its single-publisher lock. Upload readback validation passed.
+
+The exact artifact is installed but **inactive on all eight production hosts** at
+`/opt/firstmeasure/releases/e35b8847eb42d390ba01d734f4b32bb5abe5611c`.
+Web/worker downloaded from the private channel and verified signatures/checksums;
+their staged artifact receipts match the signed channel. Compatibility installed
+the independently verified same archive. Every `current` link still points to
+its previous September 9 release. The public production readiness check remains
+healthy on `61b0626cf07c07dab302ad2e95ddf84f4ee34fee`.
 
 Prepared files `firstmeasure-release-bootstrap.service`,
 `web-release-boot-dependency.conf` and `production-web-user-data.sh` prevent the
 web service starting before cloud-final and verified release installation.
 User-data queues service startup without waiting, avoiding an ordering deadlock.
 It fetches the existing private production overlay and preserves web heartbeat
-isolation. Shell syntax and systemd unit validation pass. These files have not
+isolation. The live overlay is partial, so validation merges it with the base
+configuration. Two executable Python bootstrap tests pass on Windows and Linux,
+covering that case and rejecting cross-environment/heartbeat overrides. CI also
+runs these checks. The Linux activation guard regression and two asymmetric
+connection-budget tests pass. Shell syntax and systemd unit validation pass.
+These boot files have not
 been installed on production or tested on a newly provisioned node yet.
 
 The image must already include the pinned helpers/public key, boot dependency,
@@ -73,8 +90,15 @@ Jack was asked for up to $10 temporary compute and up to $6/month image storage.
 Do not create charged resources without the answer. The candidate must be
 excluded from the public load balancer, and its connection budget bounded.
 
-Still required: image preparation, signed publication, real new-node rehearsal,
+Still required: image preparation, real new-node rehearsal,
 snapshot/template rollout, PHP tutorial-root permissions, application activation
 and workflow verification. Preserve the previous runtime and retained tutorial
 sources. Keep the five fixes Done in Dev until production verification; 1M8-173
 is In Progress. Do not bypass the release-channel guard.
+
+The PHP permission issue is confirmed on production: Node uses
+`/var/lib/firstmeasure-legacy-production/current/tutorials`, and its retained
+source exists, but PHP's www-data cannot write the primary root and the FPM pool
+has no tutorial-root environment assignment. Preserve `pm.max_children=20` and
+back up the pool configuration/ACLs before applying the scoped tutorial repair.
+No tutorial data or permissions have been changed during preparation.
