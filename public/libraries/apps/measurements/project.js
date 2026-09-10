@@ -3284,6 +3284,7 @@
         pins: JSON.stringify(state.type === 'additional_structure' ? reportRequestNewPins() : []),
         structure_count: String(state.type === 'additional_structure' ? reportRequestStructureCount() : 0),
         report_expedite_option: state.type === 'additional_structure' && reportExpediteOptionsEnabled() ? normalizeReportExpediteKey(state.expedite || 'standard_3_6') : 'standard_3_6',
+        report_pricing_revision: reportExpediteOption(state.expedite || 'standard_3_6')?.pricing_revision ?? 0,
         billing_reason: state.type === 'additional_structure' ? 'additional_structure_request' : '',
         billing_label: state.type === 'additional_structure' ? 'Additional structure request' : '',
         billing_description: state.type === 'additional_structure' ? 'Additional structures added to returned report' : ''
@@ -3644,7 +3645,8 @@
     try {
       const { data } = await postAction('expedite_queued_report', {
         project_id: projectId,
-        report_expedite_option: optionKey
+        report_expedite_option: optionKey,
+        report_pricing_revision: reportExpediteOption(optionKey)?.pricing_revision ?? 0
       });
       if (!data?.success) throw new Error(data?.error || data?.message || 'Could not expedite this report.');
       mergeReportManifestIntoActiveProject(data.manifest || {});

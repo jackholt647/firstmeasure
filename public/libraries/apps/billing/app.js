@@ -1407,6 +1407,7 @@
         report_expedite_total_price: f.report_expedite_total_price || '',
         report_expedite_net_total_price: f.report_expedite_net_total_price || '',
         report_expedite_rush_delta: f.report_expedite_rush_delta || '',
+        report_pricing_revision: f.report_pricing_revision ?? '',
         report_expedite_coupon_available: f.report_expedite_coupon_available || '',
         report_expedite_coupon_discount: f.report_expedite_coupon_discount || '',
         is_expedited: f.is_expedited === true || f.is_expedited === '1' || String(f.is_expedited || '').trim().toLowerCase() === 'true',

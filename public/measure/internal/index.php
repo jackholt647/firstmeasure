@@ -6609,6 +6609,7 @@ $ver = time(); // cache busting
             can_debug_firstmeasure: <?php echo $canDebugFirstMeasure ? 'true' : 'false'; ?>,
             can_data_agent: <?php echo $canDataAgent ? 'true' : 'false'; ?>,
             can_view_stats: <?php echo $isFullAdmin ? 'true' : 'false'; ?>,
+            can_manage_prices: <?php echo $isFullAdmin ? 'true' : 'false'; ?>,
             can_bulk_approve_qa: <?php echo $isFullAdmin ? 'true' : 'false'; ?>,
             is_qa_role: <?php echo $isQaRole ? 'true' : 'false'; ?>,
             is_manager_role: <?php echo ($isManagerRole || portalCanManagerReview($myUserData, $myPerms)) ? 'true' : 'false'; ?>,
@@ -6888,6 +6889,9 @@ $ver = time(); // cache busting
 <script src="portal_scripts/admin_tools.js?v=<?=$ver?>"></script>
 <script src="portal_scripts/api_keys.js?v=<?=$ver?>"></script>
 <script src="portal_scripts/feature_flags.js?v=<?=$ver?>"></script>
+<?php if ($isFullAdmin): ?>
+<script src="portal_scripts/prices.js?v=<?=$ver?>"></script>
+<?php endif; ?>
 <script src="portal_scripts/bonus_offers.js?v=<?=$ver?>"></script>
 <script src="portal_scripts/acquisition_campaigns.js?v=<?=$ver?>"></script>
 <script src="portal_scripts/shifts.js?v=<?=$ver?>"></script>

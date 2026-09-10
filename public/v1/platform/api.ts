@@ -11,6 +11,7 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { runPostgresPlatformHeartbeat } from "./heartbeat_postgres.js";
 import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey } from "../firstmeasure/expedite.js";
+import { assertReportPricingRevision } from "../firstmeasure/pricing.js";
 import {
   firstMeasureReportAmount as sharedFirstMeasureReportAmount,
   firstMeasureReportCharge as sharedFirstMeasureReportCharge
@@ -7961,6 +7962,7 @@ function assertPortalOwnsFirstMeasureProject(manifest: JsonObject, orgId: string
 }
 
 async function portalExpediteQueuedProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+  assertReportPricingRevision(body);
   await assertPortalFirstMeasureFlag(orgId, "report_expedite_options", "Report expediting is not enabled for this organization.");
   const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
   if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
@@ -8255,6 +8257,7 @@ async function portalSubmitReportReworkRequest(app: FastifyInstance, orgId: stri
   const globalData = asObject(global.data);
   const chargeQuote = requestType === "additional_structure" && projectType !== "residential"
     ? firstMeasureReportCharge({
+        report_pricing_revision: body.report_pricing_revision,
         report_expedite_option: normalizedExpedite,
         include_gutter_measurements: false
       }, projectType, "full", Array.from({ length: structureCount }, () => ({ lat: 0, lng: 0 })), numericValue(globalData.free_expedite_uses))

@@ -11,6 +11,8 @@ import { registerCodeReportsApi } from "../code-reports/api.js";
 import { registerCrmApi } from "../internal/crm/api.js";
 import { referralServiceRoutes } from "../internal/crm/referrals_service.js";
 import { registerFirstMeasureApi } from "../firstmeasure/api.js";
+import { installPricingContext } from "../firstmeasure/pricing_config.js";
+import { registerPricingAdmin } from "../firstmeasure/pricing_admin.js";
 import { registerFirstMeasureRemoteApi } from "../firstmeasure-remote/api.js";
 import { registerEmailApi } from "../email/api.js";
 import { registerInternalApi } from "../internal/api.js";
@@ -55,6 +57,8 @@ export async function buildApp() {
     }
   });
   installDiagnostics(app);
+  installPricingContext(app);
+  void app.register(registerPricingAdmin, { prefix: "/v1/firstmeasure/admin/prices" });
 
   if (env.clusterNodeRole === "legacy" && env.legacyProxySecret) {
     app.addHook("onRequest", async (request, reply) => {

@@ -952,6 +952,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   app.get("/state/:collection", async (request) => {
     const collection = param(request.params, "collection");
+    if (collection.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") === "pricing_config") throw forbidden("protected_collection", "Use the authenticated Prices API.");
     if (["manager_audit", "manager_review_samples", "manager_review_config"].includes(collection)) {
       await requireManagerReviewOverrideAccess(actorFromRequest(request));
     }
@@ -964,6 +965,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   app.put("/state/:collection/:id", async (request) => {
     const collection = param(request.params, "collection");
+    if (collection.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") === "pricing_config") throw forbidden("protected_collection", "Use the authenticated Prices API.");
     if (["manager_audit", "manager_review_samples", "manager_review_config"].includes(collection)) {
       await requireManagerReviewOverrideAccess(actorFromRequest(request));
     }

@@ -4559,7 +4559,8 @@
         due_window_end: (isAlias || useUiWindow) ? '' : (option.due_window_end || ''),
         production_deadline_at: (isAlias || useUiWindow) ? '' : (option.production_deadline_at || ''),
         expedited: key === 'standard_3_6' ? false : option.expedited !== false,
-        _pricingAuthoritative: true
+        _pricingAuthoritative: true,
+        pricing_revision: Number(data.pricing_revision ?? 0)
       };
     }).filter(Boolean);
     const byKey = new Map();
@@ -4670,6 +4671,7 @@
       report_expedite_total_price: String(reportExpediteTotalPrice(option, selectedType)),
       report_expedite_net_total_price: String(reportExpediteNetTotalPrice(option, selectedType)),
       report_expedite_rush_delta: String(Math.max(0, Math.round((reportExpediteUnitPrice(option, selectedType) - (TYPE_META[selectedType]?.price ?? PRICE_RESIDENTIAL)) * 100) / 100)),
+      report_pricing_revision: String(option.pricing_revision ?? 0),
       report_expedite_structure_count: String(reportExpediteStructureCount(selectedType)),
       report_expedite_additional_structure_minutes: String(Number(option.additionalStructureMinutes ?? option.additional_structure_minutes ?? 0) || 0),
       report_expedite_coupon_available: reportExpediteCouponDiscount(option, selectedType) > 0 ? '1' : '0',

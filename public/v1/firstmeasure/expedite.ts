@@ -1,3 +1,4 @@
+import { currentExpeditePricing, pricingContext } from "./pricing_config.js";
 export type ReportExpediteProjectType = "residential" | "commercial" | "multifamily";
 
 export type ReportExpediteOption = {
@@ -27,7 +28,6 @@ export const REPORT_EXPEDITE_UNDER_1_KEY = "rush_under_1";
 export const REPORT_EXPEDITE_1_3_KEY = "rush_1_3";
 
 const STANDARD_WAIT_DELAY_MINUTES = 60;
-const EXPEDITE_FEE_PERCENT = 115;
 
 type ReportExpediteDefinition = {
   key: string;
@@ -99,13 +99,14 @@ type ReportExpeditePricing = {
 };
 
 function previousRush13Delta(waitMinutes: number) {
-  const busyRatio = clamp((waitMinutes - 240) / 180, 0, 1);
-  return roundToDime(8 + busyRatio * 2) - 7;
+  const config = currentExpeditePricing();
+  const busyRatio = clamp((waitMinutes - config.wait_min_minutes) / (config.wait_max_minutes - config.wait_min_minutes), 0, 1);
+  return roundToDime(config.base_fee + busyRatio * config.busy_adder);
 }
 
 function increasedExpediteFee(previousFee: number) {
   const previousFeeCents = Math.round(previousFee * 100);
-  return Math.round(previousFeeCents * EXPEDITE_FEE_PERCENT / 100) / 100;
+  return Math.round(previousFeeCents * currentExpeditePricing().fee_multiplier + 1e-8) / 100;
 }
 
 function reportExpeditePricingForWait(optionKey: unknown, waitMinutes: number): ReportExpeditePricing {
@@ -113,14 +114,14 @@ function reportExpeditePricingForWait(optionKey: unknown, waitMinutes: number): 
   const key = option?.key || REPORT_EXPEDITE_STANDARD_KEY;
   const base = 7;
   if (key === REPORT_EXPEDITE_1_3_KEY) {
-    const rushDelta = increasedExpediteFee(previousRush13Delta(waitMinutes));
+    const rushDelta = roundCurrency(increasedExpediteFee(previousRush13Delta(waitMinutes)) + currentExpeditePricing().rush_adder);
     return {
       residentialPrice: roundCurrency(base + rushDelta),
       rushDelta
     };
   }
   if (key === REPORT_EXPEDITE_UNDER_1_KEY) {
-    const rushDelta = increasedExpediteFee(previousRush13Delta(waitMinutes) * 3);
+    const rushDelta = roundCurrency(increasedExpediteFee(previousRush13Delta(waitMinutes) * currentExpeditePricing().fast_multiplier) + currentExpeditePricing().fast_adder);
     return {
       residentialPrice: roundCurrency(base + rushDelta),
       rushDelta
@@ -252,7 +253,7 @@ export function buildReportExpediteOptions(input: {
 } = {}) {
   const projectType = normalizeReportExpediteProjectType(input.projectType);
   const structureCount = normalizeStructureCount(input.structureCount);
-  const now = input.now || new Date();
+  const now = input.now || pricingContext.getStore()?.now || new Date();
   const generatedAt = now.toISOString();
   const standardWait = estimatedStandardWait(now);
   const options = REPORT_EXPEDITE_DEFINITIONS.map((option): ReportExpediteOption => {
@@ -295,6 +296,7 @@ export function buildReportExpediteOptions(input: {
     ok: true,
     success: true,
     algorithm: "wait_linked_v1",
+    pricing_revision: pricingContext.getStore()?.revision ?? 0,
     generated_at: generatedAt,
     project_type: projectType,
     structure_count: structureCount,

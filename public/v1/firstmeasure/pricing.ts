@@ -1,4 +1,6 @@
 import { buildReportExpediteOptions, normalizeReportExpediteKey, reportExpediteBaseUnitPrice } from "./expedite.js";
+import { pricingContext } from "./pricing_config.js";
+import { FirstMeasureError } from "./errors.js";
 
 export type FirstMeasureReportPricingInput = {
   project_type?: unknown;
@@ -7,6 +9,7 @@ export type FirstMeasureReportPricingInput = {
   include_gutter_measurements?: unknown;
   include_weather_report?: unknown;
   pins?: unknown;
+  report_pricing_revision?: unknown;
 };
 
 export type FirstMeasureReportChargeInput = FirstMeasureReportPricingInput & {
@@ -42,7 +45,8 @@ function pinCount(value: unknown) {
 
 function standardWaitMinutes(type: string, structures: number) {
   const quote = buildReportExpediteOptions({ projectType: type, structureCount: structures });
-  return Number(quote.options.find((option) => option.key === "standard_3_6")?.estimated_wait_minutes ?? 180);
+  const standard = quote.options.find((option) => option.key === "standard_3_6");
+  return Number(standard?.estimated_wait_minutes ?? 180) - Number(standard?.additional_structure_minutes ?? 0);
 }
 
 export function firstMeasureInstantAddon(value: unknown) {
@@ -76,7 +80,16 @@ export function firstMeasureReportExpediteDiscount(input: FirstMeasureReportPric
   return money(type === "commercial" || type === "multifamily" ? unitDiscount * structures : unitDiscount);
 }
 
+export function assertReportPricingRevision(input: FirstMeasureReportPricingInput) {
+  const revision = pricingContext.getStore()?.revision ?? 0;
+  if (normalizeReportExpediteKey(input.report_expedite_option) !== "standard_3_6"
+    && revision > 0 && Number(input.report_pricing_revision ?? -1) !== revision) {
+    throw new FirstMeasureError("pricing_changed", 409, "Rush prices changed. Refresh the order and review the current price before submitting.");
+  }
+}
+
 export function firstMeasureReportCharge(input: FirstMeasureReportChargeInput) {
+  assertReportPricingRevision(input);
   const gross = firstMeasureReportAmount(input);
   const freeExpediteUses = Math.max(0, Math.round(Number(input.free_expedite_uses) || 0));
   const expediteDiscount = freeExpediteUses > 0 ? firstMeasureReportExpediteDiscount(input) : 0;
