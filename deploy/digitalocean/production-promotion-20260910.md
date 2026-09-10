@@ -8,6 +8,32 @@ All six web nodes have eight verified HTTP child processes. Linear 1M8-152,
 Autoscale is 6–7 (CPU50%, RAM60%, five-minute cooldown) to preserve database
 planning headroom. The historical checkpoints below describe earlier states.
 
+## Remaining Done in Dev issues reconciled
+
+Jack subsequently authorized promotion of the remaining Done in Dev items.
+Inspection found that all four were already included in the preceding e35b884
+activation: 1M8-142 (`7693795`, Google tiles), 1M8-169 (`cb623c6`, QA
+reservations), 1M8-176 (`2bce5b6`, admin Prices), and 1M8-177 (`989a3a2`, QA
+feedback durability). Git ancestry confirms each fix is in the active release.
+Their Linear statuses had remained stale. In particular, the Prices feature
+was already present despite its historical dev-only note; the latest request
+authorizes its production inclusion. No additional activation was performed.
+
+At approximately 21:02 UTC, fresh normalized SHA-256 comparisons of all 23
+application files changed by these four commits matched e35b884 on all eight
+production hosts. Every role service was active. Public readiness returned
+e35b884 with every check true. The application and test trees remain unchanged
+from the release; seven focused regression files passed 20/20 tests locally.
+All four issues now have evidence comments and status Testing in Prod.
+
+Reporting-team acceptance remains: explicit TILE refresh and visual inspection
+on the reported project, manager/QA reservation workflow, admin Prices preview
+and controlled checkout review, and saved feedback surviving rework/reload.
+The focused API tests used isolated SQLite fixtures; they do not establish
+dedicated PostgreSQL integration or full authenticated PHP portal acceptance.
+No customer captures, prices, charges, or project records were changed during
+this verification, and previously lost feedback has not been recovered.
+
 ## Verified access and baseline
 
 Trusted host keys and Juliet's root authentication work on all eight hosts.
