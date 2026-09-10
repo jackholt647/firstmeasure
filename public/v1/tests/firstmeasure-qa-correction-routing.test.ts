@@ -96,8 +96,7 @@ test("technician corrections return to the original QA within their priority", a
         url: "/v1/firstmeasure/projects/fresh-p1/editor/qa-thread-drafts",
         payload: { scope: "qa", clear: true }
       });
-      assert.equal(clearQaDraft.statusCode, 200, clearQaDraft.body);
-      assert.equal(clearQaDraft.json().drafts.qa, null);
+      assert.equal(clearQaDraft.statusCode, 409, "an unsubmitted feedback draft cannot be erased by a late clear request");
 
       const rosterTeamBootstrap = await app.inject({
         method: "POST",

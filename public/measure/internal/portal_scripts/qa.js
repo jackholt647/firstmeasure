@@ -3838,6 +3838,7 @@
       body: JSON.stringify({ scope, threads })
     });
 
+    if (!data || data.success !== true) throw new Error(data?.message || data?.error || 'QA feedback was not saved. Please retry.');
     if (data && data.drafts && typeof data.drafts === 'object') {
       nextMeta[draftKey] = cloneJson(data.drafts, {});
     }
@@ -3878,6 +3879,13 @@
     updateQaEditorBundleCache(folderId, { app_metadata: currentAppMetadata });
     return true;
     });
+  }
+
+  async function syncFeedbackBeforeDecision(){
+    const editor = getActiveQaEditorFrame()?.contentWindow?.DrafterQA;
+    if (editor?.flushDrafts) await editor.flushDrafts();
+    if (editor?.getThreads) qaThreads = mergeThreadDrafts(qaThreads, editor.getThreads());
+    await persistThreadDrafts();
   }
 
   function firstMeasureApiBase(){
@@ -5440,6 +5448,7 @@
 
     try {
       let reviewedPdfSync = null;
+      await syncFeedbackBeforeDecision();
       if (apiStatus === 'approved') {
         setQaSubmitBlocking(true, 'Saving latest editor changes...');
         await saveEmbeddedEditorStateForQaApproval();
@@ -5627,6 +5636,7 @@
 
     let reviewedPdfSync = null;
     try {
+      await syncFeedbackBeforeDecision();
       if (status === 'approved') {
         btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Preparing PDFs...`;
         setQaSubmitBlocking(true, 'Saving latest editor changes...');
@@ -9906,7 +9916,7 @@
       if (data.type === 'firstmeasure:qa_decision_request') {
         if (!currentId || String(data.folder || '') !== String(currentId)) return;
         if (Array.isArray(data.threads)) {
-          qaThreads = cloneJson(data.threads, []);
+          qaThreads = mergeThreadDrafts(qaThreads, data.threads);
           renderChecklist();
           updateActionButtons();
         }
@@ -9922,7 +9932,7 @@
       if (data.type !== 'firstmeasure:qa_threads_updated') return;
       if (!currentId || String(data.folder || '') !== String(currentId)) return;
       if (Array.isArray(data.threads)) {
-        qaThreads = cloneJson(data.threads, []);
+        qaThreads = mergeThreadDrafts(qaThreads, data.threads);
         renderChecklist();
         updateActionButtons();
       }

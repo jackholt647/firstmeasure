@@ -17,6 +17,7 @@ import {
   putProjectArtifact
 } from "../src/storage/project_artifacts.js";
 import { authContextFromRequest, requirePlatformAuth } from "../platform/auth.js";
+import { mergeQaFeedbackThreads } from "./qa_feedback.js";
 
 import { getAppleKeyInfo, setAppleKey } from "./apple.js";
 import { FIRSTMEASURE_FILE_NAMES, PDF_FILE_NAMES, firstMeasurePointValueForComplexity, type PdfSlot } from "./constants.js";
@@ -1429,6 +1430,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/projects/:id/editor/qa-thread-drafts", async (request) => {
     const projectId = getProjectId(request.params);
+    return withQaProjectClaimLock(projectId, async () => {
     const body = asRecord(request.body);
     const scope = String(body.scope ?? "").trim().toLowerCase();
     if (scope !== "qa" && scope !== "manager") {
@@ -1441,11 +1443,16 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     }
 
     const savedAt = new Date().toISOString();
+    const current = await readManifest(projectId);
+    const savedThreads = asRecord(asRecord(current.qa_thread_drafts)[scope]).threads;
+    if (clear && Array.isArray(savedThreads) && savedThreads.length) {
+      throw conflict("feedback_draft_not_submitted", "Feedback drafts are cleared only when successfully submitted. Reload to see the latest feedback.");
+    }
     const manifest = await patchManifest(projectId, {
       qa_thread_drafts: {
         [scope]: clear ? null : {
           saved_at: savedAt,
-          threads: body.threads
+          threads: mergeQaFeedbackThreads(savedThreads, body.threads)
         }
       }
     }, { backup: false });
@@ -1458,6 +1465,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       saved_at: savedAt,
       drafts: asRecord(manifest.qa_thread_drafts)
     };
+    });
   });
 
   app.post("/projects/:id/editor/presence", async (request) => {
@@ -3276,7 +3284,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const workHistory = Array.isArray(legacy.work_history) ? [...legacy.work_history] : [];
     const qaHistory = Array.isArray(legacy.qa_history) ? [...legacy.qa_history] : [];
-    const threads = Array.isArray(body.threads) ? body.threads : [];
+    const threads = mergeQaFeedbackThreads(legacy.qa_threads, asRecord(asRecord(manifest.qa_thread_drafts).qa).threads, body.threads);
     const requestedDecisionType = String(body.qa_decision_type ?? body.decision_type ?? "").trim().toLowerCase();
     const correctedByQa = decision === "approved" && (
       Boolean(body.corrected_by_qa ?? body.qa_corrected_by_qa)
@@ -3369,6 +3377,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         manager_review_reasons: managerReviewReasons,
         qa_reviewer_was_trainee: isQaTrainee,
         qa_threads: threads,
+        qa_thread_drafts: { qa: null },
         qa_history: qaHistory,
         qa_approved_by: actorEmail || null,
         qa_approved_by_name: actorName || null,
@@ -3484,6 +3493,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         qa_reject_count: rejectCount,
         qa_history: qaHistory,
         qa_threads: threads,
+        qa_thread_drafts: { qa: null },
         work_history: workHistory,
         assigned_to_email: null,
         assigned_to_name: null,
@@ -3558,7 +3568,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     }
 
     const workflow = asRecord(manifest.workflow);
-    const threads = Array.isArray(body.threads) ? body.threads : [];
+    const threads = mergeQaFeedbackThreads(legacy.manager_threads, asRecord(asRecord(manifest.qa_thread_drafts).manager).threads, body.threads);
     const notes = String(body.notes ?? "").trim();
     const workHistory = Array.isArray(legacy.work_history) ? [...legacy.work_history] : [];
 
@@ -3579,6 +3589,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       await patchManifest(projectId, {
         ...buildCustomerReworkCompletionPatch(legacy, nowIso, actorEmail, actorName),
         manager_threads: threads,
+        qa_thread_drafts: { manager: null },
         manager_approved_by: actorEmail || null,
         manager_approved_by_name: actorName || null,
         manager_approved_at: nowSql,
@@ -3635,6 +3646,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         patch: {
         ...rushBonusRemovalPatch("manager_sent_back_to_tech", nowSql),
         manager_threads: threads,
+        qa_thread_drafts: { manager: null },
         manager_reject_count: Number(legacy.manager_reject_count ?? 0) + 1,
         assigned_to_email: null,
         assigned_to_name: null,
@@ -3678,6 +3690,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/projects/:id/drafter/qa-response", async (request) => {
     const projectId = getProjectId(request.params);
+    return withQaProjectClaimLock(projectId, async () => {
     const body = asRecord(request.body);
     const pdfSync = await resolveProjectPdfSyncReference(
       projectId,
@@ -3705,7 +3718,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
           || (Array.isArray(legacy.manager_threads) && legacy.manager_threads.length > 0)
         )
       );
-    const normalizedThreads = Array.isArray(incomingThreads) ? incomingThreads : [];
+    const feedbackScope = isManagerCorrection ? "manager" : "qa";
+    const normalizedThreads = mergeQaFeedbackThreads(legacy[`${feedbackScope}_threads`], asRecord(asRecord(manifest.qa_thread_drafts)[feedbackScope]).threads, incomingThreads);
     assertQaFeedbackHandledBeforeResubmission(
       isManagerCorrection && Array.isArray(legacy.manager_threads) ? legacy.manager_threads : legacy.qa_threads,
       normalizedThreads
@@ -3722,6 +3736,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const patch: Record<string, unknown> = {
       uploaded_at: nowSql,
+      qa_thread_drafts: { [feedbackScope]: null },
       last_correction_stats: {
         submitted_at: nowSql,
         fixed_count: fixedCount,
@@ -3812,6 +3827,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       thread_scope: "qa",
       next_status: "awaiting_review"
     };
+    });
   });
 
   app.get("/projects/:id/email/status", async (request) => {

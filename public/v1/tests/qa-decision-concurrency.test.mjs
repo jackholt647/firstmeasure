@@ -10,6 +10,7 @@ import ts from 'typescript';
 // control flow. Storage/provider boundaries are deterministic in-memory fakes;
 // these tests do not authenticate a request or send email.
 const source = await readFile(new URL('../firstmeasure/api.ts', import.meta.url), 'utf8');
+const feedbackSource = (await readFile(new URL('../firstmeasure/qa_feedback.ts', import.meta.url), 'utf8')).replace('export function', 'function');
 function section(start, end) {
   const a = source.indexOf(start), b = source.indexOf(end, a + start.length);
   assert.ok(a >= 0 && b > a, `Missing source boundary: ${start}`);
@@ -38,6 +39,7 @@ function createNode({ acquire = sharedLocks(), state = new Map(), deliveries = [
   const routes = new Map();
   const error = (code, message) => Object.assign(new Error(message), { code });
   const context = vm.createContext({
+    structuredClone,
     process: { pid: 1234 }, // Different droplets can have the same process ID.
     qaProjectClaimLocks: new Map(), acquireFirstMeasureLock: acquire,
     app: { post: (url, fn) => routes.set(url, fn) },
@@ -70,7 +72,7 @@ function createNode({ acquire = sharedLocks(), state = new Map(), deliveries = [
     qaTechQueueCache: new Map(),
     mapWithConcurrency: async (values, _limit, fn) => Promise.all(values.map(fn)),
   });
-  vm.runInContext(compile(lockSource + (lockOnly ? '' : routesSource)), context);
+  vm.runInContext(compile(feedbackSource + lockSource + (lockOnly ? '' : routesSource)), context);
   return { routes, context, locks: context.qaProjectClaimLocks };
 }
 

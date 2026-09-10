@@ -179,7 +179,7 @@
   }
 
   async function persistThreadDrafts(){
-    if (!lastFolderId || typeof window.firstMeasureFetchJson !== 'function') return false;
+    if (!lastFolderId || typeof window.firstMeasureFetchJson !== 'function') throw new Error('Feedback saving is not ready. Please reload the project and retry.');
     const folderId = lastFolderId;
     const scope = activeThreadScope;
     const threads = cloneJson(qaThreads, []);
@@ -204,6 +204,7 @@
       body: JSON.stringify({ scope, threads })
     });
 
+    if (!data || data.success !== true) throw new Error(data?.message || data?.error || 'QA feedback was not saved. Please retry.');
     if (data && data.drafts && typeof data.drafts === 'object') {
       nextMeta[draftKey] = cloneJson(data.drafts, {});
     }
@@ -1697,6 +1698,7 @@
     notifyQaParent();
     persistThreadDrafts().then(notifyQaParent).catch((err) => {
       console.warn('Failed to persist QA feedback draft:', err);
+      alert('QA feedback is still visible in this tab, but could not be saved. Retry before leaving this project.');
     });
   }
 
@@ -1736,9 +1738,7 @@
     renderThreads();
     updateFab();
     notifyQaParent();
-    await persistThreadDrafts().catch((err) => {
-      console.warn('Failed to persist QA feedback draft:', err);
-    });
+    await persistThreadDrafts();
     notifyQaParent();
     return { success: true, threads: cloneJson(qaThreads, []) };
   }
@@ -1781,6 +1781,7 @@
       notifyQaParent();
       persistThreadDrafts().then(notifyQaParent).catch((err) => {
         console.warn('Failed to persist QA feedback draft:', err);
+        alert('Your feedback change could not be saved. Keep this tab open and retry before leaving the project.');
       });
       return;
     }
@@ -1885,16 +1886,11 @@
     const bundle = await fetchManifest(folderId);
     const manifest = bundle && bundle.manifest ? bundle.manifest : null;
     if (!manifest){
-      qaThreads = [];
-      displayThreads = [];
-      manifestData = null;
-      currentBundleMeta = {};
-      lastFolderId = folderId;
-      lastNotesSig = '';
-      hideModal();
-      updateFab();
+      // A transient read failure is not an empty project. Keep feedback intact.
       return;
     }
+    const localThreads = lastFolderId === folderId ? cloneJson(qaThreads, []) : [];
+    const localScope = activeThreadScope;
     
     lastFolderId = folderId;
     manifestData = manifest;
@@ -1918,6 +1914,9 @@
         getDraftThreadsFromMeta(currentBundleMeta, 'manager')
       )
     };
+    if (localThreads.length && localScope === activeThreadScope) {
+      threadsByScope[activeThreadScope] = mergeThreadDrafts(threadsByScope[activeThreadScope], localThreads);
+    }
     qaThreads = threadsByScope[activeThreadScope];
     displayThreads = buildDisplayThreads(threadsByScope, activeThreadScope);
     
@@ -1994,6 +1993,7 @@
       submitSilent: submitFixesSilent, 
       hasNotes: () => qaThreads.length > 0,
       addFeedback: addFeedbackFromExternal,
+      flushDrafts: () => persistThreadDrafts(),
       getThreads: () => cloneJson(qaThreads, [])
     };
     
