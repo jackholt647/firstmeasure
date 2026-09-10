@@ -1,8 +1,9 @@
-# September 10 production promotion — preparation in progress
+# September 10 production promotion — rollout in progress
 
 Jack authorized production promotion of 1M8-152, 178, 179, 180 and 181.
 The tested application release is `e35b8847eb42d390ba01d734f4b32bb5abe5611c`.
-No production application activation has occurred in this preparation.
+Compatibility and worker are active on this release. Web replacement is underway;
+the historical preparation/checkpoint sections below describe earlier states.
 
 ## Verified access and baseline
 
@@ -85,9 +86,8 @@ limits new nodes to two processes: 6×8 + 6×2 + 23 non-web = 83, plus ten headr
 applying. Restore normal process counts and autoscale range only after old nodes
 have drained. This is a proposed transition, not an applied setting or load test.
 
-Temporary rehearsal compute and a retained boot image require a spending limit;
-Jack was asked for up to $10 temporary compute and up to $6/month image storage.
-Do not create charged resources without the answer. The candidate must be
+Jack approved up to $10 temporary compute and up to $6/month retained image
+storage in the subsequent “Go for it” reply. The candidate must be
 excluded from the public load balancer, and its connection budget bounded.
 
 Still required: image preparation, real new-node rehearsal,
@@ -102,3 +102,82 @@ source exists, but PHP's www-data cannot write the primary root and the FPM pool
 has no tutorial-root environment assignment. Preserve `pm.max_children=20` and
 back up the pool configuration/ACLs before applying the scoped tutorial repair.
 No tutorial data or permissions have been changed during preparation.
+
+## September 10 live rollout checkpoint (20:11 UTC)
+
+Approved spending: up to $10 temporary compute and $6/month retained image.
+Production pool is temporarily fixed at six nodes. Controller bootstrap overlay
+now sets V1_WEB_WORKERS=2 for new nodes; current six serving nodes remain at eight.
+The original overlay is backed up privately on the controller. Restore normal
+process counts and autoscale 6–8 only after overlap ends.
+
+Snapshot 244892331 (`firstmeasure-production-web-signed-e35b884-20260910`,
+SFO3, 100 GB minimum, 17.01 GB stored) contains pinned external helpers,
+public verification key and web boot dependency. Created from 134.199.216.71
+without restarting its serving process. Estimated image storage is $1.03/month.
+Temporary rehearsal droplet 599439596, 143.198.231.177 / 10.124.0.4, c-8-intel,
+was created at about 20:04 UTC at $0.324/hour. It has only the admin firewall tag
+and a unique rehearsal tag, never the firstmeasure-web load-balancer tag.
+Temporary compatibility firewall rules allow only that rehearsal tag on 80/3101;
+remove after destroying the candidate. Provider inventory was verified before
+pinning its new SSH public host key; strict host checking remains enabled.
+
+The first boot caught HTTP 403 from the controller's bootstrap endpoint: NGINX
+could not read the root-only environment file. A scoped www-data read ACL fixes
+that while retaining private VPC, firewall and header authentication restrictions.
+Preserve that ACL when changing the overlay. After rerunning the startup script,
+the candidate was healthy on e35b884, with V1_WEB_WORKERS=2, pool max 1 and
+heartbeat disabled. An invalid pinned signing key blocked web startup; restoring
+the original public key restored verified startup. Reboot verification is underway.
+No production application activation or pool template submission yet.
+
+Before replacing old web hosts, online SQLite backups of all six referral ledgers
+were copied into controller /root/followups-ledger-preservation-20260910,
+mode 0700 directory / 0600 files. All six source/destination SHA-256 values match
+and quick_check passes. No ledger merge or customer write was performed.
+
+Compatibility PHP configuration is prepared: FPM tutorial-root environment points
+to the same primary root as Node, scoped www-data traversal/write/default ACLs
+are installed, and FPM configuration validation passes. pm.max_children=20 is
+preserved. Private config/ACL backups are under
+/root/followups-tutorial-config-backup. FPM has not restarted; activation will
+apply its environment change. No tutorial data was changed.
+
+## Corrected boot image and production activation (20:20 UTC)
+
+Reboot testing caught a real systemd cycle: cloud-final runs after multi-user,
+while web was wanted by multi-user and ordered after cloud-final. Move web's
+install target to cloud-init.target and run systemctl reenable after the drop-in.
+The corrected candidate rebooted with cloud-final, signed bootstrap and web all
+active, exact release readiness passing, and no ordering cycle. Chromium rendered
+a 7241-byte PDF as firstmeasure. This is a runtime smoke test, not a customer
+report replay. The initial image 244892331 is superseded and must not be used.
+
+Corrected image: 244899309,
+firstmeasure-production-web-signed-v2-e35b884-20260910, 16.97 GB, SFO3.
+Compatibility activated at approximately 20:14 UTC, followed by worker. Actual
+FPM FastCGI probe confirms the configured tutorial root exists and is writable;
+probe script was removed. Compatibility heartbeat remains the sole owner.
+
+At about 20:16 UTC the pool template was changed to corrected image 244899309
+and reviewed production-web-user-data.sh, preserving its VPC, c-8-intel plan,
+SSH provider key, production tags and fixed target six. Conservative budget
+using 26 non-web connections estimates 86 plus ten headroom within 97 usable.
+Observed connections were 72 before replacement and 81 during full overlap.
+All six new members independently passed signed receipt, release identity,
+production readiness, two-process limit, heartbeat-disabled and boot-target checks:
+
+| Droplet | Public IP | Private IP |
+| --- | --- | --- |
+| 599442759 | 64.23.240.81 | 10.124.0.16 |
+| 599442763 | 137.184.88.252 | 10.124.0.17 |
+| 599442764 | 137.184.187.218 | 10.124.0.18 |
+| 599442766 | 146.190.150.235 | 10.124.0.19 |
+| 599442768 | 143.198.137.97 | 10.124.0.5 |
+| 599442769 | 143.198.104.224 | 10.124.0.6 |
+
+Load balancer shows all twelve overlapping members Active / overall Healthy.
+Wait for old-member retirement before restoring eight processes and autoscale6–8.
+Temporary rehearsal 599439596 was stopped and destroyed after about ten minutes;
+its temporary compatibility firewall rules have been removed. Retained snapshots
+remain within the $6/month approved incremental storage budget.

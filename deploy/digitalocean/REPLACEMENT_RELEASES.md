@@ -1,9 +1,18 @@
 # Production replacement-node release delivery
 
-September 10 update: [production promotion preparation](production-promotion-20260910.md)
-records signing-key provisioning, a published signed channel and staged inactive
-releases on all eight hosts. The image/new-node rehearsal and production
-activation remain pending. The September 9 status below is historical.
+September 10 update: [production promotion record](production-promotion-20260910.md)
+records signing-key provisioning, the published signed channel, image 244899309,
+successful signature-failure/reboot rehearsal, and six genuinely new pool members
+verified on e35b884. Compatibility and worker are also activated. Follow that
+record for the final capacity restoration and current inventory.
+The September 9 status below is historical.
+
+The web unit must be enabled under `cloud-init.target`, not `multi-user.target`:
+cloud-final itself runs after multi-user, so the old target creates a cycle.
+After installing `web-release-boot-dependency.conf`, run
+`systemctl reenable firstmeasure-web.service`. Keep the pinned boot helpers
+outside the replaceable application tree. Preserve the controller environment
+file's scoped NGINX read ACL when updating the private bootstrap overlay.
 
 September 9, 2026: **prepared and tested; not installed or enabled in production**.
 No database resize, restart, autoscale-template change, signing-key creation or
