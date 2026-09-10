@@ -2,9 +2,13 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
-September 10: [production promotion preparation](deploy/digitalocean/production-promotion-20260910.md)
-records the authorized follow-up release, signed channel and inactive staging on
-all eight hosts. Image rehearsal and production activation remain pending.
+September 10: [production promotion record](deploy/digitalocean/production-promotion-20260910.md)
+records production release `e35b8847eb42d390ba01d734f4b32bb5abe5611c`, signed
+replacement image `244899309`, new web inventory, reboot/signature rehearsal and
+runtime verification. The old six web hosts have been replaced. Current autoscale
+range is 6–7 while retaining ten database connections of planning headroom;
+the earlier 6–8 limit and launch IPs below are historical. Consult the promotion
+record before changing capacity or rolling back.
 
 September 9 live-incident follow-up: [503 and staff-page recovery](deploy/digitalocean/incident-20260909-503.md)
 records the editor session-lock repair, PHP capacity adjustment, and production
@@ -17,7 +21,8 @@ records the live database audit and the prepared signed private release channel.
 The new production web activation guard requires the published channel to match
 the staged artifact. This is prepared code, not an activated bootstrap: do not
 declare 1M8-173 resolved or use old activation-script copies to bypass the guard.
-One-time signing-key/image provisioning and a real new-node rehearsal are pending.
+One-time signing-key/image provisioning and real new-node rehearsal were
+completed in the September 10 promotion record.
 
 ## Start here
 

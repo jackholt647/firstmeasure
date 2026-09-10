@@ -1,9 +1,12 @@
-# September 10 production promotion — rollout in progress
+# September 10 production promotion — deployed
 
 Jack authorized production promotion of 1M8-152, 178, 179, 180 and 181.
 The tested application release is `e35b8847eb42d390ba01d734f4b32bb5abe5611c`.
-Compatibility and worker are active on this release. Web replacement is underway;
-the historical preparation/checkpoint sections below describe earlier states.
+Compatibility, worker and all six new web members are active on this release.
+All six web nodes have eight verified HTTP child processes. Linear 1M8-152,
+178, 179, 180, 181 and replacement-node issue 173 are Testing in Prod.
+Autoscale is 6–7 (CPU50%, RAM60%, five-minute cooldown) to preserve database
+planning headroom. The historical checkpoints below describe earlier states.
 
 ## Verified access and baseline
 
@@ -181,3 +184,56 @@ Wait for old-member retirement before restoring eight processes and autoscale6�
 Temporary rehearsal 599439596 was stopped and destroyed after about ten minutes;
 its temporary compatibility firewall rules have been removed. Retained snapshots
 remain within the $6/month approved incremental storage budget.
+
+## Capacity restoration and final verification
+
+The old fleet retired after the provider's fixed-size cooldown; fresh inventory
+contains only the six 5994427xx members above. Database activity dropped to 38.
+The controller's future-node overlay was restored to eight web processes with
+its NGINX read ACL preserved. Current nodes are being restored sequentially,
+allowing graceful drain and confirming readiness after each restart.
+
+The safe autoscale range is now **6–7**, CPU 50%, RAM 60%, cooldown five minutes.
+This deliberately differs from the old maximum eight: a fresh client audit found
+four worker connections, up to nine compatibility/audit connections, and sixteen
+provider/hidden activity rows. Budgeting 29 non-web slots conservatively gives
+7×8+29=85 with 12 of 97 usable slots left; the ten-slot reserve passes. Eight
+nodes would not meet that reserve under this estimate. Review actual database
+capacity/dedicated clients before raising the maximum. Normal six-node process
+capacity remains eight per node. No database resize or credential change occurred.
+
+Production checks so far: all three public changed JavaScript assets match the
+approved source; unauthenticated QA CSV action returns 401; actual FPM confirms
+the shared tutorial root exists and is writable; worker has eight job slots,
+all job types, production PDF URL and disabled heartbeat. After activation the
+worker completed 50 normal PDF syncs in the observed window, with zero error-level
+entries. These are observations of normal jobs, not agent-created orders/sends.
+Customer-specific geometry/progress repair and reporting-team acceptance remain
+subject to the limitations in followups-20260910.md.
+
+Cleanup verified: temporary droplet 599439596 destroyed, both temporary firewall
+rules removed, and superseded image 244892331 deleted. Retained image 244899309
+uses 16.97 GB (~$1.02/month). Temporary compute overlap/rehearsal is estimated
+below $1, subject to the provider's actual billing, within the approved $10.
+
+## Final result (20:35 UTC)
+
+All six web nodes completed sequential restoration and independently passed
+signed-channel/receipt validation, production/legacy readiness and an actual
+count of eight HTTP child processes. Compatibility and worker match e35b884.
+Public health returns that release. Final database sample: 74 activity rows,
+max_connections100 / reserved3. No database migration or DNS change was made.
+Linear 1M8-152,178,179,180,181 and173 are Testing in Prod with evidence and limits.
+
+The last web restart finished at 20:33:50 UTC. NGINX shows uninterrupted successful
+provider health probes from 20:33:58 onward after the intentional drain. The
+provider dashboard subsequently confirmed **Healthy**, with all six new members
+**Active**, at approximately 20:36 UTC.
+
+Rollback: retained previous source/runtime remains in the new image/hosts and
+on fixed roles; old image 244502867 is retained. Web rollback requires packaging
+and publishing the reviewed previous runtime through the signed channel before
+activation. Do not bypass the guard or republish an unreviewed workspace.
+Compatibility/worker prior targets remain 0406b37 and 61b0626 respectively.
+Code rollback does not undo tutorial recovery or other live customer writes.
+Retained tutorial roots and private referral backups remain intact.
