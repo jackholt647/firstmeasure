@@ -1,10 +1,11 @@
-# September 10 production follow-ups — development candidate
+# September 10 production follow-ups — deployed to development
 
 Branch: `codex/september-10-production-followups`, based on `15e643a` from
-`codex/september-8-bugfixes`. Production is held. Remote development deployment
-and verification have not been performed: this workstation has no configured
-`dev-sync-droplet` SSH alias/key. Do not treat local fixture tests as a remote
-development acceptance or a recovery of live trainee data.
+`codex/september-8-bugfixes`. Release
+`e35b8847eb42d390ba01d734f4b32bb5abe5611c` was activated on all three development
+roles on September 10, 2026. Production is held. Linear 1M8-152, 178, 179, 180
+and 181 are Done in Dev. Synthetic recovery checks do not establish recovery of
+the affected production trainees' records.
 
 | Issue | Change | Local evidence |
 | --- | --- | --- |
@@ -22,11 +23,58 @@ Changed routing/export/tutorial tests pass after final edits. The embedded
 PostgreSQL cross-process QA/manager decision test passes with
 `NODE_OPTIONS=--experimental-sqlite` on local Node 22.12.
 
-## Development acceptance still required
+## Development deployment verified
 
-Deploy the exact candidate to isolated development, including Node and the PHP,
-editor and portal assets. Verify isolation/outbound restrictions as described
-in `DEPLOYMENT.md` before using any fixtures there.
+| Role | Host | Service | Previous release retained |
+| --- | --- | --- | --- |
+| Web | 143.198.68.11 | firstmeasure-development-web | capacity-r1-20260907-web |
+| Compatibility | 137.184.229.145 | firstmeasure-development-legacy | capacity-r1-20260907-legacy |
+| Worker | 137.184.44.82 | firstmeasure-development-worker | capacity-r1-20260907-worker |
+
+All three use `/opt/firstmeasure/releases/e35b8847eb42d390ba01d734f4b32bb5abe5611c`.
+The running environments were checked before activation. Host-only source
+differences were compared with both c97f876 and the candidate: the candidate
+preserves their implemented claim-lock, email-safety, worker-drain, heartbeat,
+artifact-listing and compatibility-dispatch fixes. Import placement, formatting,
+and superseded earlier implementations explain the remaining differences.
+
+New directories were staged from each host's prior runtime, overlaid with Git
+source, and verified against the candidate's source hashes. Local configuration
+stayed on its own host. Compatibility and worker passed dependency installation,
+type checking and compilation. Web has no npm, so it received compatibility's
+compiled JavaScript; package.json has no dependency changes from the baseline.
+The initial web build attempt failed due to missing npm before activation.
+No production activator or release-channel guard was bypassed.
+
+Compatibility, web and worker activated in that order with rollback checks.
+Public `https://dev.1m8.ai/v1/health/ready` confirms the exact release, development
+data environment, all dependency checks, and enforced outbound safety. Worker
+readiness and release identity were verified separately. Public `manager_review.js`,
+`qa.js` and editor `main.js` match the candidate bytes.
+
+All eight focused tests passed again against the deployed source with isolated
+test storage. Live authenticated service requests additionally verified CSV
+pagination, severity filtering and QA self-view. Retained tutorial progress,
+an exam attempt and a project were recovered for a synthetic user through the
+running API. Actual PHP-FPM found the recovered project and saved progress that
+the Node API subsequently read. These synthetic records were removed afterward;
+no customer message, charge or production write was made.
+
+PHP-FPM's www pool now receives `MEASURE_INTERNAL_TUTORIALS_ROOT` matching Node.
+Scoped ACLs permit www-data to traverse the development data ancestors and
+read/write the tutorial root, with inherited access for new children. Existing
+pool configuration was backed up as `/root/php-www-before-e35b884.conf`.
+Activation evidence and test logs remain under `/root/followups-*` on each host.
+No data import, DNS change, autoscale image or template update was performed.
+
+## Production promotion checks
+
+Promote the tested application source with the required PHP configuration and
+storage permissions. Verify existing tutorial files as the PHP worker user;
+inherited ACLs alone do not repair permissions on pre-existing children.
+The release-channel/bootstrap prerequisite in REPLACEMENT_RELEASES.md remains
+separate and unresolved by these bug fixes. A development replacement node
+must also be checked for release identity; its old image was not rebuilt here.
 
 - Verify trainee-only, VIP-only and combined manager queue labels.
 - Reopen and resubmit an affected geometry fixture several times, including a
