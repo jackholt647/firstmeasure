@@ -4054,6 +4054,15 @@ async function loadProjectFromFolder(folderHash) {
             if (s4) s4.classList.add('done');
         }
 
+        // Saved geometry is expressed in this image grid. Provider previews can
+        // have different dimensions; adopting those would move geometry again
+        // when the deferred TIFF arrives on every subsequent reopen.
+        const savedImageWidth = Number(meta.imageWidth);
+        const savedImageHeight = Number(meta.imageHeight);
+        imageWidth = Number.isFinite(savedImageWidth) && savedImageWidth > 0 ? savedImageWidth : 0;
+        imageHeight = Number.isFinite(savedImageHeight) && savedImageHeight > 0 ? savedImageHeight : 0;
+        if (!imageWidth || !imageHeight) { imageWidth = 0; imageHeight = 0; }
+
         // Seed radius from manifest (per-project, computed from pins on server)
         const manifestRadius = Number(manifest.radius_meters);
         if (Number.isFinite(manifestRadius) && manifestRadius > 0) {
@@ -4100,8 +4109,7 @@ async function loadProjectFromFolder(folderHash) {
                     const img = new Image();
                     img.crossOrigin = "Anonymous";
                     img.onload = () => {
-                        imageWidth = img.width;
-                        imageHeight = img.height;
+                        if (!imageWidth) { imageWidth = img.width; imageHeight = img.height; }
                         if (fallbackProvider === 'google') layerData.google = img;
                         if (fallbackProvider === 'azure') layerData.azure = img;
                         if (fallbackProvider === 'apple') layerData.apple = img;

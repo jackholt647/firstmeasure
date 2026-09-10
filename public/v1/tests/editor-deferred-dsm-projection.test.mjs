@@ -86,4 +86,26 @@ assert.equal(context.layerData.rgb[0].length, 1194 * 1197);
 assert.equal(context.viewCanvases.solar.width, 1194);
 assert.equal(context.viewCanvases.solar.height, 1197);
 
-console.log('PASS: DSM-only projects adopt the height-map projection and reproject saved geometry.');
+// Reopen a saved TIFF-grid project through its larger provider preview.
+// Exercise the actual load initialization and provider onload dimension code.
+const saved = JSON.parse(JSON.stringify(context.activeGeometry));
+context.meta = { imageWidth: 1194, imageHeight: 1197 };
+context.img = { width: 1792, height: 1792 };
+const seedStart = source.indexOf('        const savedImageWidth = Number(meta.imageWidth);');
+const seedEnd = source.indexOf('        // Seed radius from manifest', seedStart);
+assert.ok(seedStart >= 0 && seedEnd > seedStart);
+const fallbackStart = source.indexOf('                    img.onload = () => {', seedEnd);
+const fallbackEnd = source.indexOf("                        if (fallbackProvider === 'google')", fallbackStart);
+for (let reopen = 0; reopen < 3; reopen++) {
+  context.imageWidth = 1792;
+  context.imageHeight = 1792;
+  vm.runInContext(source.slice(seedStart, seedEnd), vm.createContext({
+    ...context, get imageWidth() { return context.imageWidth; }, set imageWidth(v) { context.imageWidth = v; },
+    get imageHeight() { return context.imageHeight; }, set imageHeight(v) { context.imageHeight = v; }
+  }));
+  vm.runInContext(source.slice(source.indexOf('{', fallbackStart) + 1, fallbackEnd), context);
+  context.scheduleDeferredProjectTiffLoad('reopened-project', { dsm: 'dsm-url' });
+  await scheduledTask;
+  assert.deepEqual(context.activeGeometry, saved, 'reopening must preserve points, vents, and heights');
+}
+console.log('PASS: DSM projection and repeated save/reopen preserve geometry.');

@@ -21,6 +21,7 @@ test("manager sign-off derives reasons for older queued records", () => {
   assert.equal(reason({ is_vip: true }).key, "vip");
   assert.equal(reason({ qa_reviewer_was_trainee: true }).key, "trainee");
   assert.equal(reason({}).key, "other");
+  assert.equal(reason({ manager_review_reasons: ["vip"], qa_reviewer_was_trainee: true }).key, "both");
 });
 
 test("manager queue and both inspectors render the reason label", () => {

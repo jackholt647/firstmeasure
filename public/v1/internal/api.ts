@@ -1,6 +1,8 @@
+import { managerReviewCsv } from "./manager_review_export.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
-import { chmod, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ZodError, z } from "zod";
@@ -2114,6 +2116,70 @@ function tutorialProjectsDir(courseId: string, email: string) {
   return path.join(tutorialUserCourseDir(courseId, email), "projects");
 }
 
+function tutorialRetainedRoot() {
+  return path.join(path.dirname(tutorialStorageRoot()), "public-storage", "measure", "internal", "tutorials");
+}
+
+// Recover missing student records into the writable root used by Node and PHP.
+// Existing primary progress/projects win, including intentionally reset progress.
+// Never modify the retained cutover tree or combine old and new project files.
+const tutorialRecoveryTasks = new Map<string, Promise<void>>();
+async function recoverTutorialStudent(courseId: string, email: string) {
+  const destination = tutorialUserCourseDir(courseId, email);
+  const pending = tutorialRecoveryTasks.get(destination);
+  if (pending) return pending;
+  const task = (async () => {
+    const marker = path.join(destination, ".cutover-recovery-v1.json");
+    if (await pathExists(marker)) return;
+    let recoveredSource = false;
+    const safe = tutorialSafeUser(email);
+    const roots = [tutorialStorageRoot(), tutorialRetainedRoot()];
+    const sources = roots.flatMap((root) => [
+      path.join(root, "users", safe, "courses", courseId),
+      courseId === "default" ? path.join(root, safe) : path.join(root, "courses", courseId, safe)
+    ]).filter((dir) => dir !== destination);
+    for (const source of sources) {
+      if (!(await pathExists(source))) continue;
+      recoveredSource = true;
+      await mkdir(destination, { recursive: true });
+      await chmod(destination, 0o777);
+      try {
+        await copyFile(path.join(source, "progress.json"), path.join(destination, "progress.json"), fsConstants.COPYFILE_EXCL);
+        await chmod(path.join(destination, "progress.json"), 0o666);
+      } catch (error) {
+        if (!["ENOENT", "EEXIST"].includes(String((error as NodeJS.ErrnoException).code))) throw error;
+      }
+      const projects = path.join(source, "projects");
+      if (!(await pathExists(projects))) continue;
+      for (const entry of await readdir(projects, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !isTutorialProjectId(entry.name)) continue;
+        const target = path.join(destination, "projects", entry.name);
+        if (await pathExists(target)) continue;
+        await mkdir(path.dirname(target), { recursive: true });
+        const staging = await mkdtemp(path.join(path.dirname(target), ".recovery-"));
+        try {
+          await cp(path.join(projects, entry.name), staging, { recursive: true, force: false });
+          await makeTutorialProjectPhpWritable(staging);
+          if (!(await pathExists(target))) {
+            try { await rename(staging, target); }
+            catch (error) { if (!(await pathExists(target))) throw error; }
+          }
+        } finally {
+          // mkdtemp creates this exact directory under the student's projects.
+          if (path.dirname(path.resolve(staging)) !== path.resolve(path.dirname(target)) || !path.basename(staging).startsWith(".recovery-")) {
+            throw new Error("Unexpected tutorial recovery staging path");
+          }
+          await rm(staging, { recursive: true, force: true });
+        }
+      }
+    }
+    // Subsequent explicit deletions/resets must not resurrect retained projects.
+    if (recoveredSource) await writeJsonFile(marker, { recovered_at: new Date().toISOString() });
+  })();
+  tutorialRecoveryTasks.set(destination, task);
+  try { await task; } finally { tutorialRecoveryTasks.delete(destination); }
+}
+
 async function pathExists(filePath: string) {
   try {
     await stat(filePath);
@@ -2152,6 +2218,7 @@ function tutorialDefaultProgress(): JsonObject {
 }
 
 async function readTutorialProgress(courseId: string, email: string) {
+  await recoverTutorialStudent(courseId, email);
   const primary = tutorialProgressPath(courseId, email);
   const legacy = tutorialLegacyProgressPath(courseId, email);
   const raw = await readJsonFile(await pathExists(primary) ? primary : legacy, tutorialDefaultProgress());
@@ -2164,6 +2231,7 @@ async function readTutorialProgress(courseId: string, email: string) {
 }
 
 async function listTutorialProjectsForUser(email: string, courseId: string) {
+  await recoverTutorialStudent(courseId, email);
   const dir = tutorialProjectsDir(courseId, email);
   const projects: JsonObject[] = [];
   if (!(await pathExists(dir))) return projects;
@@ -2206,53 +2274,39 @@ async function countTutorialProjectManifests(dir: string) {
 }
 
 async function countTutorialProjectsForCourse(email: string, courseId: string) {
-  const safe = tutorialSafeUser(email);
-  const root = tutorialStorageRoot();
-  const dirs = [
-    tutorialProjectsDir(courseId, email),
-    courseId === "default"
-      ? path.join(root, safe, "projects")
-      : path.join(root, "courses", courseId, safe, "projects")
-  ];
-  const seen = new Set<string>();
-  let count = 0;
-  for (const dir of dirs) {
-    const key = path.resolve(dir);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    count += await countTutorialProjectManifests(dir);
-  }
-  return count;
+  await recoverTutorialStudent(courseId, email);
+  return countTutorialProjectManifests(tutorialProjectsDir(courseId, email));
 }
-
 async function tutorialCandidateCourses(email: string, user: JsonObject, selectedCourseId: string) {
   const safe = tutorialSafeUser(email);
-  const root = tutorialStorageRoot();
+
   const courses = new Set<string>([
     selectedCourseId,
     defaultTutorialCourseForUser(user),
     "default",
     "software-update-refresh"
   ]);
-  const newCoursesRoot = path.join(root, "users", safe, "courses");
-  if (await pathExists(newCoursesRoot)) {
-    try {
-      for (const entry of await readdir(newCoursesRoot, { withFileTypes: true })) {
-        if (entry.isDirectory() && /^[a-zA-Z0-9_-]+$/.test(entry.name)) courses.add(entry.name);
+  for (const root of [tutorialStorageRoot(), tutorialRetainedRoot()]) {
+    const newCoursesRoot = path.join(root, "users", safe, "courses");
+    if (await pathExists(newCoursesRoot)) {
+      try {
+        for (const entry of await readdir(newCoursesRoot, { withFileTypes: true })) {
+          if (entry.isDirectory() && /^[a-zA-Z0-9_-]+$/.test(entry.name)) courses.add(entry.name);
+        }
+      } catch {
+        // Ignore unreadable per-user tutorial directories.
       }
-    } catch {
-      // Ignore unreadable per-user tutorial directories.
     }
-  }
-  const legacyCoursesRoot = path.join(root, "courses");
-  if (await pathExists(legacyCoursesRoot)) {
-    try {
-      for (const entry of await readdir(legacyCoursesRoot, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !/^[a-zA-Z0-9_-]+$/.test(entry.name)) continue;
-        if (await pathExists(path.join(legacyCoursesRoot, entry.name, safe))) courses.add(entry.name);
+    const legacyCoursesRoot = path.join(root, "courses");
+    if (await pathExists(legacyCoursesRoot)) {
+      try {
+        for (const entry of await readdir(legacyCoursesRoot, { withFileTypes: true })) {
+          if (!entry.isDirectory() || !/^[a-zA-Z0-9_-]+$/.test(entry.name)) continue;
+          if (await pathExists(path.join(legacyCoursesRoot, entry.name, safe))) courses.add(entry.name);
+        }
+      } catch {
+        // Ignore unreadable legacy tutorial directories.
       }
-    } catch {
-      // Ignore unreadable legacy tutorial directories.
     }
   }
   return [...courses].filter(Boolean);
@@ -2680,6 +2734,7 @@ async function saveTutorialProjectEditor(body: JsonObject, actor: JsonObject) {
   if (studentEmail !== actorEmail && !(await canManageTutorials(actor))) {
     return { ok: false, success: false, status_code: 403, error: "Unauthorized" };
   }
+  await recoverTutorialStudent(courseId, studentEmail);
   const dir = tutorialProjectDir(courseId, studentEmail, tutorialId);
   const manifestPath = path.join(dir, "manifest.json");
   const manifest = asObject(await readJsonFile(manifestPath, {}));
@@ -5331,6 +5386,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       return await managerReviewData(app, actor, false, body);
     case "manager_review_results":
       return await managerReviewResults(body, actor);
+    case "manager_review_results_export":
+      return await managerReviewResults(body, actor, true);
     case "manager_review_settings_get":
       return { ok: true, success: true, settings: await managerReviewSettings(actor, false) };
     case "manager_review_settings_save":
@@ -5859,7 +5916,7 @@ function managerReviewResultOptions(rows: JsonObject[], valueField: string, labe
   return [...options.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([value, label]) => ({ value, label }));
 }
 
-async function managerReviewResults(body: JsonObject, actor: JsonObject) {
+async function managerReviewResults(body: JsonObject, actor: JsonObject, exportCsv = false) {
   const access = await requireManagerReviewResultsAccess(actor);
   const viewerEmail = String(access.user.email ?? "").trim().toLowerCase();
   const settings = await managerReviewSettings(actor, false);
@@ -5991,7 +6048,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
   const sortedRows = [...rows].sort((a, b) => managerReviewText(b.reviewed_at, b.sample_date).localeCompare(managerReviewText(a.reviewed_at, a.sample_date)));
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pageRows = sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageRows = exportCsv ? sortedRows : sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize);
   await Promise.all(pageRows.map(async (row) => {
     if (row.address || !row.project_id) return;
     try {
@@ -6001,6 +6058,12 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject) {
       row.address = row.project_id;
     }
   }));
+  if (exportCsv) return {
+    ok: true, success: true,
+    filename: `qa-quality-${start}-through-${end}.csv`,
+    csv: managerReviewCsv(pageRows), count: pageRows.length,
+    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId, audit_status: auditStatus, severity: severityFilter }
+  };
   return {
     ok: true,
     success: true,

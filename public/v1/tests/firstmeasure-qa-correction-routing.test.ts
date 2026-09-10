@@ -342,6 +342,30 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(repeatCorrection.statusCode, 200, repeatCorrection.body);
       assert.equal(repeatCorrection.json().manifest.qa_claimed_by_email, otherQa.email);
 
+      // The PDF/status submission route must reserve a queued correction too,
+      // and stale hints must not override the latest rejecting reviewer.
+      await saveProject("generic-repeat-return", "queued", 2, {
+        qa_return_requested_at: new Date().toISOString(),
+        qa_return_to_email: originalQa.email,
+        correction_requested_by: originalQa.email,
+        qa_history: [
+          { decision: "rejected", qa_email: originalQa.email },
+          { decision: "rejected", qa_email: otherQa.email, qa_name: otherQa.name }
+        ]
+      });
+      const genericReturn = await updateStatusForSubmission("generic-repeat-return", "awaiting_review");
+      assert.equal(qaClaimOwner(genericReturn), otherQa.email);
+      assert.equal((genericReturn as Record<string, unknown>).qa_return_to_email, otherQa.email);
+      const repeatedSubmit = await updateStatusForSubmission("generic-repeat-return", "awaiting_review");
+      assert.equal((repeatedSubmit as Record<string, unknown>).qa_return_hold_expires_at,
+        (genericReturn as Record<string, unknown>).qa_return_hold_expires_at);
+      await saveProject("generic-open-return", "queued", 2, {
+        qa_return_requested_at: new Date().toISOString(), qa_return_to_email: otherQa.email,
+        qa_threads: [{ id: "still-open", status: "open", history: [] }]
+      });
+      await assert.rejects(() => updateStatusForSubmission("generic-open-return", "awaiting_review"),
+        (error: unknown) => (error as { code?: string }).code === "qa_feedback_unresolved");
+
       await saveProject("history-return", "correction_needed", 3, {
         qa_history: [{ decision: "rejected", qa_email: originalQa.email, qa_name: originalQa.name }]
       });

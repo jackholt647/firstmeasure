@@ -79,6 +79,20 @@ test("VIP projects and projects approved by trainee QA both require manager revi
       assert.equal(vipApproval.json().manifest.status, "awaiting_manager_review");
       assert.deepEqual(vipApproval.json().manifest.manager_review_reasons, ["vip"]);
       assert.equal(vipApproval.json().manifest.qa_reviewer_was_trainee, false);
+
+      // The approval response is not what the manager queue renders. Exercise
+      // its compact bootstrap projection, which previously dropped the reasons.
+      const bootstrap = await app.inject({
+        method: "POST", url: "/v1/firstmeasure/qa/bootstrap",
+        payload: { actor: { email: "manager@example.test", roles: ["manager"] } }
+      });
+      assert.equal(bootstrap.statusCode, 200, bootstrap.body);
+      const managerRows = bootstrap.json().manager;
+      const traineeRow = managerRows.find((row: { id: string }) => row.id === "trainee-standard-project");
+      const vipRow = managerRows.find((row: { id: string }) => row.id === "experienced-vip-project");
+      assert.deepEqual(traineeRow.manager_review_reasons, ["qa_trainee"]);
+      assert.equal(traineeRow.qa_reviewer_was_trainee, true);
+      assert.deepEqual(vipRow.manager_review_reasons, ["vip"]);
     } finally {
       await app.close();
     }

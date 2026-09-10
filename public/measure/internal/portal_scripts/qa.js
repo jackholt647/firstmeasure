@@ -2668,10 +2668,8 @@
       ? item.manager_review_reasons.map((reason) => String(reason || '').trim().toLowerCase())
       : [];
     const reasons = new Set(supplied);
-    if (!reasons.size) {
-      if (item?.is_vip) reasons.add('vip');
-      if (item?.qa_reviewer_was_trainee) reasons.add('qa_trainee');
-    }
+    if (item?.is_vip) reasons.add('vip');
+    if (item?.qa_reviewer_was_trainee) reasons.add('qa_trainee');
     const vip = reasons.has('vip');
     const trainee = reasons.has('qa_trainee');
     if (vip && trainee) return { key: 'both', label: 'VIP + New QA', title: 'Manager sign-off is required because this is a VIP project and the QA reviewer is new.' };

@@ -5220,6 +5220,9 @@ async function buildLegacyProjectRow(
     qa_priority_at: legacy.qa_priority_at ?? null,
     qa_priority_by_email: String(legacy.qa_priority_by_email ?? ""),
     qa_priority_by_name: String(legacy.qa_priority_by_name ?? ""),
+    manager_review_required: Boolean(legacy.manager_review_required),
+    manager_review_reasons: Array.isArray(legacy.manager_review_reasons) ? legacy.manager_review_reasons : [],
+    qa_reviewer_was_trainee: Boolean(legacy.qa_reviewer_was_trainee),
     qa_approved_by: String(legacy.qa_approved_by ?? ""),
     qa_approved_by_name: String(legacy.qa_approved_by_name ?? ""),
     qa_paid_to_email: String(legacy.qa_paid_to_email ?? ""),
@@ -5397,6 +5400,9 @@ function buildProjectListViewRow(
     qa_priority_at: legacy.qa_priority_at ?? null,
     qa_priority_by_email: String(legacy.qa_priority_by_email ?? ""),
     qa_priority_by_name: String(legacy.qa_priority_by_name ?? ""),
+    manager_review_required: Boolean(legacy.manager_review_required),
+    manager_review_reasons: Array.isArray(legacy.manager_review_reasons) ? legacy.manager_review_reasons : [],
+    qa_reviewer_was_trainee: Boolean(legacy.qa_reviewer_was_trainee),
     qa_approved_by: String(legacy.qa_approved_by ?? ""),
     qa_approved_by_name: String(legacy.qa_approved_by_name ?? ""),
     qa_approved_at: legacy.qa_approved_at ?? legacy.qa_reviewed_at ?? null,
@@ -8380,6 +8386,27 @@ export async function updateStatusForSubmission(projectId: string, requestedStat
       && Math.abs(Date.parse(nowIso) - lastEventTs) < 10_000;
     const rushBonusPatch = await buildRushBonusPatchForSubmission(currentStatus, workHistory, nowIso);
     const customerReworkPatch = buildCustomerReworkSubmittedToQaPatch(manifest, nowIso);
+    const legacy = buildLegacyManifest(manifest);
+    const pendingQaReturn = nextStatus === "awaiting_review"
+      && Boolean(legacy.qa_return_requested_at)
+      && !legacy.qa_return_submitted_at;
+    if (pendingQaReturn) {
+      assertQaFeedbackHandledBeforeResubmission(correctionFeedbackThreads(manifest, "correction_needed"), []);
+    }
+    const returnQa = pendingQaReturn ? resolveCorrectionReturnQa(legacy) : { email: "", name: "" };
+    const holdExpiresAt = new Date(Date.now() + QA_CORRECTION_RETURN_HOLD_MS).toISOString();
+    const returnPatch = returnQa.email ? {
+      qa_claimed_by_email: returnQa.email,
+      qa_claimed_by_name: returnQa.name,
+      qa_claimed_at: nowIso,
+      qa_available: false,
+      qa_availability_reason: "claimed",
+      hidden_from_queue: true,
+      qa_return_to_email: returnQa.email,
+      qa_return_to_name: returnQa.name,
+      qa_return_submitted_at: nowIso,
+      qa_return_hold_expires_at: holdExpiresAt
+    } : {};
     const isCustomerReworkSubmission = Object.keys(customerReworkPatch).length > 0;
     if (!alreadyRecorded) {
       workHistory.push({
@@ -8404,11 +8431,12 @@ export async function updateStatusForSubmission(projectId: string, requestedStat
         });
       }
     }
-    if (!alreadyRecorded || Object.keys(rushBonusPatch).length > 0 || isCustomerReworkSubmission) {
+    if (!alreadyRecorded || Object.keys(rushBonusPatch).length > 0 || isCustomerReworkSubmission || returnQa.email) {
       const nowSql = toSqlDateString(new Date());
       return patchManifest(projectId, {
         ...rushBonusPatch,
         ...customerReworkPatch,
+        ...returnPatch,
         status: nextStatus,
         timestamps: {
           uploaded_at: nowSql,
@@ -8417,6 +8445,10 @@ export async function updateStatusForSubmission(projectId: string, requestedStat
         work_history: workHistory,
         workflow: {
           ...workflow,
+          ...(returnQa.email ? { qa_claim: {
+            email: returnQa.email, name: returnQa.name, claimed_at: nowIso,
+            claim_reason: "correction_return", hold_expires_at: holdExpiresAt
+          } } : {}),
           work_history: workHistory
         }
       });
@@ -8496,14 +8528,8 @@ function qaClaimEmail(manifest: ProjectManifest) {
 }
 
 function resolveCorrectionReturnQa(legacy: Record<string, unknown>) {
-  const explicitEmail = String(
-    legacy.qa_return_to_email
-    ?? legacy.correction_requested_by
-    ?? ""
-  ).trim().toLowerCase();
-  const explicitName = String(legacy.qa_return_to_name ?? "").trim();
-  if (explicitEmail) return { email: explicitEmail, name: explicitName || explicitEmail };
-
+  // The rejection history is authoritative. Legacy/browser hint fields can
+  // still name the first reviewer after another QA has returned the project.
   const qaHistory = Array.isArray(legacy.qa_history) ? legacy.qa_history : [];
   for (let index = qaHistory.length - 1; index >= 0; index -= 1) {
     const entry = asRecord(qaHistory[index]);
@@ -8515,7 +8541,9 @@ function resolveCorrectionReturnQa(legacy: Record<string, unknown>) {
       name: String(entry.qa_name ?? email).trim() || email
     };
   }
-  return { email: "", name: "" };
+  const explicitEmail = String(legacy.correction_requested_by || legacy.qa_return_to_email || "").trim().toLowerCase();
+  const hintEmail = String(legacy.qa_return_to_email || "").trim().toLowerCase();
+  return { email: explicitEmail, name: hintEmail === explicitEmail ? String(legacy.qa_return_to_name || explicitEmail).trim() : explicitEmail };
 }
 
 function qaClaimedAt(manifest: ProjectManifest) {

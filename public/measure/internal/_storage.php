@@ -38,6 +38,12 @@ function storageNormalizeRelativePath($relative) {
 function storagePath($relative = '', $ensureParent = false) {
     $relative = storageNormalizeRelativePath($relative);
     $path = storageRoot() . ($relative !== '' ? '/' . $relative : '');
+    // Tutorial editor/grading writes must share Node's configured writable
+    // root after the cutover, rather than starting a second progress tree.
+    $tutorialRoot = getenv('MEASURE_INTERNAL_TUTORIALS_ROOT') ?: getenv('TUTORIALS_STORAGE_ROOT');
+    if ($tutorialRoot && ($relative === 'tutorials' || strpos($relative, 'tutorials/') === 0)) {
+        $path = rtrim($tutorialRoot, '/\\') . substr($relative, strlen('tutorials'));
+    }
 
     if ($ensureParent) {
         $parent = dirname($path);
