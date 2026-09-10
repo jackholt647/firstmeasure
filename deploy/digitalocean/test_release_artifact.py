@@ -28,6 +28,10 @@ class ArtifactTests(unittest.TestCase):
             (repo / 'public/v1/dist/src/server.js').write_text('// fixture')
             (repo / 'public/v1/node_modules/pg').mkdir(parents=True)
             (repo / 'public/v1/node_modules/pg/package.json').write_text('{}')
+            (repo / 'public/v1/dist/src/storage').mkdir()
+            (repo / 'public/v1/dist/src/storage/project_artifacts.js').write_text('// real runtime module')
+            (repo / 'public/v1/node_modules/pg/test').mkdir()
+            (repo / 'public/v1/node_modules/pg/test/fixture.key').write_text('test fixture only')
             (repo / 'release.env').write_text('RELEASE_ID=' + commit + '\n')
             (repo / 'public/v1/.env').write_text('SECRET=never-package')
             (repo / 'unrelated.txt').write_text('not part of release')
@@ -36,6 +40,8 @@ class ArtifactTests(unittest.TestCase):
             with tarfile.open(output) as tar:
                 self.assertNotIn('public/v1/.env', tar.getnames())
                 self.assertNotIn('unrelated.txt', tar.getnames())
+                self.assertIn('public/v1/dist/src/storage/project_artifacts.js', tar.getnames())
+                self.assertNotIn('public/v1/node_modules/pg/test/fixture.key', tar.getnames())
             self.assertEqual(json.loads((repo / '.release-artifact.json').read_text()), m)
             artifact.install(output, m, root / 'installed')
 
@@ -64,7 +70,7 @@ class ArtifactTests(unittest.TestCase):
             self.assertEqual(artifact.install(file, m, root / 'releases'), target)
 
     def test_rejects_traversal_secrets_and_duplicate_members_before_extracting(self):
-        for name in ('../escape', '/escape', 'public/v1/storage/secrets/token.txt', 'public/v1/.env', 'release.env'):
+        for name in ('../escape', '/escape', 'public/v1/storage/secrets/token.txt', 'public/v1/dist/src/storage/token.txt', 'public/v1/.env', 'release.env'):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
                 file, m = self.make(root, [(name, b'bad')])

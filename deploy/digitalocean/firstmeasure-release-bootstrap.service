@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify and install the signed FirstMeasure web release at boot
+Wants=network-online.target
+After=network-online.target cloud-final.service
+Before=firstmeasure-web.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/firstmeasure-release/bootstrap-web-release.sh
+RemainAfterExit=yes
+TimeoutStartSec=900

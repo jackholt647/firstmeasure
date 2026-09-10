@@ -21,7 +21,11 @@ def safe_name(name):
     p = PurePosixPath(name)
     if not name or p.is_absolute() or '..' in p.parts or '\\' in name or ':' in name or p.as_posix() != name:
         raise ValueError('Unsafe archive path')
-    if any(x in {'.git', 'private', 'storage', 'secrets', '.local-runtime'} for x in p.parts):
+    storage_module = name in {
+        'public/v1/src/storage/project_artifacts.ts',
+        'public/v1/dist/src/storage/project_artifacts.js',
+    }
+    if any(x in {'.git', 'private', 'secrets', '.local-runtime'} for x in p.parts) or ('storage' in p.parts and not storage_module):
         raise ValueError('Runtime state or secret directory in code archive')
     if p.name == '.env' or p.name.startswith('.env.') or p.suffix.lower() in {'.pem', '.key', '.sqlite', '.db', '.zip'}:
         raise ValueError('Private or nested archive file in code archive')
@@ -65,7 +69,18 @@ def package(repo, stage, commit, out):
             raise ValueError('Missing compiled Linux runtime or dependencies')
         for path in folder.rglob('*'):
             if path.is_file() and '.bin' not in path.relative_to(stage).parts:
-                names.add(path.relative_to(stage).as_posix())
+                name = path.relative_to(stage).as_posix()
+                # Registry packages include TLS keys and archives used only by
+                # their tests. Keep those out without relaxing install checks.
+                try:
+                    safe_name(name)
+                except ValueError:
+                    parts = path.relative_to(stage / 'public/v1/node_modules').parts if relative.endswith('node_modules') else ()
+                    package_end = 2 if parts and parts[0].startswith('@') else 1
+                    if len(parts) > package_end and parts[package_end] in {'test', 'tests'}:
+                        continue
+                    raise
+                names.add(name)
     required = {'public/v1/dist/src/server.js', 'public/v1/package-lock.json', 'public/v1/node_modules/pg/package.json'}
     if not required <= names:
         raise ValueError('Incomplete release runtime')
