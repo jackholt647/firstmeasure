@@ -39,7 +39,7 @@ for attempt in range(12):
         with urllib.request.urlopen(request, timeout=10) as response:
             raw = response.read(65537)
         assert len(raw) < 65537
-        values = parse(raw)
+        values = {**base, **parse(raw)}
         assert values['FIRSTMEASURE_DATA_ENVIRONMENT'] == 'production'
         assert values['SPACES_PREFIX'] == 'production'
         assert values['PLATFORM_HEARTBEAT_DISABLED'] == '1'

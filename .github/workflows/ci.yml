@@ -39,6 +39,7 @@ jobs:
         run: |
           node --test deploy/digitalocean/release-delivery.test.mjs
           python3 -B -m unittest discover -s deploy/digitalocean -p 'test_release_*.py'
-          for script in activate-release.sh prepare-web-release.sh publish-web-release.sh bootstrap-web-release.sh; do
+          python3 -B -m unittest discover -s deploy/digitalocean -p 'test_web_bootstrap.py'
+          for script in activate-release.sh prepare-web-release.sh publish-web-release.sh bootstrap-web-release.sh production-web-user-data.sh; do
             bash -n "deploy/digitalocean/$script"
           done
