@@ -34,3 +34,11 @@ jobs:
       - name: Validate local cluster definition
         working-directory: .
         run: docker compose -f deploy/local-cluster/compose.yml config --quiet
+      - name: Replacement-node release delivery safety checks
+        working-directory: .
+        run: |
+          node --test deploy/digitalocean/release-delivery.test.mjs
+          python3 -B -m unittest discover -s deploy/digitalocean -p 'test_release_*.py'
+          for script in activate-release.sh prepare-web-release.sh publish-web-release.sh bootstrap-web-release.sh; do
+            bash -n "deploy/digitalocean/$script"
+          done

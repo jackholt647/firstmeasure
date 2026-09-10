@@ -1,4 +1,20 @@
-# FirstMeasure local development stack
+# FirstMeasure
+
+## Continue from another computer
+
+The current handoff branch is **`codex/september-8-bugfixes`** (September 10,
+2026); `main` is an older baseline. Clone the branch explicitly:
+
+```sh
+git clone --branch codex/september-8-bugfixes https://github.com/jackholt647/firstmeasure.git
+cd firstmeasure
+```
+
+Read [AGENTS.md](AGENTS.md), [NEW_COMPUTER.md](NEW_COMPUTER.md), then
+[DEPLOYMENT.md](DEPLOYMENT.md). The new-computer guide covers local setup,
+SSH access provisioning, Git pushes, and the authorized release workflow.
+GitHub access and server credentials must be provisioned separately; cloning
+does not grant server access. A Git push runs CI, not a production deployment.
 
 For production architecture, the Codex development-to-deployment workflow, and
 required release checks, start with [DEPLOYMENT.md](DEPLOYMENT.md). Its completed
@@ -6,8 +22,8 @@ cutover state supersedes older migration documents' pre-cutover assumptions.
 
 This clone runs independently from FirstMate 2.0.
 
-See [MULTI_DROPLET_MIGRATION.md](MULTI_DROPLET_MIGRATION.md) for the active
-horizontal-scaling conversion and zero-downtime cutover sequence.
+See [MULTI_DROPLET_MIGRATION.md](MULTI_DROPLET_MIGRATION.md) for historical
+horizontal-scaling conversion and cutover context; the migration is complete.
 Production role files and immutable rolling-release instructions are in
 [deploy/digitalocean/README.md](deploy/digitalocean/README.md).
 

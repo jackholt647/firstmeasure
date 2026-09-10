@@ -2,7 +2,18 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 9 live-incident follow-up: [503 and staff-page recovery](deploy/digitalocean/incident-20260909-503.md)
+records the editor session-lock repair, PHP capacity adjustment, and production
+readiness environment-file override. Preserve these during subsequent releases.
+
 September 9 follow-up: see [bug-fix releases and verification](deploy/digitalocean/releases-20260909.md), including the unresolved autoscale replacement-code risk. The launch release below is historical, not the current active code.
+
+September 9 capacity/release follow-up: [replacement release delivery](deploy/digitalocean/REPLACEMENT_RELEASES.md)
+records the live database audit and the prepared signed private release channel.
+The new production web activation guard requires the published channel to match
+the staged artifact. This is prepared code, not an activated bootstrap: do not
+declare 1M8-173 resolved or use old activation-script copies to bypass the guard.
+One-time signing-key/image provisioning and a real new-node rehearsal are pending.
 
 ## Start here
 

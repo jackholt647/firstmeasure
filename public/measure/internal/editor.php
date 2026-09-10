@@ -3,6 +3,9 @@ require_once __DIR__ . '/_storage.php';
 require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
 /* backend.php - Secured Version */
 session_start();
+// This page only reads session identity. Do not hold its lock while fetching
+// project data: a slow storage request would block the user's other staff tabs.
+session_write_close();
 require_once __DIR__ . '/firstmeasure_node.php';
 require_once __DIR__ . '/_tutorials.php';
 require_once __DIR__ . '/_permission_options.php';

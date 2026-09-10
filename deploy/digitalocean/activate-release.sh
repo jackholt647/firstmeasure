@@ -19,6 +19,15 @@ if [[ ! -f "$release_directory/public/v1/dist/src/server.js" ]]; then
   exit 2
 fi
 
+# Fail BEFORE changing symlinks or services if future autoscaled production nodes
+# would boot different code. Publish the tested artifact on the release controller
+# first. This also applies to deliberate web rollbacks: restore the channel first.
+if [[ "$service_name" == "firstmeasure-web.service" ]]; then
+  activation_script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
+  python3 "$activation_script_dir/with-service-environment.py" "$service_name" \
+    node "$activation_script_dir/release-channel.mjs" require-target "$release_directory"
+fi
+
 previous_target="$(readlink -f /opt/firstmeasure/current 2>/dev/null || true)"
 php_fpm_service="${FIRSTMEASURE_PHP_FPM_SERVICE:-php8.3-fpm.service}"
 

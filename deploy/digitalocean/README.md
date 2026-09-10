@@ -91,6 +91,12 @@ when that marker disagrees with the configured data environment.
 
 ## Immutable releases
 
+For production web releases, also follow [replacement-node release delivery](REPLACEMENT_RELEASES.md).
+The prepared signed release channel makes the replacement target part of each
+deployment, and `activate-release.sh` refuses production web activation unless
+that target matches the staged artifact. One-time bootstrap provisioning is still
+pending; do not activate this workflow piecemeal on the live fleet.
+
 GitHub is the source of truth. CI tests every commit. Produce or check out one
 exact commit on a deployment host, transfer that source directory privately to
 each Droplet, then prepare it without touching the running process:

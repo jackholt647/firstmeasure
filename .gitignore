@@ -22,6 +22,11 @@ dist/
 public/v1/output/
 
 # Logs and temporary output
+/output/
+/outputs/
+__pycache__/
+*.pyc
+.tmp-*
 *.log
 *.out
 *.err
