@@ -40,6 +40,7 @@ import {
 } from "./google3d.js";
 import { renderProjectPdf } from "./pdf.js";
 import { processProjectImagery, processProjectInsights, processProjectMask } from "./processing.js";
+import { imageryFailurePatch } from './solar_imagery.js';
 import {
   ensureFirstMeasureProjectIndexReady,
   findIndexedProjectByNormalizedAddress,
@@ -11617,14 +11618,7 @@ async function runBackgroundImageryProcess(projectId: string, input: Record<stri
       }
     });
   } catch (error) {
-    await patchManifest(projectId, {
-      status: "needs_structure_pins",
-      structure_pin_status: "failed",
-      structure_pin_error: String((error as Error)?.message ?? error ?? "Pin generation failed."),
-      timestamps: {
-        structure_pins_failed_at: new Date().toISOString()
-      }
-    }).catch(() => null);
+    await patchManifest(projectId, imageryFailurePatch(error)).catch(() => null);
   }
 }
 

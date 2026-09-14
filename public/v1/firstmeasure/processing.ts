@@ -1,4 +1,5 @@
 import { badRequest } from "./errors.js";
+import { fetchRequiredSolarLayers, fetchRequiredSolarDsm } from './solar_imagery.js';
 import { env } from "../src/config/env.js";
 import { INSTANT_STRUCTURE_INSIGHTS_FILE_NAME } from "./instant.js";
 import { ensureInstantPdfArtifact } from "./instant_pdf.js";
@@ -1020,7 +1021,7 @@ export async function processProjectImagery(projectId: string, input: Processing
     + "&requiredQuality=LOW"
     + `&pixelSizeMeters=${pixelSizeMeters}`
     + `&key=${encodeURIComponent(key)}`;
-  const layers = await fetchJson<{
+  const layers = await fetchRequiredSolarLayers<{
     rgbUrl?: string;
     dsmUrl?: string;
     maskUrl?: string;
@@ -1028,6 +1029,12 @@ export async function processProjectImagery(projectId: string, input: Processing
     imageryDate?: unknown;
     imageryProcessedDate?: unknown;
   }>(layersUrl);
+
+  // Verify required height data before optional imagery work. Never disguise a
+  // provider or download failure as missing geographic coverage.
+  const dsm = await fetchRequiredSolarDsm(layers?.dsmUrl, key);
+  await saveArtifact(projectId, "dsm.tif", dsm);
+  generated.add("dsm.tif");
 
   const downloads: Array<Promise<void>> = [];
   const queueDownload = (fileName: string, rawUrl?: string) => {
@@ -1043,7 +1050,6 @@ export async function processProjectImagery(projectId: string, input: Processing
     })());
   };
   queueDownload("rgb.tif", layers?.rgbUrl);
-  queueDownload("dsm.tif", layers?.dsmUrl);
   queueDownload("mask.tif", layers?.maskUrl);
   await Promise.all(downloads);
 
