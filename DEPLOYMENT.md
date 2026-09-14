@@ -2,7 +2,15 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
-September 14 latest: [staff Tracking production record](deploy/digitalocean/production-tracking-20260914.md)
+September 14 latest: [API coverage rejection release](deploy/digitalocean/production-coverage-185-20260914.md)
+records release `8a5e84f9348e3f8a4f44eda5b40076acd252cc83` on all eight roles
+and the signed replacement channel. Confirmed missing height maps on API orders
+now use the shared rejection/refund workflow after expanded-coverage fallback.
+The two existing blocked orders were left unchanged for a separate decision.
+The people-first Tracking redesign is excluded; existing Tracking/configuration,
+image and autoscale capacity are unchanged. No database migration was required.
+
+September 14 earlier: [staff Tracking production record](deploy/digitalocean/production-tracking-20260914.md)
 records release `b976d07a3830c26e3e4fe7e7f75057c9f14f1ad3` on all eight
 roles and the signed replacement channel. Tracking is enabled for all active
 authenticated staff; viewing is restricted to internal Admins and explicit grants.
