@@ -9,6 +9,21 @@ import { expireTracking, insertEvent, priorEvents, trackingQuery } from './store
 const base='/v1/staff-tracking';
 const cache=new Map<string,number>();
 let pending=0, dropped=0, failures=0;
+// Never log error messages/requests: database errors may contain staff/session data.
+export function trackingFailureDetails(error: unknown) {
+  const e=error as {code?:unknown;name?:unknown;statusCode?:unknown;trackingStage?:unknown};
+  const code=String(e?.code||'');
+  return {stage:['auth','staff','insert'].includes(String(e?.trackingStage))?String(e.trackingStage):'other',
+    code:/^[0-9A-Z]{5}$/.test(code)?code:'unclassified',
+    type:['Error','TypeError','RangeError','DatabaseError'].includes(String(e?.name))?String(e.name):'other',
+    status:[400,401,403,404,409,429,500,503].includes(Number(e?.statusCode))?Number(e.statusCode):null};
+}
+async function collectionStage<T>(stage:string, task:()=>Promise<T>):Promise<T> {
+  try{return await task();}catch(error){
+    const wrapped=new Error('Tracking collection stage failed',{cause:error});
+    Object.assign(wrapped,{trackingStage:stage,code:(error as any)?.code,statusCode:(error as any)?.statusCode});throw wrapped;
+  }
+}
 const object=(v: unknown):Record<string,any>=>v&&typeof v==='object'&&!Array.isArray(v)?v as any:{};
 async function staffContext(request: FastifyRequest, csrf=false) {
   const auth=await requirePlatformAuth(request,{csrf});
@@ -24,20 +39,20 @@ async function viewer(request: FastifyRequest,csrf=false,adminOnly=false) {
 async function audit(actor:string,action:string,target:string) { await trackingQuery('INSERT INTO staff_tracking_audit(id,actor,action,target,at) VALUES($1,$2,$3,$4,$5)',[randomUUID(),actor,action,target,new Date().toISOString()]); }
 export async function recordTracking(request: FastifyRequest,kind:TrackingEvent['kind'],details:Partial<TrackingEvent>={},context?:PlatformAuthContext) {
   if(!enabled())return;
-  const auth=context||await authContextFromRequest(request);if(!auth)return;
-  const user=await readInternalUser(String(auth.identity.email||''));if(!activeStaff(user))return;
+  const auth=context||await collectionStage('auth',()=>authContextFromRequest(request));if(!auth)return;
+  const user=await collectionStage('staff',()=>readInternalUser(String(auth.identity.email||'')));if(!activeStaff(user))return;
   const at=new Date().toISOString();
   const ip=visitorIp(request.raw.socket.remoteAddress||request.ip,String(request.headers['x-forwarded-for']||''));
   const e:TrackingEvent={id:'',email:user!.email,name:user!.name,at,ip,kind,session_ref:reference(auth.sessionId),browser:browserFamily(String(request.headers['user-agent']||'')),
     established:user!.training_complete===true||user!.role==='qa',impersonated:!!object(auth.session.metadata).impersonated,
     course:String(details.course||'').slice(0,120),attempt:String(details.attempt||'').slice(0,120),project:String(details.project||'').slice(0,120)};
   e.id=reference([e.email,e.session_ref,ip,kind,e.course,e.attempt,e.project,Math.floor(Date.now()/SAMPLE_MS)].join('|'));
-  await insertEvent(e);
+  await collectionStage('insert',()=>insertEvent(e));
 }
 function enqueue(task:()=>Promise<void>,app:FastifyInstance) {
   if(pending>=32){dropped++;return;}
   pending++;
-  void task().catch(()=>{failures++;app.log.warn('Staff tracking collection failed; normal workflow continues.');}).finally(()=>pending--);
+  void task().catch(error=>{failures++;app.log.warn(trackingFailureDetails(error),'Staff tracking collection failed; normal workflow continues.');}).finally(()=>pending--);
 }
 export async function flushTracking() { while(pending)await new Promise(r=>setTimeout(r,10)); }
 export function installStaffTracking(app:FastifyInstance) {

@@ -31,6 +31,9 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
   const root=await mkdtemp(path.join(os.tmpdir(),'fm-tracking-'));
   Object.assign(process.env,{FIRSTMATE_ENV:'test',FIRSTMEASURE_DATABASE_MODE:'sqlite',FIRSTMEASURE_STORAGE_ROOT:root,FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'index.sqlite'),INTERNAL_STORAGE_ROOT:path.join(root,'internal'),PLATFORM_STORAGE_ROOT:path.join(root,'platform'),CRM_STORAGE_ROOT:path.join(root,'crm'),FIRSTMEASURE_JOB_WORKERS:'0',PLATFORM_HEARTBEAT_DISABLED:'1',STAFF_TRACKING_ENABLED:'1',STAFF_TRACKING_TRUSTED_PROXIES:'127.0.0.1/32',STAFF_TRACKING_BRIDGE_SECRET:'test-only-tracking-bridge-secret-184'});
   const {buildApp}=await import('../src/app.js');
+  const {trackingFailureDetails}=await import('../staff_tracking/api.js');
+  assert.deepEqual(trackingFailureDetails(Object.assign(new Error('private session and email'),{trackingStage:'insert',code:'42501',statusCode:503})),{stage:'insert',code:'42501',type:'Error',status:503});
+  assert.equal(JSON.stringify(trackingFailureDetails({message:'private',code:'private-email',trackingStage:'private-session',name:'private'})).includes('private'),false);
   process.env.MEASURE_INTERNAL_TUTORIALS_ROOT=path.join(root,'tutorials');
   const {saveInternalUser}=await import('../internal/storage.js');
   const {flushTracking}=await import('../staff_tracking/api.js');
