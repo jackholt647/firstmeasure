@@ -1,4 +1,5 @@
 import { managerReviewCsv } from "./manager_review_export.js";
+import { trackTutorialResult } from "../staff_tracking/api.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
 import { chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -163,6 +164,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   app.post("/legacy-action", async (request, reply) => {
     const body = objectSchema.parse(request.body ?? {});
     const result = await handleLegacyAction(app, body, request, reply);
+    await trackTutorialResult(request, String(body.action || ""), asObject(result), body, app);
     if (asObject(result).status_code) reply.code(Number(asObject(result).status_code));
     return result;
   });
@@ -2854,7 +2856,7 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
 
   if (action === "start_tutorial_test_attempt") {
     if (!actorEmail) return { ok: false, success: false, status_code: 401, error: "Not logged in" };
-    return await startTutorialTestAttempt(courseId, actorEmail, body);
+    return { ...await startTutorialTestAttempt(courseId, actorEmail, body), course_id: courseId };
   }
 
   if (action === "fetch_tutorial_exam_grades") {

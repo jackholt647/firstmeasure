@@ -8,6 +8,7 @@ session_start();
 session_write_close();
 require_once __DIR__ . '/firstmeasure_node.php';
 require_once __DIR__ . '/_tutorials.php';
+require_once __DIR__ . '/_staff_tracking.php';
 require_once __DIR__ . '/_permission_options.php';
 
 $GOOGLE_BROWSER_API_KEY = fm_google_provider_key('browser_internal');
@@ -223,7 +224,10 @@ if (strpos($editorAction, 'tutorial_project_') === 0) {
             $manifest['draft_reject_answered_at'] = gmdate('c');
             fm_tutorial_write_json_file($found['dir'] . 'manifest.json', $manifest);
         }
-        echo json_encode(fm_tutorial_mark_project_complete($tutorialId, $userEmail, $courseId, $status === 'rejected' ? 'completed' : $status));
+        $submissionResult = fm_tutorial_mark_project_complete($tutorialId, $userEmail, $courseId, $status === 'rejected' ? 'completed' : $status);
+        try { fm_staff_tracking_submission($submissionResult, $userEmail, $tutorialId); }
+        catch (Throwable $trackingError) { error_log('Staff tracking failed; tutorial submission remains saved.'); }
+        echo json_encode($submissionResult);
         exit;
     }
 

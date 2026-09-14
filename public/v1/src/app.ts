@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import { installStaffTracking } from "../staff_tracking/api.js";
 import multipart from "@fastify/multipart";
 import type { FastifyReplyFromHooks } from "@fastify/reply-from";
 import Fastify from "fastify";
@@ -58,12 +59,15 @@ export async function buildApp() {
   });
   installDiagnostics(app);
   installPricingContext(app);
+  installStaffTracking(app);
   void app.register(registerPricingAdmin, { prefix: "/v1/firstmeasure/admin/prices" });
 
   if (env.clusterNodeRole === "legacy" && env.legacyProxySecret) {
     app.addHook("onRequest", async (request, reply) => {
       if (request.url.startsWith("/v1/health/")) return;
       if (request.url.split("?", 1)[0] === "/v1/platform/auth/session") return;
+      // This exact private endpoint verifies its own signed PHP receipt.
+      if (request.url.split("?", 1)[0] === "/v1/private/staff-tracking") return;
       if (String(request.headers["x-firstmeasure-legacy-proxy"] ?? "") !== env.legacyProxySecret) {
         return reply.code(403).send({ ok: false, error: "legacy_proxy_required" });
       }

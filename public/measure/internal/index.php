@@ -6891,6 +6891,7 @@ $ver = time(); // cache busting
 <script src="portal_scripts/feature_flags.js?v=<?=$ver?>"></script>
 <?php if ($isFullAdmin): ?>
 <script src="portal_scripts/prices.js?v=<?=$ver?>"></script>
+<script src="portal_scripts/tracking.js?v=<?=$ver?>"></script>
 <?php endif; ?>
 <script src="portal_scripts/bonus_offers.js?v=<?=$ver?>"></script>
 <script src="portal_scripts/acquisition_campaigns.js?v=<?=$ver?>"></script>
