@@ -1,8 +1,17 @@
 import { badRequest } from './errors.js';
 
 export async function fetchRequiredSolarLayers<T>(url:string):Promise<T> {
-  const response=await fetch(url);
-  if(response.status===404)throw badRequest('solar_imagery_no_coverage','Google has no height-map imagery coverage at the selected structure pins. Keep the pins on the correct structures; this project needs coverage review.');
+  let response=await fetch(url);
+  if(response.status===404) {
+    // Exhaust Google's documented expanded-coverage option without moving pins.
+    const fallback=new URL(url);
+    fallback.searchParams.set('requiredQuality','BASE');
+    fallback.searchParams.set('experiments','EXPANDED_COVERAGE');
+    fallback.searchParams.set('view','IMAGERY_LAYERS');
+    fallback.searchParams.set('exactQualityRequired','false');
+    response=await fetch(fallback);
+  }
+  if(response.status===404)throw badRequest('solar_imagery_no_coverage','Google returned no height-map imagery at the selected structure pins, including expanded coverage.');
   if(!response.ok)throw badRequest('solar_layers_fetch_failed',`Google imagery request failed (HTTP ${response.status}). This is a provider failure, not confirmed missing coverage; retry or ask an administrator to check the provider.`);
   try{return await response.json() as T;}
   catch{throw badRequest('solar_layers_parse_failed','Google returned an unreadable imagery response. Retry or contact an administrator.');}

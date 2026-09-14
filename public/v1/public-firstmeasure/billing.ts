@@ -125,6 +125,18 @@ async function applyCreditDelta(orgId: string, body: Record<string, unknown>, ac
     // Stripe retry IDs must be checked in the same transaction as the credit.
     const reason = String(body.reason ?? "");
     const paymentMeta = asObject(body.meta);
+    // Coverage rejection can retry after crediting succeeds but manifest update
+    // fails. Deduplicate inside the same balance/ledger transaction.
+    const rejectionKey = reason === 'rejection_refund' ? cleanText(paymentMeta.rejection_refund_key) : '';
+    const previousRejection = rejectionKey && amount > 0 ? ledger.find(value => {
+      const previous = asObject(value);
+      return previous.reason === reason && Number(previous.delta) > 0
+        && cleanText(asObject(previous.meta).rejection_refund_key) === rejectionKey;
+    }) : null;
+    if (previousRejection) {
+      outcome = {balance,ledger_entry:asObject(previousRejection),ledger_count:ledger.length};
+      return {};
+    }
     const paymentKey = reason === "stripe_checkout_paid"
       ? String(paymentMeta.stripe_checkout_session_id ?? paymentMeta.session_id ?? "")
       : (reason === "stripe_auto_topup" ? String(paymentMeta.payment_intent_id ?? "") : "");

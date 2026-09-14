@@ -72,6 +72,32 @@ endpoint is a test receiver, not evidence of outbound rejection notifications.
 
 ## Remaining decision
 
+### User decision: automatically reject API orders without height-map coverage
+
+Jack confirmed that API orders must mirror frontend coverage rejection when no
+height map can be obtained. Implemented locally (not activated):
+
+- Required dataLayers requests try BASE/EXPANDED_COVERAGE after standard 404,
+  keeping coordinates unchanged. Only another 404 is confirmed no coverage;
+  provider errors, missing URLs and failed TIFF downloads remain retryable.
+- All API-origin imagery entry points share a wrapper that routes confirmed
+  no-coverage through the same rejection function used by the staff endpoint.
+  Non-API orders retain existing coverage-review handling. No permission or
+  authentication bypass endpoint was added.
+- The shared workflow retains organization credit refund bookkeeping, terminal
+  rejected_no_coverage status, customer-facing reason/message and rejection email.
+  Structure-pin state becomes rejected, not ready; background success handling
+  cannot overwrite that terminal result.
+- A shared project rejection lock serializes repeats. The credit transaction
+  deduplicates rejection refunds using project + original charge token so a retry
+  after a manifest-write failure cannot issue another refund. A newly charged
+  reorder has a distinct key. Terminal repeats do not resend rejection emails.
+- Twelve focused tests exercise standard/expanded coverage, transient failures,
+  concurrent shared rejection, retained coordinates and API serialization.
+  No production rejection, refund, email, or deployment was performed.
+
+The earlier open decision below is historical and superseded by this instruction.
+
 The user has been asked whether the team can complete these using an approved
 alternate/manual imagery workflow or needs coverage review for cancellation.
 The code fix prevents a misleading retry loop; it cannot create missing geographic
