@@ -39,7 +39,8 @@ import {
   readProjectGoogle3dTile
 } from "./google3d.js";
 import { renderProjectPdf } from "./pdf.js";
-import { processProjectImagery, processProjectInsights, processProjectMask } from "./processing.js";
+import { processProjectImagery as processProjectImageryRaw, processProjectInsights, processProjectMask } from "./processing.js";
+import { withPublicFirstMeasureLock } from '../public-firstmeasure/locks.js';
 import { imageryFailurePatch } from './solar_imagery.js';
 import {
   ensureFirstMeasureProjectIndexReady,
@@ -2136,193 +2137,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.post("/projects/:id/coverage/reject", async (request) => {
-    const projectId = getProjectId(request.params);
-    const body = asRecord(request.body);
-    const note = String(body.note ?? "").trim();
-    const rejectionReason = await resolveRejectionReasonId(body.rejection_reason);
-    const existingManifest = await readManifest(projectId);
-    const existingLegacy = buildLegacyManifest(existingManifest);
-    let structureReorder: StructureTypeReorderPayload | null = null;
-    if (rejectionReason === "incorrect_structure_type") {
-      const correctProjectType = normalizeStructureReorderProjectType(
-        body.correct_project_type
-        ?? body.reorder_project_type
-        ?? body.target_project_type
-      );
-      if (!STRUCTURE_REORDER_PROJECT_TYPES.has(correctProjectType)) {
-        throw badRequest(
-          "missing_correct_project_type",
-          "Incorrect structure type rejections require the correct project type: commercial or multifamily."
-        );
-      }
-      structureReorder = buildStructureTypeReorderPayload(
-        projectId,
-        existingLegacy,
-        correctProjectType as "commercial" | "multifamily"
-      );
-    }
-    const submittedRejectionReasonDetails = Array.isArray(body.rejection_reasons)
-      ? Array.from(new Set(
-          await Promise.all(body.rejection_reasons.map((value) => resolveRejectionReasonId(value)))
-        )).filter(Boolean)
-      : [rejectionReason];
-    const rejectionReasonDetails = Array.from(new Set([
-      rejectionReason,
-      ...submittedRejectionReasonDetails
-    ]));
-    const actor = normalizeOptionalPortalActor(body.actor);
-    const nowSql = toSqlDateString(new Date());
-    const organizationRef = asRecord(existingLegacy.organization_ref);
-    const ownerRef = asRecord(existingLegacy.owner_ref);
-    const issuer = asRecord(existingLegacy.issuer);
-    const ownerEmail = String(
-      existingLegacy.owner_email
-      ?? ownerRef.email
-      ?? issuer.email
-      ?? ""
-    ).trim().toLowerCase();
-    const organizationId = String(
-      existingLegacy.organization_id
-      ?? organizationRef.id
-      ?? ""
-    ).trim().toLowerCase();
-    const amountCharged = Math.max(0, moneyAmount(existingLegacy.amount_charged));
-    const existingRefundIssued = Boolean(existingLegacy.refund_issued);
-    const callerPreRefunded = Boolean(body.refund_issued);
-    let autoRefund:
-      | {
-        amount: number;
-        at: string;
-        scope: "org";
-        targetEmail: string | null;
-        targetOrganizationId: string;
-      }
-      | null = null;
-
-    if (!existingRefundIssued && !callerPreRefunded && amountCharged > 0) {
-      if (!organizationId) {
-        throw badRequest(
-          "missing_refund_organization",
-          "This project does not have an associated organization available for refund."
-        );
-      }
-      const refundAt = new Date().toISOString();
-      await refundPublicFirstMeasureOrder({
-        orgId: organizationId,
-        amount: amountCharged,
-        actorEmail: actor?.email ?? ownerEmail ?? "",
-        reason: "rejection_refund",
-        meta: {
-          project_id: projectId,
-          address: existingLegacy.address ?? "",
-          project_type: existingLegacy.project_type ?? "residential",
-          pin_count: Math.max(1, Array.isArray(existingLegacy.pins) ? existingLegacy.pins.length : 1),
-          source: "firstmeasure_coverage_reject",
-          rejected_by_email: actor?.email ?? null,
-          rejected_by_name: actor?.name ?? actor?.email ?? null,
-          organization_id: organizationId,
-          refund: amountCharged
-        }
-      });
-      autoRefund = {
-        amount: amountCharged,
-        at: refundAt,
-        scope: "org",
-        targetEmail: ownerEmail || null,
-        targetOrganizationId: organizationId
-      };
-    }
-
-    const rejectionPatch: Record<string, unknown> = {
-      rejection_reason: rejectionReason,
-      rejection_note: note,
-      rejection_notes: note,
-      rejection_reason_details: rejectionReasonDetails,
-      rejected_no_coverage_by: actor?.email ?? null,
-      timestamps: {
-        rejected_at: nowSql,
-        updated_at: nowSql
-      }
-    };
-    if ("refund_issued" in body) rejectionPatch.refund_issued = Boolean(body.refund_issued);
-    if ("refund_pending" in body) rejectionPatch.refund_pending = Boolean(body.refund_pending);
-    if ("refund_amount" in body) rejectionPatch.refund_amount = Number(body.refund_amount ?? 0);
-    if ("refund_reason" in body) rejectionPatch.refund_reason = String(body.refund_reason ?? "");
-    if (autoRefund) {
-      const workflow = asRecord(existingLegacy.workflow);
-      const workHistory = Array.isArray(existingLegacy.work_history)
-        ? [...existingLegacy.work_history]
-        : (Array.isArray(workflow.history) ? [...workflow.history] : []);
-      workHistory.push({
-        event: "credit_refunded",
-        ts: autoRefund.at,
-        by_email: actor?.email ?? null,
-        by_name: actor?.name ?? actor?.email ?? null,
-        refund_amount: autoRefund.amount,
-        refund_reason: "rejection_refund",
-        project_id: projectId,
-        refund_scope: autoRefund.scope,
-        refund_to_email: autoRefund.targetEmail,
-        refund_to_organization_id: autoRefund.targetOrganizationId,
-        note: "Refunded as part of project rejection"
-      });
-      rejectionPatch.refund_issued = true;
-      rejectionPatch.refund_pending = false;
-      rejectionPatch.refund_amount = autoRefund.amount;
-      rejectionPatch.refund_reason = "rejection_refund";
-      rejectionPatch.refund_at = autoRefund.at;
-      rejectionPatch.refund_by = actor?.email ?? null;
-      rejectionPatch.refund_by_name = actor?.name ?? actor?.email ?? null;
-      rejectionPatch.refund_scope = autoRefund.scope;
-      rejectionPatch.refund_to_email = autoRefund.targetEmail;
-      rejectionPatch.refund_to_organization_id = autoRefund.targetOrganizationId;
-      rejectionPatch.work_history = workHistory;
-      rejectionPatch.workflow = {
-        ...workflow,
-        history: workHistory,
-        work_history: workHistory
-      };
-    }
-    if (structureReorder) {
-      rejectionPatch.correct_project_type = structureReorder.correctProjectType;
-      rejectionPatch.rejection_correct_project_type = structureReorder.correctProjectType;
-      rejectionPatch.reorder_project_type = structureReorder.correctProjectType;
-      rejectionPatch.reorder_url = structureReorder.url;
-      rejectionPatch.rejection_reorder = {
-        source_project_id: projectId,
-        project_type: structureReorder.correctProjectType,
-        project_type_label: structureReorder.correctProjectTypeLabel,
-        url: structureReorder.url,
-        prefill: structureReorder.prefill
-      };
-      rejectionPatch.customer_rejection_title = "Incorrect structure type";
-      rejectionPatch.customer_rejection_message =
-        `This was ordered as ${projectTypeLabelForCustomer(existingLegacy.project_type)}, but it appears to require a ${structureReorder.correctProjectTypeLabel} report. We have reimbursed the original report.`;
-    }
-    if (!String(rejectionPatch.customer_rejection_title ?? "").trim()) {
-      rejectionPatch.customer_rejection_title = "Project rejected";
-    }
-    if (!String(rejectionPatch.customer_rejection_message ?? "").trim()) {
-      rejectionPatch.customer_rejection_message = buildRejectionMessageParagraphs({
-        ...existingLegacy,
-        ...rejectionPatch
-      }).join(" ");
-    }
-
-    const manifest = await patchManifest(projectId, rejectionPatch);
-    const updated = await updateStatus(projectId, "rejected_no_coverage");
-    const emailResult = await sendProjectRejectionEmail(projectId, false).catch((error) => ({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error)
-    }));
-    return {
-      ok: true,
-      success: true,
-      manifest: buildLegacyManifest(updated ?? manifest),
-      email_result: emailResult
-    };
-  });
+  app.post("/projects/:id/coverage/reject", async (request) => rejectCoverageProject(getProjectId(request.params), asRecord(request.body)));
 
   app.post("/projects/:id/coverage/push-forward", async (request) => {
     const projectId = getProjectId(request.params);
@@ -11601,6 +11416,209 @@ async function acceptProcessRequest(
   };
 }
 
+async function rejectCoverageProject(projectId: string, body: Record<string, unknown>) {
+  return withPublicFirstMeasureLock(`coverage-rejection:${projectId}`, async () => {
+    const note = String(body.note ?? "").trim();
+    const rejectionReason = await resolveRejectionReasonId(body.rejection_reason);
+    const existingManifest = await readManifest(projectId);
+    const existingLegacy = buildLegacyManifest(existingManifest);
+    if (["rejected", "rejected_no_coverage", "cancelled"].includes(String(existingManifest.status))) return {ok:true,success:true,manifest:existingLegacy};
+    let structureReorder: StructureTypeReorderPayload | null = null;
+    if (rejectionReason === "incorrect_structure_type") {
+      const correctProjectType = normalizeStructureReorderProjectType(
+        body.correct_project_type
+        ?? body.reorder_project_type
+        ?? body.target_project_type
+      );
+      if (!STRUCTURE_REORDER_PROJECT_TYPES.has(correctProjectType)) {
+        throw badRequest(
+          "missing_correct_project_type",
+          "Incorrect structure type rejections require the correct project type: commercial or multifamily."
+        );
+      }
+      structureReorder = buildStructureTypeReorderPayload(
+        projectId,
+        existingLegacy,
+        correctProjectType as "commercial" | "multifamily"
+      );
+    }
+    const submittedRejectionReasonDetails = Array.isArray(body.rejection_reasons)
+      ? Array.from(new Set(
+          await Promise.all(body.rejection_reasons.map((value) => resolveRejectionReasonId(value)))
+        )).filter(Boolean)
+      : [rejectionReason];
+    const rejectionReasonDetails = Array.from(new Set([
+      rejectionReason,
+      ...submittedRejectionReasonDetails
+    ]));
+    const actor = normalizeOptionalPortalActor(body.actor);
+    const nowSql = toSqlDateString(new Date());
+    const organizationRef = asRecord(existingLegacy.organization_ref);
+    const ownerRef = asRecord(existingLegacy.owner_ref);
+    const issuer = asRecord(existingLegacy.issuer);
+    const ownerEmail = String(
+      existingLegacy.owner_email
+      ?? ownerRef.email
+      ?? issuer.email
+      ?? ""
+    ).trim().toLowerCase();
+    const organizationId = String(
+      existingLegacy.organization_id
+      ?? organizationRef.id
+      ?? ""
+    ).trim().toLowerCase();
+    const amountCharged = Math.max(0, moneyAmount(existingLegacy.amount_charged));
+    const existingRefundIssued = Boolean(existingLegacy.refund_issued);
+    const callerPreRefunded = Boolean(body.refund_issued);
+    let autoRefund:
+      | {
+        amount: number;
+        at: string;
+        scope: "org";
+        targetEmail: string | null;
+        targetOrganizationId: string;
+      }
+      | null = null;
+
+    if (!existingRefundIssued && !callerPreRefunded && amountCharged > 0) {
+      if (!organizationId) {
+        throw badRequest(
+          "missing_refund_organization",
+          "This project does not have an associated organization available for refund."
+        );
+      }
+      const refundAt = new Date().toISOString();
+      await refundPublicFirstMeasureOrder({
+        orgId: organizationId,
+        amount: amountCharged,
+        actorEmail: actor?.email ?? ownerEmail ?? "",
+        reason: "rejection_refund",
+        meta: {
+          project_id: projectId,
+          address: existingLegacy.address ?? "",
+          project_type: existingLegacy.project_type ?? "residential",
+          pin_count: Math.max(1, Array.isArray(existingLegacy.pins) ? existingLegacy.pins.length : 1),
+          source: "firstmeasure_coverage_reject",
+          rejection_refund_key: `${projectId}:${String(existingLegacy.charge_token || asRecord(existingLegacy.timestamps).created_at || "original")}`,
+          rejected_by_email: actor?.email ?? null,
+          rejected_by_name: actor?.name ?? actor?.email ?? null,
+          organization_id: organizationId,
+          refund: amountCharged
+        }
+      });
+      autoRefund = {
+        amount: amountCharged,
+        at: refundAt,
+        scope: "org",
+        targetEmail: ownerEmail || null,
+        targetOrganizationId: organizationId
+      };
+    }
+
+    const rejectionPatch: Record<string, unknown> = {
+      structure_pin_status: "rejected",
+      structure_pin_error: null,
+      rejection_reason: rejectionReason,
+      rejection_note: note,
+      rejection_notes: note,
+      rejection_reason_details: rejectionReasonDetails,
+      rejected_no_coverage_by: actor?.email ?? null,
+      timestamps: {
+        rejected_at: nowSql,
+        updated_at: nowSql
+      }
+    };
+    if ("refund_issued" in body) rejectionPatch.refund_issued = Boolean(body.refund_issued);
+    if ("refund_pending" in body) rejectionPatch.refund_pending = Boolean(body.refund_pending);
+    if ("refund_amount" in body) rejectionPatch.refund_amount = Number(body.refund_amount ?? 0);
+    if ("refund_reason" in body) rejectionPatch.refund_reason = String(body.refund_reason ?? "");
+    if (autoRefund) {
+      const workflow = asRecord(existingLegacy.workflow);
+      const workHistory = Array.isArray(existingLegacy.work_history)
+        ? [...existingLegacy.work_history]
+        : (Array.isArray(workflow.history) ? [...workflow.history] : []);
+      workHistory.push({
+        event: "credit_refunded",
+        ts: autoRefund.at,
+        by_email: actor?.email ?? null,
+        by_name: actor?.name ?? actor?.email ?? null,
+        refund_amount: autoRefund.amount,
+        refund_reason: "rejection_refund",
+        project_id: projectId,
+        refund_scope: autoRefund.scope,
+        refund_to_email: autoRefund.targetEmail,
+        refund_to_organization_id: autoRefund.targetOrganizationId,
+        note: "Refunded as part of project rejection"
+      });
+      rejectionPatch.refund_issued = true;
+      rejectionPatch.refund_pending = false;
+      rejectionPatch.refund_amount = autoRefund.amount;
+      rejectionPatch.refund_reason = "rejection_refund";
+      rejectionPatch.refund_at = autoRefund.at;
+      rejectionPatch.refund_by = actor?.email ?? null;
+      rejectionPatch.refund_by_name = actor?.name ?? actor?.email ?? null;
+      rejectionPatch.refund_scope = autoRefund.scope;
+      rejectionPatch.refund_to_email = autoRefund.targetEmail;
+      rejectionPatch.refund_to_organization_id = autoRefund.targetOrganizationId;
+      rejectionPatch.work_history = workHistory;
+      rejectionPatch.workflow = {
+        ...workflow,
+        history: workHistory,
+        work_history: workHistory
+      };
+    }
+    if (structureReorder) {
+      rejectionPatch.correct_project_type = structureReorder.correctProjectType;
+      rejectionPatch.rejection_correct_project_type = structureReorder.correctProjectType;
+      rejectionPatch.reorder_project_type = structureReorder.correctProjectType;
+      rejectionPatch.reorder_url = structureReorder.url;
+      rejectionPatch.rejection_reorder = {
+        source_project_id: projectId,
+        project_type: structureReorder.correctProjectType,
+        project_type_label: structureReorder.correctProjectTypeLabel,
+        url: structureReorder.url,
+        prefill: structureReorder.prefill
+      };
+      rejectionPatch.customer_rejection_title = "Incorrect structure type";
+      rejectionPatch.customer_rejection_message =
+        `This was ordered as ${projectTypeLabelForCustomer(existingLegacy.project_type)}, but it appears to require a ${structureReorder.correctProjectTypeLabel} report. We have reimbursed the original report.`;
+    }
+    if (!String(rejectionPatch.customer_rejection_title ?? "").trim()) {
+      rejectionPatch.customer_rejection_title = "Project rejected";
+    }
+    if (!String(rejectionPatch.customer_rejection_message ?? "").trim()) {
+      rejectionPatch.customer_rejection_message = buildRejectionMessageParagraphs({
+        ...existingLegacy,
+        ...rejectionPatch
+      }).join(" ");
+    }
+
+    const manifest = await patchManifest(projectId, rejectionPatch);
+    const updated = await updateStatus(projectId, "rejected_no_coverage");
+    const emailResult = await sendProjectRejectionEmail(projectId, false).catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    }));
+    return {
+      ok: true,
+      success: true,
+      manifest: buildLegacyManifest(updated ?? manifest),
+      email_result: emailResult
+    };
+  });
+}
+
+async function processProjectImagery(projectId: string, input: Parameters<typeof processProjectImageryRaw>[1]) {
+  try { return await processProjectImageryRaw(projectId, input); }
+  catch (error) {
+    if ((error as {code?:string})?.code !== 'solar_imagery_no_coverage') throw error;
+    const manifest = await readManifest(projectId);
+    if (!String(asRecord((manifest as Record<string, unknown>).public_api).key_id || '').trim()) throw error;
+    await rejectCoverageProject(projectId, {rejection_reason:'no_height_map',note:'Automatic API rejection: Google returned no height-map imagery at the supplied structure pins.'});
+    return {project:await readManifest(projectId),generated_files:[]};
+  }
+}
+
 function wantsBackgroundProcessing(input: Record<string, unknown>) {
   return input.process_async === true || input.background === true || input.async === true;
 }
@@ -11609,7 +11627,8 @@ async function runBackgroundImageryProcess(projectId: string, input: Record<stri
   try {
     const billing = await finalizePublicApiStructurePinBilling(projectId, input);
     if ("rejected" in billing && billing.rejected) return;
-    await processProjectImagery(projectId, input);
+    const result = await processProjectImagery(projectId, input);
+    if (['rejected','rejected_no_coverage','cancelled'].includes(String(result.project.status))) return;
     await patchManifest(projectId, {
       structure_pin_status: "ready",
       structure_pin_error: null,

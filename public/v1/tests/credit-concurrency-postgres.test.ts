@@ -77,7 +77,7 @@ test("same-organization credit mutations retain all debits and ledger rows", { s
     await storage.createOrganization({ id: mixedId, name: "Synthetic mixed billing", global: { credits_balance: 100, credits_ledger: [] } });
     const contexts = [ctx];
     for (const file of ["../internal/api.ts", "../public-firstmeasure/billing.ts"]) {
-      const otherSource = await readFile(new URL(file, import.meta.url), "utf8");
+      const otherSource = (await readFile(new URL(file, import.meta.url), "utf8")).replace(/\r\n/g, '\n');
       const a = otherSource.indexOf("async function applyCreditDelta("), b = otherSource.indexOf("\n}\n", a) + 2;
       const otherCtx = vm.createContext({ ...storage, asObject: (x: unknown) => x || {},
         cleanText: (x: unknown) => String(x ?? "").trim(), numberValue: (x: unknown) => Number(x) || 0,
@@ -104,5 +104,13 @@ test("same-organization credit mutations retain all debits and ledger rows", { s
     const topup = (await storage.readGlobal(mixedId)).data;
     assert.equal(topup.credits_balance, 232);
     assert.equal((topup.credits_ledger as unknown[]).length, 20);
+    // Replayed automatic no-coverage rejection after a manifest-write failure
+    // must not credit the organization twice, even across concurrent callers.
+    await Promise.all(Array.from({length:8},()=>vm.runInContext("applyCreditDelta(orgId,{amount:30,reason:'rejection_refund',meta:{rejection_refund_key:'fixture:charge-one'}},'synthetic@example.test')",contexts[2]!)));
+    const rejected=(await storage.readGlobal(mixedId)).data;
+    assert.equal(rejected.credits_balance,262);
+    assert.equal((rejected.credits_ledger as unknown[]).length,21);
+    await vm.runInContext("applyCreditDelta(orgId,{amount:30,reason:'rejection_refund',meta:{rejection_refund_key:'fixture:charge-two'}},'synthetic@example.test')",contexts[2]!);
+    assert.equal((await storage.readGlobal(mixedId)).data.credits_balance,292,'a genuinely new order charge can be refunded separately');
   } finally { await database.closePostgresPools(); await rm(root, { recursive: true, force: true }).catch(() => {}); }
 });
