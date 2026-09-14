@@ -35,6 +35,14 @@ export const registerPricingAdmin: FastifyPluginAsync = async app => {
     const config = expeditePricingSchema.parse(request.body);
     return pricingContext.run({ config, revision: -1, now: new Date() }, () => ({
       success: true, current: buildReportExpediteOptions(),
+      timeline: Array.from({ length: 13 }, (_, index) => {
+        const now = new Date(pricingContext.getStore()!.now.getTime() + index * 2 * 60 * 60_000);
+        const quote = buildReportExpediteOptions({ now });
+        return { at: now.toISOString(), pacific_label: now.toLocaleString('en-US', {
+          timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+        }), wait_minutes: quote.options[0]!.estimated_wait_minutes,
+          rush_price: quote.options.find(option => option.key === 'rush_1_3')!.unit_price };
+      }),
       samples: [config.wait_min_minutes, (config.wait_min_minutes + config.wait_max_minutes) / 2, config.wait_max_minutes].map(wait => ({
         wait_minutes: wait,
         residential: ["standard_3_6", "rush_1_3", "rush_under_1"].map(key => reportExpediteBaseUnitPrice("residential", key, wait)),

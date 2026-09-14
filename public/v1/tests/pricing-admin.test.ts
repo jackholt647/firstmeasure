@@ -11,8 +11,8 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
     INTERNAL_STORAGE_ROOT: path.join(root,'internal'), PLATFORM_STORAGE_ROOT: path.join(root,'platform'),
     CRM_STORAGE_ROOT: path.join(root,'crm'), FIRSTMEASURE_JOB_WORKERS:'0', PLATFORM_HEARTBEAT_DISABLED:'1' });
   const { buildApp } = await import('../src/app.js');
-  const { saveInternalUser } = await import('../internal/storage.js');
-  const { pricingContext, readExpeditePricing, DEFAULT_EXPEDITE_PRICING } = await import('../firstmeasure/pricing_config.js');
+  const { saveInternalUser, saveInternalDocument } = await import('../internal/storage.js');
+  const { pricingContext, readExpeditePricing, DEFAULT_EXPEDITE_PRICING, DEFAULT_WORKLOAD } = await import('../firstmeasure/pricing_config.js');
   const { firstMeasureReportAmount, firstMeasureReportCharge } = await import('../firstmeasure/pricing.js');
   const { buildReportExpediteOptions } = await import('../firstmeasure/expedite.js');
   const app = await buildApp(); await app.ready();
@@ -40,18 +40,25 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
     assert.equal(initial.statusCode,200,initial.body); assert.deepEqual(initial.json().config,DEFAULT_EXPEDITE_PRICING);
     assert.equal(initial.headers['cache-control'],'no-store');
     assert.equal((await app.inject({method:'PUT',url:endpoint,headers:{cookie:users.admin!.cookie!},payload:{config:DEFAULT_EXPEDITE_PRICING,revision:0}})).statusCode,403);
-    const config = {...DEFAULT_EXPEDITE_PRICING,fee_multiplier:2,rush_adder:1,fast_adder:2};
-    for (const invalid of [{...config,base_fee:-1},{...config,fee_multiplier:1e300},{...config,wait_max_minutes:240},{...config,fast_multiplier:0},{...config,unknown:3}]) {
+    const config = {...DEFAULT_EXPEDITE_PRICING,fee_multiplier:2,rush_adder:1,fast_adder:2,
+      workload_peak_minutes:420,turnaround_max_minutes:480,ramp_start_minute:480,peak_start_minute:600,peak_end_minute:840,ramp_end_minute:1080};
+    for (const invalid of [{...config,base_fee:-1},{...config,fee_multiplier:1e300},{...config,wait_max_minutes:240},{...config,fast_multiplier:0},{...config,unknown:3},
+      {...config,peak_start_minute:480},{...config,peak_end_minute:1200},{...config,turnaround_max_minutes:479},
+      {...config,workload_base_minutes:179},{...config,workload_peak_minutes:100},{...config,ramp_start_minute:2.5}]) {
       assert.equal((await app.inject({method:'PUT',url:endpoint,headers:users.admin,payload:{config:invalid,revision:0}})).statusCode,400);
     }
     const preview = await app.inject({method:'POST',url:endpoint+'preview',headers:users.admin,payload:config});
     assert.equal(preview.statusCode,200,preview.body); assert.deepEqual(preview.json().samples[0].residential,[7,10,15]);
+    assert.equal(preview.json().timeline.length,13);
+    assert.ok(preview.json().timeline.every((row:any)=>row.wait_minutes>=240&&row.wait_minutes<=480));
+    assert.equal(preview.json().current.options[0].label,'4-8 hrs');
     assert.equal((await readExpeditePricing()).revision,0,'preview must not persist');
     const saves = await Promise.all([1,2].map(()=>app.inject({method:'PUT',url:endpoint,headers:users.admin,payload:{config,revision:0}})));
     assert.deepEqual(saves.map(r=>r.statusCode).sort(),[200,409]);
     const current = await readExpeditePricing(); assert.equal(current.revision,1); assert.equal(current.updated_by,'admin@prices.example.test');
     const otherQuote = await otherApp.inject({method:'GET',url:'/v1/firstmeasure/report-expedite-options'});
     assert.equal(otherQuote.json().pricing_revision,1,'another app instance reads the saved shared configuration');
+    assert.equal(otherQuote.json().options[0].base_end_minutes,480,'saved workload configuration drives public delivery windows');
     const quote = await app.inject({method:'GET',url:'/v1/firstmeasure/report-expedite-options?project_type=residential'});
     assert.equal(quote.statusCode,200,quote.body); assert.equal(quote.json().pricing_revision,1,'request hook must propagate current settings');
     const standardWait = quote.json().options[0].estimated_wait_minutes;
@@ -77,6 +84,12 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
       assert.equal((await app.inject({method:'GET',url:'/v1/internal/state/'+collection})).statusCode,403);
       assert.equal((await app.inject({method:'PUT',url:'/v1/internal/state/'+collection+'/expedite',payload:{data:DEFAULT_EXPEDITE_PRICING}})).statusCode,403);
     }
+    const legacy = Object.fromEntries(Object.entries(config).filter(([key]) => !(key in DEFAULT_WORKLOAD)));
+    assert.equal((await app.inject({method:'PUT',url:endpoint,headers:users.admin,payload:{config:legacy,revision:1}})).statusCode,400,'old browser must not reset workload fields');
+    await saveInternalDocument('pricing_config','expedite',{data:legacy},{replace:true});
+    const upgraded = await readExpeditePricing();
+    assert.equal(upgraded.config.fee_multiplier,2,'legacy saved prices survive schema expansion');
+    assert.equal(upgraded.config.turnaround_max_minutes,420,'only absent workload fields use original defaults');
     await saveInternalUser({email:'admin@prices.example.test',name:'admin',role:'admin',status:'inactive'});
     assert.equal((await app.inject({method:'GET',url:endpoint,headers:users.admin})).statusCode,403);
   } finally {

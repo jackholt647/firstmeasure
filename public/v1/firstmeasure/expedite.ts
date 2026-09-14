@@ -27,8 +27,6 @@ export const REPORT_EXPEDITE_STANDARD_KEY = "standard_3_6";
 export const REPORT_EXPEDITE_UNDER_1_KEY = "rush_under_1";
 export const REPORT_EXPEDITE_1_3_KEY = "rush_1_3";
 
-const STANDARD_WAIT_DELAY_MINUTES = 60;
-
 type ReportExpediteDefinition = {
   key: string;
   label: string;
@@ -63,7 +61,14 @@ export function normalizeReportExpediteProjectType(value: unknown): ReportExpedi
 
 export function reportExpediteDefinition(key: unknown) {
   const normalized = normalizeReportExpediteKey(key);
-  return REPORT_EXPEDITE_DEFINITIONS.find((option) => option.key === normalized) || null;
+  const definition = REPORT_EXPEDITE_DEFINITIONS.find((option) => option.key === normalized);
+  if (!definition) return null;
+  if (definition.key !== REPORT_EXPEDITE_STANDARD_KEY) return definition;
+  const config = currentExpeditePricing();
+  const minimum = config.workload_base_minutes + config.workload_buffer_minutes;
+  const hours = (minutes: number) => Number((minutes / 60).toFixed(2));
+  return { ...definition, startMinutes: minimum, endMinutes: config.turnaround_max_minutes,
+    productionDeadlineMinutes: minimum, label: `${hours(minimum)}-${hours(config.turnaround_max_minutes)} hrs` };
 }
 
 export function isReportExpediteOptionKey(key: unknown) {
@@ -212,34 +217,36 @@ function roundedToTenMinutes(minutes: number) {
 }
 
 function estimatedStandardWait(now: Date) {
+  const config = currentExpeditePricing();
   const pacific = pacificDateParts(now);
   const dateSeed = `${pacific.year}-${String(pacific.month).padStart(2, "0")}-${String(pacific.day).padStart(2, "0")}`;
   const minutesSinceMidnight = pacific.hour * 60 + pacific.minute;
   const tenMinuteSlot = Math.floor(minutesSinceMidnight / 10);
-  const hour = minutesSinceMidnight / 60;
   const dailyBias = seededRange(`${dateSeed}:bias`, -8, 8);
   const slotNoise = seededRange(`${dateSeed}:slot:${tenMinuteSlot}`, -1, 1);
   const waveA = Math.sin((tenMinuteSlot * 0.62) + seededRange(`${dateSeed}:phase:a`, 0, Math.PI * 2));
   const waveB = Math.sin((tenMinuteSlot * 1.17) + seededRange(`${dateSeed}:phase:b`, 0, Math.PI * 2));
   const noise = dailyBias + slotNoise * 8 + waveA * 10 + waveB * 5;
-  let target = 180;
+  const base = config.workload_base_minutes;
+  const peak = config.workload_peak_minutes;
+  let target = base;
 
-  if (hour < 6) {
-    target = 180;
-  } else if (hour < 10) {
-    const progress = smoothstep((hour - 6) / 4);
-    target = 180 + progress * 120 + noise * progress;
-  } else if (hour < 14) {
-    target = 285 + clamp(noise, -15, 15);
-  } else if (hour < 17) {
-    const progress = smoothstep((hour - 14) / 3);
-    target = 285 - progress * 105 + noise * (1 - progress);
+  if (minutesSinceMidnight < config.ramp_start_minute) {
+    target = base;
+  } else if (minutesSinceMidnight < config.peak_start_minute) {
+    const progress = smoothstep((minutesSinceMidnight - config.ramp_start_minute) / (config.peak_start_minute - config.ramp_start_minute));
+    target = base + progress * (peak + 15 - base) + noise * progress;
+  } else if (minutesSinceMidnight < config.peak_end_minute) {
+    target = peak + clamp(noise, -15, 15);
+  } else if (minutesSinceMidnight < config.ramp_end_minute) {
+    const progress = smoothstep((minutesSinceMidnight - config.peak_end_minute) / (config.ramp_end_minute - config.peak_end_minute));
+    target = peak - progress * (peak - base) + noise * (1 - progress);
   } else {
-    target = 180;
+    target = base;
   }
 
-  const loadWait = roundedToTenMinutes(clamp(target, 180, 360));
-  const wait = loadWait + STANDARD_WAIT_DELAY_MINUTES;
+  const loadWait = clamp(roundedToTenMinutes(clamp(target, base, config.turnaround_max_minutes - config.workload_buffer_minutes)), base, config.turnaround_max_minutes - config.workload_buffer_minutes);
+  const wait = loadWait + config.workload_buffer_minutes;
   const busyLabel = loadWait >= 300
     ? "We are very busy"
     : (loadWait >= 225 ? "We are slightly busy" : "We aren't very busy");
@@ -256,7 +263,8 @@ export function buildReportExpediteOptions(input: {
   const now = input.now || pricingContext.getStore()?.now || new Date();
   const generatedAt = now.toISOString();
   const standardWait = estimatedStandardWait(now);
-  const options = REPORT_EXPEDITE_DEFINITIONS.map((option): ReportExpediteOption => {
+  const options = REPORT_EXPEDITE_DEFINITIONS.map((definition): ReportExpediteOption => {
+    const option = reportExpediteDefinition(definition.key)!;
     const pricing = reportExpeditePricingForWait(option.key, standardWait.wait);
     const additionalMinutes = expediteAdditionalStructureMinutes(projectType, option, structureCount);
     const startMinutes = option.startMinutes == null ? null : option.startMinutes + additionalMinutes;
