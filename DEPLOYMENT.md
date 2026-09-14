@@ -2,7 +2,15 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
-September 14: [production promotion record](deploy/digitalocean/production-promotion-20260914.md)
+September 14 latest: [staff Tracking production record](deploy/digitalocean/production-tracking-20260914.md)
+records release `b976d07a3830c26e3e4fe7e7f75057c9f14f1ad3` on all eight
+roles and the signed replacement channel. Tracking is enabled for all active
+authenticated staff; viewing is restricted to internal Admins and explicit grants.
+The replacement overlay includes its non-secret configuration. Live Admin UI,
+collection and runtime checks passed. Existing PHP memory failures are tracked
+separately in 1M8-187, not fixed by this release. Image/capacity remain unchanged.
+
+September 14 earlier: [production promotion record](deploy/digitalocean/production-promotion-20260914.md)
 records release `678cc85b8f13325e0b0142c9b7f65b646881c1ee` across all eight
 roles and the signed replacement channel. Image 244899309 and autoscale 6–7
 are unchanged. This release includes 176/177/178/182/183/185/186. Read the

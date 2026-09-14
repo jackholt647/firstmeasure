@@ -85,7 +85,9 @@ not block ordinary workflows; one-tab UI and HTML-escaping/access isolation.
 
 The feature is `STAFF_TRACKING_ENABLED=1` only in an environment deliberately
 configured for it. Leaving this unset keeps all Tracking routes/UI off. It does
-not opt individuals in or out of collection. No production environment was changed.
+not opt individuals in or out of collection. Production activation is a separate,
+authorized rollout; see [the September 14 production record](../deploy/digitalocean/production-tracking-20260914.md)
+for its current state and verification evidence.
 
 1. Use the existing isolated development database and storage configuration.
    Run `node --experimental-sqlite --import tsx src/scripts/staff_tracking_initialize.ts --initialize-development`
