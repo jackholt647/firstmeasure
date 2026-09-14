@@ -43,6 +43,35 @@ above established the current Google failures.
 
 ## Still needed
 
+## Expanded verification and public API follow-up
+
+After Jack challenged the initial conclusion, additional read-only requests used
+`requiredQuality=BASE`, `experiments=EXPANDED_COVERAGE`, `view=DSM_LAYER`, and
+0.5m pixels. Both 60m pin-centered requests and all five 20m individual-pin
+requests returned 404 / NOT_FOUND with no DSM. Separately, LOW / DSM_LAYER /
+1.0m pixels / exactQualityRequired=false also returned 404 for both centers.
+An independent control at Google's documented example coordinates returned 200
+and a downloadable image/tiff (69,785 bytes) using the same production credentials.
+This rules out a general credential failure and the tested view/resolution paths;
+it does not prove that no Google product or other provider has any height data.
+Expanded coverage is documented as experimental; it was probed only, not enabled
+as an automatic production fallback.
+
+Public API report polling already reads current manifest status. Staff coverage
+rejection uses /projects/:id/coverage/reject, which performs refund bookkeeping
+and rejection email handling before/after the rejected_no_coverage transition.
+None of those production actions were exercised. Found/fixed locally: API report
+summaries omitted rejection details for legacy rejected_no_coverage records with
+no reason, and ignored customer_rejection_message set by the staff workflow.
+The summary now supplies a no_coverage reason/status-based message fallback and
+uses the staff customer-facing message when no explicit rejection_message exists.
+Pending needs_coverage_review remains non-terminal, not a rejection. Three new
+tests plus the existing seven pin tests pass. This verifies serialization, not
+live refund execution or customer webhook delivery. The public /webhooks/test
+endpoint is a test receiver, not evidence of outbound rejection notifications.
+
+## Remaining decision
+
 The user has been asked whether the team can complete these using an approved
 alternate/manual imagery workflow or needs coverage review for cancellation.
 The code fix prevents a misleading retry loop; it cannot create missing geographic
