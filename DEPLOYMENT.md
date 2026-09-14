@@ -2,6 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 14: [production promotion record](deploy/digitalocean/production-promotion-20260914.md)
+records release `678cc85b8f13325e0b0142c9b7f65b646881c1ee` across all eight
+roles and the signed replacement channel. Image 244899309 and autoscale 6–7
+are unchanged. This release includes 176/177/178/182/183/185/186. Read the
+expanded pricing-configuration rollback constraint before reverting code.
+
 September 10: [production promotion record](deploy/digitalocean/production-promotion-20260910.md)
 records production release `e35b8847eb42d390ba01d734f4b32bb5abe5611c`, signed
 replacement image `244899309`, new web inventory, reboot/signature rehearsal and
