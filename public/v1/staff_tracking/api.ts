@@ -8,6 +8,11 @@ import { expireTracking, insertEvent, priorEvents, trackingQuery } from './store
 
 const base='/v1/staff-tracking';
 const cache=new Map<string,number>();
+type ConnectionSnapshot={at:string;peer:string;forwarded:string;ua:string};
+const connections=new WeakMap<FastifyRequest,ConnectionSnapshot>();
+function captureConnection(request:FastifyRequest):ConnectionSnapshot {
+  return {at:new Date().toISOString(),peer:request.raw.socket?.remoteAddress||'',forwarded:String(request.headers['x-forwarded-for']||''),ua:String(request.headers['user-agent']||'')};
+}
 let pending=0, dropped=0, failures=0;
 // Never log error messages/requests: database errors may contain staff/session data.
 export function trackingFailureDetails(error: unknown) {
@@ -40,7 +45,8 @@ async function audit(actor:string,action:string,target:string) { await trackingQ
 function trackingObservation(request:FastifyRequest) {
   // onResponse work outlives the HTTP connection. Capture its provenance before
   // any await; Node/proxies can detach the socket while auth queries are running.
-  return {at:new Date().toISOString(),ip:visitorIp(request.raw.socket?.remoteAddress||'',String(request.headers['x-forwarded-for']||'')),browser:browserFamily(String(request.headers['user-agent']||''))};
+  const connection=connections.get(request)||captureConnection(request);
+  return {at:connection.at,ip:visitorIp(connection.peer,connection.forwarded),browser:browserFamily(connection.ua)};
 }
 export async function recordTracking(request: FastifyRequest,kind:TrackingEvent['kind'],details:Partial<TrackingEvent>={},context?:PlatformAuthContext,observation?:ReturnType<typeof trackingObservation>) {
   if(!enabled())return;
@@ -61,13 +67,15 @@ function enqueue(task:()=>Promise<void>,app:FastifyInstance) {
 }
 export async function flushTracking() { while(pending)await new Promise(r=>setTimeout(r,10)); }
 export function installStaffTracking(app:FastifyInstance) {
+  app.addHook('onRequest',async request=>{if(enabled())connections.set(request,captureConnection(request));});
   // Collect once at the public web entry (not again on the compatibility proxy).
   app.addHook('onResponse',async(request,reply)=>{
     if(!enabled()||process.env.CLUSTER_NODE_ROLE==='legacy'||reply.statusCode>=400)return;
     const url=request.url.split('?')[0]!;
     if(!url.startsWith('/v1/')||url.startsWith(base)||url.startsWith('/v1/health')||url.startsWith('/v1/private/'))return;
     const cookie=String(request.headers.cookie||'');if(!cookie)return;
-    const key=reference(cookie+'|'+String(request.headers['x-forwarded-for']||request.ip));
+    const connection=connections.get(request)||captureConnection(request);
+    const key=reference(cookie+'|'+(connection.forwarded||connection.peer));
     const now=Date.now();if((cache.get(key)||0)>now)return;
     if(cache.size>10000){for(const [k,t] of cache)if(t<now)cache.delete(k);if(cache.size>10000)cache.clear();}
     cache.set(key,now+SAMPLE_MS);

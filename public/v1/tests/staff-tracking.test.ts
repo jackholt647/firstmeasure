@@ -39,6 +39,7 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
   const {flushTracking}=await import('../staff_tracking/api.js');
   const {trackingQuery,insertEvent,closeTrackingSqlite,expireTracking,priorEvents}=await import('../staff_tracking/store.js');
   const app=await buildApp();
+  app.get('/v1/tracking-detached-fixture',async request=>{(request.raw as any).socket=null;return {ok:true};});
   app.get('/tracking-fixture',async(_req,reply)=>reply.type('text/html').send(await readFile('tests/staff-tracking-browser.html','utf8')));
   app.get('/tracking-fixture.js',async(_req,reply)=>reply.type('text/javascript').send(await readFile('../measure/internal/portal_scripts/tracking.js','utf8')));
   await app.ready();
@@ -62,6 +63,9 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
     assert.ok(records.some(e=>e.email==='trainee@tracking.example.test'),'ungranted trainee is still collected');
     assert.ok(records.some(e=>e.email==='qa@tracking.example.test'));
     assert.ok(!records.some(e=>e.email==='customer@tracking.example.test'));
+    assert.equal((await app.inject({url:'/v1/tracking-detached-fixture',headers:{...users.trainee,'x-forwarded-for':'1.0.0.1'}})).statusCode,200);
+    await flushTracking();
+    assert.equal((await trackingQuery("SELECT id FROM staff_tracking_events WHERE ip='1.0.0.1'")).length,1,'response hook retains original provenance even when the socket has already detached');
     // Exercise the real Node action, not just the receipt function.
     const projectStorage=await import('../firstmeasure/storage.js');
     await projectStorage.createProject({id:'tracking-source',address:'Synthetic training source',status:'completed'});
@@ -160,7 +164,7 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
     assert.equal((await trackingQuery('SELECT id FROM staff_tracking_events WHERE id=$1',[old.id])).length,0);
     // Simulate storage failure only in this disposable test database.
     await trackingQuery('DROP TABLE staff_tracking_events');
-    const unaffected=await app.inject({url:'/v1/platform/auth/session',headers:{...users.trainee,'x-forwarded-for':'9.9.9.9'}});
+    const unaffected=await app.inject({url:'/v1/platform/auth/session',headers:{...users.trainee,'x-forwarded-for':'4.2.2.2'}});
     assert.equal(unaffected.statusCode,200,'collection failure cannot fail authentication');await flushTracking();
     await saveInternalUser({email:'admin@tracking.example.test',status:'disabled'});
     assert.equal((await app.inject({url:endpoint+'events',headers:users.admin})).statusCode,403);
