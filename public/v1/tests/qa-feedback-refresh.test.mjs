@@ -21,7 +21,7 @@ function fixture(bundle) {
     maybeShowResidentialGate:async()=>{},
     queueQaThreadDraftSave:fn=>fn(),getCurrentAppMetadata:()=>({}),getDraftMetaKey:()=> 'qa_thread_drafts'
   });
-  vm.runInContext(extract('mergeThreadDrafts') + extract('refreshForFolder') + extract('ensureFeedbackReady') + extract('persistThreadDrafts'), context);
+  vm.runInContext(['mergeThreadDrafts','refreshForFolder','ensureFeedbackReady','persistThreadDrafts'].map(extract).join('\n'), context);
   return context;
 }
 test('failed refresh preserves visible and editable feedback',async()=>{
