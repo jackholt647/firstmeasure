@@ -208,7 +208,8 @@ export function publicReportSummary(record: PublicFirstMeasureReportRecord, proj
   const manifest = asObject(projectObject.manifest);
   const artifacts = asObject(manifest.artifacts);
   const timestamps = asObject(manifest.timestamps);
-  const rejectionReason = cleanText(manifest.rejection_reason || manifest.instant_rejection_reason);
+  const rejectionReason = cleanText(manifest.rejection_reason || manifest.instant_rejection_reason)
+    || (cleanText(manifest.status) === "rejected_no_coverage" ? "no_coverage" : "");
   const emailState = asObject(manifest.email_state);
   const rejectionEmail = asObject(emailState.rejection_email);
   return {
@@ -235,7 +236,8 @@ export function publicReportSummary(record: PublicFirstMeasureReportRecord, proj
     },
     rejection: (rejectionReason || cleanText(manifest.status) === "rejected") ? {
       reason: rejectionReason || null,
-      message: cleanText(manifest.rejection_message) || null,
+      message: cleanText(manifest.rejection_message || manifest.customer_rejection_message)
+        || (cleanText(manifest.status) === "rejected_no_coverage" ? "This report was rejected after coverage review." : null),
       email: {
         sent: rejectionEmail.sent_ok === true,
         last_attempt_at: rejectionEmail.last_attempt_utc ?? null,
