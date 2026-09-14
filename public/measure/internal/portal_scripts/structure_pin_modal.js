@@ -86,6 +86,7 @@
         <div class="spm-actions">
           <div class="spm-actions-left">
             <button class="spm-btn" type="button" data-spm-clear><i class="fas fa-eraser"></i> Clear</button>
+            <button class="spm-btn" type="button" data-spm-details>Project details / cancel</button>
           </div>
           <div class="spm-actions-right">
             <button class="spm-btn" type="button" data-spm-cancel>Cancel</button>
@@ -97,6 +98,12 @@
     document.body.appendChild(overlay);
     overlay.querySelector("[data-spm-close]").onclick = close;
     overlay.querySelector("[data-spm-cancel]").onclick = close;
+    overlay.querySelector("[data-spm-details]").onclick = () => {
+      if (state.busy) return;
+      const project = state.project;
+      close();
+      window.Projects?.openProjectModal(fullProjectId(project), { project });
+    };
     overlay.querySelector("[data-spm-clear]").onclick = () => {
       if (state.busy) return;
       state.pins = [];

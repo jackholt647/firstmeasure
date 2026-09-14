@@ -21,7 +21,7 @@ function fixture(bundle) {
     maybeShowResidentialGate:async()=>{},
     queueQaThreadDraftSave:fn=>fn(),getCurrentAppMetadata:()=>({}),getDraftMetaKey:()=> 'qa_thread_drafts'
   });
-  vm.runInContext(extract('mergeThreadDrafts') + extract('refreshForFolder') + extract('persistThreadDrafts'), context);
+  vm.runInContext(extract('mergeThreadDrafts') + extract('refreshForFolder') + extract('ensureFeedbackReady') + extract('persistThreadDrafts'), context);
   return context;
 }
 test('failed refresh preserves visible and editable feedback',async()=>{
@@ -41,4 +41,26 @@ test('unsuccessful save response rejects without confirming metadata',async()=>{
   await assert.rejects(vm.runInContext('persistThreadDrafts()',c),/Unavailable/);
   assert.equal(c.window.currentProjectLoadedAppMetadata,undefined);
   assert.equal(c.qaThreads[0].id,'unsaved');
+});
+test('approval hydrates feedback before the first polling tick',async()=>{
+  const c=fixture({manifest:{qa_threads:[{id:'saved',status:'fixed'}]}});
+  c.lastFolderId=null;c.qaThreads=[];c.window.currentProjectId='project';
+  c.window.firstMeasureFetchJson=async()=>({success:true});
+  await vm.runInContext('ensureFeedbackReady().then(persistThreadDrafts)',c);
+  assert.equal(c.lastFolderId,'project');assert.equal(c.qaThreads[0].id,'saved');
+});
+test('failed initial feedback load blocks approval without discarding notes',async()=>{
+  const c=fixture(null);c.lastFolderId=null;c.window.currentProjectId='project';
+  await assert.rejects(vm.runInContext('ensureFeedbackReady()',c),/Unable to load/);
+  assert.equal(c.qaThreads[0].id,'unsaved');
+});
+test('PDF preparation never submits before correction responses',async()=>{
+  const report=await readFile(new URL('../../measure/internal/editor_scripts/report.js',import.meta.url),'utf8');
+  const start=report.indexOf('function buildSubmissionPdfOutputs(');
+  const end=report.indexOf('\nasync function ',start);
+  const c=vm.createContext({window:{},firstReportLogoValue:()=>'',getProjectOrganizationBranding:()=>null});
+  vm.runInContext(report.slice(start,end),c);
+  const outputs=vm.runInContext('buildSubmissionPdfOutputs({})',c);
+  assert.ok(outputs.every(o=>o.update_status===false));
+  assert.doesNotMatch(report.slice(start,report.indexOf('async function',report.indexOf('async function runSharedLocalPdfGeneration')+20)),/updateStatus:\s*true/);
 });

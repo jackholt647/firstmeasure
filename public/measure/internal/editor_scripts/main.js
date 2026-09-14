@@ -3935,6 +3935,8 @@ async function loadProjectFromFolder(folderHash) {
     }
     
     window.currentProjectId = requestedProjectId;
+    // Retire previous project's deferred raster callbacks immediately.
+    deferredProjectTiffLoadRun += 1;
     window.quadViewCroppedImage = null;
     window.projectOrganization = null;
     window.loadedPdfStateAsset = null;

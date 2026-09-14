@@ -177,7 +177,7 @@ async function fetchBuildingInsightsText(
   const url = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${location.lat}&location.longitude=${location.lng}&requiredQuality=LOW&key=${encodeURIComponent(key)}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw badRequest("insights_fetch_failed", `Building insights request failed with status ${response.status}.`);
+    throw badRequest(response.status === 404 ? "insights_no_coverage" : "insights_fetch_failed", `Building insights request failed with status ${response.status}.`);
   }
   return await response.text();
 }
@@ -217,6 +217,7 @@ async function collectStructureInsights(input: {
   manifest: ProjectManifest;
   fallbackLocation: ResolvedProjectLocation;
   key: string;
+  allowMissingInsights?: boolean;
 }) : Promise<CollectedStructureInsights> {
   const requestedPins = resolveRequestedStructurePins(input.manifest, input.fallbackLocation);
   const structures: Array<InstantStructureArtifactEntry & { text: string | null }> = await Promise.all(
@@ -241,7 +242,8 @@ async function collectStructureInsights(input: {
           text
         };
       } catch (error) {
-        if (requestedPins.length === 1) {
+        if ((requestedPins.length === 1 || input.allowMissingInsights)
+          && !(input.allowMissingInsights && (error as {code?:string})?.code === "insights_no_coverage")) {
           throw error;
         }
         return {
@@ -284,6 +286,15 @@ async function collectStructureInsights(input: {
     primaryIndex = structures.findIndex((entry) => entry.insights);
   }
   if (primaryIndex < 0) {
+    if (input.allowMissingInsights) {
+      // Building footprints and raster coverage are independent. Preserve the
+      // selected pins and try imagery there, never at an unrelated geocode.
+      return {
+        primaryInsights: {}, primaryText: '{}', hasCoverageAtAnyPin: false, segmentCount: 0,
+        artifact: { version: 1, generated_at: new Date().toISOString(), primary_index: 0,
+          structures: structures.map(({text, ...entry}) => entry) }
+      };
+    }
     throw badRequest("insights_fetch_failed", "Building insights could not be retrieved for any selected structure.");
   }
 
@@ -963,7 +974,8 @@ export async function processProjectImagery(projectId: string, input: Processing
   const collectedInsights = await collectStructureInsights({
     manifest,
     fallbackLocation: location,
-    key
+    key,
+    allowMissingInsights: !manifest.instant_enabled && !manifest.instant_only
   });
   const projectArea = resolveProjectImageryArea(manifest, input, location, collectedInsights.artifact);
   const radiusMeters = projectArea.radius_meters;

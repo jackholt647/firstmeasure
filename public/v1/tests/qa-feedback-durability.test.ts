@@ -28,5 +28,9 @@ test('stale draft and decision payloads cannot erase saved feedback during rewor
   const concurrent=await Promise.all(['parallel-a','parallel-b'].map(id=>post('editor/qa-thread-drafts',{scope:'manager',threads:[{...thread,id}]})));
   assert.ok(concurrent.every(result=>result.statusCode===200));
   assert.equal(((await storage.readManifest('qa177')).qa_thread_drafts as any).manager.threads.length,2,'concurrent independent feedback additions must both survive');
+  await storage.patchManifest('qa177',{is_vip:true,qa_reviewed_at:'2026-09-14 10:00:00',status:'in_progress',manager_threads:[{...thread,id:'old-manager',status:'resolved'}],work_history:[{event:'qa_sent_back_to_tech',ts:'2026-09-14T11:00:00Z'}]});
+  await storage.saveStoredPdf('qa177','main',Buffer.from('%PDF-1.4\nsynthetic routing fixture\n%%EOF'));
+  const corrected=await post('drafter/qa-response',{actor:{email:'tech@example.test'},thread_scope:'qa',threads:[fixed]});
+  assert.equal(corrected.statusCode,200,corrected.body);assert.equal(corrected.json().thread_scope,'qa','VIP status must not redirect a QA correction into old manager feedback');
  }finally{await app.close();await(await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();await rm(root,{recursive:true,force:true,maxRetries:3});}
 });

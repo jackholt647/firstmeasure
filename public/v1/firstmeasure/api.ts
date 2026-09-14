@@ -3708,16 +3708,11 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const incomingThreads = Array.isArray(body.threads) ? body.threads : [];
     const requestedScope = String(body.thread_scope ?? "").trim().toLowerCase();
     const statusNow = String(legacy.status ?? manifest.status ?? "").trim().toLowerCase();
-    const isManagerCorrection = requestedScope === "manager"
-      || (
-        Boolean(legacy.is_vip ?? manifest.is_vip)
-        && Boolean(legacy.qa_reviewed_at ?? manifest.qa_reviewed_at)
-        && (
-        statusNow === "correction_needed"
-        || statusNow === "requeue"
-          || (Array.isArray(legacy.manager_threads) && legacy.manager_threads.length > 0)
-        )
-      );
+    const authoritativeScope = correctionFeedbackScope(manifest, statusNow);
+    if (requestedScope && requestedScope !== authoritativeScope) {
+      throw conflict("feedback_scope_changed", "The review stage has changed. Reload the latest feedback before resubmitting.");
+    }
+    const isManagerCorrection = authoritativeScope === "manager";
     const feedbackScope = isManagerCorrection ? "manager" : "qa";
     const normalizedThreads = mergeQaFeedbackThreads(legacy[`${feedbackScope}_threads`], asRecord(asRecord(manifest.qa_thread_drafts)[feedbackScope]).threads, incomingThreads);
     assertQaFeedbackHandledBeforeResubmission(
@@ -8299,20 +8294,20 @@ function assertQaFeedbackHandledBeforeResubmission(currentThreads: unknown, inco
   }
 }
 
-function correctionFeedbackThreads(manifest: ProjectManifest, currentStatus: string) {
+function correctionFeedbackScope(manifest: ProjectManifest, currentStatus: string) {
   const legacy = buildLegacyManifest(manifest);
   const workflow = asRecord(manifest.workflow);
-  if (["correction_needed", "requeue"].includes(currentStatus)) {
+  if (["correction_needed", "requeue", "queued", "in_progress"].includes(currentStatus)) {
     const histories = [legacy.work_history, workflow.work_history, workflow.history];
     for (const history of histories) {
       if (!Array.isArray(history)) continue;
       for (let index = history.length - 1; index >= 0; index -= 1) {
         const event = String(asRecord(history[index]).event ?? asRecord(history[index]).type ?? "").trim().toLowerCase();
         if (["manager_sent_back_to_tech", "manager_rejected"].includes(event)) {
-          return Array.isArray(legacy.manager_threads) ? legacy.manager_threads : [];
+          return "manager";
         }
         if (["qa_sent_back_to_tech", "qa_rejected"].includes(event)) {
-          return Array.isArray(legacy.qa_threads) ? legacy.qa_threads : [];
+          return "qa";
         }
       }
     }
@@ -8321,7 +8316,13 @@ function correctionFeedbackThreads(manifest: ProjectManifest, currentStatus: str
   const managerScope = Boolean(legacy.is_vip ?? manifest.is_vip)
     && Boolean(legacy.qa_reviewed_at ?? manifest.qa_reviewed_at)
     && (["correction_needed", "requeue"].includes(currentStatus) || managerThreads.length > 0);
-  return managerScope ? managerThreads : (Array.isArray(legacy.qa_threads) ? legacy.qa_threads : []);
+  return managerScope ? "manager" : "qa";
+}
+
+function correctionFeedbackThreads(manifest: ProjectManifest, currentStatus: string) {
+  const legacy = buildLegacyManifest(manifest);
+  const threads = legacy[`${correctionFeedbackScope(manifest, currentStatus)}_threads`];
+  return Array.isArray(threads) ? threads : [];
 }
 
 async function buildRushBonusPatchForSubmission(

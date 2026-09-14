@@ -178,6 +178,13 @@
     }
   }
 
+  async function ensureFeedbackReady(){
+    const folderId = window.currentProjectId;
+    if (!folderId) throw new Error('The project is still loading. Please retry.');
+    if (lastFolderId !== folderId) await refreshForFolder(folderId);
+    if (lastFolderId !== folderId) throw new Error('Unable to load saved feedback. Please retry.');
+  }
+
   async function persistThreadDrafts(){
     if (!lastFolderId || typeof window.firstMeasureFetchJson !== 'function') throw new Error('Feedback saving is not ready. Please reload the project and retry.');
     const folderId = lastFolderId;
@@ -267,7 +274,7 @@
       }
       if (latestKickback) break;
     }
-    if ((status === 'correction_needed' || status === 'requeue') && latestKickback) {
+    if (['correction_needed', 'requeue', 'queued', 'in_progress'].includes(status) && latestKickback) {
       return latestKickback.scope;
     }
     const hasManagerThreads = Array.isArray(manifest && manifest.manager_threads) && manifest.manager_threads.length > 0;
@@ -1704,6 +1711,7 @@
 
   async function addFeedbackFromExternal(payload){
     if (!isQaEmbedMode()) return { success: false, threads: cloneJson(qaThreads, []) };
+    await ensureFeedbackReady();
     const label = String(payload && payload.label || 'QA Feedback').trim() || 'QA Feedback';
     const text = String(payload && payload.text || '').trim();
     if (!text) return { success: false, threads: cloneJson(qaThreads, []) };
@@ -1824,6 +1832,8 @@
   // Silent Submit (Called by report.js)
   async function submitFixesSilent(options) {
     options = options && typeof options === 'object' ? options : {};
+    await ensureFeedbackReady();
+    await persistThreadDrafts();
     if (!qaThreads || qaThreads.length === 0) {
       return { success: true, next_status: null, manifest: manifestData, thread_scope: activeThreadScope };
     }
@@ -1993,7 +2003,7 @@
       submitSilent: submitFixesSilent, 
       hasNotes: () => qaThreads.length > 0,
       addFeedback: addFeedbackFromExternal,
-      flushDrafts: () => persistThreadDrafts(),
+      flushDrafts: async () => { await ensureFeedbackReady(); return persistThreadDrafts(); },
       getThreads: () => cloneJson(qaThreads, [])
     };
     

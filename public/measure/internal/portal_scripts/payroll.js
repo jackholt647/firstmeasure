@@ -865,16 +865,36 @@
     return String(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' ').trim();
   }
 
+  function exportTechnicianHistory(project){
+    const events = new Set(['claimed_new', 'claimed_correction', 'reopened_project_claimed', 'assigned_current', 'correction_submitted', 'submitted_for_qa']);
+    return rawWorkHistory(project).map((ev, index) => {
+      const event = String(ev.event || ev.type || '').toLowerCase();
+      const actor = ev.actor || {};
+      const user = String(ev.worker_email || ev.assigned_to_email || actor.email || ev.email || ev.worker_name || actor.name || '').trim();
+      return { event, user, index, ms: parseProjectTimestamp(ev.ts || ev.at || ev.created_at) };
+    }).filter(ev => events.has(ev.event) && ev.user && ev.ms !== null)
+      .sort((a,b) => a.ms - b.ms || a.index - b.index);
+  }
+
+  function exportQaStartedAt(project){
+    const times = normalizeHistory(project).filter(ev => ev.event === 'qa_claimed').map(ev => ev.ms);
+    if (times.length) return Math.min(...times);
+    return parseProjectTimestamp(project.qa_started_at || project.qa_claimed_at || project.workflow?.qa_claim?.claimed_at);
+  }
+
   function buildPayrollExportTsv(projects, employees){
     const ranks = employeeRankMap(employees);
     const headers = [
       'project_id', 'address', 'technician_user', 'qa_user', 'speed_tier',
       'points', 'complexity_level', 'submission_timestamp', 'started_drafting_timestamp',
       'completion_timestamp', 'qa_kickbacks', 'qa_score', 'height_map_quality_points', 'organization_id',
-      'expedited_level', 'amount_charged'
+      'expedited_level', 'amount_charged', 'original_technician_user', 'latest_technician_user', 'qa_started_timestamp'
     ];
     const rows = projects.map(project => {
       const technician = projectPayTechnician(project);
+      const techHistory = exportTechnicianHistory(project);
+      const originalTech = project.original_technician_email || project.original_technician_name || techHistory[0]?.user || '';
+      const latestTech = techHistory[techHistory.length - 1]?.user || project.latest_technician_email || project.latest_technician_name || technician.email || technician.name || '';
       const points = resolveProjectPoints(project);
       const elapsedMs = collectionElapsedMs(project);
       const band = speedBandForElapsed(elapsedMs, buildSpeedTimeline(points));
@@ -888,7 +908,8 @@
         isoTimestamp(completedMs), projectQaKickbacks(project), projectQaScore(project, ranks),
         heightQualityPoints(project),
         project?.organization_id || project?.organization_ref?.id || '',
-        projectExpeditedLevel(project), Number(project?.amount_charged ?? 0)
+        projectExpeditedLevel(project), Number(project?.amount_charged ?? 0),
+        originalTech, latestTech, isoTimestamp(exportQaStartedAt(project))
       ];
     });
     return [headers, ...rows].map(row => row.map(tsvCell).join('\t')).join('\r\n');

@@ -3880,7 +3880,9 @@
   }
 
   async function syncFeedbackBeforeDecision(){
-    const editor = getActiveQaEditorFrame()?.contentWindow?.DrafterQA;
+    const frame = getActiveQaEditorFrame();
+    const win = frame ? await waitForQaEmbeddedEditorWindow() : null;
+    const editor = win?.DrafterQA;
     if (editor?.flushDrafts) await editor.flushDrafts();
     if (editor?.getThreads) qaThreads = mergeThreadDrafts(qaThreads, editor.getThreads());
     await persistThreadDrafts();

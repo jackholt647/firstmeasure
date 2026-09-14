@@ -254,7 +254,7 @@ function setLayerScaleToMatchSolar(layerId, providerZoom) {
 
   // Keep fineScale as user tweak; set base scale to the computed "truth"
   const fine = Number.isFinite(cfg.fineScale) ? cfg.fineScale : 1.0;
-  cfg.scale = desiredEffScale / fine;
+  cfg.scale = desiredEffScale;
 
   return cfg;
 }
@@ -467,7 +467,9 @@ function setLayerScaleToMatchSolar(layerId, providerZoom, sourceW = null, target
   desiredEffScale = Math.max(0.10, Math.min(20, desiredEffScale));
 
   const fine = Number.isFinite(cfg.fineScale) ? cfg.fineScale : 1.0;
-  cfg.scale = desiredEffScale / (fine || 1.0);
+  // fineScale is the technician's calibration, not part of the provider's
+  // ground resolution. Dividing it out silently undoes that saved adjustment.
+  cfg.scale = desiredEffScale;
 
   return cfg;
 }

@@ -8146,7 +8146,7 @@ function buildSubmissionPdfOutputs(state = null) {
     const fullOutput = {
         mode: 'full',
         persist: true,
-        update_status: true,
+        update_status: false,
         clearBrandingOverrides: true,
         clear_branding_overrides: true,
         disableOrganizationBranding: true,
@@ -8218,7 +8218,7 @@ async function tryApiPdfGenerationWithConfirmation(state, setOverlay) {
         const payloadEstimate = (typeof window.FirstMatePDFStandalone.estimateProjectPdfsApiPayload === 'function')
             ? window.FirstMatePDFStandalone.estimateProjectPdfsApiPayload(state.folderId, snapshot, {
                 persistFiles: true,
-                updateStatus: true,
+                updateStatus: false,
                 outputs: submissionOutputs
             })
             : null;
@@ -8230,7 +8230,7 @@ async function tryApiPdfGenerationWithConfirmation(state, setOverlay) {
         setOverlay(true, "Generating Reports via API...");
         const apiResult = await window.FirstMatePDFStandalone.generateProjectPdfsViaApi(state.folderId, snapshot, {
             persistFiles: true,
-            updateStatus: true,
+            updateStatus: false,
             outputs: submissionOutputs,
             debug: FIRSTMEASURE_PDF_SUBMIT_DEBUG
         });
@@ -8316,7 +8316,7 @@ async function runSharedLocalPdfGeneration(state, setOverlay) {
         runtimeContext,
         {
             persistFiles: true,
-            updateStatus: true,
+            updateStatus: false,
             outputs,
             onStatus: ({ mode, message }) => {
                 if (!message || message === 'Done') return;
