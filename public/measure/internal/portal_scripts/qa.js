@@ -2563,6 +2563,12 @@
   }
 
   function esc(s){ return Portal.escapeHtml(s); }
+  function qaProjectPriorityPill(project){
+    const level = window.Projects?.reportExpeditePriorityLevel(project || {});
+    if (level !== 1 && level !== 2) return '';
+    const colors = level === 1 ? 'background:#fee2e2;color:#991b1b;' : 'background:#dbeafe;color:#1e40af;';
+    return ` <span class="qa-project-priority" title="Project priority ${level}" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;${colors}font-size:10px;font-weight:950;vertical-align:middle;">P${level}</span>`;
+  }
   function genId(){ return 'thread_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36); }
 
   let qaScoreTooltipEl = null;
@@ -9255,6 +9261,7 @@
         if (currentProjectStatus === 'pending_rejection' || currentProjectStatus === 'submission_failed') addrText += ' !';
         let extra = '';
         if (isVip) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#f9ab00;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">VIP</span>';
+        extra += qaProjectPriorityPill(currentManifest || item);
         if (isExpedited) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#0f766e;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">EXPEDITED</span>';
         if (customerRework.isRework) extra += ' <span class="qa-badge customer-rework"><i class="fas fa-screwdriver-wrench"></i> Customer Rework</span>';
         if (isManagerReviewMode) extra += managerReviewReasonPill(currentManifest || item || {});
@@ -9403,6 +9410,7 @@
         if (currentProjectStatus === 'pending_rejection' || currentProjectStatus === 'submission_failed') addrText += ' ⚠️';
         let extra = '';
         if (isVip) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#f9ab00;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">⭐ VIP</span>';
+        extra += qaProjectPriorityPill(currentManifest || item);
         if (isExpedited) extra += ' <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;background:#0f766e;color:#fff;font-size:10px;font-weight:950;vertical-align:middle;">EXPEDITED</span>';
         if (customerRework.isRework) extra += ' <span class="qa-badge customer-rework"><i class="fas fa-screwdriver-wrench"></i> Customer Rework</span>';
         if (isManagerReviewMode) extra += managerReviewReasonPill(currentManifest || item || {});
