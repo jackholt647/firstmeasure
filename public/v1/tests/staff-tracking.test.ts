@@ -79,6 +79,15 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
     // Real PHP completion + signed receipt into the same app, with isolated files.
     await app.listen({host:'127.0.0.1',port:0});
     const addr=app.server.address();assert.ok(addr && typeof addr==='object');
+    const closeResponse=await fetch(`http://127.0.0.1:${addr.port}/v1/platform/auth/session`,{headers:{...users.trainee,'x-forwarded-for':'9.9.9.9',connection:'close'}});
+    assert.equal(closeResponse.status,200);await closeResponse.text();await flushTracking();
+    assert.equal((await trackingQuery("SELECT id FROM staff_tracking_events WHERE ip='9.9.9.9'")).length,1,'collection survives a closed HTTP connection');
+    const {recordTracking}=await import('../staff_tracking/api.js');
+    const closingRequest:any={headers:{...users.trainee,'x-forwarded-for':'8.8.4.4'},raw:{socket:{remoteAddress:'127.0.0.1'}}};
+    const closingObservation=recordTracking(closingRequest,'activity');
+    closingRequest.raw.socket=null; // The response connection closes during async auth/database work.
+    await closingObservation;
+    assert.equal((await trackingQuery("SELECT id FROM staff_tracking_events WHERE ip='8.8.4.4'")).length,1,'socket metadata is captured before asynchronous auth');
     process.env.STAFF_TRACKING_BRIDGE_URL=`http://127.0.0.1:${addr.port}/v1/private/staff-tracking`;
     const phpFixture=path.resolve('tests/staff-tracking-submit.php');
     await new Promise<void>((resolve,reject)=>{

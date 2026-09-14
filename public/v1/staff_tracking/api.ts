@@ -37,13 +37,18 @@ async function viewer(request: FastifyRequest,csrf=false,adminOnly=false) {
   return c;
 }
 async function audit(actor:string,action:string,target:string) { await trackingQuery('INSERT INTO staff_tracking_audit(id,actor,action,target,at) VALUES($1,$2,$3,$4,$5)',[randomUUID(),actor,action,target,new Date().toISOString()]); }
-export async function recordTracking(request: FastifyRequest,kind:TrackingEvent['kind'],details:Partial<TrackingEvent>={},context?:PlatformAuthContext) {
+function trackingObservation(request:FastifyRequest) {
+  // onResponse work outlives the HTTP connection. Capture its provenance before
+  // any await; Node/proxies can detach the socket while auth queries are running.
+  return {at:new Date().toISOString(),ip:visitorIp(request.raw.socket?.remoteAddress||'',String(request.headers['x-forwarded-for']||'')),browser:browserFamily(String(request.headers['user-agent']||''))};
+}
+export async function recordTracking(request: FastifyRequest,kind:TrackingEvent['kind'],details:Partial<TrackingEvent>={},context?:PlatformAuthContext,observation?:ReturnType<typeof trackingObservation>) {
   if(!enabled())return;
+  const observed=observation||trackingObservation(request);
   const auth=context||await collectionStage('auth',()=>authContextFromRequest(request));if(!auth)return;
   const user=await collectionStage('staff',()=>readInternalUser(String(auth.identity.email||'')));if(!activeStaff(user))return;
-  const at=new Date().toISOString();
-  const ip=visitorIp(request.raw.socket.remoteAddress||request.ip,String(request.headers['x-forwarded-for']||''));
-  const e:TrackingEvent={id:'',email:user!.email,name:user!.name,at,ip,kind,session_ref:reference(auth.sessionId),browser:browserFamily(String(request.headers['user-agent']||'')),
+  const {at,ip,browser}=observed;
+  const e:TrackingEvent={id:'',email:user!.email,name:user!.name,at,ip,kind,session_ref:reference(auth.sessionId),browser,
     established:user!.training_complete===true||user!.role==='qa',impersonated:!!object(auth.session.metadata).impersonated,
     course:String(details.course||'').slice(0,120),attempt:String(details.attempt||'').slice(0,120),project:String(details.project||'').slice(0,120)};
   e.id=reference([e.email,e.session_ref,ip,kind,e.course,e.attempt,e.project,Math.floor(Date.now()/SAMPLE_MS)].join('|'));
@@ -114,9 +119,10 @@ export async function trackTutorialResult(request:FastifyRequest,action:string,r
   if(!enabled()||!result.success)return;
   const kind=action==='start_tutorial_test_attempt'?'exam_start':action==='start_tutorial_project'?'training_start':action==='start_tutorial_draft_reject_round'?(body.mode==='test'?'exam_start':'training_start'):null;if(!kind)return;
   enqueue(async()=>{
+    const observation=trackingObservation(request);
     const auth=await authContextFromRequest(request);if(!auth)return;
     const actor=String(request.headers['x-internal-user-email']||body.actor_email||object(body.actor).email||'').toLowerCase();
     if(actor&&actor!==String(auth.identity.email).toLowerCase())return;
-    await recordTracking(request,kind,{course:String(result.course_id||body.course_id||'default'),attempt:String(result.attempt_id||''),project:String(result.folder||result.tutorial_id||'')},auth);
+    await recordTracking(request,kind,{course:String(result.course_id||body.course_id||'default'),attempt:String(result.attempt_id||''),project:String(result.folder||result.tutorial_id||'')},auth,observation);
   },app);
 }
