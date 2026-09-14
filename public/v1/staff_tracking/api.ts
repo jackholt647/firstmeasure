@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { authContextFromRequest, requirePlatformAuth, type PlatformAuthContext } from '../platform/auth.js';
 import { readInternalUser, listInternalUsers } from '../internal/storage.js';
 import { activeStaff, browserFamily, enabled, fullAdmin, normalizeIp, reference, RETENTION_DAYS, SAMPLE_MS, signalsFor, visitorIp, type TrackingEvent } from './core.js';
-import { expireTracking, insertEvent, priorEvents, trackingQuery } from './store.js';
+import { expireTracking, insertEvent, priorEvents, trackingQuery, peopleSummaries, networkHistory } from './store.js';
 
 const base='/v1/staff-tracking';
 const cache=new Map<string,number>();
@@ -85,6 +85,32 @@ export function installStaffTracking(app:FastifyInstance) {
     routes.addHook('onRequest',async(_req,reply)=>{reply.header('Cache-Control','no-store');if(!enabled())return reply.code(404).send({error:'Tracking pilot is not enabled'});});
     routes.setErrorHandler((error,_req,reply)=>reply.code(error instanceof z.ZodError?400:Number((error as any).statusCode)||503).send({error:error instanceof z.ZodError?'Invalid tracking request':(error as any).statusCode?(error as Error).message:'Tracking unavailable; no inference can be made from missing data'}));
     routes.get('/access',async req=>{const c=await viewer(req);return {ok:true,admin:fullAdmin(c.user),retention_days:RETENTION_DAYS};});
+    routes.get('/people',async req=>{
+      const c=await viewer(req);
+      const q=z.object({search:z.string().max(200).default(''),ip:z.string().max(60).optional(),days:z.coerce.number().int().min(1).max(90).default(30),offset:z.coerce.number().int().min(0).max(100000).default(0)}).parse(req.query);
+      const cutoff=new Date(Date.now()-q.days*86400000).toISOString();
+      const ip=q.ip?normalizeIp(q.ip):null;
+      if(q.ip&&!ip)throw Object.assign(new Error('Invalid IP'),{statusCode:400});
+      // Aggregate in SQL, not by downloading or analyzing every event per person.
+      const rows=await peopleSummaries(cutoff,ip);
+      const summaries=new Map(rows.map(r=>[r.email,r]));
+      const staff=await listInternalUsers();
+      const roster=new Map(staff.filter(u=>activeStaff(u)||summaries.has(u.email)).map(u=>[u.email,{email:u.email,name:u.name,role:u.role,active:activeStaff(u)}]));
+      for(const email of summaries.keys())if(!roster.has(email))roster.set(email,{email,name:email,role:'former staff',active:false});
+      const term=q.search.trim().toLowerCase();
+      const people=Array.from(roster.values()).filter(u=>(!ip||summaries.has(u.email))&&(!term||(u.name+' '+u.email).toLowerCase().includes(term))).map(u=>{
+        const r=summaries.get(u.email);return {...u,observations:Number(r?.observations||0),ip_count:Number(r?.ip_count||0),last_seen:r?.last_seen||null,unknown_ip_count:Number(r?.unknown_ip_count||0),training_events:Number(r?.training_events||0)};
+      }).sort((a,b)=>a.name.localeCompare(b.name)||a.email.localeCompare(b.email));
+      await audit(c.user.email,'view_people',q.search||q.ip||'directory');
+      return {ok:true,people:people.slice(q.offset,q.offset+25),total:people.length,offset:q.offset,next_offset:q.offset+25<people.length?q.offset+25:null,retention_days:RETENTION_DAYS};
+    });
+    routes.get('/networks',async req=>{
+      const c=await viewer(req);const q=z.object({email:z.string().email().max(200),days:z.coerce.number().int().min(1).max(90).default(30),offset:z.coerce.number().int().min(0).max(100000).default(0)}).parse(req.query);
+      const email=q.email.toLowerCase(),cutoff=new Date(Date.now()-q.days*86400000).toISOString();
+      const rows=await networkHistory(email,cutoff,q.offset);
+      await audit(c.user.email,'view_networks',email);
+      return {ok:true,networks:rows.slice(0,25).map(r=>({...r,observations:Number(r.observations)})),next_offset:rows.length>25?q.offset+25:null};
+    });
     routes.get('/events',async req=>{
       const c=await viewer(req);const q=z.object({email:z.string().max(200).optional(),ip:z.string().max(60).optional(),training:z.enum(['1']).optional(),before:z.string().datetime().optional(),cursor:z.string().max(100).optional(),days:z.coerce.number().int().min(1).max(90).default(30)}).parse(req.query);
       const cutoff=new Date(Date.now()-q.days*86400000).toISOString();const args:(string|number|null)[]=[cutoff];let where='e.at>=$1';

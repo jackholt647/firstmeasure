@@ -38,6 +38,15 @@ export async function initializeTrackingSchema() {
 export async function insertEvent(e: TrackingEvent) {
   await trackingQuery('INSERT INTO staff_tracking_events(id,email,at,ip,kind,attempt,course,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING',[e.id,e.email,e.at,e.ip,e.kind,e.attempt,e.course,JSON.stringify(e)]);
 }
+export async function peopleSummaries(cutoff:string,ip:string|null) {
+  return trackingQuery(`SELECT email,COUNT(*) AS observations,COUNT(DISTINCT ip) AS ip_count,MAX(at) AS last_seen,
+    SUM(CASE WHEN ip IS NULL THEN 1 ELSE 0 END) AS unknown_ip_count,
+    SUM(CASE WHEN kind IN ('training_start','training_submit','exam_start','exam_submit') THEN 1 ELSE 0 END) AS training_events
+    FROM staff_tracking_events WHERE at>=$1 ${ip?'AND ip=$2':''} GROUP BY email`,ip?[cutoff,ip]:[cutoff]);
+}
+export async function networkHistory(email:string,cutoff:string,offset:number) {
+  return trackingQuery(`SELECT ip,MIN(at) AS first_seen,MAX(at) AS last_seen,COUNT(*) AS observations FROM staff_tracking_events WHERE email=$1 AND at>=$2 GROUP BY ip ORDER BY MAX(at) DESC,COALESCE(ip,'') ASC LIMIT 26 OFFSET $3`,[email,cutoff,offset]);
+}
 export async function priorEvents(e: TrackingEvent) {
   const cutoff=new Date(Date.parse(e.at)-RETENTION_DAYS*86400000).toISOString();
   // Bound indexed input as well as output: a large shared office must not cause

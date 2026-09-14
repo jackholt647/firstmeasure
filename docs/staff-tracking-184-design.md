@@ -1,7 +1,8 @@
 # 1M8-184: staff Tracking pilot design
 
-Status: implemented and tested locally in development on September 14, 2026.
-Not deployed to the shared development cluster or production; feature is off by default.
+Status: the original pilot is deployed in production; see the linked release record.
+The September 14 people-first redesign below is a local development follow-up,
+not yet deployed to the shared development cluster or production.
 
 ## Scope
 
@@ -38,15 +39,28 @@ Jack confirmed collection is for all staff; individual enablement restricts view
 
 ## One central interface
 
-1. Review signals: explainable signals prioritized within each 50-observation page;
+1. People (default homepage): searchable name/email directory with 25 users per
+   page, one row per person, observed IP count, last observation and training event
+   count. Active staff with no observations remain visible; observed former staff
+   remain available. Exact-IP filtering summarizes only matching observations.
+   Aggregation is performed in SQL rather than downloading the event stream or
+   doing per-event signal analysis for the directory.
+2. Person detail: known IPs with first/last observation and counts, independently
+   paginated in groups of 25; unavailable IPs are explicitly labeled. The selected
+   7/30/90-day window applies to the IP history and 50-event activity timeline.
+   Per-person training/exam and signal tabs retain the selected person; All people
+   returns to the directory. Display timezone includes Manila, Pacific and UTC.
+3. Review signals: explainable signals prioritized within each 50-observation page;
    this is not a global precomputed inbox. Needs review, explained/shared
    network, or dismissed, with reviewer and timestamp. Never a “cheater score.”
-2. People/history: search a user or exact IP; paginated event timeline, date and
-   activity filters, cross-account matches. Display timezone explicitly, including
-   a Manila option for the Philippines team.
-3. Training/exams: attempt timeline with start/submission IP and prior account
+4. Training/exams: attempt timeline with start/submission IP and prior account
    associations. Unknown/missing collection periods are visible, not “clean.”
-4. Access/pilot: Admin-only individual viewer grants and collection status.
+5. Access/pilot: Admin-only individual viewer grants and collection status.
+
+The new /people and /networks endpoints use the same per-request viewer checks,
+no-store responses and read auditing as event history. No schema, collection,
+retention, grant or production configuration changes are required. Known IPs are
+observations (including support sessions), not identities or a suspicion score.
 
 ## Implementation constraints from the code inspection
 
@@ -126,6 +140,17 @@ that evidence is incomplete; each signal
 shows up to 20 matching observations. Retention bounds also apply to review evidence.
 
 ## Verification performed
+
+People-first follow-up: local real-API tests cover over 400 observed accounts,
+directory pagination/search, an active user with no observations, exact-IP
+normalization, per-person multi-IP pagination, missing IPs, retention and viewer
+revocation on both new endpoints. Isolated PostgreSQL tests cover the actual
+summary/network queries with over 500 accounts and 10,002 repeated observations.
+Headless Chrome exercises the actual new UI against the authenticated local API:
+directory default, person drilldown, per-person training, back navigation, existing
+grant/revoke controls and mobile overflow checks. Screenshots were visually
+reviewed. TypeScript and JavaScript syntax checks passed. This is a local fixture
+shell, not a claim that the shared development portal has been updated.
 
 - Unit tests: mapped IPv4/IPv6, forged forwarding, trusted multi-hop chains, missing
   provenance, prior versus later associations, expired evidence, impersonation and
