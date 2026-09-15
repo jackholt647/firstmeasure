@@ -2751,27 +2751,30 @@
 
   /* ───────────── WIRE UI ───────────── */
 
-  async function fetchOrganizationsForExport(){
+  async function fetchOrganizationsForExport(onProgress = () => {}){
     const organizations = [];
-    let page = 1;
-    let totalPages = 1;
+    let after = '';
+    const seen = new Set();
     do {
       const data = await window.Portal.apiPost(apiServer(), {
-        action:'customer_org_dashboard_data',
-        paginate:'1',
-        page:String(page),
-        per_page:'1000',
-        sort_col:'name',
-        sort_dir:'asc',
-        filters:'{}',
-        hide_test:'0',
-        hide_commission_paid:'0'
+        action:'customer_users_export_page', after
       });
       if (!data?.success) throw new Error(data?.error || 'Could not load organizations for export.');
-      organizations.push(...(Array.isArray(data.organizations) ? data.organizations : []));
-      totalPages = Math.max(1, parseInt(data?.pagination?.total_pages || 1, 10) || 1);
-      page++;
-    } while (page <= totalPages);
+      if (!Array.isArray(data.organizations) || !Object.prototype.hasOwnProperty.call(data, 'next_cursor')) {
+        throw new Error('Export response was incomplete. Please retry after refreshing the portal.');
+      }
+      for (const org of data.organizations) {
+        if (!org.id || seen.has(org.id)) throw new Error('Export returned duplicate or invalid organizations. Please retry.');
+        seen.add(org.id);
+        organizations.push(org);
+      }
+      const next = data.next_cursor;
+      if (next !== null && (typeof next !== 'string' || next <= after || !data.organizations.length)) {
+        throw new Error('Export did not advance. Please retry.');
+      }
+      onProgress(organizations.length);
+      after = next;
+    } while (after !== null);
     return organizations;
   }
 
@@ -2784,7 +2787,9 @@
     }
     let exportOrgs;
     try {
-      exportOrgs = await fetchOrganizationsForExport();
+      exportOrgs = await fetchOrganizationsForExport(count => {
+        if (exportBtn) exportBtn.textContent = `Loading customers… ${count} organizations`;
+      });
     } catch (error) {
       alert(error?.message || 'Could not load customers for export.');
       return;
