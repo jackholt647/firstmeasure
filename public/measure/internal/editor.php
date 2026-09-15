@@ -7,6 +7,7 @@ session_start();
 // project data: a slow storage request would block the user's other staff tabs.
 session_write_close();
 require_once __DIR__ . '/firstmeasure_node.php';
+require_once __DIR__ . '/_editor_transport.php';
 require_once __DIR__ . '/_tutorials.php';
 require_once __DIR__ . '/_staff_tracking.php';
 require_once __DIR__ . '/_permission_options.php';
@@ -117,7 +118,7 @@ function fm_editor_tutorial_request_user_email($sessionEmail, $tutorialId = '', 
 // If the user email session is not set, redirect to the login page immediately.
 $editorAction = strtolower(trim((string)($_GET['action'] ?? $_POST['action'] ?? '')));
 if (!isset($_SESSION['user_email'])) {
-    if ($editorAction === 'project_bundle' || strpos($editorAction, 'tutorial_project_') === 0) {
+    if ($editorAction === 'project_bundle' || $editorAction === 'project_feedback' || strpos($editorAction, 'tutorial_project_') === 0) {
         header('Content-Type: application/json');
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -431,7 +432,7 @@ function fm_editor_json_response($payload, $statusCode = 200) {
     echo $json;
 }
 
-if ($editorAction === 'project_bundle') {
+if ($editorAction === 'project_bundle' || $editorAction === 'project_feedback') {
     $rawProjectId = trim((string)($_GET['folder'] ?? $_POST['folder'] ?? ''));
     if (fm_tutorial_is_tutorial_project_id($rawProjectId)) {
         fm_editor_json_response(['success' => false, 'error' => 'Tutorial projects must be opened in tutorial mode.'], 403);
@@ -444,13 +445,25 @@ if ($editorAction === 'project_bundle') {
     }
 
     try {
-        $bundle = function_exists('fm_fetch_project_bundle') ? fm_fetch_project_bundle($projectId) : null;
+        $canViewIdentity = fm_editor_can_view_qa_identity();
+        if ($editorAction === 'project_bundle') {
+            $url = rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode($projectId)
+                . '/editor?transport=php&blind_qa=' . ($canViewIdentity ? '0' : '1');
+            $upstreamStatus = null;
+            if (!fm_editor_stream_node_bundle($url, $upstreamStatus)) {
+                $status = in_array($upstreamStatus, [401, 403, 404], true) ? $upstreamStatus : 502;
+                fm_editor_json_response(['success' => false, 'error' => 'Project bundle failed to load.'], $status);
+            }
+            exit;
+        }
+        $response = fm_api_json('GET', 'projects/' . rawurlencode($projectId) . '/editor/feedback');
+        $bundle = $response['ok'] && is_array($response['json']) ? $response['json'] : null;
         if (!is_array($bundle)) {
             fm_editor_json_response(['success' => false, 'error' => 'Project not found'], 404);
             exit;
         }
 
-        if (!fm_editor_can_view_qa_identity()) {
+        if (!$canViewIdentity) {
             $bundle['manifest'] = fm_editor_blind_qa_identity_payload($bundle['manifest'] ?? null);
             $bundle['app_metadata'] = fm_editor_blind_qa_identity_payload($bundle['app_metadata'] ?? null);
             $bundle['pdf_state'] = fm_editor_blind_qa_identity_payload($bundle['pdf_state'] ?? null);

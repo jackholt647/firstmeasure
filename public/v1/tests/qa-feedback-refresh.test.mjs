@@ -54,6 +54,23 @@ test('failed initial feedback load blocks approval without discarding notes',asy
   await assert.rejects(vm.runInContext('ensureFeedbackReady()',c),/Unable to load/);
   assert.equal(c.qaThreads[0].id,'unsaved');
 });
+
+test('production feedback uses the small authenticated PHP endpoint, not the PDF bundle',async()=>{
+  const calls=[];
+  const c=vm.createContext({URLSearchParams,console,getApiProjectPath:(id,suffix)=>`/projects/${id}${suffix}`,window:{
+    location:{pathname:'/measure/internal/editor.php'},firstMeasureIsTutorialProjectId:()=>false,
+    firstMeasureFetchLocalJson:async(url,options)=>{calls.push({url,options});return {manifest:{qa_threads:[{id:'saved'}]}};},
+    firstMeasureFetchJson:()=>{throw new Error('Large bundle must not be requested');}
+  }});
+  vm.runInContext(extract('fetchManifest'),c);
+  const result=await c.fetchManifest('project');
+  assert.equal(result.manifest.qa_threads[0].id,'saved');
+  assert.equal(calls[0].url,'/measure/internal/editor.php?action=project_feedback&folder=project');
+  assert.equal(calls[0].options.credentials,'include');assert.equal(calls[0].options.cache,'no-store');
+  c.window.firstMeasureIsTutorialProjectId=()=>true;
+  c.window.firstMeasureFetchJson=async url=>({tutorialUrl:url});
+  assert.equal((await c.fetchManifest('tutorial_abc')).tutorialUrl,'/projects/tutorial_abc/editor');
+});
 test('PDF preparation never submits before correction responses',async()=>{
   const report=await readFile(new URL('../../measure/internal/editor_scripts/report.js',import.meta.url),'utf8');
   const start=report.indexOf('function buildSubmissionPdfOutputs(');

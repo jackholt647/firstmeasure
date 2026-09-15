@@ -1881,7 +1881,16 @@
   // ---------- data loading ----------
   async function fetchManifest(folderId){
     try {
-      const data = await window.firstMeasureFetchJson(getApiProjectPath(folderId, '/editor'), { method: 'GET' });
+      // Tutorials retain their isolated PHP bundle/ownership checks. Production
+      // feedback uses a small authenticated, identity-blinded PHP response.
+      const tutorial = typeof window.firstMeasureIsTutorialProjectId === 'function'
+        && window.firstMeasureIsTutorialProjectId(folderId);
+      const data = tutorial
+        ? await window.firstMeasureFetchJson(getApiProjectPath(folderId, '/editor'), { method: 'GET' })
+        : await window.firstMeasureFetchLocalJson(
+          `${window.location.pathname}?${new URLSearchParams({ action: 'project_feedback', folder: folderId })}`,
+          { method: 'GET', credentials: 'include', cache: 'no-store' }
+        );
       return data && typeof data === 'object' ? data : null;
     } catch (e) {
       console.error('Failed to load project manifest for QA notes overlay:', e);

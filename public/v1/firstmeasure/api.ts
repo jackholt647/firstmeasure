@@ -18,6 +18,7 @@ import {
 } from "../src/storage/project_artifacts.js";
 import { authContextFromRequest, requirePlatformAuth } from "../platform/auth.js";
 import { mergeQaFeedbackThreads } from "./qa_feedback.js";
+import { blindEditorQaIdentity } from "./editor_transport.js";
 
 import { getAppleKeyInfo, setAppleKey } from "./apple.js";
 import { FIRSTMEASURE_FILE_NAMES, PDF_FILE_NAMES, firstMeasurePointValueForComplexity, type PdfSlot } from "./constants.js";
@@ -1339,11 +1340,32 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.get("/projects/:id/editor", async (request) => ({
-    ok: true,
-    success: true,
-    ...(await buildEditorBundle(getProjectId(request.params), request))
-  }));
+  app.get("/projects/:id/editor", async (request, reply) => {
+    const projectId = getProjectId(request.params);
+    const bundle = await buildEditorBundle(projectId, request);
+    const query = asRecord(request.query);
+    if (query.transport === 'php') {
+      bundle.manifest = buildLegacyManifest(bundle.manifest) as typeof bundle.manifest;
+      if (query.blind_qa === '1') {
+        blindEditorQaIdentity(bundle.manifest);
+        blindEditorQaIdentity(bundle.app_metadata);
+        blindEditorQaIdentity(bundle.pdf_state);
+      }
+    }
+    reply.header('Cache-Control', 'no-store');
+    return { ok: true, success: true, folder: projectId, ...bundle };
+  });
+
+  // Feedback must not depend on decoding PDF snapshots (which can exceed 100 MB).
+  app.get('/projects/:id/editor/feedback', async (request, reply) => {
+    const projectId = getProjectId(request.params);
+    const manifest = await readManifest(projectId);
+    const drafts = asRecord(manifest.qa_thread_drafts);
+    const metadata = Object.keys(drafts).length ? {} : asRecord(await readAppMetadata(projectId));
+    const appMetadata = { qa_thread_drafts: Object.keys(drafts).length ? drafts : asRecord(metadata.qa_thread_drafts) };
+    reply.header('Cache-Control', 'no-store');
+    return { ok: true, success: true, manifest: buildLegacyManifest(manifest), app_metadata: appMetadata };
+  });
 
   app.get("/projects/:id/previous-report-candidate", async (request) => {
     const projectId = getProjectId(request.params);
