@@ -5,11 +5,13 @@ import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import test from 'node:test';
+import { createHmac } from 'node:crypto';
 
 test('PHP renders exteriors only for authorized full-house IDs; roof markup stays clean', async () => {
   let allowed = true;
   const server = createServer((request, response) => {
-    const access = allowed && request.headers['x-full-house-user'] === 'owner@example.test';
+    const expected = createHmac('sha256', 'test-full-house-signing-secret').update(`${request.headers['x-full-house-user']}\n${request.headers['x-full-house-time']}`).digest('hex');
+    const access = allowed && request.headers['x-full-house-user'] === 'owner@example.test' && request.headers['x-full-house-signature'] === expected;
     response.setHeader('Content-Type', 'application/json');
     if (request.url?.endsWith('/internal-exteriors/capability')) {
       response.statusCode = access ? 200 : 404;
@@ -23,7 +25,7 @@ test('PHP renders exteriors only for authorized full-house IDs; roof markup stay
   const extensions = process.platform === 'win32' ? ['-d', `extension_dir=${path.join(path.dirname(binary), 'ext')}`, '-d', 'extension=curl'] : [];
   const render = (folder: string, email = 'owner@example.test') => new Promise<{ html: string; errors: string }>((resolve, reject) => {
     const php = `session_save_path(${JSON.stringify(sessions)}); session_id('fullhousetest'); session_start(); $_SESSION=['user_email'=>${JSON.stringify(email)},'user_name'=>'Test Owner','user_role'=>'admin']; session_write_close(); $_GET=['folder'=>${JSON.stringify(folder)},'full_house'=>'1']; $_SERVER['HTTP_HOST']='php-test.local'; $_SERVER['REQUEST_METHOD']='GET'; include '../measure/internal/editor.php';`;
-    const child = spawn(binary, [...extensions, '-d', 'memory_limit=32M', '-r', php], { env: { ...process.env, FIRSTMEASURE_API_BASE: `http://127.0.0.1:${port}/v1/firstmeasure`, FIRSTMEASURE_INTERNAL_API_SECRET: 'test-only-php-secret' } });
+    const child = spawn(binary, [...extensions, '-d', 'memory_limit=32M', '-r', php], { env: { ...process.env, FIRSTMEASURE_API_BASE: `http://127.0.0.1:${port}/v1/firstmeasure`, FIRSTMEASURE_INTERNAL_API_SECRET: 'test-only-php-secret', FIRSTMEASURE_FULL_HOUSE_SIGNING_SECRET: 'test-full-house-signing-secret' } });
     let html = '', errors = ''; child.stdout.on('data', chunk => html += chunk); child.stderr.on('data', chunk => errors += chunk);
     child.on('error', reject); child.on('exit', code => code === 0 ? resolve({ html, errors }) : reject(Error(errors)));
   });

@@ -28,6 +28,10 @@ identity, prototype launchers, and generated output are excluded.
 - Direct project and resource routes check identity. PHP bridges sign the actual
   session identity with the existing internal service secret; browsers never
   receive that secret. Plain email/actor headers do not authorize access.
+- If PHP and the web API use different provider-key files, configure PHP FPM's
+  `FIRSTMEASURE_FULL_HOUSE_SIGNING_SECRET` with the web API's effective internal
+  signing secret. This override affects only full-house requests. Keep it in a
+  protected server configuration; do not alter existing provider credentials.
 - Resource uploads use existing project storage with chunk integrity checks and
   ranged downloads. They require a full-house project and allowed identity.
   Private responses use `Cache-Control: private, no-store`.

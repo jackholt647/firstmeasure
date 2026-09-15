@@ -19,7 +19,7 @@ if (!preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $project)) resource_error(400, 'Ope
 if (strlen($name) > 100 || ($name !== '' && !preg_match('/^internal-(resource|markup)-[a-zA-Z0-9._-]+$/D', $name))) resource_error(400, 'Invalid resource name.');
 $method = $_SERVER['REQUEST_METHOD'];
 if (!in_array($method, ['GET','HEAD','POST'], true)) resource_error(405, 'Method not supported.');
-$secret = fm_provider_key_value('application', 'internal_api_secret') ?: getenv('FIRSTMEASURE_INTERNAL_API_SECRET');
+$secret = fm_full_house_secret();
 if (!$secret) resource_error(503, 'Internal resource storage is not configured.');
 $artifactBase = rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode($project) . '/artifacts';
 const RESOURCE_CHUNK_BYTES = 8 * 1024 * 1024;
