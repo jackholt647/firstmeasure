@@ -2,6 +2,14 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 15 UTC latest: [exteriors integration and export 188 promotion](deploy/digitalocean/production-exteriors-20260915.md)
+records `6eed8c8a0b0f2d02673176a0dda205d2bfc6a685` on all eight production roles
+and the signed replacement channel. Exteriors are disabled, the allowlist is
+empty, and normal roofing loads no wall/exterior modules or Resources tab.
+Only the shared view swap/resize controls are added to roofing. The same tested
+release includes export fix 188. Source is on `codex/internal-exteriors`; preserve
+this baseline in subsequent work. Production configuration and data are unchanged.
+
 September 15 UTC latest: [177/187 QA feedback and PHP memory release](deploy/digitalocean/production-qa177-php187-20260915.md)
 records `42ab264b13fcc953bed4688bf112b12adbcb781d` on all eight production roles
 and the signed replacement channel. The original oversized project now displays
