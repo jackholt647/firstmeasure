@@ -58,23 +58,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     if (!hash_equals($csrf, (string)($_SERVER['HTTP_X_FULL_HOUSE_CSRF'] ?? ''))) { http_response_code(403); exit('{"error":"Invalid request"}'); }
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body) || !is_string($body['address'] ?? null) || trim($body['address']) === ''
+        || !is_numeric($body['lat'] ?? null) || !is_numeric($body['lng'] ?? null)
+        || !is_finite((float)$body['lat']) || !is_finite((float)$body['lng'])
+        || abs((float)$body['lat']) > 90 || abs((float)$body['lng']) > 180) {
+        http_response_code(400); exit('{"error":"Select a property address from the Google suggestions."}');
+    }
+    $body = ['address' => trim($body['address']), 'lat' => (float)$body['lat'], 'lng' => (float)$body['lng'], 'measurement_scope' => 'full_house'];
     set_time_limit(240);
     $result = fm_api_request('POST', 'internal-exteriors/projects', ['json' => $body, 'timeout' => 230]);
     http_response_code($result['status'] ?: 502); echo $result['body']; exit;
 }
 $result = fm_api_request('GET', 'internal-exteriors/projects');
 $projects = $result['json']['projects'] ?? [];
+$googleKey = fm_google_provider_key('browser_internal');
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Full-house measurements · FirstMeasure</title>
-<style>body{font:16px system-ui;background:#f4f6f8;color:#233443;margin:0}main{max-width:820px;margin:60px auto;padding:0 24px}h1{font-size:30px}form,article{background:white;border:1px solid #dbe2e8;border-radius:12px;padding:24px;margin:20px 0}input[type=text]{display:block;width:100%;box-sizing:border-box;padding:12px;margin:10px 0 20px;border:1px solid #a9b6c2;border-radius:6px;font:inherit}button{display:block;margin-top:20px;padding:12px 20px;background:#1e5269;color:white;border:0;border-radius:6px;font:inherit;cursor:pointer}a{color:#1e5269}li{margin:14px 0}small{color:#5a6a78}#status{white-space:pre-wrap}</style></head><body><main>
+<style>body{font:16px system-ui;background:#f4f6f8;color:#233443;margin:0}main{max-width:820px;margin:60px auto;padding:0 24px}h1{font-size:30px}form,article{background:white;border:1px solid #dbe2e8;border-radius:12px;padding:24px;margin:20px 0}input[type=text]{display:block;width:100%;box-sizing:border-box;padding:12px;margin:10px 0 20px;border:1px solid #a9b6c2;border-radius:6px;font:inherit}button{display:block;margin-top:20px;padding:12px 20px;background:#1e5269;color:white;border:0;border-radius:6px;font:inherit;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}a{color:#1e5269}li{margin:14px 0}small{color:#5a6a78}#status{white-space:pre-wrap}</style></head><body><main>
 <a href="./">FirstMeasure</a><h1>Full-house measurements</h1><p>Internal measurement drafts for roof, walls and exterior resources.</p>
-<form id="submit"><label for="address">Property address</label><input id="address" type="text" required autocomplete="street-address" placeholder="Street address, city, state">
-<label><input id="scope" type="checkbox" required> Full house measurements</label><br><small>Keep this draft in the internal workspace.</small>
-<button id="create" type="submit">Create measurement</button><p id="status" role="status"></p></form>
+<form id="submit" data-csrf="<?=htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8')?>"><label for="address">Property address</label><input id="address" type="text" required autocomplete="off" disabled aria-describedby="address-help" placeholder="Start typing a street address">
+<small id="address-help">Choose a Google suggestion to use its address and map location.</small>
+<button id="create" type="submit" disabled>Create measurement</button><p id="status" role="status">Loading address search…</p></form>
 <article><h2>Measurements</h2><ul><?php foreach ($projects as $project): ?>
 <li><a href="editor.php?folder=<?=rawurlencode($project['id'])?>"><?=htmlspecialchars($project['address'], ENT_QUOTES, 'UTF-8')?></a> <small><?=htmlspecialchars($project['status'], ENT_QUOTES, 'UTF-8')?></small></li>
 <?php endforeach; ?></ul><?php if (!$projects): ?><p>No full-house measurements yet.</p><?php endif; ?></article>
-</main><script>
-document.getElementById('submit').onsubmit=async event=>{event.preventDefault();const button=document.getElementById('create'),status=document.getElementById('status');button.disabled=true;status.textContent='Preparing imagery…';try{const response=await fetch('full_house.php',{method:'POST',headers:{'Content-Type':'application/json','X-Full-House-CSRF':<?=json_encode($csrf)?>},body:JSON.stringify({address:document.getElementById('address').value.trim(),measurement_scope:document.getElementById('scope').checked?'full_house':null})});const data=await response.json();if(!response.ok)throw Error(data.message||data.error||'Unable to create measurement');location.href='editor.php?folder='+encodeURIComponent(data.folder);}catch(error){status.textContent=error.message;button.disabled=false;}};
-</script></body></html>
+</main>
+<script src="portal_scripts/full_house_address.js?v=<?=filemtime(__DIR__ . '/portal_scripts/full_house_address.js')?>"></script>
+<?php if ($googleKey !== ''): ?>
+<script async src="https://maps.googleapis.com/maps/api/js?key=<?=rawurlencode($googleKey)?>&amp;libraries=places&amp;loading=async&amp;callback=initFullHouseAddress" onerror="fullHouseAddressUnavailable()"></script>
+<?php else: ?>
+<script>fullHouseAddressUnavailable();</script>
+<?php endif; ?>
+</body></html>

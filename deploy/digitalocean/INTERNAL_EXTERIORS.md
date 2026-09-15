@@ -14,8 +14,9 @@ identity, prototype launchers, and generated output are excluded.
   in `FIRSTMEASURE_FULL_HOUSE_EMAILS` are both required. Defaults are off/empty.
   The identity must also be an active internal user; an Admin role alone grants
   no access. Configure the same values on all development Node roles.
-- The private submission page is `/measure/internal/full_house.php`. It requires
-  an explicit **Full house measurements** checkbox. There is no customer or
+- The private submission page is `/measure/internal/full_house.php`. It creates full-house drafts
+  automatically after selecting a Google address suggestion. The selected
+  formatted address and coordinates are required by the PHP submission route. There is no customer or
   general technician navigation entry, and no client-controlled role override.
 - Submission sets immutable `measurement_scope: full_house` and `internal_only`
   fields. A reserved `fullhouse_` ID namespace preserves the privacy boundary
