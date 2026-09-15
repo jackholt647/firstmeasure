@@ -3404,8 +3404,19 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
 }
 
 async function customerUsersExportPage(body: JsonObject) {
-  const { batch, next_cursor } = customerExportBatch(await listOrganizations(), cleanText(body.after), internalPlatformOrgId());
   const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
+  const after = cleanText(body.after);
+  const internalId = internalPlatformOrgId();
+  // Read only one page plus a lookahead, not the entire directory per batch.
+  // IDs are ASCII; C collation matches the cursor comparison in JavaScript.
+  const candidates = isFirstMeasurePostgresEnabled()
+    ? (await queryPostgres<{ document: JsonObject }>(`
+        SELECT document FROM platform_organizations
+        WHERE id COLLATE "C" > $1 AND lower(id) <> $2
+        ORDER BY id COLLATE "C" LIMIT 26
+      `, [after, internalId])).rows.map(row => row.document)
+    : await listOrganizations();
+  const { batch, next_cursor } = customerExportBatch(candidates, after, internalId);
   // Do not call readGlobal in PostgreSQL: it takes FOR UPDATE locks and may
   // create records. An export must not compete with billing/account writes.
   const documents = isFirstMeasurePostgresEnabled() && batch.length
