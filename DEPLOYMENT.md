@@ -2,7 +2,14 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
-September 14 latest: [API coverage rejection release](deploy/digitalocean/production-coverage-185-20260914.md)
+September 15 UTC (September 14 local) latest: [people-first Tracking release](deploy/digitalocean/production-people184-20260915.md)
+records `dcb8064af9f521d408974aa328da36d3393d533c` on all eight roles and
+the signed replacement channel. Live Admin directory, search and per-user
+networks/activity verified. Collection/viewing permissions are unchanged; no
+migration, configuration, image or capacity change. 177/187 follow-up fixes are
+not included in this release.
+
+September 14 earlier: [API coverage rejection release](deploy/digitalocean/production-coverage-185-20260914.md)
 records release `8a5e84f9348e3f8a4f44eda5b40076acd252cc83` on all eight roles
 and the signed replacement channel. Confirmed missing height maps on API orders
 now use the shared rejection/refund workflow after expanded-coverage fallback.
