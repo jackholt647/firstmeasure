@@ -27,6 +27,13 @@ jobs:
         run: npm run test:smoke
       - name: PostgreSQL FirstMeasure integration
         run: npm run test:firstmeasure:postgres:local
+      - name: Full-house access with PostgreSQL
+        run: node tests/run-embedded-postgres.mjs tests/full-house-access.test.ts
+      - name: Install browser for editor regression tests
+        run: npx playwright-core install --with-deps chromium
+      - name: Exterior geometry and shared editor panes
+        working-directory: .
+        run: node --test dev/*.test.cjs
       - name: PostgreSQL platform integration
         run: npm run test:platform:postgres:local
       - name: PostgreSQL shared-store integration

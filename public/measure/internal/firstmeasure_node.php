@@ -103,6 +103,7 @@ function fm_api_request($method, $path, $opts = []) {
         $body = $opts['body'];
     }
 
+    if (function_exists('fm_full_house_headers') && (strpos((string)$path, 'internal-exteriors/') === 0 || strpos((string)$path, 'fullhouse_') !== false)) $headers = array_merge($headers, fm_full_house_headers());
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
         $responseHeaders = [];

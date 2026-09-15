@@ -1,4 +1,7 @@
+import { installFullHouseAccess, authorizeFullHouseRequest, isFullHouseId, assertFullHouseNotDeliverable } from './full_house.js';
 import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { listFullHouseProjects } from "./project_index.js";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -536,6 +539,7 @@ function buildFirstMeasureDebugPayload(request: FastifyRequest, statusCode: numb
 }
 
 export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
+  installFullHouseAccess(app);
   await ensureFirstMeasureProjectIndexReady();
   registerFirstMeasureJobHandler("pdf.sync", runBackgroundPdfSyncJob);
   registerFirstMeasureJobHandler("report.delivery", runBackgroundReportDeliveryJob);
@@ -991,6 +995,27 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     }
 
     return updateRushAutomationSettings(asRecord(input.settings));
+  });
+
+  app.get('/internal-exteriors/capability', async (request) => ({ ok: true, email: await authorizeFullHouseRequest(request) }));
+  app.get('/internal-exteriors/projects', async () => ({ ok: true, projects: await listFullHouseProjects() }));
+  app.post('/internal-exteriors/projects', async (request, reply) => {
+    const input = asRecord(request.body);
+    if (input.measurement_scope !== 'full_house') throw badRequest('explicit_scope_required', 'Select Full house measurements when submitting.');
+    const body = createProjectSchema.parse({ address: input.address, lat: input.lat, lng: input.lng });
+    const email = await authorizeFullHouseRequest(request);
+    const created = await createProject({
+      id: 'fullhouse_' + randomBytes(16).toString('hex'),
+      address: body.address, lat: body.lat, lng: body.lng,
+      measurement_scope: 'full_house', issuer: { email }, status: 'queued',
+      tech_notes: 'Internal full-house measurement draft. No QA or customer delivery.'
+    }, { fullHouse: true });
+    // Imagery uses the normal engine and storage, without entering technician queues.
+    if (input.process_imagery !== false) {
+      await processProjectImagery(created.manifest.id, { address: body.address, lat: body.lat ?? null, lng: body.lng ?? null });
+    }
+    reply.code(201);
+    return { ok: true, folder: created.manifest.id, project: await getProjectDetail(created.manifest.id) };
   });
 
   app.post("/projects/queue", async (request, reply) => {
@@ -1643,12 +1668,24 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     return { ok: true, value: await saveBrandingDefaults(getProjectId(request.params), body) };
   });
 
+  // Resource media and editable markup are internal-only, including direct artifact URLs.
+  async function requireResourceAccess(request: FastifyRequest, name: string) {
+    if (!/^internal-(resource|markup)-/i.test(sanitizeFileName(name))) return;
+    if (!isFullHouseId(getProjectId(request.params)) || !await authorizeFullHouseRequest(request)) {
+      throw new FirstMeasureError('internal_resource_forbidden', 403, 'Internal resource access required.');
+    }
+  }
+
   app.get("/projects/:id/artifacts", async (request) => ({
     ok: true,
-    files: await listProjectFiles(getProjectId(request.params))
+    files: (await listProjectFiles(getProjectId(request.params))).filter(file => !/^internal-(resource|markup)-/i.test(file.name) || isFullHouseId(getProjectId(request.params)))
   }));
 
   app.get("/projects/:id/thumbnail", async (request, reply) => {
+    const source = String(asRecord(request.query).source ?? "");
+    if (source && /^internal-(resource|markup)-/i.test(sanitizeFileName(source))) {
+      throw new FirstMeasureError("internal_resource_forbidden", 403, "Use the internal resource viewer for this file.");
+    }
     return sendProjectThumbnail(getProjectId(request.params), asRecord(request.query), reply);
   });
 
@@ -1662,11 +1699,13 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         reply.code(400);
         return { ok: false, error: "missing_file" };
       }
+      await requireResourceAccess(request, file.filename);
       const saved = await saveArtifact(projectId, file.filename, await file.toBuffer());
       return { ok: true, artifact: saved };
     }
 
     const body = artifactJsonUploadSchema.parse(request.body ?? {});
+    await requireResourceAccess(request, body.file_name);
     const content = body.content_base64
       ? Buffer.from(body.content_base64, "base64")
       : body.content_text ?? "";
@@ -1674,6 +1713,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/projects/:id/artifacts/:name", async (request, reply) => {
+    await requireResourceAccess(request, getFileName(request.params));
     const projectId = getProjectId(request.params);
     const requestedName = getFileName(request.params);
     let artifact;
@@ -5426,7 +5466,7 @@ async function readActorActiveProjectRows(
     }>(`
       SELECT manifest_json, thumbnail_artifact_name
       FROM projects
-      WHERE status IN ('queued', 'ready', 'processing', 'in_progress', 'correction_needed', 'requeue')
+      WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN ('queued', 'ready', 'processing', 'in_progress', 'correction_needed', 'requeue')
         AND (assigned_to_email = $1 OR reserved_to_email = $1 OR correction_to_email = $1)
       ORDER BY CASE WHEN is_vip <> 0 OR is_expedited <> 0 THEN 1 ELSE 0 END DESC,
         updated_at_ms DESC, created_at_ms ASC, id ASC
@@ -5435,7 +5475,7 @@ async function readActorActiveProjectRows(
     : getFirstMeasureProjectIndexDb().prepare(`
       SELECT manifest_json, thumbnail_artifact_name
       FROM projects
-      WHERE status IN ('queued', 'ready', 'processing', 'in_progress', 'correction_needed', 'requeue')
+      WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN ('queued', 'ready', 'processing', 'in_progress', 'correction_needed', 'requeue')
         AND (assigned_to_email = $email OR reserved_to_email = $email OR correction_to_email = $email)
       ORDER BY CASE WHEN is_vip != 0 OR is_expedited != 0 THEN 1 ELSE 0 END DESC,
         updated_at_ms DESC, created_at_ms ASC, id ASC
@@ -7334,6 +7374,7 @@ async function runBackgroundReportReleaseJob(job: {
   warn?: (value: unknown, message?: string) => void;
 }) {
   const projectId = String(job.payload.project_id ?? "").trim();
+  assertFullHouseNotDeliverable(projectId);
   const scheduledReleaseAt = String(job.payload.scheduled_release_at ?? "").trim();
   if (!projectId || !scheduledReleaseAt) {
     throw new Error("Background report release is missing its project or scheduled release time.");
@@ -8641,7 +8682,7 @@ async function listQaClaimedManifestsForActor(email: string, teamId?: string | n
     }>(`
       SELECT manifest_json
       FROM projects
-      WHERE status IN ('awaiting_review', 'submission_failed')
+      WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN ('awaiting_review', 'submission_failed')
         AND qa_claimed_by_email = $1${teamWhere}
       ORDER BY updated_at_ms DESC, id DESC
       LIMIT $${values.length}
@@ -8664,7 +8705,7 @@ async function listQaClaimedManifestsForActor(email: string, teamId?: string | n
   const rows = db.prepare(`
     SELECT manifest_json
     FROM projects
-    WHERE ${where.join(" AND ")}
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${where.join(" AND ")}
     ORDER BY updated_at_ms DESC, id DESC
     LIMIT $limit
   `).all(params) as Array<{ manifest_json?: string }>;
@@ -9538,6 +9579,7 @@ async function sendGeneratedProjectReport(
   refreshArtifactsAfterPersist: boolean,
   request: FastifyRequest
 ) {
+  assertFullHouseNotDeliverable(projectId);
   const outputSlot = resolveOutputSlot(input.output_slot);
   const generated = await renderStoredProjectWithSharedRuntime(projectId, input, request, outputSlot);
   const result = generated.outputs[0];
@@ -10001,6 +10043,7 @@ async function runBackgroundReportDeliveryJob(job: {
   warn?: (value: unknown, message?: string) => void;
 }) {
   const projectId = String(job.payload.project_id ?? "").trim();
+  assertFullHouseNotDeliverable(projectId);
   const pdfSyncJobId = String(job.payload.pdf_sync_job_id ?? "").trim();
   const pdfSyncRevision = String(job.payload.pdf_sync_revision ?? "").trim();
   if (!projectId) throw new Error("Background report delivery is missing project_id.");
@@ -11140,7 +11183,7 @@ async function sendArtifactContent(
   }
   reply.type(getMimeType(artifact.name));
   reply.header("Content-Disposition", `inline; filename="${artifact.name}"`);
-  reply.header("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
+  reply.header("Cache-Control", /^internal-(resource|markup)-/i.test(artifact.name) ? "private, no-store" : "public, max-age=300, stale-while-revalidate=3600");
   if (etag) reply.header("ETag", etag);
   if (fileStat) reply.header("Last-Modified", fileStat.mtime.toUTCString());
   return reply.send(artifact.content);
@@ -11303,6 +11346,7 @@ function buildAbsoluteApiUrl(
   const protocol = forwardedProto || request.protocol || "http";
   const forwardedHost = String(request.headers["x-forwarded-host"] ?? "").split(",")[0]?.trim();
   const host = forwardedHost || String(request.headers.host ?? "127.0.0.1:3111");
+  if (/^\/projects\/fullhouse_[a-f0-9]{32}(?:[/?]|$)/.test(routePath)) return `/measure/internal/full_house.php?path=${encodeURIComponent(routePath)}`;
   return `${protocol}://${host}${buildApiPath(routePath)}`;
 }
 

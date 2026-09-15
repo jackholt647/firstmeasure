@@ -3,6 +3,7 @@ require_once __DIR__ . '/_storage.php';
 require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
 /* backend.php - Secured Version */
 session_start();
+if (strpos((string)($_GET['folder'] ?? ''), 'fullhouse_') === 0 && empty($_SESSION['full_house_csrf'])) $_SESSION['full_house_csrf'] = bin2hex(random_bytes(32));
 // This page only reads session identity. Do not hold its lock while fetching
 // project data: a slow storage request would block the user's other staff tabs.
 session_write_close();
@@ -127,6 +128,10 @@ if (!isset($_SESSION['user_email'])) {
     header("Location: backend_login.php");
     exit;
 }
+
+require_once __DIR__ . '/_full_house.php';
+$fmFullHouseEditor = fm_is_full_house_id($_GET['folder'] ?? $_POST['folder'] ?? '');
+if ($fmFullHouseEditor && !fm_full_house_allowed()) fm_full_house_not_found();
 
 if (strpos($editorAction, 'tutorial_project_') === 0) {
     $courseId = fm_tutorial_course_id_from_request();
@@ -438,7 +443,7 @@ if ($editorAction === 'project_bundle' || $editorAction === 'project_feedback') 
         fm_editor_json_response(['success' => false, 'error' => 'Tutorial projects must be opened in tutorial mode.'], 403);
         exit;
     }
-    $projectId = preg_replace('/[^a-f0-9]/', '', strtolower($rawProjectId));
+    $projectId = fm_is_full_house_id($rawProjectId) ? $rawProjectId : preg_replace('/[^a-f0-9]/', '', strtolower($rawProjectId));
     if ($projectId === '') {
         fm_editor_json_response(['success' => false, 'error' => 'Missing folder'], 400);
         exit;
@@ -516,6 +521,28 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 <head>
     <meta charset="UTF-8">
     <title>FirstMeasure</title>
+    <?php if ($fmFullHouseEditor): ?>
+    <script>
+    window.FIRSTMEASURE_FULL_HOUSE = true;
+    (() => {
+      const originalFetch = window.fetch.bind(window);
+      const csrf = <?=json_encode($_SESSION['full_house_csrf'] ?? '')?>;
+      window.fetch = function(input, init = {}) {
+        const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
+        if (url.origin === location.origin && (/^\/v1\/firstmeasure\/projects\/fullhouse_/.test(url.pathname) || url.pathname.endsWith('/full_house.php'))) {
+          if (url.pathname.startsWith('/v1/firstmeasure/')) {
+            url.search = '?path=' + encodeURIComponent(url.pathname.replace('/v1/firstmeasure', '') + url.search);
+            url.pathname = '/measure/internal/full_house.php';
+          }
+          const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+          headers.set('X-Full-House-CSRF', csrf);
+          return originalFetch(url.href, { ...init, headers });
+        }
+        return originalFetch(input, init);
+      };
+    })();
+    </script>
+    <?php endif; ?>
     <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1247,21 +1274,21 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
                 </div>
 
                 <div class="controls-group">
-                    <button class="toolbar-btn" onclick="deleteSelected2D()" title="Delete Selection (Del / Backspace)"><i class="fas fa-trash"></i></button>
-                    <button class="toolbar-btn" onclick="handleGenerateMeasurements()" title="Recalculate Line Types (Reset)"><i class="fas fa-sync"></i></button>
+                    <button class="toolbar-btn" data-roof-only onclick="deleteSelected2D()" title="Delete Selection (Del / Backspace)"><i class="fas fa-trash"></i></button>
+                    <button class="toolbar-btn" data-roof-only onclick="handleGenerateMeasurements()" title="Recalculate Line Types (Reset)"><i class="fas fa-sync"></i></button>
                 </div>
                 
                 <div class="controls-group">
                     <button class="toolbar-btn active" id="btnToggleImage" onclick="toggleImageDisplay()" title="Toggle Image Layer (I)" style="background:#e8f0fe; color:#1a73e8; border-color:#1a73e8;">
                         <i class="fas fa-image"></i>
                     </button>
-                    <button class="toolbar-btn" id="btnToggleMeasure" onclick="toggleMeasurementDisplay()" title="Toggle Measurements (O)">
+                    <button class="toolbar-btn" id="btnToggleMeasure" data-roof-only onclick="toggleMeasurementDisplay()" title="Toggle Measurements (O)">
                         <i class="fas fa-ruler"></i>
                     </button>
-                    <button class="toolbar-btn" id="btnToggleTypes" onclick="toggleLineTypes()" title="Show Line Types / Widget (P)">
+                    <button class="toolbar-btn" id="btnToggleTypes" data-roof-only onclick="toggleLineTypes()" title="Show Line Types / Widget (P)">
                         <i class="fas fa-palette"></i>
                     </button>
-                    <button class="toolbar-btn active" id="btnToggleFaces" onclick="toggleFacesGlobal()" title="Toggle Generated Faces ([)" style="background:#e8f0fe; color:#1a73e8; border-color:#1a73e8;">
+                    <button class="toolbar-btn active" id="btnToggleFaces" data-roof-only onclick="toggleFacesGlobal()" title="Toggle Generated Faces ([)" style="background:#e8f0fe; color:#1a73e8; border-color:#1a73e8;">
                         <i class="fas fa-shapes"></i>
                     </button>
                     <button class="toolbar-btn active" id="btnToggleGrid" onclick="toggleGridDisplay()" title="Toggle Grid Overlay (G)" style="margin-left:5px; background:#e8f0fe; color:#1a73e8; border-color:#1a73e8;">
@@ -1270,7 +1297,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
                     <button class="toolbar-btn active" id="btnToggleSnap" onclick="toggleSnapMode()" title="Snapping ON (F)" style="margin-left:5px; background:#e8f0fe; color:#1a73e8; border-color:#1a73e8;">
                         <i class="fas fa-magnet"></i>
                     </button>
-                    <button class="toolbar-btn" id="btnSplat" onclick="toggleSplatMode()" title="Splat Face (Experimental)" style="display: none;">
+                    <button class="toolbar-btn" id="btnSplat" data-roof-only onclick="toggleSplatMode()" title="Splat Face (Experimental)" style="display: none;">
                         <i class="fas fa-paint-roller"></i>
                     </button>
                     <button class="toolbar-btn" id="btnFixRotation" onclick="window.straightenView()" title="Straigten View">
@@ -1292,7 +1319,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
                     <label style="font-size:11px;" title="Scroll Wheel to Zoom">Zoom:</label>
                     <input type="range" id="zoomRange" min="0.1" max="10" step="0.1" value="1" style="width:60px;" oninput="updateZoomViaSlider()" title="Manual Zoom Level">
                     
-                    <button class="toolbar-btn primary" onclick="window.processAndRenderAllLayers()" style="margin-left: 10px; background-color: #673ab7; border-color: #673ab7;" title="Recalculate 3D Face Topology">
+                    <button class="toolbar-btn primary" data-roof-only onclick="window.processAndRenderAllLayers()" style="margin-left: 10px; background-color: #673ab7; border-color: #673ab7;" title="Recalculate 3D Face Topology">
                         <i class="fas fa-vector-square"></i> Resolve Faces
                     </button>
                 </div>
@@ -1448,8 +1475,15 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     </script>
     <script src="editor_scripts/geometry_core.js?v=<?=fm_editor_asset_version('editor_scripts/geometry_core.js')?>"></script>
     <script src="editor_scripts/structure_mode.js?v=<?=fm_editor_asset_version('editor_scripts/structure_mode.js')?>"></script>
+    <?php if ($fmFullHouseEditor): ?>
+    <script src="editor_scripts/resource_3d_overlay.js?v=<?=fm_editor_asset_version('editor_scripts/resource_3d_overlay.js')?>"></script>
+    <?php endif; ?>
     <script src="editor_scripts/scene_3d.js?v=<?=fm_editor_asset_version('editor_scripts/scene_3d.js')?>"></script>
     <script src="editor_scripts/interaction_2d.js?v=<?=fm_editor_asset_version('editor_scripts/interaction_2d.js')?>"></script>
+    <?php if ($fmFullHouseEditor): ?>
+    <script defer src="editor_scripts/project_resources.js?v=<?=fm_editor_asset_version('editor_scripts/project_resources.js')?>"></script>
+    <?php endif; ?>
+    <script src="editor_scripts/pane_layout.js?v=<?=fm_editor_asset_version('editor_scripts/pane_layout.js')?>"></script>
     <script src="editor_scripts/main.js?v=<?=fm_editor_asset_version('editor_scripts/main.js')?>"></script>
     <script src="editor_scripts/measurements.js?v=<?=fm_editor_asset_version('editor_scripts/measurements.js')?>"></script>
     <script src="editor_scripts/pdf.js?v=<?=fm_editor_asset_version('editor_scripts/pdf.js')?>"></script>
@@ -1466,6 +1500,40 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/xml_generator.js?v=<?=fm_editor_asset_version('editor_scripts/xml_generator.js')?>"></script> 
     <script src="editor_scripts/smart_stickers.js?v=<?=fm_editor_asset_version('editor_scripts/smart_stickers.js')?>"></script> 
     <script src="editor_scripts/monitor.js?v=<?=fm_editor_asset_version('editor_scripts/monitor.js')?>"></script>
+    <?php if ($fmFullHouseEditor): ?>
+    <script src="editor_scripts/vendor/clipper-lib-6.4.2-clipper.js?v=<?=fm_editor_asset_version('editor_scripts/vendor/clipper-lib-6.4.2-clipper.js')?>"></script>
+    <script src="editor_scripts/vendor/earcut-3.2.3-earcut.dev.js?v=<?=fm_editor_asset_version('editor_scripts/vendor/earcut-3.2.3-earcut.dev.js')?>"></script>
+    <script src="editor_scripts/exterior_geometry.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_geometry.js')?>"></script>
+    <script src="editor_scripts/wall_geometry.js?v=<?=fm_editor_asset_version('editor_scripts/wall_geometry.js')?>"></script>
+    <script src="editor_scripts/wall_gaps.js?v=<?=fm_editor_asset_version('editor_scripts/wall_gaps.js')?>"></script>
+    <script src="editor_scripts/wall_rake_cleanup.js?v=<?=fm_editor_asset_version('editor_scripts/wall_rake_cleanup.js')?>"></script>
+    <script src="editor_scripts/wall_chimney_cleanup.js?v=<?=fm_editor_asset_version('editor_scripts/wall_chimney_cleanup.js')?>"></script>
+    <script src="editor_scripts/ground_geometry.js?v=<?=fm_editor_asset_version('editor_scripts/ground_geometry.js')?>"></script>
+    <script src="editor_scripts/ground_editor.js?v=<?=fm_editor_asset_version('editor_scripts/ground_editor.js')?>"></script>
+    <script src="editor_scripts/base_geometry.js?v=<?=fm_editor_asset_version('editor_scripts/base_geometry.js')?>"></script>
+    <script src="editor_scripts/base_sketch_geometry.js?v=<?=fm_editor_asset_version('editor_scripts/base_sketch_geometry.js')?>"></script>
+    <script src="editor_scripts/base_sketch_editor.js?v=<?=fm_editor_asset_version('editor_scripts/base_sketch_editor.js')?>"></script>
+    <script src="editor_scripts/base_editor.js?v=<?=fm_editor_asset_version('editor_scripts/base_editor.js')?>"></script>
+    <script src="editor_scripts/wall_solid_geometry.js?v=<?=fm_editor_asset_version('editor_scripts/wall_solid_geometry.js')?>"></script>
+    <script src="editor_scripts/wall_chimneys.js?v=<?=fm_editor_asset_version('editor_scripts/wall_chimneys.js')?>"></script>
+    <script src="editor_scripts/wall_base_binding.js?v=<?=fm_editor_asset_version('editor_scripts/wall_base_binding.js')?>"></script>
+    <script src="editor_scripts/wall_axis_cuts.js?v=<?=fm_editor_asset_version('editor_scripts/wall_axis_cuts.js')?>"></script>
+    <script src="editor_scripts/wall_steps.js?v=<?=fm_editor_asset_version('editor_scripts/wall_steps.js')?>"></script>
+    <script src="editor_scripts/exterior_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_model.js')?>"></script>
+    <script src="editor_scripts/exterior_report_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_report_model.js')?>"></script>
+    <script src="editor_scripts/wall_features.js?v=<?=fm_editor_asset_version('editor_scripts/wall_features.js')?>"></script>
+    <script src="editor_scripts/exterior_distance_input.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_distance_input.js')?>"></script>
+<script src="editor_scripts/wall_trim.js?v=<?=fm_editor_asset_version('editor_scripts/wall_trim.js')?>"></script>
+<script src="editor_scripts/exterior_finishes.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_finishes.js')?>"></script>
+<script src="editor_scripts/wall_face_draft.js?v=<?=fm_editor_asset_version('editor_scripts/wall_face_draft.js')?>"></script>
+    <script src="editor_scripts/wall_editor.js?v=<?=fm_editor_asset_version('editor_scripts/wall_editor.js')?>"></script>
+    <script src="editor_scripts/exterior_toolbar.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_toolbar.js')?>"></script>
+    <script src="editor_scripts/roof_trim.js?v=<?=fm_editor_asset_version('editor_scripts/roof_trim.js')?>"></script>
+<script src="editor_scripts/roof_trim_editor.js?v=<?=fm_editor_asset_version('editor_scripts/roof_trim_editor.js')?>"></script>
+<script src="editor_scripts/wall_mode.js?v=<?=fm_editor_asset_version('editor_scripts/wall_mode.js')?>"></script>
+    <script src="editor_scripts/exterior_pdf.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_pdf.js')?>"></script>
+    <script src="editor_scripts/exterior_report.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_report.js')?>"></script>
+    <?php endif; ?>
 
     
     <!-- Google Maps (Callback initAppMapViewGlobal defined in main.js) -->
@@ -2791,6 +2859,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         }
 
         async function handleSubmitReport() {
+            if (window.FIRSTMEASURE_FULL_HOUSE === true) { activateStep(5); return; }
             // Open the report configuration panel and jump to the finalize page
             activateStep(5);
 
@@ -2803,14 +2872,15 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
 
         // Resizer Logic
+        const paneSlots = window.setupEditorPaneLayout();
         const resizer = document.getElementById('dragResizer');
-        const leftCol = document.getElementById('leftColumn');
+        const leftCol = paneSlots?.main || document.getElementById('leftColumn');
         const workspace = document.getElementById('workspace');
         let isResizing = false;
         resizer.addEventListener('mousedown', (e) => { isResizing=true; document.body.style.cursor='col-resize'; e.preventDefault(); });
         window.addEventListener('mousemove', (e) => {
             if(isResizing) {
-                const w = (e.clientX / workspace.clientWidth) * 100;
+                const w = ((e.clientX-workspace.getBoundingClientRect().left) / workspace.clientWidth) * 100;
                 if(w>20 && w<80) leftCol.style.setProperty('width', w+'%');
                 window.dispatchEvent(new Event('resize'));
             }
@@ -2821,8 +2891,8 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
         // NEW: Resizer Logic (Vertical for Right Column)
         const vResizer = document.getElementById('verticalResizer');
-        const topView = document.getElementById('three-view-wrapper');
-        const bottomView = document.getElementById('google-earth-wrapper');
+        const topView = paneSlots?.top || document.getElementById('three-view-wrapper');
+        const bottomView = paneSlots?.bottom || document.getElementById('google-earth-wrapper');
         const rightCol = document.getElementById('rightColumn');
         let isResizingV = false;
         const DEFAULT_RIGHT_SPLIT_RATIO = 0.5;
@@ -2860,6 +2930,11 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         }
 
         window.syncRightColumnSplit = queueRightColumnSplitSync;
+        window.resizeEditorPanes = (widthRatio, heightRatio) => {
+            if (widthRatio !== null) leftCol.style.width = `${Math.min(.8, Math.max(.2, widthRatio)) * 100}%`;
+            if (heightRatio !== null) applyRightColumnSplit(heightRatio);
+            window.dispatchEvent(new Event('resize'));
+        };
 
         queueRightColumnSplitSync();
         window.addEventListener('load', queueRightColumnSplitSync);

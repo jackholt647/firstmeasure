@@ -1,3 +1,4 @@
+import { isFullHouseId } from './full_house.js';
 import path from "node:path";
 import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -177,6 +178,9 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
     }, { assetBaseUrl: request.assetBaseUrl });
     await page.addScriptTag({ path: scripts.jsPdfPath });
     await page.addScriptTag({ path: scripts.pdfJsPath });
+    if (isFullHouseId(request.manifest.id) && request.manifest.measurement_scope === 'full_house') {
+      await page.addScriptTag({ path: path.join(path.dirname(scripts.pdfJsPath), 'exterior_pdf.js') });
+    }
     await page.addScriptTag({ path: scripts.pdfStandalonePath });
 
     const outputs = await page.evaluate(async ({ snapshot, manifest, organization, outputs }) => {

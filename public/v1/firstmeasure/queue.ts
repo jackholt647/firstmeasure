@@ -163,7 +163,7 @@ export async function getQueueStatus(input: QueueStatusInput) {
   const activeProjectRow = db.prepare(`
     SELECT id, status, address
     FROM projects
-    WHERE assigned_to_email = $actorEmail
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND assigned_to_email = $actorEmail
       AND status IN (${sqlStringList(Array.from(ACTIVE_ASSIGNMENT_STATUSES))})
     ORDER BY updated_at_ms DESC, id DESC
     LIMIT 1
@@ -238,7 +238,7 @@ async function getClaimableQueueStatusWithoutBreak(input: QueueClaimInput) {
   const reservedRows = db.prepare(`
     SELECT id
     FROM projects
-    WHERE status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
       AND assigned_to_email = ''
       AND reserved_to_email = $actorEmail
       AND thumbnail_artifact_name != ''
@@ -264,7 +264,7 @@ async function getClaimableQueueStatusWithoutBreak(input: QueueClaimInput) {
     const availableRows = db.prepare(`
       SELECT id, complexity, is_vip, is_expedited, created_at_ms, queued_at_ms, updated_at_ms
       FROM projects
-      WHERE status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
+      WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
         AND assigned_to_email = ''
         AND thumbnail_artifact_name != ''
         ${allowFiller ? "" : "AND is_filler = 0"}
@@ -332,7 +332,7 @@ export async function claimNextInQueue(input: QueueClaimInput) {
   const reservedRows = db.prepare(`
     SELECT id
     FROM projects
-    WHERE status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
       AND assigned_to_email = ''
       AND reserved_to_email = $actorEmail
       AND thumbnail_artifact_name != ''
@@ -358,7 +358,7 @@ export async function claimNextInQueue(input: QueueClaimInput) {
     const availableRows = db.prepare(`
       SELECT id, complexity, is_vip, is_expedited, created_at_ms, queued_at_ms, updated_at_ms
       FROM projects
-      WHERE status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
+      WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
         AND assigned_to_email = ''
         AND thumbnail_artifact_name != ''
         ${allowFiller ? "" : "AND is_filler = 0"}
@@ -608,7 +608,7 @@ function readQueueCount(
   const row = db.prepare(`
     SELECT COUNT(*) AS count
     FROM projects
-    WHERE ${whereSql}
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${whereSql}
   `).get(params) as { count?: number } | undefined;
   return Number(row?.count ?? 0);
 }
@@ -835,7 +835,7 @@ async function hasAvailableSeniorTechnicianSqlite(
   const busyRows = db.prepare(`
     SELECT DISTINCT lower(assigned_to_email) AS email
     FROM projects
-    WHERE lower(assigned_to_email) IN (${placeholders})
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND lower(assigned_to_email) IN (${placeholders})
       AND status IN (${sqlStringList(Array.from(ACTIVE_ASSIGNMENT_STATUSES))})
   `).all(...onlineSeniorEmails) as Array<{ email?: string }>;
   const busyEmails = new Set(busyRows.map((row) => String(row.email ?? "").trim().toLowerCase()));

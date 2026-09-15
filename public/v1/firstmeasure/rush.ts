@@ -363,12 +363,12 @@ async function evaluateAutomaticRushModeUnlocked() {
       const requested = await query<{ count: string }>(`
         SELECT COUNT(*)::text AS count
         FROM projects
-        WHERE created_at_ms > $1 AND is_filler = 0
+        WHERE substr(id, 1, 10) <> 'fullhouse_' AND created_at_ms > $1 AND is_filler = 0
       `, [sinceMs]);
       const queued = await query<{ count: string }>(`
         SELECT COUNT(*)::text AS count
         FROM projects
-        WHERE status IN ('queued', 'ready') AND assigned_to_email = '' AND is_filler = 0
+        WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN ('queued', 'ready') AND assigned_to_email = '' AND is_filler = 0
       `);
       return [requested[0], queued[0]];
     })()
@@ -376,11 +376,11 @@ async function evaluateAutomaticRushModeUnlocked() {
       const db = getFirstMeasureProjectIndexDb();
       return [
         db.prepare(`
-          SELECT COUNT(*) AS count FROM projects WHERE created_at_ms > $sinceMs AND is_filler = 0
+          SELECT COUNT(*) AS count FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND created_at_ms > $sinceMs AND is_filler = 0
         `).get({ sinceMs }) as { count?: number } | undefined,
         db.prepare(`
           SELECT COUNT(*) AS count FROM projects
-          WHERE status IN ('queued', 'ready') AND assigned_to_email = '' AND is_filler = 0
+          WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN ('queued', 'ready') AND assigned_to_email = '' AND is_filler = 0
         `).get() as { count?: number } | undefined
       ];
     })();

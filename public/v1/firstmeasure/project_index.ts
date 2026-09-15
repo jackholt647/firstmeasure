@@ -1,3 +1,4 @@
+import { isFullHouseId } from './full_house.js';
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -296,6 +297,7 @@ export async function listIndexedProjectManifests(): Promise<ProjectManifest[]> 
   const rows = db.prepare(`
     SELECT manifest_json
     FROM projects
+    WHERE substr(id, 1, 10) <> 'fullhouse_'
     ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC
   `).all() as Array<{ manifest_json: string }>;
   return rows.map((row) => JSON.parse(row.manifest_json) as ProjectManifest);
@@ -310,7 +312,7 @@ export async function findIndexedProjectByNormalizedAddress(address: string): Pr
   const row = db.prepare(`
     SELECT manifest_json
     FROM projects
-    WHERE address_normalized = $address
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND address_normalized = $address
     LIMIT 1
   `).get({
     address: normalizeProjectSearchText(address)
@@ -336,7 +338,7 @@ export async function findIndexedProjectsByNormalizedAddress(
   const rows = db.prepare(`
     SELECT manifest_json
     FROM projects
-    WHERE address_normalized = $address
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND address_normalized = $address
     ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC
     LIMIT $limit
   `).all({
@@ -442,7 +444,7 @@ export async function queryIndexedProjectManifests(
 }
 
 export async function readIndexedProjectManifestsByIds(projectIds: string[]): Promise<ProjectManifest[]> {
-  const ids = [...new Set(projectIds.map((id) => String(id).trim()).filter(Boolean))];
+  const ids = [...new Set(projectIds.map((id) => String(id).trim()).filter(id => Boolean(id) && !isFullHouseId(id)))];
   if (!ids.length) return [];
   await ensureFirstMeasureProjectIndexReady();
   const manifests: ProjectManifest[] = [];
@@ -481,7 +483,7 @@ export async function queryIndexedQaCandidateManifests(options: {
   const rows = db.prepare(`
     SELECT manifest_json
     FROM projects
-    WHERE instant_only = 0
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND instant_only = 0
       AND status IN ('awaiting_review', 'submission_failed')
       ${teamWhere}
     ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC
@@ -646,7 +648,7 @@ export async function readIndexedQueueChanges(query: QueueChangesQuery = {}) {
   const since = Math.max(0, Math.floor(Number(query.since ?? 0)));
   const limit = Math.min(Math.max(Math.floor(Number(query.limit ?? 250)), 1), 1000);
   const params: SqlParams = { since, limit };
-  const where = ["version > $since"];
+  const where = ["version > $since", "substr(project_id, 1, 10) <> 'fullhouse_'"];
   if (query.team_id) {
     where.push("team_id = $teamId");
     params.teamId = String(query.team_id).trim();
@@ -1769,6 +1771,7 @@ export function indexedQueueGroup(
   manifest: ProjectManifest,
   indexed: { status: string; assignedToEmail: string; qaClaimedByEmail: string; queuePriority?: number }
 ): FirstMeasureQueueGroup | "" {
+  if (isFullHouseId(manifest.id)) return "";
   const status = indexed.status;
   if (["rework_requested", "reworking", "customer_rework_requested"].includes(status)) return "rework_requested";
   if (["needs_structure_pins", "structure_pins_required"].includes(status)) return "needs_structure_pins";
@@ -2325,6 +2328,7 @@ function appendInstantVisibilityClause(
   _params: SqlParams,
   includeInstantOnly: boolean | undefined
 ) {
+  where.push("substr(p.id, 1, 10) <> 'fullhouse_'");
   if (includeInstantOnly) {
     return;
   }
@@ -2508,4 +2512,15 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+export async function listFullHouseProjects(): Promise<ProjectManifest[]> {
+  await ensureFirstMeasureProjectIndexReady();
+  if (isFirstMeasurePostgresEnabled()) {
+    const { queryPostgres } = await import('../src/database/postgres.js');
+    const result = await queryPostgres<{ manifest_json: ProjectManifest }>("SELECT manifest_json FROM projects WHERE left(id, 10) = 'fullhouse_' ORDER BY sort_ts DESC LIMIT 200");
+    return result.rows.map(row => row.manifest_json);
+  }
+  const rows = getFirstMeasureProjectIndexDb().prepare("SELECT manifest_json FROM projects WHERE substr(id, 1, 10) = 'fullhouse_' ORDER BY sort_ts DESC LIMIT 200").all() as Array<{ manifest_json: string }>;
+  return rows.map(row => JSON.parse(row.manifest_json));
 }

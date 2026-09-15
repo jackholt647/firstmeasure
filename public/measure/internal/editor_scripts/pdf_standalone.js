@@ -59,6 +59,11 @@
                     }
                     await loadRuntimeScript(runtimeDocument, jsPdfUrl);
                     await loadRuntimeScript(runtimeDocument, pdfUrl);
+                    if (window.FIRSTMEASURE_FULL_HOUSE === true) {
+                        const exteriorUrl = findLoadedScriptUrl('/editor_scripts/exterior_pdf.js');
+                        if (!exteriorUrl) throw new Error('Exterior PDF renderer is unavailable.');
+                        await loadRuntimeScript(runtimeDocument, exteriorUrl);
+                    }
                     await loadRuntimeScript(runtimeDocument, standaloneUrl);
                     if (!runtimeWindow.FirstMatePDFStandalone) {
                         throw new Error('The isolated PDF runtime did not initialize.');

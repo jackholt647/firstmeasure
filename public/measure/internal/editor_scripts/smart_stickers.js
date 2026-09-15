@@ -626,7 +626,7 @@
                 const st = document.createElement('style');
                 st.id = 'smart-stickers-style';
                 st.textContent = `
-#smart-sticker-bar {
+#smart-sticker-bar, .exterior-sticker-bar {
     position: absolute;
     right: 0;
     bottom: 0;
@@ -641,7 +641,7 @@
     width: auto;
 }
 
-#smart-sticker-bar .ss-strip {
+#smart-sticker-bar .ss-strip, .exterior-sticker-bar .ss-strip {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -694,7 +694,7 @@
     color: var(--primary);
 }
 
-#ss-toggle-btn {
+#ss-toggle-btn, .exterior-sticker-toggle {
     width: 36px;
     height: 44px;
     border: 1px solid #ddd;
@@ -710,7 +710,7 @@
     flex-shrink: 0;
 }
 
-#ss-toggle-btn:hover {
+#ss-toggle-btn:hover, .exterior-sticker-toggle:hover {
     background: #f8f9fa;
     border-color: var(--primary);
     color: var(--primary);

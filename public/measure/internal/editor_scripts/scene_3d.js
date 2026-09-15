@@ -254,9 +254,10 @@ window.sync3DViewportSize = sync3DViewportSize;
 // §1  Z-SCALE HELPER
 // =========================================================
 function getZScale() {
-    const r = (window.getRadiusMeters ? window.getRadiusMeters() : (window.RADIUS_METERS || 20));
-    const rr = (Number.isFinite(+r) && +r > 0) ? +r : 20;
-    return 2.0 * (20 / rr);
+    // Geometry is measured in metres on every axis. The former 40/radius
+    // height scale versus 50/radius horizontally flattened wall circles
+    // and changed the apparent pitch of every surface.
+    return getHorizontalSceneUnitsPerMeter();
 }
 function getHorizontalSceneUnitsPerMeter() {
     const r = (window.getRadiusMeters ? window.getRadiusMeters() : (window.RADIUS_METERS || 20));
@@ -742,6 +743,7 @@ function apply3DSurfaceVisibility() {
     if (googleTileGeospatialRoot) googleTileGeospatialRoot.visible = showTiles;
     if (googleTileImageOverrideGroup) googleTileImageOverrideGroup.visible = false;
     if (scene) scene.background = new THREE.Color(googleTileState.surfaceVisible ? 0x202124 : 0x111111);
+    window.refreshResource3DOverlay?.();
     if (renderer && typeof THREE.sRGBEncoding !== 'undefined' && 'outputEncoding' in renderer && typeof THREE.LinearEncoding !== 'undefined') {
         renderer.outputEncoding = showTiles ? THREE.sRGBEncoding : THREE.LinearEncoding;
     }
@@ -1358,6 +1360,7 @@ function build3DControlPanel() {
     // (D) Tile Y offset
     const tileYGroup = document.createElement('div');
     tileYGroup.className = 'enh-crop-group';
+    tileYGroup.id = 'tile-y-controls';
     const tileYLabel = document.createElement('span');
     tileYLabel.textContent = 'Tile Y';
     tileYLabel.title = 'Raise or lower Google 3D tiles without affecting X/Z alignment';
@@ -1405,6 +1408,7 @@ function build3DControlPanel() {
     pitchBtn.addEventListener('click', e => { e.stopPropagation(); window.togglePitchLabels(); });
     panel.appendChild(pitchBtn);
     container.appendChild(panel);
+    window.mountExteriorToolbar?.();
     update3DSurfaceButtons();
     updateGoogleTileYOffsetUI();
     // Selection box for 3D
@@ -1536,6 +1540,25 @@ function init3D() {
     const container = document.getElementById('three-container');
     const wrapper = document.getElementById('three-view-wrapper');
     if (!container || !wrapper) return;
+    if (window.FIRSTMEASURE_FULL_HOUSE === true) {
+    // Removing a canvas does not release its WebGL resources or controls.
+    // Address changes and DSM rebuilds can initialize this view repeatedly.
+    if (typeof controls !== 'undefined' && controls) controls.dispose();
+    if (typeof scene !== 'undefined' && scene) disposeObject3D(scene);
+    if (typeof renderer !== 'undefined' && renderer) {
+        renderer.dispose();
+        renderer.forceContextLoss();
+    }
+    if (_enh.axisScene) disposeObject3D(_enh.axisScene);
+    if (_enh.axisRenderer) {
+        _enh.axisRenderer.dispose();
+        _enh.axisRenderer.forceContextLoss();
+    }
+    disposeGoogleTileProjectionTexture();
+    // Editor controls must survive imagery/terrain rebuilding the Three.js scene.
+    const exteriorToolbar = container.querySelector('#exterior-toolbar');
+    if (exteriorToolbar) wrapper.appendChild(exteriorToolbar);
+    }
     container.innerHTML = '';
     markers3D = []; lines3D = [];
     const metrics = getThreeViewportMetrics();
@@ -1545,7 +1568,7 @@ function init3D() {
     scene.background = new THREE.Color(0x202124);
     camera = new THREE.PerspectiveCamera(45, w/h, 0.01, 2000);
     camera.position.set(0, 80, 100);
-    renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+    renderer = new THREE.WebGLRenderer({ antialias:true, alpha:window.FIRSTMEASURE_FULL_HOUSE === true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(w, h, false);
     if ('toneMapping' in renderer && typeof THREE.NoToneMapping !== 'undefined') {
@@ -1555,6 +1578,7 @@ function init3D() {
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     container.appendChild(renderer.domElement);
+    window.refreshResource3DOverlay?.();
     raycaster = new THREE.Raycaster();
     raycaster.params.Line.threshold = 1.0;
     mouse = new THREE.Vector2();
@@ -2030,6 +2054,7 @@ function getFaceSignature(face) {
 // §8  GEOMETRY RENDERING (3D lines & points)
 // =========================================================
 function renderGeometry3D() {
+    if (window.WallMode?.enabled) return window.WallMode.render3D();
     if (!window.enable3D) return;
     if (!scene || !geometryGroup || !activeGeometry || !layerData.dsm) return;
     _sceneDirty3D = true;
@@ -2351,6 +2376,7 @@ window.renderFinalPassLegacy = function (fastRender = false, structureScoped = f
     });
     if (typeof renderFaces2D === 'function') renderFaces2D(dataFor2D);
     if (typeof window.refreshStructureStatusesFromFaces === 'function') window.refreshStructureStatusesFromFaces(facesToRender);
+    window.WallMode?.renderRoofTrim3D();
     if (_enh.showPitchLabels) requestAnimationFrame(renderPitchLabels);
 };
 window.renderFinalPass = function (fastRender = false) {
@@ -5190,6 +5216,7 @@ window.renderFinalPass = function (fastRender = false) {
         if (typeof renderFaces2D === 'function') renderFaces2D(dataFor2D);
         passTimings.renderFaces2DMs = nowAlt() - t;
         if (typeof window.refreshStructureStatusesFromFaces === 'function') window.refreshStructureStatusesFromFaces(renderFaces);
+        window.WallMode?.renderRoofTrim3D();
         if (_enh.showPitchLabels) requestAnimationFrame(renderPitchLabels);
         if (typeof window !== 'undefined' && __finalPassStart) {
             const totalMs = nowAlt() - __finalPassStart;
@@ -5877,6 +5904,7 @@ function cullOccludedBottomFaces(faces) {
 // §17  ANIMATION LOOP (unified)
 // =========================================================
 function _animate3D() {
+    window.WallMode?.syncVisibility();
     if(!window.enable3D) return;
     requestAnimationFrame(_animate3D);
     const now=performance.now();
@@ -5933,7 +5961,9 @@ function update3DTextureForView() {
     if(!mesh) return;
     const srcCanvas=getCurrent3DImageCanvas();
     if(!srcCanvas) return;
+    const previousTexture = mesh.material.map;
     mesh.material.map=new THREE.CanvasTexture(srcCanvas);
+    if (previousTexture) previousTexture.dispose();
     mesh.material.needsUpdate=true;
 }
 window.toggle3DSurfaceMode = async function(forceMode=null) {
@@ -7223,3 +7253,8 @@ function renderFaces3D(faces) {
         console.log("[Wire] Undone.");
     };
 })();
+
+// A screen-space reference uses DOM compositing, never a Three.js mesh/texture.
+window.refreshResource3DOverlay = function(){
+ if(typeof scene!=='undefined'&&scene&&typeof renderer!=='undefined'&&renderer)window.Resource3DOverlay?.attach(scene,renderer);
+};

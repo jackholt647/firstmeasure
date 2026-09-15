@@ -7,7 +7,7 @@ function fm_editor_stream_node_bundle($url, &$upstreamStatus = null) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_HTTPGET => true,
-        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], strpos($url, '/projects/fullhouse_') !== false && function_exists('fm_full_house_headers') ? fm_full_house_headers() : []),
         CURLOPT_CONNECTTIMEOUT => 3,
         CURLOPT_TIMEOUT => 45,
         CURLOPT_FAILONERROR => true,

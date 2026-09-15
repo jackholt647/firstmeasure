@@ -1,3 +1,4 @@
+import { installFullHouseAccess } from '../firstmeasure/full_house.js';
 import cors from "@fastify/cors";
 import { installStaffTracking } from "../staff_tracking/api.js";
 import multipart from "@fastify/multipart";
@@ -57,6 +58,7 @@ export async function buildApp() {
       level: env.logLevel
     }
   });
+  installFullHouseAccess(app);
   installDiagnostics(app);
   installPricingContext(app);
   installStaffTracking(app);

@@ -112,7 +112,7 @@ async function countProjects(options: { statuses?: string[]; dateColumn?: string
     params.startMs = options.startMs;
     params.endMs = options.endMs;
   }
-  const [row] = await aggregateRows<{ count?: number | string }>(`SELECT COUNT(*) AS count FROM projects WHERE ${where.join(" AND ")}`, params);
+  const [row] = await aggregateRows<{ count?: number | string }>(`SELECT COUNT(*) AS count FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${where.join(" AND ")}`, params);
   return Number(row?.count ?? 0);
 }
 
@@ -206,7 +206,7 @@ export async function runRemoteAggregateQuery(input: JsonObject = {}) {
   const rows = await aggregateRows<{ group_key?: string; project_count?: number | string }>(`
     SELECT ${groupExpression} AS group_key, COUNT(*) AS project_count
     FROM projects
-    WHERE ${where.join(" AND ")}
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${where.join(" AND ")}
     GROUP BY group_key
     ORDER BY project_count DESC, group_key ASC
     LIMIT 500
