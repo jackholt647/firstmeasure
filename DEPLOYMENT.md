@@ -2,10 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
-Development only, September 15 UTC: [177/187 QA feedback and PHP memory fixes](deploy/digitalocean/development-qa177-php187-20260915.md)
-records candidate `42ab264b13fcc953bed4688bf112b12adbcb781d`, verified on all three
-development roles and in the browser. Production rollout is held; the production
-release/channel below remain unchanged.
+September 15 UTC latest: [177/187 QA feedback and PHP memory release](deploy/digitalocean/production-qa177-php187-20260915.md)
+records `42ab264b13fcc953bed4688bf112b12adbcb781d` on all eight production roles
+and the signed replacement channel. The original oversized project now displays
+both QA notes in the live editor; streaming verified under a 32 MiB PHP limit.
+No migration/configuration/image/capacity change. See the linked development
+record for save/reload, large-payload and blind-review test evidence.
 
 September 15 UTC (September 14 local) latest: [people-first Tracking release](deploy/digitalocean/production-people184-20260915.md)
 records `dcb8064af9f521d408974aa328da36d3393d533c` on all eight roles and
