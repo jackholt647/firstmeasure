@@ -65,6 +65,10 @@ It now includes a generated checkerboard map and reference PNG for browser tests
 - The signed-in private submission page displays the synthetic draft and leaves
   the full-house checkbox unchecked for new submissions. Its editor loaded the
   synthetic map, wall controls, Resources tab, and private reference image.
+- Browser resource notes saved through PHP and reappeared after a full reload.
+  Browser editor metadata was read back from the API. The synthetic draft has no
+  measured roof, so report-state generation correctly requests Measurements;
+  these checks do not establish a complete geometry-to-PDF browser workflow.
 - Public unauthenticated access to the private project/list returned 404 with
   `private, no-store`; the normal project listing returned 200 with no private IDs.
 
