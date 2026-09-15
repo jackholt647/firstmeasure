@@ -1,3 +1,4 @@
+import { assertFullHouseProjectAccess, isFullHouseId } from './full_house.js';
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -172,6 +173,7 @@ export async function ensureFirstMeasureStorage() {
 }
 
 export function projectDir(projectId: string): string {
+  assertFullHouseProjectAccess(projectId);
   return path.join(projectsRoot(), sanitizeProjectId(projectId));
 }
 
@@ -232,7 +234,11 @@ async function writeJsonAtomic(filePath: string, value: unknown) {
   await writeFileAtomic(filePath, JSON.stringify(value, null, 2));
 }
 
-export async function createProject(input: JsonObject & { address: string }) {
+export async function createProject(input: JsonObject & { address: string }, options: { fullHouse?: boolean } = {}) {
+  if ((isFullHouseId(input.id) || input.measurement_scope != null) && !options.fullHouse) {
+    throw badRequest("reserved_project_scope", "Use the internal full-house submission page.");
+  }
+  if (options.fullHouse && (!isFullHouseId(input.id) || input.measurement_scope !== "full_house")) throw badRequest("invalid_project_scope", "Invalid full-house submission.");
   await ensureFirstMeasureStorage();
 
   const projectId = input.id ? sanitizeProjectId(String(input.id)) : generateProjectId();
@@ -249,6 +255,7 @@ export async function createProject(input: JsonObject & { address: string }) {
   const initialComplexity = (input.complexity as number | string | null | undefined) ?? null;
   const initialIsVip = Boolean(input.is_vip ?? false) || await shouldAutoVipFirstOrganizationProject(input);
   const manifest: ProjectManifest = {
+    ...(options.fullHouse ? { measurement_scope: "full_house", internal_only: true } : {}),
     schema_version: FIRSTMEASURE_SCHEMA_VERSION,
     id: projectId,
     status: String(input.status ?? "queued"),
@@ -360,6 +367,7 @@ export async function listProjectManifests() {
 }
 
 export async function readManifest(projectId: string): Promise<ProjectManifest> {
+  assertFullHouseProjectAccess(projectId);
   if (isFirstMeasurePostgresEnabled()) {
     const { readPostgresManifestById } = await import("./project_index_postgres.js");
     const postgresManifest = await readPostgresManifestById(projectId);
@@ -433,6 +441,8 @@ export async function patchManifest(
   patch: JsonObject,
   options?: { refreshArtifacts?: boolean; backup?: boolean }
 ) {
+  if (Object.prototype.hasOwnProperty.call(patch, "measurement_scope") || Object.prototype.hasOwnProperty.call(patch, "internal_only") || Object.prototype.hasOwnProperty.call(patch, "id")) throw badRequest("immutable_project_scope", "Project identity and measurement scope cannot be changed.");
+  assertFullHouseProjectAccess(projectId);
   if (isFirstMeasurePostgresEnabled()) {
     const { mutatePostgresManifest } = await import("./project_index_postgres.js");
     const directory = projectDir(projectId);
@@ -563,7 +573,16 @@ export async function listProjectFiles(projectId: string): Promise<FileEntry[]> 
   return files.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function assertMeasurementDataScope(projectId: string, value: unknown) {
+  if (isFullHouseId(projectId) || !value || typeof value !== 'object') return;
+  const data = value as Record<string, unknown>;
+  if (data.exteriorsWalls != null || data.exteriorsRoofTrim != null || data.exteriorReport != null) {
+    throw badRequest('exterior_project_required', 'Exterior measurements require a full-house project.');
+  }
+}
+
 export async function saveAppMetadata(projectId: string, value: unknown) {
+  assertMeasurementDataScope(projectId, value);
   await assertProjectExists(projectId);
   if (isSpacesArtifactStorageEnabled()) {
     await putProjectArtifact(projectId, FIRSTMEASURE_FILE_NAMES.appMetadata, JSON.stringify(value, null, 2));
@@ -580,6 +599,7 @@ export async function readAppMetadata(projectId: string) {
 }
 
 export async function savePdfState(projectId: string, value: unknown) {
+  assertMeasurementDataScope(projectId, value);
   await assertProjectExists(projectId);
   if (isSpacesArtifactStorageEnabled()) {
     await putProjectArtifact(projectId, FIRSTMEASURE_FILE_NAMES.pdfState, JSON.stringify(value, null, 2));
@@ -617,6 +637,12 @@ export async function readBrandingDefaults(projectId: string) {
 export async function saveArtifact(projectId: string, fileName: string, content: Uint8Array | string) {
   await assertProjectExists(projectId);
   const safeName = sanitizeFileName(fileName);
+  if (safeName === FIRSTMEASURE_FILE_NAMES.manifest) throw badRequest("reserved_artifact", "The project manifest is not an uploadable artifact.");
+  if (safeName === FIRSTMEASURE_FILE_NAMES.appMetadata || safeName === FIRSTMEASURE_FILE_NAMES.pdfState) {
+    let document: unknown = null;
+    try { document = JSON.parse(typeof content === 'string' ? content : Buffer.from(content).toString('utf8')); } catch { /* Preserve existing opaque/corrupt-artifact recovery workflows. */ }
+    assertMeasurementDataScope(projectId, document);
+  }
   const filePath = isSpacesArtifactStorageEnabled()
     ? projectArtifactReference(projectId, safeName)
     : path.join(projectDir(projectId), safeName);
@@ -809,6 +835,7 @@ async function readOptionalProjectJson(projectId: string, fileName: string) {
 }
 
 async function assertProjectExists(projectId: string) {
+  assertFullHouseProjectAccess(projectId);
   await readManifest(projectId);
 }
 

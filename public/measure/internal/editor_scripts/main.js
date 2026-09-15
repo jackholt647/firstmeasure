@@ -3153,6 +3153,10 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
             ((existingMeta.google3dTiles && existingMeta.google3dTiles.manifestUrl) || '');
         const metadata = {
             ...existingMeta,
+            ...(window.FIRSTMEASURE_FULL_HOUSE === true ? {
+                exteriorsRoofTrim: window.WallMode?.serializeRoofTrim() ?? existingMeta.exteriorsRoofTrim ?? null,
+                exteriorsWalls: window.WallMode?.serialize() ?? existingMeta.exteriorsWalls ?? null
+            } : {}),
             imageWidth: structureSaveSnapshot?.imageWidth || imageWidth,
             imageHeight: structureSaveSnapshot?.imageHeight || imageHeight,
             imageMetersPerPx: structureSaveSnapshot?.imageMetersPerPx || (window.getMetersPerPx ? Number(window.getMetersPerPx()) : 0),
@@ -3926,6 +3930,7 @@ async function loadProjectFromFolder(folderHash) {
         throw new Error(message);
     }
 
+    window.WallMode?.beforeProjectLoad();
     resetLayerVisibility();
     _applePrefetchRunId += 1;
     _applePrefetchPromise = null;
@@ -4384,6 +4389,7 @@ async function loadProjectFromFolder(folderHash) {
             window.scheduleStructureSupplementalPreload();
         }
 
+        window.WallMode?.restore(requestedProjectId, meta);
         console.log("Project loaded.");
 
         // --- AUTO-OPEN REPORT CONFIG IN FULLSCREEN WHEN ?branding=1 ---

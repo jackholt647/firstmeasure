@@ -545,7 +545,7 @@ function searchProjects(args: JsonObject) {
   params[":limit"] = limit;
   return runReadonlySql({
     database: "projects",
-    sql: `SELECT id,status,project_type,address,owner_name,owner_email,issuer_name,issuer_email,organization_id,team_id,assigned_to_name,assigned_to_email,qa_claimed_by_name,qa_claimed_by_email,complexity,amount_charged,is_filler,is_vip,is_expedited,created_at,queued_at,started_at,uploaded_at,completed_at,updated_at,has_report_pdf,has_summary_pdf FROM projects WHERE ${where} ORDER BY sort_ts DESC, updated_at_ms DESC LIMIT :limit`,
+    sql: `SELECT id,status,project_type,address,owner_name,owner_email,issuer_name,issuer_email,organization_id,team_id,assigned_to_name,assigned_to_email,qa_claimed_by_name,qa_claimed_by_email,complexity,amount_charged,is_filler,is_vip,is_expedited,created_at,queued_at,started_at,uploaded_at,completed_at,updated_at,has_report_pdf,has_summary_pdf FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${where} ORDER BY sort_ts DESC, updated_at_ms DESC LIMIT :limit`,
     params,
     limit
   });
@@ -570,7 +570,7 @@ function projectStats(args: JsonObject) {
   const groupSql = selects.map((_select, index) => `group_${index + 1}`).join(", ");
   const result = runReadonlySql({
     database: "projects",
-    sql: `SELECT ${selects.join(", ")}, COUNT(*) AS report_count, SUM(CASE WHEN project_type='commercial' THEN 1 ELSE 0 END) AS commercial_count, SUM(CASE WHEN project_type='multifamily' THEN 1 ELSE 0 END) AS multifamily_count, SUM(CASE WHEN project_type='residential' THEN 1 ELSE 0 END) AS residential_count, ROUND(AVG(amount_charged),2) AS avg_amount_charged, ROUND(SUM(amount_charged),2) AS total_amount_charged FROM projects WHERE ${where} GROUP BY ${groupSql} ORDER BY report_count DESC LIMIT 200`,
+    sql: `SELECT ${selects.join(", ")}, COUNT(*) AS report_count, SUM(CASE WHEN project_type='commercial' THEN 1 ELSE 0 END) AS commercial_count, SUM(CASE WHEN project_type='multifamily' THEN 1 ELSE 0 END) AS multifamily_count, SUM(CASE WHEN project_type='residential' THEN 1 ELSE 0 END) AS residential_count, ROUND(AVG(amount_charged),2) AS avg_amount_charged, ROUND(SUM(amount_charged),2) AS total_amount_charged FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${where} GROUP BY ${groupSql} ORDER BY report_count DESC LIMIT 200`,
     params,
     limit: 200
   });
@@ -712,7 +712,7 @@ function projectCountsByOrganization(orgIdsInput: unknown[]) {
         params[key] = id;
         return key;
       });
-      const rows = bindParams(db.prepare(`SELECT organization_id, COUNT(*) AS project_count, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_project_count, SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled_project_count, SUM(CASE WHEN status LIKE 'rejected%' THEN 1 ELSE 0 END) AS rejected_project_count, MAX(COALESCE(NULLIF(completed_at,''), NULLIF(updated_at,''), NULLIF(created_at,''))) AS latest_project_at FROM projects WHERE organization_id IN (${keys.join(",")}) GROUP BY organization_id`), params);
+      const rows = bindParams(db.prepare(`SELECT organization_id, COUNT(*) AS project_count, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_project_count, SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled_project_count, SUM(CASE WHEN status LIKE 'rejected%' THEN 1 ELSE 0 END) AS rejected_project_count, MAX(COALESCE(NULLIF(completed_at,''), NULLIF(updated_at,''), NULLIF(created_at,''))) AS latest_project_at FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND organization_id IN (${keys.join(",")}) GROUP BY organization_id`), params);
       for (const row of rows) {
         counts[asString(row.organization_id)] = {
           project_count: Number(row.project_count || 0),
@@ -936,7 +936,7 @@ async function callTool(name: string, args: JsonObject) {
     case "run_readonly_sql": return runReadonlySql(args);
     case "search_projects": return searchProjects(args);
     case "project_stats": return projectStats(args);
-    case "get_project_detail": return runReadonlySql({ database: "projects", sql: "SELECT * FROM projects WHERE id = :id LIMIT 1", params: { ":id": args.project_id ?? args.id }, limit: 1 });
+    case "get_project_detail": return runReadonlySql({ database: "projects", sql: "SELECT * FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND id = :id LIMIT 1", params: { ":id": args.project_id ?? args.id }, limit: 1 });
     case "search_users": return await searchUsers(args);
     case "get_user_profile": {
       const user = await readInternalUser(asString(args.email));

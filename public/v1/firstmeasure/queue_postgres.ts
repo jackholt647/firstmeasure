@@ -57,8 +57,8 @@ async function statusWithClient(client: import("pg").PoolClient, input: QueueSta
     active_id: string | null; active_status: string | null; active_address: string | null;
   }>(`
     SELECT
-      (SELECT COUNT(*) FROM projects WHERE assigned_to_email = $1 AND status = ANY($2::text[]))::text AS assigned,
-      (SELECT COUNT(*) FROM projects WHERE status = 'correction_needed' AND assigned_to_email = ''
+      (SELECT COUNT(*) FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND assigned_to_email = $1 AND status = ANY($2::text[]))::text AS assigned,
+      (SELECT COUNT(*) FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND status = 'correction_needed' AND assigned_to_email = ''
         AND (correction_to_email = '' OR correction_to_email = $1))::text AS corrections,
       COALESCE((SELECT SUM(project_count) FROM project_queue_counters
         WHERE scope = 'claim_reserved' AND team_id = $1 AND queue_group = 'queued'), 0)::text AS reserved,
@@ -66,12 +66,12 @@ async function statusWithClient(client: import("pg").PoolClient, input: QueueSta
           WHERE scope = 'claim_unreserved' AND team_id = '' AND queue_group = 'queued'), 0)
         + COALESCE((SELECT SUM(project_count) FROM project_queue_counters
           WHERE scope = 'claim_reserved' AND team_id = $1 AND queue_group = 'queued'), 0))::text AS available_new,
-      (SELECT COUNT(*) FROM projects WHERE assigned_to_email = $1 AND status = ANY($3::text[]))::text AS blocking,
+      (SELECT COUNT(*) FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND assigned_to_email = $1 AND status = ANY($3::text[]))::text AS blocking,
       active.id AS active_id, active.status AS active_status, active.address AS active_address
     FROM (SELECT 1) seed
     LEFT JOIN LATERAL (
       SELECT id, status, address FROM projects
-      WHERE assigned_to_email = $1 AND status = ANY($2::text[])
+      WHERE substr(id, 1, 10) <> 'fullhouse_' AND assigned_to_email = $1 AND status = ANY($2::text[])
       ORDER BY updated_at_ms DESC, id DESC LIMIT 1
     ) active ON true
   `, [actorEmail, ACTIVE_STATUSES, BLOCKING_STATUSES]);
@@ -125,7 +125,7 @@ function candidateSql(
   const preferredParam = `$${values.length}`;
   return {
     values,
-    sql: `SELECT manifest_json, thumbnail_artifact_name FROM projects WHERE ${where.join(" AND ")}
+    sql: `SELECT manifest_json, thumbnail_artifact_name FROM projects WHERE substr(id, 1, 10) <> 'fullhouse_' AND ${where.join(" AND ")}
       ORDER BY queue_priority,
         CASE WHEN complexity = ANY(${preferredParam}::text[]) THEN 0 ELSE 1 END,
         created_at_ms ASC, queued_at_ms ASC, id ASC LIMIT 1 ${lock ? "FOR UPDATE SKIP LOCKED" : ""}`
@@ -160,7 +160,7 @@ async function hasAvailableSeniorTechnicianPostgres(
   const busy = await client.query<{ email: string }>(`
     SELECT DISTINCT lower(assigned_to_email) AS email
     FROM projects
-    WHERE lower(assigned_to_email) = ANY($1::text[])
+    WHERE substr(id, 1, 10) <> 'fullhouse_' AND lower(assigned_to_email) = ANY($1::text[])
       AND status = ANY($2::text[])
   `, [onlineSeniorEmails, ACTIVE_STATUSES]);
   const busyEmails = new Set(busy.rows.map((row) => String(row.email ?? "").trim().toLowerCase()));

@@ -173,6 +173,7 @@ function mergeReportConfigStateIntoLatestState(targetState, sourceState) {
     if (!targetState || !sourceState) return targetState;
 
     const fieldsToRestore = [
+        'exteriorSettings',
         'customLabels',
         'manualWastePct',
         'manualTotalFacets',
@@ -1262,6 +1263,7 @@ function buildPagePlan(layers, state) {
     if (!isCommercialProjectReportConfig(state)) {
         plan.push({ key: 'vent', advanced: true });
     }
+    if (window.FIRSTMEASURE_FULL_HOUSE === true && state.exteriorReport?.walls?.length) plan.push({ key: 'exterior' });
     plan.push({ key: 'finalize' });   // ← NEW: always last
     return plan;
 }
@@ -1283,6 +1285,7 @@ function getConfigPageNavMeta(item, fallbackIndex = 0) {
     else if (item.key === 'structures') { label = "Structures"; tooltip = "Structure Breakdown"; }
     else if (item.key === 'elev')   { label = "Quad View";  tooltip = "3D Elevations / Four Direction Views"; }
     else if (item.key === 'vent')   { label = "Vent";       tooltip = "Ventilation"; }
+    else if (item.key === 'exterior') { label = 'Exteriors'; tooltip = 'Walls, openings and takeoff'; }
     else if (item.key === 'finalize') { label = "PDF";      tooltip = "PDF Preview & Submission"; }
 
     return { label, tooltip };
@@ -2648,6 +2651,7 @@ async function renderConfigPage() {
         else if (planItem.key === 'structures') await renderStructuresPreview(pageDiv, reportConfigState);
         else if (planItem.key === 'elev')       await renderElevationsPage(pageDiv);
         else if (planItem.key === 'vent')       await renderVentPage(pageDiv);
+        else if (planItem.key === 'exterior')   renderExteriorReportConfig(pageDiv, reportConfigState);
         else if (planItem.key === 'finalize')   await renderFinalizePage(pageDiv);
 
         container.innerHTML = '';
@@ -7534,7 +7538,7 @@ async function renderFinalizePage(container) {
                 </div>
             ` : ''}
 
-            ${qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
+            ${window.FIRSTMEASURE_FULL_HOUSE === true ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
                 <div class="fin-submit-area">
                     <button class="fin-submit-btn ${storiesReady ? 'enabled' : 'disabled'}" id="finalSubmitBtn" ${storiesReady ? '' : 'disabled'}>
                         <i class="fas fa-file-pdf"></i> Submit PDF
@@ -7618,7 +7622,7 @@ async function renderFinalizePage(container) {
                 throw new Error('The shared local PDF synchronization runtime is unavailable.');
             }
             const folderId = state.folderId || window.currentProjectId;
-            const isTutorialPreview = !!(
+            const isTutorialPreview = window.FIRSTMEASURE_FULL_HOUSE === true || !!(
                 window.FIRSTMEASURE_TUTORIAL?.enabled
                 && typeof window.firstMeasureIsTutorialProjectId === 'function'
                 && window.firstMeasureIsTutorialProjectId(folderId)
@@ -8783,6 +8787,7 @@ function startSubmissionArtifactFinalization(state, reviewedSync) {
 }
 
 async function submitFinalReport() {
+    if (window.FIRSTMEASURE_FULL_HOUSE === true) { alert('This is an internal draft. Use the report preview to download it.'); return; }
     const btn = document.querySelector('#finalSubmitBtn');
     if (!btn) return;
 

@@ -789,6 +789,7 @@ function serializePdfConfigForSave(sourceState) {
     if (!sourceState || typeof sourceState !== 'object') return null;
 
     const config = {
+        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
         customLabels: cloneJsonSafe(sourceState.customLabels, []),
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : undefined,
         manualTotalFacets: (typeof sourceState.manualTotalFacets === 'number') ? sourceState.manualTotalFacets : undefined,
@@ -917,6 +918,8 @@ function createStandalonePdfSnapshot(sourceState) {
         );
 
     const snapshot = {
+        exteriorReport: cloneJsonSafe(sourceState.exteriorReport, null),
+        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
         snapshotVersion: PDF_SNAPSHOT_VERSION,
         savedAt: new Date().toISOString(),
         pdfSyncRevision: sourceState.pdfSyncRevision || sourceState.pdf_sync_revision || null,
@@ -1391,6 +1394,8 @@ async function captureStateForPDF(options = {}) {
         );
 
         const state = {
+            exteriorReport: window.WallMode?.reportSnapshot?.() || null,
+            exteriorSettings: cloneJsonSafe(currentConfig.exteriorSettings, {}),
             folderId: window.currentProjectId,
             geometry, report, address, center, dims,
             radiusMeters: Number.isFinite(capturedRadiusMeters) && capturedRadiusMeters > 0 ? capturedRadiusMeters : null,
@@ -1425,7 +1430,7 @@ async function captureStateForPDF(options = {}) {
 
     } catch (e) {
         console.error("State Capture Failed:", e);
-        alert("Error capturing report data.");
+        alert("Error capturing report data: " + (e?.message || "Unknown error"));
         return null;
     } finally {
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
@@ -2733,6 +2738,11 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         await drawNotesPage(doc, state, notesDiagramImg, imgRatio, marginLeft, 35, availableW, pageHeight - 50, brandingColors);
     }
 
+
+    if (typeof window.drawExteriorReportPages === 'function' && mode === 'full' && state.exteriorReport?.walls?.length && state.exteriorSettings?.include !== false) {
+        if (updateStatusCallback) updateStatusCallback('Generating exterior report pages...');
+        window.drawExteriorReportPages(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
+    }
 
     // ==========================================
     // UPLOAD / SAVE

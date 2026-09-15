@@ -875,6 +875,7 @@ function drawVisualGrid() {
 /* interaction_2d.js */
 
 window.renderGeometry2D = function() {
+    if (window.WallMode?.enabled) return window.WallMode.render2D();
     const svg = document.getElementById('geoSvg');
     if(!svg) return;
     
@@ -4445,6 +4446,7 @@ function updateZoomViaSlider() {
     renderGeometry2D();
 }
 function onWheel2D(e) {
+    if (e.target.closest?.('#wall-panel')) return;
     e.preventDefault();
     if (e.ctrlKey) {
         const step = 1;
@@ -4932,6 +4934,7 @@ function attemptLineSplit(x, y, tolerance) {
     return null;
 }
 window.renderFaces2D = function(facesData, containerArg) {
+    if (window.WallMode?.enabled) return;
     const svg = document.getElementById('geoSvg');
     if (!svg) return;
     let target = containerArg || document.getElementById('geo-rotation-group') || svg;

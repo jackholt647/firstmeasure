@@ -1,3 +1,4 @@
+import { assertFullHouseProjectAccess } from './full_house.js';
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
@@ -769,7 +770,7 @@ export async function getPostgresProjectIndexStatus(): Promise<ProjectIndexStatu
 export async function listPostgresProjectManifests(): Promise<ProjectManifest[]> {
   await ensurePostgresProjectIndexReady();
   const result = await queryPostgres<{ manifest_json: unknown }>(
-    "SELECT manifest_json FROM projects ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC"
+    "SELECT manifest_json FROM projects WHERE left(id, 10) <> 'fullhouse_' ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC"
   );
   return result.rows.map((row) => manifestFromValue(row.manifest_json));
 }
@@ -783,7 +784,7 @@ export async function findPostgresProjectsByNormalizedAddress(address: string, o
   await ensurePostgresProjectIndexReady();
   const limit = Math.max(1, Math.min(50, Math.floor(options.limit ?? 10)));
   const result = await queryPostgres<{ manifest_json: unknown }>(`
-    SELECT manifest_json FROM projects WHERE address_normalized = $1
+    SELECT manifest_json FROM projects WHERE left(id, 10) <> 'fullhouse_' AND address_normalized = $1
     ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC LIMIT $2
   `, [normalizeSearch(address), limit]);
   return result.rows.map((row) => manifestFromValue(row.manifest_json));
@@ -803,7 +804,7 @@ export async function queryPostgresProjectManifests(query: ProjectIndexManifestQ
 }
 
 function buildProjectWhere(query: ProjectIndexManifestQuery) {
-  const where = ["TRUE"];
+  const where = ["left(p.id, 10) <> 'fullhouse_'"];
   const values: unknown[] = [];
   const add = (sql: string, value: unknown) => { values.push(value); where.push(sql.replace("?", `$${values.length}`)); };
   if (query.owner_email) add("p.owner_email = ?", String(query.owner_email).trim().toLowerCase());
@@ -842,7 +843,7 @@ export async function getPostgresQueueCounts(query: QueueCountsQuery = {}) {
       version: await readQueueVersion()
     };
   }
-  const where = ["TRUE"];
+  const where = ["left(p.id, 10) <> 'fullhouse_'"];
   const values: unknown[] = [];
   if (query.team_id) { values.push(String(query.team_id).trim()); where.push(`p.team_id = $${values.length}`); }
   if (!query.includeInstantOnly) where.push("p.instant_only = 0");
@@ -908,7 +909,7 @@ export async function readPostgresQueueChanges(query: QueueChangesQuery = {}) {
   const since = Math.max(0, Math.floor(Number(query.since ?? 0)));
   const limit = Math.min(Math.max(Math.floor(Number(query.limit ?? 250)), 1), 1000);
   const values: unknown[] = [since];
-  const where = ["version > $1"];
+  const where = ["version > $1", "left(project_id, 10) <> 'fullhouse_'"];
   if (query.team_id) { values.push(String(query.team_id).trim()); where.push(`team_id = $${values.length}`); }
   values.push(limit);
   const result = await queryPostgres<Record<string, unknown>>(`
@@ -958,7 +959,7 @@ export async function isFirstPostgresDeliveredReportForIssuer(manifest: ProjectM
 
 export async function searchPostgresProjectsForLegacyList(query: LegacyListQuery): Promise<LegacyListResult> {
   await ensurePostgresProjectIndexReady();
-  const where = ["TRUE"];
+  const where = ["left(p.id, 10) <> 'fullhouse_'"];
   const values: unknown[] = [];
   if (!query.includeInstantOnly) where.push("p.instant_only = 0");
   appendLegacyVisibility(where, values, query.filter, query.actor);
@@ -1025,6 +1026,7 @@ export async function upsertPostgresProjectIndex(
 }
 
 export async function readPostgresManifestById(projectId: string): Promise<ProjectManifest | null> {
+  assertFullHouseProjectAccess(projectId);
   await ensurePostgresProjectIndexReady();
   const result = await queryPostgres<{ manifest_json: unknown }>("SELECT manifest_json FROM projects WHERE id = $1", [projectId]);
   return result.rows[0] ? manifestFromValue(result.rows[0].manifest_json) : null;
@@ -1044,6 +1046,7 @@ export async function mutatePostgresManifest(
   mutate: (manifest: ProjectManifest) => ProjectManifest | Promise<ProjectManifest>,
   options?: { storagePath?: string; fileNames?: string[]; artifactFileName?: string | null }
 ) {
+  assertFullHouseProjectAccess(projectId);
   await ensurePostgresProjectIndexReady();
   return withPostgresTransaction(async (client) => {
     const current = await client.query<{ manifest_json: unknown; thumbnail_artifact_name: string }>(

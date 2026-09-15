@@ -1,0 +1,53 @@
+const test=require('node:test'),assert=require('node:assert/strict'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+const base=()=>({faces:[{id:'base',points:[{x:0,y:0,z:0},{x:10,y:0,z:0},{x:10,y:10,z:0},{x:0,y:10,z:0}]}]});
+test('wall boundaries stay fixed while user dividers create and merge faces',()=>{
+ const b=base(),s=S.ensure(b);assert.ok(s.nodes.every(n=>n.fixed));assert.ok(s.edges.every(e=>e.fixed));
+ const a=S.add(b,{x:5,y:0,z:0}),c=S.add(b,{x:5,y:10,z:0});S.connect(b,[a,c]);assert.equal(b.faces.length,2);
+ const divider=s.edges.find(e=>!e.fixed);S.remove(b,[],[divider.id]);assert.equal(b.faces.length,1);
+ S.remove(b,s.nodes.filter(n=>n.fixed).map(n=>n.id),s.edges.filter(e=>e.fixed).map(e=>e.id));
+ assert.equal(s.edges.filter(e=>e.fixed).length,4);assert.equal(s.nodes.filter(n=>n.fixed).length,4);
+});
+test('standalone points and partial connections persist without removing the base',()=>{
+ const b=base(),a=S.add(b,{x:3,y:3,z:0}),c=S.add(b,{x:7,y:7,z:0});
+ S.connect(b,[a,c]);assert.equal(b.faces.length,1);
+ const saved=JSON.parse(JSON.stringify(b));assert.equal(saved.sketch.nodes.filter(n=>!n.fixed).length,2);
+ S.move(saved,[a],{x:1});assert.equal(saved.sketch.nodes.find(n=>n.id===a).x,4);
+ S.remove(saved,[a],[]);assert.equal(saved.faces.length,1);assert.ok(!saved.sketch.edges.some(e=>e.a===a||e.b===a));
+});
+test('multi-segment connection divides the base and moving a bend rebuilds both faces',()=>{
+ const b=base(),a=S.add(b,{x:5,y:0,z:0}),m=S.add(b,{x:4,y:5,z:0}),c=S.add(b,{x:5,y:10,z:0});
+ S.connect(b,[a,m,c]);assert.equal(b.faces.length,2);S.move(b,[m],{x:2});
+ assert.equal(b.faces.length,2);assert.ok(b.faces.every(f=>f.points.some(p=>p.x===6&&p.y===5)));
+});
+test('fixed points cannot move and invalid connections are rejected',()=>{
+ const b=base(),s=S.ensure(b),before=JSON.stringify(s.nodes);
+ S.move(b,s.nodes.map(n=>n.id),{x:2,y:2,z:2});assert.equal(JSON.stringify(s.nodes),before);
+ assert.throws(()=>S.add(b,{x:20,y:0,z:0}),/inside/);
+});
+test('crossing user lines resolve four faces',()=>{
+ const b=base(),a=S.add(b,{x:5,y:0,z:0}),c=S.add(b,{x:5,y:10,z:0}),d=S.add(b,{x:0,y:5,z:0}),e=S.add(b,{x:10,y:5,z:0});
+ S.connect(b,[a,c]);S.connect(b,[d,e]);assert.equal(b.faces.length,4);
+});
+
+test('rebind does not resurrect an editable old face boundary inside the new base',()=>{
+ const before={faces:[{id:'left',points:[{x:0,y:0,z:0},{x:2,y:0,z:0},{x:2,y:4,z:0},{x:0,y:4,z:0}]},{id:'right',points:[{x:2,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:2,y:4,z:0}]}]};S.ensure(before);const after={faces:[{id:'merged',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:0,y:4,z:0}]}]};S.rebind(before,after);const nodes=new Map(after.sketch.nodes.map(n=>[n.id,n]));assert.ok(!after.sketch.edges.some(e=>nodes.get(e.a).x===2&&nodes.get(e.b).x===2));
+});
+
+test('analytic arc persists through closed-region creation and extrusion',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),b=base(),curve={type:'ellipse',center:{x:5,y:5,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},radiusX:2,radiusY:2,sweep:Math.PI};const end=S.addCurve(b,curve),start=b.sketch.nodes.find(p=>Math.hypot(p.x-7,p.y-5)<1e-5);S.connect(b,[end,start.id]);const region=b.faces.find(f=>f.curves?.length&&f.points.length>10&&Math.max(...f.points.map(p=>p.x))<8);assert.ok(region);assert.equal(b.sketch.curves.length,1);assert.equal(region.curves[0].radiusX,2);const result=W.extrude(region,3);assert.equal(result.sides.filter(f=>f.curvedSurface?.logical).length,1);assert.equal(result.cap.curves[0].center.z,3);const loaded=JSON.parse(JSON.stringify(b));assert.equal(loaded.sketch.curves[0].sweep,Math.PI);
+});
+
+test('reload upgrade preserves an open analytic curve and its sampled edge links',()=>{
+ const b=base(),curve={type:'ellipse',center:{x:5,y:5,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},radiusX:2,radiusY:1,sweep:2};S.addCurve(b,curve);const loaded=JSON.parse(JSON.stringify(b));S.upgrade(loaded);assert.equal(loaded.sketch.curves.length,1);assert.ok(loaded.sketch.edges.some(e=>e.curveId===loaded.sketch.curves[0].id));
+});
+
+
+test('intentional points on an arc survive rebinding and remain connected at a wall boundary',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),b=base(),curve={type:'ellipse',center:{x:5,y:5,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},radiusX:3,radiusY:3,sweep:Math.PI};
+ S.addCurve(b,curve);S.rebind(b,b);const id=S.add(b,K.curvePoint(curve,.5),.0001);S.resolve(b);S.rebind(b,b);
+ assert.ok(b.sketch.nodes.some(n=>n.id===id),'placed midpoint must survive curve compaction');
+ const wall=S.add(b,{x:5,y:10,z:0});S.connect(b,[id,wall]);S.rebind(b,b);
+ assert.ok(b.sketch.edges.some(e=>!e.curveId&&[e.a,e.b].includes(id)),'line must remain attached to the intentional curve point');
+ assert.equal(b.sketch.edges.filter(e=>e.curveId&&[e.a,e.b].includes(id)).length,2);
+ const center=b.sketch.curves[0].centerId;assert.ok(b.sketch.nodes.some(n=>n.id===center&&n.curveCenter));
+});
