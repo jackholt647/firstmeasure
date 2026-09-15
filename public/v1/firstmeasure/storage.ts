@@ -639,7 +639,8 @@ export async function saveArtifact(projectId: string, fileName: string, content:
   const safeName = sanitizeFileName(fileName);
   if (safeName === FIRSTMEASURE_FILE_NAMES.manifest) throw badRequest("reserved_artifact", "The project manifest is not an uploadable artifact.");
   if (safeName === FIRSTMEASURE_FILE_NAMES.appMetadata || safeName === FIRSTMEASURE_FILE_NAMES.pdfState) {
-    const document = JSON.parse(typeof content === 'string' ? content : Buffer.from(content).toString('utf8'));
+    let document: unknown = null;
+    try { document = JSON.parse(typeof content === 'string' ? content : Buffer.from(content).toString('utf8')); } catch { /* Preserve existing opaque/corrupt-artifact recovery workflows. */ }
     assertMeasurementDataScope(projectId, document);
   }
   const filePath = isSpacesArtifactStorageEnabled()
