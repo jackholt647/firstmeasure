@@ -1,4 +1,5 @@
 import { managerReviewCsv } from "./manager_review_export.js";
+import { customerExportBatch } from "./customer_export.js";
 import { trackTutorialResult } from "../staff_tracking/api.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
@@ -3402,6 +3403,32 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
   };
 }
 
+async function customerUsersExportPage(body: JsonObject) {
+  const { batch, next_cursor } = customerExportBatch(await listOrganizations(), cleanText(body.after), internalPlatformOrgId());
+  const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
+  // Do not call readGlobal in PostgreSQL: it takes FOR UPDATE locks and may
+  // create records. An export must not compete with billing/account writes.
+  const documents = isFirstMeasurePostgresEnabled() && batch.length
+    ? (await queryPostgres<{ organization_id: string; collection: string; document: any }>(`
+        SELECT organization_id, collection, document FROM platform_documents
+        WHERE organization_id = ANY($1::text[]) AND collection IN ('global','users','projects')
+      `, [batch.map(org => String(org.id))])).rows
+    : null;
+  const organizations = await mapCustomerOrganizationsWithConcurrency(batch, 4, async org => {
+    const id = String(org.id);
+    const docs = documents?.filter(doc => doc.organization_id === id);
+    const [global, users, projects, indexedProjectRows] = await Promise.all([
+      docs ? Promise.resolve(docs.find(doc => doc.collection === 'global')?.document ?? null) : readGlobal(id),
+      docs ? Promise.resolve(docs.filter(doc => doc.collection === 'users').map(doc => doc.document)) : listDocuments(id, 'users'),
+      docs ? Promise.resolve(docs.filter(doc => doc.collection === 'projects').map(doc => doc.document)) : listDocuments(id, 'projects'),
+      firstMeasureProjectRowsForOrg(id, true)
+    ]);
+    // Unlike a dashboard, never turn a failed read into a partial export.
+    return compactOrganizationSummary(await buildOrganizationSummaryRow(org, true, { global, users, projects, indexedProjectRows }));
+  });
+  return { ok: true, success: true, organizations, next_cursor };
+}
+
 async function buildOrganizationSummaries(query: JsonObject) {
   const search = String(query.q ?? query.search ?? "").trim().toLowerCase();
   const includeCredits = query.include_credits !== false && query.include_credits !== "0";
@@ -4910,6 +4937,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       await requireFullInternalAdmin(actor);
       return await statsCreditRevenueForRanges(body);
     }
+    case "customer_users_export_page":
+      return await customerUsersExportPage(body);
     case "fetch_organizations_list":
     case "customer_org_dashboard_data": {
       if (body.paginate === "1" || body.paginate === "true" || body.paginate === true) {
@@ -6659,7 +6688,7 @@ function contactRowsForProjects(projects: JsonObject[]) {
   return [...byKey.values()].sort((a, b) => cleanText(a.name || a.email || a.phone).localeCompare(cleanText(b.name || b.email || b.phone)));
 }
 
-async function firstMeasureProjectRowsForOrg(orgId: string) {
+async function firstMeasureProjectRowsForOrg(orgId: string, strict = false) {
   const cleanOrgId = cleanText(orgId);
   if (!cleanOrgId) return [];
   try {
@@ -6669,7 +6698,8 @@ async function firstMeasureProjectRowsForOrg(orgId: string) {
       includeInstantOnly: true
     });
     return result.projects.map(firstMeasureManifestOrderRow);
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return [];
   }
 }
