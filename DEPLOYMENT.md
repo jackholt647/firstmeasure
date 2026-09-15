@@ -2,6 +2,13 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 15 development only: [188 TSV export verification](deploy/digitalocean/development-export188-20260915.md)
+records combined dev release `4e7390e` on `codex/customer-export-188`, preserving
+the separate exteriors integration. The main bugfix checkout contains the export
+fix but not the exteriors privacy guards: **do not deploy it wholesale over dev**.
+The exteriors task has the subsequent rollout handoff; verify its current branch
+and dev runtime before further activation. Production is unchanged and held.
+
 September 15 UTC latest: [177/187 QA feedback and PHP memory release](deploy/digitalocean/production-qa177-php187-20260915.md)
 records `42ab264b13fcc953bed4688bf112b12adbcb781d` on all eight production roles
 and the signed replacement channel. The original oversized project now displays
