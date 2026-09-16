@@ -691,6 +691,13 @@
         window.WallFeatures?.mountUI((...args)=>{if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();return wallEditor?.featureCommand(...args);},()=>wallEditor?.featureSelection(),()=>wallEditor?.busy(),{
             color(color){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.colorCommand(color);},paint(type){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.materialCommand(type);},
             placement:()=>wallEditor?.featurePlacement?.(),active:()=>wallEditor?.activeMaterial()||'default',
+            projectId:currentId,
+            projectColors(){
+                if(!state)return [];const counts=new Map(),add=color=>{if(/^#[0-9a-f]{6}$/i.test(color||'')){color=color.toLowerCase();counts.set(color,(counts.get(color)||0)+1);}};
+                for(const face of window.ExteriorModel.collect(state,currentWalls()))if(!face.feature)add(window.ExteriorFinishes?.resolve(face,state.finishDefaults)?.color||face.finishColor);
+                add(state.finishDefaults?.color);add(state.finishDefaults?.trimColor);
+                return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([color])=>color);
+            },
             defaults(value){const current={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef',...state?.finishDefaults};if(!value)return current;if(!enabled||!state||!window.ExteriorMaterials?.[value.material]||value.material==='default'||!/^#[0-9a-f]{6}$/i.test(value.color)||!/^#[0-9a-f]{6}$/i.test(value.trimColor))return current;recordEdit({});state.finishDefaults=copy(value);finishEdit();persist();render();return value;},
             finish(){if(wallEditor?.interaction()==='Paint material'){wallEditor.clear();render();}},
             colors(value){if(!state)return true;if(typeof value==='boolean'){state.materialColors=value;persist();render();}return state.materialColors!==false;}

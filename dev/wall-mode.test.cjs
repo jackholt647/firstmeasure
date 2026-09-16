@@ -448,3 +448,11 @@ test('editor redraw requests coalesce and a commit upgrades the pending render',
  for(let i=0;i<10;i++)host.redraw();host.changed();host.redraw();assert.equal(frames.length,1);
  frames.shift()();host.redraw();assert.equal(frames.length,1);frames.shift()();
 });
+
+test('project finish palette counts visible finishes, resolves defaults, and omits sticker type colors',()=>{
+ let materials,host;
+ const {ctx,soffits}=fixture(true,{WallFeatures:{mountUI(a,b,c,m){materials=m;}},ExteriorModel:{collect:state=>state.wallEdits.$surfaces||[]},ExteriorFinishes:{resolve:(face,defaults)=>({color:face.finishColor||defaults.color})},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false};}});
+ ctx.WallMode.setEnabled(true);soffits[1].onclick();host.state().finishDefaults={color:'#112233',trimColor:'#abcdef'};
+ host.state().wallEdits={$surfaces:[{finishColor:'#778899'},{finishColor:'#778899'},{finishColor:'#778899'},{},{finishColor:'#ABCDEF'},{feature:{type:'window'},finishColor:'#ff0000'}]};
+ assert.deepEqual(Array.from(materials.projectColors()),['#778899','#112233','#abcdef']);assert.equal(materials.projectId(),'fixture');
+});
