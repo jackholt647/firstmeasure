@@ -1834,3 +1834,29 @@ test('horizontal T keeps above/below/centered cycling with a return face on the 
  for(let v=0;v<3;v++){f.editor.key({key:'t'});assert.equal(f.editor.busy(),true);const zs=state.wallEdits.$surfaces.filter(s=>s.trim&&s.points.every(p=>p.y===0)).flatMap(s=>s.points.map(p=>p.z));assert.ok(Math.abs(Math.min(...zs)-(v===0?2:v===1?1.8476:1.9238))<1e-6,f.message());assert.ok(Math.abs(Math.max(...zs)-(v===0?2.1524:v===1?2:2.0762))<1e-6);}
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
 });
+
+test('E extrudes perpendicular selected faces and stickers by a shared typed distance, cancels and commits once',()=>{
+ const p=(x,y,z)=>({x,y,z}),front={id:'front',points:[p(1,0,1),p(3,0,1),p(3,0,3),p(1,0,3)],holes:[],feature:{type:'window',preset:1}},right={id:'right',points:[p(8,1,1),p(8,3,1),p(8,3,3),p(8,1,3)],holes:[],feature:{type:'door',preset:2}},base={faces:[{id:'base',points:[p(0,0,0),p(8,0,0),p(8,8,0),p(0,8,0)],holes:[]}]},state={base,wallEdits:{$surfaces:[front,right]}},f=fixture({state,walls:[],selected:null,screen:p=>({x:100*(p.x-p.y),y:100*(p.z+.2*p.y)})}),selection={selectedSolid:'right',faceSelection:[{solid:'front'},{solid:'right'}]};
+ f.editor.restoreSelection(selection);f.listeners.pointermove(f.e(8,2));const before=JSON.stringify(state.wallEdits);assert.equal(f.editor.key({key:'e'}),true);assert.match(f.editor.interaction(),/selected faces/);
+ const input=f.editor.distanceInput();assert.ok(input);input.set(.6096);assert.equal(f.history.length,0);const surfaces=state.wallEdits.$surfaces;
+ assert.ok(surfaces.find(f=>f.id==='front').points.every(p=>Math.abs(p.y+.6096)<1e-8));assert.ok(surfaces.find(f=>f.id==='right').points.every(p=>Math.abs(p.x-8.6096)<1e-8));assert.equal(surfaces.find(f=>f.id==='right').feature.type,'door');assert.equal(f.editor.selectionSnapshot().faceSelection.length,2);
+ const validPreview=JSON.stringify(state.wallEdits);input.set(Infinity);assert.equal(JSON.stringify(state.wallEdits),validPreview);f.editor.down(f.e(9,2));assert.equal(f.history.length,0,'An invalid member must block the whole commit');assert.equal(f.editor.busy(),true);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.deepEqual(JSON.parse(JSON.stringify(f.editor.selectionSnapshot().faceSelection)),selection.faceSelection);
+ f.editor.key({key:'e'});f.listeners.pointermove(f.e(9,2));assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='front').points.every(p=>Math.abs(p.y+1)<1e-8),f.message());
+ f.editor.distanceInput().set(.6096);f.editor.down(f.e(9,2));assert.equal(f.editor.busy(),false);assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(f.editor.selectionSnapshot().faceSelection.length,2);
+ f.editor.key({key:'e'});f.editor.distanceInput().set(.3048);f.editor.key({key:'Enter'});assert.equal(f.history.length,2);assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='right').points.every(p=>Math.abs(p.x-8.9144)<1e-8));
+});
+
+test('E consumes every selected draft region and a zero preview restores all original ownership',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(2,.02),f.w);f.editor.doubleClick(f.e(2,3.98),f.w);f.editor.down(f.e(2,0,true));f.listeners.pointerup(f.e(2,0,true));f.editor.key({key:'u'});
+ const refs=f.d().faces.map(face=>({draft:'w',face:face.id}));f.editor.restoreSelection({activeDraftKey:'w',selectedRegion:refs.at(-1),faceSelection:refs});f.listeners.pointermove(f.e(3,2));const before=JSON.stringify(f.state.wallEdits);
+ const historyCount=f.history.length;f.editor.key({key:'e'});f.editor.distanceInput().set(.5);assert.equal(f.d().faces.filter(f=>f.solidId).length,2,f.message());assert.equal(f.editor.selectionSnapshot().faceSelection.length,2);
+ f.editor.distanceInput().set(0);assert.equal(JSON.stringify(f.state.wallEdits),before);f.editor.key({key:'Enter'});assert.equal(f.history.length,historyCount);assert.equal(f.editor.selectionSnapshot().faceSelection.length,2);
+});
+
+test('E infers multiple complete sticker faces from rectangle-selected vertices',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),faces=[{id:'a',points:[p(0,0),p(1,0),p(1,1),p(0,1)],feature:{type:'window'}},{id:'b',points:[p(3,0),p(4,0),p(4,1),p(3,1)],feature:{type:'garage'}}],state={wallEdits:{$surfaces:faces}},f=fixture({state,walls:[],selected:null});
+ f.editor.startBox(f.e(-1,-1));f.listeners.pointermove(f.e(5,2));f.listeners.pointerup(f.e(5,2));const selection=JSON.stringify(f.editor.selectionSnapshot()),before=JSON.stringify(state.wallEdits);
+ assert.equal(f.editor.pointSelection().length,8);f.editor.key({key:'e'});assert.ok(f.editor.distanceInput());f.editor.distanceInput().set(.6096);assert.equal(f.editor.pointSelection().length,0);assert.equal(f.editor.selectionSnapshot().faceSelection.length,2);assert.ok(state.wallEdits.$surfaces.every(face=>face.points.every(p=>Math.abs(p.y+.6096)<1e-8)),f.message());
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),selection);
+});

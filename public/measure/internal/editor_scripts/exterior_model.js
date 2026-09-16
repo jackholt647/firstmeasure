@@ -86,6 +86,30 @@ function createExtrusion(input){
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
  }};
 }
+// A shared distance with independent face normals. Build every sweep from the
+// same immutable shell, then trim their combined returns once. Applying each
+// replacement separately would overwrite earlier cuts to a shared neighbor.
+function createExtrusions(input){
+ const start=copy(input),members=start.members,ids=new Set(members.map(m=>m.face.id));
+ if(members.length<2||ids.size!==members.length)throw Error('Select distinct faces to extrude together.');
+ const scene=start.scene||[],neighbors=scene.filter(f=>!ids.has(f.id)),topology=K.topology([...members.map(m=>m.face),...neighbors.filter(f=>!f.snapOnly&&!f.deleted)],scene.flatMap(f=>f.retainedPoints||[]));
+ for(const {face}of members)face.retainedPoints=[...new Map([...(face.retainedPoints||[]),...topology.vertices.filter(v=>v.faces.has(face.id)).map(v=>v.point)].map(p=>[K.pointKey(p),p])).values()];
+ const engines=members.map(m=>createExtrusion({face:m.face,scene:[],supports:m.supports||scene.filter(f=>f.id!==m.face.id),roof:start.roof,base:start.base}));
+ let previousAmount=null,previous=null;
+ return {preview(amount){
+  if(!Number.isFinite(amount))throw Error('Enter a finite extrusion distance.');
+  if(amount===previousAmount&&previous)return copy(previous);
+  const results=engines.map((engine,i)=>engine.preview(amount*(members[i].sign||1))),caps=results.map(r=>r.cap);
+  let sides=[];
+  for(const result of results){const trimmed=W.trimExtrusion(result.sides,sides),changed=new Set(trimmed.replacements.map(r=>r.face.id));sides=[...sides.filter(f=>!changed.has(f.id)),...trimmed.replacements.flatMap(r=>r.pieces),...trimmed.sides];}
+  const trimmed=W.trimExtrusion(sides,neighbors);trimmed.sides=K.compactSurfaces(trimmed.sides);
+  K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[...caps,...trimmed.sides]);
+  let base=start.base?copy(start.base):null;
+  if(base)for(let i=0;i<members.length;i++)base=B.extrudeWall(base,members[i].face,caps[i]);
+  validateResult({cap:caps[0],sides:[...caps.slice(1),...trimmed.sides],replacements:trimmed.replacements});
+  previousAmount=amount;previous={caps,sides:trimmed.sides,replacements:trimmed.replacements,base,amount};return copy(previous);
+ }};
+}
 // Any command can use the same rollback boundary, including tools still using
 // the saved-project adapter. Validation runs before a candidate is published.
 function transaction(before,operation,validate=()=>{}){const candidate=copy(before);operation(candidate);validate(candidate,before);return candidate;}
@@ -103,5 +127,5 @@ function validateEdits(edits,before={}){
  const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;for(const f of d.faces||[]){if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))continue;Object.assign(f,K.normalizeFace(f));K.triangles(f.points,f.holes||[]);}}
  if(edits.$base&&JSON.stringify(edits.$base.faces)!==JSON.stringify(before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,collect,createExtrusion,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);
