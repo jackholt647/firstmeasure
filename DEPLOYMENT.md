@@ -2,6 +2,11 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [wall-mode entry and persistence repair](deploy/digitalocean/development-wall-entry-20260916.md)
+records `0ea9e7a9cd6d034120e53b8fbe8aaf7ead210031` on all three development roles.
+It fixes the first-entry render crash and persists roof/wall mode independently
+of generated walls. The experimental allowlist and production release are unchanged.
+
 September 16 development only: [exterior editor update](deploy/digitalocean/development-exterior-editor-20260916.md)
 records `24cdfbafda2e7b9f0433ed4964476d36625136ec` on the three development roles.
 The experimental editor remains restricted to `jack@1m8.ai`. Production remains
