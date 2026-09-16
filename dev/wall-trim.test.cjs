@@ -106,7 +106,7 @@ test('ground trim finds sloped shared base boundaries, excluding roofs and float
 });
 test('merging walls preserves trim bands and provenance instead of joining through their source seam',()=>{
  const pair=[p(0,1.5),p(4,1.5)],source=[{...face,id:'lower',points:[p(0,0),p(4,0),p(4,1.5),p(0,1.5)]},{...face,id:'upper',points:[p(0,1.5),p(4,1.5),p(4,3),p(0,3)]}];
- const trimmed=applyTrim(source,T.partition(source,[pair],2,.1524,[pair],'#efeadd')),before=JSON.stringify(trimmed),groups=W.mergeConnectedFaces(trimmed);
+ const trimmed=applyTrim(source,T.partition(source,[pair],2,.1524,[pair],'#efeadd')),before=JSON.stringify(trimmed),groups=W.mergeConnectedFaces(trimmed,{preserveTrim:true});
  assert.ok(groups.every(g=>g.faces.every(f=>!f.trim)));assert.equal(JSON.stringify(trimmed),before);
  assert.ok(trimmed.filter(f=>f.trim).every(f=>f.finishColor==='#efeadd'));
  const restored=applyTrim(trimmed,T.remove(trimmed,trimmed.find(f=>f.trim)));assert.ok(!restored.some(f=>f.trim));assert.ok(Math.abs(restored.reduce((s,f)=>s+area(f),0)-12)<1e-8);

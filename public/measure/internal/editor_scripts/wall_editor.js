@@ -28,6 +28,8 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
    // Selected stickers must win coplanar depth ties in solid display modes.
    // Keep normal depth testing so genuinely nearer walls still occlude them.
    if(o.isMesh&&o.userData?.exteriorFeature){o.renderOrder=o.userData.exteriorSelected?2:1;m.polygonOffset=true;m.polygonOffsetFactor=o.userData.exteriorSelected?-4:-1;m.polygonOffsetUnits=o.userData.exteriorSelected?-4:-1;}
+   // Fascia must retain its coplanar priority after textured-mode material setup.
+   if(o.isMesh&&o.userData?.roofTrimId){m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=2;}
    // Selection outlines are overlays, including in textured mode.
    if(line&&o.userData?.exteriorSelection){m.depthTest=false;m.depthWrite=false;}
    // Point squares are drafting overlays: a surface must never slice them.

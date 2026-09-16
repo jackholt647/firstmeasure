@@ -609,7 +609,7 @@ window.createWallFaceDraft=function(host){
  function mergeAll(){
   if(tool&&!finishToolForSwitch())return false;const before=copy(host.state().wallEdits||{});
   try{const scene=moveScene().filter(f=>!f.snapOnly),base=copy(host.state().wallEdits.$base||host.state().base||null);if(base)scene.push(...base.faces.map(f=>({...f,id:'base:'+f.id,baseFaceId:f.id})));
-   const groups=W.mergeConnectedFaces(scene);if(!groups.length){host.state().wallEdits=before;host.message('No connected faces with matching materials to merge.');return false;}
+   const groups=W.mergeConnectedFaces(scene,{preserveTrim:true});if(!groups.length){host.state().wallEdits=before;host.message('No connected faces with matching materials to merge.');return false;}
    const edits=host.state().wallEdits;let baseChanged=false,count=0;
    const joinedIds=new Set(groups.flatMap(g=>g.pieces.flatMap(f=>f.joinedChimneys||[])));
    if(joinedIds.size)for(const c of window.WallChimneys?.definitions(host.state())||[])if(joinedIds.has(c.id)){edits.$chimneys||={};edits.$chimneys[c.id]={...(edits.$chimneys[c.id]||{}),points:copy(c.points)};}

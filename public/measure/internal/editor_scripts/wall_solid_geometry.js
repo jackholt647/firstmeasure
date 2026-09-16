@@ -433,10 +433,10 @@ function mergedOwnership(faces){
  const joinedChimneys=[...new Set(faces.flatMap(f=>[...(f.joinedChimneys||[]),...(f.chimney?.id?[f.chimney.id]:[])]))];
  return joinedChimneys.length?{chimney:undefined,joinedChimneys}:{};
 }
-function mergeConnectedFaces(scene){
+function mergeConnectedFaces(scene,{preserveTrim=false}={}){
  const groups=[];
- const compatible=(a,b)=>(a.material||'default')===(b.material||'default')&&(a.finishColor||null)===(b.finishColor||null)&&!!a.trim===!!b.trim&&JSON.stringify(a.feature||null)===JSON.stringify(b.feature||null)&&!!a.baseFaceId===!!b.baseFaceId&&JSON.stringify(a.trimData||null)===JSON.stringify(b.trimData||null);
- for(const face of scene.filter(f=>!f.deleted&&!f.snapOnly&&!f.chamferSupportOnly&&!f.trim)){
+ const compatible=(a,b)=>(a.material||'default')===(b.material||'default')&&(a.finishColor||null)===(b.finishColor||null)&&!!a.trim===!!b.trim&&JSON.stringify(a.feature||null)===JSON.stringify(b.feature||null)&&!!a.baseFaceId===!!b.baseFaceId&&(!preserveTrim||JSON.stringify(a.trimData||null)===JSON.stringify(b.trimData||null));
+ for(const face of scene.filter(f=>!f.deleted&&!f.snapOnly&&!f.chamferSupportOnly&&(!preserveTrim||!f.trim))){
   const touching=groups.filter(g=>g.some(f=>compatible(face,f)&&coplanarContact(face,f)));
   if(!touching.length){groups.push([face]);continue;}const group=touching[0];group.push(face);for(const other of touching.slice(1)){group.push(...other);groups.splice(groups.indexOf(other),1);}
  }

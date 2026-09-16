@@ -39,8 +39,8 @@ test('compact trim menu selects additively without applying, then applies chosen
 test('roof fascia wins coplanar depth ties without offsetting measured or picked geometry',()=>{
  const vm=require('node:vm'),fs=require('node:fs'),source=fs.readFileSync('public/measure/internal/editor_scripts/wall_mode.js','utf8'),fn=source.split('\n').find(l=>l.includes('function drawRoofTrim('));
  class Geometry{setFromPoints(points){this.points=points;return this;}setIndex(){}}
- class Material{constructor(values){Object.assign(this,{depthTest:true},values);}}
- class Mesh{constructor(geometry,material){Object.assign(this,{geometry,material,userData:{}});}}
- const ctx={RoofTrim:R,roofTrimEditor:null,state:null,roofTrimOnly:{},THREE:{BufferGeometry:Geometry,MeshBasicMaterial:Material,Mesh,DoubleSide:2}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fn,ctx);const meshes=[];ctx.drawRoofTrim({add:m=>meshes.push(m)},roof,p=>({...p}));
+ class Material{constructor(values){Object.assign(this,{depthTest:true},values);delete this.color;}}
+ class Mesh{constructor(geometry,material){Object.assign(this,{geometry,material,userData:{},isMesh:true});}}
+ const ctx={RoofTrim:R,roofTrimEditor:null,state:null,roofTrimOnly:{},THREE:{BufferGeometry:Geometry,MeshBasicMaterial:Material,Mesh,DoubleSide:2}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fn,ctx);const meshes=[];ctx.drawRoofTrim({add:m=>meshes.push(m)},roof,p=>({...p}));vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);for(const mode of ['textured','opaque','translucent']){ctx.exteriorSurfaceDisplay({traverse:fn=>meshes.forEach(fn)},mode);assert.ok(meshes.every(m=>m.material.polygonOffsetFactor===-2&&m.material.polygonOffsetUnits===-2),mode);}
  assert.ok(meshes.length);const panels=R.panels(roof);for(let i=0;i<meshes.length;i++){const m=meshes[i];assert.deepEqual(JSON.parse(JSON.stringify(m.geometry.points)),panels[i].points);assert.equal(m.material.depthTest,true);assert.equal(m.material.depthWrite,true);assert.equal(m.material.polygonOffset,true);assert.ok(m.material.polygonOffsetFactor<0&&m.material.polygonOffsetUnits<0);assert.equal(m.userData.roofTrimId,panels[i].id);}
 });
