@@ -1813,7 +1813,9 @@ function save2DState(){
     history2D.push(capture2DState());redo2D=[];
 }
 window.serializeRoofHistory=()=>({undo:history2D.slice(),redo:redo2D.slice()});
-window.restoreRoofHistory=value=>{history2D=Array.isArray(value?.undo)?value.undo:[];redo2D=Array.isArray(value?.redo)?value.redo:[];};
+// Decoded snapshots share immutable branches; queue containers must stay mutable
+// and private, including when an empty queue deduplicates with an empty face.
+window.restoreRoofHistory=value=>{history2D=Array.isArray(value?.undo)?value.undo.slice():[];redo2D=Array.isArray(value?.redo)?value.redo.slice():[];};
 
 function restore2DState(state) {
     if (!state) return;

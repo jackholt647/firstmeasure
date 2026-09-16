@@ -34,7 +34,7 @@
    const [type,items]=node;let value;
    if(type==='a')value=items.map(v=>token(v,values.length));
    else if(type==='o'&&items.length%2===0){value={};for(let i=0;i<items.length;i+=2){if(typeof items[i]!=='string')throw Error('Invalid undo history key.');Object.defineProperty(value,items[i],{value:token(items[i+1],values.length),enumerable:true,writable:true,configurable:true});}}
-   else throw Error('Invalid undo history node.');values.push(value);
+   else throw Error('Invalid undo history node.');values.push(Object.freeze(value));
   }
   return token(data.root,values.length);
  }

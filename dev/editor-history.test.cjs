@@ -45,12 +45,21 @@ const source=fs.readFileSync('public/measure/internal/editor_scripts/interaction
 function fn(name){const start=source.indexOf('function '+name+'(');assert.ok(start>=0);let i=source.indexOf('{',start),depth=1;for(i++;depth;i++){if(source[i]==='{')depth++;else if(source[i]==='}')depth--;}return source.slice(start,i);}
 function roof(){
  const ctx={EditorHistory:H,imageWidth:100,imageHeight:100,mapCenterLat:0,mapCenterLng:0,getMetersPerPx:()=>1,history2D:[],redo2D:[],activeGeometry:{points:[{x:0,y:0,z:0}],connections:[],vents:[],manualFaces:[]},selectedPoints:new Set(),selectedLines:new Set(),selectedVents:new Set(),deletedFaceSignatures:new Set(),selectedFaceSignatures:new Set(),selectionMode:'POINT',document:{getElementById:()=>null},renderGeometry2D(){},renderGeometry3D(){}};
- ctx.window=ctx;vm.createContext(ctx);vm.runInContext(['roofHistoryContext','capture2DState','save2DState','restore2DState','undo2D','redo2DAction'].map(fn).join('\n'),ctx);return ctx;
+ ctx.window=ctx;vm.createContext(ctx);vm.runInContext(['roofHistoryContext','capture2DState','save2DState','restore2DState','undo2D','redo2DAction'].map(fn).join('\n')+'\n'+source.split('\n').find(line=>line.startsWith('window.restoreRoofHistory=')),ctx);return ctx;
 }
+test('loaded empty queues cannot mutate deduplicated empty geometry snapshots',()=>{
+ const ctx=roof();ctx.activeGeometry.points=[];ctx.save2DState();ctx.activeGeometry.points.push({x:1,y:2,z:3});
+ const decoded=H.unpack(H.pack({undo:ctx.history2D,redo:[]})),original=JSON.stringify(decoded);
+ const fresh=roof();fresh.activeGeometry=structuredClone(ctx.activeGeometry);fresh.restoreRoofHistory(decoded);
+ fresh.undo2D();assert.equal(fresh.activeGeometry.points.length,0);
+ fresh.redo2DAction();assert.equal(fresh.activeGeometry.points.length,1);
+ assert.equal(fresh.activeGeometry.points[0].x,1);
+ assert.equal(JSON.stringify(decoded),original,'queue operations never mutate the saved graph');
+});
 test('roof undo exceeds the old limit and restores its saved undo/redo cursor',()=>{
  const ctx=roof();for(let i=0;i<700;i++){ctx.save2DState();ctx.activeGeometry.points[0].x++;}
  for(let i=0;i<100;i++)ctx.undo2D();assert.equal(ctx.activeGeometry.points[0].x,600);
- const history=H.unpack(H.pack({undo:ctx.history2D,redo:ctx.redo2D})),fresh=roof();fresh.activeGeometry=structuredClone(ctx.activeGeometry);fresh.history2D=history.undo;fresh.redo2D=history.redo;
+ const history=H.unpack(H.pack({undo:ctx.history2D,redo:ctx.redo2D})),fresh=roof();fresh.activeGeometry=structuredClone(ctx.activeGeometry);fresh.restoreRoofHistory(history);
  fresh.redo2DAction();assert.equal(fresh.activeGeometry.points[0].x,601);
  for(let i=0;i<601;i++)fresh.undo2D();assert.equal(fresh.activeGeometry.points[0].x,0);
  fresh.save2DState();fresh.activeGeometry.points[0].x=8;assert.equal(fresh.redo2D.length,0);

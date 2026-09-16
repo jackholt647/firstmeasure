@@ -53,6 +53,15 @@ test('wall history exceeds both old limits, survives saved cursors, and reaches 
  fresh.key('z');assert.equal(fresh.ctx.WallMode.serialize(),null);fresh.key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
  fresh.host.recordHistory({});fresh.host.state().wallEdits={value:'new branch'};fresh.host.changed();assert.equal(fresh.ctx.WallMode.serializeHistory().redo.length,0);
 });
+test('wall undo queues cannot change empty geometry branches in a decoded saved history',()=>{
+ const H=require('../public/measure/internal/editor_scripts/editor_history.js');
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const state=f.ctx.WallMode.serialize(),history=H.unpack(H.pack(f.ctx.WallMode.serializeHistory())),before=JSON.stringify(history);
+ const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:state},history);
+ const key=k=>fresh.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+ key('z');assert.equal(fresh.ctx.WallMode.serialize(),null);key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
+ assert.equal(JSON.stringify(history),before);
+});
 test('wall entry closes line selection; corrected types rebuild; reset and reload discard old passes',()=>{
     const {ctx,elements,stages,soffits,el}=fixture();
     elements.set('measurement-panel',el('measurement-panel'));ctx.isMeasurementMode=true;

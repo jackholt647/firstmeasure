@@ -26,7 +26,7 @@
     }
     const selectionBusy=()=>baseEditor?.busy()||wallEditor?.busy()||roofTrimEditor?.busy();
     function restoreSelection(value){
-        if(!value)return;editingLayer=value.layer||'base';selected=value.selected||null;
+        if(!value)return;value=copy(value);editingLayer=value.layer||'base';selected=value.selected||null;
         baseEditor?.restoreSelection?.(value.base);wallEditor?.restoreSelection?.(value.walls);roofTrimEditor?.restoreSelection?.(value.trim);
     }
     // Commit selection at input boundaries, never during a drag/preview. The
@@ -225,7 +225,8 @@
     function restoreHistory(history,serverState){
         if(!history)return;
         if(history.version!==1||!Array.isArray(history.undo)||!Array.isArray(history.redo))throw Error('Unsupported wall undo history.');
-        editHistory=history.undo;editFuture=history.redo;roofTrimHistory=history.trimUndo||[];roofTrimFuture=history.trimRedo||[];
+        // Detach mutable queues/entries from the deduplicated immutable graph.
+        editHistory=history.undo.map(e=>({...e}));editFuture=history.redo.map(e=>({...e}));roofTrimHistory=(history.trimUndo||[]).slice();roofTrimFuture=(history.trimRedo||[]).slice();
         // Local geometry may be newer than the last project Save. Keep it and
         // make its difference from the saved model an undoable recovery step.
         const content=s=>JSON.stringify(historyKeys.map(k=>s?.[k]));
@@ -572,7 +573,7 @@
             if(!Number.isFinite(value)||(prop==='tolerance'&&(value<0||value>36*G.INCH))){render();return;}
             state.options[prop]=value;invalidateWalls();ensureStage(stage);
         };
-        roofTrimEditor=window.createRoofTrimEditor?.({wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=from.pop();persistRoofTrim();renderRoofTrim3D();}}}});
+        roofTrimEditor=window.createRoofTrimEditor?.({wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
         function pickPointer(e){
                     if(wallEditor?.planeActive?.())return wallEditor.planeDown(e);
                     // A tool on an inactive layer cannot consume input for the active one.
