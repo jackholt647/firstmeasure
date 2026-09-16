@@ -1,6 +1,14 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('public/measure/internal/editor_scripts/scene_3d.js','utf8'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');
 function fn(name){const start=source.indexOf('function '+name+'(');assert.ok(start>=0);let i=source.indexOf('{',start),depth=1;for(i++;depth;i++){if(source[i]==='{')depth++;else if(source[i]==='}')depth--;}return source.slice(start,i);}
+test('a wall transition exception cannot permanently stop the 3D animation loop',()=>{
+ const frames=[];let fail=true,renders=0;
+ const ctx={enable3D:true,requestAnimationFrame:f=>frames.push(f),performance:{now:()=>1000},WallMode:{syncVisibility(){if(fail)throw Error('transition');}},_sceneDirty3D:true,_geomDirty3D:false,_lastSceneRender3D:0,IDLE_SCENE_RENDER_INTERVAL_MS:100,renderer:{render(){renders++;}},scene:{},camera:{},_updateAxisWidget(){}};
+ ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fn('_animate3D'),ctx);
+ assert.throws(()=>ctx._animate3D(),/transition/);assert.equal(frames.length,1);
+ fail=false;frames.shift()();assert.equal(renders,1);assert.equal(frames.length,1);
+ ctx.enable3D=false;frames.shift()();assert.equal(frames.length,0);
+});
 function fixture(radius=20,mpp=.1,width=800,height=600){class Vector3{constructor(x,y,z){Object.assign(this,{x,y,z});}}const ctx={THREE:{Vector3},imageWidth:width,imageHeight:height,layerData:{dsm:[[]]},dsmMin:140,ELEVATION_OFFSET:.5,getRadiusMeters:()=>radius,getMetersPerPx:()=>mpp};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(['getZScale','getHorizontalSceneUnitsPerMeter','getScenePlaneSize','imagePointToSceneXZ','getVector3'].map(fn).join('\n'),ctx);return {ctx,vector:p=>ctx.getVector3({x:width/2+p.x/mpp,y:height/2+p.y/mpp,z:p.z})};}
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),p=(x,y,z)=>({x,y,z});
 test('production renderer uses equal metre scales on all axes across imagery sizes',()=>{

@@ -5904,9 +5904,11 @@ function cullOccludedBottomFaces(faces) {
 // §17  ANIMATION LOOP (unified)
 // =========================================================
 function _animate3D() {
+    // A transition may throw while replacing the exterior scene. Keep the next
+    // frame scheduled so recovery does not require recreating the whole editor.
+    if(window.enable3D) requestAnimationFrame(_animate3D);
     window.WallMode?.syncVisibility();
     if(!window.enable3D) return;
-    requestAnimationFrame(_animate3D);
     const now=performance.now();
     const controlsChanged=!!(typeof controls!=='undefined'&&controls&&controls.update());
     if(controlsChanged) _sceneDirty3D=true;

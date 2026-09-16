@@ -103,6 +103,20 @@
     const copy=v=>JSON.parse(JSON.stringify(v));
     const key=id=>`firstmeasure:exteriors:walls:v1:${location.origin}:${id}`;
     const currentId=()=>String(window.currentProjectId||'');
+    // View choice exists independently of generated wall geometry.
+    let viewSavedAt=0;
+    const viewSnapshot=()=>({enabled,savedAt:viewSavedAt});
+    function persistView(){
+        if(!projectId)return;
+        viewSavedAt=Math.max(Date.now(),viewSavedAt+1);
+        try{localStorage.setItem(key(projectId)+':view',JSON.stringify(viewSnapshot()));}catch(e){}
+    }
+    function restoreView(metadata,localWalls){
+        let localView=null;try{localView=JSON.parse(localStorage.getItem(key(projectId)+':view')||'null');}catch(e){}
+        const candidates=[metadata?.exteriorsView,localView].filter(v=>typeof v?.enabled==='boolean'&&Number.isFinite(v.savedAt)).sort((a,b)=>b.savedAt-a.savedAt);
+        const view=candidates[0]||state||[metadata?.exteriorsWalls,localWalls].filter(valid).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0))[0];
+        enabled=!!view?.enabled;viewSavedAt=view?.savedAt||0;
+    }
     const currentContext=()=>({lat:Number(mapCenterLat)||0,lng:Number(mapCenterLng)||0,width:imageWidth,height:imageHeight,mpp:Number(window.getMetersPerPx())});
     function toMetric(p,ctx) {
         let z=Number(p.z);
@@ -213,7 +227,7 @@
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
         if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
-        enabled=!!(state&&state.enabled);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;
+        restoreView(metadata,local);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;
     }
     function beforeProjectLoad() {roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     function ensureStage(next) {
@@ -248,7 +262,7 @@
             if(typeof exitMeasurementMode==='function')exitMeasurementMode();
             selectedPoints.clear();selectedLines.clear();if(typeof tempPoint!=='undefined')tempPoint=null;
         }
-        setModeUI();persist();render();
+        persistView();setModeUI();persist();render();
         if(panel&&enabled&&state&&state.roofSignature!==roofSignature())generate(state.options.soffit);
         stableSelection=selectionSnapshot();pendingSelection=null;
         if(!enabled){window.renderGeometry2D?.();if(typeof renderGeometry3D==='function')renderGeometry3D();if(typeof apply3DSurfaceVisibility==='function')apply3DSurfaceVisibility();}
@@ -668,6 +682,6 @@
         const faces=window.ExteriorModel.collect(state,currentWalls()).flatMap(f=>window.WallChimneys?.visibleParts(f,state)||[f]);
         return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,context:state.context});
     }
-    window.WallMode={get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

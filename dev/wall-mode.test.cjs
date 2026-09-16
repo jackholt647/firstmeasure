@@ -27,6 +27,20 @@ function fixture(withBase=false,editors={}){
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
     return {ctx,elements,stages,soffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
+test('roof/wall preference survives before walls exist and is isolated per project',()=>{
+ const {ctx}=fixture();ctx.WallMode.setEnabled(true);
+ assert.equal(ctx.WallMode.serialize(),null);
+ const saved=ctx.WallMode.serializeView();assert.equal(saved.enabled,true);
+ ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{});assert.equal(ctx.WallMode.enabled,true);
+ ctx.WallMode.beforeProjectLoad();ctx.currentProjectId='other';ctx.WallMode.restore('other',{});assert.equal(ctx.WallMode.enabled,false);
+ ctx.WallMode.restore('other',{exteriorsView:saved});assert.equal(ctx.WallMode.enabled,true);
+ ctx.WallMode.setEnabled(false);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('other',{exteriorsView:saved});assert.equal(ctx.WallMode.enabled,false,'newer local preference wins');
+});
+test('saved generated walls retain mode, including legacy metadata without a view preference',()=>{
+ const {ctx,soffits}=fixture();ctx.WallMode.setEnabled(true);soffits[1].onclick();const walls=ctx.WallMode.serialize(),view=ctx.WallMode.serializeView();
+ const fresh=fixture().ctx;fresh.WallMode.restore('fixture',{exteriorsWalls:walls,exteriorsView:view});assert.equal(fresh.WallMode.enabled,true);
+ const legacy=fixture().ctx;legacy.WallMode.restore('fixture',{exteriorsWalls:walls});assert.equal(legacy.WallMode.enabled,true);
+});
 test('wall entry closes line selection; corrected types rebuild; reset and reload discard old passes',()=>{
     const {ctx,elements,stages,soffits,el}=fixture();
     elements.set('measurement-panel',el('measurement-panel'));ctx.isMeasurementMode=true;

@@ -3155,6 +3155,7 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
             ...existingMeta,
             ...(window.FIRSTMEASURE_FULL_HOUSE === true ? {
                 exteriorsRoofTrim: window.WallMode?.serializeRoofTrim() ?? existingMeta.exteriorsRoofTrim ?? null,
+                exteriorsView: window.WallMode?.serializeView() ?? existingMeta.exteriorsView ?? null,
                 exteriorsWalls: window.WallMode?.serialize() ?? existingMeta.exteriorsWalls ?? null
             } : {}),
             imageWidth: structureSaveSnapshot?.imageWidth || imageWidth,

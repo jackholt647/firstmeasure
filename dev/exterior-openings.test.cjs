@@ -1,5 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),M=require('../public/measure/internal/editor_scripts/exterior_model.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),R=require('../public/measure/internal/editor_scripts/exterior_report_model.js');
 const rect=(x,z,w,h,y=0)=>[{x,y,z},{x:x+w,y,z},{x:x+w,y,z:z+h},{x,y,z:z+h}];
+test('opening collection tolerates the roof-only state before wall generation',()=>{
+ for(const state of [null,undefined,{}])assert.deepEqual(M.collect(state),[]);
+});
 const area=faces=>faces.reduce((sum,f)=>{const frame=W.faceFrame(f);return sum+K.area({points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))});},0);
 test('overlapping window geometry cuts actual wall polygons and agrees with report net area',()=>{
  const wall={id:'wall',points:rect(0,0,4,4)},window={id:'window',feature:{type:'window'},points:rect(1,1,1,2)},before=JSON.stringify(wall),cut=M.cutOpenings(wall,[window]);

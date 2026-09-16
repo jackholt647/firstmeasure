@@ -24,7 +24,8 @@ function restoreDraftFaceOwnership(edits){
  return changed;
 }
 function collect(state,rawWalls=[]){
- const edits=state.wallEdits||{},drafts=Object.entries(edits.$drafts||{}).filter(([,d])=>!d.mergedInto),claimed=new Set(drafts.flatMap(([,d])=>d.members||[])),faces=[];
+ // Wall mode can render a completed roof before a wall model is generated.
+ const edits=state?.wallEdits||{},drafts=Object.entries(edits.$drafts||{}).filter(([,d])=>!d.mergedInto),claimed=new Set(drafts.flatMap(([,d])=>d.members||[])),faces=[];
  for(const f of edits.$surfaces||[])if(!f.deleted&&!f.drafted)faces.push({...f});
  for(const [key,d]of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(signature)||f.points.some(p=>(d.removedPoints||[]).includes(p.nodeId)))continue;
  faces.push(draftFace(d,f,{id:'draft:'+key+':'+f.id,draft:true,draftKey:key,regionId:f.id}));}
