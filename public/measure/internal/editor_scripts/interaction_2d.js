@@ -1749,10 +1749,8 @@ function applySourceHeightToNewPoint(pt, sourcePt) {
 // Replace the 4 functions below in interaction_2d.js
 // ============================================================
 
-function save2DState() {
+function capture2DState() {
     if (!activeGeometry) return;
-    // ✅ Mark that geometry *may* have changed (used to gate heavy renders)
-    window.__geoMutStamp = (window.__geoMutStamp || 0) + 1;
     
     // 1. Serialize Points (✅ now includes _lockedPlanes)
     const pts = activeGeometry.points.map(p => ({
@@ -1767,7 +1765,7 @@ function save2DState() {
         return { idx: [sIdx, eIdx], type: c.type, manualType: !!c.manualType };
     });
     // 3. Serialize Vents
-    const vents = (activeGeometry.vents || []).map(v => ({ ...v }));
+    const vents = JSON.parse(JSON.stringify(activeGeometry.vents || []));
     
     // 4. Serialize Blocked Faces
     const blockedFaces = (typeof deletedFaceSignatures !== 'undefined') ? Array.from(deletedFaceSignatures) : [];
@@ -1805,28 +1803,25 @@ function save2DState() {
             if (idx !== -1) selectionState.vents.push(idx);
         });
     }
-    // Push to history
-    history2D.push({ 
-        p: pts, 
-        c: conns, 
-        v: vents, 
-        df: blockedFaces, 
-        mf: manualFaces,
-        sel: selectionState // Save selection
-    });
-    
-    // --- CHANGE: Increased Undo History Limit from 20 to 500 ---
-    if (history2D.length > 500) history2D.shift();
-    
-    redo2D = [];
+    const snapshot={p:pts,c:conns,v:vents,df:blockedFaces,mf:manualFaces,sel:selectionState,context:roofHistoryContext()};
+    return window.EditorHistory?.share(history2D.at(-1),snapshot)||snapshot;
 }
+function roofHistoryContext(){return {width:imageWidth,height:imageHeight,lat:Number(mapCenterLat),lng:Number(mapCenterLng),mpp:Number(window.getMetersPerPx?.())};}
+function save2DState(){
+    if(!activeGeometry)return;
+    window.__geoMutStamp=(window.__geoMutStamp||0)+1;
+    history2D.push(capture2DState());redo2D=[];
+}
+window.serializeRoofHistory=()=>({undo:history2D.slice(),redo:redo2D.slice()});
+window.restoreRoofHistory=value=>{history2D=Array.isArray(value?.undo)?value.undo:[];redo2D=Array.isArray(value?.redo)?value.redo:[];};
 
 function restore2DState(state) {
     if (!state) return;
     
     // 1. Restore Points (✅ now deep-clones _lockedPlanes)
+    const historyContext=roofHistoryContext();
     activeGeometry.points = state.p.map(p => {
-        const pt = { ...p };
+        const pt = window.EditorHistory?.projectPoint(p,state.context,historyContext) || { ...p };
         if (pt._lockedPlanes) pt._lockedPlanes = pt._lockedPlanes.map(pl => ({a:pl.a, b:pl.b, c:pl.c}));
         return pt;
     });
@@ -1845,7 +1840,7 @@ function restore2DState(state) {
         }
     });
     // 3. Restore Vents
-    activeGeometry.vents = (state.v || []).map(v => ({ ...v }));
+    activeGeometry.vents = (state.v || []).map(v => window.EditorHistory?.projectPoint(v,state.context,historyContext) || JSON.parse(JSON.stringify(v)));
     // 4. Restore Deleted Faces
     if (typeof deletedFaceSignatures !== 'undefined') {
         deletedFaceSignatures.clear();
@@ -1935,44 +1930,14 @@ function restore2DState(state) {
 }
 
 function undo2D() {
-    if (history2D.length === 0) return;
-    // ✅ Deep-clone _lockedPlanes in current-state snapshot
-    const currentPts = activeGeometry.points.map(p => {
-        const copy = {...p};
-        if (copy._lockedPlanes) copy._lockedPlanes = copy._lockedPlanes.map(pl => ({a:pl.a, b:pl.b, c:pl.c}));
-        return copy;
-    });
-    const currentConns = activeGeometry.connections.map(c => ({
-        idx: [activeGeometry.points.indexOf(c.start), activeGeometry.points.indexOf(c.end)],
-        type: c.type,
-        manualType: !!c.manualType
-    }));
-    const currentVents = (activeGeometry.vents || []).map(v => ({...v}));
-    const currentDF = (typeof deletedFaceSignatures !== 'undefined') ? Array.from(deletedFaceSignatures) : [];
-    redo2D.push({ p: currentPts, c: currentConns, v: currentVents, df: currentDF });
-    const prev = history2D.pop();
-    restore2DState(prev);
+    if(!activeGeometry||history2D.length===0)return;
+    redo2D.push(capture2DState());restore2DState(history2D.pop());
+}
+function redo2DAction() {
+    if(!activeGeometry||redo2D.length===0)return;
+    history2D.push(capture2DState());restore2DState(redo2D.pop());
 }
 
-function redo2DAction() {
-    if (redo2D.length === 0) return;
-    // ✅ Deep-clone _lockedPlanes in current-state snapshot
-    const currentPts = activeGeometry.points.map(p => {
-        const copy = {...p};
-        if (copy._lockedPlanes) copy._lockedPlanes = copy._lockedPlanes.map(pl => ({a:pl.a, b:pl.b, c:pl.c}));
-        return copy;
-    });
-    const currentConns = activeGeometry.connections.map(c => ({
-        idx: [activeGeometry.points.indexOf(c.start), activeGeometry.points.indexOf(c.end)],
-        type: c.type,
-        manualType: !!c.manualType
-    }));
-    const currentVents = (activeGeometry.vents || []).map(v => ({...v}));
-    const currentDF = (typeof deletedFaceSignatures !== 'undefined') ? Array.from(deletedFaceSignatures) : [];
-    history2D.push({ p: currentPts, c: currentConns, v: currentVents, df: currentDF });
-    const next = redo2D.pop();
-    restore2DState(next);
-}
 function handleCreateFace() {
     if (!activeGeometry) return;
     // --- Gather edges from ALL selection sources ---

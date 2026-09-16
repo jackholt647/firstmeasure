@@ -41,6 +41,18 @@ test('saved generated walls retain mode, including legacy metadata without a vie
  const fresh=fixture().ctx;fresh.WallMode.restore('fixture',{exteriorsWalls:walls,exteriorsView:view});assert.equal(fresh.WallMode.enabled,true);
  const legacy=fixture().ctx;legacy.WallMode.restore('fixture',{exteriorsWalls:walls});assert.equal(legacy.WallMode.enabled,true);
 });
+test('wall history exceeds both old limits, survives saved cursors, and reaches before first generation',()=>{
+ const H=require('../public/measure/internal/editor_scripts/editor_history.js');
+ const make=()=>{let host;const f=fixture(true,{createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false};}});f.ctx.activeGeometry.connections[0].type='eave';return {...f,get host(){return host;},key:k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}})};};
+ const f=make();f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ for(let i=1;i<=550;i++){f.host.recordHistory(JSON.parse(JSON.stringify(f.host.state().wallEdits||{})));f.host.state().wallEdits={value:i};f.host.changed();}
+ for(let i=0;i<20;i++)f.key('z');assert.equal(f.host.state().wallEdits.value,530);
+ const state=f.ctx.WallMode.serialize(),history=H.unpack(H.pack(f.ctx.WallMode.serializeHistory())),fresh=make();fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:state},history);
+ fresh.key('y');assert.equal(fresh.host.state().wallEdits.value,531);
+ for(let i=0;i<531;i++)fresh.key('z');assert.equal(fresh.host.state().wallEdits.value,undefined);
+ fresh.key('z');assert.equal(fresh.ctx.WallMode.serialize(),null);fresh.key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
+ fresh.host.recordHistory({});fresh.host.state().wallEdits={value:'new branch'};fresh.host.changed();assert.equal(fresh.ctx.WallMode.serializeHistory().redo.length,0);
+});
 test('wall entry closes line selection; corrected types rebuild; reset and reload discard old passes',()=>{
     const {ctx,elements,stages,soffits,el}=fixture();
     elements.set('measurement-panel',el('measurement-panel'));ctx.isMeasurementMode=true;
@@ -384,6 +396,11 @@ test('selection-only history restores mixed selections, skips without discarding
  const before=clone(host.state().wallEdits||{});
  input(()=>{host.recordHistory(before);host.state().wallEdits={moved:true};host.changed();selection={points:['moved-a','moved-b'],lines:['moved-ab'],faces:['moved-front']};});
  const moved=clone(selection);key('z');assert.deepEqual(selection,a);assert.equal(JSON.stringify(host.state().wallEdits),JSON.stringify(before));key('y');assert.deepEqual(selection,moved);assert.equal(host.state().wallEdits.moved,true);
+ const savedState=f.ctx.WallMode.serialize(),codec=require('../public/measure/internal/editor_scripts/editor_history.js');
+ const savedHistory=codec.unpack(codec.pack(f.ctx.WallMode.serializeHistory()));
+ f.ctx.WallMode.beforeProjectLoad();selection={points:[],lines:[],faces:[]};
+ f.ctx.WallMode.restore('fixture',{exteriorsWalls:savedState},savedHistory);
+ assert.deepEqual(selection,moved,'saved selection restores on reload');
  input(()=>{selection=clone(b);});f.elements.get('wall-undo-selections').onchange({target:{checked:false}});key('z');assert.deepEqual(selection,a);assert.equal(JSON.stringify(host.state().wallEdits),JSON.stringify(before));key('y');assert.deepEqual(selection,moved);
  f.elements.get('wall-undo-selections').onchange({target:{checked:true}});key('y');assert.deepEqual(selection,b,'skipped selection still exists on redo');
  key('z');input(()=>{selection={points:['new'],lines:[],faces:[]};});key('y');assert.deepEqual(selection,{points:['new'],lines:[],faces:[]},'new selection branches history');

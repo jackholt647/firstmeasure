@@ -14,7 +14,7 @@
     // One chronological history for the building, independent of selection layer.
     let editHistory=[],editFuture=[],pendingEdit=null,nudgeEpoch=0,nudgeKey=null;
     const historyKeys=['finishDefaults','roofTrim','base','wallEdits','chimneys','extruded','deduplicated','extrusionWarnings','gapRepaired','gapReport','mergedWalls','mergeReport','cleanedWalls','rakeCleanupReport','preCleanupBase','cleanedBase','baseCleanupApplied','alignedWalls','chimneyCleanupReport','preAlignmentBase','alignedBase','baseAlignmentApplied'];
-    const editSnapshot=()=>JSON.parse(JSON.stringify(Object.fromEntries(historyKeys.map(k=>[k,k==='wallEdits'?(state?.[k]||{}):state?.[k]]))));
+    const editSnapshot=()=>{const value=JSON.parse(JSON.stringify(Object.fromEntries(historyKeys.map(k=>[k,k==='wallEdits'?(state?.[k]||{}):state?.[k]]))));return window.EditorHistory?.share(editHistory.at(-1)?.after,value)||value;};
     let stableSelection=null,pendingSelection=null,selectionTimer=null,selectionRevision=0,restoringHistory=false,gestureSelection=null,selectionInputType='';
     const selectionSnapshot=()=>copy({layer:editingLayer,selected,base:baseEditor?.selectionSnapshot?.(),walls:wallEditor?.selectionSnapshot?.(),trim:roofTrimEditor?.selectionSnapshot?.()});
     function selectionCounts(){
@@ -29,7 +29,6 @@
         if(!value)return;editingLayer=value.layer||'base';selected=value.selected||null;
         baseEditor?.restoreSelection?.(value.base);wallEditor?.restoreSelection?.(value.walls);roofTrimEditor?.restoreSelection?.(value.trim);
     }
-    function trimHistory(){while(editHistory.length>500||editHistory.filter(e=>!e.selectionOnly).length>50)editHistory.shift();}
     // Commit selection at input boundaries, never during a drag/preview. The
     // stable selection remains the pre-tool selection until its edit commits.
     function flushSelectionHistory(){
@@ -40,7 +39,7 @@
         if(selectionBusy()){gestureSelection??=copy(['pointerdown','mousedown'].includes(selectionInputType)?after:stableSelection);return;}
         gestureSelection=null;
         if(JSON.stringify(stableSelection)!==JSON.stringify(after)){
-            editHistory.push({selectionOnly:true,beforeSelection:stableSelection,afterSelection:after});trimHistory();editFuture=[];selectionRevision++;baseEditor?.render();
+            editHistory.push({selectionOnly:true,beforeSelection:stableSelection,afterSelection:after});editFuture=[];selectionRevision++;baseEditor?.render();
         }
         stableSelection=after;
     }
@@ -55,16 +54,16 @@
         if(nudgeKey&&last?.nudgeKey===nudgeKey&&!last.selectionOnly&&last.selectionRevision===selectionRevision&&JSON.stringify(last.after)===JSON.stringify(before)){
             last.after=after;last.afterSelection=afterSelection;pendingSelection=last;
         }else{const entry={before,after,nudgeKey,selectionRevision,beforeSelection,afterSelection};editHistory.push(entry);pendingSelection=entry;}
-        trimHistory();editFuture=[];
+        editFuture=[];
     }
     function undoEdit(redo=false){
-        if(!state)return false;
+        if(!state&&!editHistory.length&&!editFuture.length)return false;
         if(roofTrimEditor?.busy()){if(!redo)roofTrimEditor.cancel();return true;}
         // Ctrl-Z cancels a live preview before consuming a committed operation.
         if(baseEditor?.busy()||wallEditor?.busy()){if(!redo){baseEditor?.leave();wallEditor?.clear();restoreSelection(gestureSelection||stableSelection);gestureSelection=null;stableSelection=selectionSnapshot();render();}return true;}
         flushSelectionHistory();
         const from=redo?editFuture:editHistory,to=redo?editHistory:editFuture;
-        let index=from.length-1;if(state.undoSelections===false)while(index>=0&&from[index].selectionOnly)index--;
+        let index=from.length-1;if(state?.undoSelections===false)while(index>=0&&from[index].selectionOnly)index--;
         if(index<0){if(status)status.textContent=redo?'Nothing to redo':'Nothing to undo in this session';return true;}
         // Move skipped entries as well, preserving their chronological order
         // so enabling selection undo later can still revisit them.
@@ -72,7 +71,7 @@
         restoringHistory=true;
         try{
             roofTrimEditor?.reset();baseEditor?.clearSelection();wallEditor?.clear();
-            if(!entry.selectionOnly){const value=copy(redo?entry.after:entry.before);if(entry.full){const undoSelections=state.undoSelections;state=value.state;state.undoSelections=undoSelections;stage=value.stage;sourceContext=state.context;}else for(const k of historyKeys){if(k in value)state[k]=value[k];else delete state[k];}}
+            if(!entry.selectionOnly){const value=copy(redo?entry.after:entry.before);if(entry.full){const undoSelections=state?.undoSelections;state=value.state;if(state&&undoSelections!==undefined)state.undoSelections=undoSelections;stage=value.stage;sourceContext=state?.context||null;}else for(const k of historyKeys){if(k in value)state[k]=value[k];else delete state[k];}}
             restoreSelection(redo?entry.afterSelection:entry.beforeSelection);to.push(entry);pendingEdit=null;pendingSelection=null;gestureSelection=null;nudgeEpoch++;nudgeKey=null;baseTerrainKey='';persist();render();stableSelection=selectionSnapshot();
         }finally{restoringHistory=false;}
         return true;
@@ -212,14 +211,35 @@
         return {...copy(state),stage,roofVisible,wallsVisible,editingLayer,gapHighlights,enabled,schemaVersion:1,geometry:G.topology(currentWalls())};
     }
     function persist(touch=true) {
-        if(!state||!projectId)return;
+        if(!projectId)return;
+        if(!state){try{localStorage.setItem(key(projectId),'null');}catch(e){}return;}
         if(touch)state.savedAt=Date.now();
         try{const existing=JSON.parse(localStorage.getItem(key(projectId))||'null');if(!touch&&existing?.savedAt>state.savedAt)return;if(touch)state.savedAt=Math.max(state.savedAt,(existing?.savedAt||0)+1);localStorage.setItem(key(projectId),JSON.stringify(snapshot()));storageError='';}
         catch(e){storageError='Local backup unavailable. Use Save to store wall data with the project.';}
     }
     function exportState() {return projectId===currentId()?snapshot():null;}
+    function serializeHistory(){
+        finishEdit();flushSelectionHistory();
+        return {version:1,undo:editHistory.map(e=>({...e})),redo:editFuture.map(e=>({...e})),selection:selectionSnapshot(),trimUndo:roofTrimHistory.slice(),trimRedo:roofTrimFuture.slice()};
+    }
+    function restoreHistory(history,serverState){
+        if(!history)return;
+        if(history.version!==1||!Array.isArray(history.undo)||!Array.isArray(history.redo))throw Error('Unsupported wall undo history.');
+        editHistory=history.undo;editFuture=history.redo;roofTrimHistory=history.trimUndo||[];roofTrimFuture=history.trimRedo||[];
+        // Local geometry may be newer than the last project Save. Keep it and
+        // make its difference from the saved model an undoable recovery step.
+        const content=s=>JSON.stringify(historyKeys.map(k=>s?.[k]));
+        if(state&&serverState&&(state.savedAt||0)>(serverState.savedAt||0)&&content(state)!==content(serverState)){
+            editHistory.push({full:true,before:{state:copy(serverState),stage:serverState.stage||1},after:{state:copy(state),stage},beforeSelection:history.selection,afterSelection:selectionSnapshot()});editFuture=[];
+        }else restoreSelection(history.selection);
+        stableSelection=selectionSnapshot();pendingEdit=null;pendingSelection=null;gestureSelection=null;nudgeKey=null;nudgeEpoch++;
+        selectionRevision=editHistory.reduce((n,e)=>Math.max(n,e.selectionRevision||0),0);selectionRevision=editFuture.reduce((n,e)=>Math.max(n,e.selectionRevision||0),selectionRevision)+1;
+        render();
+    }
+
     function valid(s) {return s?.schemaVersion===1 && s.roof?.points?.length && Array.isArray(s.sources) && Number.isFinite(s.options?.ground) && s.context?.mpp>0;}
-    function restore(id,metadata) {
+    function restore(id,metadata,history=null) {
+        editHistory=[];editFuture=[];pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         roofTrimEditor?.reset();roofTrimHistory=[];roofTrimFuture=[];projectId=String(id||'');roofTrimOnly=copy(metadata?.exteriorsRoofTrim||{});try{const localTrim=JSON.parse(localStorage.getItem(key(projectId)+':roof-trim')||'null');if(localTrim&&(localTrim.savedAt||0)>(roofTrimOnly.savedAt||0))roofTrimOnly=localTrim;}catch(e){}state=null;sourceContext=null;selected=null;stage=1;
         let local=null;try{local=JSON.parse(localStorage.getItem(key(projectId))||'null');}catch(e){storageError='Local wall backup could not be read.';}
         const server=metadata?.exteriorsWalls;
@@ -227,7 +247,7 @@
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
         if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
-        restoreView(metadata,local);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;
+        restoreView(metadata,local);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
     }
     function beforeProjectLoad() {roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     function ensureStage(next) {
@@ -243,7 +263,7 @@
             const options={soffit,ground:state?.options.ground??estimateGround(),tolerance:state?.options.tolerance??18*G.INCH};
             const r=G.buildSources(captured.roof,options);
             roofTrimEditor?.finish();roofTrimEditor?.reset();wallEditor?.leave?.();baseEditor?.leave?.();baseEditor?.clearSelection?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
-            before=state?{state:copy(state),stage}:null;baseTerrainKey=null;baseTerrainCache=null;
+            before={state:copy(state),stage};baseTerrainKey=null;baseTerrainCache=null;
             const finishDefaults=copy(state?.finishDefaults||{}),roofTrim=copy(state?.roofTrim||roofTrimOnly),ground=state?.ground,groundCandidates=state?.groundCandidates,base=resetBase?undefined:state?.base,wallCenters=state?.wallCenters!==false,displayMode=state?.displayMode,translucent=state?.translucent!==false,boundExtrusionToRoof=state?.boundExtrusionToRoof!==false,undoSelections=state?.undoSelections!==false,wallTrimWidthInches=state?.wallTrimWidthInches===8?8:6;
             state={schemaVersion:1,engineVersion:ENGINE,...captured,roofSignature:signature,options,sources:r.sources,warnings:r.warnings,savedAt:Date.now(),ground,groundCandidates,base,wallCenters,translucent,displayMode,boundExtrusionToRoof,undoSelections,wallTrimWidthInches,roofTrim,finishDefaults};
             initializeGround();
@@ -251,8 +271,8 @@
             initializeBase();
             sourceContext=state.context;projectId=currentId();calculateStage(7);stage=7;selected=null;menu.hidden=true;document.getElementById('wall-auto').setAttribute('aria-expanded','false');
             details.textContent='';persist();render();
-            if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;trimHistory();}editFuture=[];return true;
-        }catch(e){if(before){state=before.state;stage=before.stage;sourceContext=state.context;baseTerrainKey='';persist();render();}status.textContent=`Could not rebuild walls: ${e.message}`;return false;}
+            if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;}editFuture=[];return true;
+        }catch(e){if(before){state=before.state;stage=before.stage;sourceContext=state?.context||null;baseTerrainKey='';persist();render();}status.textContent=`Could not rebuild walls: ${e.message}`;return false;}
     }
     function setEnabled(on) {
         if(on&&!currentId()){alert('Load a project before entering wall mode.');return;}
@@ -682,6 +702,6 @@
         const faces=window.ExteriorModel.collect(state,currentWalls()).flatMap(f=>window.WallChimneys?.visibleParts(f,state)||[f]);
         return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,context:state.context});
     }
-    window.WallMode={get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

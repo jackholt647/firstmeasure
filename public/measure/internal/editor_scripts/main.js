@@ -3087,6 +3087,8 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
     }
 
     try {
+        if(window.__editorHistoryReady===false)throw new Error('Wait until the project and its undo history have finished loading.');
+        const historyProjectId=String(window.currentProjectId||'');
         // --- STEP 1: PREPARE METADATA ---
         const geoSnapshot = (activeGeometry && Array.isArray(activeGeometry.points)) ? activeGeometry : null;
         const geoPoints = geoSnapshot ? geoSnapshot.points : [];
@@ -3156,7 +3158,7 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
             ...(window.FIRSTMEASURE_FULL_HOUSE === true ? {
                 exteriorsRoofTrim: window.WallMode?.serializeRoofTrim() ?? existingMeta.exteriorsRoofTrim ?? null,
                 exteriorsView: window.WallMode?.serializeView() ?? existingMeta.exteriorsView ?? null,
-                exteriorsWalls: window.WallMode?.serialize() ?? existingMeta.exteriorsWalls ?? null
+                exteriorsWalls: window.WallMode ? window.WallMode.serialize() : (existingMeta.exteriorsWalls ?? null)
             } : {}),
             imageWidth: structureSaveSnapshot?.imageWidth || imageWidth,
             imageHeight: structureSaveSnapshot?.imageHeight || imageHeight,
@@ -3193,6 +3195,15 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
             throw new Error("FirstMeasure API helpers are unavailable.");
         }
 
+        // Freeze geometry and both history cursors together before uploading.
+        // New edits during the upload belong to the next save.
+        const savedMetadata=JSON.parse(JSON.stringify(metadata));
+        const historyData={version:1,roof:window.serializeRoofHistory?.()||{undo:[],redo:[]},walls:window.WallMode?.serializeHistory()||null};
+        if(window.EditorHistory){
+            savedMetadata.editorHistory=await window.EditorHistory.save(historyProjectId,historyData,(project,blob,name)=>window.firstMeasureUploadArtifact(project,blob,name,'file'));
+        }
+        if(String(window.currentProjectId)!==historyProjectId)throw new Error('The project changed while saving. Please save the newly opened project separately.');
+
         const mainSaveRes = await window.firstMeasureFetchJson(
             `/projects/${encodeURIComponent(window.currentProjectId)}/editor/save`,
             {
@@ -3201,7 +3212,7 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ metadata })
+                body: JSON.stringify({ metadata:savedMetadata })
             }
         );
 
@@ -3249,7 +3260,7 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
         }
 
         const savedProjectId = mainSaveRes.folder || window.currentProjectId;
-        window.currentProjectLoadedAppMetadata = JSON.parse(JSON.stringify(metadata));
+        window.currentProjectLoadedAppMetadata = savedMetadata;
         if (!isSilent) alert("Project saved! Folder: " + savedProjectId);
         console.log("✅ Project Saved. ID:", savedProjectId);
         return true;
@@ -3931,6 +3942,7 @@ async function loadProjectFromFolder(folderHash) {
         throw new Error(message);
     }
 
+    window.__editorHistoryReady=false;
     window.WallMode?.beforeProjectLoad();
     resetLayerVisibility();
     _applePrefetchRunId += 1;
@@ -4014,6 +4026,14 @@ async function loadProjectFromFolder(folderHash) {
         if (manifest.address) setHeaderAddress(manifest.address);
 
         const meta = data.app_metadata || manifest.app_metadata || {};
+        const savedEditorHistory=window.EditorHistory?await window.EditorHistory.load(requestedProjectId,meta.editorHistory,async(project,name)=>{
+            const response=await fetch(window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(project)+'/artifacts/'+encodeURIComponent(name)),{credentials:'same-origin'});
+            if(!response.ok)throw new Error('Could not load undo history ('+response.status+'). Please reload.');
+            return response.arrayBuffer();
+        }):null;
+        if(String(window.currentProjectId)!==requestedProjectId)return;
+        if(savedEditorHistory&&savedEditorHistory.version!==1)throw new Error('Unsupported editor undo history.');
+
         window.currentProjectLoadedAppMetadata = (meta && typeof meta === 'object')
             ? JSON.parse(JSON.stringify(meta))
             : {};
@@ -4390,7 +4410,9 @@ async function loadProjectFromFolder(folderHash) {
             window.scheduleStructureSupplementalPreload();
         }
 
-        window.WallMode?.restore(requestedProjectId, meta);
+        window.restoreRoofHistory?.(savedEditorHistory?.roof);
+        window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls);
+        window.__editorHistoryReady=true;
         console.log("Project loaded.");
 
         // --- AUTO-OPEN REPORT CONFIG IN FULLSCREEN WHEN ?branding=1 ---
