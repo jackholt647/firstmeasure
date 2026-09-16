@@ -41,12 +41,18 @@ function outwardCorner(a,b,owners,shell){
   if(insideShell(at(mid,v,step),shell)&&!insideShell(at(mid,v,-step),shell))return true;
  }return false;
 }
-function candidates(faces,{roof,base,ground}={}){
+function materialKey(face,defaults={}){
+ const material=face.material;
+ return !material||material==='default'?(face.chimney?.cap&&!face.trim?'chimney-top':defaults.material||'unassigned'):material;
+}
+const defaultMaterial=id=>['default','unassigned','siding','siding-vertical','soffit'].includes(id);
+const eligibleMaterial=(face,options)=>!Array.isArray(options.materials)||options.materials.includes(materialKey(face,options.defaults));
+function candidates(faces,options={}){const {roof,base,ground}=options;
  const eligible=faces.filter(f=>!f.deleted&&!f.snapOnly&&!f.feature&&!f.curvedSurface).map((f,i)=>({...f,id:i})).filter(f=>{const frame=W.faceFrame(f);return !!frame;});
  const shell=faces.filter(f=>!f.deleted&&!f.snapOnly).map(prepared).filter(Boolean);
  const graph=K.topology(eligible),pairs=[],exclusions=[...(roof?.faces||[]),...(base?.faces||[]),...(ground?.faces||[]).filter(f=>f.points)];
  for(const edge of graph.edges.values()){
-  const owners=[...edge.faces].map(id=>graph.faces.get(id).face);if(owners.length<2||owners.every(f=>f.trim))continue;
+  const owners=[...edge.faces].map(id=>graph.faces.get(id).face);if(owners.length<2||owners.every(f=>f.trim)||!owners.some(f=>eligibleMaterial(f,options)))continue;
   const normals=owners.map(f=>W.faceFrame(f).n);if(!normals.some((a,i)=>normals.slice(i+1).some(b=>Math.abs(dot(a,b))<.99999)))continue;
   const a=graph.vertices[edge.a].point,b=graph.vertices[edge.b].point,u=sub(b,a);if(!outwardCorner(a,b,owners,shell))continue;let lo=0;
   for(const [start,end]of [...W.sharedIntervals(a,b,exclusions),[1,1]]){if(start-lo>1e-7)pairs.push([at(a,u,lo),at(a,u,start)]);lo=Math.max(lo,end);}
@@ -55,15 +61,15 @@ function candidates(faces,{roof,base,ground}={}){
 }
 // Ground selection uses actual shared boundary intervals, including slopes
 // and partial edges. It never guesses ground from a global minimum height.
-function groundCandidates(faces,{base,ground}={}){
+function groundCandidates(faces,options={}){const {base,ground}=options;
  const supports=[...(base?.faces||[]),...(ground?.faces||[])].filter(f=>!f.deleted&&f.points),pairs=[];
- for(const face of faces){if(face.deleted||face.snapOnly||face.feature||face.trim||face.curvedSurface)continue;
+ for(const face of faces){if(face.deleted||face.snapOnly||face.feature||face.trim||face.curvedSurface||!eligibleMaterial(face,options))continue;
   const frame=W.faceFrame(face);if(!frame||Math.abs(frame.n.z)>.99999)continue;
   for(const [a,b]of boundaries([face])){const u=sub(b,a);for(const [lo,hi]of W.sharedIntervals(a,b,supports))if(hi-lo>1e-7)pairs.push([at(a,u,lo),at(a,u,hi)]);}
  }
  return runs(pairs);
 }
-function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),finishColor){
+function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),finishColor,options={}){
  if(!Number.isFinite(width)||width<=K.CONTACT)throw Error('Enter a positive trim width.');
  const cutters=new Map(),cornerPairs=[];
  for(const pair of runs(pairs,segments)){
@@ -100,6 +106,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
   const corner=owners.some(o=>o.perimeter&&owners.some(b=>b!==o&&b.perimeter&&Math.abs(dot(o.frame.n,b.frame.n))<.99999));cornerPairs.push(corner);
   for(const owner of owners){
    const {face,frame,local,box,coordinates,length:runLength}=owner;
+   if(!eligibleMaterial(face,options))continue;
    let lo=variant===1?-width:variant===2?-width/2:0,hi=variant===1?0:variant===2?width/2:width;
    // Perimeter edges have only an inward side; corners get a full strip on each wall.
    if(owner.perimeter){
@@ -156,5 +163,5 @@ function remove(faces,selected){
  }
  return {replacements,pairs:[layer.pair]};
 }
-const api={runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
+const api={materialKey,defaultMaterial,runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
 })(typeof window!=='undefined'?window:globalThis);

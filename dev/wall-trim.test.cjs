@@ -111,3 +111,14 @@ test('merging walls preserves trim bands and provenance instead of joining throu
  assert.ok(trimmed.filter(f=>f.trim).every(f=>f.finishColor==='#efeadd'));
  const restored=applyTrim(trimmed,T.remove(trimmed,trimmed.find(f=>f.trim)));assert.ok(!restored.some(f=>f.trim));assert.ok(Math.abs(restored.reduce((s,f)=>s+area(f),0)-12)<1e-8);
 });
+
+
+test('material filtering trims only enabled owners without changing corner or divider classification',()=>{
+ const siding={...face,material:'siding'},brick={id:'brick-side',material:'brick',points:[p(4,0),p(4,0,3),p(4,3,3),p(4,3)]},pair=[p(4,0),p(4,3)];
+ const result=T.partition([siding,brick],[pair],0,.1524,[pair],'#abcdef',{materials:['siding']});assert.equal(result.corner,true);assert.deepEqual(result.replacements.map(r=>r.face.id),['wall']);assert.ok(Math.abs(result.replacements[0].pieces.filter(f=>f.trim).reduce((s,f)=>s+area(f),0)-3*.1524)<1e-6);
+ assert.equal(T.partition([siding,brick],[pair],0,.1524,[pair],null,{materials:[]}).replacements.length,0);
+ assert.equal(T.partition([{...siding,material:'default'}],[pair],0,.1524,[pair],null,{materials:['brick'],defaults:{material:'siding'}}).replacements.length,0);
+ assert.equal(T.partition([{...siding,material:'default'}],[pair],0,.1524,[pair],null,{materials:['siding'],defaults:{material:'siding'}}).replacements.length,1);
+ const walls=shell([[0,0],[4,0],[4,4],[0,4]]).map(f=>({...f,material:'brick'}));assert.equal(T.candidates(walls,{materials:['siding']}).length,0);assert.equal(T.candidates(walls,{materials:['brick']}).length,4);
+ for(const id of ['siding','siding-vertical','soffit','unassigned'])assert.equal(T.defaultMaterial(id),true);for(const id of ['brick','stone','masonry','stucco','chimney-top'])assert.equal(T.defaultMaterial(id),false);
+});

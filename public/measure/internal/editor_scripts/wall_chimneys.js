@@ -233,7 +233,15 @@ function alignRoofContacts(state){
   for(const f of d.faces||[]){f.points=f.points.map(fix);if(f.holes)f.holes=f.holes.map(r=>r.map(fix));}if(d.sketch){d.sketch.nodes=d.sketch.nodes.map(fix);d.sketch.outlines=d.sketch.outlines.map(r=>r.map(fix));}
  }
 }
+function defaultCapFinish(face,chimney=face.chimney){
+ if(!chimney?.cap||face.trim)return;
+ if(!face.material||['default','unassigned'].includes(face.material))face.material='chimney-top';
+ if(face.trimData?.base&&(!face.trimData.base.material||['default','unassigned'].includes(face.trimData.base.material)))face.trimData.base.material='chimney-top';
+}
 function syncVolumes(state){
+ // Upgrade only implicit finishes, including subdivided/drafted saved caps.
+ for(const f of state?.wallEdits?.$surfaces||[])defaultCapFinish(f);
+ for(const d of Object.values(state?.wallEdits?.$drafts||{}))for(const f of d.faces||[])defaultCapFinish(f,f.chimney||d.chimney);
  if(!state)return;for(const f of state.wallEdits?.$surfaces||[])if(!f.deleted&&f.id?.startsWith('filled-face-'))preserveFilledFace(f,state);alignRoofContacts(state);const cs=definitions(state);if(!cs.length)return;
  const edits=state.wallEdits||={};edits.$chimneyVolumes||={};edits.$surfaces||=[];
  for(const c of cs){const prior=edits.$chimneyVolumes[c.id];if(prior?.version>=2)continue;
@@ -247,7 +255,7 @@ function syncVolumes(state){
   for(const face of state.roof?.faces||[]){const plane=G.plane(face.points);if(!plane)continue;for(const piece of K.intersection([face],[footprint]))for(const p of piece.points)contacts.push(plane.dx*p.x+plane.dy*p.y+plane.k);}
   const height=Math.max(...contacts)+.3048,top=c.points.map(p=>({...p,z:height}));
   for(let side=0;side<c.points.length;side++)edits.$surfaces.push({id:c.id+':volume-side-'+side,chimney:{id:c.id,side,volume:true,drivesFootprint:true},points:upperSide(c,side,height,state),holes:[]});
-  edits.$surfaces.push({id:c.id+':cap',chimney:{id:c.id,volume:true,cap:true},points:top,holes:[]});edits.$chimneyVolumes[c.id]={version:2,mode:'upper'};
+  edits.$surfaces.push({id:c.id+':cap',material:'chimney-top',chimney:{id:c.id,volume:true,cap:true},points:top,holes:[]});edits.$chimneyVolumes[c.id]={version:2,mode:'upper'};
  }
 }
 const roofOpeningCache=new WeakMap();

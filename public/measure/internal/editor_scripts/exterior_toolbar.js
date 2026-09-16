@@ -89,6 +89,10 @@ window.mountExteriorToolbar=function(){
  #exterior-main-toolbar #roof-trim-options input,#exterior-main-toolbar #roof-trim-options select{background:#fff;color:#444;border:1px solid #ccc;border-radius:4px;padding:4px;width:62px}
  #exterior-main-toolbar #roof-trim-options select{width:80px}#exterior-main-toolbar #roof-trim-options input[type=color]{width:28px;height:28px;padding:2px}
  #exterior-main-toolbar #roof-trim-count{font-size:11px;color:#667085}
+ #exterior-main-toolbar .trim-material-section{border-top:1px solid #dfe3e8;margin-top:4px;padding-top:8px;max-width:640px}
+ #exterior-main-toolbar .trim-material-heading{display:flex;align-items:center;gap:6px;margin-bottom:6px}#exterior-main-toolbar .trim-material-heading>strong{margin-right:auto}
+ #exterior-main-toolbar #trim-material-grid{display:flex;flex-wrap:wrap;gap:5px}#exterior-main-toolbar #trim-material-grid button{font-weight:400;height:28px;min-height:28px;padding:4px 7px}
+ #exterior-main-toolbar #trim-material-grid button:before{content:'';width:10px;height:10px;border:1px solid #0002;border-radius:2px;background:var(--material-color)}
  #wall-auto-trim{display:none!important}
  `;document.head.appendChild(headerStyle);
  bar.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
