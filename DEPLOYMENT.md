@@ -2,6 +2,14 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [trim controls, material filters, and chimney tops](deploy/digitalocean/development-trim-materials-20260916.md)
+records `fc6c83129db9ef87205c537de1834f6aa8dadfa7` on all three development roles.
+Source is on `codex/exterior-trim-controls`; retain these changes when building
+subsequent releases from the concurrent `codex/internal-exteriors` checkout.
+Trim cycles and selections are repaired, material filters are available, roof trim
+wins coplanar depth ties, and chimney tops get a plain report-excluded default.
+The experimental allowlist and production are unchanged.
+
 September 16 development follow-up: [base appearance and report exclusion](deploy/digitalocean/development-base-display-20260916.md)
 records `7eb21f3ae0020980c50513d0c662391bfe85d009` on all three development roles.
 The default base uses plain concrete gray in textured mode and is omitted from
