@@ -22,11 +22,13 @@ and implementation are FirstMate's existing report system.
 [GAF QuickMeasure](https://www.gaf.com/en-us/resources/business-services/quickmeasure)
 describes roof reports; it was not used as evidence of exterior-report coverage.
 
-The appendix provides four elevated house corner views (roof, walls, returns, and
-base together), cardinal elevations, individual wall
-dimensions, opening schedules, foundation/grade views, wall takeoff, corners,
+The appendix provides four elevated house corner views (roof, walls, and returns),
+cardinal elevations, individual wall dimensions, opening schedules, wall takeoff, corners,
 material transitions, opening perimeter, net material area, and waste scenarios.
 Roof imagery, roof dimensions, and roof quantities remain in the existing pages.
+The editor base supports geometry calculations but is omitted from report visuals
+and pages. Its default appearance in the textured editor is plain concrete gray,
+independent of the default wall finish.
 This is a model-derived prototype, not a claim of complete competitor parity:
 field photographs, product-specific accessories, fascia/soffit classification,
 trim widths, rough-opening allowances, hidden surfaces, and actual installation

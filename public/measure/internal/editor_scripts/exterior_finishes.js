@@ -40,6 +40,15 @@ function roofMeshes(face,vector,textured){
   prepare(mesh,{...face,material:underside?(face.soffitMaterial||'soffit'):'shingles',finishColor:underside?face.soffitColor:face.finishColor,textureAxes:face.textureAxes},points);return mesh;
  });
 }
-function apply(mesh,material){const finish=mesh.userData.exteriorFinish||((mesh.userData.pickLayer==='walls'||mesh.userData.baseId!==undefined)?{material:'default'}:null);if(!finish||finish.feature)return;const resolved=resolve(finish);material.color.set(resolved.color);const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));material.map=resolved.material==='unassigned'?null:texture(resolved.material);}
+function apply(mesh,material){
+ const finish=mesh.userData.exteriorFinish||((mesh.userData.pickLayer==='walls'||mesh.userData.pickLayer==='base'||mesh.userData.baseId!==undefined)?{material:'default'}:null);
+ if(!finish||finish.feature)return;
+ // The construction base has its own neutral default, independent of cladding.
+ const base=(mesh.userData.baseId!==undefined||mesh.userData.pickLayer==='base')&&!finish.trim&&['default','unassigned',undefined].includes(finish.material);
+ const resolved=base?{material:'unassigned',color:finish.color||'#b3afa7'}:resolve(finish);
+ material.color.set(resolved.color);
+ const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
+ material.map=resolved.material==='unassigned'?null:texture(resolved.material);
+}
 root.ExteriorFinishes={prepare,apply,resolve,defaults,roofMeshes};
 })(window);

@@ -5,6 +5,16 @@ test('shingle rows follow roof contours and use physical distance up the slope',
 test('sloped fascia grain follows its roof edge instead of world horizontal',()=>{const ctx=fixture(),R=require('../public/measure/internal/editor_scripts/roof_trim.js'),roof={faces:[{points:[{x:0,y:0,z:3},{x:4,y:0,z:3},{x:4,y:4,z:5},{x:0,y:4,z:5}]}]},face=R.panels({...roof,points:roof.faces[0].points,connections:[{startIdx:1,endIdx:2,type:'rake'}]}).find(f=>Math.abs(f.a.z-f.b.z)>1),m=mesh();ctx.ExteriorFinishes.prepare(m,face,face.points);const uv=m.geometry.uv.array;assert.ok(Math.abs(uv[1]-uv[3])<1e-8);assert.ok(Math.abs(uv[5]-uv[3])>0);});
 test('textured presentation retains boundary lines, hides points, and restores prior visibility and maps on exit',()=>{const ctx=fixture(),savedMap={},color={getHex:()=>0x808080,setHex(){},multiplyScalar(){}},surface={isMesh:true,userData:{},material:{color,map:savedMap,opacity:.3,transparent:true,depthTest:false,depthWrite:false}},objects=[surface,{isLine:true,visible:true},{isPoints:true,visible:true},{isSprite:true,visible:false}],group={traverse:f=>objects.forEach(f)};ctx.exteriorSurfaceDisplay(group,'textured');assert.deepEqual(objects.slice(1).map(o=>o.visible),[true,false,false]);assert.equal(surface.material.opacity,1);ctx.exteriorSurfaceDisplay(group,'translucent');assert.deepEqual(objects.slice(1).map(o=>o.visible),[true,true,false]);assert.equal(surface.material.map,savedMap);assert.equal(surface.material.opacity,.3);});
 test('unassigned walls use matte gray without a texture map',()=>{const ctx=fixture();let value;const m={color:{set:c=>value=c},map:'old'};ctx.ExteriorFinishes.apply({userData:{pickLayer:'walls'}},m);assert.equal(value,'#80868b');assert.equal(m.map,null);});
+test('default base stays plain concrete even when the wall default has a texture',()=>{
+ const ctx=fixture();ctx.WallMode={finishDefaults:{material:'siding',color:'#ff0000'}};
+ for(const data of [{baseId:'base-1'},{pickLayer:'base',exteriorFinish:{material:'default',normal:{x:0,y:0,z:1}}}]){
+  let color;const m={color:{set:v=>color=v,multiplyScalar(){}},map:'old-wall-texture'};
+  ctx.ExteriorFinishes.apply({userData:data},m);assert.equal(color,'#b3afa7');assert.equal(m.map,null);
+ }
+ let color;const m={color:{set:v=>color=v},map:'old'};
+ ctx.ExteriorFinishes.apply({userData:{baseId:'base-1',exteriorFinish:{material:'default',color:'#aaaaaa'}}},m);
+ assert.equal(color,'#aaaaaa');assert.equal(m.map,null);
+});
 
 
 test('textured outlines are muted and depth tested, then restore line colors and opacity',()=>{
