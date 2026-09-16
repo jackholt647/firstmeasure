@@ -2,6 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [finish color palette](deploy/digitalocean/development-finish-palette-20260916.md)
+records `1c3fc2fe458b7b0daee8d288a902353a670a2d13` on all three development roles.
+Common, project and recent finish colors are open swatch palettes; custom colors
+can be reused without changing the material. This retains the trim/chimney release.
+Source remains on `codex/exterior-trim-controls`; preserve it in later releases.
+
 September 16 development follow-up: [trim controls, material filters, and chimney tops](deploy/digitalocean/development-trim-materials-20260916.md)
 records `fc6c83129db9ef87205c537de1834f6aa8dadfa7` on all three development roles.
 Source is on `codex/exterior-trim-controls`; retain these changes when building
