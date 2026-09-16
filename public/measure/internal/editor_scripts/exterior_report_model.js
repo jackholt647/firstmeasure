@@ -8,7 +8,7 @@ function frame(face){const n=W.normal(face.points);if(!n)return null;const len=M
 const local=(fr,p)=>({x:dot(sub(p,fr.origin),fr.u),y:p.z-fr.origin.z,z:0}),world=(fr,p)=>({x:fr.origin.x+fr.u.x*p.x,y:fr.origin.y+fr.u.y*p.x,z:fr.origin.z+p.y});
 function build(scene,options={}){
  const bases=scene.base?.faces||[],warnings=[],groups=[],features=[],returns=[],curved=[];
- for(const f of scene.faces||[]){if(f.deleted||f.drafted||f.solidId||f.boundaryHole||f.material==='chimney-top'||f.chimney?.cap&&!f.trim&&(!f.material||['default','unassigned'].includes(f.material)))continue;if(!f.points?.every(K.finite3)||f.points.length<3)throw Error('Exterior report contains an invalid face.');const fr=frame(f);if(f.curvedSurface?.logical){curved.push(f);continue;}if(f.feature){features.push(f);continue;}if(!fr){returns.push(f);continue;}
+ for(const f of scene.faces||[]){if(f.deleted||f.drafted||f.solidId||f.boundaryHole||f.material==='chimney-top'||f.chimney?.cap&&!f.chimney.derived&&!f.trim&&(!f.material||['default','unassigned'].includes(f.material)))continue;if(!f.points?.every(K.finite3)||f.points.length<3)throw Error('Exterior report contains an invalid face.');const fr=frame(f);if(f.curvedSurface?.logical){curved.push(f);continue;}if(f.feature){features.push(f);continue;}if(!fr){returns.push(f);continue;}
   let g=groups.find(g=>Math.abs(dot(g.fr.n,fr.n))>.99999&&Math.abs(dot(sub(fr.origin,g.fr.origin),g.fr.n))<.002&&g.chimney===!!f.chimney&&g.material===(f.material||'unassigned')&&g.finishColor===(f.finishColor||null));
   if(!g){g={fr,chimney:!!f.chimney,material:f.material||'unassigned',finishColor:f.finishColor||null,faces:[],features:[]};groups.push(g);}g.faces.push(f);
  }

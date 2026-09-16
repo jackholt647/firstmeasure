@@ -3,7 +3,7 @@
 const cache=new Map();
 const defaults={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef'};
 function resolve(face={},settings=root.WallMode?.finishDefaults||{}){
- const normal=face.normal||(face.points&&root.WallSolidGeometry?.faceFrame(face)?.n),d={...defaults,...settings},source=face.material||(face.chimney?.cap&&!face.trim?'chimney-top':normal?.z<-.5?'soffit':'default'),type=source==='default'?d.material:source;
+ const normal=face.normal||(face.points&&root.WallSolidGeometry?.faceFrame(face)?.n),d={...defaults,...settings},source=face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':normal?.z<-.5?'soffit':'default'),type=source==='default'?d.material:source;
  return {material:type==='default'?'unassigned':type,color:face.finishColor||face.color||((face.trim||type.startsWith('trim-'))?d.trimColor:source==='chimney-top'?'#d4d0c8':source==='shingles'?'#74777a':d.color)};
 }
 function texture(type){
@@ -29,7 +29,7 @@ function prepare(mesh,face,points,parameters){
  let arcAt=null;const curve=face.curvedSurface?.start||face.curvedSurface?.curve;if(curve&&parameters){const K=root.ExteriorGeometry,lengths=[0];let previous=K.curvePoint(curve,0);for(let i=1;i<=128;i++){const p=K.curvePoint(curve,i/128);lengths.push(lengths.at(-1)+Math.hypot(p.x-previous.x,p.y-previous.y,p.z-previous.z));previous=p;}arcAt=t=>{const q=Math.max(0,Math.min(128,t*128)),i=Math.min(127,Math.floor(q));return lengths[i]+(lengths[i+1]-lengths[i])*(q-i);};}
  let axes=face.textureAxes;if(['shingles','soffit'].includes(face.material)&&frame){const n=frame.n.z<0?{x:-frame.n.x,y:-frame.n.y,z:-frame.n.z}:frame.n,l=Math.hypot(n.x,n.y),a=l>1e-8?{x:-n.y/l,y:n.x/l,z:0}:{x:1,y:0,z:0};axes={u:a,v:{x:n.y*a.z-n.z*a.y,y:n.z*a.x-n.x*a.z,z:n.x*a.y-n.y*a.x}};}const dot=(p,a)=>p.x*a.x+p.y*a.y+p.z*a.z;
  const horizontal=Math.abs(frame?.n.z||0)>.999,uv=points.flatMap((p,i)=>[(axes?dot(p,axes.u):arcAt?arcAt(parameters[i].x):p.x*u.x+p.y*u.y+p.z*u.z)/(face.material==='shingles'?.9144:.6096),(axes?dot(p,axes.v):horizontal?p.x*(frame?.v.x||0)+p.y*(frame?.v.y||1):p.z)/.6096]);
- mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={material:face.material||(face.chimney?.cap&&!face.trim?'chimney-top':frame?.n.z<-.5?'soffit':'default'),color:face.finishColor||null,feature:!!face.feature,trim:!!face.trim,normal:frame?.n};
+ mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={material:face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':frame?.n.z<-.5?'soffit':'default'),color:face.finishColor||null,feature:!!face.feature,trim:!!face.trim,normal:frame?.n};
 }
 function roofMeshes(face,vector,textured){
  const rings=[face.points,...(face.holes||[])],points=rings.flat(),positions=points.map(vector),projected=rings.map(r=>r.map(p=>new THREE.Vector2(p.x,p.y)));

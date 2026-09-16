@@ -43,7 +43,7 @@ function outwardCorner(a,b,owners,shell){
 }
 function materialKey(face,defaults={}){
  const material=face.material;
- return !material||material==='default'?(face.chimney?.cap&&!face.trim?'chimney-top':defaults.material||'unassigned'):material;
+ return !material||material==='default'?(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':defaults.material||'unassigned'):material;
 }
 const defaultMaterial=id=>['default','unassigned','siding','siding-vertical','soffit'].includes(id);
 const eligibleMaterial=(face,options)=>!Array.isArray(options.materials)||options.materials.includes(materialKey(face,options.defaults));

@@ -234,7 +234,7 @@ function alignRoofContacts(state){
  }
 }
 function defaultCapFinish(face,chimney=face.chimney){
- if(!chimney?.cap||face.trim)return;
+ if(!chimney?.cap||face.trim||Math.abs(K.frame(face)?.n.z||0)<.5)return;
  if(!face.material||['default','unassigned'].includes(face.material))face.material='chimney-top';
  if(face.trimData?.base&&(!face.trimData.base.material||['default','unassigned'].includes(face.trimData.base.material)))face.trimData.base.material='chimney-top';
 }

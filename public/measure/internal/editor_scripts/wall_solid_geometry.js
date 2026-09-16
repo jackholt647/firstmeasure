@@ -508,9 +508,17 @@ function roofExtrusion(source,amount,shape,roof){
  const sides=[...planarUnion(returns.filter(f=>!f.curvedSurface)),...returns.filter(f=>f.curvedSurface)].map((f,i)=>({...f,id:source.id+'-roof-return-'+i,opening:false}));
  return {cap,sides};
 }
+// A cap finish belongs to the top, never to newly exposed shaft walls.
+function finishExtrusionSides(face,sides,options){
+ if(!face.chimney?.cap&&face.material!=='chimney-top')return;
+ for(const side of sides){if(side.chimney)side.chimney.cap=false;if(face.material!=='chimney-top')continue;
+  const neighbor=(options.supports||[]).find(f=>f.material!=='chimney-top'&&!f.feature&&sharedIntervals(side.points[0],side.points[1],[f]).some(([lo,hi])=>hi-lo>.99999));
+  side.material=neighbor?.material||'default';side.finishColor=neighbor?.finishColor;
+ }
+}
 function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const n=normal(face.points);if(!n)throw Error('The face has no area.');const moved=p=>({x:p.x+n.x*amount,y:p.y+n.y*amount,z:p.z+n.z*amount}),cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
  if(Math.abs(amount)>1e-6)for(const [ring,points]of [face.points,...(face.holes||[])].entries())for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],intervals=options.supports?sharedIntervals(a,b,options.supports):[[0,1]];for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi);let curvedSurface;for(const curve of face.curves||[]){const samples=K.curveSamples(curve);for(let j=1;j<samples.length;j++)if(pointOnEdge(p,samples[j-1],samples[j])&&pointOnEdge(q,samples[j-1],samples[j])){const start=samples[j-1],end=samples[j],v=sub(end,start),l2=dot(v,v),parameter=p=>start.curveT+(end.curveT-start.curveT)*dot(sub(p,start),v)/l2;curvedSurface={type:'ellipse-extrusion',curve,offset:{x:n.x*amount,y:n.y*amount,z:n.z*amount},range:[parameter(p),parameter(q)]};break;}}sides.push({... (curvedSurface?{curvedSurface}:{}),...((face.material)?{material:face.material}:{}),...(face.finishColor?{finishColor:face.finishColor}:{}),...((face.chimney)?{chimney:{...face.chimney,drivesFootprint:false,derived:true}}:{}),id:face.id+'-side-'+ring+'-'+i+'-'+part,points:[p,q,moved(q),moved(p)],holes:[],opening:false});}}
- delete cap.attachment;return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};}
+ delete cap.attachment;finishExtrusionSides(face,sides,options);return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};}
 // Sweep evaluated boundaries, never the chord joining logical control points.
 // Keep the cap exact and use temporary planar patches for neighboring booleans.
 function extrudeCurved(face,amount,options){
@@ -528,7 +536,7 @@ function extrudeCurved(face,amount,options){
    }
   }
  }
- return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};
+ finishExtrusionSides(face,sides,options);return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};
 }
 // Cancel overlapping material when a return sweeps along an existing side.
 // The neighbor loses the swept area; the new return keeps only area beyond it.
