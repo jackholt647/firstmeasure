@@ -6715,6 +6715,7 @@ function getMissingRequiredGutterStories(state) {
 async function renderLegacyFinalizeChecklistPage(container) {
     const state = reportConfigState;
     if (!state) return;
+    await window.ProjectResources?.mergeSubmission(state);
 
     if (!state.finalizeChecklist) state.finalizeChecklist = {};
     if (!state.finalizeSources) state.finalizeSources = { images: [], notes: '' };
@@ -7473,6 +7474,7 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
 async function renderFinalizePage(container) {
     let state = reportConfigState;
     if (!state) return;
+    await window.ProjectResources?.mergeSubmission(state);
 
     if (!state.finalizeSources) state.finalizeSources = { images: [], notes: '' };
     if (!Array.isArray(state.finalizeSources.images)) state.finalizeSources.images = [];
@@ -8052,6 +8054,7 @@ async function persistSubmissionSourceMetadata(folderId, payload) {
 }
 
 async function uploadSubmissionSourcesAndPersist(state, setOverlay) {
+    await window.ProjectResources?.mergeSubmission(state);
     if (isQaPortalPdfReviewMode()) {
         return cloneSubmissionSourcesValue(
             window.currentProjectManifest?.submission_sources ||
@@ -8105,6 +8108,8 @@ async function uploadSubmissionSourcesAndPersist(state, setOverlay) {
         ).trim();
 
         uploadedImages.push({
+            resource_name: img.resource_name,
+            role: 'tech',
             file_name: savedName,
             url: savedName,
             original_name: originalName

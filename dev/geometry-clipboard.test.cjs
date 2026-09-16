@@ -94,3 +94,61 @@ test('flip preserves inclined mounting plane, depth and bounds with uneven verte
 test('curve definitions follow copied geometry through rotation, flip and paste',()=>{
  const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),curve={type:'ellipse',center:p(0,0,0),u:p(1,0,0),v:p(0,0,1),radiusX:1,radiusY:2,sweep:Math.PI},face={id:'arc',points:K.curveSamples(curve),curves:[curve]},clip=W.copyGeometry([face],face.points),moved=W.transformGeometry(clip,0,{angle:.4,flip:'x'}),target={points:[p(10,-5,-5),p(10,5,-5),p(10,5,5),p(10,-5,5)]},result=W.pasteGeometry(moved,0,target,p(10,0,0),{normal:p(1,0,0),snap:false});assert.equal(result.faces[0].curves.length,1);const c=result.faces[0].curves[0],start=K.curvePoint(c,0);assert.ok(result.points.some(q=>Math.hypot(q.x-start.x,q.y-start.y,q.z-start.z)<1e-8));assert.equal(c.radiusY,2);
 });
+
+
+test('copied window aligns across a gap with coplanar window edges',()=>{
+ const source={id:'window',feature:{type:'window'},points:[p(0,0,0),p(1,0,0),p(1,0,1),p(0,0,1)]},clip=W.copyGeometry([source],source.points),target={points:[p(-10,0,-10),p(10,0,-10),p(10,0,10),p(-10,0,10)]},options={normal:p(0,-1,0),points:[p(0,0,2),p(1,0,2),p(1,0,3),p(0,0,3)],screen:q=>({x:q.x*100,y:q.z*100})};
+ const location=p(4,0,2.56),raw=W.pasteGeometry(clip,0,target,location,{...options,snap:false}),result=W.pasteGeometry(clip,0,target,location,options);
+ assert.equal(result.valid,true);assert.ok(result.snap);assert.ok(result.points.some(p=>Math.abs(p.z-2)<1e-8));assert.ok(result.points.every(p=>Math.abs(p.x-raw.points[result.points.indexOf(p)].x)<1e-8));
+ assert.equal(result.guides.filter(g=>Math.abs(g.from.z-g.target.z)<1e-8).length,2);assert.ok(result.guides.every(g=>result.points.some(p=>W.vertexKey(p)===W.vertexKey(g.from))));assert.deepEqual(raw.guides,[]);
+ const away=W.pasteGeometry(clip,0,target,p(4,0,2.8),options);assert.equal(away.guides.length,0);
+});
+const testPointAlignment=(axis)=>{
+ const source={id:'different-size',points:[p(0,0,0),p(2,0,0),p(2,0,1.5),p(0,0,1.5)]},clip=W.copyGeometry([source],source.points),targets=axis==='height'?[p(6,0,.06),p(7,0,.06),p(7,0,3.4),p(6,0,3.4)]:[p(.06,0,6),p(3.5,0,6),p(3.5,0,7),p(.06,0,7)],result=W.snapGeometryOnPlane(clip,0,targets,[],q=>({x:q.x*100,y:q.z*100}),12);
+ const coordinate=axis==='height'?'z':'x',other=axis==='height'?'x':'z';assert.ok(Math.abs(result.points[0][coordinate]-.06)<1e-8);assert.equal(result.points[0][other],source.points[0][other]);assert.ok(W.planeAlignmentGuides(result.points,targets,result.mounts[0].frame).length);assert.equal(result.points[2].x-result.points[0].x,2);assert.equal(result.points[2].z-result.points[0].z,1.5);
+};
+test('different-size moving geometry aligns any vertex horizontally across a gap',()=>testPointAlignment('height'));
+test('different-size moving geometry aligns any vertex vertically across a gap',()=>testPointAlignment('width'));
+
+
+test('copied stickers snap around corners and guides reach the actual reference sticker',()=>{
+ const source={id:'window',feature:{type:'window',preset:0},points:[p(0,0,2),p(1,0,2),p(1,0,3),p(0,0,3)]},clip=W.copyGeometry([source],source.points),target={points:[p(5,-5,0),p(5,5,0),p(5,5,6),p(5,-5,6)]},location=p(5,1,2.56),options={normal:p(1,0,0),bound:true,screen:q=>({x:q.y*100,y:q.z*100})};
+ const raw=W.pasteGeometry(clip,0,target,location,{...options,snap:false});const height=Math.max(...raw.points.map(p=>p.z))+.06;
+ const reference={...source,points:source.points.map(q=>({...q,z:q.z+height-3}))};
+ const result=W.pasteGeometry(clip,0,target,location,{...options,stickerFaces:[reference]});
+ assert.equal(result.valid,true);assert.ok(Math.abs(Math.max(...result.points.map(p=>p.z))-height)<1e-8);assert.ok(result.points.every(p=>p.x===5));assert.equal(result.faces[0].feature.type,'window');
+ assert.ok(result.guides.some(g=>reference.points.some(q=>q.x===g.target.x&&q.y===g.target.y&&q.z===g.target.z)));
+ const frame=W.clipboardFrame(location,options.normal),targets=W.stickerAlignmentTargets([reference],frame),corner=p(5,0,height),guides=W.planeAlignmentGuides(result.points,[corner,...targets],frame);
+ assert.ok(guides.some(g=>reference.points.some(q=>q.x===g.target.x&&q.y===g.target.y&&Math.abs(q.z-height)<1e-8&&Math.abs(g.target.z-height)<1e-8)),'reference sticker wins over the projected wall corner');
+ const free=W.pasteGeometry(clip,0,target,location,{...options,stickerFaces:[reference],snap:false});assert.deepEqual(free.points,raw.points);assert.equal(free.guides.length,0);
+});
+
+
+test('copied nearly full-height door chooses the floor despite nearby header and garage heights',()=>{
+ const FT=.3048,height=7*FT,door={id:'door',feature:{type:'door'},points:[p(0,0,0),p(3*FT,0,0),p(3*FT,0,80/12*FT),p(0,0,80/12*FT)]},clip=W.copyGeometry([door],door.points),wall={points:[p(0,0,0),p(4,0,0),p(4,0,height),p(0,0,height)]},garage={feature:{type:'garage'},points:[p(0,.3,0),p(4,.3,0),p(4,.3,height-.04),p(0,.3,height-.04)]};
+ for(const z of [.01,.2,.5,.9]){const result=W.pasteGeometry(clip,0,wall,p(2,0,z),{normal:p(0,-1,0),bound:true,stickerFaces:[garage],screen:p=>({x:p.x*100,y:p.z*100})});assert.equal(result.valid,true);assert.ok(Math.abs(Math.min(...result.points.map(p=>p.z)))<1e-8);assert.ok(Math.abs(Math.max(...result.points.map(p=>p.z))-80/12*FT)<1e-8);}
+ const frame=W.faceFrame(wall),targets=[p(0,0,0),p(0,0,height-.04)],moving=door.points.map(q=>({...q,z:q.z+.05}));const snap=W.planeAlignment(moving,targets,frame,p=>({x:p.x*100,y:p.z*100}),12,['v'],p(2,0,.1));assert.ok(Math.abs(snap.y-(height-.04-80/12*FT-.05))<1e-8,'nearest edge translation wins over pointer-to-target distance');
+});
+
+
+test('pasted sticker ranks snap translations from the no-snap placement',()=>{
+ const h=80/12*.3048,door={id:'door',feature:{type:'door'},points:[p(0,0,0),p(.9144,0,0),p(.9144,0,h),p(0,0,h)]},clip=W.copyGeometry([door],door.points);
+ const wall={points:[p(0,0,0),p(5,0,0),p(5,0,4),p(0,0,4)]},location=p(2,0,.3+h/2),options={normal:p(0,-1,0),bound:true,screen:p=>({x:p.x*100,y:p.z*100})};
+ const free=W.pasteGeometry(clip,0,wall,location,{...options,snap:false}),bottom=Math.min(...free.points.map(p=>p.z)),top=Math.max(...free.points.map(p=>p.z));
+ const targets=[p(0,0,bottom-.05),p(0,0,top-.102)];
+ for(const points of [targets,[...targets].reverse()]){
+  const result=W.pasteGeometry(clip,0,wall,location,{...options,points});
+  assert.equal(result.valid,true);assert.ok(Math.abs(Math.min(...result.points.map(p=>p.z))-(bottom-.05))<1e-8);
+ }
+});
+
+
+test('pasted door clamps to local sloped floor when its cursor is below the valid center range',()=>{
+ const door={id:'door',feature:{type:'door'},points:[p(0,0,0),p(1,0,0),p(1,0,2),p(0,0,2)]},clip=W.copyGeometry([door],door.points),wall={points:[p(0,0,0),p(6,0,.6),p(6,0,3),p(3,0,3),p(3,0,4),p(0,0,4)]};
+ for(const z of [-4,0,1,1.25,1.5,1.75,2,3,8]){
+  const result=W.pasteGeometry(clip,0,wall,p(4.5,0,z),{normal:p(0,-1,0),bound:true,snap:false});
+  assert.equal(result.valid,true);const expected=Math.max(.5,Math.min(1,z-1));
+  assert.ok(Math.abs(Math.min(...result.points.map(p=>p.z))-expected)<1e-8,`cursor ${z}`);
+  assert.ok(Math.abs(Math.min(...result.points.map(p=>p.x))-4)<1e-8);
+ }
+});

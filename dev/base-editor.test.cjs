@@ -166,3 +166,14 @@ test('selecting a base edge does not silently disable point picking',()=>{
  assert.equal(f.els.get('base-selection').value,'point');
  f.click(0,0);assert.ok(f.editor.singlePoint());
 });
+
+
+test('Reground follows attached edited wall bottoms onto flat and pitched grade and undo restores both',()=>{
+ for(const slope of [0,.02]){
+ const f=fixture(true),p=(x,y,z)=>({x,y,z});f.state.ground={points:[p(-1,-1,1-slope),p(101,-1,1+101*slope),p(101,101,1+101*slope),p(-1,101,1-slope)],faces:[[0,1,2],[0,2,3]]};
+ const attached={id:'attached',material:'brick',points:[p(0,0,0),p(100,0,0),p(100,0,5),p(0,0,5)],retainedPoints:[p(25,0,0)]},floating={id:'floating',points:[p(0,20,.5),p(100,20,.5),p(100,20,5),p(0,20,5)]};
+ f.state.wallEdits={$surfaces:[attached,floating],$baseCuts:[{points:[p(10,10,0),p(20,10,0),p(10,20,0)]}]};const before=JSON.stringify(f.state);
+ f.els.get('base-rebuild-grade').onclick();const moved=f.state.wallEdits.$surfaces[0];assert.equal(moved.material,'brick');assert.ok(moved.points.some(p=>p.x===0&&p.z===1));assert.ok(moved.points.some(p=>p.x===100&&Math.abs(p.z-(1+100*slope))<1e-7));assert.ok(moved.points.filter(p=>p.z===5).length===2);assert.ok(Math.abs(moved.retainedPoints[0].z-(1+25*slope))<1e-7);assert.deepEqual(JSON.parse(JSON.stringify(f.state.wallEdits.$surfaces[1])),floating);assert.equal(f.state.wallEdits.$baseCuts,undefined);
+ f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state),before);
+ }
+});

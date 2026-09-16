@@ -68,3 +68,12 @@ test('roof faces allow face and point selection through them while editable trim
  for(const transparent of [true,false]){roof.material={transparent};assert.equal(ctx.wallNearestSurface(group,e).object,wall);assert.equal(ctx.wallPointPickVisible(group,new V(0,0,3)),true);assert.equal(ctx.wallPointPickVisible(group,new V(0,0,5)),false);wall.visible=false;assert.equal(ctx.wallNearestSurface(group,e).object,base);assert.equal(ctx.wallPointPickVisible(group,new V(0,0,5)),true);wall.visible=true;}
  trim.visible=true;assert.equal(ctx.wallNearestSurface(group,e).object,trim);assert.equal(ctx.wallPointPickVisible(group,new V(0,0,3)),false);
 });
+
+test('coplanar stickers win surface picking without selecting through nearer geometry',()=>{
+ const ctx={};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
+ const host={distance:10,object:{userData:{}}},sticker={distance:10.000001,object:{userData:{exteriorFeature:true}}};
+ assert.equal(ctx.wallPreferredSurfaceHit([host,sticker]),sticker);
+ assert.equal(ctx.wallPreferredSurfaceHit([sticker,host]),sticker);
+ const obstruction={distance:9.99,object:{userData:{}}};assert.equal(ctx.wallPreferredSurfaceHit([sticker,host,obstruction]),obstruction);
+ assert.equal(ctx.wallPreferredSurfaceHit([]),null);
+});

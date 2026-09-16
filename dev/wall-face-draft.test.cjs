@@ -1,8 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
 function fixture(options={}){const listeners={},state=options.state||{wallEdits:{}},w={id:'w',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:0}],top:[{x:0,y:0,z:4},{x:4,y:0,z:4}]};let history=[],message='';const frames=new Map();let frameId=0;const ctx={console,performance,getVector3:p=>({...p,distanceTo:q=>Math.hypot(p.x-(q.x||0),p.y-(q.y||0),p.z-(q.z||0))}),camera:{position:{x:0,y:-10,z:2}},requestAnimationFrame:fn=>{frames.set(++frameId,fn);return frameId;},cancelAnimationFrame:id=>frames.delete(id),ExteriorGeometry:require('../public/measure/internal/editor_scripts/exterior_geometry.js'),ExteriorModel:require('../public/measure/internal/editor_scripts/exterior_model.js'),WallAxisCuts:require('../public/measure/internal/editor_scripts/wall_axis_cuts.js'),WallTrim:require('../public/measure/internal/editor_scripts/wall_trim.js'),WallSteps:require('../public/measure/internal/editor_scripts/wall_steps.js'),WallFeatures:require('../public/measure/internal/editor_scripts/wall_features.js'),WallSolidGeometry:require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),BaseGeometry:B,BaseSketchGeometry:S,WallGeometry:G,addEventListener:(k,f)=>listeners[k]=e=>{f(e);for(const [id,frame]of [...frames]){frames.delete(id);frame(performance.now());}}};Object.assign(ctx,options.globals||{});ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_face_draft.js','utf8'),ctx);
- if(options.centerMarker)ctx.wallCurveCenterMarker=options.centerMarker;const editor=ctx.createWallFaceDraft({pickVisible:options.pickVisible,pickLineVisible:options.pickLineVisible,state:()=>state,selectBaseEntities:options.selectBaseEntities,featureHost:options.featureHost,hit:options.hit,toPixel:p=>p,roof:()=>options.roof,walls:()=>options.getWalls?options.getWalls():options.walls||[w],active:()=>options.active!==false,selected:()=>options.selected===null?null:options.selectedId||'w',select:options.select||(()=>{}),screen:options.screen||(p=>({x:p.x*100,y:p.z*100})),projectPoint:options.projectPoint||((d,e)=>d.frame?ctx.WallSolidGeometry.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):{x:e.clientX/100,y:e.clientY/100,z:0}),commit:b=>history.push(b),redraw(){},message:s=>message=s});
- const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
+ if(options.lengthMarker)ctx.wallLengthMarker=options.lengthMarker;if(options.centerMarker)ctx.wallCurveCenterMarker=options.centerMarker;const editor=ctx.createWallFaceDraft({pickVisible:options.pickVisible,pickLineVisible:options.pickLineVisible,state:()=>state,selectBaseEntities:options.selectBaseEntities,featureHost:options.featureHost,hit:options.hit,toPixel:p=>p,roof:()=>options.roof,walls:()=>options.getWalls?options.getWalls():options.walls||[w],active:()=>options.active!==false,selected:()=>options.selected===null?null:options.selectedId||'w',select:options.select||(()=>{}),screen:options.screen||(p=>({x:p.x*100,y:p.z*100})),projectPoint:options.projectPoint||((d,e)=>d.frame?ctx.WallSolidGeometry.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):{x:e.clientX/100,y:e.clientY/100,z:0}),commit:b=>history.push(b),redraw(){},message:s=>message=s});
+ const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
 test('edge insertion snaps, boundary points are locked, and C subdivides the vertical face',()=>{const f=fixture();f.editor.doubleClick(f.e(2,.02),f.w);assert.equal(f.message(),'Midpoint');assert.ok(f.d().sketch.nodes.find(n=>n.x===2&&n.y===0).fixed);f.editor.doubleClick(f.e(2,3.98),f.w);f.editor.down(f.e(2,0,true));f.listeners.pointerup(f.e(2,0,true));f.editor.key({key:'u'});assert.equal(f.d().faces.length,2);assert.ok(f.d().faces.every(face=>!face.opening));f.editor.key({key:'m'});assert.match(f.message(),/locked/);});
 test('N draws a closed opening, preserves its hole metadata and interior M cancels cleanly',()=>{const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}assert.equal(f.d().faces.filter(f=>f.opening).length,1,f.message());assert.equal(f.d().faces.find(f=>!f.opening).holes.length,1);
  const before=JSON.stringify(f.state.wallEdits);f.listeners.pointermove(f.e(1,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.2,1.2));assert.notEqual(JSON.stringify(f.state.wallEdits),before);f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.deepEqual(JSON.parse(JSON.stringify(f.d())).faces.filter(f=>f.opening).length,1);});
@@ -45,10 +45,10 @@ test('edited wall stays visible and selectable when a base rebuild removes its r
  f.d().faces[0].solidId='already-extruded';assert.equal(draw().length,0,'Consumed face must not return');
  delete f.d().faces[0].solidId;f.d().deletedFaces=f.d().faces.map(face=>face.points.map(p=>p.nodeId).sort().join('|'));assert.equal(draw().length,0,'Explicit deletion must remain effective');
 });
-test('selected orange opening gets a light fill and white outline',()=>{
+test('selected orange opening retains its base hue and gets a white outline',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}
  const objects=[],group={add:o=>objects.push(o)};f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'));
- f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));objects.length=0;f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#fff0b0'));assert.ok(objects.some(o=>o.material.color==='#fff'));
+ f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));objects.length=0;f.editor.draw3D(group,p=>p);assert.ok(objects.some(o=>o.material.color==='#ff962f'&&o.userData.exteriorSelected));assert.ok(objects.some(o=>o.material.color==='#fff'));
 });
 test('horizontal recess floor disappears only below base, cuts an opening, and cancel/commit preserve undo',()=>{
  const floor={id:'floor',points:[{x:1,y:1,z:2},{x:3,y:1,z:2},{x:3,y:3,z:2},{x:1,y:3,z:2}]};
@@ -82,7 +82,7 @@ test('F disables point, midpoint and inference snapping while drawing',()=>{
 });
 
 test('face selection waits for release and a marquee never selects its starting face, even when dragged back',()=>{
- const f=fixture({globals:renderGlobals()}),objects=[],group={add:o=>objects.push(o)},chosen=()=>{objects.length=0;f.editor.draw3D(group,p=>p);return objects.some(o=>o.material.color==='#fff0b0');};
+ const f=fixture({globals:renderGlobals()}),objects=[],group={add:o=>objects.push(o)},chosen=()=>{objects.length=0;f.editor.draw3D(group,p=>p);return objects.some(o=>o.userData.exteriorSelected);};
  f.editor.doubleClick(f.e(2,2),f.w);f.editor.down(f.e(1,2));assert.equal(chosen(),false);
  f.listeners.pointerup(f.e(1,2));assert.equal(chosen(),true);f.editor.clear();
  f.editor.beginFace(f.e(1,2),f.w);assert.equal(chosen(),false);f.listeners.pointermove(f.e(3,3));assert.equal(chosen(),false);f.listeners.pointermove(f.e(1,2));f.listeners.pointerup(f.e(1,2));assert.equal(chosen(),false);
@@ -485,7 +485,7 @@ test('vent cycles rectangle square circle and back without losing the host face'
 test('feature edge nudge stretches the selected edge, and invalid resize is atomic',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture(),feature=()=>f.d().faces.find(f=>f.feature),b=F.bounds(feature().points);f.editor.pickSolid(f.e(b.right,(b.top+b.bottom)/2));f.listeners.pointerup(f.e(b.right,(b.top+b.bottom)/2));f.editor.key({key:'ArrowRight'});assert.ok(Math.abs(F.bounds(feature().points).right-b.right-F.FT/12)<1e-8,f.message());assert.ok(Math.abs(F.bounds(feature().points).left-b.left)<1e-8);const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('garage',0);assert.equal(JSON.stringify(f.state.wallEdits),before,f.message());});
 test('arrow nudge moves an unlabeled internal face and shared divider without creating returns',()=>{const f=stickerFixture();f.editor.featureCommand('none');const before=f.d().faces.find(f=>f.opening).points[0].x;f.editor.key({key:'ArrowRight'});assert.ok(f.d().faces.find(f=>f.opening).points[0].x>before);assert.equal(f.state.wallEdits.$surfaces,undefined);});
 test('arrow keys slide an unlabeled shared divider and preserve both adjoining faces',()=>{let cameraReady=false;const f=fixture({screen:p=>({x:p.x*100,y:p.z*100*(cameraReady?-1:1)})});f.editor.doubleClick(f.e(0,1),f.w);f.editor.key({key:'n'});f.editor.down(f.e(4,1));f.listeners.pointerup(f.e(4,1));f.editor.pickSolid(f.e(2,1));f.listeners.pointerup(f.e(2,1));cameraReady=true;f.editor.key({key:'ArrowUp',shiftKey:true});assert.equal(f.d().faces.length,2,f.message());assert.ok(f.d().faces.every(face=>face.points.some(p=>Math.abs(p.y-1-.1524)<1e-7)),f.message());});
-test('all line lengths exclude feature boundaries and feature dimensions toggle separately',()=>{const f=stickerFixture(),paint=[];const globals=renderGlobals();globals.THREE.CanvasTexture=class{};globals.THREE.SpriteMaterial=class{constructor(o){Object.assign(this,o);}};globals.THREE.Sprite=class{constructor(m){this.material=m;this.userData={};this.position={copy(){}};this.scale={set(){}};}};globals.document={getElementById:()=>null,createElement:()=>({getContext:()=>({strokeText(){},fillText:t=>paint.push(t)})})};const state=JSON.parse(JSON.stringify(f.state));state.lineLengthMode='all';const r=fixture({state,globals});r.editor.draw3D({add(){}},p=>p);assert.equal(paint.filter(t=>t.includes('×')).length,1);const featureText=paint.find(t=>t.includes('×'));assert.ok(featureText.includes('3 × 4'));assert.ok(paint.some(t=>!t.includes('×')));state.lineLengthMode='off';paint.length=0;r.editor.draw3D({add(){}},p=>p);assert.deepEqual(paint,[featureText]);state.featureDimensions=false;paint.length=0;r.editor.draw3D({add(){}},p=>p);assert.equal(paint.length,0);});
+test('all line lengths exclude feature boundaries and feature dimensions toggle separately',()=>{const f=stickerFixture(),paint=[];const globals=renderGlobals();globals.THREE.CanvasTexture=class{};globals.THREE.SpriteMaterial=class{constructor(o){Object.assign(this,o);}};globals.THREE.Sprite=class{constructor(m){this.material=m;this.userData={};this.position={copy(){}};this.scale={set(){}};}};globals.document={getElementById:()=>null,createElement:()=>({getContext:()=>({strokeText(){},fillText:t=>paint.push(t)})})};const state=JSON.parse(JSON.stringify(f.state));state.lineLengthMode='all';const r=fixture({state,globals});r.editor.draw3D({add(){}},p=>p);assert.equal(paint.filter(t=>t.includes('×')).length,1);const featureText=paint.find(t=>t.includes('×'));assert.ok(featureText.includes('3 × 4'));assert.ok(paint.some(t=>!t.includes('×')));state.lineLengthMode='off';paint.length=0;const sprites=[];r.editor.draw3D({add:o=>{if(o instanceof globals.THREE.Sprite)sprites.push(o);}},p=>p);assert.equal(sprites.length,1);assert.deepEqual(paint,[],'unchanged dimensions reuse their text texture');state.featureDimensions=false;sprites.length=0;r.editor.draw3D({add:o=>{if(o instanceof globals.THREE.Sprite)sprites.push(o);}},p=>p);assert.equal(sprites.length,0);});
 
 function stepFixture(thin=false){const w={id:'w',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:1}],top:[{x:0,y:0,z:thin?.05:4},{x:4,y:0,z:thin?1.05:4}]};const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=fixture({walls:[w],projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):{x:e.clientX/100,y:e.clientY/100,z:0}});return {...f,w};}
 function selectStepLine(f,x=2,z=.5){f.editor.down(f.e(x,z));f.listeners.pointerup(f.e(x,z));}
@@ -513,20 +513,20 @@ test('selected feature edge nudges toward camera-right from either side and keep
  assert.equal(f.d().faces.length,2);assert.equal(f.d().faces.find(face=>face.feature).feature.type,'window');
 });
 
-test('contained face M cycles four modes from one snapshot, cancels and restarts at In/Out',()=>{
+test('contained face M cycles four modes from one snapshot, cancels and restarts on the face',()=>{
  const f=stickerFixture(),start=JSON.stringify(f.state.wallEdits),F=require('../public/measure/internal/editor_scripts/wall_features.js'),bounds=()=>F.bounds(f.d().faces.find(f=>f.feature).points),original=bounds();
- f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);f.editor.key({key:'m'});assert.match(f.message(),/^Left\/Right/);f.editor.key({key:'m',repeat:true});assert.match(f.message(),/^Left\/Right/);
+ f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.editor.key({key:'m'});assert.match(f.message(),/^Left\/Right/);f.editor.key({key:'m',repeat:true});assert.match(f.message(),/^Left\/Right/);
  f.listeners.pointermove(f.e(2.4,2.3));assert.ok(Math.abs(bounds().left-original.left-.4)<1e-6,f.message());assert.equal(bounds().bottom,original.bottom);assert.equal(f.state.wallEdits.$surfaces,undefined);
  f.editor.key({key:'m'});assert.match(f.message(),/^Up\/Down/);assert.equal(bounds().left,original.left);f.listeners.pointermove(f.e(2.8,2.6));assert.equal(bounds().left,original.left);assert.ok(Math.abs(bounds().bottom-original.bottom-.3)<1e-6,f.message());
- f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.listeners.pointermove(f.e(3.1,2.8));assert.ok(Math.abs(bounds().left-original.left-.3)<1e-6,f.message());assert.ok(Math.abs(bounds().bottom-original.bottom-.2)<1e-6);
- f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);assert.equal(bounds().left,original.left);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),start);f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);
+ f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.listeners.pointermove(f.e(3.1,2.8));assert.ok(Math.abs(bounds().left-original.left-.3)<1e-6,f.message());assert.ok(Math.abs(bounds().bottom-original.bottom-.2)<1e-6);
+ f.editor.key({key:'m'});assert.match(f.message(),/^Left\/Right/);assert.equal(bounds().left,original.left);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),start);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);
 });
 test('contained face slide clamps fast overshoot and commits once',()=>{
- const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits),history=f.history.length,nodes=f.d().sketch.nodes.filter(n=>n.fixed).map(n=>JSON.stringify(n));f.editor.key({key:'m'});f.editor.key({key:'m'});f.listeners.pointermove(f.e(90,2));assert.match(f.message(),/^Left\/Right/);const face=f.d().faces.find(f=>f.feature);assert.ok(Math.abs(Math.max(...face.points.map(p=>p.x))-4)<1e-6);assert.equal(f.history.length,history);
+ const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits),history=f.history.length,nodes=f.d().sketch.nodes.filter(n=>n.fixed).map(n=>JSON.stringify(n));f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.editor.key({key:'m'});f.listeners.pointermove(f.e(90,2));assert.match(f.message(),/^Left\/Right/);const face=f.d().faces.find(f=>f.feature);assert.ok(Math.abs(Math.max(...face.points.map(p=>p.x))-4)<1e-6);assert.equal(f.history.length,history);
  f.editor.down(f.e(90,2));assert.equal(f.editor.busy(),false);assert.equal(f.history.length,history+1);assert.equal(JSON.stringify(f.history.at(-1)),before);assert.ok(nodes.every(n=>f.d().sketch.nodes.some(p=>JSON.stringify(p)===n)));assert.equal(f.state.wallEdits.$surfaces,undefined);
 });
 test('free face move keeps moving vertically at the left bound and Escape restores it',()=>{
- const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits);for(let i=0;i<4;i++)f.editor.key({key:'m'});const box=()=>{const p=f.d().faces.find(f=>f.feature).points;return {left:Math.min(...p.map(p=>p.x)),bottom:Math.min(...p.map(p=>p.y))};};f.listeners.pointermove(f.e(-90,2));const a=box();assert.ok(Math.abs(a.left)<1e-6,f.message());f.listeners.pointermove(f.e(-100,2.5));const b=box();assert.ok(Math.abs(b.left)<1e-6);assert.ok(Math.abs(b.bottom-a.bottom-.5)<1e-6,f.message());f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+ const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);const box=()=>{const p=f.d().faces.find(f=>f.feature).points;return {left:Math.min(...p.map(p=>p.x)),bottom:Math.min(...p.map(p=>p.y))};};f.listeners.pointermove(f.e(-90,2));const a=box();assert.ok(Math.abs(a.left)<1e-6,f.message());f.listeners.pointermove(f.e(-100,2.5));const b=box();assert.ok(Math.abs(b.left)<1e-6);assert.ok(Math.abs(b.bottom-a.bottom-.5)<1e-6,f.message());f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
 test('untyped contained faces use the same M cycle and E remains extrusion',()=>{const f=stickerFixture('window',[2,2],{screen:p=>({x:(p.x+p.y)*100,y:p.z*100})});f.editor.featureCommand('none');f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);f.editor.key({key:'m'});assert.match(f.message(),/^Left\/Right/);f.editor.key({key:'Escape'});f.editor.key({key:'e'});f.listeners.pointermove(f.e(2.3,2));assert.ok(f.state.wallEdits.$surfaces.length>0);assert.match(f.message(),/Extrusion/);});
 
@@ -559,7 +559,7 @@ test('draft rendering composes walls once per frame and refreshes the snapshot o
 function liveDraftFaces(d){return d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|'))&&!f.points.some(p=>(d.removedPoints||[]).includes(p.nodeId)));}
 test('M moves a contained window out with connecting returns and Escape restores its exact opening',()=>{
  const f=stickerFixture('window',[2,2],{screen:p=>({x:(p.x+p.y)*100,y:p.z*100})}),before=JSON.stringify(f.state.wallEdits);
- f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.3,2));
+ f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);for(let i=0;i<3;i++)f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.3,2));
  const surfaces=f.state.wallEdits.$surfaces||[];assert.ok(surfaces.length>=5,f.message());
  for(const face of surfaces)require('../public/measure/internal/editor_scripts/exterior_geometry.js').validateFace(face);
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
@@ -585,7 +585,8 @@ test('chimney display conversion cannot resurrect deleted wall faces or removed 
 test('Q accepts a selected edited-surface point and Escape restores conversion',()=>{const f=fixture({globals:renderGlobals()});f.state.wallEdits={$surfaces:[{id:'edited',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]}]};f.editor.draw3D({add(){}},p=>p);f.editor.pickSolid(f.e(0,0));f.listeners.pointerup(f.e(0,0));const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'q'});assert.equal(f.editor.interaction(),'Draw rectangle',f.message());f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);});
 test('failed Q placement keeps the tool and prevents the trailing double-click inserting a stray point',()=>{const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);f.editor.key({key:'q'});const before=JSON.stringify(f.state.wallEdits);f.editor.down(f.e(5,3));f.editor.down(f.e(5,3));f.editor.doubleClick(f.e(5,3),f.w);assert.equal(f.editor.interaction(),'Draw rectangle');assert.equal(JSON.stringify(f.state.wallEdits),before);f.editor.down(f.e(3,3));f.editor.down(f.e(3,3));assert.equal(f.editor.busy(),false,f.message());assert.ok(f.d().faces.some(f=>f.opening));});
 test('double-click ends a horizontal cut cycle and inserts a point into the new line',()=>{const f=fixture();f.editor.doubleClick(f.e(0,2),f.w);f.editor.key({key:'h'});assert.equal(f.editor.interaction(),'H/V cut');f.editor.doubleClick(f.e(2,2),f.w);assert.equal(f.editor.busy(),false,f.message());assert.ok(f.d().sketch.nodes.some(n=>Math.abs(n.x-2)<1e-6&&Math.abs(n.y-2)<1e-6));assert.equal(f.d().faces.length,2);f.editor.key({key:'q'});assert.equal(f.editor.interaction(),'Draw rectangle',f.message());});
-test('plain sticker shortcuts start placement while Control shortcuts modify the selected face',()=>{const f=stickerFixture();const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'d'});assert.equal(f.editor.interaction(),'Place feature',f.message());assert.equal(JSON.stringify(f.state.wallEdits),before);f.editor.key({key:'escape'});f.editor.key({key:'d',ctrlKey:true});assert.equal(f.editor.busy(),false);assert.ok(f.d().faces.some(f=>f.feature?.type==='door'&&f.feature.preset===null));f.editor.key({key:'d',ctrlKey:true});assert.ok(f.d().faces.some(f=>f.feature?.type==='door'&&f.feature.preset===0),f.message());});
+test('plain sticker shortcuts convert selected stickers without resizing, then cycle sizes',()=>{const f=stickerFixture();const original=JSON.stringify(f.d().faces.find(f=>f.feature).points);for(const key of ['d','g','w']){f.editor.key({key});assert.equal(f.editor.busy(),false);const sticker=f.d().faces.find(f=>f.feature);assert.equal(sticker.feature.type,{d:'door',g:'garage',w:'window'}[key]);assert.equal(JSON.stringify(sticker.points),original);assert.equal(sticker.feature.preset,null);}f.editor.key({key:'w'});assert.ok(f.d().faces.some(f=>f.feature?.type==='window'&&f.feature.preset===0),f.message());});
+
 
 test('typed face distances are positive into the base and negative out on opposite walls',()=>{
  for(const side of [-1,1]){
@@ -1288,4 +1289,523 @@ test('editor indent preserves the distant chimney join and untouched drafts thro
  f.editor.key({key:'e'});f.editor.distanceInput().set(.9144);f.editor.down(f.e(7,158.5));verify();assert.equal(JSON.stringify(f.history.at(-1)),before);
  const old=JSON.parse(before);for(const [key,d]of Object.entries(old.$drafts)){if(key==='R20.0:0'||key.startsWith('R17.1:0')||key.startsWith('R1.0:0'))continue;assert.equal(JSON.stringify(state.wallEdits.$drafts[key]),JSON.stringify(d),'Unrelated draft '+key+' changed');}
  const loaded=JSON.parse(JSON.stringify(state));assert.equal(require('../public/measure/internal/editor_scripts/exterior_model.js').restoreDraftFaceOwnership(loaded.wallEdits),false,'New operations must not need repair on reload');
+});
+
+
+test('sticker edge snaps to neighbor height, releases contact, and typed dimensions cross the opposite edge',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),window=(id,x,z)=>({id,feature:{type:'window',shape:'rectangle',axis:{x:1,y:0,z:0}},points:[p(x,z),p(x+1,z),p(x+1,z+1),p(x,z+1)]});
+ const stickers=[window('moving',0,2),window('below',0,0),window('beside',2,2.5)],host={id:'host',points:[p(-5,-5),p(5,-5),p(5,8),p(-5,8)],holes:stickers.map(f=>f.points)},state={wallEdits:{$surfaces:[host,...stickers]}},f=fixture({state,walls:[],selected:null}),before=JSON.stringify(state.wallEdits);
+ f.editor.beginEntity('move',{pair:[p(0,2),p(1,2)],event:f.e(.5,2)});
+ const moving=()=>state.wallEdits.$surfaces.find(s=>s.id==='moving');
+ f.listeners.pointermove(f.e(.5,2.47));assert.ok(moving().points.slice(0,2).every(p=>Math.abs(p.z-2.5)<1e-8),f.message());
+ f.listeners.pointermove(f.e(.5,1.04));assert.ok(moving().points.slice(0,2).every(p=>Math.abs(p.z-1)<1e-8),f.message());
+ f.listeners.pointermove(f.e(.5,1.5));assert.ok(moving().points.slice(0,2).every(p=>Math.abs(p.z-1.5)<1e-8),f.message());
+ // Preview normalization may convert a live surface to a draft; never feed that back into the gesture baseline.
+ state.wallEdits.$surfaces.find(f=>f.id==='below').drafted=true;
+ f.listeners.pointermove(f.e(.5,1.6));assert.equal(state.wallEdits.$surfaces.find(f=>f.id==='below').drafted,undefined);
+ f.listeners.pointermove(f.e(.5,3));assert.equal(moving().points.length,4,'collapse retains last valid geometry');
+ f.listeners.pointermove(f.e(.5,2.2));assert.ok(moving().points.slice(0,2).every(p=>Math.abs(p.z-2.2)<1e-8),f.message());
+ const input=f.editor.distanceInput();assert.equal(input.label,'Height');input.set(4*.3048);assert.ok(moving().points.slice(0,2).every(p=>Math.abs(p.z-(3-4*.3048))<1e-8));
+ input.set(-4*.3048);assert.ok(moving().points.slice(0,2).every(p=>Math.abs(p.z-(3+4*.3048))<1e-8));
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ f.editor.beginEntity('move',{pair:[p(1,2),p(1,3)],event:f.e(1,2.5)});const width=f.editor.distanceInput();assert.equal(width.label,'Width');width.set(4*.3048);assert.ok(moving().points.slice(1,3).every(p=>Math.abs(p.x-4*.3048)<1e-8));width.set(-4*.3048);assert.ok(moving().points.slice(1,3).every(p=>Math.abs(p.x+4*.3048)<1e-8));f.editor.down(f.e(1,2.5));assert.equal(f.history.length,1);
+});
+
+test('Shift selects multiple solid faces; Control subtracts and finish changes share one undo',()=>{
+ const globals=renderGlobals();let hit=0;globals.THREE.Raycaster=class{setFromCamera(){}intersectObjects(ms){return ms[hit]?[{object:ms[hit]}]:[];}};globals.ExteriorMaterials={brick:{label:'Brick'}};
+ const p=(x,z)=>({x,y:0,z}),state={displayMode:'textured',wallEdits:{$surfaces:[0,5,10].map((x,i)=>({id:'face'+i,points:[p(x,0),p(x+4,0),p(x+4,4),p(x,4)],material:'siding'}))}},f=fixture({state,walls:[],selected:null,globals});
+ const click=(i,mods={})=>{hit=i;f.editor.draw3D({add(){}},p=>p);const e={...f.e(i*5+2,2),...mods};assert.ok(f.editor.pickSolid(e));f.listeners.pointerup(e);};
+ click(0);click(1,{shiftKey:true});click(2,{shiftKey:true});click(1,{ctrlKey:true});
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.equal(objects.filter(o=>o.userData.exteriorSelected).length,2);
+ const before=JSON.stringify(state.wallEdits);f.editor.materialCommand('brick');assert.deepEqual(state.wallEdits.$surfaces.map(f=>f.material),['brick','siding','brick']);assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ f.editor.colorCommand('#123456');assert.deepEqual(state.wallEdits.$surfaces.map(f=>f.finishColor),['#123456',undefined,'#123456']);
+ click(0,{ctrlKey:true});click(2,{ctrlKey:true});const after=JSON.stringify(state.wallEdits);f.editor.materialCommand('brick');assert.equal(JSON.stringify(state.wallEdits),after);assert.equal(f.editor.interaction(),'Paint material');
+});
+
+
+test('draft sticker resize recovers after contact and collapse without consuming the neighbor',()=>{
+ const f=stickerFixture('window',[1,2.7]);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(1,1));f.editor.down(f.e(1,1));
+ const features=f.d().faces.filter(f=>f.feature).sort((a,b)=>B.center(b).y-B.center(a).y);assert.equal(features.length,2,f.message());const upper=features[0],lower=features[1],bottom=Math.min(...upper.points.map(p=>p.y)),top=Math.max(...upper.points.map(p=>p.y)),target=Math.max(...lower.points.map(p=>p.y)),pair=upper.points.filter(p=>Math.abs(p.y-bottom)<1e-6).map(p=>({x:p.x,y:0,z:p.y})),before=JSON.stringify(f.state.wallEdits);
+ f.editor.beginEntity('move',{pair,event:f.e(1,bottom)});assert.equal(f.editor.interaction(),'Move line');
+ for(const z of [target+.02,target+.3,top,top-.3,target+.4]){f.listeners.pointermove(f.e(1,z));f.editor.draw3D({add(){}},p=>p);const surfaces=f.state.wallEdits.$surfaces||[];const moved=surfaces.find(f=>f.feature&&f.points.some(p=>Math.abs(p.z-top)<1e-6));assert.ok(moved&&moved.points.length===4,f.message());if(z!==top)assert.ok(moved.points.some(p=>Math.abs(p.z-(z===target+.02?target:z))<1e-6),f.message());const originals=f.d().faces.filter(f=>f.feature&&!f.solidId);assert.ok(originals.some(f=>Math.abs(B.center(f).y-B.center(lower).y)<1e-6)||surfaces.some(f=>f.feature&&f.points.some(p=>Math.abs(p.z-Math.min(...lower.points.map(p=>p.y)))<1e-6)),'Neighbor survives every preview');}
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+
+
+test('Shift and Control select draft regions for a shared finish update',()=>{
+ const f=fixture({globals:{ExteriorMaterials:{brick:{label:'Brick'}}}});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const d=f.d(),a=S.add(d,{x:2,y:0,z:0}),b=S.add(d,{x:2,y:4,z:0});S.connect(d,[a,b]);
+ const click=(x,mods={})=>{const e={...f.e(x,2),...mods};f.editor.down(e);f.listeners.pointerup(e);};click(1);click(3,{shiftKey:true});f.editor.materialCommand('brick');assert.ok(d.faces.every(f=>f.material==='brick'));click(1,{ctrlKey:true});f.editor.colorCommand('#123456');assert.equal(f.d().faces.filter(f=>f.finishColor==='#123456').length,1,f.message()+JSON.stringify(f.d().faces));
+});
+
+
+test('typing on a selected sticker sets final height and repeated input does not accumulate',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');
+ for(const type of ['window','door']){
+  const f=stickerFixture(type,[2,1.6]),feature=f.d().faces.find(f=>f.feature),points=feature.points.map(p=>({x:p.x,y:0,z:p.y})),original=F.dimensions(points,feature.feature),floor=Math.min(...points.map(p=>p.z)),before=JSON.stringify(f.state.wallEdits);
+  const input=f.editor.distanceInput();assert.equal(input.label,'Height');assert.ok(Math.abs(input.amount-original.height*F.FT)<1e-8);
+  input.set(6*F.FT);const token=f.editor.distanceInput().token;assert.equal(token,input.token,'keep the typed buffer through tool activation');
+  const size=()=>{const face=f.state.wallEdits.$surfaces.find(f=>f.feature);return F.dimensions(face.points,face.feature);};
+  assert.ok(Math.abs(size().height-6)<1e-8,f.message());assert.ok(Math.abs(size().width-original.width)<1e-8);
+  f.editor.distanceInput().set(5*F.FT);assert.ok(Math.abs(size().height-5)<1e-8);
+  const face=f.state.wallEdits.$surfaces.find(f=>f.feature);assert.ok(Math.abs(Math.min(...face.points.map(p=>p.z))-floor)<1e-8);
+  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+ }
+});
+
+
+test('M cycling on either sticker edge keeps positive typed heights on the original side',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');
+ for(const side of ['top','bottom'])for(const cycles of [0,1,2,3]){
+  const f=stickerFixture('window',[2,2]),feature=f.d().faces.find(f=>f.feature),ys=feature.points.map(p=>p.y),edgeY=side==='top'?Math.max(...ys):Math.min(...ys),fixedY=side==='top'?Math.min(...ys):Math.max(...ys),before=JSON.stringify(f.state.wallEdits);
+  f.editor.pickLine3D(f.e(2,edgeY));f.listeners.pointerup(f.e(2,edgeY));f.listeners.pointermove(f.e(2,edgeY));f.editor.key({key:'m'});
+  for(let i=0;i<cycles;i++)f.editor.key({key:'m'});
+  const input=f.editor.distanceInput();assert.equal(input.label,'Height',side+' '+cycles+' '+f.message());input.set(6*F.FT);
+  const face=f.state.wallEdits.$surfaces.find(f=>f.feature),dimensions=F.dimensions(face.points,face.feature);assert.ok(Math.abs(dimensions.height-6)<1e-8,side+' '+cycles+' '+f.message());
+  assert.ok(face.points.some(p=>Math.abs(p.z-fixedY)<1e-8));assert.ok(face.points.every(p=>side==='top'?p.z>=fixedY-1e-8:p.z<=fixedY+1e-8));
+  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+ }
+});
+
+
+test('copying a selected draft sticker includes its geometry without selecting points',()=>{
+ const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits),feature=f.d().faces.find(f=>f.feature);
+ assert.equal(f.editor.pointSelection().length,0);f.editor.clipboardCommand('copy');const clip=f.clipboard();assert.ok(clip,f.message());
+ assert.equal(clip.faces.length,1);assert.equal(clip.points.length,feature.points.length);assert.equal(clip.edges.length,feature.points.length);assert.equal(clip.faces[0].feature.type,'window');assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,1);
+});
+
+test('copying a sticker group retains spacing and supports the existing paste transformations',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),globals=renderGlobals();let hit=0;
+ globals.THREE.Raycaster=class{setFromCamera(){}intersectObjects(ms){return ms[hit]?[{object:ms[hit]}]:[];}};
+ const stickers=[0,3].map((x,i)=>({id:'sticker'+i,feature:{type:i?'door':'window',axis:p(1,0)},material:'brick',points:[p(x,1),p(x+1,1),p(x+1,2),p(x,2)]})),host={id:'host',points:[p(-10,-10),p(20,-10),p(20,20),p(-10,20)]},state={displayMode:'textured',wallEdits:{$surfaces:[...stickers,host]}},f=fixture({state,walls:[],selected:null,globals,featureHost:()=>({solid:host,points:host.points})});
+ const click=(i,mods={})=>{hit=i;f.editor.draw3D({add(){}},p=>p);const e={...f.e(i*3+.5,1.5),...mods};f.editor.pickSolid(e);f.listeners.pointerup(e);};
+ click(0);click(1,{shiftKey:true});click(2,{shiftKey:true});const before=JSON.stringify(state.wallEdits);f.editor.key({key:'c',ctrlKey:true});const clip=f.clipboard();assert.ok(clip,f.message());assert.equal(clip.faces.length,2,'ordinary host face is not included');assert.equal(clip.points.length,8);assert.equal(clip.edges.length,8);assert.equal(JSON.stringify(state.wallEdits),before);
+ const center=f=>f.points.reduce((v,p)=>v+p.x/f.points.length,0);assert.equal(center(clip.faces[1])-center(clip.faces[0]),3);
+ const equivalent=W.copyGeometry(stickers,stickers.flatMap(f=>f.points));assert.deepEqual(clip.points,equivalent.points);assert.equal(clip.faces[0].feature.type,'window');assert.equal(clip.faces[1].feature.type,'door');
+ f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(8,6));assert.equal(f.editor.interaction(),'Paste geometry');
+ for(const key of ['r','t','y','m']){f.editor.key({key});f.listeners.pointermove(f.e(8,6));assert.equal(f.editor.interaction(),'Paste geometry');}
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ click(0,{ctrlKey:true});f.editor.clipboardCommand('copy');assert.equal(f.clipboard().faces.length,1);assert.equal(f.clipboard().faces[0].feature.type,'door');
+});
+
+test('M moves both selected contained stickers on their face and cancels or commits the whole group',()=>{
+ for(const reverse of [false,true]){
+  const f=stickerFixture('window',[1,2.7]);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(1,1));f.editor.down(f.e(1,1));
+  const centers=f.d().faces.filter(s=>s.feature).map(s=>B.center(s));assert.equal(centers.length,2);if(reverse)centers.reverse();
+  for(const [i,p] of centers.entries()){const e=f.e(p.x,p.y,i>0);f.editor.down(e);f.listeners.pointerup(e);}
+  assert.equal(f.message(),'2 faces selected');const before=JSON.stringify(f.state.wallEdits),history=f.history.length;
+  const original=f.d().faces.filter(s=>s.feature).map(s=>s.points.map(p=>({x:p.x,y:0,z:p.y})));
+  const start=centers[1];f.listeners.pointermove(f.e(start.x,start.y));f.editor.key({key:'m'});
+  assert.equal(f.editor.interaction(),'Transform geometry');assert.match(f.message(),/Free on face/);
+  f.listeners.pointermove(f.e(start.x+.4,start.y));
+  const moved=f.state.wallEdits.$surfaces.filter(s=>s.feature&&!s.deleted&&!s.drafted);assert.equal(moved.length,2,f.message());
+  for(const [i,face] of moved.entries())for(const [j,p] of face.points.entries()){assert.ok(Math.abs(p.x-original[i][j].x-.4)<1e-8,f.message());assert.equal(p.z,original[i][j].z);assert.equal(p.y,0);}
+  f.editor.key({key:'m'});assert.match(f.message(),/Left\/Right/);f.editor.key({key:'m'});assert.match(f.message(),/Up\/Down/);
+  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,history);
+  f.editor.key({key:'m'});f.listeners.pointermove(f.e(start.x+.8,start.y));f.editor.key({key:'Enter'});assert.equal(f.history.length,history+1);assert.equal(f.editor.busy(),false);
+  const committed=f.state.wallEdits.$surfaces.filter(s=>!s.deleted&&!s.drafted);assert.equal(committed.filter(s=>s.feature).length,2);assert.ok(committed.every(s=>s.points.every(p=>p.y===0)),'movement creates no extrusion sides');
+ }
+});
+
+test('an ordinary selected face still cannot be copied without point selection',()=>{
+ const f=fixture();f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.clipboardCommand('copy');assert.equal(f.clipboard(),undefined);assert.equal(f.editor.pointSelection().length,0);
+});
+
+
+test('rendered sticker face selection does not require a second plane projection',()=>{
+ let miss=false;const globals=renderGlobals(),f=fixture({globals,projectPoint:(d,e)=>miss?null:{x:e.clientX/100,y:e.clientY/100,z:0}});
+ f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const d=f.d();d.faces[0].feature={type:'window'};
+ f.editor.clear();f.editor.draw3D({add(){}},p=>p);miss=true;
+ for(let i=0;i<3;i++){assert.ok(f.editor.pickSolid(f.e(2,2)));assert.equal(f.editor.interaction(),null,'a press is not yet a rectangle drag');f.listeners.pointerup(f.e(2,2));assert.equal(f.editor.featureSelection()?.f.id,d.faces[0].id);}
+ assert.equal(f.history.length,0);
+});
+
+test('rectangle selection status begins only after crossing the drag threshold',()=>{
+ const f=fixture();let clicks=0;f.editor.startBox(f.e(1,1),()=>clicks++);assert.equal(f.editor.interaction(),null);f.listeners.pointermove(f.e(1.01,1.01));assert.equal(f.editor.interaction(),null);f.listeners.pointerup(f.e(1.01,1.01));assert.equal(clicks,1);
+ f.editor.startBox(f.e(1,1));f.listeners.pointermove(f.e(2,2));assert.equal(f.editor.interaction(),'Rectangle selection');f.listeners.pointerup(f.e(2,2));assert.equal(f.editor.interaction(),null);
+});
+
+test('selected material, sticker and chimney solid faces show fill, outline and selection count',()=>{
+ for(const extra of [{material:'siding',finishColor:'#557799'},{feature:{type:'window',axis:{x:1,y:0,z:0}}},{chimney:true}]){
+  const points=[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}],face={id:'front',points,...extra};
+  const f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:{...renderGlobals(),WallChimneys:{COLOR:'#997766',visibleParts:f=>[f]}}}),objects=[],draw=()=>{objects.length=0;f.editor.draw3D({add:o=>objects.push(o)},p=>p);};
+  draw();const baseColor=objects.find(o=>o.userData.solidId==='front').material.color;const click=f.e(2,2);assert.ok(f.editor.pickSolid(click));f.listeners.pointerup(click);draw();
+  assert.equal(objects.find(o=>o.userData.solidId==='front').material.color,baseColor);assert.equal(objects.find(o=>o.userData.solidId==='front').userData.exteriorSelected,true);
+  const outline=objects.find(o=>o.userData.exteriorSelection);assert.ok(outline);assert.equal(outline.geometry.points.length,5);assert.equal(outline.material.depthTest,false);
+  assert.equal(f.message(),'1 face selected');assert.equal(f.editor.featureSelection().solid.id,'front');
+  f.editor.clear();draw();assert.equal(objects.some(o=>o.userData.exteriorSelection),false);
+ }
+});
+
+test('sticker face and four corners nudge repeatedly on the host plane with exact keyboard steps',()=>{
+ for(const selectPoints of [false,true]){
+  const p=(x,z)=>({x,y:0,z}),points=[p(1,1),p(3,1),p(3,3),p(1,3)],host={id:'host',points:[p(0,0),p(8,0),p(8,8),p(0,8)],holes:[points]},sticker={id:'window',points,feature:{type:'window',axis:p(1,0)}};
+  const f=fixture({state:{wallEdits:{$surfaces:[sticker,host]}},walls:[],selected:null,globals:renderGlobals()});
+  f.editor.draw3D({add(){}},p=>p);
+  if(selectPoints){f.editor.startBox(f.e(.5,.5));f.listeners.pointermove(f.e(3.5,3.5));f.listeners.pointerup(f.e(3.5,3.5));assert.equal(f.editor.pointSelection().length,4);}
+  else{f.editor.pickSolid(f.e(2,2));f.listeners.pointerup(f.e(2,2));}
+  for(const event of [{key:'ArrowRight'},{key:'ArrowRight'},{key:'ArrowUp',shiftKey:true},{key:'ArrowDown',altKey:true}])assert.equal(f.editor.key(event),true);
+  const moved=f.state.wallEdits.$surfaces.find(s=>s.feature),inch=.3048/12;
+  assert.ok(moved,f.message());assert.ok(Math.abs(moved.points[0].x-1-2*inch)<1e-8,f.message());assert.ok(Math.abs(moved.points[0].z-1+5.75*inch)<1e-8);assert.ok(moved.points.every(p=>p.y===0));assert.equal(f.history.length,4);assert.equal(f.editor.busy(),false);
+  assert.deepEqual(f.state.wallEdits.$surfaces.find(s=>s.id==='host').points,host.points);
+ }
+});
+
+test('selecting a sticker face starts plane movement with M and supports repeated M and cancel',()=>{
+ const p=(x,z)=>({x,y:0,z}),face={id:'window',points:[p(1,1),p(3,1),p(3,3),p(1,3)],feature:{type:'window',axis:p(1,0)}};
+ const f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:renderGlobals()});
+ f.editor.draw3D({add(){}},p=>p);f.editor.pickSolid(f.e(2,2));f.listeners.pointerup(f.e(2,2));f.listeners.pointermove(f.e(2,2));const before=JSON.stringify(f.state.wallEdits);
+ f.editor.key({key:'m'});assert.equal(f.editor.interaction(),'Transform geometry');assert.match(f.message(),/Free on face/);
+ f.listeners.pointermove(f.e(2.5,2));assert.ok(f.state.wallEdits.$surfaces[0].points.every(p=>p.y===0));assert.notEqual(JSON.stringify(f.state.wallEdits),before);
+ f.editor.key({key:'m'});assert.match(f.message(),/Left\/Right/);const horizontalStart={...f.state.wallEdits.$surfaces[0].points[0]};f.listeners.pointermove(f.e(3,2.5));assert.equal(f.state.wallEdits.$surfaces[0].points[0].z,horizontalStart.z);assert.ok(f.state.wallEdits.$surfaces[0].points[0].x>horizontalStart.x);
+ f.editor.key({key:'m'});assert.match(f.message(),/Up\/Down/);const verticalStart={...f.state.wallEdits.$surfaces[0].points[0]};f.listeners.pointermove(f.e(3.5,3));assert.equal(f.state.wallEdits.$surfaces[0].points[0].x,verticalStart.x);assert.notEqual(f.state.wallEdits.$surfaces[0].points[0].z,verticalStart.z);
+ f.editor.key({key:'m'});assert.match(f.message(),/In\/Out/);f.listeners.pointermove(f.e(3.5,3.4));assert.ok(f.state.wallEdits.$surfaces[0].points.some(p=>Math.abs(p.y)>1e-6),f.message());f.editor.key({key:'m'});assert.match(f.message(),/Free on face/);assert.equal(f.editor.busy(),true);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);
+});
+
+test('copied sticker preview draws horizontal alignment lines across the window gap and clears on cancel',()=>{
+ const p=(x,z)=>({x,y:0,z}),windowFace={id:'window',feature:{type:'window',axis:p(1,0)},points:[p(0,2),p(1,2),p(1,3),p(0,3)]},host={id:'host',points:[p(-10,-10),p(10,-10),p(10,10),p(-10,10)]};
+ const f=fixture({state:{wallEdits:{$surfaces:[windowFace,host]}},walls:[],selected:null,globals:renderGlobals(),featureHost:()=>({solid:host,points:host.points})}),objects=[],draw=()=>{objects.length=0;f.editor.draw3D({add:o=>objects.push(o)},p=>p);};
+ draw();f.editor.pickSolid(f.e(.5,2.5));f.listeners.pointerup(f.e(.5,2.5));f.editor.clipboardCommand('copy');f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(4,2.56));draw();
+ const guides=objects.filter(o=>o.userData.alignmentGuide);assert.equal(guides.length,2,f.message());
+ for(const guide of guides){const [a,b]=guide.geometry.points;assert.ok(Math.abs(a.z-b.z)<1e-8);assert.ok(Math.abs(a.x-b.x)>1);assert.equal(guide.material.depthTest,false);assert.equal(guide.material.color,'#FFD700');}
+ f.editor.key({key:'Escape'});draw();assert.equal(objects.some(o=>o.userData.alignmentGuide),false);assert.equal(f.history.length,0);
+});
+
+test('moving a different-size sticker snaps its bottom to another window and draws a solid bright guide',()=>{
+ const p=(x,z)=>({x,y:0,z}),moving={id:'moving',feature:{type:'window',axis:p(1,0)},points:[p(4,2.4),p(6,2.4),p(6,3.9),p(4,3.9)]},other={id:'other',feature:{type:'window'},points:[p(0,2),p(1,2),p(1,3),p(0,3)]},host={id:'host',points:[p(-10,-10),p(10,-10),p(10,10),p(-10,10)]};
+ const f=fixture({state:{wallEdits:{$surfaces:[moving,other,host]}},walls:[],selected:null,globals:renderGlobals()}),objects=[],draw=()=>{objects.length=0;f.editor.draw3D({add:o=>objects.push(o)},p=>p);};
+ draw();f.editor.pickSolid(f.e(5,3));f.listeners.pointerup(f.e(5,3));f.editor.key({key:'m'});f.listeners.pointermove(f.e(5,2.65));draw();
+ const face=f.state.wallEdits.$surfaces.find(s=>s.id==='moving');assert.ok(Math.abs(Math.min(...face.points.map(p=>p.z))-2)<1e-8,f.message());
+ const guide=objects.find(o=>o.userData.alignmentGuide&&o.geometry.points.every(p=>Math.abs(p.z-2)<1e-8));assert.ok(guide);assert.equal(guide.material.color,'#FFD700');assert.equal(guide.material.dashSize,undefined);assert.equal(guide.material.depthTest,false);
+ f.editor.key({key:'Escape'});draw();assert.equal(objects.some(o=>o.userData.alignmentGuide),false);
+});
+
+
+test('P drawing plane extends a wall beyond its bounds and keeps geometry when toggled off',()=>{
+ const f=fixture(),before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'p'});
+ assert.equal(f.editor.planeActive(),true);assert.equal(JSON.stringify(f.state.wallEdits),before);
+ for(const [x,z]of [[4,0],[6,0],[6,4],[4,4]])planeStep(f,x,z);
+ const faces=f.state.wallEdits.$surfaces;assert.equal(faces.length,1);
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),face=faces[0],frame=K.frame(face);
+ assert.ok(Math.abs(K.area({points:face.points.map(p=>K.local(frame,p)),holes:[]})-8)<1e-8);
+ assert.ok(face.points.every(p=>p.y===0&&p.x>=4));const saved=JSON.stringify(f.state.wallEdits);
+ f.editor.key({key:'p'});assert.equal(f.editor.planeActive(),false);assert.equal(JSON.stringify(f.state.wallEdits),saved);
+ const loaded=fixture({state:JSON.parse(JSON.stringify(f.state))});assert.equal(loaded.state.wallEdits.$surfaces.length,1);assert.equal(loaded.editor.planeActive(),false);
+ assert.ok(f.history.length>=4);
+});
+
+test('plane drawing creates detached closed faces and retains unfinished lines',()=>{
+ const f=fixture();f.editor.key({key:'p'});
+ for(const [x,z]of [[6,0],[8,0],[8,2],[6,2],[6,0]])planeStep(f,x,z);
+ assert.equal(f.state.wallEdits.$surfaces.length,1);f.editor.key({key:'n'});
+ f.editor.doubleClick(f.e(10,1));planeStep(f,12,1);f.editor.key({key:'p'});
+ assert.ok(f.state.wallEdits.$loose.edges.some(pair=>pair.every(p=>p.z===1)&&pair.some(p=>p.x===12)));
+ assert.equal(f.state.wallEdits.$surfaces.length,1);
+});
+
+test('plane snaps to other coplanar model geometry but ignores off-plane points',()=>{
+ const f=fixture({state:{wallEdits:{$loose:{points:[{x:6,y:0,z:2},{x:7,y:1,z:2}],edges:[]}}}});
+ f.editor.key({key:'p'});f.editor.doubleClick(f.e(6.03,2.02));
+ assert.ok(f.state.wallEdits.$loose.points.some(p=>p.x===6&&p.y===0&&p.z===2));
+ assert.ok(!f.state.wallEdits.$loose.points.some(p=>p.x===6.03));
+ f.editor.doubleClick(f.e(7.03,2.02));
+ assert.ok(f.state.wallEdits.$loose.points.some(p=>Math.abs(p.x-7.03)<1e-8&&p.y===0));
+});
+
+test('working plane renders as a transient guide and repeated P does not flicker',()=>{
+ const f=fixture({globals:renderGlobals()}),objects=[];f.editor.key({key:'p'});f.editor.key({key:'p',repeat:true});
+ f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.userData.workingPlane));
+ assert.equal(f.state.wallEdits.$surfaces,undefined);f.editor.key({key:'p'});objects.length=0;
+ f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(!objects.some(o=>o.userData.workingPlane));
+});
+
+test('P requires a planar face and cannot adopt a curved surface',()=>{
+ const f=fixture({selected:null,walls:[]});f.editor.key({key:'p'});assert.equal(f.editor.planeActive(),false);assert.match(f.message(),/Select a flat face/);
+ f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1}],curvedSurface:{logical:true}});assert.equal(f.editor.planeActive(),false);
+});
+
+test('Keep Size assigns a type to all selected unequal solid faces in one undo',()=>{
+ const globals=renderGlobals();let hit=0;globals.THREE.Raycaster=class{setFromCamera(){}intersectObjects(ms){return ms[hit]?[{object:ms[hit]}]:[];}};
+ const p=(x,z)=>({x,y:0,z}),state={wallEdits:{$surfaces:[0,5,10].map((x,i)=>({id:'face'+i,points:[p(x,0),p(x+i+1,0),p(x+i+1,i+2),p(x,i+2)],material:'siding',...(i===2?{feature:{type:'window',shape:'rectangle',axis:p(1,0)}}:{})}))}},f=fixture({state,walls:[],selected:null,globals});
+ const click=(i,mods={})=>{hit=i;f.editor.draw3D({add(){}},p=>p);const e={...f.e(i*5+.5,1),...mods};assert.ok(f.editor.pickSolid(e));f.listeners.pointerup(e);};
+ click(0);click(1,{shiftKey:true});click(2,{shiftKey:true});click(1,{ctrlKey:true});
+ const before=JSON.stringify(state.wallEdits),geometry=state.wallEdits.$surfaces.map(s=>JSON.stringify(s.points));
+ assert.ok(f.editor.featureCommand('door',null));assert.deepEqual(state.wallEdits.$surfaces.map(s=>s.feature?.type),['door',undefined,'door']);assert.deepEqual(state.wallEdits.$surfaces.map(s=>JSON.stringify(s.points)),geometry);assert.ok(state.wallEdits.$surfaces.every(s=>s.material==='siding'));assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ f.editor.featureCommand('vent',null);assert.deepEqual(state.wallEdits.$surfaces.map(s=>s.feature?.type),['vent',undefined,'vent']);assert.deepEqual(state.wallEdits.$surfaces.map(s=>JSON.stringify(s.points)),geometry);
+ f.editor.featureCommand('none',null);assert.ok(state.wallEdits.$surfaces.every(s=>!s.feature));assert.equal(f.history.length,3);
+});
+
+test('Keep Size preserves separate draft face dimensions and their selection',()=>{
+ const f=fixture();f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const d=f.d(),a=S.add(d,{x:1,y:0,z:0}),b=S.add(d,{x:1,y:4,z:0});S.connect(d,[a,b]);
+ for(const [i,x]of [.5,2.5].entries()){const e=f.e(x,2,i>0);f.editor.down(e);f.listeners.pointerup(e);}
+ const before=JSON.stringify(f.state.wallEdits),geometry=JSON.stringify(d.faces.map(s=>s.points));assert.equal(d.faces.length,2);
+ f.editor.featureCommand('window',null);assert.ok(f.d().faces.every(s=>s.feature?.type==='window'));assert.equal(JSON.stringify(f.d().faces.map(s=>s.points)),geometry);assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ f.editor.featureCommand('door',null);assert.ok(f.d().faces.every(s=>s.feature?.type==='door'));assert.equal(JSON.stringify(f.d().faces.map(s=>s.points)),geometry);assert.equal(f.history.length,2);
+});
+
+test('closing a loop on the working plane partitions an existing face without duplicate area',()=>{
+ const f=fixture();f.editor.key({key:'p'});
+ for(const [x,z]of [[1,1],[3,1],[3,3],[1,3],[1,1]])planeStep(f,x,z);
+ const faces=f.state.wallEdits.$surfaces.filter(f=>!f.deleted),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');
+ assert.equal(faces.length,2);assert.ok(f.d().faces.every(f=>f.solidId));
+ const areas=faces.map(f=>{const frame=K.frame(f);return K.area({points:f.points.map(p=>K.local(frame,p)),holes:f.holes.map(r=>r.map(p=>K.local(frame,p)))});});
+ assert.deepEqual(areas.sort((a,b)=>a-b),[4,12]);
+});
+
+test('drawing on a tilted face plane keeps new geometry on that exact plane',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),source={id:'tilted',points:[{x:0,y:0,z:0},{x:2,y:0,z:0},{x:2,y:2,z:2},{x:0,y:2,z:2}]},frame=K.frame(source);
+ const f=fixture({selected:null,walls:[],state:{wallEdits:{$surfaces:[source]}},projectPoint:(d,e)=>({x:e.clientX/100,y:e.clientY/100,z:0}),screen:p=>{const q=K.local(frame,p);return {x:q.x*100,y:q.y*100};}});
+ f.editor.togglePlane(source);for(const [x,y]of [[6,6],[8,6],[8,8],[6,8],[6,6]])planeStep(f,x,y);
+ const created=f.state.wallEdits.$surfaces.find(f=>f.id!=='tilted');assert.ok(created);
+ assert.ok(created.points.every(p=>Math.abs(K.local(frame,p).z)<1e-8));
+});
+
+
+test('plane drawing on a horizontal base partitions covered area without adding overlapping wall faces',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),source={id:'base',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:0,y:4,z:0}]};
+ const f=fixture({selected:null,walls:[],state:{base:{faces:[source]},wallEdits:{}},projectPoint:(d,e)=>({x:e.clientX/100,y:e.clientY/100,z:0}),screen:p=>({x:p.x*100,y:p.y*100})});
+ f.editor.togglePlane(source);for(const [x,y]of [[1,1],[3,1],[3,3],[1,3],[1,1]])planeStep(f,x,y);
+ assert.ok(f.state.wallEdits.$base?.faces.length>1,f.message());assert.equal(f.state.wallEdits.$surfaces.length,0);
+ assert.ok(Math.abs(f.state.wallEdits.$base.faces.reduce((sum,f)=>sum+K.area(f),0)-16)<1e-8);
+ assert.ok(f.state.wallEdits.$base.faces.every(f=>!f.holes?.length));
+});
+
+function planeStep(f,x,y){if(!f.editor.pointSelection().length)f.editor.doubleClick(f.e(x,y));else{f.editor.key({key:'n'});f.editor.down(f.e(x,y));}}
+
+test('plane selection passes through off-plane geometry and C closes a face in one commit',()=>{
+ const f=fixture({pickVisible:()=>false,state:{wallEdits:{$loose:{points:[{x:6,y:1,z:0}],edges:[]}}}});f.editor.key({key:'p'});
+ const click=(x,y,shift=false)=>{const e=f.e(x,y,shift);f.editor.down(e);f.listeners.pointerup(e);};
+ const before=JSON.stringify(f.state.wallEdits);click(10,10);assert.equal(JSON.stringify(f.state.wallEdits),before);
+ for(const [x,y]of [[6,0],[8,0],[8,2],[6,2]])f.editor.doubleClick(f.e(x,y));
+ click(6,0);click(8,0,true);click(8,2,true);click(6,2,true);assert.equal(f.editor.pointSelection().length,4);assert.ok(f.editor.pointSelection().every(p=>p.y===0));
+ const h=f.history.length;f.editor.key({key:'c'});assert.equal(f.history.length,h+1);
+ click(6,2);click(6,0,true);f.editor.key({key:'c'});assert.equal(f.state.wallEdits.$surfaces.length,1);
+});
+
+test('plane rectangular selection filters points and N connects every selected point',()=>{
+ const f=fixture({state:{wallEdits:{$loose:{points:[{x:6,y:0,z:0},{x:8,y:0,z:0},{x:7,y:1,z:0}],edges:[]}}}});f.editor.key({key:'p'});
+ f.editor.down(f.e(5,-1));f.listeners.pointerup(f.e(9,1));assert.equal(f.editor.pointSelection().length,2);
+ const h=f.history.length;f.editor.key({key:'n'});f.editor.down(f.e(7,3));assert.equal(f.history.length,h+1);assert.equal(f.state.wallEdits.$loose.edges.length,2);assert.equal(f.editor.pointSelection().length,1);
+ f.editor.setPlaneDisplay('hidden');assert.equal(f.editor.planeView().display,'hidden');f.editor.setPlaneDisplay('normal');assert.equal(f.editor.planeView().display,'normal');
+ const saved=JSON.stringify(f.state.wallEdits);f.editor.key({key:'p'});assert.equal(JSON.stringify(f.state.wallEdits),saved);
+});
+
+test('plane Q supports one corner rotation and two-point edges outside the original face',()=>{
+ const f=fixture();f.editor.key({key:'p'});f.editor.doubleClick(f.e(6,0));f.editor.key({key:'q'});f.editor.down(f.e(8,2));f.editor.doubleClick(f.e(8,2));
+ assert.equal(f.state.wallEdits.$surfaces.length,1,f.message());assert.equal(f.state.wallEdits.$surfaces[0].points.length,4);
+ f.editor.doubleClick(f.e(10,0));f.editor.doubleClick(f.e(12,0));const e=f.e(10,0,true);f.editor.down(e);f.listeners.pointerup(e);f.editor.key({key:'q'});f.editor.down(f.e(12,2));
+ assert.equal(f.state.wallEdits.$surfaces.length,2,f.message());
+ const before=JSON.stringify(f.state.wallEdits);f.editor.doubleClick(f.e(15,0));const created=JSON.stringify(f.state.wallEdits);f.editor.key({key:'q'});f.listeners.pointermove(f.e(17,2));f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),created);assert.notEqual(created,before);
+});
+
+test('plane S persists an analytic arc outside the source face and C closes its region',()=>{
+ const f=fixture();f.editor.key({key:'p'});f.editor.doubleClick(f.e(6,0));f.editor.key({key:'s'});f.editor.down(f.e(7,0));f.listeners.pointermove(f.e(7,1));f.editor.down(f.e(7,1));
+ const d=Object.values(f.state.wallEdits.$drafts||{}).find(d=>d.constructionPlane);assert.ok(d,f.message());assert.equal(d.sketch.curves.length,1);assert.equal(d.sketch.edges.length,1);assert.equal(d.sketch.nodes.length,3);
+ const e=f.e(6,0,true);f.editor.down(e);f.listeners.pointerup(e);f.editor.key({key:'c'});assert.equal(f.state.wallEdits.$surfaces.length,1,f.message());assert.equal(f.state.wallEdits.$surfaces[0].curves.length,1);
+ const saved=JSON.stringify(f.state.wallEdits);f.editor.key({key:'s'});f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),saved);f.editor.key({key:'p'});assert.equal(JSON.stringify(f.state.wallEdits),saved);
+});
+
+test('plane grid stays visible while snap previews appear only during placement',()=>{
+ const f=fixture({globals:renderGlobals()});f.editor.key({key:'p'});f.editor.doubleClick(f.e(6,0));
+ const draw=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.userData.planeGuide);};
+ f.listeners.pointermove(f.e(8,0));assert.ok(draw().some(o=>o.material.color==='#31606b'));assert.ok(!draw().some(o=>o.material.color==='#FFD700'));
+ f.editor.key({key:'n'});f.listeners.pointermove(f.e(8,0));assert.ok(draw().some(o=>o.material.color==='#FFD700'));assert.ok(draw().some(o=>o.material.color==='#31606b'));
+ f.editor.key({key:'escape'});f.listeners.pointermove(f.e(9,0));assert.ok(draw().some(o=>o.material.color==='#31606b'));assert.ok(!draw().some(o=>o.material.color==='#FFD700'));
+});
+
+test('plane entry accepts the base editor face wrapper for a sloped base',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),face={id:'base',points:[{x:0,y:0,z:0},{x:4,y:0,z:2},{x:4,y:4,z:2},{x:0,y:4,z:0}]},f=fixture({selected:null,walls:[]});
+ f.editor.togglePlane({face,event:f.e(2,2)});assert.equal(f.editor.planeActive(),true);assert.ok(face.points.every(p=>Math.abs(K.local(f.editor.planeView().frame,p).z)<1e-8));
+});
+
+test('plane S completes a full circle as a face and Shift continues arcs with independent undo',()=>{
+ const f=fixture();f.editor.key({key:'p'});f.editor.doubleClick(f.e(6,0));f.editor.key({key:'s'});f.editor.down(f.e(7,0));
+ for(const p of [[7,1],[8,0],[7,-1],[6,0]])f.listeners.pointermove(f.e(...p));
+ f.editor.down(f.e(6,0));assert.equal(f.state.wallEdits.$surfaces.length,1,f.message());assert.equal(f.state.wallEdits.$surfaces[0].curves.length,1);
+ f.editor.doubleClick(f.e(10,0));f.editor.key({key:'s'});f.editor.down(f.e(11,0));f.editor.down(f.e(11,1,true));const before=JSON.stringify(f.state.wallEdits),history=f.history.length;f.listeners.pointermove(f.e(12,0));f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,history);
+});
+
+
+test('selection snapshots restore editable draft points after a committed move and model rollback',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);f.editor.doubleClick(f.e(3,1),f.w);f.editor.down(f.e(1,1,true));f.listeners.pointerup(f.e(1,1,true));
+ const clone=v=>JSON.parse(JSON.stringify(v)),selection=clone(f.editor.selectionSnapshot()),before=clone(f.state.wallEdits);assert.equal(selection.picked.length,2);
+ f.listeners.pointermove(f.e(1,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.2,1.2));f.editor.down(f.e(1.2,1.2));f.listeners.pointerup(f.e(1.2,1.2));assert.notDeepEqual(clone(f.state.wallEdits),before);
+ f.editor.clear();f.state.wallEdits=clone(before);f.editor.restoreSelection(selection);assert.deepEqual(clone(f.editor.selectionSnapshot()),selection);
+ f.listeners.pointermove(f.e(1,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.3,1.3));assert.notDeepEqual(clone(f.state.wallEdits),before,'restored selection is usable by the next move');f.editor.key({key:'escape'});
+});
+
+
+test('Auto wall trim uses the chosen six or eight inch width',()=>{
+ for(const inches of [6,8]){const walls=[{id:'front',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:0}],top:[{x:0,y:0,z:3},{x:4,y:0,z:3}]},{id:'side',bottom:[{x:4,y:0,z:0},{x:4,y:4,z:0}],top:[{x:4,y:0,z:3},{x:4,y:4,z:3}]}],f=fixture({walls});assert.equal(f.editor.autoTrim(inches*.0254),true,f.message());const trims=f.state.wallEdits.$surfaces.filter(f=>f.trim);assert.ok(trims.length);for(const face of trims)assert.ok(Math.abs(face.trimData.layers.at(-1).width-inches*.0254)<1e-9);assert.equal(f.history.length,1);}
+});
+
+
+test('G places a full-height garage from a low pointer on a seven-foot wall',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};}});
+ f.w.bottom=[{x:0,y:0,z:0},{x:20*F.FT,y:0,z:0}];f.w.top=f.w.bottom.map(p=>({...p,z:7*F.FT}));f.editor.beginFace(f.e(3,1),f.w);f.listeners.pointerup(f.e(3,1));const before=JSON.stringify(f.state.wallEdits);
+ assert.equal(f.editor.key({key:'g'}),true);assert.equal(f.editor.featurePlacement().index,2);f.listeners.pointermove(f.e(10*F.FT,.1));assert.match(f.message(),/Garage door.*click to place/);assert.equal(JSON.stringify(f.state.wallEdits),before,'preview must not change geometry');f.editor.down(f.e(10*F.FT,.1));const door=f.d().faces.find(f=>f.feature?.type==='garage');assert.ok(door,f.message());const b=F.bounds(door.points);assert.ok(Math.abs(b.bottom)<1e-8);assert.ok(Math.abs(b.top-7*F.FT)<1e-8);assert.ok(Math.abs(b.right-b.left-8*F.FT)<1e-8);assert.equal(f.history.length,1);assert.equal(f.editor.busy(),false);
+});
+
+test('marquee redraw does not rebuild selected geometry for every face or material query',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');let builds=0;
+ const p=(x,z)=>({x,y:0,z}),faces=Array.from({length:30},(_,i)=>({id:'face'+i,points:[p(i*2,0),p(i*2+1,0),p(i*2+1,1),p(i*2,1)]}));
+ const f=fixture({walls:[],selected:null,state:{wallEdits:{$surfaces:faces}},globals:{...renderGlobals(),WallSolidGeometry:{...W,surfaceWire(edits){builds++;return W.surfaceWire(edits);}}}});
+ f.editor.startBox(f.e(-1,-1));f.listeners.pointermove(f.e(65,2));f.listeners.pointerup(f.e(65,2));assert.match(f.message(),/120 points selected/);
+ builds=0;for(let i=0;i<5;i++)f.editor.activeMaterial();assert.equal(builds,0,'material UI must not resolve points when no face is selected');
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(builds<=3,'a redraw must not rebuild the wire graph per face');assert.equal(objects.filter(o=>o.userData.solidId).length,30);
+ builds=0;const subtract={...f.e(-1,-1),ctrlKey:true};f.editor.startBox(subtract);f.listeners.pointermove(f.e(65,2));f.listeners.pointerup(f.e(65,2));assert.match(f.message(),/0 points selected/);assert.ok(builds<=3,'subtraction builds a lookup once, not once per selected point');
+});
+
+test('marquee only performs visibility tests on points inside its screen bounds',()=>{
+ let checks=0;const p=(x,z)=>({x,y:0,z}),f=fixture({walls:[],selected:null,state:{translucent:false,wallEdits:{$surfaces:[{id:'outside',points:[p(10,10),p(11,10),p(11,11),p(10,11)]}]}},pickVisible:()=>{checks++;return true;}});
+ f.editor.startBox(f.e(0,0));f.listeners.pointermove(f.e(2,2));f.listeners.pointerup(f.e(2,2));assert.equal(checks,0);assert.match(f.message(),/0 points selected/);
+});
+
+test('M moves a single-face outer wall edge inward and outward on its supporting plane',()=>{
+ const p=(x,z)=>({x,y:0,z}),points=[p(0,0),p(4,0),p(4,4),p(0,4)],state={wallEdits:{$surfaces:[{id:'wall',points}]}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}}),before=JSON.stringify(state.wallEdits);
+ f.editor.pickLine3D(f.e(4,2));f.listeners.pointerup(f.e(4,2));f.listeners.pointermove(f.e(4,2));f.editor.key({key:'m'});assert.equal(f.editor.interaction(),'Move line');
+ const right=()=>state.wallEdits.$surfaces.find(f=>f.id==='wall').points.slice(1,3);
+ f.listeners.pointermove(f.e(3,2));assert.ok(right().every(p=>Math.abs(p.x-3)<1e-8),f.message());
+ f.listeners.pointermove(f.e(5,2));assert.ok(right().every(p=>Math.abs(p.x-5)<1e-8&&p.y===0),f.message());
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+ f.editor.beginEntity('move',{pair:[points[1],points[2]],event:f.e(4,2)});f.listeners.pointermove(f.e(5,2));f.editor.down(f.e(5,2));assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.ok(right().every(p=>Math.abs(p.x-5)<1e-8));
+});
+
+test('axis plane rotation accepts exact angles, locks a line axis and confirms before drawing',()=>{
+ const f=fixture({walls:[],selected:null}),points=[{x:1,y:2,z:0},{x:1,y:2,z:4}],before=JSON.stringify(f.state);
+ f.editor.togglePlane({axisPoints:points});assert.equal(f.editor.interaction(),'Rotate drawing plane');const input=f.editor.distanceInput();assert.equal(input.unit,'degrees');input.set(9);
+ let frame=f.editor.planeView().frame;assert.ok(Math.abs(frame.v.x-Math.cos(9*Math.PI/180))<1e-9);assert.ok(Math.abs(frame.v.y-Math.sin(9*Math.PI/180))<1e-9);
+ f.editor.togglePlane();assert.equal(f.editor.distanceInput().amount,9,'P cannot change a line axis');assert.equal(JSON.stringify(f.state),before);
+ f.editor.planeDown(f.e(1,2));assert.equal(f.editor.interaction(),'Drawing plane');assert.equal(f.editor.busy(),false);f.editor.togglePlane();assert.equal(f.editor.planeActive(),false);
+});
+test('one point cycles vertical and horizontal axes and Escape cancels without geometry',()=>{
+ const f=fixture({walls:[],selected:null}),before=JSON.stringify(f.state);f.editor.togglePlane({axisPoints:[{x:0,y:0,z:0}]});
+ for(const axis of [{x:0,y:0,z:1},{x:1,y:0,z:0},{x:0,y:1,z:0}]){assert.deepEqual(JSON.parse(JSON.stringify(f.editor.planeView().frame.u)),axis);f.editor.togglePlane();}
+ f.editor.key({key:'Escape'});assert.equal(f.editor.planeActive(),false);assert.equal(JSON.stringify(f.state),before);
+});
+test('plane pointer rotation snaps to an incident nine-degree wall and world forty-five degrees',()=>{
+ const a=9*Math.PI/180,p=(r,z)=>({x:r*Math.cos(a),y:r*Math.sin(a),z}),f=fixture({walls:[],selected:null,state:{wallEdits:{$surfaces:[{id:'nine',points:[p(0,0),p(4,0),p(4,4),p(0,4)]}]}},screen:p=>({x:p.x*100,y:p.y*100})});
+ f.editor.togglePlane({axisPoints:[p(0,0)]});const move=deg=>f.listeners.pointermove(f.e(1.5*Math.cos(deg*Math.PI/180),1.5*Math.sin(deg*Math.PI/180)));
+ move(10);assert.ok(Math.abs(f.editor.distanceInput().amount-9)<1e-7,f.message());move(44);assert.equal(f.editor.distanceInput().amount,45);f.editor.distanceInput().set(9.125);move(90);assert.equal(f.editor.distanceInput().amount,9.125);
+});
+
+test('drawing a horizontal divider through a placed window creates two typed regions',()=>{
+ const f=stickerFixture(),window=f.d().faces.find(f=>f.feature),left=Math.min(...window.points.map(p=>p.x)),right=Math.max(...window.points.map(p=>p.x)),mid=(Math.min(...window.points.map(p=>p.y))+Math.max(...window.points.map(p=>p.y)))/2;
+ f.editor.doubleClick(f.e(left,mid),f.w);f.editor.key({key:'n'});f.editor.down(f.e(right,mid));f.listeners.pointerup(f.e(right,mid));
+ const children=f.d().faces.filter(f=>f.feature);assert.equal(children.length,2,JSON.stringify(f.d().faces));assert.ok(children.every(f=>f.feature.type==='window'));
+});
+
+test('a standalone window boundary uses the same typed draft and deleting its divider preserves the window',()=>{
+ const p=(x,z)=>({x,y:0,z}),state={wallEdits:{$surfaces:[{id:'window',feature:{type:'window',preset:0,axis:p(1,0)},points:[p(0,0),p(3,0),p(3,6),p(0,6)]}]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()}),M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ f.editor.restoreSelection({preferredSolid:'window',selectedSolid:'window'});f.editor.doubleClick(f.e(0,2));f.editor.key({key:'n'});f.editor.down(f.e(3,2));f.listeners.pointerup(f.e(3,2));
+ let faces=M.collect(state);assert.equal(faces.length,2);assert.ok(faces.every(f=>f.feature?.type==='window'));
+ f.editor.clear();f.editor.draw3D({add(){}},p=>p);assert.ok(f.editor.pickLine3D(f.e(1.5,2)));f.listeners.pointerup(f.e(1.5,2));f.editor.key({key:'Delete'});
+ faces=M.collect(state);assert.equal(faces.length,1,f.message());assert.equal(faces[0].feature?.type,'window');
+});
+
+test('an extruded window-edge point supports N and V on the window rather than the wall behind it',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),p=(x,z)=>({x,y:0,z});
+ for(const key of ['n','v']){const state={wallEdits:{$surfaces:[{id:'wall',points:[p(-1,-1),p(4,-1),p(4,4),p(-1,4)]},{id:'window',feature:{type:'window'},points:[p(0,0),p(3,0),p(3,3),p(0,3)]}]}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}});
+ f.editor.beginEntity('extrude',{point:p(0,3),event:f.e(0,3)});f.listeners.pointermove(f.e(1.5,3));f.editor.down(f.e(1.5,3));assert.equal(f.editor.busy(),false,f.message());
+ f.editor.key({key});assert.equal(f.editor.busy(),true,f.message());f.editor.down(f.e(1.5,0));
+ const windows=M.collect(state).filter(f=>f.feature?.type==='window');assert.equal(windows.length,2,key+': '+f.message());assert.ok(windows.every(f=>Math.max(...f.points.map(p=>p.x))-Math.min(...f.points.map(p=>p.x))<=1.5001));
+ }
+});
+
+test('sticker placement includes loose coplanar point guides and excludes points behind the wall',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),host={id:'wall',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]};let targets;
+ const state={wallEdits:{$surfaces:[host],$loose:{points:[{x:1,y:0,z:0},{x:1.06,y:1,z:0}],edges:[]}}},f=fixture({state,walls:[],selected:null,featureHost:()=>({solid:host,points:host.points}),globals:{WallFeatures:{...F,place(...args){targets=args[2];return F.place(...args);}}}});
+ f.editor.featureCommand('garage',2,true);f.listeners.pointermove(f.e(2.25,1));assert.ok(targets.some(r=>r.length===1&&Math.abs(r[0].x-1)<1e-8));assert.ok(!targets.some(r=>r.length===1&&Math.abs(r[0].x-1.06)<1e-8));
+});
+
+test('moving a sticker carries its original draft corner nodes instead of leaving snapped anchors',()=>{
+ const f=stickerFixture(),d=f.d(),face=d.faces.find(f=>f.feature),corner={...face.points[0]},before=JSON.stringify(f.state.wallEdits);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.3,2.2));
+ const node=f.d().sketch.nodes.find(n=>n.id===corner.nodeId);assert.ok(Math.hypot(node.x-corner.x,node.y-corner.y)>.1,f.message());
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+
+
+test('typing in mounted sticker Free mode locks horizontally and preserves the input session',()=>{
+ const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits),center=()=>B.center(f.d().faces.find(f=>f.feature)),start=center();
+ f.editor.key({key:'m'});const input=f.editor.distanceInput();input.set(.3);
+ assert.match(f.message(),/^Left\/Right/);assert.equal(f.editor.distanceInput().token,input.token);assert.equal(f.editor.distanceInput().axis,input.axis);
+ input.set(.35);assert.ok(Math.abs(center().x-start.x-.35)<1e-8);assert.equal(center().y,start.y);
+ f.editor.key({key:'m'});assert.match(f.message(),/^Up\/Down/);f.editor.distanceInput().set(.2);assert.ok(Math.abs(Math.abs(center().y-start.y)-.2)<1e-8);assert.equal(center().x,start.x);
+ f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+
+test('one or multiple solid stickers share four move modes and accept exact distances',()=>{
+ for(const count of [1,2]){
+  const p=(x,z)=>({x,y:0,z}),faces=Array.from({length:count},(_,i)=>({id:'window'+i,points:[p(1+4*i,1),p(3+4*i,1),p(3+4*i,3),p(1+4*i,3)],feature:{type:'window',axis:p(1,0)}}));
+  const f=fixture({state:{wallEdits:{$surfaces:faces}},walls:[],selected:null,globals:renderGlobals()});f.editor.draw3D({add(){}},p=>p);
+  for(let i=0;i<count;i++){const e=f.e(2+4*i,2,i>0);f.editor.pickSolid(e);f.listeners.pointerup(e);}
+  f.listeners.pointermove(f.e(2,2));const before=JSON.stringify(f.state.wallEdits);f.editor.geometryCommand('m',{points:faces.flatMap(f=>f.points)});assert.match(f.message(),/Free on face/);
+  const input=f.editor.distanceInput();assert.ok(input);input.set(.3);assert.match(f.message(),/Left\/Right/);assert.equal(f.editor.distanceInput().token,input.token);input.set(.35);
+  for(let i=0;i<count;i++){const point=f.state.wallEdits.$surfaces.find(s=>s.id===faces[i].id).points[0];assert.ok(Math.abs(point.x-(1+4*i)-.35)<1e-8,f.message()+' '+JSON.stringify(point));assert.equal(point.z,1);}
+  f.editor.key({key:'m'});assert.match(f.message(),/Up\/Down/);assert.equal(JSON.stringify(f.state.wallEdits),before,'switching modes discards the horizontal preview');f.editor.distanceInput().set(.2);
+  for(let i=0;i<count;i++){const face=f.state.wallEdits.$surfaces[i];assert.ok(Math.abs(Math.abs(face.points[0].z-1)-.2)<1e-8);assert.equal(face.points[0].x,1+4*i);}
+  f.editor.key({key:'m'});assert.match(f.message(),/In\/Out/);assert.equal(JSON.stringify(f.state.wallEdits),before,'switching modes discards the vertical preview');f.editor.distanceInput().set(.15);
+  for(const face of f.state.wallEdits.$surfaces)assert.ok(Math.abs(Math.abs(face.points[0].y)-.15)<1e-8,f.message());
+  f.editor.key({key:'m'});assert.match(f.message(),/Free on face/);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+ }
+});
+
+test('moving a mounted sticker carries a coincident loose anchor and cancel restores it',()=>{
+ const f=stickerFixture(),corner=f.d().faces.find(f=>f.feature).points[0];f.state.wallEdits.$loose={points:[{x:corner.x,y:0,z:corner.y}],edges:[]};const before=JSON.stringify(f.state.wallEdits);
+ f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});f.editor.distanceInput().set(.3);
+ const anchor=f.state.wallEdits.$loose.points[0];assert.ok(Math.abs(anchor.x-corner.x-.3)<1e-8);assert.equal(anchor.z,corner.y);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+
+
+test('moving a drafted host wall carries its interior window and Escape restores both',()=>{
+ const f=stickerFixture(),before=JSON.stringify(f.state.wallEdits);f.editor.beginFace(f.e(.5,2),f.w);f.listeners.pointerup(f.e(.5,2));f.listeners.pointermove(f.e(.5,2));f.editor.key({key:'m'});f.editor.distanceInput().set(.3);
+ const windows=(f.state.wallEdits.$surfaces||[]).filter(s=>s.feature?.type==='window');assert.ok(windows.length,f.message());assert.ok(windows.some(s=>s.points.every(p=>Math.abs(Math.abs(p.y)-.3)<1e-7)),f.message());
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+
+
+test('moving a sticker aligns to an inset garage edge and a perpendicular window height',()=>{
+ const p=(x,y,z)=>({x,y,z}),moving={id:'moving',feature:{type:'window'},points:[p(1,0,1),p(2,0,1),p(2,0,2),p(1,0,2)]},garage={id:'garage',feature:{type:'garage'},points:[p(3,.4,0),p(5,.4,0),p(5,.4,3),p(3,.4,3)]},side={id:'side',feature:{type:'window'},points:[p(8,1,2.5),p(8,3,2.5),p(8,3,4),p(8,1,4)]};
+ const f=fixture({state:{wallEdits:{$surfaces:[moving,garage,side]}},walls:[],selected:null,globals:renderGlobals()});f.listeners.pointermove(f.e(1.5,1.5));f.editor.geometryCommand('m',{points:moving.points});f.listeners.pointermove(f.e(3.56,2.06));
+ const face=f.state.wallEdits.$surfaces.find(s=>s.id==='moving');assert.ok(Math.abs(face.points[0].x-3)<1e-8,f.message());assert.ok(Math.abs(face.points[2].z-2.5)<1e-8,f.message());assert.ok(face.points.every(p=>p.y===0));
+});
+
+test('sticker placement receives cross-wall height targets and inset width targets',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),p=(x,y,z)=>({x,y,z}),host={id:'host',points:[p(0,0,0),p(8,0,0),p(8,0,6),p(0,0,6)]},side={id:'side',feature:{type:'window'},points:[p(8,1,2),p(8,2,2),p(8,2,4),p(8,1,4)]},garage={id:'garage',feature:{type:'garage'},points:[p(3,.4,0),p(5,.4,0),p(5,.4,3),p(3,.4,3)]};let targets;
+ const f=fixture({state:{wallEdits:{$surfaces:[host,side,garage]}},walls:[],selected:null,featureHost:()=>({solid:host,points:host.points}),globals:{WallFeatures:{...F,place(...args){targets=args[2];return F.place(...args);}}}});
+ f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));assert.ok(targets.some(r=>r[0].alignmentAxes?.length===1&&r[0].y===4));assert.ok(targets.some(r=>r[0].alignmentAxes?.length===2&&r[0].x===3));
+});
+
+
+test('paste preview uses sticker references around a corner and draws guides to their real positions',()=>{
+ const p=(x,y,z)=>({x,y,z}),sticker={id:'window',feature:{type:'window'},points:[p(0,0,2),p(1,0,2),p(1,0,3),p(0,0,3)]},host={id:'nextWall',points:[p(5,-5,0),p(5,5,0),p(5,5,6),p(5,-5,6)]},W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');
+ const labels=[];const f=fixture({state:{wallEdits:{$surfaces:[sticker,host]}},walls:[],selected:null,globals:renderGlobals(),lengthMarker:(group,vector,options)=>labels.push(options.text),featureHost:()=>({solid:host,points:host.points}),projectPoint:(d,e)=>W.inFrame(d.frame,{x:5,y:e.clientX/100,z:e.clientY/100}),screen:p=>({x:(p.x+p.y)*100,y:p.z*100})}),objects=[];
+ f.editor.draw3D({add(){}},p=>p);f.editor.pickSolid(f.e(.5,2.5));f.listeners.pointerup(f.e(.5,2.5));f.editor.clipboardCommand('copy');f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(1,2.56));f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+ const guides=objects.filter(o=>o.userData.alignmentGuide);assert.ok(guides.length,f.message());assert.ok(guides.some(g=>g.geometry.points.some(p=>(p.x===0||p.x===1)&&p.y===0&&(p.z===2||p.z===3))),f.message());
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');assert.ok(labels.includes(F.label(sticker.points,sticker.feature)),'copied custom dimensions are visible');assert.ok(objects.some(o=>o.material?.color===F.defs.get('window').color&&o.material.opacity===.7),'copied preview uses the same sticker fill');
+ f.editor.key({key:'Escape'});assert.equal(f.history.length,0);
+});
+
+
+test('new and pasted doors choose the nearest wall across generated and edited face collections',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),wall={id:'w',bottom:[p(0,0,0),p(4,0,0)],top:[p(0,0,7*.3048),p(4,0,7*.3048)]};
+ for(const paste of [false,true])for(const depth of [4,-2]){
+  const edited={id:'edited',points:[p(0,depth,0),p(4,depth,0),p(4,depth,3),p(0,depth,3)]},door={id:'door',feature:{type:'door'},points:[p(0,0,0),p(.9144,0,0),p(.9144,0,2.032),p(0,0,2.032)]},globals=renderGlobals();globals.THREE.Raycaster=class{constructor(){this.ray={origin:p(2,-10,.05)};}setFromCamera(){}intersectObjects(ms){const m=ms.find(m=>m.userData.solidId==='edited');return m?[{object:m}]:[];}};globals.exteriorGeometryClipboard=W.copyGeometry([door],door.points);
+  const f=fixture({state:{wallEdits:{$surfaces:[edited]}},walls:[wall],hit:()=>wall,globals});f.editor.draw3D({add(){}},p=>p);f.listeners.pointermove(f.e(2,.05));if(paste)f.editor.clipboardCommand('paste');else f.editor.featureCommand('door',0,true);f.listeners.pointermove(f.e(2,.05));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+  const preview=objects.find(o=>o.material?.opacity===.7);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y-(depth<0?depth:0))<1e-7),'closest visible supporting plane wins');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'low pointer places the door on the actual floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
+ }
+});
+
+
+test('free-mode door placement projects onto the supporting wall through a rendered sticker cutout',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z});
+ for(const paste of [false,true])for(const pointerHeight of [.02,.2,.8]){
+  const front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,2.1336),p(0,0,2.1336)]},door={id:'existing',feature:{type:'door'},points:[p(1,0,0),p(3,0,0),p(3,0,2.032),p(1,0,2.032)]},rear={id:'w',bottom:[p(0,4,0),p(4,4,0)],top:[p(0,4,5),p(4,4,5)]},globals=renderGlobals();
+  globals.isFreeMove=true;globals.exteriorGeometryClipboard=W.copyGeometry([door],door.points);
+  globals.THREE.Raycaster=class{constructor(){this.ray={origin:p(2,-10,-10)};}setFromCamera(){}intersectObjects(ms){const m=ms.find(m=>m.userData.solidId==='existing');return m?[{object:m}]:[];}};
+  const f=fixture({state:{wallEdits:{$surfaces:[front,door]}},walls:[rear],hit:()=>rear,globals,projectPoint:(d,e)=>{const y=d.frame?.origin.y??d.origin.y,z=e.clientY/100+y;return d.frame?W.inFrame(d.frame,p(e.clientX/100,y,z)):{x:e.clientX/100,y:z,z:0};}});
+  f.editor.draw3D({add(){}},p=>p);f.listeners.pointermove(f.e(2,pointerHeight));if(paste)f.editor.clipboardCommand('paste');else f.editor.featureCommand('door',0,true);f.listeners.pointermove(f.e(2,pointerHeight));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+  const preview=objects.find(o=>o.material?.opacity===.7);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y)<1e-8),'cursor stays on front supporting plane');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'unsnapped low cursor fits to front floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
+ }
 });

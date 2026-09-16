@@ -12,9 +12,28 @@ register({id:'window',name:'Window',key:'w',color:'#55c7f3',icon:'▦',sizes:[[3
 
 register({id:'door',name:'Door',key:'d',color:'#efaa65',icon:'▯',floor:true,sizes:[[3,6+8/12],[2+8/12,6+8/12],[3,7],[3,8],[6,6+8/12]].map(([w,h])=>({w,h,shape:'rectangle'}))});
 
-register({id:'garage',name:'Garage door',color:'#b89aea',icon:'▤',floor:true,sizes:[[16,7],[9,7],[8,7],[16,8],[18,7],[18,8],[10,8]].map(([w,h])=>({w,h,shape:'rectangle'}))});
+register({id:'garage',name:'Garage door',key:'g',defaultPreset:2,color:'#b89aea',icon:'▤',floor:true,sizes:[[16,7],[9,7],[8,7],[16,8],[18,7],[18,8],[10,8]].map(([w,h])=>({w,h,shape:'rectangle'}))});
 
 register({id:'vent',name:'Gable vent',color:'#75d5a0',icon:'◉',sizes:[{w:1.5,h:2,shape:'rectangle'},{w:2,h:2,shape:'rectangle'},{w:2,h:2,shape:'circle'}]});
+
+// Append new presets rather than reorder: saved faces reference catalog indices.
+for(const [id,widths,heights]of [['window',[1,2,3,4,5,6],[1,2,3,4,5,6]],['door',[2,2.5,3,4,5,6],[7,8]],['garage',[8,9,10,12,14,16,18,20],[7,8,9,10]],['vent',[1,2,3],[1,2,3]]]){
+ const sizes=defs.get(id).sizes;for(const h of heights)for(const w of widths)if(!sizes.some(s=>s.w===w&&s.h===h&&s.shape==='rectangle'))sizes.push({w,h,shape:'rectangle'});
+}
+
+// Presentation is curated independently of the stable, saved preset indices.
+const sizeGroups=new Map();
+const doorGroup=(label,dimensions)=>({label,indices:dimensions.map(([w,h])=>{const sizes=defs.get('door').sizes;let index=sizes.findIndex(s=>Math.abs(s.w-w)<1e-8&&Math.abs(s.h-h)<1e-8&&s.shape==='rectangle');if(index<0){index=sizes.length;sizes.push({w,h,shape:'rectangle'});}return index;})});
+sizeGroups.set('door',[
+ doorGroup('Single doors · 6′8″ high',[28,30,32,34,36].map(w=>[w/12,80/12])),
+ doorGroup('Double doors · 6′8″ high',[60,64,72].map(w=>[w/12,80/12])),
+ doorGroup('Wider doors · 6′8″ high',[42,44].map(w=>[w/12,80/12])),
+ doorGroup('Taller doors',[[3,7],[3,8]])
+]);
+sizeGroups.set('vent',[{label:'Gable vents',indices:[0,1,2]}]);
+const pickerGroups=id=>sizeGroups.get(id)||null;
+const nextPreset=(id,current=-1)=>{const indices=pickerIndices(id).slice().sort((a,b)=>a-b);return indices[(indices.indexOf(current)+1)%indices.length];};
+const pickerIndices=id=>pickerGroups(id)?.flatMap(g=>g.indices)||defs.get(id)?.sizes.map((_,i)=>i)||[];
 
 const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),cross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x});
 
@@ -50,17 +69,27 @@ function resized(points,preset,anchor={}){const b=bounds(points),w=preset.w*FT,h
 
  return shape({left,right:left+w,bottom,top:bottom+h},preset.shape);}
 
-function place(center,preset,boundaries,screen,radius=12){let points=shape({left:center.x-preset.w*FT/2,right:center.x+preset.w*FT/2,bottom:center.y-preset.h*FT/2,top:center.y+preset.h*FT/2},preset.shape),b=bounds(points);const offsets={x:null,y:null};
+function place(center,preset,boundaries,screen,radius=12,regions=boundaries.filter(r=>r.length>=3).map(points=>({points}))){let points=shape({left:center.x-preset.w*FT/2,right:center.x+preset.w*FT/2,bottom:center.y-preset.h*FT/2,top:center.y+preset.h*FT/2},preset.shape),b=bounds(points);const offsets={x:null,y:null};
+ // Establish the unsnapped, contained position first. Rank snaps by the
+ // translation from this position, never by target-to-cursor distance.
+ const initialFit=W.boundedTranslation(points,regions,{x:0,y:0},{axis:'y'})||W.boundedTranslation(points,regions,{x:0,y:0});
+ if(!initialFit)throw Error('That size does not fit inside the supporting face.');
+ points=points.map(p=>({...p,x:p.x+initialFit.x,y:p.y+initialFit.y}));b=bounds(points);
 
- for(const ring of boundaries)for(let i=0;i<ring.length;i++){const a=ring[i],c=ring[(i+1)%ring.length];for(const axis of ['x','y']){const other=axis==='x'?'y':'x';if(Math.abs(a[axis]-c[axis])>1e-5)continue;const low=axis==='x'?b.bottom:b.left,high=axis==='x'?b.top:b.right;if(Math.min(high,Math.max(a[other],c[other]))<Math.max(low,Math.min(a[other],c[other]))-1e-5)continue;for(const value of axis==='x'?[b.left,b.right]:[b.bottom,b.top]){const from={x:(b.left+b.right)/2,y:(b.bottom+b.top)/2,z:0};from[axis]=value;const to={...from,[axis]:a[axis]},p=screen(from),q=screen(to),distance=Math.hypot(q.x-p.x,q.y-p.y);if(Number.isFinite(distance)&&distance<=radius&&(!offsets[axis]||distance<offsets[axis].distance))offsets[axis]={distance,delta:a[axis]-value};}}}
+ for(const ring of boundaries)for(let i=0;i<ring.length;i++){const a=ring[i],c=ring[(i+1)%ring.length];for(const axis of ['x','y']){if(a.alignmentAxes&&!a.alignmentAxes.includes(axis))continue;if(Math.abs(a[axis]-c[axis])>1e-5)continue;for(const value of axis==='x'?[b.left,b.right]:[b.bottom,b.top]){const from={x:(b.left+b.right)/2,y:(b.bottom+b.top)/2,z:0};from[axis]=value;const to={...from,[axis]:a[axis]},p=screen(from),q=screen(to),distance=Math.hypot(q.x-p.x,q.y-p.y);const delta=a[axis]-value,travel=Math.abs(delta),previous=offsets[axis];if(Number.isFinite(distance)&&distance<=radius&&(!previous||travel<previous.travel-1e-9||Math.abs(travel-previous.travel)<1e-9&&distance<previous.distance))offsets[axis]={distance,travel,delta};}}}
 
- return points.map(p=>({...p,x:p.x+(offsets.x?.delta||0),y:p.y+(offsets.y?.delta||0)}));}
+ points=points.map(p=>({...p,x:p.x+(offsets.x?.delta||0),y:p.y+(offsets.y?.delta||0)}));
+ // Snapping is a proximity preference; fitting is a containment constraint.
+ // Keep the pointer's horizontal position when a vertical adjustment can fit.
+ const fit=W.boundedTranslation(points,regions,{x:0,y:0},{axis:'y'})||W.boundedTranslation(points,regions,{x:0,y:0});
+ if(!fit)throw Error('That size does not fit inside the supporting face.');
+ return points.map(p=>({...p,x:p.x+fit.x,y:p.y+fit.y}));}
 
 function containsShape(points,outlines){const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);return W.subtract({points},outlines.map(points=>({points}))).reduce((s,p)=>s+area(p),0)<1e-7;}
 
 function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);for(const f of others)if(area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>1e-7)throw Error('That position overlaps another feature.');}
 
-const api={FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -102,8 +131,14 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  .exterior-size-options button[aria-pressed=true]{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8}
  .exterior-size-options button:disabled{opacity:.55}
 
+ #wall-placement-options{width:max-content;max-width:calc(100% - 24px)}#wall-placement-options[hidden]{display:none}
+ #wall-placement-options .placement-current{margin:8px 0;color:#596579;font-size:11px}
+ .placement-size-table{overflow:auto}.placement-matrix{border-collapse:separate;border-spacing:3px;font:11px sans-serif}.placement-matrix th{color:#596579;font-weight:600;text-align:center;padding:4px}.placement-matrix th:first-child{max-width:64px;font-size:10px}.placement-matrix td{text-align:center;color:#9aa3b0}
+ .placement-matrix button{min-width:43px;padding:7px 5px;border:1px solid #dce1e5;border-radius:4px;background:#fff;color:#394150;font:11px sans-serif;cursor:pointer;white-space:nowrap}.placement-matrix button:hover{background:#f1f5f9;border-color:#9cabb8}.placement-matrix button[aria-pressed=true]{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8;font-weight:600}
+ .placement-other h5{margin:10px 0 6px;font-size:11px;color:#596579}.placement-other{max-width:480px}
  #wall-material-picker .exterior-material-options{display:grid;grid-template-columns:1fr 1fr;gap:4px}#wall-material-picker .exterior-option{width:100%;text-align:left}#wall-material-picker .exterior-finish-controls{margin-top:12px}#wall-material-picker .exterior-color-options{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:8px}#wall-material-picker input[type=color]{width:38px;height:27px;padding:2px;border:1px solid #aab3ba;border-radius:4px;margin-left:auto}#wall-material-picker{position:absolute;top:60px;left:10px;width:300px;max-width:calc(100% - 20px);max-height:calc(100% - 80px);overflow:auto;z-index:2600}
  #wall-material-picker .exterior-picker-heading{display:flex;align-items:baseline;justify-content:space-between}
+ #wall-material-picker .exterior-default-finishes{padding:10px;background:#f5f7f9;border:1px solid #dce1e5;border-radius:6px;margin:8px 0 14px}#wall-material-picker .exterior-default-finishes h4{margin:0 0 10px}#wall-material-picker .default-texture-toggle{display:flex;align-items:center;gap:7px;margin:5px 0 8px}#wall-material-picker .default-texture-label{flex:1}#default-texture-menu{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;padding:6px;background:white;border:1px solid #cbd3dc;border-radius:5px}#default-texture-menu[hidden]{display:none}
  #wall-material-picker .exterior-picker-heading button{border:0;background:none;color:#666;cursor:pointer;font-size:18px}
  #wall-material-picker p{font-size:10px;line-height:1.4;color:#666;margin:10px 0}
  #wall-material-picker label{display:flex;align-items:center;gap:6px;border-top:1px solid #ddd;padding-top:10px}
@@ -115,11 +150,12 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  const bar=document.createElement('div');bar.className='exterior-sticker-bar';bar.setAttribute('aria-label','Exterior sticker library');
  const strip=document.createElement('div');strip.className='ss-strip';bar.appendChild(strip);
  const tile=(name,path,color)=>{const b=document.createElement('button');b.type='button';b.className='ss-tile';b.style.setProperty('--feature-color',color||'#5f6368');b.innerHTML=svg(path)+'<span class="ss-name">'+name+'</span>';strip.appendChild(b);return b;};
- for(const def of F.defs.values()){const b=tile(def.name,paths[def.id]||paths.none,def.color);b.title=def.name+(def.key?' ('+def.key.toUpperCase()+')':'')+' — place on a face';b.onclick=()=>command(def.id,undefined,true);}
+ const placementTiles=new Map(),lastPlacementSizes=new Map();
+ for(const def of F.defs.values()){const b=tile(def.name,paths[def.id]||paths.none,def.color);b.title=def.name+(def.key?' ('+def.key.toUpperCase()+')':'')+' — place on a face';b.onclick=()=>{command(def.id,lastPlacementSizes.get(def.id)??def.defaultPreset??0,true);placementPanel.hidden=false;F.refreshUI();};placementTiles.set(def.id,b);b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-controls','wall-placement-options');}
  const face=document.createElement('button');face.type='button';face.className='exterior-face-toggle';face.innerHTML='Face type <span aria-hidden="true">▴</span>';face.title='Choose a face type and size';face.setAttribute('aria-label','Face type');face.setAttribute('aria-haspopup','dialog');face.setAttribute('aria-expanded','false');face.setAttribute('aria-controls','wall-face-options');bar.appendChild(face);
  const panel=document.createElement('div');panel.id='wall-face-options';panel.className='exterior-selection exterior-sticker-menu';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Face type and dimensions');panel.innerHTML='<div class="exterior-face-heading"><h4>FACE TYPE &amp; SIZE</h4><button type="button" aria-label="Close face types">×</button></div><p role="status"></p><table class="exterior-face-table"><thead><tr><th scope="col">Type</th><th scope="col">Width × height</th></tr></thead><tbody></tbody></table>';parent.appendChild(panel);
  const closeFace=()=>{panel.hidden=true;face.setAttribute('aria-expanded','false');};
- face.onclick=()=>{panel.hidden=!panel.hidden;face.setAttribute('aria-expanded',String(!panel.hidden));};
+ face.onclick=()=>{placementPanel.hidden=true;panel.hidden=!panel.hidden;face.setAttribute('aria-expanded',String(!panel.hidden));};
  panel.querySelector('.exterior-face-heading button').onclick=()=>{closeFace();face.focus();};
  // Build the complete catalog once so opening never waits on a render or rebuild.
  const choices=[],feet=n=>{const inches=Math.round(n*12),f=Math.floor(inches/12),i=inches%12;return f+'′'+(i?i+'″':'');};
@@ -127,26 +163,55 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  for(const def of [{id:'none',name:'Untyped face',color:'#c1ccd5',sizes:[]},...F.defs.values()]){
   const row=document.createElement('tr'),heading=document.createElement('th'),cell=document.createElement('td'),options=document.createElement('div');heading.scope='row';const name=document.createElement('span');name.className='exterior-face-type';const swatch=document.createElement('span');swatch.className='exterior-swatch';swatch.style.background=def.color;name.append(swatch,document.createTextNode(def.name));heading.appendChild(name);options.className='exterior-size-options';cell.appendChild(options);row.append(heading,cell);panel.querySelector('tbody').appendChild(row);
   addChoice(options,def.id,null,def.id==='none'?'Remove type':'Keep size');
-  def.sizes.forEach((size,i)=>addChoice(options,def.id,i,feet(size.w)+' × '+feet(size.h)+(size.shape==='circle'?' · Round':'')));
+  F.pickerIndices(def.id).forEach(i=>{const size=def.sizes[i];addChoice(options,def.id,i,feet(size.w)+' × '+feet(size.h)+(size.shape==='circle'?' · Round':''));});
  }
- const toggle=document.createElement('button');toggle.className='exterior-sticker-toggle';toggle.innerHTML='<i class="fas fa-chevron-right" aria-hidden="true"></i>';toggle.title='Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded','true');toggle.onclick=()=>{strip.hidden=!strip.hidden;closeFace();toggle.innerHTML='<i class="fas fa-chevron-'+(strip.hidden?'left':'right')+'" aria-hidden="true"></i>';toggle.title=strip.hidden?'Show wall stickers':'Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(!strip.hidden));};bar.appendChild(toggle);parent.appendChild(bar);
+ const placementPanel=document.createElement('div');placementPanel.id='wall-placement-options';placementPanel.className='exterior-selection exterior-sticker-menu';placementPanel.hidden=true;placementPanel.setAttribute('role','dialog');placementPanel.setAttribute('aria-label','Feature placement size');placementPanel.innerHTML='<div class="exterior-face-heading"><h4></h4><button type="button" aria-label="Close placement sizes">\u00d7</button></div><p class="placement-current" role="status"></p><div class="placement-size-table"></div><div class="placement-other"></div>';parent.appendChild(placementPanel);
+ placementPanel.querySelector('.exterior-face-heading button').onclick=()=>{placementPanel.hidden=true;};
+ let placementKey='',placementChoices=[];
+ function refreshPlacement(){
+  const active=materials.placement?.();for(const [type,b]of placementTiles){const chosen=active?.type===type;b.classList.toggle('active',chosen);b.setAttribute('aria-expanded',String(chosen&&!placementPanel.hidden));}
+  if(!active){placementKey='';placementPanel.hidden=true;return;}
+  const def=F.defs.get(active.type);if(!def)return;lastPlacementSizes.set(active.type,active.index);
+  const key=active.session+':'+active.type;
+  if(key!==placementKey){placementKey=key;closeFace();placementPanel.hidden=false;placementChoices=[];placementPanel.querySelector('h4').textContent=def.name+' sizes';
+   const main=placementPanel.querySelector('.placement-size-table'),other=placementPanel.querySelector('.placement-other');main.replaceChildren();other.replaceChildren();
+   const add=(container,index,text)=>{const size=def.sizes[index],b=document.createElement('button');b.type='button';b.textContent=text;b.dataset.preset=String(index);b.setAttribute('aria-label',def.name+' \u00b7 '+feet(size.w)+' wide \u00d7 '+feet(size.h)+' tall'+(size.shape==='circle'?' \u00b7 Round':''));b.title=b.getAttribute('aria-label');b.onclick=()=>{command(active.type,index,true);F.refreshUI();};container.appendChild(b);placementChoices.push({b,index});};
+   const groups=F.pickerGroups(def.id);
+   if(groups){main.className='placement-size-table placement-other';for(const group of groups){const heading=document.createElement('h5');heading.textContent=group.label;main.appendChild(heading);const options=document.createElement('div');options.className='exterior-size-options';main.appendChild(options);for(const index of group.indices){const size=def.sizes[index];add(options,index,feet(size.w)+' \u00d7 '+feet(size.h)+(size.shape==='circle'?' \u00b7 Round':''));}}}
+   else{main.className='placement-size-table';
+   const standard=def.sizes.map((s,index)=>({...s,index})).filter(s=>s.shape==='rectangle'&&Number.isInteger(s.w)&&Number.isInteger(s.h)),widths=[...new Set(standard.map(s=>s.w))].sort((a,b)=>a-b),heights=[...new Set(standard.map(s=>s.h))].sort((a,b)=>a-b);
+   const table=document.createElement('table');table.className='placement-matrix';const head=document.createElement('thead'),tr=document.createElement('tr'),corner=document.createElement('th');corner.textContent='Height / Width';tr.appendChild(corner);for(const w of widths){const th=document.createElement('th');th.scope='col';th.textContent=feet(w);tr.appendChild(th);}head.appendChild(tr);table.appendChild(head);const body=document.createElement('tbody');table.appendChild(body);main.appendChild(table);
+
+   for(const h of heights){const row=document.createElement('tr'),th=document.createElement('th');th.scope='row';th.textContent=feet(h);row.appendChild(th);for(const w of widths){const cell=document.createElement('td'),size=standard.find(s=>s.w===w&&s.h===h);if(size)add(cell,size.index,w+' \u00d7 '+h);else cell.textContent='\u2014';row.appendChild(cell);}body.appendChild(row);}
+   const extras=def.sizes.map((s,index)=>({...s,index})).filter(s=>!standard.some(v=>v.index===s.index));if(extras.length){const heading=document.createElement('h5');heading.textContent='Other sizes & shapes';other.appendChild(heading);const options=document.createElement('div');options.className='exterior-size-options';other.appendChild(options);for(const s of extras)add(options,s.index,feet(s.w)+' \u00d7 '+feet(s.h)+(s.shape==='circle'?' \u00b7 Round':''));}
+   }
+  }
+  const size=def.sizes[active.index];placementPanel.querySelector('.placement-current').textContent='Selected: '+feet(size.w)+' wide \u00d7 '+feet(size.h)+' tall'+(size.shape==='circle'?' \u00b7 Round':'')+'. Click the wall to place.';
+  for(const {b,index}of placementChoices)b.setAttribute('aria-pressed',String(index===active.index));
+ }
+ const toggle=document.createElement('button');toggle.className='exterior-sticker-toggle';toggle.innerHTML='<i class="fas fa-chevron-right" aria-hidden="true"></i>';toggle.title='Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded','true');toggle.onclick=()=>{strip.hidden=!strip.hidden;closeFace();placementPanel.hidden=true;toggle.innerHTML='<i class="fas fa-chevron-'+(strip.hidden?'left':'right')+'" aria-hidden="true"></i>';toggle.title=strip.hidden?'Show wall stickers':'Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(!strip.hidden));};bar.appendChild(toggle);parent.appendChild(bar);
  const picker=document.createElement('section');picker.id='wall-material-picker';picker.className='exterior-sticker-menu';picker.hidden=true;picker.setAttribute('aria-label','Wall materials');picker.innerHTML='<div class="exterior-picker-heading"><h4>WALL MATERIALS</h4><button type="button" aria-label="Close wall materials">×</button></div><div class="exterior-material-options"></div><p>Select a face to edit its finish, or choose a material first and click sections to paint. Escape finishes painting.</p><div class="exterior-finish-controls"><label>Finish color<input type="color" value="#f5f3ef" aria-label="Finish color"></label><div class="exterior-color-options"></div><p>Color is independent of material. Choose a color to update the selected face.</p></div><label><input type="checkbox">Colors in plain modes</label>';parent.appendChild(picker);
  const trigger=document.createElement('button');trigger.id='wall-material-toggle';trigger.className='toolbar-btn';trigger.innerHTML='<i class="fas fa-palette" aria-hidden="true"></i>';trigger.title='Wall materials';trigger.setAttribute('aria-label','Wall materials');trigger.setAttribute('aria-controls',picker.id);trigger.setAttribute('aria-expanded','false');document.getElementById('btnToggleTypes')?.after(trigger);
- const closeMaterials=()=>{picker.hidden=true;trigger.setAttribute('aria-expanded','false');trigger.classList.remove('active');materials.finish?.();};
+ const closeMaterials=()=>{closeDefaultTexture();picker.hidden=true;trigger.setAttribute('aria-expanded','false');trigger.classList.remove('active');materials.finish?.();};
  trigger.onclick=()=>{if(!picker.hidden){closeMaterials();return;}picker.hidden=false;trigger.setAttribute('aria-expanded','true');trigger.classList.add('active');refreshMaterials();};picker.querySelector('.exterior-picker-heading button').onclick=closeMaterials;
  const option=(parent,label,color,active,fn,disabled=false)=>{const b=document.createElement('button');b.type='button';b.className='exterior-option';b.disabled=disabled;b.setAttribute('aria-pressed',String(active));if(color){const swatch=document.createElement('span');swatch.className='exterior-swatch';swatch.style.background=color;b.appendChild(swatch);}b.appendChild(document.createTextNode(label));b.onclick=fn;parent.appendChild(b);return b;};
  const materialButtons=[];for(const [id,def]of Object.entries(window.ExteriorMaterials||{})){const b=option(picker.querySelector('.exterior-material-options'),def.label,def.color,false,()=>{materials.paint?.(id);refreshMaterials();});materialButtons.push([id,b]);}
  const colorInput=picker.querySelector('input[type=color]');colorInput.oninput=()=>materials.color?.(colorInput.value);for(const [label,color]of [['White','#f5f3ef'],['Cream','#e8dcc3'],['Gray','#8c9296'],['Charcoal','#3e454b'],['Blue','#53758a'],['Green','#6d8071']]){const b=option(picker.querySelector('.exterior-color-options'),label,color,false,()=>{colorInput.value=color;materials.color?.(color);});b.title=label;}const colors=picker.querySelector('input[type=checkbox]');colors.onchange=()=>materials.colors?.(colors.checked);
  const inheritColor=option(picker.querySelector('.exterior-color-options'),'Default',null,false,()=>materials.color?.('default'));
- const defaultsPanel=document.createElement('details');defaultsPanel.className='exterior-finish-controls';defaultsPanel.innerHTML='<summary>Default finishes</summary><label>Default texture<select aria-label="Default texture"></select></label><label>Default color<input type="color" aria-label="Default color"></label><label>Default trim color<input type="color" aria-label="Default trim color"></label><p>Applies to current and future faces without an individual override.</p>';picker.appendChild(defaultsPanel);
- const defaultTexture=defaultsPanel.querySelector('select'),defaultColors=defaultsPanel.querySelectorAll('input[type=color]');
- for(const [id,def]of Object.entries(window.ExteriorMaterials||{})){if(id==='default'||id.startsWith('trim-'))continue;const o=document.createElement('option');o.value=id;o.textContent=def.label;defaultTexture.appendChild(o);}
- const updateDefaults=()=>materials.defaults?.({material:defaultTexture.value,color:defaultColors[0].value,trimColor:defaultColors[1].value});defaultTexture.onchange=updateDefaults;for(const input of defaultColors)input.onchange=updateDefaults;
- function refreshMaterials(){const d=materials.defaults?.()||{material:'unassigned',color:'#80868b',trimColor:'#f5f3ef'};if(document.activeElement!==defaultTexture)defaultTexture.value=d.material;defaultColors.forEach((input,i)=>{if(document.activeElement!==input)input.value=i?d.trimColor:d.color;});for(const [id,b]of materialButtons)b.setAttribute('aria-pressed',String(materials.active?.()===id));colors.checked=materials.colors?.()!==false;}
- for(const el of [bar,picker,panel])for(const event of ['pointerdown','mousedown','mouseup','click','dblclick','wheel'])el.addEventListener(event,e=>e.stopPropagation());
- F.closeUI=()=>{closeFace();closeMaterials();};
- document.addEventListener('keydown',e=>{if(e.key==='Escape')F.closeUI();},true);
- let last='';F.refreshUI=function(){refreshMaterials();const ref=selection(),locked=busy(),type=ref?.feature?.type||'none',label=ref?(F.defs.get(type)?.name||'Untyped face')+' · '+F.label(ref.points,ref.feature):'Choose a size to place a new feature on a face.',signature=JSON.stringify([label,type,ref?.feature?.preset,locked]);if(signature===last)return;last=signature;
+ const defaultsPanel=document.createElement('section');defaultsPanel.className='exterior-finish-controls exterior-default-finishes';defaultsPanel.setAttribute('aria-label','Default finishes');defaultsPanel.innerHTML='<h4>Default finishes</h4><div>Default texture<button type="button" class="exterior-option default-texture-toggle" aria-label="Default texture" aria-haspopup="menu" aria-expanded="false" aria-controls="default-texture-menu"><span class="exterior-swatch"></span><span class="default-texture-label"></span><span aria-hidden="true">▾</span></button><div id="default-texture-menu" role="menu" aria-label="Default texture" hidden></div></div><label>Default color<input type="color" aria-label="Default color"></label><label>Default trim color<input type="color" aria-label="Default trim color"></label><p>Applies to current and future faces without an individual override.</p>';picker.querySelector('.exterior-picker-heading').after(defaultsPanel);
+ const defaultTexture=defaultsPanel.querySelector('.default-texture-toggle'),textureMenu=defaultsPanel.querySelector('[role=menu]'),defaultColors=defaultsPanel.querySelectorAll('input[type=color]'),textureButtons=[];let defaultMaterial='unassigned';
+ function closeDefaultTexture(){textureMenu.hidden=true;defaultTexture.setAttribute('aria-expanded','false');}
+ const updateDefaults=()=>materials.defaults?.({material:defaultMaterial,color:defaultColors[0].value,trimColor:defaultColors[1].value});
+ for(const [id,def]of Object.entries(window.ExteriorMaterials||{})){if(id==='default'||id.startsWith('trim-'))continue;const b=option(textureMenu,def.label,def.color,false,()=>{defaultMaterial=id;updateDefaults();refreshMaterials();closeDefaultTexture();defaultTexture.focus();});b.setAttribute('role','menuitemradio');textureButtons.push([id,b]);}
+ defaultTexture.onclick=()=>{textureMenu.hidden=!textureMenu.hidden;defaultTexture.setAttribute('aria-expanded',String(!textureMenu.hidden));if(!textureMenu.hidden)(textureButtons.find(([id])=>id===defaultMaterial)||textureButtons[0])?.[1].focus();};
+ textureMenu.onkeydown=e=>{const buttons=textureButtons.map(([,b])=>b),i=buttons.indexOf(document.activeElement);if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();e.stopPropagation();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:buttons.length-1))%buttons.length]?.focus();}};
+ document.addEventListener('pointerdown',e=>{if(!defaultsPanel.contains(e.target))closeDefaultTexture();},true);
+ for(const input of defaultColors)input.onchange=updateDefaults;
+ function refreshMaterials(){const d=materials.defaults?.()||{material:'unassigned',color:'#80868b',trimColor:'#f5f3ef'};defaultMaterial=d.material;const def=window.ExteriorMaterials?.[d.material];defaultTexture.querySelector('.default-texture-label').textContent=def?.label||'Smooth';defaultTexture.querySelector('.exterior-swatch').style.background=def?.color||d.color;for(const [id,b]of textureButtons){b.setAttribute('aria-checked',String(id===d.material));b.setAttribute('aria-pressed',String(id===d.material));}defaultColors.forEach((input,i)=>{if(document.activeElement!==input)input.value=i?d.trimColor:d.color;});for(const [id,b]of materialButtons)b.setAttribute('aria-pressed',String(materials.active?.()===id));colors.checked=materials.colors?.()!==false;}
+ for(const el of [bar,picker,panel,placementPanel])for(const event of ['pointerdown','mousedown','mouseup','click','dblclick','wheel'])el.addEventListener(event,e=>e.stopPropagation());
+ F.closeUI=()=>{closeFace();closeMaterials();placementPanel.hidden=true;};
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!textureMenu.hidden){e.preventDefault();e.stopImmediatePropagation();closeDefaultTexture();defaultTexture.focus();}else F.closeUI();}},true);
+ let last='';F.refreshUI=function(){refreshMaterials();refreshPlacement();const ref=selection(),locked=busy(),type=ref?.feature?.type||'none',label=ref?(F.defs.get(type)?.name||'Untyped face')+' · '+F.label(ref.points,ref.feature):'Choose a size to place a new feature on a face.',signature=JSON.stringify([label,type,ref?.feature?.preset,locked]);if(signature===last)return;last=signature;
  panel.querySelector('p').textContent=locked?'Finish the current tool to change a face.':label;
  for(const choice of choices){choice.b.disabled=locked||(!ref&&choice.preset===null);choice.b.setAttribute('aria-pressed',String(!!ref&&type===choice.type&&(ref.feature?.preset??null)===choice.preset));}
  };F.refreshUI();

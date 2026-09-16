@@ -1,4 +1,4 @@
-/* Reuse controls and handlers inside the wrapping 3D toolbar. */
+/* Reuse controls and handlers across the main header and 3D display toolbar. */
 window.mountExteriorToolbar=function(){
  const parent=document.querySelector('#three-container .enh-control-panel');if(!parent)return;const existing=document.getElementById('exterior-toolbar');if(existing){parent.appendChild(existing);return;}if(!document.getElementById('wall-layer-visibility'))return;
  const style=document.createElement('style');style.textContent=`#exterior-toolbar{display:none;flex:0 0 auto;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;background:#202830;color:#edf0f3;border-bottom:1px solid #53606a;font:12px system-ui;position:relative;z-index:50}.wall-mode-active #exterior-toolbar{display:contents}#exterior-toolbar .exterior-toolbar-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap}#exterior-toolbar button{height:32px;padding:4px 9px;border:1px solid #63717d;border-radius:5px;background:#303b45;color:inherit;cursor:pointer;font:inherit}#exterior-toolbar button[aria-pressed=true]{color:#ffd84d;border-color:#ffd84d;background:#4d4525}#exterior-toolbar button:disabled{opacity:.45;cursor:default}#exterior-toolbar button[data-layer-icon]{width:34px;padding:5px}#exterior-toolbar svg{width:22px;height:22px;display:block}#exterior-toolbar input{width:68px;background:#15191d;color:white;border:1px solid #63717d;border-radius:4px;padding:5px}#exterior-toolbar label{display:flex;align-items:center;gap:5px;margin:0}#exterior-toolbar [hidden]{display:none!important}#exterior-toolbar #ground-status{margin:0;font-size:11px;max-width:260px}#exterior-toolbar #wall-layer-visibility{position:static!important;padding:0!important;background:none!important;overflow:visible!important;margin:0}#exterior-toolbar .exterior-toolbar-group+.exterior-toolbar-group{border-left:1px solid #53606a;padding-left:10px}
@@ -30,14 +30,62 @@ window.mountExteriorToolbar=function(){
  const visibility=group('Visible building layers');move('wall-layer-visibility',visibility);
  const icons={'wall-roof-visibility':['Roof','M3 12 12 4l9 8M5 11v8h14v-8'], 'wall-visible':['Walls','M4 5h16v15H4zM4 10h16M4 15h16M9 5v5m6 0v5m-6 0v5'],'base-visible':['Base','M3 13 12 8l9 5-9 5zM3 17l9 5 9-5'],'ground-visible':['Grade','M3 17 9 14l5 1 7-8M3 21h18']};
  for(const [id,[label,path]]of Object.entries(icons)){const b=document.getElementById(id);if(!b)continue;b.dataset.layerIcon=label;b.title='Toggle '+label.toLowerCase();b.setAttribute('aria-label',label);b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+path+'"/></svg>';}
- const build=group('Rebuild building');const roof=move('wall-rebuild',build);if(roof)roof.textContent='From Roof';const dropdown=move('wall-auto',build);if(dropdown){dropdown.textContent='▾';dropdown.title='Choose soffit setback';dropdown.setAttribute('aria-label','Choose soffit setback');}move('wall-soffit-menu',build);move('wall-merge-all',build);move('wall-auto-trim',build);const base=move('base-rebuild-grade',build);if(base)base.textContent='To ground';
+ const main=document.createElement('div');main.id='exterior-main-toolbar';main.setAttribute('role','group');main.setAttribute('aria-label','Wall building actions');(document.getElementById('global-toolbar')||parent).appendChild(main);
+ // Keep the existing right-hand action section in place. Only the left
+ // sections move into a wrapping container while wall mode is active.
+ const header=document.getElementById('global-toolbar'),left=document.createElement('div');left.id='wall-header-left';
+ const sections=[...(header?.querySelectorAll('.toolbar-row')||[])].map(section=>({section,parent:section.parentElement,next:section.nextSibling}));
+ const actions=header?.querySelector('.toolbar-row-secondary>.toolbar-section-right'),actionParent=actions?.parentElement,actionNext=actions?.nextSibling;actions?.classList.add('wall-header-actions');
+ header?.appendChild(left);
+ window.updateExteriorHeaderLayout=()=>{const active=document.body.classList.contains('wall-mode-active');for(const item of sections){if(active)left.appendChild(item.section);else if(item.section.parentElement!==item.parent)item.parent.insertBefore(item.section,item.next);}if(active){left.appendChild(main);if(actions)header.appendChild(actions);}else{header?.appendChild(main);if(actions&&actions.parentElement!==actionParent)actionParent.insertBefore(actions,actionNext);}};
+ window.updateExteriorHeaderLayout();
+ const build=group('Rebuild building');main.appendChild(build);const roof=move('wall-rebuild',build);if(roof)roof.textContent='From Roof';const dropdown=move('wall-auto',build);if(dropdown){dropdown.textContent='▾';dropdown.title='Choose soffit setback';dropdown.setAttribute('aria-label','Choose soffit setback');}move('wall-soffit-menu',build);move('wall-merge-all',build);const base=move('base-rebuild-grade',build);if(base)base.textContent='Reground';
  const display=group('Display options');
  const icon=(id,label,path)=>{const b=move(id,display);if(!b)return;b.title=label;b.setAttribute('aria-label',label);b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="'+path+'"/></svg>';};
  const surfaceMode=move('wall-translucency-toggle',display);if(surfaceMode)surfaceMode.title='Cycle translucent, opaque and textured surfaces';
  icon('wall-centers-toggle','Face centers (walls and base)','M4 4h16v16H4z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0');
  icon('wall-feature-dimensions','Feature dimensions','M4 8V4h16v4M4 6h16M8 20H4V10h4M6 10v10M12 12h8v8h-8z');
  icon('wall-gap-toggle','Highlight open edges','M3 5h7m4 0h7M3 5v14h18V5');
- const lengths=document.getElementById('wall-lengths-toggle');if(lengths){const label=lengths.parentElement;move('wall-lengths-toggle',display);label.remove();lengths.title='Line lengths';}
- const grading=group('Grading');const heading=document.createElement('span');heading.textContent='Grade';grading.appendChild(heading);const old=document.getElementById('ground-dsm')?.parentElement?.parentElement?.parentElement;const sources=document.createElement('div');sources.className='exterior-grade-sources';sources.setAttribute('role','group');sources.setAttribute('aria-label','Grade data source');grading.appendChild(sources);for(const id of ['ground-dsm','ground-usgs','ground-flat'])move(id,sources);move('ground-flat-control',grading);move('ground-status',document.getElementById('wall-panel'));if(old&&old!==bar&&!old.querySelector('button,input,select'))old.remove();
+ const lengths=document.getElementById('wall-lengths-toggle');if(lengths){const label=lengths.parentElement;label.textContent='';label.className='exterior-measurements';label.title='Measurements';label.innerHTML='<i class="fas fa-ruler" aria-hidden="true"></i>';label.appendChild(lengths);display.appendChild(label);lengths.title='Measurements';}
+ const grading=group('Grading');main.appendChild(grading);const heading=document.createElement('span');heading.textContent='Grade';grading.appendChild(heading);const old=document.getElementById('ground-dsm')?.parentElement?.parentElement?.parentElement;const sources=document.createElement('div');sources.className='exterior-grade-sources';sources.setAttribute('role','group');sources.setAttribute('aria-label','Grade data source');grading.appendChild(sources);for(const id of ['ground-dsm','ground-usgs','ground-flat'])move(id,sources);move('ground-flat-control',grading);move('ground-status',document.getElementById('wall-panel'));if(old&&old!==bar&&!old.querySelector('button,input,select'))old.remove();
+ move('wall-advanced',main);
+ const headerIcons={'wall-rebuild':'home','wall-merge-all':'object-group','base-rebuild-grade':'level-down-alt'};
+ for(const [id,name]of Object.entries(headerIcons)){const button=document.getElementById(id);if(button){const label=button.textContent;button.innerHTML='<i class="fas fa-'+name+'" aria-hidden="true"></i><span>'+label+'</span>';}}
+ const gear=document.querySelector('#wall-advanced>summary');if(gear)gear.innerHTML='<i class="fas fa-cog" aria-hidden="true"></i>';
+ main.querySelectorAll('button').forEach(b=>b.classList.add('toolbar-btn'));
+ const headerStyle=document.createElement('style');headerStyle.textContent=`
+ .wall-mode-active #global-toolbar [data-roof-only],.wall-mode-active #toolbar-mode-shell,.wall-mode-active #layer-controls-group{display:none!important}
+ .wall-mode-active #global-toolbar .controls-group:has(>[data-roof-only]):not(:has(>button:not([data-roof-only]))):not(:has(>input)){display:none!important}
+ .wall-mode-active #global-toolbar,.wall-mode-active #global-toolbar.toolbar-split{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:none;grid-template-rows:auto;align-items:start;gap:12px;padding:6px 12px;min-height:44px}
+ #wall-header-left{display:none}.wall-mode-active #wall-header-left{display:flex;grid-column:1;grid-row:1;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
+ .wall-mode-active #global-toolbar .toolbar-row,.wall-mode-active #global-toolbar .toolbar-section-left{display:contents}
+ .wall-mode-active #global-toolbar .toolbar-row-primary>.toolbar-section-right{display:none}
+ .wall-mode-active #global-toolbar .wall-header-actions{display:flex;grid-column:2;grid-row:1;justify-self:end;justify-content:flex-end;margin-left:auto}
+ .wall-mode-active #global-toolbar #toolbar-action-group{padding-right:0}
+ .wall-mode-active #global-toolbar .controls-group{margin:0!important;gap:5px;padding-right:8px;flex:none}
+ #exterior-main-toolbar{display:none}.wall-mode-active #exterior-main-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-left:1px solid #cbd0d7;padding-left:12px;font:12px system-ui;color:#202124}
+ #exterior-main-toolbar .exterior-toolbar-group{display:flex;align-items:center;gap:5px;position:relative;flex-wrap:wrap}
+ #exterior-main-toolbar button,#exterior-main-toolbar #roof-trim-control button{display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;height:34px;min-height:34px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#202124;font:600 12px system-ui;cursor:pointer;white-space:nowrap}
+ #exterior-main-toolbar button:hover,#exterior-main-toolbar #roof-trim-control button:hover{background:#f0f2f5}
+ #exterior-main-toolbar button[aria-pressed=true],#exterior-main-toolbar #roof-trim-control button[aria-pressed=true]{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8}
+ #exterior-main-toolbar button:disabled{opacity:.45;cursor:default}
+ #exterior-main-toolbar #wall-rebuild{border-radius:4px 0 0 4px;margin-right:-6px}#exterior-main-toolbar #wall-auto{border-radius:0 4px 4px 0}
+ #exterior-main-toolbar #wall-soffit-menu{position:absolute;top:calc(100% + 6px);left:0;width:220px;padding:6px;background:#fff;border:1px solid #ccd2d9;border-radius:5px;box-shadow:0 5px 18px #0002;z-index:3000}
+ #exterior-main-toolbar [hidden]{display:none!important}#exterior-main-toolbar .soffit-title{padding:5px;font-weight:600}#exterior-main-toolbar .soffit-options{display:grid;gap:3px}
+ #exterior-main-toolbar .soffit-options button{display:flex;justify-content:space-between;align-items:center;border:0;text-align:left}#exterior-main-toolbar .soffit-options small{color:#77808c}
+ #exterior-main-toolbar .exterior-grade-sources{display:flex;gap:2px;background:#eef0f3;border-radius:5px;padding:0}#exterior-main-toolbar .exterior-grade-sources button{height:34px;min-height:34px;border:0;background:transparent}
+ #exterior-main-toolbar .exterior-grade-sources button[aria-pressed=true]{background:#fff;box-shadow:0 1px 3px #0002;color:#1a73e8}
+ #exterior-main-toolbar #wall-advanced{color:#394150}
+ #exterior-main-toolbar #wall-advanced>summary{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:36px;height:34px;padding:0;border:1px solid #ccc;border-radius:4px;background:#fff;color:#202124;font-size:12px}
+ #exterior-main-toolbar #wall-advanced>summary:hover{background:#f0f2f5}#exterior-main-toolbar #wall-advanced[open]>summary{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8}
+ #exterior-main-toolbar #wall-advanced>div{top:calc(100% + 6px);background:#fff;border-color:#ccd2d9;box-shadow:0 5px 18px #0002;z-index:3000}
+ #exterior-main-toolbar #wall-advanced label{gap:8px;white-space:normal}#exterior-main-toolbar #wall-advanced input{width:auto;padding:0}#exterior-main-toolbar #wall-advanced p{color:#667085;line-height:1.5}
+ #exterior-main-toolbar label{display:flex;align-items:center;gap:4px;margin:0}#exterior-main-toolbar input{width:58px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#444;padding:4px}
+ #exterior-main-toolbar #roof-trim-options{width:310px;box-sizing:border-box}
+ #exterior-main-toolbar .trim-section h4{margin:0 0 8px;font-size:12px;color:#202124}#exterior-main-toolbar .trim-section+.trim-section{border-top:1px solid #dfe3e8;margin-top:14px;padding-top:12px}
+ #exterior-main-toolbar .trim-section-heading,#exterior-main-toolbar #wall-trim-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}#exterior-main-toolbar #roof-trim-count{font-size:11px;color:#667085}
+ #exterior-main-toolbar .wall-trim-width{display:flex;gap:4px}#exterior-main-toolbar .trim-footer{display:flex;justify-content:flex-end;border-top:1px solid #dfe3e8;margin-top:12px;padding-top:10px}
+ #exterior-main-toolbar #roof-trim-options{background:#fff;color:#394150;border-color:#ccd2d9;box-shadow:0 5px 18px #0002;left:0;right:auto}#exterior-main-toolbar #roof-trim-options p{color:#667085}#exterior-main-toolbar #roof-trim-options input{background:#fff;color:#444;border-color:#ccc}
+ `;document.head.appendChild(headerStyle);
  bar.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
 };

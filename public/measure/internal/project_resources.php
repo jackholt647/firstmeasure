@@ -80,6 +80,7 @@ if ($method === 'POST') {
         $index['project_id'] = $project;
         $index['uploaded_at'] = gmdate('c');
         $index['uploaded_by'] = $resourceActor;
+        $index['role'] = ($_SERVER['HTTP_X_RESOURCE_ROLE'] ?? '') === 'qa' ? 'qa' : 'tech';
         $body = json_encode($index);
     } elseif (preg_match('/^internal-markup-[0-9a-f-]{36}-.*\.json$/D', $name)) {
         $markup = json_decode($body, true);
@@ -103,7 +104,7 @@ if (!$name) {
         if (!preg_match('/^internal-(resource|markup)-/', $file['name']) || strpos($file['name'], 'internal-markup-part-') === 0) continue;
         if (strpos($file['name'], 'internal-resource-v2-') === 0) {
             $index = resource_index($file['name'], resource_api($file['name'])); $file['size'] = $index['size'];
-            foreach (['original_name', 'uploaded_at', 'uploaded_by'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
+            foreach (['original_name', 'uploaded_at', 'role'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
         }
         $files[] = $file;
     }

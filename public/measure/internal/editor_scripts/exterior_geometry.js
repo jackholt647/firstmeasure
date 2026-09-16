@@ -65,6 +65,63 @@ const local=(f,p)=>{const q=sub(p,f.origin);return {x:dot(q,f.u),y:dot(q,f.v),z:
 const world=(f,p)=>({x:f.origin.x+f.u.x*p.x+f.v.x*p.y+f.n.x*(p.z||0),y:f.origin.y+f.u.y*p.x+f.v.y*p.y+f.n.y*(p.z||0),z:f.origin.z+f.u.z*p.x+f.v.z*p.y+f.n.z*(p.z||0)});
 function validateFace(face){if(face.curvedSurface?.logical){const mesh=surfaceMesh(face);if(!mesh.triangles.length||mesh.positions.some(p=>!finite3(p)))throw Error('The curved surface has an invalid domain.');return face;}const f=frame(face);if(!f)throw Error('A face needs three non-collinear finite points.');const rings=[face.points,...(face.holes||[])];if(rings.flat().some(p=>!finite3(p)||Math.abs(local(f,p).z)>CONTACT))throw Error('A face must remain on its supporting plane.');triangles(face.points.map(p=>local(f,p)),(face.holes||[]).map(r=>r.map(p=>local(f,p))));return face;}
 const pointKey=p=>[p.x,p.y,p.z||0].map(n=>Math.round(n/CONTACT)).join(':');
+// Rebuild filled boundaries after a merge, including retraced/overlapping runs.
+// Different faces may legitimately share edges; their ownership stays separate.
+function normalizeFace(face,split=false){
+ if(face.curvedSurface||face.curves?.length)return face;
+ if([face.points,...(face.holes||[])].flat().some(p=>!finite3(p)))throw Error('Geometry contains a non-finite coordinate.');
+ const f=frame(face);if(!f)throw Error('The face collapsed to zero area.');
+ const source=[face.points,...(face.holes||[])];
+ if(source.flat().some(p=>!finite3(p)||Math.abs(local(f,p).z)>CONTACT))throw Error('A face must remain on its supporting plane.');
+ const planar=source.map(r=>r.map(p=>local(f,p)));
+ // Leave already simple loops byte-for-byte intact (including precise curve
+ // tessellation, point order and thin valid faces). Rebuild only contacts.
+ const segments=planar.flatMap((r,k)=>r.map((a,i)=>({a,b:r[(i+1)%r.length],ring:k,index:i,count:r.length})));
+ const dirty=segments.some((s,i)=>{
+  const u={x:s.b.x-s.a.x,y:s.b.y-s.a.y},l2=u.x*u.x+u.y*u.y;if(l2<GRID*GRID)return true;
+  return segments.slice(i+1).some(t=>{
+   const v={x:t.b.x-t.a.x,y:t.b.y-t.a.y},d={x:t.a.x-s.a.x,y:t.a.y-s.a.y},cross=u.x*v.y-u.y*v.x;
+   if(Math.abs(cross)<GRID*Math.sqrt(l2)){
+    if(Math.abs(d.x*u.y-d.y*u.x)>GRID*Math.sqrt(l2))return false;
+    const lo=(d.x*u.x+d.y*u.y)/l2,hi=lo+(v.x*u.x+v.y*u.y)/l2;
+    return (Math.min(1,Math.max(lo,hi))-Math.max(0,Math.min(lo,hi)))*Math.sqrt(l2)>GRID;
+   }
+   if(s.ring===t.ring&&(Math.abs(s.index-t.index)===1||Math.abs(s.index-t.index)===s.count-1))return false;
+   const a=(d.x*v.y-d.y*v.x)/cross,b=(d.x*u.y-d.y*u.x)/cross;
+   return a>=0&&a<=1&&b>=0&&b<=1;
+  });
+ });
+ if(!dirty)return face;
+ const regions=union([{points:planar[0],holes:planar.slice(1)}]);
+ // A single-face edit cannot silently discard disconnected components.
+ if(regions.length>1&&split)return regions.map((r,i)=>({...face,id:i?face.id+'~region-'+i:face.id,points:r.points.map(p=>world(f,p)),holes:r.holes.map(h=>h.map(p=>world(f,p))),retainedPoints:[...(face.retainedPoints||[]),...source.flat()]}));
+ if(regions.length!==1)throw Error('The edit would collapse or disconnect a face.');
+ const anchors=source.flat(),region=regions[0],restore=ring=>{
+  let result=ring.map(p=>{const q=world(f,p),original=anchors.find(a=>distance(a,q)<=GRID*2);return original?{...original}:{...q};});
+  // Preserve collinear boundary anchors and node IDs. Discarded spikes remain
+  // drawing anchors, not edges or corners of the filled face.
+  result=result.flatMap((a,i)=>{const b=result[(i+1)%result.length],v=sub(b,a),l2=dot(v,v);const cuts=anchors.map(p=>({p,t:dot(sub(p,a),v)/l2})).filter(({p,t})=>t>GRID&&t<1-GRID&&distance(p,{x:a.x+v.x*t,y:a.y+v.y*t,z:a.z+v.z*t})<=GRID*2).sort((a,b)=>a.t-b.t);return [a,...cuts.filter((c,j)=>!j||distance(c.p,cuts[j-1].p)>GRID).map(c=>({...c.p}))];});
+  return result;
+ };
+ let points=restore(region.points),holes=region.holes.map(restore);
+ if(dot(normal(points),f.n)<0){points.reverse();holes.forEach(r=>r.reverse());}
+ const ordered=(ring,original)=>{const first=original.find(p=>ring.some(q=>distance(p,q)<=GRID));if(!first)return ring;const index=ring.findIndex(p=>distance(p,first)<=GRID);return [...ring.slice(index),...ring.slice(0,index)];};
+ points=ordered(points,face.points);holes=holes.map(r=>ordered(r,(face.holes||[]).find(old=>old.some(p=>r.some(q=>distance(p,q)<=GRID)))||[]));
+ const retainedPoints=[...new Map([...(face.retainedPoints||[]),...anchors.filter(p=>![points,...holes].flat().some(q=>distance(p,q)<=GRID))].map(p=>[pointKey(p),p])).values()];
+ const next={...face,points,holes,...(retainedPoints.length||face.retainedPoints?{retainedPoints}:{})};
+ validateFace(next);return next;
+}
+const normalizeFaces=face=>[normalizeFace(face,true)].flat();
+// Compare filled shapes, including holes, rather than scalar area alone.
+function pointRemovalChangesRegion(face,keys){
+ const clean=normalizeFace(face),selected=new Set(keys),f=frame(clean);
+ const shape={points:clean.points.map(p=>local(f,p)),holes:(clean.holes||[]).map(r=>r.map(p=>local(f,p)))};
+ const remaining={points:clean.points.filter(p=>!selected.has(pointKey(p))).map(p=>local(f,p)),holes:(clean.holes||[]).map(r=>r.filter(p=>!selected.has(pointKey(p))).map(p=>local(f,p)))};
+ if(remaining.points.length<3)return true;
+ const candidate=union([remaining]);if(candidate.length!==1)return true;
+ const changed=[...difference(shape,candidate),...difference(candidate[0],[shape])].reduce((sum,r)=>sum+area(r),0);
+ return changed>GRID*GRID*4;
+}
 const edgeKey=(a,b)=>[pointKey(a),pointKey(b)].sort().join('|');
 // Explicit incidence graph. Neighbor-cell searches avoid grid-boundary misses.
 // Drawing anchors are kept separately and never removed by polygon booleans.
@@ -231,6 +288,6 @@ function arcPreview(start,center,p,normal0,track={},snap=true){
  const priorSweep=track.sweep||0;let delta=angle-(track.angle||0);while(delta>Math.PI)delta-=2*Math.PI;while(delta< -Math.PI)delta+=2*Math.PI;let sweep=(track.sweep||0)+delta;if(Math.abs(sweep)>=Math.PI*2)sweep%=Math.PI*2;if(track.close&&Math.abs(priorSweep)>Math.PI)sweep=Math.sign(priorSweep)*Math.PI*2;track.angle=angle;track.sweep=sweep;
  return {type:'ellipse',version:1,center:{...center},u,v,radiusX,radiusY,sweep};
 }
-const api={curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
+const api={normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.ExteriorGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -169,3 +169,46 @@ test('merged source upgrade preserves unrelated deleted faces and respects holes
  const wire=G.surfaceWire(e);assert.ok(wire.nodes.some(n=>n.x===6),'Ordinary deleted face wire remains editable');
  assert.equal(G.adoptMergedFaceSources(e),false);
 });
+
+test('deleting an underlying divider cannot consume an unsplit sticker covering it',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),rect=(x,z,w,h)=>[{x,y:0,z},{x:x+w,y:0,z},{x:x+w,y:0,z:z+h},{x,y:0,z:z+h}],faces=[{id:'lower',points:rect(0,0,4,2)},{id:'upper',points:rect(0,2,4,2)},{id:'window',feature:{type:'window'},points:rect(1,1,2,2)}];
+ const result=W.removeFaceEdges(faces,[[{x:0,y:0,z:2},{x:4,y:0,z:2}]]);assert.ok(!result.removed.includes('window'));assert.equal(result.removed.length,2);assert.equal(result.merged.length,1);
+});
+
+
+test('moving a supporting face carries only its coplanar stickers and opening boundaries',()=>{
+ const rect=(id,x,z,w,h,y=0)=>({id,points:[p(x,y,z),p(x+w,y,z),p(x+w,y,z+h),p(x,y,z+h)]});
+ for(const holes of [false,true])for(const method of ['moveSurface','moveFabric','transformSelection']){
+  const wall=rect('wall',0,0,8,5),window={...rect('window',1,1,2,2),feature:{type:'window'}},door={...rect('door',4,0,2,3),feature:{type:'door'}},ordinary=rect('ordinary',1,3.5,1,1),behind={...rect('behind',1,1,2,2,1),feature:{type:'window'}},outside={...rect('outside',10,1,2,2),feature:{type:'garage'}};
+  if(holes)wall.holes=[window.points,door.points];const scene=[wall,window,door,ordinary,behind,outside],before=JSON.stringify(scene);let result;
+  if(method==='transformSelection'){const clip=G.copyGeometry(scene,wall.points,[]),preview=G.transformGeometry(clip,0,{delta:{x:.3,y:0}});result=G.transformSelection(scene,clip,preview);}else result=G[method](scene,'wall',.3);
+  const moved=result.faces.find(f=>f.id==='wall'),delta={x:moved.points[0].x-wall.points[0].x,y:moved.points[0].y-wall.points[0].y,z:moved.points[0].z-wall.points[0].z};
+  for(const sticker of [window,door]){const next=result.faces.find(f=>f.id===sticker.id);assert.deepEqual(next.feature,sticker.feature);next.points.forEach((q,i)=>{for(const axis of ['x','y','z'])assert.ok(Math.abs(q[axis]-sticker.points[i][axis]-delta[axis])<1e-8,method+' '+sticker.id);});}
+  for(const other of [ordinary,behind,outside])assert.deepEqual(result.faces.find(f=>f.id===other.id).points,other.points);
+  assert.equal(JSON.stringify(scene),before);
+ }
+});
+
+
+test('sticker alignment reaches inset edges and perpendicular wall heights without false width snaps',()=>{
+ const wall={points:[p(0,0,0),p(8,0,0),p(8,0,6),p(0,0,6)]},frame=G.faceFrame(wall),screen=q=>({x:q.x*100,y:q.z*100});
+ const garage={feature:{type:'garage'},points:[p(2,.3,0),p(5,.3,0),p(5,.3,3),p(2,.3,3)]};
+ const side={feature:{type:'window'},points:[p(6,1,2),p(6,3,2),p(6,3,4),p(6,1,4)]};
+ const inset=G.stickerAlignmentTargets([garage],frame),corner=G.stickerAlignmentTargets([side],frame);
+ assert.equal(inset.length,4);assert.ok(inset.every(q=>q.y===0));assert.ok(corner.every(q=>q.alignmentAxes.length===1));
+ const a=G.planeAlignment([p(2.06,0,1)],inset,frame,screen);assert.ok(Math.abs(a.x+.06)<1e-8);assert.equal(a.y,0);
+ const b=G.planeAlignment([p(5.94,0,3.94)],corner,frame,screen);assert.equal(b.x,0);assert.ok(Math.abs(b.y-.06)<1e-8);
+ assert.equal(G.stickerAlignmentTargets([{...side,feature:null}],frame).length,0);
+ assert.equal(G.stickerAlignmentTargets([garage],frame,garage.points).length,0);
+ assert.ok(G.planeAlignmentGuides([p(3,0,4)],corner,frame).length);
+ const clip=G.copyGeometry([{id:'moving',points:[p(5.94,0,3),p(6.94,0,3),p(6.94,0,3.94),p(5.94,0,3.94)]}],[p(5.94,0,3),p(6.94,0,3),p(6.94,0,3.94),p(5.94,0,3.94)],[]),snapped=G.snapGeometryOnPlane(clip,0,corner,[],screen);
+ assert.ok(snapped.points.every(q=>q.y===0));assert.ok(Math.abs(snapped.points[0].x-5.94)<1e-8);assert.ok(Math.abs(snapped.points[2].z-4)<1e-8);
+});
+
+test('point range index conservatively retains segment contacts in every orientation',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y,z)=>({x,y,z}),points=Array.from({length:10000},(_,i)=>p(i,10,10));
+ points.push(p(0,0,0),p(.5,0,0),p(1,0,0),p(.5,.000009,0),p(.5,.001,0));const index=W.pointRangeIndex(points),near=index.segment(p(0,0,0),p(1,0,0));assert.equal(near.length,4);assert.deepEqual(index.segment(p(1,0,0),p(0,0,0)),near);
+ for(const [a,b]of [[p(0,0,0),p(20,20,20)],[p(2,0,0),p(2,20,20)],[p(0,10,10),p(0,10,10)]]){
+  const expected=points.filter(p=>['x','y','z'].every(k=>p[k]>=Math.min(a[k],b[k])-1e-5&&p[k]<=Math.max(a[k],b[k])+1e-5));assert.deepEqual(new Set(index.segment(a,b)),new Set(expected));
+ }
+});

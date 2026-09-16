@@ -569,7 +569,7 @@ function disposeObject3D(object) {
                 if (!mat) return;
                 ['map', 'alphaMap', 'emissiveMap', 'aoMap', 'lightMap', 'bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap']
                     .forEach(key => {
-                        if (mat[key] && typeof mat[key].dispose === 'function') mat[key].dispose();
+                        if (mat[key] && !mat[key].userData?.exteriorLabelShared && typeof mat[key].dispose === 'function') mat[key].dispose();
                     });
                 if (typeof mat.dispose === 'function') mat.dispose();
             });

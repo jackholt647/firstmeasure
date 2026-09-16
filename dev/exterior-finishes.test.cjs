@@ -44,3 +44,25 @@ test('roof rendering uses shingles above and soffit below for either winding and
   const plain=ctx.ExteriorFinishes.roofMeshes(face,vector,false);assert.equal(plain.length,1);assert.equal(plain[0].material.side,2);
  }
 });
+test('alignment guides stay bright yellow and visible in every surface display mode',()=>{
+ const ctx=fixture(),material={color:'#FFD700',depthTest:false,opacity:1},line={isLine:true,visible:true,userData:{alignmentGuide:true},material};
+ for(const mode of ['translucent','opaque','textured']){ctx.exteriorSurfaceDisplay({traverse:fn=>fn(line)},mode);assert.equal(line.visible,true);assert.equal(material.color,'#FFD700');assert.equal(material.depthTest,false);assert.equal(material.opacity,1);}
+});
+
+test('dimension labels never regain wall depth clipping when display mode changes',()=>{
+ const ctx=fixture();for(const data of [{wallFeature:true},{wallLength:2},{moveIndicator:true},{wallFeature:true,exteriorSelection:true}]){
+ const label={isSprite:true,visible:true,userData:data,material:{depthTest:false,depthWrite:false,opacity:1,transparent:true}};
+ for(const mode of ['opaque','textured','translucent','opaque']){ctx.exteriorSurfaceDisplay({traverse:fn=>fn(label)},mode);assert.equal(label.material.depthTest,false);assert.equal(label.material.depthWrite,false);}
+ }
+});
+
+test('selected stickers win coplanar depth ties and textured selection outlines remain visible',()=>{
+ const ctx=fixture(),feature={isMesh:true,userData:{exteriorFeature:true,exteriorSelected:true},material:{opacity:.5,transparent:true,depthWrite:false}},outline={isLine:true,visible:true,userData:{exteriorSelection:true},material:{depthTest:false,depthWrite:false}};
+ for(const mode of ['opaque','textured']){ctx.exteriorSurfaceDisplay({traverse:fn=>[feature,outline].forEach(fn)},mode);assert.equal(feature.renderOrder,2);assert.equal(feature.material.depthTest,true);assert.equal(feature.material.polygonOffsetFactor,-4);assert.equal(outline.material.depthTest,false);}
+ feature.userData.exteriorSelected=false;ctx.exteriorSurfaceDisplay({traverse:fn=>fn(feature)},'opaque');assert.equal(feature.renderOrder,1);assert.equal(feature.material.polygonOffsetFactor,-1);
+});
+
+test('opaque point markers remain whole overlays above filled surfaces',()=>{
+ const ctx=fixture(),point={isPoints:true,visible:true,userData:{},material:{opacity:1,transparent:false,depthTest:false,depthWrite:true}},group={traverse:fn=>fn(point)};
+ for(const mode of ['opaque','translucent','opaque']){ctx.exteriorSurfaceDisplay(group,mode);assert.equal(point.visible,true);assert.equal(point.material.depthTest,false);assert.equal(point.material.depthWrite,false);assert.equal(point.renderOrder,1000);}
+});

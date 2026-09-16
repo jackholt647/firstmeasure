@@ -31,6 +31,31 @@ function collect(state,rawWalls=[]){
  for(const w of rawWalls)if(!claimed.has(w.id))faces.push({id:'wall:'+w.id,points:[...w.bottom,...w.top.slice().reverse()],chimney:w.chimney});
  return faces;
 }
+// Resolve openings from current geometry, without baking stale cutouts into a
+// host when a sticker moves, resizes, changes type or is deleted.
+const openingCache=new Map(),openingCacheLimit=512;
+const openingBounds=points=>['x','y','z'].map(axis=>[Math.min(...points.map(p=>p[axis])),Math.max(...points.map(p=>p[axis]))]);
+// Conservative spatial broad phase: exact plane and polygon checks still decide
+// the cuts. Long faces fall back to the complete list rather than losing targets.
+function indexOpenings(features){
+ const cells=new Map(),oversized=[],size=4;
+ const keys=box=>{const ranges=box.map(([lo,hi])=>[Math.floor((lo-.002)/size),Math.floor((hi+.002)/size)]);if(ranges.reduce((n,[lo,hi])=>n*(hi-lo+1),1)>4096)return null;const result=[];for(let x=ranges[0][0];x<=ranges[0][1];x++)for(let y=ranges[1][0];y<=ranges[1][1];y++)for(let z=ranges[2][0];z<=ranges[2][1];z++)result.push(x+':'+y+':'+z);return result;};
+ for(const f of features){const bins=keys(openingBounds(f.points));if(!bins){oversized.push(f);continue;}for(const key of bins){if(!cells.has(key))cells.set(key,[]);cells.get(key).push(f);}}
+ return {query(box){const bins=keys(box);return bins?[...new Set([...oversized,...bins.flatMap(key=>cells.get(key)||[])])]:features;}};
+}
+
+function cutOpenings(face,features){
+ if(face.feature||face.curvedSurface||face.deleted)return [face];
+ const frame=W.faceFrame(face);if(!frame)return [face];
+ const local=p=>K.local(frame,p),shape=f=>({points:f.points.map(local),holes:(f.holes||[]).map(r=>r.map(local))});
+ const box=openingBounds(face.points);if(!Array.isArray(features))features=features.query(box);
+ const cuts=features.filter(f=>{if(f===face||!f.feature||f.deleted||f.drafted||f.solidId)return false;const other=openingBounds(f.points);return box.every(([lo,hi],i)=>other[i][1]>=lo-.002&&other[i][0]<=hi+.002)&&f.points.every(p=>Math.abs(local(p).z)<=.002);}).map(shape);
+ if(!cuts.length)return [face];
+ const original=shape(face),key=JSON.stringify([original,cuts]);let parts=openingCache.get(key);
+ if(parts){openingCache.delete(key);openingCache.set(key,parts);}else{parts=K.difference(original,cuts);openingCache.set(key,parts);if(openingCache.size>openingCacheLimit)openingCache.delete(openingCache.keys().next().value);}
+ if(Math.abs(parts.reduce((sum,f)=>sum+K.area(f),0)-K.area(original))<1e-8)return [face];
+ return parts.map(part=>({...face,points:part.points.map(p=>W.fromFrame(frame,p)),holes:part.holes.map(r=>r.map(p=>W.fromFrame(frame,p)))}));
+}
 function validateResult(result){
  for(const f of [result.cap,...(result.sides||[]),...(result.replacements||[]).flatMap(r=>r.pieces)].filter(f=>f&&!f.deleted))K.validateFace(f);
  for(const f of result.base?.faces||[]){if(!f.points.every(K.finite3))throw Error('Base update produced a non-finite coordinate.');K.triangles(f.points,f.holes||[]);}
@@ -73,9 +98,9 @@ function validateEdits(edits,before={}){
  if(edits.$surfaces)edits.$surfaces=K.compactSurfaces(edits.$surfaces);
  if(edits.$loose){if((edits.$loose.points||[]).some(p=>!K.finite3(p))||(edits.$loose.edges||[]).some(pair=>pair.length!==2||pair.some(p=>!K.finite3(p))))throw Error('Copied geometry contains an invalid point or line.');}
  const old=new Map((before.$surfaces||[]).map(f=>[f.id,JSON.stringify(f)]));
- for(const f of edits.$surfaces||[])if(!f.deleted&&!f.drafted&&old.get(f.id)!==JSON.stringify(f))K.validateFace(f);
- const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;for(const f of d.faces||[]){if(f.solidId||f.boundaryHole)continue;K.triangles(f.points,f.holes||[]);}}
+ if(edits.$surfaces)edits.$surfaces=edits.$surfaces.flatMap(f=>{if(f.deleted||f.drafted||old.get(f.id)===JSON.stringify(f))return [f];const parts=K.normalizeFaces(f);for(const part of parts)K.validateFace(part);Object.assign(f,parts[0]);return [f,...parts.slice(1)];});
+ const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;for(const f of d.faces||[]){if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))continue;Object.assign(f,K.normalizeFace(f));K.triangles(f.points,f.holes||[]);}}
  if(edits.$base&&JSON.stringify(edits.$base.faces)!==JSON.stringify(before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,draftFace,restoreDraftFaceOwnership,reconcileChimneys,collect,createExtrusion,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,collect,createExtrusion,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);

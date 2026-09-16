@@ -9,17 +9,31 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
  group.traverse(o=>{
   const line=o.isLine||o.isLineSegments;
   if(line||o.isPoints||o.isSprite){o.userData||={};if(!('exteriorVisible' in o.userData))o.userData.exteriorVisible=o.visible;o.visible=textured&&!line&&!o.userData.exteriorSelection?false:o.userData.exteriorVisible;}
-  if(!o.material||o.userData?.curveCenterIndicator||o.userData?.curveSnapGuide)return;
+  if(!o.material||o.userData?.planeGuide||o.userData?.curveCenterIndicator||o.userData?.curveSnapGuide||o.userData?.alignmentGuide)return;
   for(const m of (Array.isArray(o.material)?o.material:[o.material])){
    m.userData||={};const saved=m.userData.exteriorDisplay||(m.userData.exteriorDisplay={opacity:m.opacity,transparent:m.transparent,depthTest:m.depthTest,depthWrite:m.depthWrite,map:m.map,vertexColors:m.vertexColors,polygonOffset:m.polygonOffset,polygonOffsetFactor:m.polygonOffsetFactor,polygonOffsetUnits:m.polygonOffsetUnits});
    Object.assign(m,saved);
    if(m.color){m.userData.exteriorColor??=m.color.getHex();m.color.setHex(m.userData.exteriorColor);}
    if(o.isMesh&&!o.isSprite&&m.color){
-    if(!translucent&&!textured)m.color.multiplyScalar(.28);
-    if(textured){window.ExteriorFinishes?.apply(o,m);if(o.userData.exteriorSelected&&THREE.Color&&m.color.lerp)m.color.lerp(new THREE.Color('#81baff'),.3);}
+    if(!translucent&&!textured){
+     // Muted midtone fills leave bright drafting lines clearly distinguishable.
+     const hsl=m.color.getHSL({});m.color.setHSL(hsl.h,hsl.s*.32,hsl.l*.65);
+    }
+    if(textured)window.ExteriorFinishes?.apply(o,m);
+    // Brighten the existing hue consistently in every display mode.
+    if(o.userData.exteriorSelected&&THREE.Color&&m.color.lerp){m.color.lerp(new THREE.Color('#ffffff'),.6);if(translucent)m.opacity=.95;}
    }
-   if(!translucent){m.depthTest=true;if(o.isMesh&&!o.isSprite){m.opacity=1;m.transparent=false;m.depthWrite=true;if(textured){m.polygonOffset=true;m.polygonOffsetFactor=1;m.polygonOffsetUnits=1;}}}
-   if(textured&&(line||o.userData?.exteriorSelection)){m.color?.setHex(o.userData?.exteriorSelection?0x81baff:0x303840);m.vertexColors=false;m.opacity=o.userData?.exteriorSelection ? .9 : .35;m.transparent=true;m.depthTest=true;m.depthWrite=false;}
+   if(!translucent){m.depthTest=true;if(o.isMesh&&!o.isSprite){m.opacity=1;m.transparent=false;m.depthWrite=true;if(textured){m.polygonOffset=true;m.polygonOffsetFactor=o.userData.exteriorFeature?-1:1;m.polygonOffsetUnits=o.userData.exteriorFeature?-1:1;}}}
+   if(textured&&(line||o.userData?.exteriorSelection)){m.color?.setHex(o.userData?.exteriorSelection?0xffffff:0x303840);m.vertexColors=false;m.opacity=o.userData?.exteriorSelection ? .9 : .35;m.transparent=true;m.depthTest=true;m.depthWrite=false;}
+   // Selected stickers must win coplanar depth ties in solid display modes.
+   // Keep normal depth testing so genuinely nearer walls still occlude them.
+   if(o.isMesh&&o.userData?.exteriorFeature){o.renderOrder=o.userData.exteriorSelected?2:1;m.polygonOffset=true;m.polygonOffsetFactor=o.userData.exteriorSelected?-4:-1;m.polygonOffsetUnits=o.userData.exteriorSelected?-4:-1;}
+   // Selection outlines are overlays, including in textured mode.
+   if(line&&o.userData?.exteriorSelection){m.depthTest=false;m.depthWrite=false;}
+   // Point squares are drafting overlays: a surface must never slice them.
+   if(o.isPoints){m.depthTest=false;m.depthWrite=false;o.renderOrder=1000;}
+   // Annotation sprites must remain overlays in every surface display mode.
+   if(o.isSprite&&(o.userData?.wallFeature||o.userData?.wallLength!==undefined||o.userData?.moveIndicator)){m.depthTest=false;m.depthWrite=false;}
    m.needsUpdate=true;
   }
  });
@@ -264,23 +278,34 @@ window.wallCurveCenterMarker=function(group,vector,point){
 window.wallCurveGuides=function(group,vector,guides){
  for(const guide of guides||[]){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(guide.points.map(vector)),new THREE.LineDashedMaterial({color:guide.color,dashSize:.12,gapSize:.08,transparent:true,opacity:guide.role==='radius-circle'?.65:.95,depthTest:false,depthWrite:false}));line.computeLineDistances();line.renderOrder=1002;line.userData.curveSnapGuide=guide.role;group.add(line);}
 };
+// Reference-count text textures across scene rebuilds; only unused labels may
+// be evicted. Materials remain per-sprite so rotation and selection stay local.
+const lengthTextures=new Map();
+function pruneLengthTextures(){for(const [key,entry]of lengthTextures){if(lengthTextures.size<=256)break;if(!entry.users){lengthTextures.delete(key);entry.texture.dispose();}}}
 window.wallLengthMarker=function(group,vector,edge){
  if(typeof document==='undefined'||!THREE.Sprite)return;
+ const text=edge.text||(edge.length/.3048).toFixed(1)+'\u2032',key=JSON.stringify([text,!!edge.selected]);
+ let entry=lengthTextures.get(key);
+ if(!entry){
  const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;const ctx=canvas.getContext('2d');if(!ctx)return;
- const text=edge.text||(edge.length/.3048).toFixed(2)+' ft';
- ctx.fillStyle='#fff';ctx.font='40px Segoe UI, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeStyle='#000';ctx.lineWidth=4;ctx.lineJoin='round';ctx.strokeText(text,128,32);ctx.fillText(text,128,32);
- const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false,depthWrite:false,sizeAttenuation:false}));
+ ctx.fillStyle='#fff';ctx.font=(edge.selected?'bold ':'')+'40px Segoe UI, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeStyle=edge.selected?'#245b92':'#000';ctx.lineWidth=edge.selected?8:4;ctx.lineJoin='round';ctx.strokeText(text,128,32);ctx.fillText(text,128,32);
+ const texture=new THREE.CanvasTexture(canvas);texture.userData||={};texture.userData.exteriorLabelShared=true;entry={texture,users:0};lengthTextures.set(key,entry);
+ }else{lengthTextures.delete(key);lengthTextures.set(key,entry);}
+ entry.users++;pruneLengthTextures();
+ const material=new THREE.SpriteMaterial({map:entry.texture,transparent:true,depthTest:false,depthWrite:false,sizeAttenuation:false}),dispose=material.dispose?.bind(material);let released=false;
+ material.dispose=()=>{if(released)return;released=true;entry.users--;dispose?.();pruneLengthTextures();};
+ const sprite=new THREE.Sprite(material);
  sprite.position.copy(vector({x:(edge.a.x+edge.b.x)/2,y:(edge.a.y+edge.b.y)/2,z:(edge.a.z+edge.b.z)/2}));sprite.scale.set(.08,.02,1);sprite.center?.set(.5,edge.centerY??(edge.text ? .5 : .05));
  // Keep the text small and aligned to the projected edge, including during orbit.
  sprite.onBeforeRender=(renderer,scene,camera)=>{
   const r=renderer.domElement.getBoundingClientRect(),a=vector(edge.a).clone().project(camera),b=vector(edge.b).clone().project(camera);
   let angle=Math.atan2((b.y-a.y)*r.height,(b.x-a.x)*r.width);if(angle>Math.PI/2)angle-=Math.PI;if(angle<-Math.PI/2)angle+=Math.PI;sprite.material.rotation=edge.horizontal?0:angle;
-  const height=14*64/40,scale=2*height/(r.height*camera.projectionMatrix.elements[5]);sprite.scale.set(scale*4,scale,1);
+  const height=(edge.selected?18:14)*64/40,scale=2*height/(r.height*camera.projectionMatrix.elements[5]);sprite.scale.set(scale*4,scale,1);
   // The renderer has already updated world matrices before this callback.
   // Refresh ours now so a newly rebuilt label uses its pixel size this frame.
   sprite.updateMatrixWorld(true);
  };
- sprite.renderOrder=1001;sprite.userData.wallLength=edge.length;if(edge.text&&!edge.moveIndicator)sprite.userData.wallFeature=true;if(edge.moveIndicator)sprite.userData.moveIndicator=true;group.add(sprite);
+ sprite.renderOrder=1001;if(edge.selected)sprite.userData.exteriorSelection=true;sprite.userData.wallLength=edge.length;if(edge.text&&!edge.moveIndicator)sprite.userData.wallFeature=true;if(edge.moveIndicator)sprite.userData.moveIndicator=true;group.add(sprite);
 };
 // Batch plain drafting wire and square markers; meshes and shader labels keep
 // their individual objects for picking and screen-size rendering.
@@ -288,7 +313,7 @@ window.wallGeometryBatch=function(group){
  const batches=new Map();
  return {add(o){
   const m=o.material,p=o.geometry?.getAttribute?.('position'),line=o.isLine&&!o.isLineSegments&&m?.type==='LineBasicMaterial',point=o.isPoints&&m?.type==='PointsMaterial'&&!m.map;
-  if(!p||(!line&&!point)||o.geometry.index||o.position.lengthSq()||o.rotation.x||o.rotation.y||o.rotation.z||o.scale.x!==1||o.scale.y!==1||o.scale.z!==1){group.add(o);return;}
+  if(o.userData?.planeGuide||!p||(!line&&!point)||o.geometry.index||o.position.lengthSq()||o.rotation.x||o.rotation.y||o.rotation.z||o.scale.x!==1||o.scale.y!==1||o.scale.z!==1){group.add(o);return;}
   const key=JSON.stringify([line?'line':'point',m.color.getHex(),m.opacity,m.transparent,m.depthTest,m.depthWrite,m.size,m.sizeAttenuation,m.linewidth,o.renderOrder]);let b=batches.get(key);
   if(!b){b={line,material:m,order:o.renderOrder,positions:[]};batches.set(key,b);}else m.dispose();
   const push=i=>b.positions.push(p.getX(i),p.getY(i),p.getZ(i));
@@ -299,12 +324,19 @@ window.wallGeometryBatch=function(group){
 
 // Select from editable surfaces across layers. Roof faces are reference-only;
 // they do not block picking, but their editable fascia panels still do.
+// Mounted stickers and their hosts can be exactly coplanar. Prefer a sticker
+// only within floating-point depth tolerance; nearer geometry still occludes it.
+window.wallPreferredSurfaceHit=function(hits){
+ const sorted=[...hits].sort((a,b)=>a.distance-b.distance),front=sorted[0];if(!front)return null;
+ const epsilon=Math.max(1,front.point?.length?.()||0,front.distance||0)*1e-6;
+ return sorted.find(h=>h.object.userData?.exteriorFeature&&Math.abs(h.distance-front.distance)<=epsilon)||front;
+};
 window.wallNearestSurface=function(group,e){
  if(!group||typeof THREE==='undefined'||!e.target.closest?.('#three-view-wrapper'))return null;
  const visible=o=>{for(let p=o;p;p=p.parent)if(p.visible===false)return false;return true;},meshes=[];
  group.traverse(o=>{const d=o.userData||{},layer=d.pickLayer||(d.baseId!==undefined?'base':d.solidId!==undefined||d.draftKey!==undefined?'walls':null);if(o.isMesh&&layer&&(layer!=='roof'||d.roofTrimId!==undefined)&&visible(o)&&(Array.isArray(o.material)?o.material.some(m=>m.visible!==false):o.material?.visible!==false)){o.updateMatrixWorld(true);meshes.push(o);}});
  const r=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,1-(e.clientY-r.top)/r.height*2),camera);
- const hits=ray.intersectObjects(meshes).sort((a,b)=>a.distance-b.distance);let hit=hits[0];if(!hit)return null;
+ const hits=ray.intersectObjects(meshes).sort((a,b)=>a.distance-b.distance);let hit=window.wallPreferredSurfaceHit(hits);if(!hit)return null;
  // Grade is a reference surface. At a numerically coincident base, prefer the
  // editable face; do not let Float32 triangulation order decide each click.
  if(hit.object.userData.pickLayer==='grade'){const normal=h=>h.face?.normal.clone().transformDirection(h.object.matrixWorld),n=normal(hit),scale=Math.max(1,(hit.point?.length()||0),hit.distance),epsilon=scale*1e-6;const base=hits.find(h=>h.object.userData.baseId!==undefined&&Math.abs(h.distance-hit.distance)<=epsilon&&n&&Math.abs(n.dot(normal(h)||n))>1-1e-6);if(base)hit=base;}
@@ -337,7 +369,7 @@ window.createWallEditor=function(host){
  const vertices=w=>[...w.bottom,...w.top],key=w=>w.id;
 
  function record(before){history.push(copy(before));future=[];host.recordHistory?.(copy(before));}
- const draft=window.createWallFaceDraft?.({pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,pasteHost:host.pasteHost,selectBaseEntities:host.selectBaseEntities,state:host.state,walls:host.walls,wallsVisible:host.visible,hit,roof:()=>host.state()?.boundExtrusionToRoof!==false?(window.WallChimneys?.roofWithOpenings(host.state())||host.state()?.roof):null,active,selected:()=>selected,select:id=>{selected=id;indices=[];host.setLayer?.('walls');},selectBox:id=>{selected=id;indices=[];host.setLayer?.('walls',true);},screen,position:host.position,toPixel:host.toPixel,message:text=>host.message?.(text),redraw:host.redraw,commit:before=>{record(before);host.changed();}});
+ const draft=window.createWallFaceDraft?.({pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,pasteHost:host.pasteHost,selectBaseEntities:host.selectBaseEntities,state:host.state,walls:host.walls,wallsVisible:host.visible,hit,roof:()=>host.state()?.boundExtrusionToRoof!==false?(window.WallChimneys?.roofWithOpenings(host.state())||host.state()?.roof):null,active,selected:()=>selected,select:id=>{selected=id;indices=[];host.setLayer?.('walls');},selectBox:id=>{selected=id;indices=[];host.setLayer?.('walls',true,true);},screen,position:host.position,toPixel:host.toPixel,message:text=>host.message?.(text),redraw:host.redraw,commit:before=>{record(before);host.changed();}});
 
  function apply(walls){
 
@@ -530,12 +562,12 @@ window.createWallEditor=function(host){
 
  function keyDown(e){
 
-  if(!active())return false;const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['t','x','enter','v','s','w','d','arrowleft','arrowright','arrowup','arrowdown','m','e','h','escape','z','f','r','c','u','n','delete','backspace','q','y'].includes(k))return false;
+  if(!active())return false;const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['p','t','x','enter','v','s','w','d','g','arrowleft','arrowright','arrowup','arrowdown','m','e','h','escape','z','f','r','c','u','n','delete','backspace','q','y'].includes(k))return false;
 
   e.stopImmediatePropagation();e.preventDefault();
 
   if((e.ctrlKey||e.metaKey)&&(k==='y'||(k==='z'&&e.shiftKey))){if(!drag&&!draft?.busy()&&future.length){history.push(copy(host.state().wallEdits||{}));draft?.clear();host.state().wallEdits=future.pop();host.changed();host.redraw();}return true;}
-  if(drag&&!e.ctrlKey&&!e.metaKey&&['e','c','n','q','h','v','s','w','d','y','u'].includes(k)){const prior=drag;drag=null;armed=false;if(prior.changed){record(prior.original);host.changed();}else host.state().wallEdits=prior.original;}
+  if(drag&&!e.ctrlKey&&!e.metaKey&&['e','c','n','q','h','v','s','w','d','g','y','u'].includes(k)){const prior=drag;drag=null;armed=false;if(prior.changed){record(prior.original);host.changed();}else host.state().wallEdits=prior.original;}
   if(!drag&&draft?.key(e))return true;
 
   if(k==='r'){const w=host.walls().find(w=>w.id===selected);if(w)pick(mouse?.e||e,true,w);return true;}
@@ -773,7 +805,7 @@ window.createWallEditor=function(host){
 
   host.changed();return true;
 
- },pointSelection:()=>draft?.pointSelection()||[],createSelectedFace:selection=>draft?.createSelectedFace(selection),extrudeFace:(...args)=>draft?.extrudeFace(...args),geometryCommand:(...args)=>draft?.geometryCommand(...args),clipboardCommand:(...args)=>draft?.clipboardCommand(...args),mergeAll:()=>host.enabled()&&draft?.mergeAll(),autoTrim:()=>host.enabled()&&draft?.autoTrim(),chamferCommand:(selection,rounded)=>active()&&draft?.chamferCommand(selection,rounded),activeMaterial:()=>draft?.activeMaterial(),colorCommand:color=>active()&&draft?.colorCommand(color),materialCommand:(...args)=>active()&&draft?.materialCommand(...args),interaction:()=>draft?.interaction()||(drag?"Move wall":armed?"Move wall":null),cancelPointerGesture(){draft?.cancelPointerGesture();if(drag&&!drag.plane){host.state().wallEdits=drag.original;drag=null;armed=false;}},beginEntity:(mode,selection)=>draft?.beginEntity(mode,selection),distanceInput:()=>draft?.distanceInput()||(drag?.plane?{token:drag,amount:drag.amount,set(value){drag.numeric=value;if(mouse)movePointer(mouse.e);}}:null),consumeSelectionClick:()=>draft?.consumeSelectionClick(),startBox:(e,click)=>host.enabled()&&draft?.startBox(e,click),finishPointer:e=>draft?.finishPointer(e),cutFromPoint:(p,k,base)=>host.enabled()&&draft?.cutFromPoint(p,k,base),stepWheel:e=>active()&&draft?.stepWheel(e),stepCommand:()=>active()&&draft?.stepCommand(),featureCommand:(...args)=>active()&&draft?.featureCommand(...args),featureSelection:()=>draft?.featureSelection(),featureContext:e=>active()&&draft?.featureContext(e),canBox:()=>active()&&draft?.canBox(),pickPoint:e=>host.enabled()&&draft?.pickVisiblePoint(e),pickLine:e=>host.enabled()&&draft?.pickLine3D(e),pickSurface:e=>host.enabled()&&host.visible()&&draft?.pickSolid(e),doubleClick:e=>active()&&draft?.doubleClick(e,hit(e)||host.walls().find(w=>w.id===selected)),hasDraft:id=>draft?.has(id),apply,down,pick,hit,busy:()=>!!drag||armed||!!draft?.busy(),clear(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;armed=false;selected=null;indices=[];},keyDown,draw2D:(...args)=>inWallFrame(()=>draw2D(...args)),draw3D:(...args)=>inWallFrame(()=>draw3D(...args)),leave(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;selected=null;indices=[];armed=false;history=[];future=[];}};
+ },selectionSnapshot:()=>copy({selected,indices,draft:draft?.selectionSnapshot?.()}),restoreSelection(value){const s=copy(value||{});selected=s.selected||null;indices=s.indices||[];draft?.restoreSelection?.(s.draft);},togglePlane:source=>draft?.togglePlane(source),planeView:()=>draft?.planeView(),setPlaneDisplay:value=>draft?.setPlaneDisplay(value),planeActive:()=>draft?.planeActive(),planeDown:e=>draft?.planeDown(e),pointSelection:()=>draft?.pointSelection()||[],createSelectedFace:selection=>draft?.createSelectedFace(selection),extrudeFace:(...args)=>draft?.extrudeFace(...args),geometryCommand:(...args)=>draft?.geometryCommand(...args),clipboardCommand:(...args)=>draft?.clipboardCommand(...args),mergeAll:()=>host.enabled()&&draft?.mergeAll(),autoTrim:width=>host.enabled()&&draft?.autoTrim(width),chamferCommand:(selection,rounded)=>active()&&draft?.chamferCommand(selection,rounded),activeMaterial:()=>draft?.activeMaterial(),colorCommand:color=>active()&&draft?.colorCommand(color),materialCommand:(...args)=>active()&&draft?.materialCommand(...args),interaction:()=>draft?.interaction()||(drag?"Move wall":armed?"Move wall":null),cancelPointerGesture(){draft?.cancelPointerGesture();if(drag&&!drag.plane){host.state().wallEdits=drag.original;drag=null;armed=false;}},beginEntity:(mode,selection)=>draft?.beginEntity(mode,selection),distanceInput:()=>draft?.distanceInput()||(drag?.plane?{token:drag,amount:drag.amount,set(value){drag.numeric=value;if(mouse)movePointer(mouse.e);}}:null),consumeSelectionClick:()=>draft?.consumeSelectionClick(),startBox:(e,click)=>host.enabled()&&draft?.startBox(e,click),finishPointer:e=>draft?.finishPointer(e),cutFromPoint:(p,k,base)=>host.enabled()&&draft?.cutFromPoint(p,k,base),stepWheel:e=>active()&&draft?.stepWheel(e),stepCommand:()=>active()&&draft?.stepCommand(),featureCommand:(...args)=>active()&&draft?.featureCommand(...args),featurePlacement:()=>draft?.featurePlacement(),featureSelection:()=>draft?.featureSelection(),featureContext:e=>active()&&draft?.featureContext(e),canBox:()=>active()&&draft?.canBox(),pickPoint:e=>host.enabled()&&draft?.pickVisiblePoint(e),pickLine:e=>host.enabled()&&draft?.pickLine3D(e),pickSurface:e=>host.enabled()&&host.visible()&&draft?.pickSolid(e),doubleClick:e=>active()&&draft?.doubleClick(e,hit(e)||host.walls().find(w=>w.id===selected)),hasDraft:id=>draft?.has(id),apply,down,pick,hit,busy:()=>!!drag||armed||!!draft?.busy(),clear(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;armed=false;selected=null;indices=[];},keyDown,draw2D:(...args)=>inWallFrame(()=>draw2D(...args)),draw3D:(...args)=>inWallFrame(()=>draw3D(...args)),leave(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;selected=null;indices=[];armed=false;history=[];future=[];}};
 
 };
 

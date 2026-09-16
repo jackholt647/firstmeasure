@@ -6,10 +6,10 @@ const G=require('../public/measure/internal/editor_scripts/wall_geometry.js');
 
 // Exercise the actual UI handlers and persistence without imagery or a WebGL context.
 function fixture(withBase=false,editors={}){
-    const elements=new Map(),listeners={},storage=new Map();
+    const elements=new Map(),listeners={},storage=new Map(),timers=new Map();let timerId=0;
     const el=(id='')=>({id,hidden:false,disabled:false,value:'',textContent:'',dataset:{},style:{},
         classList:{toggle(){},add(){},remove(){}},setAttribute(){},addEventListener(){},
-        append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
+        prepend(...children){children.forEach(c=>this.appendChild(c));},append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
         querySelectorAll(selector){return selector==='[data-stage]'?stages:selector==='[data-soffit]'?soffits:[];}});
     const stages=[1,2,3,4,5,6,7].map(n=>({...el(),dataset:{stage:String(n)}}));
     const soffits=['auto','12','18','24'].map(n=>({...el(),dataset:{soffit:n}}));
@@ -17,7 +17,7 @@ function fixture(withBase=false,editors={}){
         addEventListener:(name,fn)=>listeners[name]=fn,querySelectorAll:()=>[],
         getElementById(id){if(id==='geoSvg'||id==='measurement-panel')return elements.get(id)||null;if(!elements.has(id))elements.set(id,el(id));return elements.get(id);}};
     const points=[{x:0,y:0,z:8},{x:10,y:0,z:8},{x:10,y:10,z:8},{x:0,y:10,z:8}];
-    const ctx={setInterval:()=>0,clearInterval(){},document,location:{origin:'http://wall-test'},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
+    const ctx={setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),setInterval:()=>0,clearInterval(){},document,location:{origin:'http://wall-test'},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
         activeGeometry:{points,connections:[{start:points[0],end:points[1],type:'unknown'}],manualFaces:[{points}]},
         imageWidth:10,imageHeight:10,mapCenterLat:0,mapCenterLng:0,dsmMin:0,viewRotation:0,currentZoom:1,
         selectedPoints:new Set(),selectedLines:new Set(),tempPoint:null,layerData:{},isMeasurementMode:false,
@@ -25,7 +25,7 @@ function fixture(withBase=false,editors={}){
     if(withBase)ctx.BaseGeometry=require('../public/measure/internal/editor_scripts/base_geometry.js'); ctx.window=ctx;ctx.exitMeasurementMode=()=>{ctx.isMeasurementMode=false;elements.get('measurement-panel')?.remove();};
     Object.assign(ctx,editors);vm.createContext(ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/ground_editor.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/wall_mode.js'),'utf8'),ctx);
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
-    return {ctx,elements,stages,soffits,el,listeners};
+    return {ctx,elements,stages,soffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
 test('wall entry closes line selection; corrected types rebuild; reset and reload discard old passes',()=>{
     const {ctx,elements,stages,soffits,el}=fixture();
@@ -336,11 +336,74 @@ test('initial renderer keeps a merged wall and chimney in one mesh and removes t
  class Material{constructor(args){Object.assign(this,args);}}
  class Object3D{constructor(geometry,material){this.geometry=geometry;this.material=material;this.userData={};}}
  ctx.THREE={Group,BufferGeometry:Geometry,Float32BufferAttribute:class{constructor(array){this.array=array;}},Mesh:Object3D,Line:Object3D,LineSegments:Object3D,Points:Object3D,MeshBasicMaterial:Material,LineBasicMaterial:Material,PointsMaterial:Material};
- ctx.scene=new Group();ctx.getVector3=p=>p;ctx.disposeObject3D=()=>{};ctx.WallMode.render3D();
+ ctx.ExteriorModel=require('../public/measure/internal/editor_scripts/exterior_model.js');ctx.scene=new Group();ctx.getVector3=p=>p;ctx.disposeObject3D=()=>{};ctx.WallMode.render3D();
  const objects=ctx.scene.children[0].children,meshes=objects.filter(o=>o.userData.pickLayer==='walls');
  assert.equal(meshes.length,1,'material source category cannot split the common plane');
  const wire=objects.filter(o=>o.geometry.position&&o.material.opacity===.95);assert.equal(wire.length,1);
  // No internal upright appears in the rendered line pairs (world conversion is irrelevant).
  const a=wire[0].geometry.position.array;let verticals=0;for(let i=0;i<a.length;i+=6)if(a[i]===a[i+3]&&a[i+1]===a[i+4])verticals++;
  assert.equal(verticals,2,'only the outer uprights are rendered');
+});
+
+
+test('P routes face-plane mode and drawing clicks ahead of marquee and model picking',()=>{
+ let plane=false,draws=0,boxes=0,picks=0;
+ const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,cancelPointerGesture(){},planeActive:()=>plane,togglePlane(){plane=!plane;return true;},planeDown(){draws++;return true;},startBox(){boxes++;return true;},pickPoint(){picks++;return true;}};
+ const f=fixture(true,{createWallEditor:()=>wall});f.ctx.WallMode.setEnabled(true);
+ const e={key:'p',button:0,target:{closest:s=>s==='#three-view-wrapper'||s==='#viewport,#three-view-wrapper'},preventDefault(){},stopImmediatePropagation(){}};
+ f.listeners['window:keydown'](e);assert.equal(plane,true);
+ f.listeners['window:pointerdown'](e);assert.equal(draws,1);assert.equal(boxes,0);assert.equal(picks,0);
+ f.listeners['window:keydown']({...e,repeat:true});assert.equal(plane,true);
+ f.listeners['window:keydown']({...e,target:{closest:s=>s==='input,textarea,select,[contenteditable=true]'}});assert.equal(plane,true);
+ f.listeners['window:keydown'](e);assert.equal(plane,false);
+});
+
+
+test('selection-only history restores mixed selections, skips without discarding, and geometry always restores selection',()=>{
+ let host,selection={points:[],lines:[],faces:[]};const clone=v=>JSON.parse(JSON.stringify(v));
+ const wall={apply:w=>w,draw2D(){},draw3D(){},busy:()=>false,clear(){selection={points:[],lines:[],faces:[]};},selectionSnapshot:()=>clone(selection),restoreSelection:s=>{selection=clone(s);}};
+ const f=fixture(true,{createWallEditor:h=>{host=h;return wall;}});f.ctx.activeGeometry.connections[0].type='eave';f.soffits[1].onclick();f.ctx.WallMode.setEnabled(true);
+ const input=fn=>{f.listeners['window:change']();fn();f.flushTimers();};
+ const key=k=>{f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});f.flushTimers();};
+ const a={points:['a','b'],lines:['ab'],faces:['front']},b={points:['a','b','oops'],lines:['ab'],faces:['front']};
+ input(()=>{selection=clone(a);});input(()=>{selection=clone(b);});key('z');assert.deepEqual(selection,a);key('y');assert.deepEqual(selection,b);key('z');
+ const before=clone(host.state().wallEdits||{});
+ input(()=>{host.recordHistory(before);host.state().wallEdits={moved:true};host.changed();selection={points:['moved-a','moved-b'],lines:['moved-ab'],faces:['moved-front']};});
+ const moved=clone(selection);key('z');assert.deepEqual(selection,a);assert.equal(JSON.stringify(host.state().wallEdits),JSON.stringify(before));key('y');assert.deepEqual(selection,moved);assert.equal(host.state().wallEdits.moved,true);
+ input(()=>{selection=clone(b);});f.elements.get('wall-undo-selections').onchange({target:{checked:false}});key('z');assert.deepEqual(selection,a);assert.equal(JSON.stringify(host.state().wallEdits),JSON.stringify(before));key('y');assert.deepEqual(selection,moved);
+ f.elements.get('wall-undo-selections').onchange({target:{checked:true}});key('y');assert.deepEqual(selection,b,'skipped selection still exists on redo');
+ key('z');input(()=>{selection={points:['new'],lines:[],faces:[]};});key('y');assert.deepEqual(selection,{points:['new'],lines:[],faces:[]},'new selection branches history');
+});
+
+test('selection undo preference defaults on and survives rebuild and project restore',()=>{
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.soffits[1].onclick();assert.notEqual(f.ctx.WallMode.serialize().undoSelections,false);
+ f.elements.get('wall-undo-selections').onchange({target:{checked:false}});f.elements.get('wall-rebuild').onclick();assert.equal(f.ctx.WallMode.serialize().undoSelections,false);
+ const saved=f.ctx.WallMode.serialize();f.ctx.WallMode.beforeProjectLoad();f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize().undoSelections,false);
+});
+
+
+
+test('wall orbit exposes undersides, survives replacement controls, and restores the roof limit',()=>{
+ let updates=0;const original={maxPolarAngle:Math.PI/2,update(){updates++;}},f=fixture(false,{controls:original});
+ f.ctx.WallMode.setEnabled(true);assert.equal(original.maxPolarAngle,170*Math.PI/180);f.ctx.WallMode.syncVisibility();f.ctx.WallMode.setEnabled(false);assert.equal(original.maxPolarAngle,Math.PI/2);assert.equal(updates,1);
+ f.ctx.WallMode.setEnabled(true);const replacement={maxPolarAngle:Math.PI/2,update(){updates++;}};f.ctx.controls=replacement;f.ctx.WallMode.syncVisibility();assert.equal(replacement.maxPolarAngle,170*Math.PI/180);f.ctx.WallMode.beforeProjectLoad();assert.equal(replacement.maxPolarAngle,Math.PI/2);assert.equal(updates,2);
+});
+
+test('persistent selection readout reports points lines and grouped faces independently of status messages',()=>{
+ let host,snapshot={},points=[];const updates=[];
+ const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},interaction:()=>null,selectionSnapshot:()=>({draft:snapshot}),pointSelection:()=>points};
+ const f=fixture(true,{createWallEditor:h=>{host=h;return wall;},setInterval:(fn,ms)=>{if(ms===150)updates.push(fn);return 0;}});f.ctx.WallMode.setEnabled(true);host.setLayer('walls');
+ f.ctx.document.querySelector=()=>null;const read=()=>{updates.forEach(fn=>fn());return f.elements.get('wall-selection-counts').textContent;};
+ snapshot={faceSelection:[{solid:'a'},{solid:'b'}]};assert.equal(read(),'Selected: 0 points · 0 lines · 2 faces');
+ host.message('Another tool status');assert.equal(read(),'Selected: 0 points · 0 lines · 2 faces');
+ snapshot={lineSelection:[{id:'a'},{id:'b'}]};assert.equal(read(),'Selected: 0 points · 2 lines · 0 faces');
+ snapshot={};points=[{}, {}, {}];assert.equal(read(),'Selected: 3 points · 0 lines · 0 faces');points=[];assert.equal(read(),'Selected: 0 points · 0 lines · 0 faces');
+});
+
+test('editor redraw requests coalesce and a commit upgrades the pending render',()=>{
+ const frames=[];let host;const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false};
+ const f=fixture(true,{requestAnimationFrame:fn=>{frames.push(fn);return frames.length;},createWallEditor:h=>{host=h;return wall;}});
+ f.ctx.WallMode.setEnabled(true);frames.length=0;
+ for(let i=0;i<10;i++)host.redraw();host.changed();host.redraw();assert.equal(frames.length,1);
+ frames.shift()();host.redraw();assert.equal(frames.length,1);frames.shift()();
 });

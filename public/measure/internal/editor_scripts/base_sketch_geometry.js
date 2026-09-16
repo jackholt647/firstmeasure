@@ -25,7 +25,7 @@ function read(base){
  if(prior?.signature===signature)return prior.sketch;
  const sketch=ensure(copy(base));readCache.set(base,{signature,sketch});return sketch;
 }
-function inside(s,p,base){return base&&!base.origin&&!base.frame?base.faces.some(f=>G.contains(f,p)):s.outlines.some(points=>G.contains({points},p));}
+function inside(s,p,base){if(base?.constructionPlane)return true;return base&&!base.origin&&!base.frame?base.faces.some(f=>G.contains(f,p)):s.outlines.some(points=>G.contains({points},p));}
 function add(base,p,tolerance=.01){
  const s=ensure(base);if(![p.x,p.y,p.z].every(Number.isFinite)||!inside(s,p,base))throw Error('Create points inside or on the house base.');
  const found=s.nodes.find(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<tolerance);if(found){found.userDraftPoint=true;delete found.curveSample;return found.id;}
@@ -100,6 +100,8 @@ function move(base,ids,delta){
  updateCurves(base,curves,movable.map(n=>({id:n.id,point:{...translated(n),...(delta.z?{manualZ:true}:{})}})));
 }
 function resolve(base){
+ // Unbounded construction sketches keep analytic wires; the plane editor owns region filling.
+ if(base.constructionPlane){compactCurves(ensure(base));return;}
  const s=ensure(base),segments=curveEdges(s),graphNodes=[...s.nodes,...segments.flatMap(e=>[e.start,e.end]).filter(n=>n.curveSample)],graphEdges=segments.map(e=>({...e,a:e.start.id,b:e.end.id})),old=copy(base.faces),faces=[],groups=[];
  // A wall draft already has local planar coordinates. A base can have several
  // elevations or pitches; never combine those in a single XY arrangement.
@@ -114,7 +116,13 @@ function resolve(base){
   const center=B.center({points:ps});if(group.plane?!group.faces.some(f=>G.contains(f,center)||G.contains(f,ps[0])):!inside(s,center,base)&&!inside(s,ps[0],base))continue;
   const original=group.faces.find(f=>G.contains(f,center))||group.faces[0],plane=G.plane(original.points);
   const points=ps.map(p=>({x:p.x,y:p.y,z:p.manualZ?p.z:plane.dx*p.x+plane.dy*p.y+plane.k,nodeId:p.id}));
-  B.validate({points});const signature=ps.map(p=>p.id).sort().join('|'),match=old.find(f=>f.points.map(p=>p.nodeId).sort().join('|')===signature),feature=match?.feature||old.find(f=>f.feature&&ps.every(p=>G.contains(f,p))&&f.points.every(p=>G.contains({points:ps},p)))?.feature;
+  B.validate({points});const signature=ps.map(p=>p.id).sort().join('|'),match=old.find(f=>f.points.map(p=>p.nodeId).sort().join('|')===signature);
+  // A divider changes a sticker's boundary, not its type. Inherit only when
+  // the entire new region belongs to one prior sticker (including its holes).
+  const featureOwner=match?.feature?match:old.find(f=>f.feature&&ps.every(p=>G.contains(f,p))&&K.difference({points:ps},[{points:f.points,holes:f.holes||[]}]).reduce((sum,r)=>sum+K.area(r),0)<=1e-8);
+  const feature=featureOwner&&{...featureOwner.feature};
+  if(feature&&K.area({points:ps})<K.area(featureOwner)-1e-8){feature.preset=null;feature.shape='custom';}
+
   const finish=match||old.find(f=>(f.material||f.finishColor)&&ps.every(p=>G.contains(f,p))&&K.difference({points:ps},[{points:f.points}]).reduce((sum,r)=>sum+K.area(r),0)<=1e-8);const material=finish?.material;
   // Consumed wall regions remain consumed when point insertion changes their
   // node signature or subdivides an edge. Geometry ownership survives resolution.

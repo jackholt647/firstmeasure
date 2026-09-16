@@ -51,3 +51,10 @@ test('intentional points on an arc survive rebinding and remain connected at a w
  assert.equal(b.sketch.edges.filter(e=>e.curveId&&[e.a,e.b].includes(id)).length,2);
  const center=b.sketch.curves[0].centerId;assert.ok(b.sketch.nodes.some(n=>n.id===center&&n.curveCenter));
 });
+
+test('dividing a sticker retains its type and orientation with custom child dimensions',()=>{
+ for(const type of ['window','door','garage']){const b=base();b.origin={x:0,y:0,z:0};b.u={x:1,y:0};b.faces[0].feature={type,preset:0,shape:'rectangle',axis:{x:1,y:0,z:0}};
+ S.ensure(b);const a=S.add(b,{x:5,y:0,z:0}),c=S.add(b,{x:5,y:10,z:0});S.connect(b,[a,c]);assert.equal(b.faces.length,2);
+ for(const f of b.faces){assert.equal(f.feature.type,type);assert.equal(f.feature.preset,null);assert.deepEqual(f.feature.axis,{x:1,y:0,z:0});assert.equal(Math.max(...f.points.map(p=>p.x))-Math.min(...f.points.map(p=>p.x)),5);}
+ S.resolve(b);assert.ok(b.faces.every(f=>f.feature.type===type));}
+});

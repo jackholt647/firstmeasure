@@ -20,3 +20,8 @@ test('fascia stops where an eave changes to a headwall on one polygon edge',()=>
  const mid=p(3,0,3),mixed={...roof,points:[...roof.points,mid],connections:[...roof.connections.slice(1),{startIdx:0,endIdx:6,type:'eave'},{startIdx:6,endIdx:1,type:'headwall'}]};
  const bottom=R.panels(mixed).filter(f=>f.a.y===0&&f.b.y===0);assert.equal(bottom.length,1);assert.deepEqual([bottom[0].a.x,bottom[0].b.x].sort(),[0,3]);
 });
+
+
+test('empty array settings from project metadata retain new fascia sizes after serialization',()=>{
+ for(const settings of [[],{edges:[]}]){const id=R.panels(roof)[0].id,next=JSON.parse(JSON.stringify(R.setHeight(settings,[id],8)));assert.equal(next.edges[id].height,8*R.INCH);assert.equal(R.panels(roof,next)[0].height,8*R.INCH);}
+});
