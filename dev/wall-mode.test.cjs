@@ -23,6 +23,7 @@ function fixture(withBase=false,editors={}){
         selectedPoints:new Set(),selectedLines:new Set(),tempPoint:null,layerData:{},isMeasurementMode:false,
         addEventListener:(name,fn)=>listeners['window:'+name]=fn,currentProjectId:'fixture',getMetersPerPx:()=>1,WallGeometry:G,WallChimneyCleanup:require('../public/measure/internal/editor_scripts/wall_chimney_cleanup.js'),WallRakeCleanup:require('../public/measure/internal/editor_scripts/wall_rake_cleanup.js'),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallGaps:require('../public/measure/internal/editor_scripts/wall_gaps.js'),GroundGeometry:require('../public/measure/internal/editor_scripts/ground_geometry.js')};
     if(withBase)ctx.BaseGeometry=require('../public/measure/internal/editor_scripts/base_geometry.js'); ctx.window=ctx;ctx.exitMeasurementMode=()=>{ctx.isMeasurementMode=false;elements.get('measurement-panel')?.remove();};
+    ctx.EditorHistory=require('../public/measure/internal/editor_scripts/editor_history.js');
     Object.assign(ctx,editors);vm.createContext(ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/ground_editor.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/wall_mode.js'),'utf8'),ctx);
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
     return {ctx,elements,stages,soffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};

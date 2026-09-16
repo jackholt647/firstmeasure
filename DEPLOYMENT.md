@@ -2,6 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [persistent roof and wall undo](deploy/digitalocean/development-persistent-undo-20260916.md)
+records `13a21682c9ae26a53a7e0f4569a28230ffd5c31a` on all three development roles.
+Undo count limits are removed and project saves retain both undo and redo.
+Read the record for the rejected initial candidate, immutable snapshot repair,
+and live save/refresh checks. The experimental allowlist and production are unchanged.
+
 September 16 development follow-up: [wall-mode entry and persistence repair](deploy/digitalocean/development-wall-entry-20260916.md)
 records `0ea9e7a9cd6d034120e53b8fbe8aaf7ead210031` on all three development roles.
 It fixes the first-entry render crash and persists roof/wall mode independently
