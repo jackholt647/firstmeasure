@@ -81,11 +81,15 @@ window.mountExteriorToolbar=function(){
  #exterior-main-toolbar #wall-advanced>div{top:calc(100% + 6px);background:#fff;border-color:#ccd2d9;box-shadow:0 5px 18px #0002;z-index:3000}
  #exterior-main-toolbar #wall-advanced label{gap:8px;white-space:normal}#exterior-main-toolbar #wall-advanced input{width:auto;padding:0}#exterior-main-toolbar #wall-advanced p{color:#667085;line-height:1.5}
  #exterior-main-toolbar label{display:flex;align-items:center;gap:4px;margin:0}#exterior-main-toolbar input{width:58px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#444;padding:4px}
- #exterior-main-toolbar #roof-trim-options{width:310px;box-sizing:border-box}
- #exterior-main-toolbar .trim-section h4{margin:0 0 8px;font-size:12px;color:#202124}#exterior-main-toolbar .trim-section+.trim-section{border-top:1px solid #dfe3e8;margin-top:14px;padding-top:12px}
- #exterior-main-toolbar .trim-section-heading,#exterior-main-toolbar #wall-trim-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}#exterior-main-toolbar #roof-trim-count{font-size:11px;color:#667085}
- #exterior-main-toolbar .wall-trim-width{display:flex;gap:4px}#exterior-main-toolbar .trim-footer{display:flex;justify-content:flex-end;border-top:1px solid #dfe3e8;margin-top:12px;padding-top:10px}
- #exterior-main-toolbar #roof-trim-options{background:#fff;color:#394150;border-color:#ccd2d9;box-shadow:0 5px 18px #0002;left:0;right:auto}#exterior-main-toolbar #roof-trim-options p{color:#667085}#exterior-main-toolbar #roof-trim-options input{background:#fff;color:#444;border-color:#ccc}
+ #exterior-main-toolbar #roof-trim-options{width:max-content;max-width:calc(100vw - 28px);box-sizing:border-box;background:#fff;color:#394150;border-color:#ccd2d9;box-shadow:0 5px 18px #0002;left:0;right:auto;padding:8px}
+ #exterior-main-toolbar #roof-trim-options .trim-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:4px 0}
+ #exterior-main-toolbar #roof-trim-options .trim-row+.trim-row{border-top:1px solid #dfe3e8;padding-top:8px;margin-top:4px}
+ #exterior-main-toolbar #roof-trim-options .trim-row>strong{width:38px;color:#202124}
+ #exterior-main-toolbar #roof-trim-options label{margin:0;gap:4px;white-space:nowrap}
+ #exterior-main-toolbar #roof-trim-options input,#exterior-main-toolbar #roof-trim-options select{background:#fff;color:#444;border:1px solid #ccc;border-radius:4px;padding:4px;width:62px}
+ #exterior-main-toolbar #roof-trim-options select{width:80px}#exterior-main-toolbar #roof-trim-options input[type=color]{width:28px;height:28px;padding:2px}
+ #exterior-main-toolbar #roof-trim-count{font-size:11px;color:#667085}
+ #wall-auto-trim{display:none!important}
  `;document.head.appendChild(headerStyle);
  bar.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
 };

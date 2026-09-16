@@ -53,7 +53,17 @@ function candidates(faces,{roof,base,ground}={}){
  }
  return runs(pairs);
 }
-function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces)){
+// Ground selection uses actual shared boundary intervals, including slopes
+// and partial edges. It never guesses ground from a global minimum height.
+function groundCandidates(faces,{base,ground}={}){
+ const supports=[...(base?.faces||[]),...(ground?.faces||[])].filter(f=>!f.deleted&&f.points),pairs=[];
+ for(const face of faces){if(face.deleted||face.snapOnly||face.feature||face.trim||face.curvedSurface)continue;
+  const frame=W.faceFrame(face);if(!frame||Math.abs(frame.n.z)>.99999)continue;
+  for(const [a,b]of boundaries([face])){const u=sub(b,a);for(const [lo,hi]of W.sharedIntervals(a,b,supports))if(hi-lo>1e-7)pairs.push([at(a,u,lo),at(a,u,hi)]);}
+ }
+ return runs(pairs);
+}
+function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),finishColor){
  if(!Number.isFinite(width)||width<=K.CONTACT)throw Error('Enter a positive trim width.');
  const cutters=new Map(),cornerPairs=[];
  for(const pair of runs(pairs,segments)){
@@ -80,12 +90,19 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces))
    const coordinates=local.points.map(p=>({x:(p.x-a.x)*u.x+(p.y-a.y)*u.y,y:(p.x-a.x)*v.x+(p.y-a.y)*v.y}));
    owners.push({face,frame,local,box,coordinates,length:l});
   }
-  const corner=owners.some((a,i)=>owners.slice(i+1).some(b=>Math.abs(dot(a.frame.n,b.frame.n))<.99999));cornerPairs.push(corner);
+  // Classify each supporting plane separately. A return/soffit touching a
+  // divider must not turn the two coplanar wall regions into a corner.
+  for(const owner of owners){
+   const sheet=owners.filter(o=>Math.abs(dot(owner.frame.n,o.frame.n))>=.99999);
+   const sides=sheet.flatMap(o=>o.coordinates.map(p=>p.y));
+   owner.perimeter=!sides.some(y=>y>K.CONTACT)||!sides.some(y=>y<-K.CONTACT);
+  }
+  const corner=owners.some(o=>o.perimeter&&owners.some(b=>b!==o&&b.perimeter&&Math.abs(dot(o.frame.n,b.frame.n))<.99999));cornerPairs.push(corner);
   for(const owner of owners){
    const {face,frame,local,box,coordinates,length:runLength}=owner;
    let lo=variant===1?-width:variant===2?-width/2:0,hi=variant===1?0:variant===2?width/2:width;
    // Perimeter edges have only an inward side; corners get a full strip on each wall.
-   if(corner||owners.length===1&&(coordinates.every(p=>p.y>=-K.CONTACT)||coordinates.every(p=>p.y<=K.CONTACT))){
+   if(owner.perimeter){
     const positive=coordinates.reduce((s,p)=>s+p.y,0)>=0;lo=positive?0:-width;hi=positive?width:0;
    }
    const cut=box(lo,hi,0,runLength),parts=K.intersection([local],[cut]);if(!parts.length)continue;
@@ -99,7 +116,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces))
   let cells=[{...local,layers:previous?.layers||[]}];
   for(const strip of strips){const next=[];for(const cell of cells){
    next.push(...K.difference(cell,strip.parts).map(p=>({...p,layers:cell.layers})));
-   const layer={id:strip.id,pair:strip.pair,width:strip.width,variant:strip.variant,material:strip.material,finishColor:face.trim?face.finishColor:undefined};
+   const layer={id:strip.id,pair:strip.pair,width:strip.width,variant:strip.variant,material:strip.material,finishColor:finishColor|| (face.trim?face.finishColor:undefined)};
    next.push(...K.intersection([cell],strip.parts).map(p=>({...p,layers:[...cell.layers.filter(l=>l.id!==layer.id),layer]})));
   }cells=next;}
   const pieces=cells.map(({layers,...p})=>{const top=layers.at(-1);return {...p,material:top?.material||face.material,finishColor:top?top.finishColor:face.finishColor,trim:top?true:face.trim,trimData:{host:previous?.host||face.id,base,layers}};});
@@ -139,5 +156,5 @@ function remove(faces,selected){
  }
  return {replacements,pairs:[layer.pair]};
 }
-const api={runs,candidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
+const api={runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
 })(typeof window!=='undefined'?window:globalThis);

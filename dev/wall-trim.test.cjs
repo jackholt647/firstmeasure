@@ -89,3 +89,25 @@ test('trim source lines follow a copied or transformed face',()=>{
  const pair=[p(2,0),p(2,3)],trimmed=applyTrim([face],T.partition([face],[pair])),move=p=>({...p,x:p.x+10}),moved=trimmed.map(f=>({...f,...K.mapCurveData(f,move),points:f.points.map(move)})),selected=moved.find(f=>f.trim),result=T.remove([...trimmed,...moved],selected);
  assert.deepEqual(result.pairs,[pair.map(move)]);const remaining=applyTrim([...trimmed,...moved],result);assert.ok(remaining.some(f=>f.trim&&f.points.every(p=>p.x<10)));assert.ok(!remaining.some(f=>f.trim&&f.points.every(p=>p.x>=10)));
 });
+
+
+test('a third return along a horizontal divider does not force six inches onto both sides of the wall',()=>{
+ const lower={id:'lower',points:[p(0,0),p(4,0),p(4,1.5),p(0,1.5)]},upper={id:'upper',points:[p(0,1.5),p(4,1.5),p(4,3),p(0,3)]},shelf={id:'shelf',points:[p(0,1.5),p(4,1.5),p(4,1.5,1),p(0,1.5,1)]},pair=[p(0,1.5),p(4,1.5)];
+ for(let variant=0;variant<3;variant++){
+  const result=T.partition([lower,upper,shelf],[pair],variant),strips=result.replacements.filter(r=>r.face.id!=='shelf').flatMap(r=>r.pieces.filter(f=>f.trim));
+  assert.ok(Math.abs(strips.reduce((sum,f)=>sum+area(f),0)-4*.1524)<1e-6);
+  const zs=strips.flatMap(f=>f.points.map(p=>p.z));assert.ok(Math.abs(Math.min(...zs)-(variant===0?1.5:variant===1?1.3476:1.4238))<1e-6);
+ }
+});
+test('ground trim finds sloped shared base boundaries, excluding roofs and floating edges',()=>{
+ const wall={id:'slope',points:[p(0,0),p(4,1),p(4,3),p(0,3)]},base={faces:[{points:[p(1,.25),p(3,.75),p(3,.75,2),p(1,.25,2)]}]};
+ assert.deepEqual(T.groundCandidates([wall],{base}),[[p(1,.25),p(3,.75)]]);
+ assert.equal(T.groundCandidates([wall],{base:{faces:[]}}).length,0);
+});
+test('merging walls preserves trim bands and provenance instead of joining through their source seam',()=>{
+ const pair=[p(0,1.5),p(4,1.5)],source=[{...face,id:'lower',points:[p(0,0),p(4,0),p(4,1.5),p(0,1.5)]},{...face,id:'upper',points:[p(0,1.5),p(4,1.5),p(4,3),p(0,3)]}];
+ const trimmed=applyTrim(source,T.partition(source,[pair],2,.1524,[pair],'#efeadd')),before=JSON.stringify(trimmed),groups=W.mergeConnectedFaces(trimmed);
+ assert.ok(groups.every(g=>g.faces.every(f=>!f.trim)));assert.equal(JSON.stringify(trimmed),before);
+ assert.ok(trimmed.filter(f=>f.trim).every(f=>f.finishColor==='#efeadd'));
+ const restored=applyTrim(trimmed,T.remove(trimmed,trimmed.find(f=>f.trim)));assert.ok(!restored.some(f=>f.trim));assert.ok(Math.abs(restored.reduce((s,f)=>s+area(f),0)-12)<1e-8);
+});

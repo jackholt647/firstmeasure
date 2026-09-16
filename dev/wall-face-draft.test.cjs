@@ -1816,3 +1816,21 @@ test('free-mode door placement projects onto the supporting wall through a rende
   const preview=objects.find(o=>o.material?.opacity===.7);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y)<1e-8),'cursor stays on front supporting plane');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'unsnapped low cursor fits to front floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
  }
 });
+
+
+test('trim auto selections are additive, editable, geometry-free and apply selected width/color once',()=>{
+ const outline=[[0,0],[4,0],[4,4],[0,4]],walls=outline.map(([x,y],i)=>{const [xx,yy]=outline[(i+1)%4];return {id:'side'+i,bottom:[{x,y,z:0},{x:xx,y:yy,z:0}],top:[{x,y,z:3},{x:xx,y:yy,z:3}]};});
+ const state={wallEdits:{},base:{faces:[{id:'base',points:outline.map(([x,y])=>({x,y,z:0}))}]}},f=fixture({state,walls,selected:null}),before=JSON.stringify(state.wallEdits);
+ f.editor.selectTrimEdges('walls');assert.equal(f.editor.selectionSnapshot().lineSelection.length,4);assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+ f.editor.selectTrimEdges('ground');assert.equal(f.editor.selectionSnapshot().lineSelection.length,8);f.editor.selectTrimEdges('ground');assert.equal(f.editor.selectionSnapshot().lineSelection.length,8);
+ // The ground edge stays in wall selection so Ctrl-click can subtract it.
+ const e={...f.e(2,0),ctrlKey:true};f.editor.pickLine3D(e);f.listeners.pointerup(e);assert.equal(f.editor.selectionSnapshot().lineSelection.length,7);
+ assert.equal(f.editor.applyTrim(8*.0254,'#aabbcc'),true,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(f.editor.busy(),false);
+ const trims=state.wallEdits.$surfaces.filter(f=>f.trim);assert.ok(trims.length);assert.ok(trims.every(f=>f.finishColor==='#aabbcc'&&Math.abs(f.trimData.layers.at(-1).width-8*.0254)<1e-10));
+});
+test('horizontal T keeps above/below/centered cycling with a return face on the divider',()=>{
+ const p=(x,y,z)=>({x,y,z}),state={wallEdits:{$surfaces:[{id:'lower',points:[p(0,0,0),p(4,0,0),p(4,0,2),p(0,0,2)]},{id:'upper',points:[p(0,0,2),p(4,0,2),p(4,0,4),p(0,0,4)]},{id:'return',points:[p(0,0,2),p(4,0,2),p(4,1,2),p(0,1,2)]}]}},f=fixture({state,walls:[],selected:null});
+ f.editor.restoreSelection({lineSelection:[{id:'source',pair:[p(0,0,2),p(4,0,2)]}]});const before=JSON.stringify(state.wallEdits);
+ for(let v=0;v<3;v++){f.editor.key({key:'t'});assert.equal(f.editor.busy(),true);const zs=state.wallEdits.$surfaces.filter(s=>s.trim&&s.points.every(p=>p.y===0)).flatMap(s=>s.points.map(p=>p.z));assert.ok(Math.abs(Math.min(...zs)-(v===0?2:v===1?1.8476:1.9238))<1e-6,f.message());assert.ok(Math.abs(Math.max(...zs)-(v===0?2.1524:v===1?2:2.0762))<1e-6);}
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+});

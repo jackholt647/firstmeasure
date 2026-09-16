@@ -25,3 +25,22 @@ test('fascia stops where an eave changes to a headwall on one polygon edge',()=>
 test('empty array settings from project metadata retain new fascia sizes after serialization',()=>{
  for(const settings of [[],{edges:[]}]){const id=R.panels(roof)[0].id,next=JSON.parse(JSON.stringify(R.setHeight(settings,[id],8)));assert.equal(next.edges[id].height,8*R.INCH);assert.equal(R.panels(roof,next)[0].height,8*R.INCH);}
 });
+
+
+test('compact trim menu selects additively without applying, then applies chosen width and color',()=>{
+ const vm=require('node:vm'),fs=require('node:fs'),nodes=new Map(),calls=[];
+ const element=()=>({style:{},value:'',hidden:false,addEventListener(){},setAttribute(){},focus(){},blur(){},querySelector:q=>nodes.get(q.slice(1)),querySelectorAll:()=>[],set innerHTML(html){for(const m of html.matchAll(/<(?:button|input|select|span|section)[^>]*id="([^"]+)"[^>]*>/g)){const n=element();n.value=m[0].match(/value="([^"]+)"/)?.[1]||'';nodes.set(m[1],n);}},get parentElement(){return parent;}}),parent={insertBefore(node){nodes.set(node.id,node);}};
+ const ctx={RoofTrim:R,document:{querySelector:()=>parent,createElement:element,head:{appendChild(){}},getElementById:()=>null}},settings={};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/roof_trim_editor.js','utf8'),ctx);
+ const editor=ctx.createRoofTrimEditor({settings:()=>settings,enabled:()=>true,visible:()=>true,redraw(){},wallWidth:()=>8,setWallWidth:n=>calls.push(['width',n]),selectWallTrim:k=>calls.push(['select',k]),applyWallTrim:(w,c)=>calls.push(['apply',w,c])});editor.refresh(roof);
+ nodes.get('roof-trim-tool').onclick();nodes.get('wall-trim-select').onclick();nodes.get('wall-trim-ground').onclick();assert.deepEqual(calls,[['select','walls'],['select','ground']]);assert.equal(nodes.get('roof-trim-options').hidden,false);
+ nodes.get('wall-trim-color').value='#aabbcc';nodes.get('wall-trim-apply').onclick();assert.deepEqual(calls.at(-1),['apply',8,'#aabbcc']);
+ const width=nodes.get('wall-trim-width');width.value='custom';width.onchange();nodes.get('wall-trim-custom').value='4.5';nodes.get('wall-trim-apply').onclick();assert.deepEqual(calls.at(-1),['apply',4.5,'#aabbcc']);assert.equal(nodes.get('wall-trim-custom').hidden,false);
+});
+test('roof fascia wins coplanar depth ties without offsetting measured or picked geometry',()=>{
+ const vm=require('node:vm'),fs=require('node:fs'),source=fs.readFileSync('public/measure/internal/editor_scripts/wall_mode.js','utf8'),fn=source.split('\n').find(l=>l.includes('function drawRoofTrim('));
+ class Geometry{setFromPoints(points){this.points=points;return this;}setIndex(){}}
+ class Material{constructor(values){Object.assign(this,{depthTest:true},values);}}
+ class Mesh{constructor(geometry,material){Object.assign(this,{geometry,material,userData:{}});}}
+ const ctx={RoofTrim:R,roofTrimEditor:null,state:null,roofTrimOnly:{},THREE:{BufferGeometry:Geometry,MeshBasicMaterial:Material,Mesh,DoubleSide:2}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fn,ctx);const meshes=[];ctx.drawRoofTrim({add:m=>meshes.push(m)},roof,p=>({...p}));
+ assert.ok(meshes.length);const panels=R.panels(roof);for(let i=0;i<meshes.length;i++){const m=meshes[i];assert.deepEqual(JSON.parse(JSON.stringify(m.geometry.points)),panels[i].points);assert.equal(m.material.depthTest,true);assert.equal(m.material.depthWrite,true);assert.equal(m.material.polygonOffset,true);assert.ok(m.material.polygonOffsetFactor<0&&m.material.polygonOffsetUnits<0);assert.equal(m.userData.roofTrimId,panels[i].id);}
+});
