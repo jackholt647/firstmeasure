@@ -2,6 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [multi-face extrusion](deploy/digitalocean/development-multi-extrusion-20260916.md)
+records `770d80ca598917d152b06e8c023f9eec01e530a9` on all three development roles.
+E extrudes complete selected faces and stickers by a shared distance along each
+face's own normal, with atomic preview/cancel/undo and combined neighbor cleanup.
+The trim, chimney and palette changes are retained on `codex/exterior-trim-controls`.
+
 September 16 development follow-up: [finish color palette](deploy/digitalocean/development-finish-palette-20260916.md)
 records `1c3fc2fe458b7b0daee8d288a902353a670a2d13` on all three development roles.
 Common, project and recent finish colors are open swatch palettes; custom colors
