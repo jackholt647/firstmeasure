@@ -2,6 +2,11 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [base appearance and report exclusion](deploy/digitalocean/development-base-display-20260916.md)
+records `7eb21f3ae0020980c50513d0c662391bfe85d009` on all three development roles.
+The default base uses plain concrete gray in textured mode and is omitted from
+the exterior report's diagrams and pages. Production and access settings are unchanged.
+
 September 16 development follow-up: [persistent roof and wall undo](deploy/digitalocean/development-persistent-undo-20260916.md)
 records `13a21682c9ae26a53a7e0f4569a28230ffd5c31a` on all three development roles.
 Undo count limits are removed and project saves retain both undo and redo.
