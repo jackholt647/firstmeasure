@@ -2,6 +2,11 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development only: [exterior editor update](deploy/digitalocean/development-exterior-editor-20260916.md)
+records `24cdfbafda2e7b9f0433ed4964476d36625136ec` on the three development roles.
+The experimental editor remains restricted to `jack@1m8.ai`. Production remains
+on its existing release; this development rollout did not activate production.
+
 September 15 UTC latest: [exteriors integration and export 188 promotion](deploy/digitalocean/production-exteriors-20260915.md)
 records `6eed8c8a0b0f2d02673176a0dda205d2bfc6a685` on all eight production roles
 and the signed replacement channel. Exteriors are disabled, the allowlist is
