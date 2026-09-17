@@ -40,7 +40,7 @@ test('customer reference uploads preserve view assignments and support video ran
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     const headers={'X-Resource-Request':'1','X-Resource-Origin':'customer-order','X-Full-House-CSRF':'test-csrf'};
-    const post=(name:string,body:string|Buffer,extra={})=>fetch(url+'&name='+name,{method:'POST',headers:{...headers,...extra},body});
+    const post=(name:string,body:string|Buffer,extra={})=>fetch(url+'&name='+name,{method:'POST',headers:{...headers,...extra},body:typeof body==='string'?body:new Uint8Array(body)});
     const id='12345678-1234-4234-8234-123456789abc',part='internal-markup-part-'+id+'-00000000.bin',name='internal-resource-v2-'+id+'-front.jpg',bytes=Buffer.from('test photo bytes');
     const index={format:'firstmeasure-resource-chunks-v1',id,size:bytes.length,chunkSize:8*1024*1024,parts:1,original_name:'My front photo.jpg',elevation_view:'front',role:'qa'};
     assert.equal((await post(part,bytes,{'X-Full-House-CSRF':'wrong'})).status,403);
