@@ -4350,7 +4350,8 @@ async function buildProjectsListResponse(
   const actor = normalizeOptionalPortalActor(input.actor);
   const parsedQuery = parseProjectsQueryInput(input, {
     defaultLimit: 35,
-    defaultActivityWindowDays: DEFAULT_PROJECT_ACTIVITY_WINDOW_DAYS
+    // Address searches include historical reports; explicit date filters still apply.
+    defaultActivityWindowDays: rawSearch ? 0 : DEFAULT_PROJECT_ACTIVITY_WINDOW_DAYS
   });
   const page = clampPositiveInt(input.page, 1);
   const requestedLimit = Number.parseInt(String(input.limit ?? ""), 10);
@@ -5847,6 +5848,8 @@ function resolveActivityWindow(input: {
       endMs: explicitEnd ?? Date.now()
     };
   }
+
+  if (input.defaultWindowDays <= 0) return null;
 
   const endMs = Date.now();
   const startMs = endMs - (input.defaultWindowDays * 24 * 60 * 60 * 1000);
