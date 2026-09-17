@@ -40,15 +40,36 @@ function roofMeshes(face,vector,textured){
   prepare(mesh,{...face,material:underside?(face.soffitMaterial||'soffit'):'shingles',finishColor:underside?face.soffitColor:face.finishColor,textureAxes:face.textureAxes},points);return mesh;
  });
 }
+// r128 leaves CSS colors in sRGB, while tile visibility changes renderer output.
+// Finish maps and tints use linear light internally and always emit display sRGB.
+// A uniform restores the normal renderer policy when leaving textured mode.
+function colorManagedFinish(material){
+ material.userData||={};
+ let enabled=material.userData.exteriorFinishColorManaged;
+ if(!enabled){
+  enabled=material.userData.exteriorFinishColorManaged={value:0};
+  const compile=material.onBeforeCompile,key=material.customProgramCacheKey;
+  material.onBeforeCompile=function(shader,renderer){
+   compile?.call(this,shader,renderer);
+   shader.uniforms.exteriorFinishColorManaged=enabled;
+   shader.fragmentShader='uniform float exteriorFinishColorManaged;\n'+shader.fragmentShader.replace('#include <encodings_fragment>', 'if (exteriorFinishColorManaged > 0.5) { gl_FragColor = LinearTosRGB(gl_FragColor); } else {\n#include <encodings_fragment>\n}');
+  };
+  material.customProgramCacheKey=function(){return (key?.call(this)||'')+':exterior-finish-srgb-v1';};
+  material.needsUpdate=true;
+ }
+ enabled.value=1;
+}
+function reset(material){const enabled=material.userData?.exteriorFinishColorManaged;if(enabled)enabled.value=0;}
 function apply(mesh,material){
  const finish=mesh.userData.exteriorFinish||((mesh.userData.pickLayer==='walls'||mesh.userData.pickLayer==='base'||mesh.userData.baseId!==undefined)?{material:'default'}:null);
  if(!finish||finish.feature)return;
  // The construction base has its own neutral default, independent of cladding.
  const base=(mesh.userData.baseId!==undefined||mesh.userData.pickLayer==='base')&&!finish.trim&&['default','unassigned',undefined].includes(finish.material);
  const resolved=base?{material:'unassigned',color:finish.color||'#b3afa7'}:resolve(finish);
- material.color.set(resolved.color);
+ colorManagedFinish(material);
+ material.color.set(resolved.color);material.color.convertSRGBToLinear?.();
  const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
  material.map=['unassigned','chimney-top'].includes(resolved.material)?null:texture(resolved.material);
 }
-root.ExteriorFinishes={prepare,apply,resolve,defaults,roofMeshes};
+root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes};
 })(window);

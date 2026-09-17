@@ -12,7 +12,7 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
   if(!o.material||o.userData?.planeGuide||o.userData?.curveCenterIndicator||o.userData?.curveSnapGuide||o.userData?.alignmentGuide||o.userData?.exteriorDivider)return;
   for(const m of (Array.isArray(o.material)?o.material:[o.material])){
    m.userData||={};const saved=m.userData.exteriorDisplay||(m.userData.exteriorDisplay={opacity:m.opacity,transparent:m.transparent,depthTest:m.depthTest,depthWrite:m.depthWrite,map:m.map,vertexColors:m.vertexColors,polygonOffset:m.polygonOffset,polygonOffsetFactor:m.polygonOffsetFactor,polygonOffsetUnits:m.polygonOffsetUnits});
-   Object.assign(m,saved);
+   Object.assign(m,saved);window.ExteriorFinishes?.reset?.(m);
    if(m.color){m.userData.exteriorColor??=m.color.getHex();m.color.setHex(m.userData.exteriorColor);}
    if(o.isMesh&&!o.isSprite&&m.color){
     if(!translucent&&!textured){
