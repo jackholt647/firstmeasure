@@ -2,6 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [Rendered exterior preview](deploy/digitalocean/development-rendered-preview-20260916.md)
+records `397ab55d6af2ef881c962be629d8223af3266100` on all three development roles.
+Adds an optional Rendered mode with bundled 2K PBR assets, HDR reflections,
+modeled opening details, lighting controls and 4K export. Source remains on
+`codex/exterior-trim-controls`; this is a presentation demo, separate from measured geometry.
+
 September 16 development follow-up: [textured finish colors](deploy/digitalocean/development-finish-color-render-20260916.md)
 records `de6235dfdd1a7464c70349ebe887fe7855963a42` on all three development roles.
 Finish colors use consistent color conversion with or without 3D tiles, preserving
