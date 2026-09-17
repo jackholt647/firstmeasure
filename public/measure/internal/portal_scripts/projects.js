@@ -6067,7 +6067,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
           const eventLabels = {
             claimed_new:'Claimed from queue', claimed_correction:'Claimed correction',
             submitted_for_qa:'Submitted for QA', qa_claimed:'QA claimed',
-            qa_claim_released:'QA claim released', qa_approved:'QA approved',
+            qa_claim_released:'QA claim released', qa_approved:'QA approved', manager_approved:'Manager approved',
             qa_rejected:'QA rejected', qa_sent_back_to_tech:'QA sent back to tech',
             manager_sent_back_to_tech:'Manager sent back to tech', correction_submitted:'Correction submitted',
             rejected_no_coverage:'Rejected (no coverage)', rejection_requested:'Rejection requested',
@@ -6123,6 +6123,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             let detail = '';
             if (ev.worker_name||ev.worker_email) detail += (ev.worker_name||ev.worker_email)+' ';
             if (ev.qa_name||ev.qa_email) detail += (ev.qa_name||ev.qa_email)+' ';
+            if (ev.manager_name||ev.manager_email) detail += (ev.manager_name||ev.manager_email)+' ';
             if (ev.by_name||ev.by_email) detail += (ev.by_name||ev.by_email)+' ';
             if (ev.via) detail += `(via ${ev.via}) `;
             if (ev.note && evType !== 'complexity_changed' && (canSeeRefundDetails || !['credit_refunded','credit_refund_failed','cancelled_project'].includes(evType))) detail += `\u2014 ${ev.note} `;
