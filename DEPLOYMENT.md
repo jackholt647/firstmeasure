@@ -2,6 +2,11 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [sticker shortcut correction](deploy/digitalocean/development-sticker-shortcuts-20260916.md)
+records `3bf6dab5e60a1cf12b710e7afe357cad493b1803` on all three development roles.
+L now divides stickers and toggles direction; D is restored for doors.
+Roof Parallel Lines and Face Lock retain their existing L shortcut.
+
 September 16 development follow-up: [grouped sticker divisions](deploy/digitalocean/development-sticker-divisions-20260916.md)
 records `c0faba77b5fec96a22760e069155ed914e814402` on all three development roles.
 D divides windows/doors into linked sections with dashed, deletable seams;
