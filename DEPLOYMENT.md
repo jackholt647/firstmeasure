@@ -2,6 +2,11 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 16 development follow-up: [textured finish colors](deploy/digitalocean/development-finish-color-render-20260916.md)
+records `de6235dfdd1a7464c70349ebe887fe7855963a42` on all three development roles.
+Finish colors use consistent color conversion with or without 3D tiles, preserving
+texture shading and selection cues. Source remains on `codex/exterior-trim-controls`.
+
 September 16 development follow-up: [sticker shortcut correction](deploy/digitalocean/development-sticker-shortcuts-20260916.md)
 records `3bf6dab5e60a1cf12b710e7afe357cad493b1803` on all three development roles.
 L now divides stickers and toggles direction; D is restored for doors.
