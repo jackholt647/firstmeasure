@@ -4351,12 +4351,8 @@ function buildDefaultDiagramLabelsInternal({ report, facesData, cropRegion, dims
     (facesData || []).forEach((face, idx) => {
         if (autoExcluded.has(idx)) return;
         const currentLayer = face.layer || 1;
-        const p0 = face.points[0];
-        const obstacleLine = report.lines.find(line =>
-            (line.type === 'skylight' || line.type === 'chimney_edge' || line.type === 'chimney_back' || line.type === 'chimney_front') &&
-            ((line.points[0].x === p0.x && line.points[0].y === p0.y) || (line.points[1].x === p0.x))
-        );
-        if (obstacleLine) return;
+        // A cricket may share a chimney corner without being the chimney itself.
+        if (isObstacleFace(face, report)) return;
 
         const areaPx = Math.abs(getSignedArea(face.points));
         const metersPerPx = getPdfMetersPerPx({ dims, radiusMeters });
