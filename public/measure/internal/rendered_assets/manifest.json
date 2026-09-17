@@ -1,0 +1,151 @@
+{
+  "license": "CC0-1.0",
+  "source": "https://polyhaven.com/license",
+  "resolution": "2k",
+  "files": [
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/weathered_plank_siding/weathered_plank_siding_diff_2k.jpg",
+      "md5": "970f80b7b3c84f5dfc17b578f725023a",
+      "size": 2362951,
+      "file": "siding-albedo.jpg",
+      "asset": "weathered_plank_siding",
+      "kind": "albedo",
+      "sha256": "e34b0bd8e5f7c5dafd62001074115be28edf8fa88043650dbafef8c7b34b13e7"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/weathered_plank_siding/weathered_plank_siding_nor_gl_2k.jpg",
+      "md5": "d565db31c7aa0f1990db59cfcc9c7bd7",
+      "size": 2507695,
+      "file": "siding-normal.jpg",
+      "asset": "weathered_plank_siding",
+      "kind": "normal",
+      "sha256": "e950b30c36fcea80e793116e9c83001c95c39725f4af4c3684fc29491d86d7ae"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/weathered_plank_siding/weathered_plank_siding_arm_2k.jpg",
+      "md5": "4b1facaef73d4694849bb5bf69bf9325",
+      "size": 1863130,
+      "file": "siding-arm.jpg",
+      "asset": "weathered_plank_siding",
+      "kind": "arm",
+      "sha256": "6b458ca67d5da38e083e182733dc19d8c2a9bb14a84b35b35fb6f9ccaf9a09a3"
+    },
+    {
+      "size": 2043756,
+      "md5": "0f478f67d252a1fa7b351460a19965bd",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brick_wall_001/brick_wall_001_diffuse_2k.jpg",
+      "file": "brick-albedo.jpg",
+      "asset": "brick_wall_001",
+      "kind": "albedo",
+      "sha256": "aefa7f3743282de2c7df4e4282c868de204239ac3c94e818b1ef74f2a2d74f1a"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brick_wall_001/brick_wall_001_nor_gl_2k.jpg",
+      "size": 1160617,
+      "md5": "b3c77c1e0dbbe0788d11b993296bb822",
+      "file": "brick-normal.jpg",
+      "asset": "brick_wall_001",
+      "kind": "normal",
+      "sha256": "62cc36d391b2f73c3855fd745a5815686db59d73bf3ef9db2ad96ca27eb97e32"
+    },
+    {
+      "size": 436079,
+      "md5": "0f0ba5357b1c62fd76945e63d2a6e58e",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brick_wall_001/brick_wall_001_arm_2k.jpg",
+      "file": "brick-arm.jpg",
+      "asset": "brick_wall_001",
+      "kind": "arm",
+      "sha256": "0d6c6a14399c34350e4152680d95ed636a9bbd36db8e5ae05f68272d3f9520e2"
+    },
+    {
+      "size": 3216521,
+      "md5": "42190a8b8a5b2749c0d7e3a7354abfc8",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/grey_plaster/grey_plaster_diff_2k.jpg",
+      "file": "plaster-albedo.jpg",
+      "asset": "grey_plaster",
+      "kind": "albedo",
+      "sha256": "2cd3a4fb2723d93da0eccf9b23aced757acabc35f94b0a97fc8986fe7e4242b5"
+    },
+    {
+      "size": 1237098,
+      "md5": "0e39fd7528254ef19b8bad195d52514e",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/grey_plaster/grey_plaster_nor_gl_2k.jpg",
+      "file": "plaster-normal.jpg",
+      "asset": "grey_plaster",
+      "kind": "normal",
+      "sha256": "8edc6d8b8258f85ed741551f30bfee9807f3fcbfe14678f5c283435c66590e2f"
+    },
+    {
+      "size": 1712870,
+      "md5": "886093afbb56ba0f604e7bf9575cf8dc",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/grey_plaster/grey_plaster_arm_2k.jpg",
+      "file": "plaster-arm.jpg",
+      "asset": "grey_plaster",
+      "kind": "arm",
+      "sha256": "75a9aa75205d308f30a1afe03a747a2a7cc2706e04ba59cf14e8ba6db58e5cea"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/clean_asphalt/clean_asphalt_diff_2k.jpg",
+      "md5": "d3afa117daf0846a743bbf5b4eb2464d",
+      "size": 3314999,
+      "file": "roof-albedo.jpg",
+      "asset": "clean_asphalt",
+      "kind": "albedo",
+      "sha256": "9d58f263b695c268e391aa39ea2f6b30ab9f36d279715cc78593a4d43368039c"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/clean_asphalt/clean_asphalt_nor_gl_2k.jpg",
+      "md5": "f9d4e1b14ac5b231748b600dcd59f20e",
+      "size": 3923727,
+      "file": "roof-normal.jpg",
+      "asset": "clean_asphalt",
+      "kind": "normal",
+      "sha256": "ee6e217a75851a73ab0ce54501e787b63707e0cf8dfd7293989adf7d3e325162"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/clean_asphalt/clean_asphalt_arm_2k.jpg",
+      "md5": "683b881a2b614cd57fd518102f6ce99a",
+      "size": 3461113,
+      "file": "roof-arm.jpg",
+      "asset": "clean_asphalt",
+      "kind": "arm",
+      "sha256": "88e7f69b2b749559841c46c5f7732c1dc59f15acca7bb8f27c6a8b3a6f22cfac"
+    },
+    {
+      "size": 924532,
+      "md5": "a36483628b915dabf82961ab2a62a85c",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/wood_table_001/wood_table_001_diff_2k.jpg",
+      "file": "wood-albedo.jpg",
+      "asset": "wood_table_001",
+      "kind": "albedo",
+      "sha256": "63ae5cd186197b40f18bc020fe2b652bb08df4d9fc6240c6cbf8a7e3bc32c096"
+    },
+    {
+      "size": 385020,
+      "md5": "50dbc9fe086df00f6bce819eae6091d1",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/wood_table_001/wood_table_001_nor_gl_2k.jpg",
+      "file": "wood-normal.jpg",
+      "asset": "wood_table_001",
+      "kind": "normal",
+      "sha256": "d56f02c911391267ddc6adc92e8a5bc29b9803196e8d57ad5b9702e6c842dc28"
+    },
+    {
+      "size": 942286,
+      "md5": "b6bad8a52cc95a5b9cca64ab78c37da5",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/wood_table_001/wood_table_001_arm_2k.jpg",
+      "file": "wood-arm.jpg",
+      "asset": "wood_table_001",
+      "kind": "arm",
+      "sha256": "2b79eda13b10e28efd8e9c879fca492b3594ec3bdb5eba397b945310cc9d3f6b"
+    },
+    {
+      "size": 6480797,
+      "md5": "72b472b131798b3eb5fc67fce3ab672e",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_2k.hdr",
+      "file": "daylight.hdr",
+      "asset": "kloofendal_48d_partly_cloudy",
+      "kind": "environment",
+      "sha256": "3fbd33f279f29bd64925c1dd3214fd46c627493d21f1100248b6b1098da4d06e"
+    }
+  ]
+}

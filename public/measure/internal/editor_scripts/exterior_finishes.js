@@ -22,6 +22,7 @@ function texture(type){
 }
 function prepare(mesh,face,points,parameters){
  if(!mesh.geometry?.setAttribute||!points?.length)return;
+ if(face.feature)mesh.userData.renderedOpening={points:face.points||points,feature:face.feature,color:face.finishColor||null};
  const W=root.WallSolidGeometry,frame=W.faceFrame({points:face.points||points});let u=frame?.u||{x:1,y:0,z:0};
  if(frame&&Math.abs(frame.n.z)<.999){const length=Math.hypot(frame.n.x,frame.n.y);u={x:-frame.n.y/length,y:frame.n.x/length,z:0};}
  // Curved walls use arc length rather than a flattened projection, so boards

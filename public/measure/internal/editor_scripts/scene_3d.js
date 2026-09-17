@@ -1703,7 +1703,7 @@ window.ensureAllPointsHaveZ = function () {
 function onMouseDown3D(event) {
     if (event.button !== 0) return;
     // Guard both old-style and new-style control containers
-    if (event.target.closest('.enh-control-panel') || event.target.closest('#axis-gizmo-container') ||
+    if (event.target.closest('#exterior-rendered-controls') || event.target.closest('.enh-control-panel') || event.target.closest('#axis-gizmo-container') ||
         event.target.closest('.controls-3d-actions') || event.target.closest('.controls-3d-overlay')) return;
     // Guard pitch label clicks (lock toggle) — don't start 3D selection
     if (event.target.closest('#pitch-label-overlay')) return;
@@ -5915,7 +5915,7 @@ function _animate3D() {
     if(_geomDirty3D&&now-_lastGeomRebuild>GEOM_REBUILD_INTERVAL_MS){_geomDirty3D=false;_lastGeomRebuild=now;renderGeometry3D();}
     const shouldRender=_sceneDirty3D||now-_lastSceneRender3D>=IDLE_SCENE_RENDER_INTERVAL_MS;
     if(shouldRender&&typeof renderer!=='undefined'&&renderer&&typeof scene!=='undefined'&&scene&&typeof camera!=='undefined'&&camera){
-        renderer.render(scene,camera);
+        if(!window.ExteriorRendered?.render(renderer,scene,camera))renderer.render(scene,camera);
         _updateAxisWidget();
         _sceneDirty3D=false;
         _lastSceneRender3D=now;
