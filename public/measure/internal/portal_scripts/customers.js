@@ -547,6 +547,9 @@
           <button class="btn-secondary" id="customersExportUsersBtn">
             <i class="fas fa-file-download"></i> Export Users TSV
           </button>
+          <button class="btn-secondary" id="customersExportCreditsBtn" title="All customer credit transactions, including test organizations. Unknown historical paid/bonus splits are left blank.">
+            <i class="fas fa-file-download"></i> Export Credit Ledger
+          </button>
           <button class="btn-secondary" id="customersPairingBtn" style="display:none;">
             <i class="fas fa-link"></i> Pair Leads
           </button>
@@ -2778,6 +2781,42 @@
     return organizations;
   }
 
+  async function exportCreditLedger(){
+    const button=document.getElementById('customersExportCreditsBtn');
+    const label=button.innerHTML; button.disabled=true;
+    try {
+      let cursor=null;
+      const rows=[], cursors=new Set(), keys=new Set();
+      do {
+        button.textContent=`Loading ledger… ${rows.length.toLocaleString()} transactions`;
+        const data=await window.Portal.apiPost(apiServer(),{action:'customer_credit_export_page',cursor});
+        if(!data?.success || !Array.isArray(data.rows) || !Object.prototype.hasOwnProperty.call(data,'next_cursor')) throw new Error(data?.error || 'Incomplete ledger response. No file was downloaded.');
+        for(const row of data.rows){
+          const key=`${row.organization_id}:${row.ledger_ordinal}`;
+          if(keys.has(key))throw new Error('Duplicate ledger page. Please retry.');
+          keys.add(key);rows.push(row);
+        }
+        cursor=data.next_cursor;
+        if(cursor!==null){
+          const key=JSON.stringify(cursor);
+          if(!cursor?.org_id || cursors.has(key))throw new Error('Ledger export stopped advancing. Please retry.');
+          cursors.add(key);
+        }
+      } while(cursor!==null);
+      if(!rows.length){alert('No credit transactions are available to export.');return;}
+      const columns=Object.keys(rows[0]);
+      const safeCell=value=>{
+        const cell=tsvCell(value);
+        return typeof value==='string' && /^[=+@-]/.test(cell) ? "'"+cell : cell;
+      };
+      const tsv=[columns,...rows.map(row=>columns.map(key=>row[key]??''))].map(row=>row.map(safeCell).join('\t')).join('\r\n');
+      const url=URL.createObjectURL(new Blob([tsv],{type:'text/tab-separated-values;charset=utf-8'}));
+      const link=document.createElement('a');link.href=url;link.download=`customer_credit_ledger_${new Date().toISOString().slice(0,10)}.tsv`;
+      document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    } catch(error){alert(error?.message || 'Could not export the credit ledger.');}
+    finally{button.disabled=false;button.innerHTML=label;}
+  }
+
   async function exportUsersTsv(){
     const exportBtn = document.getElementById('customersExportUsersBtn');
     const originalLabel = exportBtn?.innerHTML || '';
@@ -2957,6 +2996,7 @@
   function wireUI(){
     document.getElementById('customersRefreshBtn').onclick = () => loadCustomers();
     document.getElementById('customersExportUsersBtn').onclick = () => exportUsersTsv();
+    document.getElementById('customersExportCreditsBtn').onclick = () => exportCreditLedger();
     document.getElementById('customerPageSize').value = String(customerPageSize);
     document.getElementById('customerPageSize').onchange = async e => {
       const value = parseInt(e.target.value || '200', 10);
