@@ -5,7 +5,7 @@
     const input = document.getElementById('address');
     const button = document.getElementById('create');
     const status = document.getElementById('status');
-    let selected = null, busy = false, autocomplete = null;
+    let selected = null, busy = false, autocomplete = null, createdFolder = null;
     const validSelection = () => selected && input.value.trim() === selected.address;
     const refresh = () => { button.disabled = busy || !validSelection(); };
 
@@ -56,10 +56,12 @@
         }
         const payload = { ...selected, measurement_scope: 'full_house' };
         busy = true;
+        window.FullHouseReferences?.lock(true);
         input.disabled = true;
         refresh();
         status.textContent = 'Preparing imagery…';
         try {
+            if (!createdFolder) {
             const response = await fetch('full_house.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Full-House-CSRF': form.dataset.csrf },
@@ -68,11 +70,16 @@
             const data = await response.json();
             if (!response.ok) throw Error(data.message || (typeof data.error === 'string' ? data.error : '') || 'Unable to create measurement');
             if (!/^fullhouse_[a-f0-9]{32}$/.test(data.folder || '')) throw Error('The measurement response was incomplete.');
-            location.href = 'editor.php?folder=' + encodeURIComponent(data.folder);
+            createdFolder = data.folder;
+            }
+            await window.FullHouseReferences?.upload(createdFolder, form.dataset.csrf, text => { status.textContent = text; });
+            location.href = 'editor.php?folder=' + encodeURIComponent(createdFolder);
         } catch (error) {
-            status.textContent = error.message || 'Unable to create measurement';
+            status.textContent = (error.message || 'Unable to create measurement') + (createdFolder ? ' The project is created. Retry uploads to continue without creating another project.' : '');
+            button.textContent = createdFolder ? 'Retry reference uploads' : 'Create measurement';
+            window.FullHouseReferences?.lock(!!createdFolder);
             busy = false;
-            input.disabled = false;
+            input.disabled = !!createdFolder;
             refresh();
         }
     });

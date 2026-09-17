@@ -59,3 +59,8 @@ test('editing a selected address discards stale coordinates; invalid places stay
   assert.equal(p.elements.create.disabled, true);
   assert.equal(p.elements.address.disabled, true);
 });
+
+test('reference uploads finish before editor entry and retry the same created project', async () => {
+ const p=page();let attempts=0;const folders=[];p.context.FullHouseReferences={lock(){},async upload(folder){folders.push(folder);if(++attempts===1)throw Error('Connection interrupted');}};
+ p.select();await p.submit();assert.equal(p.context.location.href,undefined);assert.equal(p.requests.length,1);assert.equal(p.elements.address.disabled,true);assert.equal(p.elements.create.textContent,'Retry reference uploads');await p.submit();assert.equal(p.requests.length,1);assert.equal(folders[0],folders[1]);assert.match(p.context.location.href,/editor.php/);
+});

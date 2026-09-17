@@ -11,6 +11,9 @@ function resource_error($status, $message) {
 if (empty($_SESSION['user_email'])) resource_error(401, 'Internal login required.');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_SERVER['HTTP_X_RESOURCE_REQUEST'] ?? '') !== '1') resource_error(403, 'Invalid resource request.');
 $resourceActor = ['email'=>(string)$_SESSION['user_email'], 'name'=>(string)($_SESSION['user_name'] ?? $_SESSION['user_email'])];
+$customerOrder = ($_SERVER['HTTP_X_RESOURCE_ORIGIN'] ?? '') === 'customer-order';
+if ($customerOrder && ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['full_house_csrf'])
+    || !hash_equals($_SESSION['full_house_csrf'], (string)($_SERVER['HTTP_X_FULL_HOUSE_CSRF'] ?? '')))) resource_error(403, 'Invalid customer reference request.');
 session_write_close();
 $project = (string)($_GET['project'] ?? '');
 $name = (string)($_GET['name'] ?? '');
@@ -80,7 +83,20 @@ if ($method === 'POST') {
         $index['project_id'] = $project;
         $index['uploaded_at'] = gmdate('c');
         $index['uploaded_by'] = $resourceActor;
-        $index['role'] = ($_SERVER['HTTP_X_RESOURCE_ROLE'] ?? '') === 'qa' ? 'qa' : 'tech';
+        $index['role'] = $customerOrder ? 'customer' : (($_SERVER['HTTP_X_RESOURCE_ROLE'] ?? '') === 'qa' ? 'qa' : 'tech');
+        $slot = $index['elevation_view'] ?? null;
+        unset($index['elevation_view']);
+        if ($customerOrder) {
+            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            $photos = ['jpg','jpeg','png','webp','avif','gif'];
+            if (!in_array($ext, array_merge($photos, ['mp4','webm','mov']), true)) resource_error(422, 'Choose a supported reference photo or video.');
+            if ($slot !== null) {
+                if (!in_array($slot, ['front','back','left','right','front-left','front-right','back-left','back-right'], true)
+                    || !in_array($ext, $photos, true)) resource_error(422, 'Invalid elevation photo assignment.');
+                $index['elevation_view'] = $slot;
+            }
+            $index['source'] = 'customer-order';
+        }
         $body = json_encode($index);
     } elseif (preg_match('/^internal-markup-[0-9a-f-]{36}-.*\.json$/D', $name)) {
         $markup = json_decode($body, true);
@@ -104,7 +120,7 @@ if (!$name) {
         if (!preg_match('/^internal-(resource|markup)-/', $file['name']) || strpos($file['name'], 'internal-markup-part-') === 0) continue;
         if (strpos($file['name'], 'internal-resource-v2-') === 0) {
             $index = resource_index($file['name'], resource_api($file['name'])); $file['size'] = $index['size'];
-            foreach (['original_name', 'uploaded_at', 'role'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
+            foreach (['original_name', 'uploaded_at', 'role', 'elevation_view', 'source'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
         }
         $files[] = $file;
     }

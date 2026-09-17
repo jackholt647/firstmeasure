@@ -79,11 +79,13 @@ $googleKey = fm_google_provider_key('browser_internal');
 <a href="./">FirstMeasure</a><h1>Full-house measurements</h1><p>Internal measurement drafts for roof, walls and exterior resources.</p>
 <form id="submit" data-csrf="<?=htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8')?>"><label for="address">Property address</label><input id="address" type="text" required autocomplete="off" disabled aria-describedby="address-help" placeholder="Start typing a street address">
 <small id="address-help">Choose a Google suggestion to use its address and map location.</small>
+<div id="order-references"></div>
 <button id="create" type="submit" disabled>Create measurement</button><p id="status" role="status">Loading address search…</p></form>
 <article><h2>Measurements</h2><ul><?php foreach ($projects as $project): ?>
 <li><a href="editor.php?folder=<?=rawurlencode($project['id'])?>"><?=htmlspecialchars($project['address'], ENT_QUOTES, 'UTF-8')?></a> <small><?=htmlspecialchars($project['status'], ENT_QUOTES, 'UTF-8')?></small></li>
 <?php endforeach; ?></ul><?php if (!$projects): ?><p>No full-house measurements yet.</p><?php endif; ?></article>
 </main>
+<script src="portal_scripts/full_house_references.js?v=<?=filemtime(__DIR__ . '/portal_scripts/full_house_references.js')?>"></script>
 <script src="portal_scripts/full_house_address.js?v=<?=filemtime(__DIR__ . '/portal_scripts/full_house_address.js')?>"></script>
 <?php if ($googleKey !== ''): ?>
 <script async src="https://maps.googleapis.com/maps/api/js?key=<?=rawurlencode($googleKey)?>&amp;libraries=places&amp;loading=async&amp;callback=initFullHouseAddress" onerror="fullHouseAddressUnavailable()"></script>

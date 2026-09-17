@@ -226,7 +226,7 @@
    if(!bucket.length){const empty=document.createElement('div');empty.className='resource-section-empty';empty.textContent='No files yet';section.append(empty);}
    for (const file of bucket) {
     const button = document.createElement('button'); button.className = 'resource-item'; button.classList.toggle('active', current?.name === file.name);
-    const name = document.createElement('span'); name.textContent = label(file.name); button.append(name);
+    const name = document.createElement('span'); name.textContent = (file.elevation_view ? ({front:'Front',back:'Back',left:'Left',right:'Right','front-left':'Front Left','front-right':'Front Right','back-left':'Back Left','back-right':'Back Right'}[file.elevation_view]||file.elevation_view)+' · ' : '') + label(file.name); button.append(name);
     button.title = name.textContent+' · '+roleName(role)+(file.uploaded_at ? '\n' + new Date(file.uploaded_at).toLocaleString() : '');
     button.onclick = () => open(file).catch(error => message(error.message, true));
     const card=document.createElement('div');card.className='resource-file-card';card.append(button);
