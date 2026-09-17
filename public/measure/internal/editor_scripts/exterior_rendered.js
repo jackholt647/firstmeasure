@@ -3,7 +3,7 @@
 const script=document.currentScript?.src||new URL('editor_scripts/exterior_rendered.js',location.href).href;
 const assetURL=new URL('../rendered_assets/',script).href;
 const packs=new Map(),settings={lighting:'daylight',sun:315,exposure:1},errors=new Set();
-let active=null,hud=null,pending=0,loaded=0,hdrPromise=null,environment=null,environmentRenderer=null;
+let active=null,hud=null,graphics=null,pending=0,loaded=0,hdrPromise=null,environment=null,environmentRenderer=null;
 const color=value=>new THREE.Color(value).convertSRGBToLinear();
 function status(){if(hud){hud.querySelector('[data-export]').disabled=pending>0;hud.querySelector('[role=status]').textContent=errors.size?'Some assets unavailable — basic materials shown':pending?'Loading high-resolution assets… '+loaded+'/'+(loaded+pending):'2K materials · HDR reflections · 4K shadows';}}
 function loadTexture(file,srgb){
@@ -105,21 +105,29 @@ function openingDetails(source,target,context){
 function releaseScene(value){if(!value)return;const geometries=new Set(),materials=new Set();value.scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[])materials.add(m);});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());value.sun.shadow.map?.dispose();}
 function update(group,options){
  const previous=active;document.body.classList.toggle('exterior-rendered',!!options.enabled);
- if(!options.enabled){active=null;if(hud)hud.hidden=true;releaseScene(previous);return;}
+ if(!options.enabled){active=null;if(graphics){graphics.hidden=true;graphics.open=false;}releaseScene(previous);return;}
  const scene=new THREE.Scene();scene.background=color('#dce5eb');scene.environment=environment?.texture||null;
- const bounds=new THREE.Box3();group.updateMatrixWorld(true);group.traverse(o=>{if(o.isMesh&&!o.isSprite&&o.userData.exteriorFinish){o.geometry.computeBoundingBox();bounds.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));}});
- if(bounds.isEmpty()){active=null;if(hud)hud.hidden=true;document.body.classList.remove('exterior-rendered');releaseScene(previous);return;}
- const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),radius=Math.max(size.x,size.y,size.z,1),unit=options.vector({x:1,y:0,z:0}).distanceTo(options.vector({x:0,y:0,z:0}));
- const context={...options,center,unit},solids=[];
- group.traverse(o=>{if(o.isMesh&&!o.isSprite&&o.visible&&o.userData.exteriorFinish)solids.push(o);});
+ // Use the editor's visible surfaces, including its actual sloped grade and base.
+ // An independent studio floor would ignore layer visibility and obscure foundations.
+ const solids=[],isBase=o=>o.userData.baseId!==undefined||o.userData.pickLayer==='base',isGrade=o=>o.userData.pickLayer==='grade';
+ group.updateMatrixWorld(true);group.traverseVisible(o=>{if(o.isMesh&&!o.isSprite&&(o.userData.exteriorFinish||isBase(o)||isGrade(o)))solids.push(o);});
+ const bounds=new THREE.Box3();for(const o of solids){o.geometry.computeBoundingBox();bounds.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));}
+ if(bounds.isEmpty()){active=null;if(graphics){graphics.hidden=true;graphics.open=false;}document.body.classList.remove('exterior-rendered');releaseScene(previous);return;}
+ const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),radius=Math.max(size.x,size.y,size.z,1);
+ const context={...options,center};
  for(const o of solids){
   const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.computeVertexNormals();if(g.attributes.uv)g.setAttribute('uv2',g.attributes.uv.clone());
-  const base=o.userData.baseId!==undefined||o.userData.pickLayer==='base',m=materialFor(o.userData.exteriorFinish,base),copy=new THREE.Mesh(g,m);m.side=o.material.side??THREE.DoubleSide;if(o.userData.exteriorSelected){m.emissive.copy(m.color);m.emissiveIntensity=.15;}copy.castShadow=copy.receiveShadow=true;copy.name='rendered-'+(o.name||o.userData.pickLayer||'surface');scene.add(copy);openingDetails(o,copy,context);
+  const base=isBase(o),grade=isGrade(o),m=grade?new THREE.MeshStandardMaterial({color:color('#999386'),roughness:.95,side:THREE.DoubleSide}):materialFor(o.userData.exteriorFinish||{material:'default'},base),copy=new THREE.Mesh(g,m);
+  m.side=o.material.side??THREE.DoubleSide;if(o.userData.exteriorSelected){m.emissive.copy(m.color);m.emissiveIntensity=.15;}
+  // Resolve only coplanar depth ties; retain measured heights and grade slopes.
+  if(base||grade){m.polygonOffset=true;m.polygonOffsetFactor=base?-1:1;m.polygonOffsetUnits=base?-1:1;copy.renderOrder=base?1:0;}
+  copy.castShadow=!grade;copy.receiveShadow=true;copy.name='rendered-'+(o.name||(base?'base':o.userData.pickLayer)||'surface');copy.userData.presentationLayer=base?'base':o.userData.pickLayer;
+  scene.add(copy);openingDetails(o,copy,context);
  }
- const ground=new THREE.Mesh(new THREE.PlaneGeometry(radius*40,radius*40),new THREE.MeshStandardMaterial({color:color('#b9b6ae'),roughness:.95}));ground.rotation.x=-Math.PI/2;ground.position.set(center.x,bounds.min.y-.02*unit,center.z);ground.receiveShadow=true;scene.add(ground);
+ const unit=options.vector({x:1,y:0,z:0}).distanceTo(options.vector({x:0,y:0,z:0}));
  const sun=new THREE.DirectionalLight(0xfff1db,3);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-radius*.8,right:radius*.8,top:radius*.8,bottom:-radius*.8,near:radius*.02,far:radius*5});sun.shadow.bias=-.001;sun.shadow.normalBias=.035*unit;sun.shadow.radius=3;sun.target.position.copy(center);scene.add(sun,sun.target);
  const fill=new THREE.HemisphereLight(0xcbdfff,0x92765e,.45);scene.add(fill);
- active={scene,sun,fill,center,radius,group,sourceScene:options.scene,camera:null,renderer:null};lighting();mountHUD();hud.hidden=false;releaseScene(previous);
+ active={scene,sun,fill,center,radius,group,sourceScene:options.scene,camera:null,renderer:null};lighting();mountHUD();graphics.hidden=false;if(!previous)graphics.open=false;releaseScene(previous);
 }
 function lighting(){if(!active)return;const {sun,fill,center,radius}=active,a=settings.sun*Math.PI/180,golden=settings.lighting==='golden',overcast=settings.lighting==='overcast';sun.position.copy(center).add(new THREE.Vector3(Math.cos(a)*radius*1.6,radius*(golden?.65:1.9),Math.sin(a)*radius*1.6));sun.intensity=overcast?.7:golden?2.5:3;sun.color.set(golden?0xffc28a:0xfff1db);fill.intensity=overcast?1.1:.45;}
 function render(renderer,sourceScene,camera){
@@ -132,15 +140,32 @@ function render(renderer,sourceScene,camera){
 async function exportImage(){
  if(!active?.renderer||!active.camera)return;
  const value=active,r=value.renderer,size=r.getSize(new THREE.Vector2()),ratio=r.getPixelRatio(),camera=value.camera.clone(),aspect=size.x/size.y,width=Math.max(1,Math.round(aspect>=1?3840:3840*aspect)),height=Math.max(1,Math.round(aspect>=1?3840/aspect:3840));
- try{r.setPixelRatio(1);r.setSize(width,Math.min(height,3840),false);camera.aspect=width/Math.min(height,3840);camera.updateProjectionMatrix();render(r,value.sourceScene,camera);const blob=await new Promise(resolve=>r.domElement.toBlob(resolve,'image/png'));if(!blob)throw Error('Image export failed');const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='exterior-rendered-4k.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){hud.querySelector('[role=status]').textContent=e.message;}finally{r.setPixelRatio(ratio);r.setSize(size.x,size.y,false);}
+ try{r.setPixelRatio(1);r.setSize(width,Math.min(height,3840),false);camera.aspect=width/Math.min(height,3840);camera.updateProjectionMatrix();render(r,value.sourceScene,camera);const blob=await new Promise(resolve=>r.domElement.toBlob(resolve,'image/png'));if(!blob)throw Error('Image export failed');const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='exterior-textured-4k.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){hud.querySelector('[role=status]').textContent=e.message;}finally{r.setPixelRatio(ratio);r.setSize(size.x,size.y,false);}
 }
 function mountHUD(){
- if(hud)return;const style=document.createElement('style');style.textContent='.exterior-rendered #wall-panel{display:none!important}';document.head.appendChild(style);hud=document.createElement('section');hud.id='exterior-rendered-controls';hud.setAttribute('aria-label','Rendered preview settings');
- hud.style.cssText='position:absolute;right:144px;top:46px;z-index:35;width:225px;padding:12px;border:1px solid #d7dde3;border-radius:10px;background:#fffffff0;color:#253442;font:12px system-ui;box-shadow:0 5px 22px #0002;backdrop-filter:blur(10px)';
- hud.innerHTML='<strong style="display:block;margin-bottom:7px">Rendered <span style="color:#657588;font-weight:400">· Preview</span></strong><div style="display:flex;gap:6px"><select aria-label="Render lighting" style="flex:1"><option value="daylight">Daylight</option><option value="golden">Golden hour</option><option value="overcast">Overcast</option></select><button type="button" data-export>Save 4K</button></div><label style="display:flex;align-items:center;margin-top:8px">Sun <input aria-label="Sun direction" type="range" min="0" max="360" value="315" style="width:100%;margin-left:12px"></label><label style="display:flex;align-items:center">Exposure <input aria-label="Render exposure" type="range" min="0.3" max="2" step="0.05" value="1" style="width:100%;margin-left:8px"></label><div role="status" style="font-size:10px;color:#617080;margin-top:5px"></div><a href="https://polyhaven.com" target="_blank" rel="noopener" style="font-size:9px;color:#617080">Powered by Poly Haven</a>';
+ if(hud)return;const style=document.createElement('style');style.textContent=`
+ .exterior-rendered #wall-panel{display:none!important}
+ #exterior-graphics{position:relative;color:#202124;font:12px system-ui}
+ #exterior-graphics[hidden]{display:none!important}
+ #exterior-graphics>summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;height:34px;box-sizing:border-box;padding:0 9px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#202124;font-weight:600;white-space:nowrap}
+ #exterior-graphics>summary::-webkit-details-marker{display:none}
+ #exterior-graphics>summary:hover{background:#f0f2f5}
+ #exterior-graphics[open]>summary{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8}
+ #exterior-graphics>summary svg{width:18px;height:18px}
+ #exterior-rendered-controls{position:absolute;right:0;top:calc(100% + 6px);z-index:3000;width:260px;box-sizing:border-box;padding:12px;border:1px solid #ccd2d9;border-radius:8px;background:#fff;color:#253442;font:12px system-ui;box-shadow:0 5px 18px #0002}
+ #exterior-main-toolbar #exterior-rendered-controls input[type=range]{width:100%;padding:0;border:0}
+ #exterior-rendered-controls select{min-width:0;background:#fff;color:#253442;border:1px solid #ccd2d9;border-radius:4px}
+ `;document.head.appendChild(style);
+ graphics=document.createElement('details');graphics.id='exterior-graphics';graphics.hidden=true;
+ const summary=document.createElement('summary');summary.setAttribute('aria-controls','exterior-rendered-controls');summary.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4M6 13l4-4 3 3 2-2 3 3"/></svg><span>Graphics</span><span aria-hidden="true">▾</span>';graphics.appendChild(summary);
+ hud=document.createElement('section');hud.id='exterior-rendered-controls';hud.setAttribute('aria-label','Textured graphics settings');graphics.appendChild(hud);
+ hud.innerHTML='<strong style="display:block;margin-bottom:7px">Graphics</strong><div style="display:flex;gap:6px"><select aria-label="Render lighting" style="flex:1"><option value="daylight">Daylight</option><option value="golden">Golden hour</option><option value="overcast">Overcast</option></select><button type="button" data-export>Save 4K</button></div><label style="display:flex;align-items:center;margin-top:8px">Sun <input aria-label="Sun direction" type="range" min="0" max="360" value="315" style="width:100%;margin-left:12px"></label><label style="display:flex;align-items:center">Exposure <input aria-label="Render exposure" type="range" min="0.3" max="2" step="0.05" value="1" style="width:100%;margin-left:8px"></label><div role="status" style="font-size:10px;color:#617080;margin-top:5px"></div><a href="https://polyhaven.com" target="_blank" rel="noopener" style="font-size:9px;color:#617080">Powered by Poly Haven</a>';
  hud.querySelector('select').onchange=e=>{settings.lighting=e.target.value;lighting();};hud.querySelector('[aria-label="Sun direction"]').oninput=e=>{settings.sun=Number(e.target.value);lighting();};hud.querySelector('[aria-label="Render exposure"]').oninput=e=>settings.exposure=Number(e.target.value);hud.querySelector('[data-export]').onclick=exportImage;
- for(const name of ['pointerdown','pointermove','dblclick','wheel'])hud.addEventListener(name,e=>e.stopPropagation());
- (document.getElementById('three-view-wrapper')||document.body).appendChild(hud);status();
+ for(const name of ['pointerdown','pointermove','dblclick','wheel'])graphics.addEventListener(name,e=>e.stopPropagation());
+ document.addEventListener('pointerdown',e=>{if(!graphics.contains(e.target))graphics.open=false;});
+ graphics.addEventListener('keydown',e=>{if(e.key==='Escape'){graphics.open=false;summary.focus();e.preventDefault();}e.stopPropagation();});
+ const advanced=document.getElementById('wall-advanced'),main=document.getElementById('exterior-main-toolbar')||document.getElementById('global-toolbar')||document.body;
+ if(advanced?.parentElement===main)advanced.insertAdjacentElement('afterend',graphics);else main.appendChild(graphics);status();
 }
 root.ExteriorRendered={update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
 })(window);

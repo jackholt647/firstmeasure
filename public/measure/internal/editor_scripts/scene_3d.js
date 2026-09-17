@@ -1703,7 +1703,7 @@ window.ensureAllPointsHaveZ = function () {
 function onMouseDown3D(event) {
     if (event.button !== 0) return;
     // Guard both old-style and new-style control containers
-    if (event.target.closest('#exterior-rendered-controls') || event.target.closest('.enh-control-panel') || event.target.closest('#axis-gizmo-container') ||
+    if (event.target.closest('#exterior-graphics') || event.target.closest('.enh-control-panel') || event.target.closest('#axis-gizmo-container') ||
         event.target.closest('.controls-3d-actions') || event.target.closest('.controls-3d-overlay')) return;
     // Guard pitch label clicks (lock toggle) — don't start 3D selection
     if (event.target.closest('#pitch-label-overlay')) return;

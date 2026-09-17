@@ -338,7 +338,7 @@ window.createWallFaceDraft=function(host){
  function containsRegion(f,h){const outer={points:f.points};if(!h.points.every(p=>G.contains(outer,p)))return false;const K=window.ExteriorGeometry;return K.difference({points:h.points},[outer]).reduce((area,part)=>area+K.area(part),0)<=1e-8;}
  function classify(d){const holes=d.faces.filter(f=>f.boundaryHole||f.points.every(p=>!d.sketch.nodes.find(n=>n.id===p.nodeId)?.fixed));for(const f of d.faces){f.opening=holes.includes(f);f.holes=f.opening?[]:holes.filter(h=>containsRegion(f,h)).map(h=>h.points);}}
  function transaction(fn,original){const rollback=copy(host.state().wallEdits||{}),before=copy(original??rollback);try{supportSnapshot=structuralFaces();fn();for(const d of Object.values(all()))classify(d);host.commit(before);host.redraw();return true;}catch(e){host.state().wallEdits=rollback;host.message(e.message);return false;}finally{supportSnapshot=null;}}
- function holdBoundary(e){if(host.state()?.displayMode==='textured'&&viewOf(e)==='3d')return false;
+ function holdBoundary(e){if(['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d')return false;
   let d=all()[preferredDraft];if(!d&&preferredSolid){const f=solids().find(f=>f.id===preferredSolid&&!f.deleted);if(f){const frame=W.faceFrame(f),local=p=>W.inFrame(frame,p);const near=f.points.some((p,i)=>{const a=host.screen(p,'3d'),b=host.screen(f.points[(i+1)%f.points.length],'3d'),dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)):0;return Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy)<12;});if(near&&viewOf(e)==='3d'&&(()=>{const p=rayPoint({frame},e);return p&&pickVisible(W.fromFrame(frame,p),e);})()){d=solidDraft(f);preferredDraft=draftKey(d);}}}if(!d||!visibleDraft(d)||viewOf(e)!=='3d')return false;const hitPoint=rayPoint(d,e);if(hitPoint&&!pickVisible(world(d,hitPoint),e))return false;
   const close=d.faces.filter(f=>!f.solidId&&!deleted(d,f)).some(f=>[f.points,...(f.holes||[])].some(r=>r.some((p,i)=>{
    const a=host.screen(world(d,p),'3d'),b=host.screen(world(d,r[(i+1)%r.length]),'3d'),dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1e-8)return false;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2));return Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy)<12;
@@ -377,7 +377,7 @@ window.createWallFaceDraft=function(host){
  }
  const pickVisible=(p,e)=>viewOf(e)!=='3d'||host.pickVisible?.(p,e)!==false;
  const pickLineVisible=(pair,e,t=.5)=>viewOf(e)!=='3d'||(host.pickLineVisible?host.pickLineVisible(pair,e):pickVisible({x:pair[0].x+(pair[1].x-pair[0].x)*t,y:pair[0].y+(pair[1].y-pair[0].y)*t,z:pair[0].z+(pair[1].z-pair[0].z)*t},e));
- function pickVisiblePoint(e){if(host.state()?.displayMode==='textured'&&viewOf(e)==='3d')return false;
+ function pickVisiblePoint(e){if(['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d')return false;
   if(tool||lineMode()||viewOf(e)!=='3d'||e.button!==0)return false;
   const candidates=[];
   if(host.wallsVisible?.()!==false){
@@ -444,7 +444,7 @@ window.createWallFaceDraft=function(host){
   return {points,lines,baseSegments,curveGroups};
  }
  function heightPoints(){const state=host.state(),base=state.wallEdits?.$base||state.base;return [...(state.roof?.points||[]),...(base?.faces||[]).filter(f=>!f.deleted).flatMap(f=>[...f.points,...(f.holes||[]).flat(),...(f.retainedPoints||[])])];}
- function pickLine3D(e){const dividerOnly=host.state()?.displayMode==='textured'&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
+ function pickLine3D(e){const dividerOnly=['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
   const {points,lines,baseSegments,curveGroups}=sceneLines(),screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);
   if(!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&pickVisible(p,e);}))return false;
   let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&pickLineVisible(pair,e,t)){distance=dist;nearest={id,pair};}}

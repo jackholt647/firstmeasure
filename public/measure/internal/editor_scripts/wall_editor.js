@@ -5,7 +5,7 @@
 'use strict';
 // Apply one display policy to every exterior layer, including depth-only cues.
 window.exteriorSurfaceDisplay=function(group,mode=true){
- const translucent=mode===true||mode==='translucent',textured=mode==='textured'||mode==='rendered';
+ const translucent=mode===true||mode==='translucent',textured=['textured','rendered','match-textured'].includes(mode);
  group.traverse(o=>{
   const line=o.isLine||o.isLineSegments;
   if(line||o.isPoints||o.isSprite){o.userData||={};if(!('exteriorVisible' in o.userData))o.userData.exteriorVisible=o.visible;o.visible=textured&&!line&&!o.userData.exteriorSelection?false:o.userData.exteriorVisible;}

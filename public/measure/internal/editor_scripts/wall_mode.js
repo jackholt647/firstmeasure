@@ -3,6 +3,10 @@
     'use strict';
     const G=window.WallGeometry, GREEN='#54cf86', YELLOW='#ffd84d', NS='http://www.w3.org/2000/svg';
     const ENGINE='exterior-kernel-2',GAP_COLOR='#ff4ca0';
+    // Retain the former texture renderer for comparison, hidden unless explicitly enabled.
+    const surfaceModes=()=>window.FIRSTMEASURE_MATCH_TEXTURED===true?['translucent','opaque','textured','match-textured']:['translucent','opaque','textured'];
+    const surfaceMode=()=>state?.displayMode==='rendered'?'textured':state?.displayMode||(state?.translucent===false?'opaque':'translucent');
+    const surfaceLabel=mode=>mode==='match-textured'?'Match textured':mode[0].toUpperCase()+mode.slice(1);
     let gapHighlights=true,gapCacheKey='',gapCache=[];
     let enabled=false, roofVisible=true, state=null, projectId='', stage=1, selected=null, group3D=null, lastScene=null;
     let storageError='', panel, menu, badge, details, status, warning, stageButtons, sourceContext=null;
@@ -393,7 +397,7 @@
     function render3DFrame() {
         if(typeof scene==='undefined'||!scene||!window.THREE)return;
         const previous=group3D,previousScene=lastScene;
-        try{render3DContent();scene.add(group3D);window.ExteriorRendered?.update(group3D,{enabled:enabled&&state?.displayMode==='rendered',scene,vector:p=>getVector3(toPixel(p))});if(previous){previous.parent?.remove(previous);disposeObject3D(previous);}}
+        try{render3DContent();scene.add(group3D);window.ExteriorRendered?.update(group3D,{enabled:enabled&&surfaceMode()==='textured',scene,vector:p=>getVector3(toPixel(p))});if(previous){previous.parent?.remove(previous);disposeObject3D(previous);}}
         catch(error){if(group3D&&group3D!==previous){group3D.parent?.remove(group3D);disposeObject3D(group3D);}group3D=previous;lastScene=previousScene;throw error;}
     }
     function render3DContent() {
@@ -407,7 +411,7 @@
         if(!roof){try{const c=captureRoof();roof=c.roof;sourceContext=c.context;}catch(e){syncVisibility();return;}}
         if(roofVisible){
             addLines(roof.points,roof.connections,GREEN);
-            for(const f of (window.WallChimneys?.roofWithOpenings(state)||roof).faces)for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,['textured','rendered'].includes(state?.displayMode)))group3D.add(mesh);
+            for(const f of (window.WallChimneys?.roofWithOpenings(state)||roof).faces)for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,['textured','match-textured'].includes(surfaceMode())))group3D.add(mesh);
             drawRoofTrim(group3D,roof,vector);
         }
         if(wallsVisible&&state&&stage===1){const ps=[],cs=[];for(const s of state.sources){const i=ps.length;ps.push(s.a,s.b);cs.push({startIdx:i,endIdx:i+1});}addLines(ps,cs,YELLOW);}
@@ -428,7 +432,7 @@
         }
         roofTrimEditor?.update();groundEditor?.draw3D(group3D,vector);baseEditor?.draw3D(group3D,vector);wallEditor?.draw3D(group3D,vector);window.ExteriorDistanceInput?.render(wallEditor?.distanceInput()||baseEditor?.distanceInput());
         if(wallsVisible&&gapHighlights&&stage>=2){const points=[],connections=[];for(const gap of currentGaps()){const i=points.length;points.push(gap.bottom,gap.top);connections.push({startIdx:i,endIdx:i+1});}addLines(points,connections,GAP_COLOR);}
-        window.exteriorSurfaceDisplay?.(group3D,state?.displayMode||(state?.translucent===false?'opaque':'translucent'));
+        window.exteriorSurfaceDisplay?.(group3D,surfaceMode());
         applyPlaneDisplay(group3D,vector);
         syncVisibility();
     }
@@ -475,11 +479,11 @@
     }
     function inspect(id) {selected=id;const s=state?.sources.find(s=>s.id===id),setback=stage>=6?state?.rakeCleanupReport?.setbackCorrections?.find(c=>c.sourceIds.includes(id))?.after:undefined;details.textContent=s?`${s.id} · ${s.kind==='return'?'lower wall return':s.type.replaceAll('_',' ')} · ${s.direction==='up'?'up to next roof':'down to roof or ground'} · ${s.joins?`continues straight to ${s.joins}`:`${((setback??s.setback)/G.INCH).toFixed(1)} in setback`}`:'';render2D();}
     function render() {
-        if(!panel)return;document.body.classList.toggle('exterior-textured',enabled&&['textured','rendered'].includes(state?.displayMode));
+        if(!panel)return;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));
         document.getElementById('wall-lengths-toggle').value=state?.lineLengthMode||(state?.wallLengths===false?'off':'moving');document.getElementById('wall-feature-dimensions')?.setAttribute('aria-pressed',String(state?.featureDimensions!==false));
         document.getElementById('wall-roof-bounds').checked=state?.boundExtrusionToRoof!==false;
         document.getElementById('wall-undo-selections').checked=state?.undoSelections!==false;
-        const displayButton=document.getElementById('wall-translucency-toggle'),displayMode=state?.displayMode||(state?.translucent===false?'opaque':'translucent');displayButton.textContent=displayMode[0].toUpperCase()+displayMode.slice(1);displayButton.title='Surface display: '+displayMode+'. Click to cycle translucent, opaque, textured and rendered.';displayButton.setAttribute('aria-label',displayButton.title);displayButton.setAttribute('aria-pressed',String(displayMode!=='translucent'));
+        const displayButton=document.getElementById('wall-translucency-toggle'),displayMode=surfaceMode();displayButton.textContent=surfaceLabel(displayMode);displayButton.title='Surface display: '+surfaceLabel(displayMode)+'. Click to cycle '+surfaceModes().map(surfaceLabel).join(', ')+'.';displayButton.setAttribute('aria-label',displayButton.title);displayButton.setAttribute('aria-pressed',String(displayMode!=='translucent'));
         document.getElementById('wall-centers-toggle').setAttribute('aria-pressed',String(state?.wallCenters!==false));
         stageButtons.forEach((b,i)=>{b.disabled=!state;b.setAttribute('aria-pressed',String(stage===i+1));});
         document.getElementById('wall-roof-visibility').setAttribute('aria-pressed',String(roofVisible));
@@ -534,11 +538,11 @@
         groundEditor=window.createGroundEditor?.({getState:()=>state,ensureState:()=>!!state||generate('auto'),projectId:currentId,enabled:()=>enabled,toPixel,toMetric,changed:groundChanged,onEditing:on=>{editingLayer=on?'grade':'base';baseEditor?.render();},redraw:()=>requestEditorRender()});
         groundEditor?.setup(panel);
         const setLayer=(value,preserveVisibility=false,deferScene=false)=>{if(value!=='base'){if(baseEditor?.busy())baseEditor.leave();baseEditor?.clearSelection();}if(value!=='walls')wallEditor?.clear();editingLayer=value;if(value==='base'&&state?.base)baseState().base.visible=true;if(value==='walls'&&!preserveVisibility)wallsVisible=true;groundEditor?.setEditing(value==='grade');persist();if(deferScene){groundEditor?.render();baseEditor?.render();}else render();};
-        baseEditor=window.createBaseEditor?.({pickVisible:p=>!['textured','rendered'].includes(state?.displayMode)&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','rendered'].includes(state?.displayMode)&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),walls:currentWalls,state:baseState,ensure:()=>!!state||generate('auto'),enabled:()=>enabled,id:currentId,layer:()=>editingLayer,setLayer,
+        baseEditor=window.createBaseEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),walls:currentWalls,state:baseState,ensure:()=>!!state||generate('auto'),enabled:()=>enabled,id:currentId,layer:()=>editingLayer,setLayer,
             selectVisibleLayer:()=>setLayer(baseState()?.base?.visible!==false?'base':wallsVisible?'walls':'grade'),handleKey:e=>handleEditorKey(e),position:(...args)=>groundEditor.position(...args),toPixel,
             recordHistory:before=>{if(before.wallEdits?.$base)delete before.base;recordEdit(before);},undo:()=>undoEdit(),canUndo:()=>editHistory.some(e=>state?.undoSelections!==false||!e.selectionOnly),changed:()=>{groundChanged();finishEdit();baseEditor?.render();},redraw:()=>requestEditorRender()});
         baseEditor?.setup(panel);
-        wallEditor=window.createWallEditor?.({pickVisible:p=>!['textured','rendered'].includes(state?.displayMode)&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','rendered'].includes(state?.displayMode)&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
+        wallEditor=window.createWallEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
             position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender()});
         const resetWall=document.createElement('button');resetWall.id='wall-reset-position';resetWall.textContent='Reset wall position';resetWall.onclick=()=>wallEditor?.resetPosition();document.getElementById('wall-actions').appendChild(resetWall);
         panel.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
@@ -559,7 +563,7 @@
         document.getElementById('wall-undo-selections').onchange=e=>{if(!state)return;state.undoSelections=e.target.checked;persist();baseEditor?.render();};
         for(const event of ['pointerdown','pointerup','mousedown','mouseup','click','dblclick','keydown','change'])window.addEventListener(event,watchSelectionInput,true);
         document.getElementById('wall-roof-bounds').onchange=e=>{if(!state)return;state.boundExtrusionToRoof=e.target.checked;persist();render();};
-        document.getElementById('wall-translucency-toggle').onclick=()=>{if(!state)return;const modes=['translucent','opaque','textured','rendered'],mode=state.displayMode||(state.translucent===false?'opaque':'translucent');state.displayMode=modes[(modes.indexOf(mode)+1)%modes.length];state.translucent=state.displayMode==='translucent';persist();render();};
+        document.getElementById('wall-translucency-toggle').onclick=()=>{if(!state)return;const modes=surfaceModes(),mode=surfaceMode();state.displayMode=modes[(modes.indexOf(mode)+1)%modes.length];state.translucent=state.displayMode==='translucent';persist();render();};
         document.getElementById('wall-centers-toggle').onclick=()=>{if(!state)return;state.wallCenters=state.wallCenters===false;const base=baseState()?.base;if(base)base.centers=state.wallCenters;if(state.base)state.base.centers=state.wallCenters;persist();render();};
         stageButtons.forEach(b=>b.onclick=()=>ensureStage(Number(b.dataset.stage)));
         document.getElementById('wall-gap-toggle').onclick=()=>{gapHighlights=!gapHighlights;persist();render();};
@@ -602,7 +606,7 @@
         // Capture before roof/plugin handlers. Panning, wheel zoom and orbit remain available.
         for(const type of ['pointerdown','mousedown','dblclick','click'])window.addEventListener(type,e=>{
             if(type==='pointerdown'){nudgeEpoch++;nudgeKey=null;}
-            if(!enabled)return;if(e.target.closest?.('#exterior-rendered-controls,#resource-3d-controls,#roof-trim-control,#wall-panel,#exterior-toolbar,#axis-gizmo-container,.enh-control-panel,.controls-3d-actions,.exterior-sticker-bar,.exterior-sticker-menu'))return;
+            if(!enabled)return;if(e.target.closest?.('#exterior-graphics,#resource-3d-controls,#roof-trim-control,#wall-panel,#exterior-toolbar,#axis-gizmo-container,.enh-control-panel,.controls-3d-actions,.exterior-sticker-bar,.exterior-sticker-menu'))return;
             if(e.target.closest?.('#viewport,#three-view-wrapper') && e.button===0){
                 if((type==='click'||type==='dblclick')&&wallEditor?.consumeSelectionClick?.()){e.stopImmediatePropagation();e.preventDefault();return;}
                 if(type==='dblclick'&&(editingLayer==='base'?baseEditor?.doubleClick(e):editingLayer==='walls'&&wallEditor?.doubleClick(e))){e.stopImmediatePropagation();e.preventDefault();return;}
@@ -656,6 +660,7 @@
         window.addEventListener('blur',cancelInteraction);
         window.addEventListener('pointercancel',cancelInteraction,true);
         function handleEditorKey(e){
+            if(e.target.closest?.('#exterior-graphics'))return;
             if(window.ProjectResources?.handleKey(e))return true;
             if(!enabled)return;
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length&&entity.points.length<=2?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
@@ -683,7 +688,7 @@
             return true;
         }
         window.addEventListener('wheel',e=>{
-            if(!enabled||e.target.closest?.('#exterior-rendered-controls,#wall-panel,.exterior-sticker-menu,.enh-control-panel,.controls-3d-actions,.pane-swap-button,input,textarea,select'))return;
+            if(!enabled||e.target.closest?.('#exterior-graphics,#wall-panel,.exterior-sticker-menu,.enh-control-panel,.controls-3d-actions,.pane-swap-button,input,textarea,select'))return;
             if((editingLayer==='base'?baseEditor:wallEditor)?.stepWheel(e)){e.preventDefault();e.stopImmediatePropagation();}
         },{capture:true,passive:false});
         window.addEventListener('keydown',handleEditorKey,true);

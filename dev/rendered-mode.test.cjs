@@ -5,10 +5,10 @@ test('Rendered builds a separate PBR scene, loads real assets, exports 4K, and r
  try{
   const page=await browser.newPage({viewport:{width:1200,height:800}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await page.route('http://rendered.test/**',async route=>{const url=new URL(route.request().url());if(url.pathname==='/'){return route.fulfill({contentType:'text/html',body:'<meta charset="utf-8"><body style="margin:0"><div id="three-view-wrapper" style="position:relative;width:1200px;height:800px"></div></body>'});}const file=path.resolve('public/measure/internal',url.pathname.slice(1));assert.ok(file.startsWith(path.resolve('public/measure/internal')+path.sep));await route.fulfill({path:file});});
+  await page.route('http://rendered.test/**',async route=>{const url=new URL(route.request().url());if(url.pathname==='/'){return route.fulfill({contentType:'text/html',body:'<meta charset="utf-8"><body style="margin:0"><div id="exterior-main-toolbar"><details id="wall-advanced"><summary>Settings</summary></details></div><div id="three-view-wrapper" style="position:relative;width:1200px;height:800px"></div></body>'});}const file=path.resolve('public/measure/internal',url.pathname.slice(1));assert.ok(file.startsWith(path.resolve('public/measure/internal')+path.sep));await route.fulfill({path:file});});
   await page.goto('http://rendered.test/');
   await page.addScriptTag({path:'public/v1/node_modules/three/build/three.min.js'});
-  for(const name of ['vendor/clipper-lib-6.4.2-clipper','vendor/earcut-3.2.3-earcut.dev','exterior_geometry','wall_solid_geometry','wall_features','exterior_finishes','exterior_rendered'])await page.addScriptTag({url:'http://rendered.test/editor_scripts/'+name+'.js'});
+  for(const name of ['vendor/clipper-lib-6.4.2-clipper','vendor/earcut-3.2.3-earcut.dev','exterior_geometry','ground_geometry','ground_editor','wall_solid_geometry','wall_features','exterior_finishes','exterior_rendered'])await page.addScriptTag({url:'http://rendered.test/editor_scripts/'+name+'.js'});
   const initial=await page.evaluate(()=>{
    const p=(x,y,z)=>({x,y,z}),vector=p=>new THREE.Vector3(p.x,p.z,p.y),source=new THREE.Scene(),group=new THREE.Group();source.add(group);
    window.demoFaces=[];
@@ -29,24 +29,42 @@ test('Rendered builds a separate PBR scene, loads real assets, exports 4K, and r
    const camera=new THREE.PerspectiveCamera(42,1.5,.05,100);camera.position.set(12,6,-11);camera.lookAt(4,1.6,1.5);
    group.children[4].name='roof-top';group.children[4].material.side=THREE.FrontSide;
    const underside=group.children[4].clone();underside.name='roof-underside';underside.material=underside.material.clone();underside.material.side=THREE.BackSide;group.add(underside);
-   const renderScene=renderer.render.bind(renderer);renderer.render=(scene,camera)=>{window.demoSides=scene.children.filter(o=>o.name.startsWith('rendered-roof-')).map(o=>o.material.side);return renderScene(scene,camera);};
-   window.demo={group,source,renderer,camera,vector,before:JSON.stringify(demoFaces),originalMaterial:group.children[0].material,originalGeometry:group.children[0].geometry};
+   const gradeGroup=new THREE.Group();group.add(gradeGroup);const grade={visible:true,points:[p(-2,-2,-.2),p(10,-2,.4),p(10,6,.4),p(-2,6,-.2)],faces:[[0,1,2],[0,2,3]]};createGroundEditor({getState:()=>({ground:grade})}).draw3D(gradeGroup,vector);
+   const base=face([p(0,0,-.1),p(8,0,.3),p(8,4,.3),p(0,4,-.1)],'unassigned');base.userData.baseId='foundation';
+   const renderScene=renderer.render.bind(renderer);renderer.render=(scene,camera)=>{window.demoPresentation=scene.children.filter(o=>o.isMesh).map(o=>({layer:o.userData.presentationLayer,geometry:o.geometry.type,positions:Array.from(o.geometry.attributes.position.array),index:o.geometry.index&&Array.from(o.geometry.index.array),offset:o.material.polygonOffsetFactor,color:o.material.color.getHexString(),map:!!o.material.map}));window.demoSides=scene.children.filter(o=>o.name.startsWith('rendered-roof-')).map(o=>o.material.side);return renderScene(scene,camera);};
+   window.demo={gradeGroup,base,group,source,renderer,camera,vector,before:JSON.stringify(demoFaces),originalMaterial:group.children[0].material,originalGeometry:group.children[0].geometry};
    ExteriorRendered.update(group,{enabled:true,scene:source,vector});const draw=()=>ExteriorRendered.render(renderer,source,camera);window.demo.draw=draw;window.demo.timer=setInterval(draw,150);draw();return group.children.length;
   });
+  const graphics=page.locator('#exterior-graphics'),summary=graphics.locator('summary');
+  assert.equal(await graphics.isVisible(),true);assert.equal(await graphics.getAttribute('open'),null);assert.equal(await page.getByLabel('Render lighting',{exact:true}).isVisible(),false);
+  assert.equal(await graphics.evaluate(e=>e.previousElementSibling.id),'wall-advanced');await summary.click();
   await page.getByRole('status').filter({hasText:'2K materials'}).waitFor({timeout:60000});
   // Compile after HDR prefiltering; shader failures are observable in the console.
   await page.evaluate(()=>demo.draw());
   const output=process.env.RENDERED_SCREENSHOT||path.join(require('node:os').tmpdir(),'firstmeasure-rendered-demo.png');await page.screenshot({path:output});
   await page.getByLabel('Render lighting',{exact:true}).selectOption('golden');await page.evaluate(()=>demo.draw());
-  const exported=page.waitForEvent('download',{timeout:60000});await page.getByRole('button',{name:'Save 4K',exact:true}).click();const download=await exported;assert.equal(download.suggestedFilename(),'exterior-rendered-4k.png');
+  const exported=page.waitForEvent('download',{timeout:60000});await page.getByRole('button',{name:'Save 4K',exact:true}).click();const download=await exported;assert.equal(download.suggestedFilename(),'exterior-textured-4k.png');
+  const surfaces=await page.evaluate(()=>{
+   const {gradeGroup,base,group,source,vector}=demo,initial=window.demoPresentation;
+   const gradeSource=gradeGroup.children.find(o=>o.userData.pickLayer==='grade');
+   const expected={positions:Array.from(gradeSource.geometry.attributes.position.array),index:Array.from(gradeSource.geometry.index.array)};
+   const stages=[];for(const [groundOn,baseOn]of [[false,true],[true,false],[false,false],[true,true]]){
+    gradeGroup.visible=groundOn;base.visible=baseOn;ExteriorRendered.update(group,{enabled:true,scene:source,vector});demo.draw();stages.push(window.demoPresentation.filter(o=>['grade','base'].includes(o.layer)).map(o=>o.layer).sort());
+   }
+   return {initial,expected,stages,open:document.getElementById('exterior-graphics').open};
+  });
+  assert.deepEqual(surfaces.stages,[['base'],['grade'],[],['base','grade']]);assert.equal(surfaces.open,true,'scene redraw keeps the user-opened menu open');
+  const ground=surfaces.initial.find(o=>o.layer==='grade'),foundation=surfaces.initial.find(o=>o.layer==='base');
+  assert.deepEqual(ground.positions,surfaces.expected.positions);assert.deepEqual(ground.index,surfaces.expected.index);assert.equal(ground.map,false);assert.equal(foundation.map,false);assert.ok(foundation.offset<ground.offset);assert.equal(surfaces.initial.some(o=>o.geometry==='PlaneGeometry'),false,'no synthetic studio ground');
+  await page.getByLabel('Render exposure',{exact:true}).press('Escape');assert.equal(await graphics.getAttribute('open'),null);await summary.click();await page.locator('#wall-advanced>summary').click();assert.equal(await graphics.getAttribute('open'),null);
   const result=await page.evaluate(()=>{
    const {renderer,source,camera,group}=demo;clearInterval(demo.timer);
    const pixels=new Uint8Array(4);renderer.getContext().readPixels(600,400,1,1,renderer.getContext().RGBA,renderer.getContext().UNSIGNED_BYTE,pixels);
    const stable=demo.before===JSON.stringify(demoFaces)&&group.children[0].geometry===demo.originalGeometry&&group.children[0].material===demo.originalMaterial;
-   ExteriorRendered.stop();const fallback=ExteriorRendered.render(renderer,source,camera);ExteriorRendered.update(group,{enabled:true,scene:source,vector:demo.vector});demo.draw();ExteriorRendered.stop();
-   return {sides:window.demoSides,stable,count:group.children.length,fallback,huds:document.querySelectorAll('#exterior-rendered-controls').length,encoding:renderer.outputEncoding,tone:renderer.toneMapping,shadow:renderer.shadowMap.enabled,size:renderer.getSize(new THREE.Vector2()).toArray(),pixels:Array.from(pixels)};
+   ExteriorRendered.stop();const fallback=ExteriorRendered.render(renderer,source,camera);ExteriorRendered.update(group,{enabled:true,scene:source,vector:demo.vector});demo.draw();const closedOnReentry=!document.getElementById('exterior-graphics').open;ExteriorRendered.stop();
+   return {closedOnReentry,graphicsHidden:document.getElementById('exterior-graphics').hidden,sides:window.demoSides,stable,count:group.children.length,fallback,huds:document.querySelectorAll('#exterior-rendered-controls').length,encoding:renderer.outputEncoding,tone:renderer.toneMapping,shadow:renderer.shadowMap.enabled,size:renderer.getSize(new THREE.Vector2()).toArray(),pixels:Array.from(pixels)};
   });
-  assert.deepEqual(result.sides,[0,1]);assert.equal(result.stable,true);assert.equal(result.count,initial);assert.equal(result.fallback,false);assert.equal(result.huds,1);assert.equal(result.encoding,3000);assert.equal(result.tone,0);assert.equal(result.shadow,false);assert.deepEqual(result.size,[1200,800]);assert.equal(errors.length,0,errors.join('\n'));
+  assert.equal(result.graphicsHidden,true);assert.equal(result.closedOnReentry,true);assert.deepEqual(result.sides,[0,1]);assert.equal(result.stable,true);assert.equal(result.count,initial);assert.equal(result.fallback,false);assert.equal(result.huds,1);assert.equal(result.encoding,3000);assert.equal(result.tone,0);assert.equal(result.shadow,false);assert.deepEqual(result.size,[1200,800]);assert.equal(errors.length,0,errors.join('\n'));
   console.log('Rendered visual fixture:',output);
  }finally{await browser.close();}
 });

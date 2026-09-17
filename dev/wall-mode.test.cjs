@@ -249,7 +249,7 @@ test('rake cleanup is a sixth stage with reversible wall and foundation comparis
  key('z');assert.equal(ctx.WallMode.serialize().stage,5);assert.equal(JSON.stringify(ctx.WallMode.serialize().base),JSON.stringify(detailed.base));
  key('y');assert.equal(ctx.WallMode.serialize().stage,7);assert.equal(ctx.WallMode.serialize().geometry.faces.length,9);
 });
-test('translucency defaults on and toolbar preference round trips',()=>{const f=fixture(true);f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();assert.notEqual(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();const saved=f.ctx.WallMode.serialize();assert.equal(saved.translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');assert.equal(f.ctx.WallMode.serialize().translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'rendered');f.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(f.ctx.WallMode.serialize().displayMode,'rendered');f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().translucent,true);});
+test('translucency defaults on and toolbar preference round trips',()=>{const f=fixture(true);f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();assert.notEqual(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();const saved=f.ctx.WallMode.serialize();assert.equal(saved.translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');assert.equal(f.ctx.WallMode.serialize().translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().translucent,true);});
 
 test('visible line hits take priority over face rays without consuming placement tools',()=>{
  const calls=[];let busy=false,wallHost;const base={cancelPointerGesture(){},setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false},wall={cancelPointerGesture(){},apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>busy,pickLine:()=>{calls.push('line');return true;},down:()=>{calls.push('place');return true;}};
@@ -456,3 +456,16 @@ test('project finish palette counts visible finishes, resolves defaults, and omi
  host.state().wallEdits={$surfaces:[{finishColor:'#778899'},{finishColor:'#778899'},{finishColor:'#778899'},{},{finishColor:'#ABCDEF'},{feature:{type:'window'},finishColor:'#ff0000'}]};
  assert.deepEqual(Array.from(materials.projectColors()),['#778899','#112233','#abcdef']);assert.equal(materials.projectId(),'fixture');
 });
+
+ test('Textured uses the PBR renderer, migrates Rendered, and hides Match textured unless opted in',()=>{
+  const f=fixture(),{ctx}=f;ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+  const saved={...ctx.WallMode.serialize(),displayMode:'rendered',roofVisible:false,wallsVisible:false,savedAt:Date.now()+1000};saved.ground.visible=false;
+  ctx.WallMode.beforeProjectLoad();ctx.currentProjectId='modes';ctx.WallMode.restore('modes',{exteriorsWalls:saved});assert.equal(ctx.WallMode.serialize().displayMode,'textured');
+  const button=f.elements.get('wall-translucency-toggle');assert.equal(button.textContent,'Textured');
+  ctx.THREE=require('../public/v1/node_modules/three');ctx.scene=new ctx.THREE.Scene();ctx.getVector3=p=>new ctx.THREE.Vector3(p.x,p.z,p.y);ctx.disposeObject3D=()=>{};
+  const calls=[];ctx.ExteriorRendered={update:(g,options)=>calls.push(options.enabled),stop(){}};ctx.WallMode.render3D();assert.equal(calls.at(-1),true);
+  button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'translucent');assert.equal(calls.at(-1),false);
+  button.onclick();button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'textured');assert.equal(calls.at(-1),true);
+  ctx.FIRSTMEASURE_MATCH_TEXTURED=true;button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'match-textured');assert.equal(button.textContent,'Match textured');assert.equal(calls.at(-1),false);
+  button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'translucent');
+ });

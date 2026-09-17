@@ -42,7 +42,7 @@ window.mountExteriorToolbar=function(){
  const build=group('Rebuild building');main.appendChild(build);const roof=move('wall-rebuild',build);if(roof)roof.textContent='From Roof';const dropdown=move('wall-auto',build);if(dropdown){dropdown.textContent='▾';dropdown.title='Choose soffit setback';dropdown.setAttribute('aria-label','Choose soffit setback');}move('wall-soffit-menu',build);move('wall-merge-all',build);const base=move('base-rebuild-grade',build);if(base)base.textContent='Reground';
  const display=group('Display options');
  const icon=(id,label,path)=>{const b=move(id,display);if(!b)return;b.title=label;b.setAttribute('aria-label',label);b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="'+path+'"/></svg>';};
- const surfaceMode=move('wall-translucency-toggle',display);if(surfaceMode)surfaceMode.title='Cycle translucent, opaque, textured and rendered surfaces';
+ const surfaceMode=move('wall-translucency-toggle',display);if(surfaceMode)surfaceMode.title='Cycle translucent, opaque and textured surfaces';
  icon('wall-centers-toggle','Face centers (walls and base)','M4 4h16v16H4z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0');
  icon('wall-feature-dimensions','Feature dimensions','M4 8V4h16v4M4 6h16M8 20H4V10h4M6 10v10M12 12h8v8h-8z');
  icon('wall-gap-toggle','Highlight open edges','M3 5h7m4 0h7M3 5v14h18V5');
