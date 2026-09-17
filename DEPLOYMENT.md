@@ -2,6 +2,12 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 17 development follow-up: [Textured mode and Graphics controls](deploy/digitalocean/development-textured-controls-20260917.md)
+records `3e4d25e52b2a569ffbc9081a8c9705ae642b5f0d` on all three development roles.
+Textured now uses the PBR renderer; the old Match textured mode is hidden by default.
+Ground follows the actual Grade layer, Base renders independently, and a closed-by-default
+Graphics dropdown sits after Advanced Settings. Source remains on `codex/exterior-trim-controls`.
+
 September 16 development follow-up: [Rendered exterior preview](deploy/digitalocean/development-rendered-preview-20260916.md)
 records `397ab55d6af2ef881c962be629d8223af3266100` on all three development roles.
 Adds an optional Rendered mode with bundled 2K PBR assets, HDR reflections,
