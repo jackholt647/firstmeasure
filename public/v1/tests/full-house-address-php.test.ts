@@ -10,6 +10,7 @@ test('full-house PHP requires coordinates and forwards the selected address with
   const submitted: unknown[] = [];
   const upstream = createServer(async (request, response) => {
     response.setHeader('Content-Type', 'application/json');
+    if (request.headers['x-full-house-user'] === 'denied@example.test') { response.statusCode = 404; return response.end('{}'); }
     if (request.url?.endsWith('/capability')) return response.end('{"email":"owner@example.test"}');
     if (request.method === 'POST') {
       let body = ''; for await (const chunk of request) body += chunk;
@@ -27,7 +28,7 @@ test('full-house PHP requires coordinates and forwards the selected address with
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'full-house-address-'));
   const target = path.resolve('../measure/internal/full_house.php').replace(/\\/g, '/');
   const router = path.join(temporary, 'router.php');
-  await writeFile(router, `<?php session_save_path(${JSON.stringify(temporary.replace(/\\/g, '/'))}); session_id('address-test'); session_start(); $_SESSION=['user_email'=>'owner@example.test','full_house_csrf'=>'test-csrf']; session_write_close(); require ${JSON.stringify(target)};`);
+  await writeFile(router, `<?php session_save_path(${JSON.stringify(temporary.replace(/\\/g, '/'))}); session_id('address-test'); session_start(); $_SESSION=['user_email'=>'owner@example.test','full_house_csrf'=>'test-csrf']; if (isset($_SERVER['HTTP_X_TEST_ANONYMOUS'])) $_SESSION=[]; if (isset($_SERVER['HTTP_X_TEST_DENIED'])) $_SESSION['user_email']='denied@example.test'; session_write_close(); require ${JSON.stringify(target)};`);
   const binary = spawnSync('php', ['-r', 'echo PHP_BINARY;'], { encoding: 'utf8' }).stdout.trim();
   const extensions = process.platform === 'win32' ? ['-d', `extension_dir=${path.join(path.dirname(binary), 'ext')}`, '-d', 'extension=curl'] : [];
   const child = spawn(binary, [...extensions, '-S', `127.0.0.1:${phpPort}`, router], {
@@ -40,6 +41,13 @@ test('full-house PHP requires coordinates and forwards the selected address with
       if (attempt >= 50) throw Error('Test PHP server failed to start');
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+    const anonymous = await fetch(url, { redirect: 'manual', headers: { 'X-Test-Anonymous': '1' } });
+    assert.equal(anonymous.status, 302);
+    assert.equal(anonymous.headers.get('location'), 'backend_login.php?redirect=%2Fmeasure%2Finternal%2Ffull_house.php');
+    assert.match(anonymous.headers.get('cache-control') || '', /no-store/);
+    const denied = await fetch(url, { redirect: 'manual', headers: { 'X-Test-Denied': '1' } });
+    assert.equal(denied.status, 404, 'signed-in unauthorized users remain blocked');
+    assert.equal(await denied.text(), 'Not found');
     const post = (body: object) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Full-House-CSRF': 'test-csrf' }, body: JSON.stringify(body) });
     for (const body of [{ address: 'Unselected text' }, { address: 'Test', lat: null, lng: null }, { address: 'Test', lat: 91, lng: -122 }]) assert.equal((await post(body)).status, 400);
     assert.equal(submitted.length, 0, 'invalid locations never reach project creation');

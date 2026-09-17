@@ -1,5 +1,11 @@
 <?php
 session_start();
+if (empty($_SESSION['user_email'])) {
+    session_write_close();
+    header('Cache-Control: private, no-store');
+    header('Location: backend_login.php?redirect=' . urlencode('/measure/internal/full_house.php'));
+    exit;
+}
 if (empty($_SESSION['full_house_csrf'])) $_SESSION['full_house_csrf'] = bin2hex(random_bytes(32));
 $csrf = $_SESSION['full_house_csrf'];
 session_write_close();
