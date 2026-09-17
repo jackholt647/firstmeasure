@@ -1,5 +1,6 @@
 import { managerReviewCsv } from "./manager_review_export.js";
 import { customerExportBatch } from "./customer_export.js";
+import { creditExportPage } from "./credit_export.js";
 import { trackTutorialResult } from "../staff_tracking/api.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
@@ -3403,6 +3404,41 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
   };
 }
 
+async function customerCreditExportPage(body: JsonObject) {
+  const cursor = asObject(body.cursor);
+  const after = cleanText(cursor.org_id);
+  const offset = Number(cursor.offset ?? 0);
+  const resume = cursor.resume === true || offset > 0;
+  if (!Number.isSafeInteger(offset) || offset < 0) throw badRequest('invalid_cursor', 'Invalid ledger export cursor.');
+  const { isFirstMeasurePostgresEnabled, queryPostgres } = await import('../src/database/postgres.js');
+  let candidates: JsonObject[];
+  const ledgers = new Map<string, any[]>();
+  if (isFirstMeasurePostgresEnabled()) {
+    candidates = (await queryPostgres<{document:JsonObject}>(`
+      SELECT document FROM platform_organizations WHERE lower(id) <> $2
+        AND (id COLLATE "C" > $1 OR ($3::boolean AND id = $1))
+      ORDER BY id COLLATE "C" LIMIT 26
+    `, [after, internalPlatformOrgId(), resume])).rows.map(row=>row.document);
+    const ids=candidates.slice(0,25).map(org=>String(org.id));
+    if(ids.length){
+      const result=await queryPostgres<{organization_id:string;ledger:any}>(`
+        SELECT organization_id, document->'data'->'credits_ledger' AS ledger
+        FROM platform_documents WHERE organization_id=ANY($1::text[]) AND collection='global'
+      `,[ids]);
+      for(const row of result.rows) ledgers.set(row.organization_id,Array.isArray(row.ledger)?row.ledger:[]);
+    }
+  } else {
+    candidates=(await listOrganizations()).filter(org=>String(org.id).toLowerCase()!==internalPlatformOrgId())
+      .filter(org=>String(org.id)>after || resume && String(org.id)===after)
+      .sort((a,b)=>String(a.id)<String(b.id)?-1:1).slice(0,26);
+    for(const org of candidates.slice(0,25)){
+      const data=asObject((await readGlobal(String(org.id)))?.data);
+      ledgers.set(String(org.id),Array.isArray(data.credits_ledger)?data.credits_ledger:[]);
+    }
+  }
+  return {ok:true,success:true,...creditExportPage(candidates.slice(0,25),ledgers,after,offset,candidates.length>25)};
+}
+
 async function customerUsersExportPage(body: JsonObject) {
   const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
   const after = cleanText(body.after);
@@ -4950,6 +4986,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
     }
     case "customer_users_export_page":
       return await customerUsersExportPage(body);
+    case "customer_credit_export_page":
+      return await customerCreditExportPage(body);
     case "fetch_organizations_list":
     case "customer_org_dashboard_data": {
       if (body.paginate === "1" || body.paginate === "true" || body.paginate === true) {

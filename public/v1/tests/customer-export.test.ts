@@ -56,7 +56,7 @@ test('real export action preserves customer fields and never uses dashboard mini
   for(let i=0;i<27;i++){
    const org=await storage.createOrganization({name:`Export ${i}`});
    await storage.upsertDocument(org.id,'users',{id:'user',data:{name:'Customer',email:`customer${i}@example.test`,org_permission_level:'super_admin'}});
-   await storage.saveGlobal(org.id,{data:{credits_balance:42,contact:{email:'billing@example.test'},credits_ledger:[{delta:42,reason:'fixture',ts:'2026-09-01'}]}});
+   await storage.saveGlobal(org.id,{data:{credits_balance:42,contact:{email:'billing@example.test'},credits_ledger:Array.from({length:i===0?1001:1},()=>({delta:42,reason:'fixture',ts:'2026-09-01'}))}});
   }
   if(pgUrl){
    const {default:pg}=await import('pg');lock=new pg.Client({connectionString:pgUrl});await lock.connect();
@@ -68,5 +68,12 @@ test('real export action preserves customer fields and never uses dashboard mini
   for(const row of [...first.organizations,...next.organizations]){
    assert.equal(row.users.length,1);assert.match(row.users[0].email,/^customer\d+@example.test$/);assert.equal(row.credits_balance,42);assert.equal(row.contact.email,'billing@example.test');assert.equal(row.latest_credit_entry.reason,'fixture');
   }
+  let cursor:any=null;const exported:string[]=[];
+  do{
+   const result=(await app.inject({method:'POST',url:'/v1/internal/legacy-action',headers:{'x-internal-user-email':'admin@example.test'},payload:{action:'customer_credit_export_page',cursor}})).json();
+   assert.equal(result.success,true);assert.ok(result.rows.length<=500);
+   exported.push(...result.rows.map((row:any)=>`${row.organization_id}:${row.ledger_ordinal}`));cursor=result.next_cursor;
+  }while(cursor);
+  assert.equal(exported.length,1027);assert.equal(new Set(exported).size,1027);
  }finally{if(lock){await lock.query('ROLLBACK');await lock.end();}await app.close();await(await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();if(pgUrl)await(await import('../src/database/postgres.js')).closePostgresPools();await rm(root,{recursive:true,force:true,maxRetries:3});}
 });
