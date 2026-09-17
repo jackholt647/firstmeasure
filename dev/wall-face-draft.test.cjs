@@ -1869,7 +1869,7 @@ test('D previews and toggles without mutation, accepts exact distances, commits 
 });
 test('D crosses existing sections and deleting one dashed segment leaves three sections, including in textured mode',()=>{
  const f=divideFixture(),F=require('../public/measure/internal/editor_scripts/wall_features.js');f.editor.key({key:'d'});f.editor.distanceInput().set(5*.3048);f.editor.key({key:'enter'});
- f.editor.key({key:'d'});f.editor.key({key:'d'});f.editor.distanceInput().set(2*.3048);f.editor.key({key:'enter'});assert.equal(f.state.wallEdits.$surfaces.length,4);
+ f.editor.key({key:'d'});assert.equal(f.editor.distanceInput().label,'Divide from left','the selected short, wide section defaults to a vertical divide across the whole window');f.editor.distanceInput().set(2*.3048);f.editor.key({key:'enter'});assert.equal(f.state.wallEdits.$surfaces.length,4);
  const segments=F.divisionSegments(f.state.wallEdits.$surfaces),line=segments.find(s=>Math.abs(s.pair[0].x-s.pair[1].x)<1e-6&&Math.max(...s.pair.map(p=>p.z))<1+2.01*.3048);assert.ok(line);
  const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.dashSize&&o.userData.exteriorDivider),'committed dividers render dashed');
  f.state.displayMode='textured';const mid={x:(line.pair[0].x+line.pair[1].x)/2,z:(line.pair[0].z+line.pair[1].z)/2},event=f.e(mid.x,-mid.z);assert.equal(f.editor.pickLine3D(event),true,'textured mode can pick a divider');f.listeners.pointerup(event);f.editor.key({key:'Delete'});assert.equal(f.state.wallEdits.$surfaces.length,3);assert.ok(f.state.wallEdits.$surfaces.every(s=>s.feature.type==='window'));assert.equal(f.history.length,3);

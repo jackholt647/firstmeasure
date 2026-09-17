@@ -1020,8 +1020,8 @@ window.createWallFaceDraft=function(host){
  function startDivision(){
   const ref=featureSelection();if(!ref?.feature||!['window','door','garage'].includes(ref.feature.type))return false;
   try{const scene=divisionScene(),seed=scene.find(f=>ref.solid?f.id===ref.solid.id:f.draftKey===draftKey(ref.d)&&f.regionId===ref.f.id);if(!seed)return false;
-   const faces=F.divisionMembers(scene,seed),frame=F.viewFrame(seed.points,p=>host.screen(p,'3d')),layout=F.divisionLayout(faces,frame);
-   tool={kind:'divide',before:copy(host.state().wallEdits||{}),selection:dividerSelection(),faces:copy(faces),layout,orientation:layout.height>=layout.width?'horizontal':'vertical',groupId:seed.feature.divisionGroup||F.divisionId(),op:F.divisionId(),numeric:null,amount:null};
+   const faces=F.divisionMembers(scene,seed),frame=F.viewFrame(seed.points,p=>host.screen(p,'3d')),layout=F.divisionLayout(faces,frame),section=F.divisionLayout([seed],frame);
+   tool={kind:'divide',before:copy(host.state().wallEdits||{}),selection:dividerSelection(),faces:copy(faces),layout,orientation:section.height>=section.width?'horizontal':'vertical',groupId:seed.feature.divisionGroup||F.divisionId(),op:F.divisionId(),numeric:null,amount:null};
    previewDivision(mouse);return true;
   }catch(error){host.message(error.message);return true;}
  }
