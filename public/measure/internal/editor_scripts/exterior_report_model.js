@@ -1,6 +1,6 @@
 /* Reporting boundary: metric edited geometry in; serializable takeoff out. */
 (function(root){'use strict';
-const node=typeof module==='object'&&module.exports,K=node?require('./exterior_geometry.js'):root.ExteriorGeometry,W=node?require('./wall_solid_geometry.js'):root.WallSolidGeometry;
+const node=typeof module==='object'&&module.exports,K=node?require('./exterior_geometry.js'):root.ExteriorGeometry,W=node?require('./wall_solid_geometry.js'):root.WallSolidGeometry,F=()=>node?require('./wall_features.js'):root.WallFeatures;
 const FT=1/.3048,SF=FT*FT,copy=x=>JSON.parse(JSON.stringify(x)),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),center=ps=>ps.reduce((a,p)=>({x:a.x+p.x/ps.length,y:a.y+p.y/ps.length,z:a.z+p.z/ps.length}),{x:0,y:0,z:0});
 const kinds={window:'Window',door:'Door',garage:'Garage door',garageDoor:'Garage door','garage-door':'Garage door',vent:'Gable vent',gableVent:'Gable vent','gable-vent':'Gable vent'};
 const compass=n=>Math.abs(n.x)>Math.abs(n.y)?n.x>0?'East':'West':n.y>0?'South':'North';
@@ -12,7 +12,7 @@ function build(scene,options={}){
   let g=groups.find(g=>Math.abs(dot(g.fr.n,fr.n))>.99999&&Math.abs(dot(sub(fr.origin,g.fr.origin),g.fr.n))<.002&&g.chimney===!!f.chimney&&g.material===(f.material||'unassigned')&&g.finishColor===(f.finishColor||null));
   if(!g){g={fr,chimney:!!f.chimney,material:f.material||'unassigned',finishColor:f.finishColor||null,faces:[],features:[]};groups.push(g);}g.faces.push(f);
  }
- for(const f of features){const fr=frame(f);if(!fr){warnings.push('An opening is not on a vertical wall and is excluded from the wall schedule.');continue;}let best=null,score=Infinity;
+ for(const f of F()?.groupedStickers?F().groupedStickers(features):features){const fr=frame(f);if(!fr){warnings.push('An opening is not on a vertical wall and is excluded from the wall schedule.');continue;}let best=null,score=Infinity;
   for(const g of groups){const d=Math.abs(dot(sub(f.points[0],g.fr.origin),g.fr.n));if(d>.02||Math.abs(dot(fr.n,g.fr.n))<.999)continue;const fp=f.points.map(p=>local(g.fr,p)),bounds={points:fp};
    const touches=g.faces.some(w=>{const polygon={points:w.points.map(p=>local(g.fr,p))};return K.intersection([bounds],[polygon]).reduce((a,r)=>a+K.area(r),0)>1e-8||W.sharedIntervals(f.points[0],f.points[1],[w]).length||fp.some(p=>K.difference({points:fp},[polygon]).length===0);});
    const overlap=g.faces.reduce((sum,w)=>sum+K.intersection([bounds],[{points:w.points.map(p=>local(g.fr,p))}]).reduce((a,r)=>a+K.area(r),0),0),rank=d-overlap;if(touches&&rank<score){best=g;score=rank;}}
@@ -22,7 +22,7 @@ function build(scene,options={}){
  for(const g of groups){const fr=g.fr,asLocal=f=>({points:f.points.map(p=>local(fr,p)),holes:(f.holes||[]).map(r=>r.map(p=>local(fr,p)))}),featureLocal=g.features.map(asLocal),gross=K.union([...g.faces.map(asLocal),...featureLocal]);
   for(const region of gross){const items=g.features.filter((f,i)=>K.intersection([region],[featureLocal[i]]).reduce((a,r)=>a+K.area(r),0)>1e-8),cuts=K.union(items.map(asLocal)),openingArea=K.intersection([region],cuts).reduce((a,r)=>a+K.area(r),0),points=region.points.map(p=>world(fr,p)),c=center(points);let n={...fr.n};const sign=W.inwardSign({points},bases);if(sign!==null){const gn=W.normal(points);n={x:-sign*gn.x,y:-sign*gn.y,z:0};}else {const all=bases.flatMap(f=>f.points);if(all.length&&dot(n,sub(c,center(all)))<0)n={x:-n.x,y:-n.y,z:0};}
    const w={id:'',points,holes:region.holes.map(r=>r.map(p=>world(fr,p))),finishColor:g.finishColor,normal:n,elevation:compass(n),chimney:g.chimney,material:({soffit:'Soffit',siding:'Horizontal siding','siding-vertical':'Vertical siding','trim-horizontal':'Horizontal trim','trim-vertical':'Vertical trim',brick:'Brick',masonry:'Masonry',stucco:'Stucco',stone:'Stone',other:'Other'})[g.material]||'Unassigned',gross:K.area(region)*SF,openingArea:openingArea*SF,net:Math.max(0,K.area(region)-openingArea)*SF,openings:[],width:(Math.max(...region.points.map(p=>p.x))-Math.min(...region.points.map(p=>p.x)))*FT,height:(Math.max(...points.map(p=>p.z))-Math.min(...points.map(p=>p.z)))*FT,top:0,bottom:0};
-   for(const f of items){const ps=f.points.map(p=>local(fr,p)),type=f.feature.type,label=kinds[type]||type,area=K.area(asLocal(f))*SF,perimeter=f.points.reduce((sum,p,i)=>sum+dist(p,f.points[(i+1)%f.points.length]),0)*FT;w.openings.push({type,label,points:copy(f.points),area,perimeter,width:(Math.max(...ps.map(p=>p.x))-Math.min(...ps.map(p=>p.x)))*FT,height:(Math.max(...ps.map(p=>p.y))-Math.min(...ps.map(p=>p.y)))*FT});}
+   for(const f of items){const ps=f.points.map(p=>local(fr,p)),type=f.feature.type,label=kinds[type]||type,area=K.area(asLocal(f))*SF,perimeter=f.points.reduce((sum,p,i)=>sum+dist(p,f.points[(i+1)%f.points.length]),0)*FT;w.openings.push({type,label,sections:copy(f.sections||[]),dividers:copy(f.dividers||[]),divisionGroup:f.feature.divisionGroup||null,points:copy(f.points),area,perimeter,width:(Math.max(...ps.map(p=>p.x))-Math.min(...ps.map(p=>p.x)))*FT,height:(Math.max(...ps.map(p=>p.y))-Math.min(...ps.map(p=>p.y)))*FT});}
    walls.push(w);
   }
  }

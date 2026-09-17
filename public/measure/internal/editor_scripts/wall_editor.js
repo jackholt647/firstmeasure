@@ -9,7 +9,7 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
  group.traverse(o=>{
   const line=o.isLine||o.isLineSegments;
   if(line||o.isPoints||o.isSprite){o.userData||={};if(!('exteriorVisible' in o.userData))o.userData.exteriorVisible=o.visible;o.visible=textured&&!line&&!o.userData.exteriorSelection?false:o.userData.exteriorVisible;}
-  if(!o.material||o.userData?.planeGuide||o.userData?.curveCenterIndicator||o.userData?.curveSnapGuide||o.userData?.alignmentGuide)return;
+  if(!o.material||o.userData?.planeGuide||o.userData?.curveCenterIndicator||o.userData?.curveSnapGuide||o.userData?.alignmentGuide||o.userData?.exteriorDivider)return;
   for(const m of (Array.isArray(o.material)?o.material:[o.material])){
    m.userData||={};const saved=m.userData.exteriorDisplay||(m.userData.exteriorDisplay={opacity:m.opacity,transparent:m.transparent,depthTest:m.depthTest,depthWrite:m.depthWrite,map:m.map,vertexColors:m.vertexColors,polygonOffset:m.polygonOffset,polygonOffsetFactor:m.polygonOffsetFactor,polygonOffsetUnits:m.polygonOffsetUnits});
    Object.assign(m,saved);

@@ -89,7 +89,67 @@ function containsShape(points,outlines){const area=ps=>Math.abs(ps.reduce((s,p,i
 
 function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);for(const f of others)if(area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>1e-7)throw Error('That position overlaps another feature.');}
 
-const api={nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+// Divided stickers use real faces with a shared identity. Geometry, rather than
+// a saved list of cuts, defines the current sections and their internal seams.
+const kernel=()=>typeof module!=='undefined'&&module.exports?require('./exterior_geometry.js'):root.ExteriorGeometry;
+let identitySequence=0;
+const divisionId=()=> 'sticker-'+(root.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+(++identitySequence)+'-'+Math.random().toString(36).slice(2));
+const clone=value=>JSON.parse(JSON.stringify(value));
+function divisionMembers(faces,seed){
+ const id=seed.feature?.divisionGroup;if(!id)return [seed];
+ const fr=W.faceFrame(seed);return faces.filter(f=>!f.deleted&&!f.drafted&&!f.solidId&&f.feature?.divisionGroup===id&&f.feature.type===seed.feature.type&&f.points.every(p=>Math.abs(W.inFrame(fr,p).z)<1e-5));
+}
+function divisionLayout(faces,fr){
+ if(!faces.length||faces.some(f=>!f.feature||f.curvedSurface?.logical))throw Error('Select a planar window or door section.');
+ fr ||= orientedFrame(faces[0].points,faces[0].feature.axis);
+ const regions=faces.map(f=>({points:f.points.map(p=>W.inFrame(fr,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(fr,p)))}));
+ const box=bounds(regions.flatMap(f=>f.points));return {frame:fr,bounds:box,regions,width:box.right-box.left,height:box.top-box.bottom};
+}
+function divisionSegments(faces){
+ const seams=new Map(),groups=new Map();for(const f of faces){const id=f.feature?.divisionGroup;if(id){if(!groups.has(id))groups.set(id,[]);groups.get(id).push(f);}}
+ for(const members of groups.values())for(let i=0;i<members.length;i++){const a=members[i],peers=divisionMembers(members.slice(i+1),a);
+  for(const b of peers)for(let j=0;j<a.points.length;j++){const p=a.points[j],q=a.points[(j+1)%a.points.length],at=t=>({x:p.x+(q.x-p.x)*t,y:p.y+(q.y-p.y)*t,z:p.z+(q.z-p.z)*t});
+   for(const [lo,hi]of W.sharedIntervals(p,q,[b]))if(hi-lo>1e-6){const pair=[at(lo),at(hi)],key=W.edgeKey(...pair);seams.set(key,{pair,group:a.feature.divisionGroup,faces:[a.id,b.id]});}
+  }
+ }return [...seams.values()];
+}
+function divideSticker(faces,orientation,amount,{frame:fr,groupId,operationId}={}){
+ const K=kernel(),layout=divisionLayout(faces,fr),b=layout.bounds,horizontal=orientation==='horizontal',size=horizontal?layout.height:layout.width;
+ if(!Number.isFinite(amount)||amount<=1e-5||amount>=size-1e-5)throw Error('Place the divider inside the window or door.');
+ const group=groupId||faces[0].feature.divisionGroup||divisionId(),op=operationId||divisionId(),axis=horizontal?'y':'x',value=horizontal?b.top-amount:b.left+amount;
+ const low={...b},high={...b};low[horizontal?'top':'right']=value;high[horizontal?'bottom':'left']=value;
+ let splits=0;const result=faces.flatMap((face,i)=>{
+  const pieces=[low,high].flatMap(box=>K.intersection([layout.regions[i]],[{points:shape(box)}])).filter(r=>K.area(r)>1e-9);
+  if(pieces.length>1)splits++;
+  return pieces.map((r,j)=>{const out={...clone(face),id:j?op+'-'+i+'-'+j:face.id,points:r.points.map(p=>W.fromFrame(layout.frame,p)),holes:r.holes.map(r=>r.map(p=>W.fromFrame(layout.frame,p))),feature:{...clone(face.feature),preset:null,shape:'custom',divisionGroup:group,divisionSection:pieces.length>1?op+'-'+i+'-'+j:face.feature.divisionSection||op+'-'+i}};
+   // The clipped polygon is authoritative; old triangulations and retained
+   // interior anchors must not reintroduce an erased section boundary.
+   delete out.curves;delete out.curvedSurface;delete out.retainedPoints;return out;
+  });
+ });
+ if(!splits)throw Error('A divider already exists at that position.');
+ const seams=divisionSegments(result).filter(s=>s.pair.every(p=>Math.abs(W.inFrame(layout.frame,p)[axis]-value)<1e-5));
+ return {faces:result,seams,layout,amount,remaining:size-amount,orientation};
+}
+function mergeStickerDivider(faces,pair){
+ const seam=divisionSegments(faces).find(s=>W.sharedIntervals(...pair,[{points:s.pair}]).reduce((sum,[lo,hi])=>sum+hi-lo,0)>.99999);
+ if(!seam)return null;
+ const members=faces.filter(f=>seam.faces.includes(f.id)),fr=W.faceFrame(members[0]),K=kernel(),regions=K.union(members.map(f=>({points:f.points.map(p=>W.inFrame(fr,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(fr,p)))})));
+ if(regions.length!==1)throw Error('Only adjacent sections of one sticker can be merged.');
+ const r=regions[0],merged={...clone(members[0]),points:r.points.map(p=>W.fromFrame(fr,p)),holes:r.holes.map(r=>r.map(p=>W.fromFrame(fr,p))),feature:{...clone(members[0].feature),preset:null,shape:'custom',divisionSection:divisionId()}};
+ delete merged.retainedPoints;return {removed:members.map(f=>f.id),face:merged};
+}
+function remapDivisionGroups(faces){const groups=new Map();return faces.map(f=>{const out=clone(f),old=f.feature?.divisionGroup;if(old){if(!groups.has(old))groups.set(old,divisionId());out.feature.divisionGroup=groups.get(old);out.feature.divisionSection=divisionId();}return out;});}
+function groupedStickers(faces){
+ const result=[],seen=new Set(),K=kernel();
+ for(const face of faces){if(seen.has(face))continue;if(!face.feature?.divisionGroup){result.push(face);continue;}
+  const members=divisionMembers(faces,face);members.forEach(f=>seen.add(f));const layout=divisionLayout(members),fr=layout.frame;
+  for(const region of K.union(layout.regions)){const sections=members.filter((f,i)=>K.intersection([region],[layout.regions[i]]).some(r=>K.area(r)>1e-9));
+   result.push({...face,points:region.points.map(p=>W.fromFrame(fr,p)),holes:region.holes.map(r=>r.map(p=>W.fromFrame(fr,p))),sections:sections.map(f=>({points:clone(f.points),holes:clone(f.holes||[])})),dividers:divisionSegments(sections).map(s=>s.pair)});
+  }
+ }return result;
+}
+const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -151,7 +211,7 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  const strip=document.createElement('div');strip.className='ss-strip';bar.appendChild(strip);
  const tile=(name,path,color)=>{const b=document.createElement('button');b.type='button';b.className='ss-tile';b.style.setProperty('--feature-color',color||'#5f6368');b.innerHTML=svg(path)+'<span class="ss-name">'+name+'</span>';strip.appendChild(b);return b;};
  const placementTiles=new Map(),lastPlacementSizes=new Map();
- for(const def of F.defs.values()){const b=tile(def.name,paths[def.id]||paths.none,def.color);b.title=def.name+(def.key?' ('+def.key.toUpperCase()+')':'')+' — place on a face';b.onclick=()=>{command(def.id,lastPlacementSizes.get(def.id)??def.defaultPreset??0,true);placementPanel.hidden=false;F.refreshUI();};placementTiles.set(def.id,b);b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-controls','wall-placement-options');}
+ for(const def of F.defs.values()){const b=tile(def.name,paths[def.id]||paths.none,def.color);b.title=def.name+(def.key?' ('+def.key.toUpperCase()+')':'')+' — place on a face'+(def.id==='door'?'; D divides a selected window/door; Ctrl+D changes its type to Door':'');b.onclick=()=>{command(def.id,lastPlacementSizes.get(def.id)??def.defaultPreset??0,true);placementPanel.hidden=false;F.refreshUI();};placementTiles.set(def.id,b);b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-controls','wall-placement-options');}
  const face=document.createElement('button');face.type='button';face.className='exterior-face-toggle';face.innerHTML='Face type <span aria-hidden="true">▴</span>';face.title='Choose a face type and size';face.setAttribute('aria-label','Face type');face.setAttribute('aria-haspopup','dialog');face.setAttribute('aria-expanded','false');face.setAttribute('aria-controls','wall-face-options');bar.appendChild(face);
  const panel=document.createElement('div');panel.id='wall-face-options';panel.className='exterior-selection exterior-sticker-menu';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Face type and dimensions');panel.innerHTML='<div class="exterior-face-heading"><h4>FACE TYPE &amp; SIZE</h4><button type="button" aria-label="Close face types">×</button></div><p role="status"></p><table class="exterior-face-table"><thead><tr><th scope="col">Type</th><th scope="col">Width × height</th></tr></thead><tbody></tbody></table>';parent.appendChild(panel);
  const closeFace=()=>{panel.hidden=true;face.setAttribute('aria-expanded','false');};
