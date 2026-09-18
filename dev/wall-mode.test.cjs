@@ -241,10 +241,10 @@ test('global undo and redo restore exact generated wall ownership without regene
  const originalMerge=f.ctx.WallGeometry.mergeCoplanar;f.ctx.WallGeometry.mergeCoplanar=()=>{throw Error('Undo must not regenerate ownership');};
  try{const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});key('z');assert.equal(JSON.stringify(state.wallEdits),JSON.stringify(before));assert.equal(JSON.stringify(state.mergedWalls),generated);key('y');assert.equal(JSON.stringify(state.wallEdits),after);assert.equal(JSON.stringify(state.mergedWalls),generated);}finally{f.ctx.WallGeometry.mergeCoplanar=originalMerge;}
 });
-test('fixed Auto builds the outer overlap footprint without clipping recovered walls to the old inset',()=>{
+test('18-inch overlap fixture builds the outer overlap footprint without clipping recovered walls to the old inset',()=>{
  const {ctx,soffits}=fixture(true),input=require('./fixtures/complex-roof-corner.json'),pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
  ctx.activeGeometry={points,connections:input.roof.connections.map(c=>({...c,start:points[c.startIdx],end:points[c.endIdx]})),manualFaces:input.roof.faces.map(f=>({...f,points:f.points.map(pixel),holes:(f.holes||[]).map(r=>r.map(pixel))}))};
- ctx.dsmMin=input.options.ground;ctx.WallMode.setEnabled(true);soffits[0].onclick();const saved=ctx.WallMode.serialize();
+ ctx.dsmMin=input.options.ground;ctx.WallMode.setEnabled(true);soffits[2].onclick();const saved=ctx.WallMode.serialize();
  assert.equal(saved.stage,7);assert.ok(saved.sources.some(s=>s.outerEnvelope));assert.equal(saved.base.source,'Wall perimeter');
  assert.ok(!saved.sources.some(s=>s.id.startsWith('R3.')));assert.ok(saved.rakeCleanupReport.paths.some(p=>p.crossed));
  const stable=value=>JSON.stringify(value,(_,v)=>typeof v==='number'?+v.toFixed(7):v),pointsBefore=stable(saved.geometry);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+1000}});assert.equal(stable(ctx.WallMode.serialize().geometry),pointsBefore);
@@ -484,11 +484,11 @@ test('Tab cycles wall display modes, including plane drawing, but leaves roof an
  f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'opaque');
 });
 
-test('From Roof Auto and 18 inches match; every preset regenerates walls and base from the original roof',()=>{
+test('From Roof Auto and 24 inches match; every preset regenerates walls and base from the original roof',()=>{
  const f=fixture(true),points=f.ctx.activeGeometry.points;
  f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'eave'}));f.ctx.WallMode.setEnabled(true);
  const result=value=>{f.soffits[0].dataset.soffit=value;f.soffits[0].onclick();const s=f.ctx.WallMode.serialize();return {base:s.base,sources:s.sources};};
- const auto=result('auto');assert.deepEqual(result('18'),auto);
+ const auto=result('auto');assert.deepEqual(result('24'),auto);
  for(const inches of ['24','2.4','12','0','18']){
   const r=result(inches),setback=Number(inches)*G.INCH,ps=r.base.faces.flatMap(f=>f.points);
   assert.ok(Math.abs(Math.min(...ps.map(p=>p.x))-(-5+setback))<1e-5);
