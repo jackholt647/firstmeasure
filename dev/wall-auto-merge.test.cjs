@@ -13,3 +13,20 @@ test('merged wall retains a complete opening and correct filled area',()=>{
  assert.equal(r.removed,3);assert.equal(geo.faces.length,1);assert.equal(geo.faces[0].area,12);
  for(const [x,z] of [[1,1],[3,1],[3,3],[1,3]])assert.ok(geo.connections.some(e=>[e.startIdx,e.endIdx].some(i=>geo.points[i].x===x&&geo.points[i].z===z)));
 });
+
+test('flashing alignment requires roof provenance, endpoint contact and bounded drift',()=>{
+ const target={...w('target',0,5,0,3),sourceRoofId:1};
+ const flashing={...w('flashing',4,5,2,3,.007),kind:'flashing',sourceRoofId:2,targetId:1};
+ const next={...w('next',5,9,0,3,.007),sourceRoofId:2};
+ next.bottom[1].y=next.top[1].y=.02;
+ const aligned=G.deduplicate([target,flashing,next]).walls.find(w=>w.id==='next');
+ assert.ok([...aligned.bottom,...aligned.top].every(p=>Math.abs(p.y)<1e-8));
+ for(const variant of ['wrong roof','no contact','large offset']){
+  const other=structuredClone(next);
+  if(variant==='wrong roof')other.sourceRoofId=3;
+  if(variant==='no contact')for(const p of [...other.top,...other.bottom])p.x+=1;
+  if(variant==='large offset')other.top[1].y=other.bottom[1].y=.04;
+  const before=JSON.stringify(other),after=G.deduplicate([target,flashing,other]).walls.find(w=>w.id==='next');
+  assert.deepEqual(after.bottom[1],other.bottom[1],variant);assert.deepEqual(after.top[1],other.top[1],variant);assert.equal(JSON.stringify(other),before);
+ }
+});

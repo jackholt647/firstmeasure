@@ -443,7 +443,7 @@
                 return {w,a,b,l,u,at,overlap:(Math.min(1,ts[1])-Math.max(0,ts[0]))*l};
             }).filter(c=>c.l>.005&&c.overlap>.005&&
                 Math.abs(cross(c.u,sub(f.bottom[1],f.bottom[0])))/len<.02&&
-                f.bottom.every(p=>Math.abs(cross(sub(p,c.a),c.u))<.005)
+                f.bottom.every(p=>Math.abs(cross(sub(p,c.a),c.u))<.01)
             ).sort((a,b)=>b.l-a.l);
             const c=candidates[0];if(!c)continue;
             for(const p of f.bottom){
@@ -457,8 +457,28 @@
                 for(let i=0;i<2;i++)heights.push({from:{...f.top[i]},z:top[i]});
             }
             for(const w of perimeters.filter(w=>w.sourceRoofId===f.targetId))for(const p of w.bottom){
-                const junction=f.bottom.find(q=>distance(p,q)<.005);
+                const junction=f.bottom.find(q=>distance(p,q)<.01);
                 if(junction)moves.push({from:{...p},to:mix(c.a,c.b,c.at(junction))});
+            }
+            // The adjoining source roof may have its own slightly skewed inset.
+            // Only reconcile a run touching this measured flashing endpoint;
+            // parallel walls elsewhere (including intentional offsets) stay put.
+            for(const w of perimeters.filter(w=>w.sourceRoofId===f.sourceRoofId)){
+                const l=distance(...w.bottom);if(l<.005)continue;
+                if(Math.abs(cross(c.u,sub(w.bottom[1],w.bottom[0])))/l>=.02||
+                    !w.bottom.some(p=>f.bottom.some(q=>distance(p,q)<.01))||
+                    w.bottom.some(p=>Math.abs(cross(sub(p,c.a),c.u))>INCH))continue;
+                const aligned=[];
+                for(const p of w.bottom){
+                    const junction=f.bottom.find(q=>distance(p,q)<.01);
+                    let q=mix(c.a,c.b,c.at(junction||p));
+                    if(!junction){
+                        const neighbor=perimeters.find(v=>v!==w&&v.bottom.some(r=>distance(p,r)<1e-6)&&Math.abs(cross(sub(v.bottom[1],v.bottom[0]),c.u))>.01);
+                        if(neighbor){const v=sub(neighbor.bottom[1],neighbor.bottom[0]),t=cross(sub(neighbor.bottom[0],c.a),v)/cross(c.u,v);q={x:c.a.x+c.u.x*t,y:c.a.y+c.u.y*t,z:p.z};}
+                    }
+                    if(distance(p,q)<=INCH)aligned.push({from:{...p},to:q});
+                }
+                if(aligned.length===2)moves.push(...aligned);
             }
             const bounds=f.bottom.map(p=>c.at(p)*c.l).sort((a,b)=>a-b);
             for(const w of perimeters.filter(w=>w.sourceRoofId===f.sourceRoofId||w.sourceRoofId===f.targetId)){
@@ -466,7 +486,7 @@
                 if(l<.005||Math.abs((v.x*c.u.x+v.y*c.u.y)/l)>.2)continue;
                 for(const p of w.bottom){
                     const t=c.at(p)*c.l,offset=Math.abs(cross(sub(p,c.a),c.u));
-                    if(offset<1e-9||offset>.005||t<bounds[0]-.5||t>bounds[1]+.5)continue;
+                    if(offset<1e-9||offset>.01||t<bounds[0]-.5||t>bounds[1]+.5)continue;
                     const at=cross(sub(c.a,p),c.u)/cross(v,c.u);
                     moves.push({from:{...p},to:{x:p.x+v.x*at,y:p.y+v.y*at,z:p.z}});
                 }

@@ -72,3 +72,23 @@ for(const angle of [0,.71,2.1])test(`nearby wall corners retain their repaired s
  const before=JSON.stringify(f),r=build('auto',f);assert.equal(r.state.base.source,'Wall perimeter');assert.ok(r.raw.some(w=>w.kind==='gap-repair'));assert.ok(r.composed.some(w=>w.kind==='gap-repair'),'the repaired wall survives the base-bound generation');assert.equal(D.detect(r.composed,f.ground).length,0);assert.equal(JSON.stringify(f),before);
  for(const w of r.raw.filter(w=>w.kind==='gap-repair'))for(const p of [...w.bottom,{x:(w.bottom[0].x+w.bottom[1].x)/2,y:(w.bottom[0].y+w.bottom[1].y)/2}])assert.ok(C.buildingBase(r.state).some(face=>G.contains(face,p)),'base covers the actual repaired wall, not a snapped approximation');
 });
+
+for(const angle of [0,.71,2.1])test(`millimetre flashing drift merges into one wall without hidden duplicate seams at ${angle}`,()=>{
+ const f=structuredClone(require('./fixtures/skewed-flashing-junction.json'));
+ const rotate=p=>{const x=p.x,y=p.y;p.x=x*Math.cos(angle)-y*Math.sin(angle);p.y=x*Math.sin(angle)+y*Math.cos(angle);};
+ f.roof.points.forEach(rotate);f.roof.faces.forEach(face=>face.points.forEach(rotate));f.ground.points.forEach(rotate);
+ const before=JSON.stringify(f),r=build('auto',f),walls=r.clean.walls;
+ const members=walls.filter(w=>['R11.0','R25.0','R29'].includes(w.sourceId)||w.kind==='gap-repair');
+ assert.equal(new Set(members.map(w=>w.mergeGroup)).size,1);assert.ok(members[0].mergeGroup);
+ const geo=G.topology(members);assert.equal(geo.faces.length,1,'one selectable face, no overlapping selectable strip');
+ const corners=members.flatMap(w=>w.bottom),axis=walls.find(w=>w.sourceId==='R11.0').bottom;
+ const len=Math.hypot(axis[1].x-axis[0].x,axis[1].y-axis[0].y);
+ const along=p=>((p.x-axis[0].x)*(axis[1].x-axis[0].x)+(p.y-axis[0].y)*(axis[1].y-axis[0].y))/len;
+ const lo=Math.min(...corners.map(along)),hi=Math.max(...corners.map(along));
+ for(const e of geo.connections){const a=geo.points[e.startIdx],b=geo.points[e.endIdx];
+  if(Math.hypot(a.x-b.x,a.y-b.y)<1e-5&&Math.abs(a.z-b.z)>.1&&Math.min(a.z,b.z)<162)
+   assert.ok(Math.abs(along(a)-lo)<1e-5||Math.abs(along(a)-hi)<1e-5,'no interior floor-to-roof edge left behind');
+ }
+ assert.equal(walls.find(w=>w.sourceId==='R3.0').mergeGroup,walls.find(w=>w.sourceId==='R4.0').mergeGroup,'neighboring gable remains coplanar');
+ assert.equal(JSON.stringify(f),before);assert.equal(D.detect(r.composed,f.ground).length,0);
+});
