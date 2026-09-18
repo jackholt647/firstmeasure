@@ -2,6 +2,8 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 18 Resources: [Core views](deploy/digitalocean/development-core-views-20260918.md) records `e583720737060dac1494650f0546e8787c9dcb9a` on all three development roles. Wall mode opens Resources, and the Files tray provides a responsive house-centered elevation photo board. Existing geometry and training changes are preserved. Production is unchanged.
+
 September 18 development: [Soffit cleanup and foundation outlines](deploy/digitalocean/development-soffit-foundation-20260918.md) records `1bb13aee8795eb2ef8ea872541e2ac30eb5a385b` on all three development roles. Foundations follow cleaned inset wall outlines; collapsed roof returns and chimney-covered gaps close correctly. The previous soffit-overlap fix is included. Four browser geometry files changed; experimental access and production are unchanged.
 
 September 16 development follow-up: [Rendered exterior preview](deploy/digitalocean/development-rendered-preview-20260916.md)
