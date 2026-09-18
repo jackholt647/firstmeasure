@@ -179,7 +179,9 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
     await page.addScriptTag({ path: scripts.jsPdfPath });
     await page.addScriptTag({ path: scripts.pdfJsPath });
     if (isFullHouseId(request.manifest.id) && request.manifest.measurement_scope === 'full_house') {
-      await page.addScriptTag({ path: path.join(path.dirname(scripts.pdfJsPath), 'exterior_pdf.js') });
+      for (const file of ['vendor/clipper-lib-6.4.2-clipper.js', 'vendor/earcut-3.2.3-earcut.dev.js', 'exterior_geometry.js', 'exterior_pdf.js']) {
+        await page.addScriptTag({ path: path.join(path.dirname(scripts.pdfJsPath), file) });
+      }
     }
     await page.addScriptTag({ path: scripts.pdfStandalonePath });
 

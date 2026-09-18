@@ -2203,6 +2203,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         state.manualTotalFacets = countRealFacets(state);
     }
     let outlineImg = null;
+    const hasExterior = mode === 'full' && state.exteriorReport?.walls?.length && state.exteriorSettings?.include !== false;
 
     let pageCount = 0;
     const beginReportPage = (title, isCover = false) => {
@@ -2218,6 +2219,12 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
     const coverTitle = runtimeOptions.coverTitle || (mode === 'summary' ? "Roof Summary" : "Project Overview");
     beginReportPage(coverTitle, true);
+    if (hasExterior) {
+        doc.setFont('Montserrat', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(44, 51, 60);
+        doc.text('Property Measurement Report', marginLeft, 32);
+    }
 
     const mapTopY = 40;
     const mapBottomY = boxTopY - 10;
@@ -2229,7 +2236,9 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     outlineImg = outlineCanvas.toDataURL('image/jpeg', 0.40);
 
     const inset = 2;
-    placeImageCentered(
+    if (hasExterior) {
+        window.drawExteriorCover(doc, state.exteriorReport, { x: marginLeft + inset, y: mapTopY + inset, w: availableW - inset * 2, h: mapH - inset * 2 }, state.exteriorSettings || {});
+    } else placeImageCentered(
         doc,
         outlineImg,
         imgRatio,
@@ -2239,13 +2248,13 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         availableW - inset * 2
     );
 
-    drawPDFCompass(doc, marginLeft + 10, mapTopY + 12, 3);
+    if (!hasExterior) drawPDFCompass(doc, marginLeft + 10, mapTopY + 12, 3);
 
     if (mode === 'full') {
         const boxWidth = (availableW / 2) - 3;
         const pad = 8;
 
-        drawSummaryBox(doc, marginLeft, boxTopY, boxWidth, boxHeight, "Project Summary", {
+        drawSummaryBox(doc, marginLeft, boxTopY, boxWidth, boxHeight, "Roof Summary", {
             forceDefault: forceDefaultBoxes,
             colors: brandingColors,
             pad
@@ -2305,7 +2314,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.text(coverWasteSquaresText, marginLeft + pad, yCursor);
 
         const box2X = marginLeft + boxWidth + 6;
-        drawSummaryBox(doc, box2X, boxTopY, boxWidth, boxHeight, "Measurement Breakdown", {
+        drawSummaryBox(doc, box2X, boxTopY, boxWidth, boxHeight, hasExterior ? "Exterior Summary" : "Roof Measurements", {
             forceDefault: forceDefaultBoxes,
             colors: brandingColors,
             pad
@@ -2313,7 +2322,21 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
         yCursor = boxTopY + 16;
 
-        Object.keys(state.report.materials.linear || {}).forEach(key => {
+        if (hasExterior) {
+            const exterior = state.exteriorReport;
+            const rows = [
+                ['Net wall area', `${Math.round(exterior.totals.net)} sq ft`],
+                ['Gross wall area', `${Math.round(exterior.totals.gross)} sq ft`],
+                ['Wall regions', String(exterior.walls.length)],
+                ['Openings', String(exterior.openings.length)],
+                ['Opening area', `${Math.round(exterior.totals.openingArea)} sq ft`]
+            ];
+            rows.forEach(([label, value]) => {
+                doc.text(label + ':', box2X + pad, yCursor);
+                doc.text(value, box2X + boxWidth - pad, yCursor, { align: 'right' });
+                yCursor += 6;
+            });
+        } else Object.keys(state.report.materials.linear || {}).forEach(key => {
             if (key.toLowerCase() === 'unknown' || key.toLowerCase() === 'skylight back' || key.toLowerCase() === 'skylight sides') return;
             if (yCursor > boxTopY + boxHeight - 5) return;
             const label = formatLineType(key);
@@ -2332,9 +2355,15 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     // REMAINING PAGES
     // ==========================================
 
+    // Imagery precedes the roof and exterior measurement sections.
+    if (hasExterior && s.page_top_view) {
+        beginReportPage('Top-Down Roof View');
+        placeImageCentered(doc, outlineImg, imgRatio, marginLeft, 35, pageHeight - 30, availableW);
+        drawPDFCompass(doc, marginLeft + 10, 47, 3);
+    }
     // Top View
     if (state.solarImg && s.page_top_view) {
-        beginReportPage("Top View");
+        beginReportPage("Roof Imagery");
         const tvTopY = 35;
         const tvSize = Math.min(availableW, pageHeight - tvTopY - 30);
         const tvX = marginLeft + (availableW - tvSize) / 2;
@@ -2378,11 +2407,15 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.roundedRect(tvX, tvTopY, tvSize, tvSize, tvR, tvR, 'S');
     }
 
+    if (mode === 'full' && typeof window.drawReportImagery === 'function') {
+        await window.drawReportImagery(doc, state, beginReportPage, brandingColors);
+    }
+
     // Elevations
     const hasQuadImage = !firstMeasurePdfQuadViewsDisabled() && typeof state.quadImage === 'string' && state.quadImage.trim() !== '';
     const includeElev = hasQuadImage && !(state.elevationSettings && state.elevationSettings.include === false);
-    if (s.page_elevations && includeElev) {
-        beginReportPage("3D Elevations");
+    if (s.page_elevations && includeElev && !hasExterior) {
+        beginReportPage("Roof Elevations");
         const qImg = new Image(); qImg.src = state.quadImage;
         await new Promise(r => qImg.onload = r);
         const qRatio = qImg.width / qImg.height;
@@ -2439,17 +2472,92 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         ? await ensurePdfWireframesForState(state)
         : state.wireframes;
     const hasWireframePage = await pdfWireframeSetHasVisibleInk(wireframesForPage);
-    if (s.page_3d && hasWireframePage) {
-        beginReportPage("3D Facets");
+    if (s.page_3d && hasExterior && state.exteriorReport.roof?.length) {
+        window.ExteriorPDF.drawRoofElevations(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
+    } else if (s.page_3d && hasWireframePage) {
+        beginReportPage(includeElev ? "Roof Facets" : "Roof Elevations");
         drawQuadGridPage(doc, wireframesForPage, marginLeft, 35, availableW, pageHeight - 55, brandingColors);
     } else if (s.page_3d) {
         console.warn('[PDF 3D] Skipping the 3D facets page because the wireframe capture was unavailable.');
     }
 
+    // Summary
+    if (s.page_summary) {
+        if (updateStatusCallback) updateStatusCallback("Generating Summary Page...");
+        beginReportPage("Roof Summary");
+        emitPdfDebug('page:summary', {
+            mode,
+            page: pageCount,
+            summary: buildPdfDebugSummary(state, state.report, { includeFaces: false })
+        });
+        const monoCanvas = await createReliableSummaryCanvasFromState(state);
+        const monoImg = monoCanvas.toDataURL('image/jpeg', 0.40);
+        await drawSummaryPageLayout(doc, state.report, monoImg, imgRatio, marginLeft, 30, availableW, state.manualTotalFacets, state.manualWastePct);
+    }
+
+    // ==========================================
+    // MATERIALS — SPLIT BY PITCH: STEEP vs FLAT
+    // ==========================================
+    if (s.page_materials) {
+        const pitchSplit = splitSquaresByPitch(state.report.materials.squares || {}, 2);
+        const hasSteep = pitchSplit.steepTotal > 0;
+        const hasFlat  = pitchSplit.flatTotal > 0;
+
+        if (hasSteep) {
+            const steepTitle = hasFlat ? "Steep-Slope Roof Materials" : "Roof Materials";
+            beginReportPage(steepTitle);
+
+            const matEst = estimateMaterials(state.report, hasFlat ? pitchSplit : null);
+
+            const extraPages = drawMaterialTable(
+                doc, matEst, marginLeft, 40, availableW,
+                "",
+                state.manualTotalFacets, state.manualWastePct,
+                { logoData, pageNum: pageCount, address: state.address, brandingColors, pageTitle: steepTitle, dateLabel: state.pdfRenderDateLabel }
+            );
+            pageCount += extraPages;
+        }
+
+        if (hasFlat) {
+            const flatTitle = hasSteep ? "Flat Roof Materials" : "Roof Materials";
+            beginReportPage(flatTitle);
+
+            const flatEst = estimateFlatMaterials(pitchSplit.flatTotal, state.report);
+
+            const flatExtraPages = drawFlatMaterialTable(
+                doc, flatEst, marginLeft, 40, availableW,
+                state.manualWastePct,
+                { logoData, pageNum: pageCount, address: state.address, brandingColors, dateLabel: state.pdfRenderDateLabel }
+            );
+            pageCount += flatExtraPages;
+        }
+    }
+
+    // Ventilation
+    if (s.page_ventilation) {
+        const includeVent = !(state.ventSettings && state.ventSettings.include === false);
+        if (includeVent) {
+            beginReportPage("Roof Ventilation");
+            const matEst = estimateMaterials(state.report);
+            emitPdfDebug('page:ventilation', {
+                mode,
+                page: pageCount,
+                ventilation: {
+                    estimatedRoofSquares: roundPdfDebugValue(state.report?.materials?.totalSquares),
+                    estimatedRoofSqFt: roundPdfDebugValue((Number(state.report?.materials?.totalSquares) || 0) * 100, 2),
+                    estimatedFootprintSqFt: roundPdfDebugValue(state.report?.materials?.totalFootprintSqFt, 2),
+                    estimatedAtticAreaSqFt: roundPdfDebugValue(state.report?.materials?.atticAreaSqFt, 2)
+                },
+                summary: buildPdfDebugSummary(state, state.report, { includeFaces: false })
+            });
+            await drawVentilationPage(doc, state.report, matEst, marginLeft, 35, availableW, state);
+        }
+    }
+
     // Pitch Diagram
     if (s.page_pitch) {
         if (updateStatusCallback) updateStatusCallback(`Generating Labels (${mode})...`);
-        beginReportPage("Pitch Diagram");
+        beginReportPage("Roof Pitch Diagram");
         const pitchCanvas = await createFacetCanvasFromState(state, 'PITCH');
         const pitchImg = pitchCanvas.toDataURL('image/jpeg', 0.40);
         const topY = 35;
@@ -2469,7 +2577,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
     // Area Diagram
     if (s.page_area) {
-        beginReportPage("Area Diagram");
+        beginReportPage("Roof Area Diagram");
         emitPdfDebug('page:area-diagram', {
             mode,
             page: pageCount,
@@ -2493,7 +2601,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const layerNum = allLayers[i];
             if (updateStatusCallback) updateStatusCallback(`Generating Layer ${layerNum}...`);
 
-            beginReportPage(`Layer ${layerNum} Measurements`);
+            beginReportPage(`Roof Layer ${layerNum} Measurements`);
 
             const layerCanvas = await createLayerCanvasFromState(state, layerNum, true, false);
             const layerImg = layerCanvas.toDataURL('image/jpeg', 0.40);
@@ -2633,79 +2741,6 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
-    // Summary
-    if (s.page_summary) {
-        if (updateStatusCallback) updateStatusCallback("Generating Summary Page...");
-        beginReportPage("Project Summary");
-        emitPdfDebug('page:summary', {
-            mode,
-            page: pageCount,
-            summary: buildPdfDebugSummary(state, state.report, { includeFaces: false })
-        });
-        const monoCanvas = await createReliableSummaryCanvasFromState(state);
-        const monoImg = monoCanvas.toDataURL('image/jpeg', 0.40);
-        await drawSummaryPageLayout(doc, state.report, monoImg, imgRatio, marginLeft, 30, availableW, state.manualTotalFacets, state.manualWastePct);
-    }
-
-    // ==========================================
-    // MATERIALS — SPLIT BY PITCH: STEEP vs FLAT
-    // ==========================================
-    if (s.page_materials) {
-        const pitchSplit = splitSquaresByPitch(state.report.materials.squares || {}, 2);
-        const hasSteep = pitchSplit.steepTotal > 0;
-        const hasFlat  = pitchSplit.flatTotal > 0;
-
-        if (hasSteep) {
-            const steepTitle = hasFlat ? "Steep-Slope Materials" : "Materials";
-            beginReportPage(steepTitle);
-
-            const matEst = estimateMaterials(state.report, hasFlat ? pitchSplit : null);
-
-            const extraPages = drawMaterialTable(
-                doc, matEst, marginLeft, 40, availableW,
-                "",
-                state.manualTotalFacets, state.manualWastePct,
-                { logoData, pageNum: pageCount, address: state.address, brandingColors, pageTitle: steepTitle, dateLabel: state.pdfRenderDateLabel }
-            );
-            pageCount += extraPages;
-        }
-
-        if (hasFlat) {
-            const flatTitle = hasSteep ? "Flat Roof Materials" : "Materials";
-            beginReportPage(flatTitle);
-
-            const flatEst = estimateFlatMaterials(pitchSplit.flatTotal, state.report);
-
-            const flatExtraPages = drawFlatMaterialTable(
-                doc, flatEst, marginLeft, 40, availableW,
-                state.manualWastePct,
-                { logoData, pageNum: pageCount, address: state.address, brandingColors, dateLabel: state.pdfRenderDateLabel }
-            );
-            pageCount += flatExtraPages;
-        }
-    }
-
-    // Ventilation
-    if (s.page_ventilation) {
-        const includeVent = !(state.ventSettings && state.ventSettings.include === false);
-        if (includeVent) {
-            beginReportPage("Ventilation");
-            const matEst = estimateMaterials(state.report);
-            emitPdfDebug('page:ventilation', {
-                mode,
-                page: pageCount,
-                ventilation: {
-                    estimatedRoofSquares: roundPdfDebugValue(state.report?.materials?.totalSquares),
-                    estimatedRoofSqFt: roundPdfDebugValue((Number(state.report?.materials?.totalSquares) || 0) * 100, 2),
-                    estimatedFootprintSqFt: roundPdfDebugValue(state.report?.materials?.totalFootprintSqFt, 2),
-                    estimatedAtticAreaSqFt: roundPdfDebugValue(state.report?.materials?.atticAreaSqFt, 2)
-                },
-                summary: buildPdfDebugSummary(state, state.report, { includeFaces: false })
-            });
-            await drawVentilationPage(doc, state.report, matEst, marginLeft, 35, availableW, state);
-        }
-    }
-
     // Gutters
     if (s.page_gutters) {
         const gutterMetrics = buildPdfGutterMetrics(state);
@@ -2716,12 +2751,17 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
+    if (hasExterior) {
+        if (updateStatusCallback) updateStatusCallback('Generating exterior report pages...');
+        window.drawExteriorReportPages(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
+    }
+
     // ==========================================
     // NOTES PAGE
     // ==========================================
     if (s.page_notes) {
         if (updateStatusCallback) updateStatusCallback("Generating Notes Page...");
-        beginReportPage("Notes");
+        beginReportPage("Roof Notes");
 
         if (!outlineImg) {
             const outlineCanvas = await createFacetCanvasFromState(state, 'OUTLINE');
@@ -2739,9 +2779,8 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     }
 
 
-    if (typeof window.drawExteriorReportPages === 'function' && mode === 'full' && state.exteriorReport?.walls?.length && state.exteriorSettings?.include !== false) {
-        if (updateStatusCallback) updateStatusCallback('Generating exterior report pages...');
-        window.drawExteriorReportPages(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
+    if (hasExterior && s.page_notes) {
+        window.drawExteriorNotes(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
     }
 
     // ==========================================

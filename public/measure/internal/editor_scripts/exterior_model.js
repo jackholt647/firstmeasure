@@ -72,6 +72,11 @@ function conformBase(source,cap,sides,base){
  const changes=[];for(let i=0;i<source.points.length;i++){const p=source.points[i],q=cap.points[i],contact=base.faces.find(f=>{const plane=G.plane(f.points);return plane&&G.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002;});if(!contact)continue;const plane=G.plane(contact.points);changes.push({from:{...q},z:plane.dx*q.x+plane.dy*q.y+plane.k});}
  for(const f of [cap,...sides])for(const p of [f.points,...(f.holes||[])].flat()){const c=changes.find(c=>Math.hypot(p.x-c.from.x,p.y-c.from.y,p.z-c.from.z)<=K.CONTACT);if(c)p.z=c.z;}
 }
+function extrusionTrim(scene,sources,caps,keepStatic){
+ const selected=new Set(sources.map(f=>f.id)),faces=[...scene.filter(f=>!selected.has(f.id)),...caps];
+ const moved=W.followTrim([...scene.filter(f=>!selected.has(f.id)),...sources],{faces,moves:[],affected:[]},[...selected],keepStatic);
+ const ids=new Set(moved.affected);return {ids,replacements:moved.faces.filter(f=>ids.has(f.id)).map(f=>({face:scene.find(s=>s.id===f.id),pieces:[f,...(moved.trimFragments?.[f.id]||[])]})).filter(r=>r.face)};
+}
 function createExtrusion(input){
  const start=copy(input),face=start.face,scene=(start.scene||[]).filter(f=>!f.deleted&&!f.snapOnly&&f.id!==face.id);
  K.validateFace(face);const topology=K.topology([face,...scene,...(start.base?.faces||[]).map(f=>({...f,id:'base:'+f.id}))],scene.flatMap(f=>f.retainedPoints||[]));
@@ -81,7 +86,7 @@ function createExtrusion(input){
  return {face:copy(face),topology,preview(amount,{fit=null}={}){
   if(!Number.isFinite(amount))throw Error('Enter a finite extrusion distance.');if(!fit&&amount===previousAmount&&previous)return copy(previous);
   let shape=W.extrude(face,amount,{facets:true,supports:start.supports||scene});conformBase(face,shape.cap,shape.sides,start.base);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof);
-  const trimmed=W.trimExtrusion(shape.sides,scene);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
+  const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
  }};
@@ -102,7 +107,7 @@ function createExtrusions(input){
   const results=engines.map((engine,i)=>engine.preview(amount*(members[i].sign||1))),caps=results.map(r=>r.cap);
   let sides=[];
   for(const result of results){const trimmed=W.trimExtrusion(result.sides,sides),changed=new Set(trimmed.replacements.map(r=>r.face.id));sides=[...sides.filter(f=>!changed.has(f.id)),...trimmed.replacements.flatMap(r=>r.pieces),...trimmed.sides];}
-  const trimmed=W.trimExtrusion(sides,neighbors);trimmed.sides=K.compactSurfaces(trimmed.sides);
+  const trim=extrusionTrim(scene,members.map(m=>m.face),caps,start.keepTrimStatic),trimmed=W.trimExtrusion(sides,neighbors.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);
   K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[...caps,...trimmed.sides]);
   let base=start.base?copy(start.base):null;
   if(base)for(let i=0;i<members.length;i++)base=B.extrudeWall(base,members[i].face,caps[i]);

@@ -347,9 +347,17 @@ function moveSide(state,chimney,delta){
  if(!convex(c.points)||area(c.points)<.0004||c.points.some((p,i)=>dist(p,c.points[(i+1)%c.points.length])<.02))throw Error('The chimney must keep a closed footprint at least 2 cm wide.');
  state.wallEdits||={};state.wallEdits.$chimneys||={};state.wallEdits.$chimneys[c.id]={points:c.points};return c;
 }
+// Read-only redraw scope: resolve chimney footprints once for the whole view.
+// Never retain this cache between edits, cancellation, undo, or project loads.
+const visibilitySnapshots=new WeakMap();
+function withVisibilitySnapshot(state,fn){
+ if(!state||visibilitySnapshots.has(state))return fn();
+ visibilitySnapshots.set(state,{definitions:null});try{return fn();}finally{visibilitySnapshots.delete(state);}
+}
+function visibilityDefinitions(state){const snapshot=visibilitySnapshots.get(state);if(!snapshot)return definitions(state);return snapshot.definitions||(snapshot.definitions=definitions(state));}
 function visibleParts(face,state){
  if(face.chimney?.volume)return [face];
- const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null),cs=definitions(state).filter(c=>!face.joinedChimneys?.includes(c.id));if(!W||!cs.length)return [face];
+ const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null),cs=visibilityDefinitions(state).filter(c=>!face.joinedChimneys?.includes(c.id));if(!W||!cs.length)return [face];
  const frame=W.faceFrame(face);if(!frame||Math.abs(frame.n.z)>1e-5)return [face];
  const ps=face.points,origin=ps[0],u={x:-frame.n.y,y:frame.n.x},ts=ps.map(p=>(p.x-origin.x)*u.x+(p.y-origin.y)*u.y),lo=Math.min(...ts),hi=Math.max(...ts),bottom=Math.min(...ps.map(p=>p.z))-1,top=Math.max(...ps.map(p=>p.z))+1;
  if(hi-lo<EPS)return [face];const a={x:origin.x+u.x*lo,y:origin.y+u.y*lo,z:0},b={x:origin.x+u.x*hi,y:origin.y+u.y*hi,z:0};
@@ -366,7 +374,7 @@ function visibleParts(face,state){
 }
 function visibleSegments(a,b,state,chimney,joinedChimneys=[]){
  if(chimney?.volume)return [[a,b]];
- const cs=definitions(state).filter(c=>!joinedChimneys.includes(c.id));if(!cs.length)return [[a,b]];
+ const cs=visibilityDefinitions(state).filter(c=>!joinedChimneys.includes(c.id));if(!cs.length)return [[a,b]];
  const polygons=chimney?[...(buildingBase(state)),...cs.filter(c=>c.id!==chimney.id).map(c=>({points:c.points}))]:cs.map(c=>({points:c.points}));let offset={x:0,y:0};
  if(chimney){const c=cs.find(c=>c.id===chimney.id);if(c){const v=sub(c.points[(chimney.side+1)%c.points.length],c.points[chimney.side]),len=Math.hypot(v.x,v.y);offset={x:v.y/len*.00001,y:-v.x/len*.00001};}}
  if(chimney){const scene=scenes.get(state);if(!scene)return intervals(a,b,polygons,false,offset).map(([lo,hi])=>[mix(a,b,lo),mix(a,b,hi)]);
@@ -375,5 +383,5 @@ function visibleSegments(a,b,state,chimney,joinedChimneys=[]){
  const cuts=[];for(const c of cs)for(let [lo,hi]of volumeIntervals(a,b,c)){const p=mix(a,b,lo),q=mix(a,b,hi),da=p.z-occlusionHeight(c,p,state),db=q.z-occlusionHeight(c,q,state);if(da>EPS&&db>EPS)continue;if(da>EPS)lo=lo+(hi-lo)*da/(da-db);else if(db>EPS)hi=lo+(hi-lo)*da/(da-db);cuts.push([lo,hi]);}
  cuts.sort((a,b)=>a[0]-b[0]);let start=0;const out=[];for(const [lo,hi]of [...cuts,[1,1]]){if(lo-start>EPS)out.push([mix(a,b,start),mix(a,b,lo)]);start=Math.max(start,hi);}return out;
 }
-const api={heightSampler,preserveFilledFace,alignRoofContacts,syncVolumes,roofWithOpenings,buildingBase,syncFoundation,normalizeDrafts,capHeight,visibleSegments,visibleParts,COLOR,detect,definitions,compose,moveSide,floorAt,intervals};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallChimneys=api;
+const api={heightSampler,withVisibilitySnapshot,preserveFilledFace,alignRoofContacts,syncVolumes,roofWithOpenings,buildingBase,syncFoundation,normalizeDrafts,capHeight,visibleSegments,visibleParts,COLOR,detect,definitions,compose,moveSide,floorAt,intervals};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallChimneys=api;
 })(typeof window!=='undefined'?window:globalThis);

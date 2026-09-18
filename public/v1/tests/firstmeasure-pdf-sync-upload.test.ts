@@ -44,7 +44,7 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
         testMultipartMarker: "preserved"
       },
       pdf_sync_revision: "multipart-revision-1",
-      pdf_render_recipe_version: "2026-08-16.1",
+      pdf_render_recipe_version: "2026-09-16.2",
       persist_files: true,
       update_status: false,
       outputs: [{ slot: "main", mode: "full", persist: true, update_status: false }]

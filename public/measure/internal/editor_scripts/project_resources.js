@@ -607,7 +607,15 @@
   tab.onclick = () => window.switchMapLayer('resources'); new ResizeObserver(resize).observe(stage);
   let restoreProject='';setInterval(() => {const id=String(window.currentProjectId||'');if(id&&restoreProject!==id){restoreProject=id;if(savedView(id).active)window.switchMapLayer('resources');}if(active)syncProject().catch(error=>message(error.message,true));remember();},700);
   window.addEventListener('pagehide',remember);
-  window.ProjectResources={handleKey,open:()=>window.switchMapLayer('resources'),async mergeSubmission(state){
+  window.ProjectResources={handleKey,open:()=>window.switchMapLayer('resources'),async reportImages(id){
+   const data=await(await request(id)).json(),artifacts=data.files||[];
+   const bundle=await feedback(id).catch(()=>({manifest:window.currentProjectManifest,app_metadata:window.currentProjectLoadedAppMetadata}));
+   const references=referenceCatalog(bundle,name=>window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(id)+'/artifacts/'+encodeURIComponent(name)));
+   const savedFrames=await Promise.all(artifacts.filter(f=>f.name.startsWith(favoritePrefix)).map(async f=>(await request(id,f.name)).json()));
+   return [...artifacts.filter(f=>f.name.startsWith(prefix)&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(f.name)).map(f=>{
+    const frame=savedFrames.find(s=>s.frame===f.name),reference=references.find(r=>r.resource_name===f.name);return {key:f.name,resourceName:f.name,url:new URL(url(id,f.name),location.href).href,label:frame?.label||f.original_name||f.name,role:reference?.role||f.role||'tech',slot:reference?.slot||f.elevation_view,frame:!!frame};
+   }),...references.filter(f=>f.src&&!f.notes&&!artifacts.some(a=>a.name===f.resource_name)).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
+  },async mergeSubmission(state){
    const id=String(state.folderId||window.currentProjectId||'');if(!id||currentRole()==='qa')return;
    const data=await(await request(id)).json(),resources=(data.files||[]).filter(f=>f.name.startsWith(prefix)&&(f.role||'tech')==='tech');
    state.finalizeSources||={images:[],notes:''};const images=state.finalizeSources.images||=[];

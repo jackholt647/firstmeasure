@@ -3,13 +3,14 @@ const rect=(x0,z0,x1,z1)=>[{x:x0,y:0,z:z0},{x:x1,y:0,z:z0},{x:x1,y:0,z:z1},{x:x0
 test('exterior areas deduct openings exactly once and keep per-section materials',()=>{const opening=rect(1,2,2,3),m=R.build({faces:[{points:rect(0,0,4,2),material:'brick'},{points:rect(0,2,4,4),holes:[opening],material:'siding'},{points:opening,feature:{type:'window'}}]});assert.equal(m.openings.length,1);assert.equal(m.walls.length,2);assert.ok(Math.abs(m.totals.gross-16/.3048**2)<1e-5);assert.ok(Math.abs(m.totals.net-15/.3048**2)<1e-5);assert.deepEqual(new Set(m.walls.map(w=>w.material)),new Set(['Brick','Horizontal siding']));assert.ok(m.edges.some(e=>e.type==='Material transition'));});
 test('roof-only scenes do not produce exterior pages',()=>assert.equal(R.build({faces:[]}),null));
 test('PDF pages and diagrams exclude the editor base without changing wall quantities',()=>{
- const fs=require('node:fs'),vm=require('node:vm'),ctx={};ctx.window=ctx;vm.createContext(ctx);
+ const fs=require('node:fs'),vm=require('node:vm'),ctx={ExteriorGeometry:require('../public/measure/internal/editor_scripts/exterior_geometry.js')};ctx.window=ctx;vm.createContext(ctx);
  vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_pdf.js','utf8'),ctx);
  const model=R.build({faces:[{points:rect(0,0,4,4)}],base:{faces:[{points:[{x:-100,y:-100,z:-20},{x:100,y:-100,z:-20},{x:100,y:100,z:-20},{x:-100,y:100,z:-20}]}]}});
  const render=m=>{const calls=[],doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length*1.2,splitTextToSize:s=>[s]},{get:(target,key)=>key in target?target[key]:(...args)=>calls.push([key,...args])});ctx.drawExteriorReportPages(doc,m,{},title=>calls.push(['page',title]),{});return calls;};
  const before=JSON.stringify(model),withBase=render(model),withoutBase=render({...model,base:[]});
  assert.deepEqual(withBase,withoutBase);assert.equal(JSON.stringify(model),before);
- assert.ok(withBase.some(c=>c[0]==='page'&&c[1]==='Wall takeoff'));
+ for(const title of ['Opening Schedule','Exterior Quantities','Material Allowances'])assert.ok(withBase.some(c=>c[0]==='page'&&c[1]===title));
+ assert.ok(!withBase.some(c=>c[0]==='page'&&/takeoff/i.test(c[1])));
  assert.ok(!withBase.some(c=>c[0]==='page'&&/foundation|grade/i.test(c[1])));
 });
 test('browser script order initializes report dependencies and includes the roof without changing wall area',()=>{

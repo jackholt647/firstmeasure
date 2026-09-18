@@ -285,6 +285,10 @@ async function openReportConfiguration() {
     const labelSyncResult = syncReportDiagramLabels(reportConfigState);
     const needsInitialAutoLabels = !!labelSyncResult.createdInitial;
 
+    if (typeof prepareReportImageryConfig === 'function' && window.ProjectResources) {
+        await prepareReportImageryConfig(reportConfigState).catch(error => console.warn('Elevation photos could not be loaded.', error));
+    }
+
     _reportLayers = getLayersFromState(reportConfigState);
     _pagePlan = buildPagePlan(_reportLayers, reportConfigState);
     totalConfigPages = _pagePlan.length;
@@ -1263,6 +1267,7 @@ function buildPagePlan(layers, state) {
     if (!isCommercialProjectReportConfig(state)) {
         plan.push({ key: 'vent', advanced: true });
     }
+    if (window.FIRSTMEASURE_FULL_HOUSE === true) plan.push({ key: 'imagery', advanced: window.ExteriorPDF?.photosComplete(state.exteriorSettings) === true });
     if (window.FIRSTMEASURE_FULL_HOUSE === true && state.exteriorReport?.walls?.length) plan.push({ key: 'exterior' });
     plan.push({ key: 'finalize' });   // ← NEW: always last
     return plan;
@@ -1285,7 +1290,8 @@ function getConfigPageNavMeta(item, fallbackIndex = 0) {
     else if (item.key === 'structures') { label = "Structures"; tooltip = "Structure Breakdown"; }
     else if (item.key === 'elev')   { label = "Quad View";  tooltip = "3D Elevations / Four Direction Views"; }
     else if (item.key === 'vent')   { label = "Vent";       tooltip = "Ventilation"; }
-    else if (item.key === 'exterior') { label = 'Exteriors'; tooltip = 'Walls, openings and takeoff'; }
+    else if (item.key === 'imagery') { label = 'Imagery'; tooltip = 'Assign the eight standard elevation photos'; }
+    else if (item.key === 'exterior') { label = 'Exteriors'; tooltip = 'Walls, openings, quantities and allowances'; }
     else if (item.key === 'finalize') { label = "PDF";      tooltip = "PDF Preview & Submission"; }
 
     return { label, tooltip };
@@ -2652,6 +2658,7 @@ async function renderConfigPage() {
         else if (planItem.key === 'elev')       await renderElevationsPage(pageDiv);
         else if (planItem.key === 'vent')       await renderVentPage(pageDiv);
         else if (planItem.key === 'exterior')   renderExteriorReportConfig(pageDiv, reportConfigState);
+        else if (planItem.key === 'imagery')    await renderReportImageryConfig(pageDiv, reportConfigState);
         else if (planItem.key === 'finalize')   await renderFinalizePage(pageDiv);
 
         container.innerHTML = '';

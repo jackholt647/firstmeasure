@@ -1860,6 +1860,21 @@ test('E infers multiple complete sticker faces from rectangle-selected vertices'
  assert.equal(f.editor.pointSelection().length,8);f.editor.key({key:'e'});assert.ok(f.editor.distanceInput());f.editor.distanceInput().set(.6096);assert.equal(f.editor.pointSelection().length,0);assert.equal(f.editor.selectionSnapshot().faceSelection.length,2);assert.ok(state.wallEdits.$surfaces.every(face=>face.points.every(p=>Math.abs(p.y+.6096)<1e-8)),f.message());
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),selection);
 });
+
+test('opening trim bulk selection updates only selected windows without duplicating geometry',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),p=(x,z)=>({x,y:0,z}),rect=x=>[p(x,1),p(x+1,1),p(x+1,2),p(x,2)],a={id:'a',points:rect(0),feature:F.setTrim({type:'window'},2,'#112233')},b={id:'b',points:rect(2),feature:{type:'window'}},door={id:'d',points:rect(4),feature:{type:'door'}},state={wallEdits:{$surfaces:[a,b,door]}},f=fixture({state,walls:[],selected:null});
+ f.editor.selectOpeningTrim('window');assert.equal(f.editor.openingTrimItems('window').filter(i=>i.selected).length,2);
+ f.editor.selectOpeningTrim('window','solid:a',false);f.editor.applyOpeningTrim('window',4,'#abcdef');assert.equal(a.feature.trim.width,2*.0254);assert.equal(b.feature.trim.width,4*.0254);assert.equal(door.feature.trim,undefined);assert.equal(state.wallEdits.$surfaces.length,3);
+ f.editor.selectOpeningTrim('window');f.editor.applyOpeningTrim('window',6,'#ffffff');assert.equal(state.wallEdits.$surfaces.find(s=>s.id==='a').feature.trim.width,6*.0254);assert.equal(state.wallEdits.$surfaces.length,3);assert.equal(f.history.length,2);
+ const saved=JSON.parse(JSON.stringify(state)),reloaded=fixture({state:saved,walls:[],selected:null});assert.ok(Math.abs(reloaded.editor.openingTrimItems('window')[0].width-6)<1e-8);
+ f.editor.applyOpeningTrim('window',0,'#ffffff');assert.ok(state.wallEdits.$surfaces.filter(s=>s.feature.type==='window').every(s=>!s.feature.trim));
+});
+test('T cycles placement trim without placing the window, and commits the selected trim once',()=>{
+ const p=(x,z)=>({x,y:0,z}),host={id:'host',points:[p(0,0),p(5,0),p(5,5),p(0,5)]},f=fixture({state:{wallEdits:{$surfaces:[host]}},walls:[],selected:null,featureHost:()=>({solid:host,points:host.points})});
+ f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));
+ for(const width of [2,3,4,6,0,2]){assert.equal(f.editor.key({key:'t'}),true);assert.equal(f.editor.featurePlacement().trimInches,width);assert.equal(f.history.length,0);}
+ f.editor.down(f.e(2,2));const faces=require('../public/measure/internal/editor_scripts/exterior_model.js').collect(f.state),window=faces.find(f=>f.feature?.type==='window');assert.ok(window,f.message());assert.equal(window.feature.trim.width,.0508);assert.equal(f.history.length,1);
+});
 const divideFixture=()=>{const ft=.3048,face={id:'divide-window',points:[{x:1,y:0,z:1},{x:1+4*ft,y:0,z:1},{x:1+4*ft,y:0,z:1+7*ft},{x:1,y:0,z:1+7*ft}],holes:[],feature:{type:'window',axis:{x:1,y:0,z:0}}};const f=fixture({state:{wallEdits:{$surfaces:[face]}},screen:p=>({x:p.x*100,y:-p.z*100}),globals:renderGlobals()});f.editor.restoreSelection({selectedSolid:face.id});f.listeners.pointermove(f.e(1.5,2));return f;};
 test('L previews and toggles without mutation, accepts exact distances, commits once and cancels cleanly',()=>{
  const f=divideFixture(),before=JSON.stringify(f.state.wallEdits);assert.equal(f.editor.key({key:'l'}),true);assert.equal(f.editor.interaction(),'Divide window / door');assert.equal(f.editor.distanceInput().label,'Divide from top');
@@ -1882,4 +1897,51 @@ test('pasting selected sections on another wall preserves their relationship wit
  const F=require('../public/measure/internal/editor_scripts/wall_features.js'),M=require('../public/measure/internal/editor_scripts/exterior_model.js'),p=(x,y,z)=>({x,y,z}),back={id:'back',points:[p(-5,0,-5),p(5,0,-5),p(5,0,5),p(-5,0,5)]},opening={id:'original',points:[p(-3,0,0),p(-1,0,0),p(-1,0,2),p(-3,0,2)],feature:{type:'window'},holes:[]},sections=F.divideSticker([opening],'horizontal',1).faces,state={wallEdits:{$surfaces:[back,...sections]}},f=fixture({state,walls:[],selected:null,featureHost:()=>({solid:back,points:back.points})});
  f.editor.restoreSelection({selectedSolid:sections[1].id,faceSelection:sections.map(f=>({solid:f.id}))});f.editor.clipboardCommand('copy');assert.equal(f.clipboard().faces.length,2);f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(2,2));f.editor.down(f.e(2,2));assert.equal(f.editor.busy(),false,f.message());
  const features=M.collect(state).filter(s=>s.feature),groups=new Set(features.map(s=>s.feature.divisionGroup));assert.equal(features.length,4);assert.equal(groups.size,2);for(const id of groups)assert.equal(features.filter(s=>s.feature.divisionGroup===id).length,2);
+});
+
+test('redraw reuse agrees with uncached rendering after move, cancellation and in-place edits',()=>{
+ const make=disabled=>fixture({globals:{...renderGlobals(),EXTERIOR_DISABLE_RENDER_CACHE:disabled}}),a=make(false),b=make(true);
+ const capture=f=>{const svg=[],objects=[];f.editor.draw2D({},(tag,attrs)=>{svg.push([tag,attrs]);return {};},1);f.editor.draw3D({add:o=>objects.push({points:o.geometry?.points,material:o.material,userData:o.userData,renderOrder:o.renderOrder})},p=>p);return JSON.parse(JSON.stringify({svg,objects,state:f.state}));};
+ for(const f of [a,b]){f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}}
+ assert.deepEqual(capture(a),capture(b));assert.deepEqual(capture(a),capture(b));
+ for(const f of [a,b]){f.listeners.pointermove(f.e(1,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.2,1.2));}
+ assert.deepEqual(capture(a),capture(b));
+ for(const f of [a,b])f.editor.key({key:'escape'});
+ assert.deepEqual(capture(a),capture(b));
+ for(const f of [a,b]){f.d().removedPoints=[f.d().sketch.nodes.find(n=>!n.fixed).id];f.d().faces[0].finishColor='#123456';}
+ assert.deepEqual(capture(a),capture(b));
+});
+
+
+test('one-sided and centered trim remain distinct when wall material colors are disabled',()=>{
+ const state={materialColors:false,finishDefaults:{trimColor:'#f5f3ef'},wallEdits:{$surfaces:[{id:'below',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:2},{x:0,y:0,z:2}]},{id:'above',points:[{x:0,y:0,z:2},{x:4,y:0,z:2},{x:4,y:0,z:4},{x:0,y:0,z:4}]}]}},f=fixture({state,walls:[],globals:renderGlobals()}),pair=[{x:0,y:0,z:2},{x:4,y:0,z:2}];
+ f.editor.restoreSelection({lineSelection:[{id:'divider',pair}]});
+ for(let variant=0;variant<3;variant++){
+  f.editor.key({key:'t'});const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+  const trimIds=new Set(state.wallEdits.$surfaces.filter(s=>s.trim).map(s=>s.id)),trimMeshes=objects.filter(o=>trimIds.has(o.userData?.solidId));
+  assert.equal(trimMeshes.length,variant===2?2:1);
+  assert.ok(trimMeshes.every(o=>o.material.color==='#f5f3ef'),'trim must retain its contrasting finish in every variant');
+  assert.ok(objects.some(o=>o.userData?.solidId&&!trimIds.has(o.userData.solidId)&&o.material.color==='#ffd84d'),'uncolored walls keep their drafting color');
+ }
+ f.editor.key({key:'Enter'});assert.equal(f.history.length,1);
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.color==='#f5f3ef'),'placed trim remains visible');
+});
+
+test('trim selection distinguishes trimmed ground and removal is one undoable edit',()=>{
+ const outline=[[0,0],[4,0],[4,4],[0,4]],walls=outline.map(([x,y],i)=>{const [xx,yy]=outline[(i+1)%4];return {id:'side'+i,bottom:[{x,y,z:0},{x:xx,y:yy,z:0}],top:[{x,y,z:3},{x:xx,y:yy,z:3}]};});
+ const state={wallEdits:{},base:{faces:[{id:'base',points:outline.map(([x,y])=>({x,y,z:0}))}]}},f=fixture({state,walls,selected:null});
+ f.editor.selectTrimEdges('ground');assert.equal(f.editor.applyTrim(.2),true,f.message());const trimmed=JSON.stringify(state.wallEdits);
+ f.editor.selectTrimEdges('ground-untrimmed');assert.equal(f.editor.selectionSnapshot().lineSelection.length,0);
+ f.editor.selectTrimEdges('ground');assert.equal(f.editor.selectionSnapshot().lineSelection.length,4);
+ assert.equal(f.editor.removeTrim(),true,f.message());assert.equal(f.history.length,2);assert.equal(JSON.stringify(f.history[1]),trimmed);assert.ok(state.wallEdits.$surfaces.every(f=>!f.trim));
+});
+
+test('face extrusion carries saved trim, cancels without drift, and static trim persists unchanged',()=>{
+ for(const keepTrimStatic of [false,true]){
+  const wall={id:'follow-wall',points:[{x:.2,y:0,z:0},{x:3.8,y:0,z:0},{x:3.8,y:0,z:4},{x:.2,y:0,z:4}],holes:[]},trim={id:'follow-trim',trim:true,material:'trim-wood',points:[{x:0,y:0,z:0},{x:.2,y:0,z:0},{x:.2,y:0,z:4},{x:0,y:0,z:4}],holes:[]},f=fixture({state:{keepTrimStatic,wallEdits:{$surfaces:[wall,trim]}},walls:[],selected:null}),before=JSON.stringify(f.state.wallEdits);
+  f.editor.restoreSelection({selectedSolid:wall.id});f.listeners.pointermove(f.e(2,2));f.editor.key({key:'e'});assert.ok(f.editor.distanceInput(),f.message());f.editor.distanceInput().set(.3);
+  let moved=f.state.wallEdits.$surfaces.find(s=>s.trim);assert.ok(moved,f.message());assert.ok(moved.points.every(p=>Math.abs(p.y-(keepTrimStatic?0:.3))<1e-8),JSON.stringify({keepTrimStatic,moved,surfaces:f.state.wallEdits.$surfaces}));
+  f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+  f.editor.restoreSelection({selectedSolid:wall.id});f.editor.key({key:'e'});f.editor.distanceInput().set(.3);f.editor.down(f.e(2,2));assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);moved=f.state.wallEdits.$surfaces.find(s=>s.trim);assert.ok(moved.points.every(p=>Math.abs(p.y-(keepTrimStatic?0:.3))<1e-8));
+ }
 });
