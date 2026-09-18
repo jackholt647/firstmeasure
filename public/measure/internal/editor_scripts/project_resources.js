@@ -11,10 +11,12 @@
     const item=typeof value==='string'?{url:value}:value;if(!item)continue;
     const raw=String(item.dataUrl||item.url||item.file_name||item.name||'');if(!raw)continue;
     const src=/^(https?:|data:image\/|\/)/i.test(raw)?raw:!/[\\/]/.test(raw)?artifactUrl(raw):'';if(!src||seen.has(role+src))continue;seen.add(role+src);
-    result.push({name:'reference-'+key+'-'+i,original_name:item.original_name||item.name||item.file_name||raw.split('/').pop()||'Reference',role,src,resource_name:item.resource_name,reference:true,size:item.size||0});
+    result.push({name:'reference-'+key+'-'+i,original_name:item.original_name||item.name||item.file_name||raw.split('/').pop()||'Reference',role,src,resource_name:item.resource_name,slot:item.elevation_view||item.slot,reference:true,size:item.size||0});
    }
   };
   add('customer','order',manifest.tech_notes);
+  const elevationPhotos=manifest.elevation_photos||meta.elevation_photos||{};
+  add('customer','elevations','',Array.isArray(elevationPhotos)?elevationPhotos:Object.entries(elevationPhotos).map(([slot,image])=>({...typeof image==='string'?{url:image}:image,elevation_view:slot})));
   for(const [i,r]of (manifest.resubmissions||[]).entries())add('customer','resubmission-'+i,r.notes,r.images);
   const sources=meta.submission_sources||manifest.submission_sources||bundle.pdf_state?.finalizeSources||meta.pdfConfig?.finalizeSources||{};
   add('tech','submission',sources.notes,sources.images);
@@ -24,7 +26,9 @@
   }
   return result;
  }
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog};return;}
+ const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'House'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
+ function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):null}));}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -60,12 +64,12 @@
    <div class="resource-body">
     <aside id="resource-library" class="resource-library" aria-label="Project files">
      <div class="resource-tray-heading"><strong>Project files <small>INTERNAL</small></strong><button data-action="files" aria-label="Close files">×</button></div>
-     <div class="resource-file-list"></div>
+     <button data-action="coreViews" class="resource-core-button" aria-pressed="false">&#9638; Core views</button><div class="resource-file-list"></div>
     </aside>
     <main class="resource-content">
      <div class="resource-stage" tabindex="0" aria-label="Media viewer. Wheel to zoom, drag to pan, double-click to fit.">
       <div class="resource-empty"><strong>Project references</strong><span>Open a saved project to add photos and walkthrough videos.</span></div>
-      <canvas hidden></canvas><div class="resource-player" hidden></div>
+      <canvas hidden></canvas><div class="resource-player" hidden></div><div class="resource-core-grid" aria-label="Core house views" hidden></div>
       <form class="resource-favorite-entry" hidden><label>Favorite this frame<input maxlength="160" aria-label="Favorite frame label" placeholder="Back of house…" autocomplete="off"></label><span>Enter to save · Esc to cancel</span><button type="submit">Save frame</button></form>
       <button data-action="returnVideo" class="resource-jump-frame" hidden>Jump to video frame</button>
       <div class="resource-view-controls" role="toolbar" aria-label="Media zoom" hidden>
@@ -119,15 +123,15 @@
   function savedFrameAtPlayhead(){const time=scrub?.target??media?.currentTime;return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return link?.source===current?.name&&Math.abs(link.time-time)<.02;});}
   function updateFrameAction(){const button=$('[data-action="returnVideo"]'),video=!!media?.videoWidth,saved=video&&savedFrameAtPlayhead();button.hidden=!frameSource&&!video;button.textContent=video?(saved?'Saved Frame':'Save Frame'):'Jump to video frame';button.classList.toggle('is-saved',!!saved);button.disabled=busy||!!favoriteDraft;button.title=saved?'Open the saved frame':video?'Save this frame without a title':'Open the source video at this frame';}
   const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-', markupPrefix = 'internal-markup-';
-  const url = (id, name = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}), ...(window.FIRSTMEASURE_TUTORIAL?.enabled ? {course_id: window.FIRSTMEASURE_TUTORIAL.courseId || 'default', student_email: window.FIRSTMEASURE_TUTORIAL.studentEmail || ''} : {}) });
+  const url = (id, name = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}) });
   const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
   const label = name => files.find(file => file.name === name)?.original_name || name.replace(/^internal-resource-(?:v2-)?/, '').slice(37);
   const sourceUrl = file => file.src || url(project,file.name);
   const viewKey = id => 'firstmeasure:resources:view:'+id;
-  let restoring=false,collapsedGroups={};
+  let restoring=false,collapsedGroups={},coreActive=false;
   function savedView(id){try{return JSON.parse(localStorage.getItem(viewKey(id)))||{};}catch{return {};}}
-  function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
-  async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file)await open(file,{time:saved.time});filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
+  function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,coreActive,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
+  async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file&&!saved.coreActive)await open(file,{time:saved.time});else await showCoreViews();filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
   async function feedback(id){for(const action of ['project_feedback','project_bundle']){const response=await fetch(window.location.pathname+'?'+new URLSearchParams({action,folder:id}),{cache:'no-store'});if(response.ok&&response.headers.get('content-type')?.includes('application/json'))return response.json();if(response.status===401||response.status===403)break;}throw Error('Reference notes could not be loaded. Refresh Files to retry.');}
   async function uploadFile(id,name,file){
    if(!file.size)throw Error('The file is empty.');
@@ -195,6 +199,7 @@
    stage.style.cursor = next === 'pan' ? 'grab' : 'crosshair'; controls(); draw();
   }
   function reset() {
+   coreActive=false;$('.resource-core-grid').hidden=true;$('[data-action="coreViews"]').setAttribute('aria-pressed','false');
    favoriteDraft = null; $('.resource-favorite-entry').hidden = true;
    scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0;
    if (media) { media.pause(); media.removeAttribute('src'); media.load(); }
@@ -215,7 +220,24 @@
    try { const [data,notes] = await Promise.all([(await request(id)).json(),feedback(id).then(value=>({value}),error=>({error}))]); if (ticket !== epoch) return; files = [...(data.files || []),...referenceCatalog(notes.value||{manifest:window.currentProjectManifest,app_metadata:window.currentProjectLoadedAppMetadata},name=>window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(id)+'/artifacts/'+encodeURIComponent(name))).filter(r=>!r.resource_name||!(data.files||[]).some(f=>f.name===r.resource_name))]; await loadFavorites(id, ticket); if (ticket !== epoch) return; renderList(); message(notes.error?notes.error.message:'Project files updated.',!!notes.error); }
    catch (error) { if (ticket === epoch) message(error.message, true); } controls();
   }
+  function renderCoreViews(){
+   const grid=$('.resource-core-grid');grid.replaceChildren();
+   for(const {slot,title,file}of coreViews(files)){
+    const cell=document.createElement(slot?'button':'div');cell.className='resource-core-cell';
+    if(!slot){cell.classList.add('resource-core-house');cell.innerHTML='<svg viewBox="0 0 120 110" role="img" aria-label="House viewed from above; front entrance at bottom"><rect x="20" y="12" width="80" height="76" rx="5" fill="#7194a6"/><path d="M20 12L60 40L100 12M20 88L60 62L100 88M60 40V62" fill="none" stroke="#d8e8f0" stroke-width="3"/><rect x="49" y="82" width="22" height="14" rx="2" fill="#1e5269"/><path d="M60 100v8m-5-5l5 5 5-5" stroke="#1e5269" stroke-width="2" fill="none"/></svg><span>Front entrance &#8595;</span>';}
+    else {cell.type='button';cell.setAttribute('aria-label',file?'Open '+title+' view':title+' - no photo');
+     if(file){const img=document.createElement('img');img.src=sourceUrl(file);img.alt=title;img.loading='lazy';cell.append(img);cell.onclick=()=>open(file).catch(error=>message(error.message,true));}
+     else {cell.disabled=true;const missing=document.createElement('span');missing.className='resource-core-missing';missing.textContent='No photo';cell.append(missing);}
+     const caption=document.createElement('strong');caption.textContent=title;cell.append(caption);
+    }grid.append(cell);
+   }
+  }
+  async function showCoreViews(){
+   if(busy)return;if(dirty)await save();epoch++;reset();inspector='';updateDrawers();coreActive=true;empty.hidden=true;
+   $('.resource-core-grid').hidden=false;$('[data-action="coreViews"]').setAttribute('aria-pressed','true');$('.resource-filename').textContent='Core views';renderList();remember();
+  }
   function renderList() {
+   if(coreActive)renderCoreViews();
    list.replaceChildren(); const resources = files.filter(file => file.reference||file.name.startsWith(prefix)).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
    $('.resource-count').textContent = resources.length || '';
    for(const role of ['qa','tech','customer']){
@@ -506,6 +528,7 @@
   }
   const actions = {
    files: () => { filesOpen = !filesOpen; if (filesOpen && panel.clientWidth < 760) inspector = ''; updateDrawers(); },
+   coreViews:showCoreViews,
    upload: () => $('.resource-files').click(), refresh,
    markup: () => showInspector('markup'), notes: () => showInspector('notes'), closeInspector: () => { inspector = ''; updateDrawers(); },
    more: () => { $('.resource-more').hidden = !$('.resource-more').hidden; $('[data-action="more"]').setAttribute('aria-expanded', String(!$('.resource-more').hidden)); },
@@ -584,7 +607,7 @@
   tab.onclick = () => window.switchMapLayer('resources'); new ResizeObserver(resize).observe(stage);
   let restoreProject='';setInterval(() => {const id=String(window.currentProjectId||'');if(id&&restoreProject!==id){restoreProject=id;if(savedView(id).active)window.switchMapLayer('resources');}if(active)syncProject().catch(error=>message(error.message,true));remember();},700);
   window.addEventListener('pagehide',remember);
-  window.ProjectResources={handleKey,async mergeSubmission(state){
+  window.ProjectResources={handleKey,open:()=>window.switchMapLayer('resources'),async mergeSubmission(state){
    const id=String(state.folderId||window.currentProjectId||'');if(!id||currentRole()==='qa')return;
    const data=await(await request(id)).json(),resources=(data.files||[]).filter(f=>f.name.startsWith(prefix)&&(f.role||'tech')==='tech');
    state.finalizeSources||={images:[],notes:''};const images=state.finalizeSources.images||=[];
@@ -593,6 +616,8 @@
     if(revisions.length){const markup=await(await request(id,revisions[0].name)).json();const note=String(markup.notes||'').trim();if(note&&!String(state.finalizeSources.notes||'').includes(note))state.finalizeSources.notes=(state.finalizeSources.notes?state.finalizeSources.notes+'\n\n':'')+(f.original_name||f.name)+':\n'+note;}
    }
   }};
+  for(const event of ['pointerdown','dblclick','wheel'])$('.resource-core-grid').addEventListener(event,e=>e.stopPropagation());
+  if(window.WallMode?.enabled)window.switchMapLayer('resources');
   window.addEventListener('beforeunload', event => { if (dirty || busy) { event.preventDefault(); event.returnValue = ''; } }); updateDrawers(); controls();
  }
  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
