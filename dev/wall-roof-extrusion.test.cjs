@@ -54,3 +54,7 @@ test('roof-covered returns are removed even when a different roof section clips 
 test('after roof contact an extrusion stays constrained past the finite eave',()=>{
  const r=sweep(wall(),2,roof(3,-.5));assert.ok(r.cap.points.every(p=>p.z<=2.5+K.CONTACT));assert.ok(!r.sides.some(f=>f.points.every(p=>near(p.y,-.5))));
 });
+
+test('saved inner roof corner reaches measured eave elevations without an artificial trim gap',()=>{
+ const fixture=require('./fixtures/roof-inner-corner.json');for(const face of fixture.walls){const out=sweep(face,.4572,fixture.roof),edge=fixture.roof.connections.map(c=>[fixture.roof.points[c.startIdx],fixture.roof.points[c.endIdx]]).find(([a,b])=>out.cap.points.filter(p=>p.z>162).filter(p=>Math.abs((b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x))/Math.hypot(b.x-a.x,b.y-a.y)<.00001).length>=2&&Math.abs(a.z-164.49600219726562)<.00001);assert.ok(edge);const [a,b]=edge;for(const p of out.cap.points.filter(p=>p.z>162&&require('../public/measure/internal/editor_scripts/wall_geometry').onEdge(p,a,b,.00001)))assert.ok(Math.abs(p.z-a.z)<.00001,'wall reaches measured eave exactly');}
+});

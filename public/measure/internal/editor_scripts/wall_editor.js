@@ -280,7 +280,7 @@ window.wallCrossesRoof=function(wall,roof){
   cuts.sort((a,b)=>a-b);for(let i=1;i<cuts.length;i++){const t=(cuts[i-1]+cuts[i])/2,p={x:a.x+dx*t,y:a.y+dy*t};if(cuts[i]-cuts[i-1]>1e-8&&G.contains(f,p)&&!(f.holes||[]).some(points=>G.contains({points},p))&&z(t)>mix(wall.bottom,t)+eps&&z(t)<mix(wall.top,t)-eps)return true;}
  }return false;
 };
-window.findWallRoofSnap=function(wall,amount,roof,radius){
+window.findWallRoofSnap=function(wall,amount,roof,radius,options={}){
  const a=wall.bottom[0],b=wall.bottom[1],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<.005)return null;
 
  const u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};let best=null;
@@ -295,7 +295,7 @@ window.findWallRoofSnap=function(wall,amount,roof,radius){
 
   const heightError=Math.abs((p.z+q.z-wall.top[0].z-wall.top[1].z)/2);
   const bottom=wall.bottom.map(v=>({...v,x:v.x+n.x*offset,y:v.y+n.y*offset})),top=bottom.map(v=>({...v,z:p.z+((v.x-p.x)*dx+(v.y-p.y)*dy)/(l*l)*(q.z-p.z)}));
-  if(window.wallCrossesRoof({bottom,top},roof))continue;
+  if(!options.fitSurface&&window.wallCrossesRoof({bottom,top},roof))continue;
   if(!best||error<best.error-1e-6||Math.abs(error-best.error)<1e-6&&heightError<best.heightError)best={amount:offset,edge:[p,q],error,heightError};
 
  }return best;

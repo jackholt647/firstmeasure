@@ -986,7 +986,7 @@ function perf_moveScene(){
   const n=W.normal(face.points),roof=host.roof?.();if(!roof||!n||Math.abs(n.z)>1e-5||!window.findWallRoofSnap)return null;
   const u={x:n.y,y:-n.x},ts=face.points.map(p=>p.x*u.x+p.y*u.y),lo=Math.min(...ts),hi=Math.max(...ts),ends=[lo,hi].map(t=>face.points.filter((p,i)=>Math.abs(ts[i]-t)<1e-5).sort((a,b)=>b.z-a.z)[0]);
   const bottom=ends.map(p=>({...p,z:Math.min(...face.points.filter(q=>Math.hypot(q.x-p.x,q.y-p.y)<1e-5).map(q=>q.z))}));
-  const target=window.findWallRoofSnap({bottom,top:ends},amount,roof,radius);if(!target)return null;
+  const target=window.findWallRoofSnap({bottom,top:ends},amount,roof,radius,{fitSurface:!!roof.faces?.length});if(!target)return null;
   const [a,b]=target.edge,dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
   const topIds=face.points.map((p,i)=>face.points.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<1e-5&&q.z>p.z+1e-5)?-1:i).filter(i=>i>=0);
   target.topIds=topIds;target.height=p=>{const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;return a.z+t*(b.z-a.z);};
@@ -1530,7 +1530,12 @@ function perf_movePointer(e){if(workingPlane&&!box){mouse=e;if(workingPlane.rota
    if(tool.draftKey&&!tool.wholeDraft)cap=applyFabricMove(tool.scene,tool.face.id,amount);
    else{try{cap=applySolidMove(tool.scene,tool.face.id,amount);if(cap)window.ExteriorModel.validateEdits(edits,tool.before);}catch{edits.$drafts=copy(tool.sceneDrafts);cap=applyFabricMove(tool.scene,tool.face.id,amount);}}
    if(!cap)throw Error('The moved face has no connected result.');
-   if(tool.roofSnap)applyRoofMoves(fitSolidRoof(cap,sides,tool.roofSnap));
+   if(host.roof?.()?.faces?.length){
+    const fitted=W.roofExtrusion(tool.face,amount,{cap:copy(cap),sides:[]},host.roof());
+    const moves=cap.points.flatMap(p=>{const matches=fitted.cap.deleted?[]:fitted.cap.points.filter(q=>Math.hypot(p.x-q.x,p.y-q.y)<.003);if(!matches.length)return [];const z=Math.max(...matches.map(q=>q.z));return p.z>z+.00001?[{from:copy(p),z}]:[];});
+    applyRoofMoves(moves);cap=fitted.cap;
+    const n=W.normal(tool.face.points),origin=cap.points[0];sides=fitted.sides.filter(f=>f.points.every(p=>Math.abs((p.x-origin.x)*n.x+(p.y-origin.y)*n.y+(p.z-origin.z)*n.z)<.00001));
+   }else if(tool.roofSnap)applyRoofMoves(fitSolidRoof(cap,sides,tool.roofSnap));
   }catch(error){
    // A contained region cannot leave its plane without connecting material.
    // Rebuild that operation from the same immutable input used by E.

@@ -464,7 +464,8 @@ function roofExtrusion(source,amount,shape,roof){
  for(const roofFace of roof.faces){
   if(roofFace.deleted||!roofFace.points?.every(K.finite3))continue;
   const rf=K.frame(roofFace),rt=K.triangles(roofFace.points.map(p=>K.local(rf,p)),(roofFace.holes||[]).map(r=>r.map(p=>K.local(rf,p))));
-  for(const ids of rt.triangles){const points=ids.map(i=>K.world(rf,rt.points[i]));let rn=normal(points);if(!rn||Math.abs(rn.z)<K.CONTACT)continue;if(rn.z<0)rn={x:-rn.x,y:-rn.y,z:-rn.z};const roofPlane={n:rn,k:dot(rn,points[0])};
+  const measured=[roofFace.points,...(roofFace.holes||[])].flat().map(p=>({world:p,local:K.local(rf,p)}));
+  for(const ids of rt.triangles){const points=ids.map(i=>{const q=rt.points[i],hit=measured.find(p=>Math.hypot(p.local.x-q.x,p.local.y-q.y)<K.CONTACT);return hit?{...hit.world}:K.world(rf,q);});let rn=normal(points);if(!rn||Math.abs(rn.z)<K.CONTACT)continue;if(rn.z<0)rn={x:-rn.x,y:-rn.y,z:-rn.z};const roofPlane={n:rn,k:dot(rn,points[0])};
    // Use the rendered triangle plane: measured roof polygons need not be exactly
    // coplanar. A whole-polygon plane disagrees with the cutter's side walls.
    if(!source.points.some(p=>dot(rn,p)<roofPlane.k-K.CONTACT))continue;
@@ -478,11 +479,17 @@ function roofExtrusion(source,amount,shape,roof){
    // neighboring roof slopes into a discontinuous crease outside the roof.
    const shifted=points.map(p=>({x:p.x+direction.x*length,y:p.y+direction.y*length,z:p.z})),ceilingPlanes=[{n:rn,k:Math.min(roofPlane.k,dot(rn,shifted[0]))}];
    for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];let en=cross(sub(b,a),direction),size=Math.hypot(en.x,en.y,en.z);if(size<K.CONTACT||Math.abs(en.z)/size<K.CONTACT)continue;if(en.z<0)size=-size;en={x:en.x/size,y:en.y/size,z:en.z/size};const k=dot(en,a);if([...points,...shifted].every(p=>dot(en,p)>=k-K.CONTACT))ceilingPlanes.push({n:en,k});}
-   const planes=[...prismPlanes(boundary,{x:0,y:0,z:1}),...ceilingPlanes];
-   // Broad-phase on the complete sweep, including its normally unsupported sides.
-   if(!sweepShell.some(f=>f.points.some(p=>dot(roofPlane.n,p)>roofPlane.k+K.CONTACT))||!sweepShell.some(f=>volumeSection(f,planes).length))continue;
-   const bounds=[{points:boundary,holes:[],roofContact:true}];for(let i=0;i<boundary.length;i++){const a=boundary[i],b=boundary[(i+1)%boundary.length];if(Math.min(a.z,b.z)<zMax)bounds.push({points:[a,b,{...b,z:zMax},{...a,z:zMax}],holes:[]});}
-   cutters.push({planes,bounds,ceilingPlanes});
+   // Use the actual roof plane under its footprint. Carry a lower limit
+   // forward only outside measured roof coverage, never beneath another facet.
+   const outside=K.difference({points:boundary,holes:[]},roof.faces.filter(f=>!f.deleted));
+   const regions=[{points,ceiling:[roofPlane]},...outside.flatMap(f=>{const t=K.triangles(f.points,f.holes);return t.triangles.map(ids=>({points:ids.map(i=>t.points[i]),ceiling:ceilingPlanes}));})];
+   for(const region of regions){
+    const edge=region.points.map(p=>({...p,z:(roofPlane.k-rn.x*p.x-rn.y*p.y)/rn.z}));
+    const planes=[...prismPlanes(edge,{x:0,y:0,z:1}),...region.ceiling];
+    if(!sweepShell.some(f=>f.points.some(p=>dot(roofPlane.n,p)>roofPlane.k+K.CONTACT))||!sweepShell.some(f=>volumeSection(f,planes).length))continue;
+    const bounds=[{points:edge,holes:[],roofContact:true}];for(let i=0;i<edge.length;i++){const a=edge[i],b=edge[(i+1)%edge.length];if(Math.min(a.z,b.z)<zMax)bounds.push({points:[a,b,{...b,z:zMax},{...a,z:zMax}],holes:[]});}
+    cutters.push({planes,bounds,ceilingPlanes:region.ceiling});
+   }
   }
  }
  if(!cutters.length)return {...shape,sides:exposed(shape.sides)};

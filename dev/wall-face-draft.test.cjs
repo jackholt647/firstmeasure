@@ -1945,3 +1945,15 @@ test('face extrusion carries saved trim, cancels without drift, and static trim 
   f.editor.restoreSelection({selectedSolid:wall.id});f.editor.key({key:'e'});f.editor.distanceInput().set(.3);f.editor.down(f.e(2,2));assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);moved=f.state.wallEdits.$surfaces.find(s=>s.trim);assert.ok(moved.points.every(p=>Math.abs(p.y-(keepTrimStatic?0:.3))<1e-8));
  }
 });
+
+test('M follows a sloped roof continuously and keeps connected walls without extrusion returns',()=>{
+ const p=(x,y,z)=>({x,y,z}),face={id:'moving-roof-wall',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)]},neighbor={id:'neighbor',points:[p(0,0,0),p(0,2,0),p(0,2,3),p(0,0,3)]},roof={faces:[{points:[p(-1,1,4),p(5,1,4),p(5,-2,1),p(-1,-2,1)]}],points:[],connections:[]},state={wallEdits:{$surfaces:[face,neighbor]}},before=JSON.stringify(state.wallEdits),f=fixture({state,roof,walls:[],selected:null,globals:renderGlobals(),screen:p=>({x:(p.x+p.y)*100,y:p.z*100})});
+ f.editor.draw3D({add(){}},p=>p);f.editor.down(f.e(1.3,1.5));f.listeners.pointerup(f.e(1.3,1.5));f.listeners.pointermove(f.e(1.3,1.5));f.editor.key({key:'m'});f.editor.distanceInput().set(-1);
+ const cap=state.wallEdits.$surfaces.find(f=>f.id===face.id);assert.ok(cap.points.every(p=>Math.abs(p.y+1)<1e-5),JSON.stringify({points:cap.points,message:f.message()}));assert.ok(Math.abs(Math.max(...cap.points.map(p=>p.z))-2)<1e-5,f.message());assert.equal(state.wallEdits.$surfaces.filter(f=>!f.deleted).length,2,'move must not add sweep returns');assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='neighbor').points.some(p=>Math.abs(p.y+1)<1e-5&&Math.abs(p.z-2)<1e-5),'neighbor shares the lowered top corner');f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+});
+
+for(const key of ['m','e'])test(`${key.toUpperCase()} snaps the saved inside corner to the finite eave without rejecting its longer wall`,()=>{
+ const input=structuredClone(require('./fixtures/roof-inner-corner.json')),face=input.walls[0],state={wallEdits:{$surfaces:[face]}},before=JSON.stringify(state.wallEdits),f=fixture({state,roof:input.roof,walls:[],selected:null,globals:renderGlobals(),screen:p=>({x:(p.x+p.y)*100,y:p.z*100})}),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),n=W.normal(face.points);
+ f.editor.draw3D({add(){}},p=>p);f.editor.down(f.e(10,10));f.listeners.pointerup(f.e(10,10));f.listeners.pointermove(f.e(10,10));f.editor.key({key});f.listeners.pointermove(f.e(10+(n.x+n.y)*(.4572-.04),10));assert.match(f.message(),/Roof edge snap/);
+ const cap=state.wallEdits.$surfaces.find(p=>p.id===face.id);assert.ok(cap.points.filter(p=>p.z>164).some(p=>Math.abs(p.z-164.49600219726562)<.00001),'cap reaches measured eave');f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+});
