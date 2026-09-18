@@ -1957,3 +1957,24 @@ for(const key of ['m','e'])test(`${key.toUpperCase()} snaps the saved inside cor
  f.editor.draw3D({add(){}},p=>p);f.editor.down(f.e(10,10));f.listeners.pointerup(f.e(10,10));f.listeners.pointermove(f.e(10,10));f.editor.key({key});f.listeners.pointermove(f.e(10+(n.x+n.y)*(.4572-.04),10));assert.match(f.message(),/Roof edge snap/);
  const cap=state.wallEdits.$surfaces.find(p=>p.id===face.id);assert.ok(cap.points.filter(p=>p.z>164).some(p=>Math.abs(p.z-164.49600219726562)<.00001),'cap reaches measured eave');f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
 });
+
+test('shared wall bottom selects the wall for Delete and M while preserving its base',()=>{
+ for(const action of ['Delete','m']){
+  const p=(x,y,z)=>({x,y,z}),wall={id:'wall',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},base={faces:[{id:'base',points:[p(0,0,0),p(4,0,0),p(4,4,0),p(0,4,0)]}]};
+  const calls=[],state={base,wallEdits:{$surfaces:[wall]}},f=fixture({state,walls:[],selected:null,selectBaseEntities:(...a)=>calls.push(a),globals:{isFreeMove:true}}),before=JSON.stringify(state.wallEdits);
+  f.editor.pickLine3D(f.e(2,0));f.listeners.pointerup(f.e(2,0));assert.equal(calls.length,0,'wall boundary takes priority over base');
+  const baseBefore=JSON.stringify(base);f.editor.key({key:action});
+  if(action==='Delete'){assert.ok(state.wallEdits.$surfaces[0].deleted);assert.equal(f.history.length,1);f.editor.pickLine3D(f.e(2,0));f.listeners.pointerup(f.e(2,0));assert.equal(calls.length,1,'remaining edge belongs to base');}
+  else{assert.equal(f.editor.interaction(),'Move line');f.listeners.pointermove(f.e(2,1));assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='wall').points.slice(0,2).every(p=>p.z===1),f.message());assert.ok(!state.wallEdits.$base);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);}
+  assert.equal(JSON.stringify(base),baseBefore);
+ }
+});
+test('three selected wall bottoms lift together without moving or warping the base',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),p=(x,y,z)=>({x,y,z}),ring=[p(0,0,0),p(4,0,0),p(4,4,0),p(0,4,0)],faces=ring.slice(0,3).map((a,i)=>({id:'wall'+i,points:[a,ring[i+1],{...ring[i+1],z:3},{...a,z:3}]})),state={base:{faces:[{id:'base',points:ring}]},wallEdits:{$surfaces:faces}};
+ const screen=p=>({x:(p.x+.3*p.y)*100,y:(p.z+.2*p.y)*100});
+ const f=fixture({state,walls:[],selected:null,screen,selectBaseEntities:()=>assert.fail('wall routed to base'),globals:{isFreeMove:true},projectPoint:(d,e)=>{const a={x:e.clientX/100,y:0,z:e.clientY/100},v={x:-.3,y:1,z:-.2},n=d.frame.n,o=d.frame.origin,t=((o.x-a.x)*n.x+(o.y-a.y)*n.y+(o.z-a.z)*n.z)/(v.x*n.x+v.y*n.y+v.z*n.z);return W.inFrame(d.frame,{x:a.x+t*v.x,y:t,z:a.z+t*v.z});}});
+ for(let i=0;i<3;i++){const q=screen({x:(ring[i].x+ring[i+1].x)/2,y:(ring[i].y+ring[i+1].y)/2,z:0}),e=f.e(q.x/100,q.y/100,i>0);f.editor.pickLine3D(e);f.listeners.pointerup(e);}
+ const before=JSON.stringify(state.wallEdits),baseBefore=JSON.stringify(state.base);f.editor.key({key:'m'});
+ let success=false;for(let i=0;i<4;i++){if(i)f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.6,1.8));const live=state.wallEdits.$surfaces.filter(f=>!f.deleted);if(live.length===3&&live.every(f=>f.points.slice(0,2).every(p=>p.z>.01))){success=true;break;}}
+ assert.ok(success,f.message());assert.ok(!state.wallEdits.$base);assert.equal(JSON.stringify(state.base),baseBefore);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+});
