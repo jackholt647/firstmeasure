@@ -15,7 +15,53 @@ function breaks(a,b,rings){const v=sub(b,a),l2=v.x*v.x+v.y*v.y,ts=[0,1];if(l2<EP
  for(const ring of rings)for(let i=0;i<ring.length;i++){const c=ring[i],d=ring[(i+1)%ring.length],w=sub(d,c),q=sub(c,a),den=cross(v,w);if(Math.abs(den)>EPS){const t=cross(q,w)/den,u=cross(q,v)/den;if(t>EPS&&t<1-EPS&&u>=-EPS&&u<=1+EPS)ts.push(t);}else if(Math.abs(cross(q,v))<EPS*Math.sqrt(l2)){for(const p of [c,d]){const t=((p.x-a.x)*v.x+(p.y-a.y)*v.y)/l2;if(t>EPS&&t<1-EPS)ts.push(t);}}}
  return ts.sort((a,b)=>a-b).filter((t,i,all)=>!i||t-all[i-1]>EPS);
 }
-function detect(roof){
+// Height inference is a generation-time operation; only its result is saved.
+// Do not clamp off-image samples to an edge pixel or turn missing data into zero.
+function heightSampler(data,ctx,origin=ctx){
+ if(!ctx||!origin||!(ctx.mpp>0)||!Number.isInteger(ctx.width)||!Number.isInteger(ctx.height)||!data||data.length!==ctx.width*ctx.height)return null;
+ const dx=((origin.lng||0)-(ctx.lng||0))*111132*Math.cos((ctx.lat||0)*Math.PI/180),dy=((ctx.lat||0)-(origin.lat||0))*111132;
+ return p=>{const x=Math.round(ctx.width/2+(p.x+dx)/ctx.mpp),y=Math.round(ctx.height/2+(p.y+dy)/ctx.mpp);if(x<0||y<0||x>=ctx.width||y>=ctx.height)return null;const z=data[y*ctx.width+x];return Number.isFinite(z)&&z>-9000&&z<9000?z:null;};
+}
+function heightExtension(roof,path,options){
+ const {sampleHeight,resolution}=options;
+ if(typeof sampleHeight!=='function'||!Number.isFinite(resolution)||resolution<=0)return null;
+ const [a,b,c,d]=path,depth=dist(a,b),width=dist(b,c),step=Math.max(.025,resolution),out={x:(a.x-b.x)/depth,y:(a.y-b.y)/depth};
+ // A coarse raster cannot resolve this footprint reliably.
+ if(depth<2*step||width<3*step)return null;
+ const edgeDistance=(p,ring)=>Math.min(...ring.map((a,i)=>{const b=ring[(i+1)%ring.length],v=sub(b,a),l2=v.x*v.x+v.y*v.y,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*v.x+(p.y-a.y)*v.y)/l2)):0;return dist(p,mix(a,b,t));}));
+ // Adjacent roof planes supply the pitched reference, including at a ridge.
+ // Unrelated overlapping roof faces must not supply the chimney's baseline.
+ const faces=(roof.faces||[]).map(f=>({f,plane:G.plane(f.points)})).filter(({f,plane})=>plane&&path.filter(p=>edgeDistance(p,f.points)<.03&&Math.abs(p.z-(plane.dx*p.x+plane.dy*p.y+plane.k))<.15).length>=2);
+ if(!faces.length)return null;
+ const roofHeight=p=>{let best=null;for(const v of faces){const distance=contains(v.f,p)?0:edgeDistance(p,v.f.points);if(!best||distance<best.distance)best={...v,distance};}return best.plane.dx*p.x+best.plane.dy*p.y+best.plane.k;};
+ const median=values=>{const sorted=[...values].sort((a,b)=>a-b),i=Math.floor(sorted.length/2);return sorted.length%2?sorted[i]:(sorted[i-1]+sorted[i])/2;};
+ const edges=[],limit=Math.min(6,Math.max(1.5,3*depth,1.5*width));
+ for(const u of [.2,.35,.5,.65,.8]){
+  const start=mix(a,d,u),point=t=>({x:start.x+out.x*t,y:start.y+out.y*t});
+  const residual=t=>{const p=point(t),z=sampleHeight(p);return Number.isFinite(z)&&z>-9000&&z<9000?z-roofHeight(p):null;};
+  const seed=[.25,.5,.75].map(t=>residual(-depth*t));
+  if(seed.some(z=>z===null))continue;
+  const signal=median(seed);if(signal<.25)continue;
+  const threshold=Math.max(.12,Math.min(.3,signal*.3));
+  let previous=null,drop=null,lows=0;
+  for(let t=-depth/2;t<=limit;t+=step){
+   const value=residual(t);if(value===null)break; // No bridging missing data.
+   if(value>threshold){previous={t,value};drop=null;lows=0;continue;}
+   if(!previous)break;
+   if(drop===null)drop=previous.t+(t-previous.t)*(previous.value-threshold)/(previous.value-value);
+   if(++lows>=Math.max(2,Math.ceil(.15/step))){edges.push(drop);break;}
+  }
+ }
+ if(edges.length<3)return null;
+ const measured=median(edges),agreement=Math.max(.15,2*step),consistent=edges.filter(t=>Math.abs(t-measured)<=agreement);
+ if(consistent.length<3)return null;
+ const distance=median(consistent),snapTolerance=Math.min(.3,Math.max(.1,2*resolution));
+ // The open ends are the measured roof crossing. Never shorten the known
+ // interior; an edge within raster uncertainty is snapped to that crossing.
+ if(distance< -snapTolerance)return null;
+ return {method:'height-map',distance:Math.abs(distance)<=snapTolerance?0:distance,measuredDistance:distance,snappedToRoof:Math.abs(distance)<=snapTolerance,resolution,rays:consistent.length};
+}
+function detect(roof,options={}){
  const nodes=[],edges=[],warnings=[],seen=new Set();
  const node=p=>{let i=nodes.findIndex(q=>dist(p,q.p)<.002);if(i<0){i=nodes.length;nodes.push({p:{...p},edges:[]});}return i;};
  for(let i=0;i<(roof?.connections||[]).length;i++){const e=roof.connections[i];if(!TYPES.has(e.type))continue;const p=roof.points[e.startIdx],q=roof.points[e.endIdx];if(!p||!q||![p.x,p.y,p.z,q.x,q.y,q.z].every(Number.isFinite)||dist(p,q)<.002)continue;const a=node(p),b=node(q),key=[a,b].sort((a,b)=>a-b).join(':');if(seen.has(key))continue;seen.add(key);const index=edges.length;edges.push({a,b,index:i});nodes[a].edges.push(index);nodes[b].edges.push(index);}
@@ -25,17 +71,18 @@ function detect(roof){
   if([...vertices].some(n=>nodes[n].edges.length>2)||(!closed&&ends.length!==2)){warnings.push('A branched chimney outline needs a closed outline or three connected rectangle sides.');continue;}
   let n=ends[0]??[...vertices][0],previous=-1;const path=[];
   for(let i=0;i<=component.length;i++){path.push(nodes[n].p);const next=nodes[n].edges.find(e=>e!==previous);if(next===undefined)break;const edge=edges[next];previous=next;n=edge.a===n?edge.b:edge.a;if(closed&&n===[...vertices][0])break;}
-  let points=clean(path,closed),inferred=false,roofCrossing=null;
+  let points=clean(path,closed),inferred=false,roofCrossing=null,extension=null;
   if(!closed){
    if(points.length!==4){warnings.push('An open chimney needs three rectangle sides before its outside half can be inferred.');continue;}
    const [a,b,c,d]=points,u=sub(c,b),v=sub(a,b),w=sub(d,c),lu=dist(b,c),lv=dist(a,b),lw=dist(c,d);
    if(Math.min(lu,lv,lw)<.02||Math.abs(u.x*v.x+u.y*v.y)>lu*lv*.03||Math.abs(cross(v,w))>lv*lw*.03||v.x*w.x+v.y*w.y<=0||Math.abs(lv-lw)>Math.max(.03,lv*.05)){warnings.push('The open chimney is not rectangular; its missing side was not guessed.');continue;}
-   // The two open ends are the roof crossing, halfway from the back to the front.
-   const depth={x:(v.x+w.x)/2,y:(v.y+w.y)/2};roofCrossing={a:{...a},b:{...d},outward:depth,plane:G.plane(points)};points=[b,c,{x:c.x+2*depth.x,y:c.y+2*depth.y,z:d.z},{x:b.x+2*depth.x,y:b.y+2*depth.y,z:a.z}];inferred=true;
+   // Without a reliable height drop, retain the established mirrored fallback.
+   const depth={x:(v.x+w.x)/2,y:(v.y+w.y)/2};extension=heightExtension(roof,points,options);const scale=extension?extension.distance/Math.hypot(depth.x,depth.y):1;
+   roofCrossing={a:{...a},b:{...d},outward:depth,plane:G.plane(points)};points=extension?[b,c,{x:d.x+scale*depth.x,y:d.y+scale*depth.y,z:d.z},{x:a.x+scale*depth.x,y:a.y+scale*depth.y,z:a.z}]:[b,c,{x:c.x+2*depth.x,y:c.y+2*depth.y,z:d.z},{x:b.x+2*depth.x,y:b.y+2*depth.y,z:a.z}];inferred=true;
   }
   if(points.length<3||Math.abs(area(points))<.0004||!convex(points)){warnings.push('A chimney outline must enclose a simple convex footprint.');continue;}
   if(area(points)<0)points.reverse();
-  chimneys.push({id:'roof-chimney-'+component.map(i=>edges[i].index).sort((a,b)=>a-b).join('-'),points:copy(points),inferred,roofCrossing,sourceConnections:component.map(i=>edges[i].index).sort((a,b)=>a-b)});
+  chimneys.push({id:'roof-chimney-'+component.map(i=>edges[i].index).sort((a,b)=>a-b).join('-'),points:copy(points),inferred,roofCrossing,...(extension?{extension}:{}),sourceConnections:component.map(i=>edges[i].index).sort((a,b)=>a-b)});
  }
  return {version:1,items:chimneys,warnings};
 }
@@ -328,5 +375,5 @@ function visibleSegments(a,b,state,chimney,joinedChimneys=[]){
  const cuts=[];for(const c of cs)for(let [lo,hi]of volumeIntervals(a,b,c)){const p=mix(a,b,lo),q=mix(a,b,hi),da=p.z-occlusionHeight(c,p,state),db=q.z-occlusionHeight(c,q,state);if(da>EPS&&db>EPS)continue;if(da>EPS)lo=lo+(hi-lo)*da/(da-db);else if(db>EPS)hi=lo+(hi-lo)*da/(da-db);cuts.push([lo,hi]);}
  cuts.sort((a,b)=>a[0]-b[0]);let start=0;const out=[];for(const [lo,hi]of [...cuts,[1,1]]){if(lo-start>EPS)out.push([mix(a,b,start),mix(a,b,lo)]);start=Math.max(start,hi);}return out;
 }
-const api={preserveFilledFace,alignRoofContacts,syncVolumes,roofWithOpenings,buildingBase,syncFoundation,normalizeDrafts,capHeight,visibleSegments,visibleParts,COLOR,detect,definitions,compose,moveSide,floorAt,intervals};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallChimneys=api;
+const api={heightSampler,preserveFilledFace,alignRoofContacts,syncVolumes,roofWithOpenings,buildingBase,syncFoundation,normalizeDrafts,capHeight,visibleSegments,visibleParts,COLOR,detect,definitions,compose,moveSide,floorAt,intervals};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallChimneys=api;
 })(typeof window!=='undefined'?window:globalThis);

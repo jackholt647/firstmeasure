@@ -96,7 +96,13 @@
         if(key!==baseTerrainKey){baseTerrainKey=key;baseTerrainCache=BaseGeometry.terrain(state.wallEdits?.$base||state.base);}
         return baseTerrainCache;
     }
-    function initializeBase(){
+    function initializeChimneys(useHeight=false){
+        if(!state||state.chimneys||!window.WallChimneys)return;
+        const ctx=currentContext(),sampleHeight=useHeight?WallChimneys.heightSampler(layerData.dsm?.[0],ctx,state.context):null;
+        state.chimneys=WallChimneys.detect(state.roof,{sampleHeight,resolution:ctx.mpp});
+    }
+    function initializeBase(useHeight=false){
+        initializeChimneys(useHeight);
         if(state&&!state.base&&window.BaseGeometry){
             const extruded=G.extrude(state.roof,state.sources,state.ground).walls;
             let walls=window.WallGaps.repair(G.deduplicate(extruded,state.options.tolerance).walls,state.ground).walls;
@@ -104,7 +110,7 @@
             // fallback. Trace its cleaned outline before making the base, or
             // that fallback clips away the very walls the envelope recovered.
             if((state.sources.some(s=>s.outerEnvelope)||Number.isFinite(Number(state.options.soffit))||Number.isFinite(state.options.defaultSoffitInches))&&window.WallRakeCleanup)walls=WallRakeCleanup.cleanup(G.mergeCoplanar(walls).walls,state.sources,state.ground).walls;
-            state.base=BaseGeometry.fromRoof(state.roof,state.ground,walls,Number(state.options.soffit==='auto'?state.options.defaultSoffitInches??0:state.options.soffit)*G.INCH);invalidateWalls();
+            state.base=BaseGeometry.fromRoof(state.roof,state.ground,walls,Number(state.options.soffit==='auto'?state.options.defaultSoffitInches??0:state.options.soffit)*G.INCH,state.chimneys);invalidateWalls();
         }
     }
     const copy=v=>JSON.parse(JSON.stringify(v));
@@ -184,7 +190,6 @@
         if(next>=6&&state.cleanedWalls&&state.cleanedBase&&!state.baseCleanupApplied){state.base=state.cleanedBase;state.baseCleanupApplied=true;baseTerrainKey='';}
         if(next>=7&&state.alignedWalls&&state.alignedBase&&!state.baseAlignmentApplied){state.base=state.alignedBase;state.baseAlignmentApplied=true;baseTerrainKey='';}
         initializeBase();
-        if(window.WallChimneys&&!state.chimneys)state.chimneys=WallChimneys.detect(state.roof);
         window.BaseSketchGeometry?.upgrade(state.wallEdits?.$base||state.base);
         window.WallChimneys?.syncFoundation(state);
         if(next>=2){window.WallChimneys?.syncVolumes(state);window.WallChimneys?.syncFoundation(state);}
@@ -277,7 +282,7 @@
             state={schemaVersion:1,engineVersion:ENGINE,...captured,roofSignature:signature,options,sources:r.sources,warnings:r.warnings,savedAt:Date.now(),ground,groundCandidates,base,wallCenters,translucent,displayMode,boundExtrusionToRoof,undoSelections,wallTrimWidthInches,roofTrim,finishDefaults};
             initializeGround();
             if(!ground&&groundEditor){try{state.ground=groundEditor.fitDSM();}catch(e){state.warnings.push(`Ground: ${e.message} Flat fallback retained.`);}}
-            initializeBase();
+            initializeBase(true);
             sourceContext=state.context;projectId=currentId();calculateStage(7);stage=7;selected=null;menu.hidden=true;document.getElementById('wall-auto').setAttribute('aria-expanded','false');
             details.textContent='';persist();render();
             if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;}editFuture=[];return true;

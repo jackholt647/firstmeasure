@@ -61,9 +61,9 @@ function insetRoof(roof,setback){
  const result=[];offset.Execute(result,-setback*scale);
  return result.map(path=>path.map(p=>({x:p.X/scale,y:p.Y/scale})));
 }
-function fromRoof(roof,grade,walls=[],setback=0){
+function fromRoof(roof,grade,walls=[],setback=0,chimneys=null){
  const C=typeof module==='object'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;
- const occluders=C?.detect(roof)?.items||[];
+ const occluders=chimneys?.items||C?.detect(roof)?.items||[];
  const plane=G.plane(grade.points),traced=wallLoops(walls,grade,occluders);
  // A small closed dormer loop must not stand in for an open main perimeter.
  const complete=traced.length&&coversWalls(traced,groundWalls(walls,grade));

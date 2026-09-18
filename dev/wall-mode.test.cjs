@@ -5,6 +5,20 @@ const fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js');
 
 // Exercise the actual UI handlers and persistence without imagery or a WebGL context.
+test('From Roof resolves chimney heights once, shares them with the base, and preserves them on reload',()=>{
+ const C=require('../public/measure/internal/editor_scripts/wall_chimneys'),B=require('../public/measure/internal/editor_scripts/base_geometry'),captured=require('./fixtures/stepped-eave-chimney.json'),crop=require('./fixtures/chimney-height-crop.json');
+ const width=1195,height=1201,mpp=.1,data=new Float32Array(width*height).fill(-9999);
+ for(let y=0;y<crop.height;y++)for(let x=0;x<crop.width;x++)data[Math.round(height/2+crop.y0/mpp+y)*width+Math.round(width/2+crop.x0/mpp+x)]=crop.data[y*crop.width+x];
+ const toPixel=p=>({...p,x:width/2+p.x/mpp,y:height/2+p.y/mpp}),points=captured.roof.points.map(toPixel);
+ const activeGeometry={points,connections:captured.roof.connections.map(c=>({start:points[c.startIdx],end:points[c.endIdx],type:c.type})),manualFaces:captured.roof.faces.map(f=>({...f,points:f.points.map(toPixel),holes:(f.holes||[]).map(r=>r.map(toPixel))}))};
+ let detections=0,baseChimneys;
+ const f=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,layerData:{dsm:[data]},activeGeometry,WallChimneys:{...C,detect(...args){detections++;return C.detect(...args);}},BaseGeometry:{...B,fromRoof(...args){baseChimneys=args[4];return B.fromRoof(...args);}}});
+ f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();const saved=f.ctx.WallMode.serialize();
+ assert.equal(detections,1);assert.equal(saved.chimneys.items[0].extension.rays,5);assert.equal(baseChimneys.items[0].extension.distance,saved.chimneys.items[0].extension.distance);
+ f.stages[1].onclick();f.stages[6].onclick();assert.equal(detections,1,'stage changes reuse the inferred footprint');
+ const fresh=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
+ assert.equal(fresh.ctx.WallMode.serialize().chimneys.items[0].extension.distance,saved.chimneys.items[0].extension.distance,'saved inference survives without a loaded height map');
+});
 function fixture(withBase=false,editors={}){
     const elements=new Map(),listeners={},storage=new Map(),timers=new Map();let timerId=0;
     const el=(id='')=>({id,hidden:false,disabled:false,value:'',textContent:'',dataset:{},style:{},
