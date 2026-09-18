@@ -104,3 +104,10 @@ test('an overlap seam needs the measured return chain; zero setback keeps the me
  for(const p of face.points)p.x+=.1;
  assert.ok(!G.buildSources(shifted,{soffit:12}).sources.some(s=>s.overlapSeam));
 });
+
+for(const size of [2.4,12,18,24])test(`saved inside corner shares exact wall and base vertices at ${size} inches`,()=>{
+ const r=build(size,require('./fixtures/skewed-flashing-junction.json')),a=r.clean.walls.find(w=>w.sourceId==='R2.0'),b=r.clean.walls.find(w=>w.sourceId==='R7.0');
+ assert.deepEqual(a.bottom[1],b.bottom[0]);assert.deepEqual(a.top[1],b.top[0]);
+ const nearby=r.state.base.faces.flatMap(f=>f.points).filter(p=>Math.hypot(p.x-a.bottom[1].x,p.y-a.bottom[1].y)<.005);
+ assert.ok(nearby.length);for(const p of nearby)assert.ok(Math.hypot(p.x-a.bottom[1].x,p.y-a.bottom[1].y,p.z-a.bottom[1].z)<1e-6,'base uses the same corner');
+});

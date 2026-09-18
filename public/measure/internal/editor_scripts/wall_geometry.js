@@ -398,7 +398,7 @@
                 const ta={...a,z:targetHeight(a)},tb={...b,z:targetHeight(b)};
                 if(s.direction==='down' && m.z<=floor+.02)continue;
                 const bottom=s.direction==='up'?[a,b]:[ta,tb],top=s.direction==='up'?[ta,tb]:[a,b];
-                walls.push({id:`${s.id}:${i}`,sourceId:s.id,...(s.parentId!==undefined?{sourceRoofId:s.parentId}:{}),kind:s.kind,type:s.type,bottom,top,targetId:target?.id??'ground'});
+                walls.push({id:`${s.id}:${i}`,sourceId:s.id,...(s.originalA&&s.originalB?{roofCorners:[distance(a,s.a)<.005?clone(s.originalA):null,distance(b,s.b)<.005?clone(s.originalB):null]}:{}),...(s.parentId!==undefined?{sourceRoofId:s.parentId}:{}),kind:s.kind,type:s.type,bottom,top,targetId:target?.id??'ground'});
             }
             if(missed)warnings.push(`${s.id}: no upper roof over part or all of flashing; that span was skipped.`);
             if(uncovered)warnings.push(`${s.id}: wall extends outside the ground faces; enlarge the ground layer to cover it.`);
@@ -420,10 +420,10 @@
                     const other=result[i];
                     if(other.kind!==w.kind)continue;
                     for(const reverse of [false,true]){
-                        const b=reverse?{...w,bottom:[...w.bottom].reverse(),top:[...w.top].reverse()}:w;
+                        const b=reverse?{...w,bottom:[...w.bottom].reverse(),top:[...w.top].reverse(),...(w.roofCorners?{roofCorners:[...w.roofCorners].reverse()}:{})}:w;
                         for(const [left,right] of [[other,b],[b,other]]){
                             if(!['bottom','top'].every(edge=>near(left[edge][1],right[edge][0])&&straight(left[edge][0],left[edge][1],right[edge][1])))continue;
-                            w={...left,bottom:[left.bottom[0],right.bottom[1]],top:[left.top[0],right.top[1]],sourceIds:[...new Set([...(left.sourceIds||[left.sourceId]),...(right.sourceIds||[right.sourceId])])]};
+                            w={...left,...(left.roofCorners||right.roofCorners?{roofCorners:[left.roofCorners?.[0]||null,right.roofCorners?.[1]||null]}:{}),bottom:[left.bottom[0],right.bottom[1]],top:[left.top[0],right.top[1]],sourceIds:[...new Set([...(left.sourceIds||[left.sourceId]),...(right.sourceIds||[right.sourceId])])]};
                             result.splice(i,1);merged=true;break;
                         }
                         if(merged)break;
@@ -435,7 +435,7 @@
         }
         return result;
     }
-    function sliceWall(w,t0,t1) {return {...w,bottom:[mix(...w.bottom,t0),mix(...w.bottom,t1)],top:[mix(...w.top,t0),mix(...w.top,t1)]};}
+    function sliceWall(w,t0,t1) {return {...w,...(w.roofCorners?{roofCorners:[t0<EPS?w.roofCorners[0]:null,t1>1-EPS?w.roofCorners[1]:null]}:{}),bottom:[mix(...w.bottom,t0),mix(...w.bottom,t1)],top:[mix(...w.top,t0),mix(...w.top,t1)]};}
     // A flashing source may continue beneath overlapping roof planes beyond
     // the inset exterior corner. Trim only a short, unconnected terminal tail
     // whose upper edge meets the crossing perimeter's upper edge.
@@ -599,10 +599,17 @@
         const result=clone(walls),groups=[];
         for(const w of result)for(let i=0;i<2;i++){
             const bottom=w.bottom[i],top=w.top[i];
-            const group=groups.find(g=>!g.some(c=>c.w===w)&&g.every(c=>distance(c.bottom,bottom)<=.005&&Math.abs(c.bottom.z-bottom.z)<=.01&&Math.abs(c.top.z-top.z)<=.01));
+            const group=groups.find(g=>!g.some(c=>c.w===w)&&g.every(c=>distance(c.bottom,bottom)<=.005&&Math.abs(c.bottom.z-bottom.z)<=.01));
             const column={w,i,bottom,top};if(group)group.push(column);else groups.push([column]);
         }
-        for(const g of groups)if(g.length>1){const anchor=g[0].bottom,lo=Math.min(...g.map(c=>c.bottom.z)),hi=Math.min(...g.map(c=>c.top.z));for(const c of g){Object.assign(c.bottom,{x:anchor.x,y:anchor.y,z:lo});Object.assign(c.top,{x:anchor.x,y:anchor.y,z:hi});}}
+        for(const g of groups)if(g.length>1){
+            const anchor=g[0].bottom,lo=Math.min(...g.map(c=>c.bottom.z)),tops=[];
+            // Floor junction ownership does not depend on matching roof heights.
+            // Reconcile small fitted-roof discrepancies separately, keeping real
+            // stepped upper edges and their vertical connecting segments.
+            for(const c of g){Object.assign(c.bottom,{x:anchor.x,y:anchor.y,z:lo});Object.assign(c.top,{x:anchor.x,y:anchor.y});const cluster=tops.find(t=>t.every(v=>Math.abs(v.top.z-c.top.z)<=(v.w.roofCorners?.[v.i]&&c.w.roofCorners?.[c.i]&&Math.hypot(v.w.roofCorners[v.i].x-c.w.roofCorners[c.i].x,v.w.roofCorners[v.i].y-c.w.roofCorners[c.i].y,v.w.roofCorners[v.i].z-c.w.roofCorners[c.i].z)<.01?.05:.01)));if(cluster)cluster.push(c);else tops.push([c]);}
+            for(const cluster of tops){const z=Math.min(...cluster.map(c=>c.top.z));for(const c of cluster)c.top.z=z;}
+        }
         // A tapered flashing strip can end a few millimetres above its lower
         // roof seam after plane fitting. Collapse only that terminal sliver,
         // not short wall edges or two nearby corners in the floor plan.

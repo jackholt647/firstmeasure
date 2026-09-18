@@ -38,3 +38,13 @@ test('only sub-5mm tapered flashing tips collapse, not intentional wall corners'
   assert.equal(result.top[1].z,collapse?2:2+tip);assert.equal(wall.top[1].z,2+tip);
  }
 });
+
+test('generated floor corners weld even when fitted roof heights differ',()=>{
+ const a=w('a',0,4,0,3),b={...w('b',0,4,0,3.023),bottom:[{x:4.003,y:0,z:0},{x:4.003,y:4,z:0}],top:[{x:4.003,y:0,z:3.023},{x:4.003,y:4,z:3.023}]};
+ a.roofCorners=[null,{x:4,y:0,z:3}];b.roofCorners=[{x:4,y:0,z:3},null];
+ const before=JSON.stringify([a,b]),r=G.deduplicate([a,b]).walls;
+ assert.deepEqual(r[0].bottom[1],r[1].bottom[0]);assert.deepEqual(r[0].top[1],r[1].top[0]);assert.equal(JSON.stringify([a,b]),before);
+ const stepped=structuredClone(b);stepped.top[0].z=3.1;
+ const next=G.deduplicate([a,stepped]).walls;assert.deepEqual(next[0].bottom[1],next[1].bottom[0]);assert.equal(next[1].top[0].z,3.1,'real roof step remains');
+ const floor=structuredClone(b);floor.bottom.forEach(p=>p.z=.1);const separate=G.deduplicate([a,floor]).walls;assert.equal(separate[1].bottom[0].z,.1,'real floor step remains');
+});
