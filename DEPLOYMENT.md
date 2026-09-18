@@ -2,6 +2,8 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 18 development: [Height-map chimney extensions](deploy/digitalocean/development-chimney-height-20260918.md) records `8e062a062f871e8d9a56a939800f9e5e45d3c8b3` on all three development roles. Open chimney notches use a sustained DSM height drop to infer their outer edge during From Roof generation, snapping near the roof crossing. Saved geometry and closed outlines are preserved. Three browser files changed; experimental access and production are unchanged.
+
 September 18 development: [Soffit cleanup and foundation outlines](deploy/digitalocean/development-soffit-foundation-20260918.md) records `1bb13aee8795eb2ef8ea872541e2ac30eb5a385b` on all three development roles. Foundations follow cleaned inset wall outlines; collapsed roof returns and chimney-covered gaps close correctly. The previous soffit-overlap fix is included. Four browser geometry files changed; experimental access and production are unchanged.
 
 September 16 development follow-up: [Rendered exterior preview](deploy/digitalocean/development-rendered-preview-20260916.md)
