@@ -69,19 +69,19 @@ test('the deeper-soffit transition is stable under rotation and roof-face orderi
 for(const angle of [0,.71,2.1])test(`nearby wall corners retain their repaired strip after foundation tracing at ${angle}`,()=>{
  const f=structuredClone(require('./fixtures/nearby-wall-corners.json')),rotate=p=>{const x=p.x,y=p.y;p.x=x*Math.cos(angle)-y*Math.sin(angle);p.y=x*Math.sin(angle)+y*Math.cos(angle);};
  f.roof.points.forEach(rotate);f.roof.faces.forEach(face=>face.points.forEach(rotate));f.ground.points.forEach(rotate);
- const before=JSON.stringify(f),r=build('auto',f);assert.equal(r.state.base.source,'Wall perimeter');assert.ok(r.raw.some(w=>w.kind==='gap-repair'));assert.ok(r.composed.some(w=>w.kind==='gap-repair'),'the repaired wall survives the base-bound generation');assert.equal(D.detect(r.composed,f.ground).length,0);assert.equal(JSON.stringify(f),before);
+ const before=JSON.stringify(f),r=build('auto',f);assert.equal(r.state.base.source,'Wall perimeter');if(r.raw.some(w=>w.kind==='gap-repair'))assert.ok(r.composed.some(w=>w.kind==='gap-repair'),'the repaired wall survives the base-bound generation');else assert.ok(r.sources.some(s=>s.overlapSeam),'the overlap is resolved before gap repair');assert.equal(D.detect(r.composed,f.ground).length,0);assert.equal(JSON.stringify(f),before);
  for(const w of r.raw.filter(w=>w.kind==='gap-repair'))for(const p of [...w.bottom,{x:(w.bottom[0].x+w.bottom[1].x)/2,y:(w.bottom[0].y+w.bottom[1].y)/2}])assert.ok(C.buildingBase(r.state).some(face=>G.contains(face,p)),'base covers the actual repaired wall, not a snapped approximation');
 });
 
-for(const angle of [0,.71,2.1])test(`millimetre flashing drift merges into one wall without hidden duplicate seams at ${angle}`,()=>{
+for(const size of [2.4,12,18,24])for(const angle of [0,.71,2.1])test(`overlapping roof edges remain one wall at ${size} inches and rotation ${angle}`,()=>{
  const f=structuredClone(require('./fixtures/skewed-flashing-junction.json'));
  const rotate=p=>{const x=p.x,y=p.y;p.x=x*Math.cos(angle)-y*Math.sin(angle);p.y=x*Math.sin(angle)+y*Math.cos(angle);};
  f.roof.points.forEach(rotate);f.roof.faces.forEach(face=>face.points.forEach(rotate));f.ground.points.forEach(rotate);
- const before=JSON.stringify(f),r=build('auto',f),walls=r.clean.walls;
+ const before=JSON.stringify(f),r=build(size,f),walls=r.clean.walls;
  const members=walls.filter(w=>['R11.0','R25.0','R29'].includes(w.sourceId)||w.kind==='gap-repair');
  assert.equal(new Set(members.map(w=>w.mergeGroup)).size,1);assert.ok(members[0].mergeGroup);
  const geo=G.topology(members);assert.equal(geo.faces.length,1,'one selectable face, no overlapping selectable strip');
- const flashing=members.find(w=>w.sourceId==='R29');assert.deepEqual(flashing.top[1],flashing.bottom[1],'tapered flashing tip has one exact vertex');
+ assert.ok(!r.sources.some(s=>/^(R26|R28|R29)(\.|$)/.test(s.id)),'embedded return chain is removed before inset');
  const corners=members.flatMap(w=>w.bottom),axis=walls.find(w=>w.sourceId==='R11.0').bottom;
  const len=Math.hypot(axis[1].x-axis[0].x,axis[1].y-axis[0].y);
  const along=p=>((p.x-axis[0].x)*(axis[1].x-axis[0].x)+(p.y-axis[0].y)*(axis[1].y-axis[0].y))/len;
@@ -92,4 +92,15 @@ for(const angle of [0,.71,2.1])test(`millimetre flashing drift merges into one w
  }
  assert.equal(walls.find(w=>w.sourceId==='R3.0').mergeGroup,walls.find(w=>w.sourceId==='R4.0').mergeGroup,'neighboring gable remains coplanar');
  assert.equal(JSON.stringify(f),before);assert.equal(D.detect(r.composed,f.ground).length,0);
+});
+
+test('an overlap seam needs the measured return chain; zero setback keeps the measured outline',()=>{
+ const fixture=require('./fixtures/skewed-flashing-junction.json'),without=structuredClone(fixture.roof);
+ without.connections=without.connections.filter(c=>!['head_wall','side_wall'].includes(c.type));
+ assert.ok(!G.buildSources(without,{soffit:12}).sources.some(s=>s.overlapSeam));
+ assert.ok(!G.buildSources(fixture.roof,{soffit:0}).sources.some(s=>s.overlapSeam));
+ const shifted=structuredClone(fixture.roof),face=shifted.faces.find(f=>f.id===3);
+ // A distinctly different exterior plane must not be flattened as survey drift.
+ for(const p of face.points)p.x+=.1;
+ assert.ok(!G.buildSources(shifted,{soffit:12}).sources.some(s=>s.overlapSeam));
 });

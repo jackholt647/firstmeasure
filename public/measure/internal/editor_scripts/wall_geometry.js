@@ -119,6 +119,46 @@
             const shifted=p=>{const q={x:p.x+n.x*setback,y:p.y+n.y*setback};return {...q,z:height({plane:sourcePlane},q)};};
             sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(inferred?{setbackFrom:inferred.sourceIds}:{})});
         }
+        // A short return/flashing/return chain inside two overlapping exterior
+        // edges is an overlap seam, not a recess in the building. Resolve it
+        // from measured roof edges before inset miters can invert the chain.
+        const seamRemoved=new Set();
+        const perimeterPairs=sources.filter(s=>s.kind==='perimeter'&&s.setback>0);
+        for(let i=0;i<perimeterPairs.length;i++)for(let j=i+1;j<perimeterPairs.length;j++){
+            const a=perimeterPairs[i],b=perimeterPairs[j],la=distance(a.originalA,a.originalB),lb=distance(b.originalA,b.originalB);
+            if(a.parentId===b.parentId||Math.min(la,lb)<2)continue;
+            const u=sub(a.originalB,a.originalA),v=sub(b.originalB,b.originalA);
+            if(Math.abs(cross(u,v))/(la*lb)>.01||[b.originalA,b.originalB].some(p=>Math.abs(cross(sub(p,a.originalA),u))/la>.0254))continue;
+            const na=normalFor(faces.find(f=>f.id===a.parentId),a.originalA,a.originalB),nb=normalFor(faces.find(f=>f.id===b.parentId),b.originalA,b.originalB);
+            if(!na||!nb||na.x*nb.x+na.y*nb.y<.999)continue;
+            const at=p=>((p.x-a.originalA.x)*u.x+(p.y-a.originalA.y)*u.y)/la;
+            const ts=[at(b.originalA),at(b.originalB)].sort((x,y)=>x-y),lo=Math.max(0,ts[0]),hi=Math.min(la,ts[1]);if(hi-lo<.15)continue;
+            const near=(p,q)=>distance(p,q)<.01&&Math.abs(p.z-q.z)<.05;
+            const returns=s=>perimeterPairs.filter(r=>r!==s&&r.parentId===s.parentId&&distance(r.originalA,r.originalB)<1&&[r.originalA,r.originalB].some(p=>[s.originalA,s.originalB].some(q=>near(p,q))));
+            let chain=null;
+            for(const ra of returns(a))for(const rb of returns(b))for(const f of flashing){
+                const ends=[ra.originalA,ra.originalB],other=[rb.originalA,rb.originalB];
+                if([f.a,f.b].every(p=>[...ends,...other].some(q=>near(p,q)))&&ends.some(p=>near(p,f.a)||near(p,f.b))&&other.some(p=>near(p,f.a)||near(p,f.b)))chain={ra,rb,f};
+            }
+            if(!chain)continue;
+            // Preserve the deeper of the two near-identical inset planes.
+            const middle=mix(a.originalA,a.originalB,(lo+hi)/(2*la));
+            const offset=s=>(s.a.x-middle.x)*na.x+(s.a.y-middle.y)*na.y;
+            const anchor=offset(a)>=offset(b)?a:b,other=anchor===a?b:a;
+            const d=sub(anchor.b,anchor.a),len=distance(anchor.a,anchor.b);
+            for(const key of ['a','b']){const p=other[key],t=((p.x-anchor.a.x)*d.x+(p.y-anchor.a.y)*d.y)/(len*len),q=mix(anchor.a,anchor.b,t);other[key]={x:q.x,y:q.y,z:height({plane:other.sourcePlane},q)};}
+            const project=t=>{const p=mix(a.originalA,a.originalB,t/la),axis=sub(anchor.b,anchor.a),length=distance(anchor.a,anchor.b),v=((p.x-anchor.a.x)*axis.x+(p.y-anchor.a.y)*axis.y)/(length*length);return mix(anchor.a,anchor.b,v);};
+            const start=project(lo),end=project(hi),dz=p=>height({plane:a.sourcePlane},p)-height({plane:b.sourcePlane},p),da=dz(start),db=dz(end);
+            const fraction=da*db<0?da/(da-db):(Math.abs(da)<Math.abs(db)?0:1),join=mix(start,end,fraction);
+            for(const source of [a,b]){
+                const key=distance(source.a,join)<distance(source.b,join)?'a':'b';
+                source[key]={...join,z:height({plane:source.sourcePlane},join)};
+                source.overlapSeam={a:start,b:end};
+            }
+            for(const id of [chain.ra.id,chain.rb.id,chain.f.id])seamRemoved.add(id);
+        }
+        for(let i=sources.length-1;i>=0;i--)if(seamRemoved.has(sources[i].id))sources.splice(i,1);
+        for(let i=flashing.length-1;i>=0;i--)if(seamRemoved.has(flashing[i].id))flashing.splice(i,1);
         // A straight fascia remains one wall plane across a ridge. An inferred
         // setback on one roof pitch also applies to its collinear continuation.
         if(options.soffit==='auto'){
@@ -276,8 +316,8 @@
                 // Chimney composition cuts and replaces that interval afterward.
                 const candidates=support.filter(g=>inside(mid,g.points));
                 const face=candidates.find(g=>g===f)||candidates.sort((a,b)=>Math.abs(height(a,mid)-mid.z)-Math.abs(height(b,mid)-mid.z))[0];
-                if(!face)continue;
-                pieces.push({...s,id:`${s.id}.${i}`,parentId:face.id,a:mix(s.a,s.b,ts[i]),b:mix(s.a,s.b,ts[i+1]),supportPlane:face.plane});
+                if(!face&&!(s.overlapSeam&&onEdge(mid,s.overlapSeam.a,s.overlapSeam.b,.005)))continue;
+                pieces.push({...s,id:`${s.id}.${i}`,parentId:(face||f).id,a:mix(s.a,s.b,ts[i]),b:mix(s.a,s.b,ts[i+1]),supportPlane:(face||f).plane});
             }
             // Keep the top continuous at the hip, changing pitch on the adjacent
             // face instead of extrapolating the eave's parent plane through it.
@@ -287,6 +327,9 @@
                 const dz=height({plane:p.supportPlane},p.b)-height({plane:p.supportPlane},p.a);
                 if(anchored.has(i-1)&&distance(pieces[i-1].b,p.a)<.005){p.a.z=pieces[i-1].b.z;p.b.z=p.a.z+dz;anchored.add(i);}
                 else if(anchored.has(i+1)&&distance(pieces[i+1].a,p.b)<.005){p.b.z=pieces[i+1].a.z;p.a.z=p.b.z-dz;anchored.add(i);}
+            }
+            if(s.overlapSeam&&pieces.length){
+                for(const [piece,key]of [[pieces[0],'a'],[pieces[pieces.length-1],'b']])if(distance(piece[key],s[key])<.005)piece[key]=clone(s[key]);
             }
             clipped.push(...pieces.map(({supportPlane,...p})=>p));
         }
@@ -324,6 +367,7 @@
             const ts=splitParameters(s.a,s.b,relevant);
             const envelopeRuns=s.outerEnvelope?sources.filter(r=>r.id===s.outerEnvelope.sourceId||r.id.startsWith(s.outerEnvelope.sourceId+'.')):[];
             const sourceLength=distance(s.a,s.b),sourceT=p=>((p.x-s.a.x)*(s.b.x-s.a.x)+(p.y-s.a.y)*(s.b.y-s.a.y))/(sourceLength*sourceLength);
+            if(s.overlapSeam)for(const p of [s.overlapSeam.a,s.overlapSeam.b]){const t=sourceT(p);if(t>EPS&&t<1-EPS)ts.push(t);}
             for(const r of envelopeRuns)for(const p of [r.a,r.b]){const t=sourceT(p);if(t>EPS&&t<1-EPS)ts.push(t);}
             // Split where surfaces cross the source elevation, ground, or each other.
             const equations=[...(flat!==null?[{dx:0,dy:0,k:flat}]:[]),...relevant.map(f=>f.plane)];
@@ -342,7 +386,8 @@
                 const groundFace=relevant.filter(f=>f.terrain&&contains(f,m)).sort((a,b)=>height(b,m)-height(a,m))[0];
                 const floor=groundFace?height(groundFace,m):flat;
                 if(s.direction==='down'&&floor===null){uncovered=true;continue;}
-                const targets=relevant.filter(f=>!f.terrain&&contains(f,m)&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
+                const inSeam=s.overlapSeam&&onEdge(m,s.overlapSeam.a,s.overlapSeam.b,.005);
+                const targets=relevant.filter(f=>!inSeam&&!f.terrain&&contains(f,m)&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
                     .filter(v=>s.direction==='up'?v.z>m.z+.02:v.z<m.z-.02&&v.z>floor);
                 targets.sort((a,b)=>s.direction==='up'?a.z-b.z:b.z-a.z);
                 const target=targets[0]?.f||(s.direction==='down'?groundFace:null);
