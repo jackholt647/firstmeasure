@@ -1,0 +1,21 @@
+{
+  "baseline": "2d423723eea7289975173b05432b832a92ce71d6",
+  "release": "e35244102a4f7c6e8fc952287d9f5ee7b225b2b6",
+  "files": [
+    {
+      "name": "public/measure/internal/editor_scripts/wall_editor.js",
+      "before": "2880baf5afbafeb1ec4836d2bb4b27c4d2ed1a7a5a2d637e2d017bb77ec6a316",
+      "after": "9f8a2dca829e8d7fa485bd07704f177ab3238c27dd2b566a3d7b6c4e8b4d35ab"
+    },
+    {
+      "name": "public/measure/internal/editor_scripts/wall_face_draft.js",
+      "before": "c9d81ccd7cd6dd889674bc7fbcaf644c8d8c84f25037c49a645a7ff436900487",
+      "after": "0470db5d9cee77a87905d3d6e54db7d44f19a43072681a698ae6249431028f71"
+    },
+    {
+      "name": "public/measure/internal/editor_scripts/wall_solid_geometry.js",
+      "before": "cf901f6981e77fbc17b090073e7bae3b4dcb46e743afaa894edd6f7414528e99",
+      "after": "4e4fc2c2d9659ed34d8592335b863efc879f8fd26a9b0cf35664cc66b43f2d02"
+    }
+  ]
+}
