@@ -58,8 +58,10 @@ test('a partial overlap stops at the dominant miter and leaves the exposed short
  for(const p of [returns[0].a,returns[0].b])assert.ok(Math.abs(p.x-(8-.4572))<1e-6,'transition follows the real corner plane');
  const longerLower={...roof,points:roof.points.map((p,i)=>i===5||i===6?{...p,x:17}:p)};longerLower.faces=[roof.faces[0],{points:longerLower.points.slice(4)}];
  const resolved=G.buildSources(longerLower,{soffit:18}).sources;
- assert.ok(!resolved.some(s=>s.soffitAlignment),'a genuinely longer lower run keeps priority');
- assert.ok(resolved.filter(s=>s.id.startsWith('R1.')).every(s=>Math.abs(s.setback-(.4572-.2))<1e-6));
+ assert.ok(resolved.some(s=>s.soffitAlignment),'the deeper soffit wins even when the lower eave is longer');
+ assert.ok(resolved.filter(s=>s.id.startsWith('R1.')).every(s=>Math.abs(s.setback-.4572)<1e-6));
+ for(const s of resolved.filter(s=>s.soffitAlignment))for(const p of [s.a,s.b])assert.ok(Math.abs(p.y-.4572)<1e-6);
+ for(const s of resolved.filter(s=>s.id.startsWith('R3.')&&!s.soffitAlignment&&!s.envelopeReturn))assert.equal(s.setback,.4572,'exposed eave retains its own setback');
 });
 
 test('overlap alignment and its closing returns rotate with the roof instead of using world axes',()=>{
