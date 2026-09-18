@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/_tutorials.php';
+require_once __DIR__ . '/_tutorial_courses.php';
 require_once __DIR__ . '/_permission_options.php';
 function fm_editor_internal_base_url() {
     $base = rtrim((string)fm_api_base_url(), '/');
@@ -83,16 +84,23 @@ function fm_editor_tutorial_find_project_owner_email($tutorialId, $courseId) {
 function fm_editor_tutorial_request_user_email($sessionEmail, $tutorialId = '', $courseId = '') {
     $sessionEmail = strtolower(trim((string)$sessionEmail));
     $requestedEmail = strtolower(trim((string)($_GET['student_email'] ?? $_POST['student_email'] ?? $_GET['email'] ?? $_POST['email'] ?? '')));
-    if ($requestedEmail === $sessionEmail) return $sessionEmail;
 
     $perms = fm_editor_user_permissions($sessionEmail);
     if (!empty($perms['manage_tutorials'])) {
+        if ($requestedEmail === $sessionEmail) return $sessionEmail;
         if ($requestedEmail !== '') return $requestedEmail;
         $ownerEmail = fm_editor_tutorial_find_project_owner_email($tutorialId, $courseId);
         if ($ownerEmail !== '') return $ownerEmail;
+        return $sessionEmail;
     }
 
-    if ($requestedEmail === '') return $sessionEmail;
+    if ($requestedEmail === '' || $requestedEmail === $sessionEmail) {
+        $user = fm_editor_node_internal_user($sessionEmail);
+        // Resolve the actual stored course: omitting/changing the query must not bypass assignment.
+        $found = $tutorialId !== '' ? fm_tutorial_find_project($tutorialId, $sessionEmail, $courseId) : null;
+        $actualCourse = $found['course_id'] ?? ($courseId !== '' ? $courseId : 'default');
+        if (is_array($user) && fm_tutorial_has_course($user, $actualCourse)) return $sessionEmail;
+    }
 
     header('Content-Type: application/json');
     http_response_code(403);

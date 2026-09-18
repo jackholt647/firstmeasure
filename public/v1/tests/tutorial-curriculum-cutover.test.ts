@@ -23,7 +23,7 @@ test("cutover curriculum fallback preserves new progress and explicit primary cu
   };
   try {
     const [{ buildApp }, internalStorage] = await Promise.all([import("../src/app.js"), import("../internal/storage.js")]);
-    await internalStorage.saveInternalUser({ email: "student@example.test", role: "technician", permissions: {} });
+    await internalStorage.saveInternalUser({ email: "student@example.test", role: "technician", permissions: {}, assigned_tutorial_course_ids: ["software-update-refresh"] });
     await json(path.join(retained, "master", "curriculum.json"), { chapters: [{ id: 1, title: "Recovered course" }] });
     await json(path.join(retained, "courses", "software-update-refresh", "master", "curriculum.json"), { chapters: [{ id: 2, title: "Refresh" }] });
     await json(path.join(primary, "users", "student@example.test", "courses", "default", "progress.json"), { completed_videos: ["new-video"], current_chapter: 3 });

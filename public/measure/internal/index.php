@@ -22,6 +22,7 @@ session_start();
 require_once __DIR__ . '/firstmeasure_node.php';
 require_once __DIR__ . '/_permission_options.php';
 require_once __DIR__ . '/_tutorials.php';
+require_once __DIR__ . '/_tutorial_courses.php';
 
 $GOOGLE_BROWSER_API_KEY = fm_google_provider_key('browser_internal');
 
@@ -64,12 +65,12 @@ function portalTutorialCourseOptions() {
         'software-update-refresh' => [
             'id' => 'software-update-refresh',
             'label' => 'Software Update Refresh',
-            'description' => 'Retraining curriculum for team members active before May 1, 2026.',
+            'description' => 'Assignment-only refresher training for software updates.',
         ],
         'full-house-drawing' => [
             'id' => 'full-house-drawing',
             'label' => 'Full House Drawing',
-            'description' => 'Roof and exterior drawing, reference review, and full-house report preparation.',
+            'description' => 'Assignment-only roof and exterior drawing, reference review, and full-house report preparation.',
         ],
     ];
 }
@@ -83,18 +84,6 @@ function portalNormalizeTutorialCourseId($courseId) {
 }
 
 function portalDefaultTutorialCourseForUser($userData) {
-    if (is_array($userData) && !empty($userData['assigned_tutorial_course_id'])) {
-        return portalNormalizeTutorialCourseId($userData['assigned_tutorial_course_id']);
-    }
-
-    $createdAt = is_array($userData) ? trim((string)($userData['created_at'] ?? '')) : '';
-    $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
-    $refreshCutoffTs = strtotime('2026-05-01 00:00:00');
-
-    if ($createdTs !== false && $createdTs < $refreshCutoffTs) {
-        return 'software-update-refresh';
-    }
-
     return 'default';
 }
 
@@ -1295,6 +1284,11 @@ $myTeam  = $myUserData['team_id'] ?? 'default';
 // Training completion (admin-set only)
 $myTrainingComplete = !empty($myUserData['training_complete']);
 $tutorialCourseOptions = portalTutorialCourseOptions();
+if (empty($myPerms['manage_tutorials'])) {
+    $tutorialCourseOptions = array_filter($tutorialCourseOptions, function($course) use ($myUserData) {
+        return fm_tutorial_has_course($myUserData, $course['id']);
+    });
+}
 $myTutorialCourseId = portalDefaultTutorialCourseForUser($myUserData);
 $portalGlobalReportSettingsPath = storagePath('config/report_settings.json');
 $portalGlobalReportSettings = is_file($portalGlobalReportSettingsPath)
@@ -5964,14 +5958,15 @@ $ver = time(); // cache busting
             <div class="header-bar">
                 <h1 id="tutorialCourseTitle">Training Curriculum</h1>
                 <div style="display:flex; gap:10px;">
-                    <?php if(!empty($myPerms['manage_tutorials'])): ?>
-                        <select id="tutorialCourseSelect" onchange="setTutorialCourse(this.value)" style="padding:10px 12px; border:1px solid #d0d5dd; border-radius:8px; font-weight:700; background:#fff;">
+                        <select aria-label="Curriculum" id="tutorialCourseSelect" onchange="setTutorialCourse(this.value)" style="padding:10px 12px; border:1px solid #d0d5dd; border-radius:8px; font-weight:700; background:#fff;">
                             <?php foreach ($tutorialCourseOptions as $course): ?>
                                 <option value="<?php echo htmlspecialchars($course['id'], ENT_QUOTES); ?>" <?php echo $course['id'] === $myTutorialCourseId ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($course['label'], ENT_QUOTES); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    <?php if(!empty($myPerms['manage_tutorials'])): ?>
+                        <button class="btn-secondary" onclick="Tutorials.openAssignments()">Assignments</button>
                         <button class="btn-secondary" onclick="openStudentProgress()">
                             <i class="fas fa-chart-line"></i> Student Progress
                         </button>
