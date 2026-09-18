@@ -4242,6 +4242,70 @@
       return out;
     },
 
+    async openAssignments(){
+      if (!this.canManageTutorials()) return;
+      const courseId = tutorialCourseId();
+      this.ensureEditorCss();
+      document.getElementById('tutorialAssignmentsModal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = 'tutorialAssignmentsModal';
+      modal.className = 'tut-curriculum-manager-backdrop show';
+      modal.innerHTML = `
+        <div class="tut-curriculum-manager-modal" role="dialog" aria-modal="true" aria-labelledby="tutorialAssignmentsTitle">
+          <div class="tut-curriculum-manager-head">
+            <h3 id="tutorialAssignmentsTitle">Assignments: ${Portal.escapeHtml(tutorialCourseLabel())}</h3>
+            <button type="button" class="tut-curriculum-manager-close" aria-label="Close assignments">×</button>
+          </div>
+          <div style="padding:16px; overflow:auto;">
+            <p>${courseId === 'default' ? 'New Hire Training is available to everyone automatically.' : 'Only assigned people can access this curriculum. Assignments save immediately. Removing access keeps their existing progress.'}</p>
+            <input type="search" aria-label="Search people" placeholder="Search by name or email" style="width:100%; padding:10px; margin-bottom:12px;">
+            <div role="status" aria-live="polite">Loading people...</div>
+            <div data-assignment-list></div>
+          </div>
+        </div>`;
+      modal.querySelector('button').addEventListener('click', () => modal.remove());
+      modal.addEventListener('click', ev => { if (ev.target === modal) modal.remove(); });
+      document.body.appendChild(modal);
+      const status = modal.querySelector('[role="status"]');
+      const list = modal.querySelector('[data-assignment-list]');
+      try {
+        const data = await Portal.apiPost(cfg().endpoints.server, {action:'fetch_tutorial_assignments',course_id:courseId});
+        if (!data.success) throw new Error(data.error || 'Could not load assignments.');
+        const students = data.students || [];
+        const updateCount = () => { status.textContent = `${students.filter(s => s.assigned).length} of ${students.length} people ${courseId === 'default' ? 'have access' : 'assigned'}.`; };
+        updateCount();
+        for (const student of students) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid #eee;';
+          row.dataset.search = `${student.name} ${student.email}`.toLowerCase();
+          row.innerHTML = `<div><b>${Portal.escapeHtml(student.name || student.email)}</b><div>${Portal.escapeHtml(student.email)}</div></div>`;
+          const button = document.createElement('button');
+          button.className = 'btn-secondary btn-sm';
+          const refreshButton = () => {
+            button.textContent = courseId === 'default' ? 'Available to everyone' : student.assigned ? 'Remove assignment' : 'Assign';
+            button.setAttribute('aria-label', `${button.textContent}: ${student.name || student.email}`);
+          };
+          refreshButton(); button.disabled = courseId === 'default';
+          button.addEventListener('click', async () => {
+            button.disabled = true;
+            try {
+              const result = await Portal.apiPost(cfg().endpoints.server, {action:'set_tutorial_assignment',course_id:courseId,email:student.email,assigned:!student.assigned});
+              if (!result.success) throw new Error(result.error || 'Could not save assignment.');
+              student.assigned = result.assigned; refreshButton(); updateCount();
+            } catch (error) { status.textContent = error.message || 'Could not save assignment.'; }
+            finally { button.disabled = false; }
+          });
+          row.appendChild(button); list.appendChild(row);
+        }
+        modal.querySelector('input').addEventListener('input', ev => {
+          const query = ev.target.value.trim().toLowerCase();
+          for (const row of list.children) row.hidden = !row.dataset.search.includes(query);
+          // Inline flex must not override the hidden attribute.
+          for (const row of list.children) row.style.display = row.hidden ? 'none' : 'flex';
+        });
+      } catch (error) { status.textContent = error.message || 'Could not load assignments.'; }
+    },
+
     openCurriculumManager(){
       if (!this.canManageTutorials()) return;
       this.ensureEditorCss();

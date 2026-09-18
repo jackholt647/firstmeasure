@@ -107,6 +107,43 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     assert.deepEqual(teacherBundle.app_metadata.exteriorsWalls,saved.exteriorsWalls,'instructors can review saved exterior work');
     assert.deepEqual((await storage.getProjectDetail(source)).app_metadata,{geometry:{points:[{id:'answer-point'}]},exteriorsWalls:{answer:'not copied'}});
     assert.equal((await fetch(resources,{headers:{'X-Test-User':'other@example.test'}})).status,404);
+    const legacy = (action:string, course_id:string, extra:Record<string,unknown>={}, email='student@example.test') => app.inject({
+      method:'POST',url:'/v1/internal/legacy-action',payload:{action,course_id,...extra,actor:{email,role:email==='manager@example.test'?'admin':'trainee'}}
+    });
+    await saveInternalUser({email:'student@example.test',created_at:'2020-01-01'});
+    for (const course of ['software-update-refresh','full-house-drawing']) {
+      assert.equal((await legacy('fetch_curriculum',course)).statusCode,403,'old accounts are not automatically assigned');
+      const deniedStart = await legacy('start_tutorial_project',course,{project_id:'unassigned-source',chapter_id:1}); assert.equal(deniedStart.statusCode,403,deniedStart.body);
+      assert.equal((await legacy('update_progress',course,{type:'chapter_complete',id:1})).statusCode,403);
+      assert.equal((await legacy('set_tutorial_assignment',course,{email:'student@example.test',assigned:true})).statusCode,403,'students cannot self assign');
+      assert.equal((await legacy('save_curriculum',course,{curriculum:{chapters:[{projects:entries}]}},'manager@example.test')).statusCode,200);
+    }
+    await saveInternalUser({email:'other@example.test',assigned_tutorial_course_id:'software-update-refresh'});
+    assert.equal((await legacy('fetch_curriculum','software-update-refresh',{},'other@example.test')).statusCode,200,'legacy explicit assignments remain valid');
+    assert.equal((await legacy('set_tutorial_assignment','software-update-refresh',{email:'other@example.test',assigned:false},'manager@example.test')).json().success,true);
+    assert.equal((await legacy('fetch_curriculum','software-update-refresh',{},'other@example.test')).statusCode,403,'revoking legacy assignment takes effect');
+    assert.equal((await legacy('fetch_curriculum','default')).statusCode,200);
+    assert.equal((await legacy('set_tutorial_assignment','default',{email:'student@example.test',assigned:false},'manager@example.test')).statusCode,400);
+    const assign = (course:string,assigned:boolean) => legacy('set_tutorial_assignment',course,{email:'student@example.test',assigned},'manager@example.test');
+    assert.equal((await assign('full-house-drawing',true)).json().success,true);
+    assert.equal((await assign('software-update-refresh',true)).json().success,true);
+    assert.equal((await legacy('fetch_curriculum','full-house-drawing')).statusCode,200);
+    const invitedStart = await signed({operation:'start',course_id:'full-house-drawing',source,chapter_id:1,curriculum_project_id:'auto'});
+    assert.equal(invitedStart.statusCode,200,invitedStart.body);
+    const invitedId=invitedStart.json().tutorial_id;
+    assert.ok(invitedId);
+    const invitedUrl=base+`/editor.php?action=tutorial_project_bundle&tutorial_id=${invitedId}&course_id=full-house-drawing`;
+    assert.equal((await fetch(invitedUrl)).status,200,'assigned student can open editor');
+    assert.equal((await assign('full-house-drawing',false)).json().success,true);
+    assert.equal((await legacy('fetch_curriculum','full-house-drawing')).statusCode,403);
+    assert.equal((await legacy('fetch_curriculum','software-update-refresh')).statusCode,200,'revoking one course preserves the other');
+    assert.equal((await fetch(invitedUrl)).status,403,'revoked student cannot open old project');
+    assert.equal((await fetch(base+`/editor.php?action=tutorial_project_bundle&tutorial_id=${invitedId}`)).status,403,'omitting course cannot bypass revocation');
+    assert.equal((await signed({operation:'source',course_id:'full-house-drawing',tutorial_id:invitedId,name:'google.png'})).statusCode,403);
+    assert.equal((await legacy('save_tutorial_project_editor','full-house-drawing',{tutorial_id:invitedId,metadata:{geometry:{points:[]}}})).statusCode,403);
+    assert.equal((await fetch(invitedUrl+'&student_email=student@example.test',{headers:{'X-Test-User':'manager@example.test'}})).status,200,'manager retains review access');
+    assert.equal((await assign('full-house-drawing',true)).json().success,true);
+    assert.equal((await fetch(invitedUrl)).status,200,'reassignment restores existing work');
     process.env.FIRSTMEASURE_FULL_HOUSE_ENABLED='0';
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'google.png'})).statusCode,403);
   } finally { php?.kill(); await app.close(); }

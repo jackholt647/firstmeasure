@@ -1,3 +1,4 @@
+import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { managerReviewCsv } from "./manager_review_export.js";
 import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile } from './tutorial_exteriors.js';
 import { fullHouseEnabled } from '../firstmeasure/full_house.js';
@@ -173,6 +174,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     const body = asObject(request.body);
     const courseId = tutorialCourseId(body);
     const manager = await canManageTutorials(actor);
+    if (!(await canAccessTutorialCourse(courseId, actor))) throw forbidden('course_not_assigned', 'This curriculum has not been assigned to you.');
     if (body.operation === 'start') {
       const result = await handleTutorialLegacyAction('start_tutorial_project', { ...body, project_id: body.source }, actor);
       await trackTutorialResult(request, 'start_tutorial_project', asObject(result), { ...body, actor }, app);
@@ -236,6 +238,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     if (studentEmail !== actorEmail && !(await canManageTutorials(actor))) {
       return reply.code(403).send({ ok: false, success: false, error: "Unauthorized" });
     }
+    if (!(await canAccessTutorialCourse(courseId, actor))) return reply.code(403).send({ success: false, error: "This curriculum has not been assigned to you." });
     const dir = tutorialProjectDir(courseId, studentEmail, tutorialId);
     const manifest = asObject(await readJsonFile(path.join(dir, "manifest.json"), {}));
     if (String(manifest.id ?? "") !== tutorialId) {
@@ -2102,14 +2105,8 @@ function tutorialCourseId(input: JsonObject) {
   return slug || "default";
 }
 
-function defaultTutorialCourseForUser(user: JsonObject) {
-  if (user.assigned_tutorial_course_id) {
-    return tutorialCourseId({ course_id: user.assigned_tutorial_course_id });
-  }
-  const createdAt = String(user.created_at ?? "").trim();
-  const createdTs = createdAt ? Date.parse(createdAt) : Number.NaN;
-  const refreshCutoffTs = Date.parse("2026-05-01T00:00:00");
-  return Number.isFinite(createdTs) && createdTs < refreshCutoffTs ? "software-update-refresh" : "default";
+function defaultTutorialCourseForUser(_user: JsonObject) {
+  return "default";
 }
 
 function tutorialSafeUser(email: unknown) {
@@ -2492,6 +2489,14 @@ async function canManageTutorials(actor: JsonObject) {
   return Boolean(user?.is_admin || String(user?.role ?? "").toLowerCase() === "admin" || permissions.manage_tutorials || permissions.is_admin_legacy);
 }
 
+async function canAccessTutorialCourse(courseId: string, actor: JsonObject) {
+  if (await canManageTutorials(actor)) return true;
+  const email = String(actor.email ?? "").trim().toLowerCase();
+  if (!email) return false;
+  const user = await readInternalUser(email);
+  return Boolean(user && hasTutorialCourse(user, courseId));
+}
+
 function tutorialProgressForTrainee(progressRaw: JsonObject) {
   const progress = structuredClone(progressRaw);
   const attempts = asObject(progress.test_attempts);
@@ -2799,6 +2804,7 @@ async function saveTutorialProjectEditor(body: JsonObject, actor: JsonObject) {
   if (studentEmail !== actorEmail && !(await canManageTutorials(actor))) {
     return { ok: false, success: false, status_code: 403, error: "Unauthorized" };
   }
+  if (!(await canAccessTutorialCourse(courseId, actor))) return { success: false, status_code: 403, error: "This curriculum has not been assigned to you." };
   await recoverTutorialStudent(courseId, studentEmail);
   const dir = tutorialProjectDir(courseId, studentEmail, tutorialId);
   const manifestPath = path.join(dir, "manifest.json");
@@ -2882,6 +2888,33 @@ async function setTutorialExamReviewed(courseId: string, studentEmailRaw: unknow
 async function handleTutorialLegacyAction(action: string, body: JsonObject, actor: JsonObject) {
   const courseId = tutorialCourseId(body);
   const actorEmail = String(actor.email ?? body.actor_email ?? body.user_email ?? "").trim().toLowerCase();
+
+  if (!(await canAccessTutorialCourse(courseId, actor))) {
+    return { ok: false, success: false, status_code: 403, error: "This curriculum has not been assigned to you." };
+  }
+
+  if (action === "fetch_tutorial_assignments" || action === "set_tutorial_assignment") {
+    if (!(await canManageTutorials(actor))) return { success: false, status_code: 403, error: "Unauthorized" };
+    if (action === "fetch_tutorial_assignments") {
+      const users = (await listInternalUsers()).filter(user => String(user.account_type ?? "employee").toLowerCase() !== "customer");
+      return { success: true, course_id: courseId, students: users.map(user => ({
+        email: user.email, name: user.name || user.email, assigned: hasTutorialCourse(user, courseId)
+      })) };
+    }
+    if (!OPTIONAL_TUTORIAL_COURSES.includes(courseId as typeof OPTIONAL_TUTORIAL_COURSES[number]) || typeof body.assigned !== "boolean") {
+      return { success: false, status_code: 400, error: "Choose an optional curriculum and an assignment state." };
+    }
+    const email = String(body.email ?? "").trim().toLowerCase();
+    const user = email ? await readInternalUser(email) : null;
+    if (!user || String(user.account_type ?? "employee").toLowerCase() === "customer") return { success: false, status_code: 404, error: "Employee not found." };
+    const courses = new Set(assignedTutorialCourses(user));
+    if (body.assigned) courses.add(courseId); else courses.delete(courseId);
+    await patchInternalUser(email, {
+      assigned_tutorial_course_ids: [...courses], assigned_tutorial_course_id: null,
+      tutorial_assignment_updated_at: new Date().toISOString(), tutorial_assignment_updated_by: actorEmail
+    });
+    return { success: true, course_id: courseId, email, assigned: body.assigned };
+  }
 
   if (action === "fetch_curriculum") {
     const curriculum = await readTutorialCurriculum(courseId);
@@ -2967,7 +3000,7 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
 
   if (action === "fetch_student_list") {
     if (!(await canManageTutorials(actor))) return { ok: false, success: false, status_code: 403, error: "Unauthorized" };
-    const users = (await listInternalUsers()).filter((user) => String(user.account_type ?? "employee").toLowerCase() !== "customer");
+    const users = (await listInternalUsers()).filter((user) => String(user.account_type ?? "employee").toLowerCase() !== "customer" && hasTutorialCourse(user, courseId));
     const students = await Promise.all(users.map(async (user) => {
       const email = String(user.email ?? "");
       const selectedProgress = await readTutorialProgress(courseId, email);
@@ -5416,6 +5449,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
     case "data_agent_new_session":
       return await handleDataAgentLegacyAction(action, body);
     case "list_tutorial_projects":
+    case "fetch_tutorial_assignments":
+    case "set_tutorial_assignment":
     case "fetch_curriculum":
     case "fetch_student_list":
     case "fetch_tutorial_exam_grades":
