@@ -626,13 +626,17 @@ function sharedIntervals(a,b,faces){
 }
 function freeEdges(face,supports){const edges=[];for(const ring of rings(face))for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length];let lo=0;for(const [start,end]of [...sharedIntervals(a,b,supports),[1,1]]){if(start-lo>1e-7)edges.push([mix3(a,b,lo),mix3(a,b,start)]);lo=end;}}return edges;}
 function pointOnEdge(p,a,b){const u=sub(b,a),l2=dot(u,u);if(l2<1e-12)return false;const t=dot(sub(p,a),u)/l2;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(...Object.values(sub(p,mix3(a,b,t))))<1e-5;}
-function slideLines(faces,pairs,direction,amount){
+function slideLines(faces,pairs,direction,amount,options={}){
  const bound=Math.abs(amount)>1e-12?bindSharedBase(faces):{faces,point:p=>p};faces=bound.faces;pairs=pairs.map(pair=>pair.map(bound.point));
  const selected=p=>pairs.some(([a,b])=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<1e-8?Math.hypot(p.x-a.x,p.y-a.y,p.z-a.z)<1e-5:pointOnEdge(p,a,b)),vertices=[...pairs.flat(),...faces.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])])].filter(selected),moves=[];
  for(const p of vertices)if(!moves.some(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-6))moves.push({from:p,to:{x:p.x+direction.x*amount,y:p.y+direction.y*amount,z:p.z+direction.z*amount}});
  const matching=p=>moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5),affected=[];
  const result=faces.map(f=>{if(f.deleted)return f;
-  const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a);expanded.push(a);for(const p of pairs.flat().filter(p=>pointOnEdge(p,a,b)&&Math.hypot(...Object.values(sub(p,a)))>1e-5&&Math.hypot(...Object.values(sub(p,b)))>1e-5).sort((p,q)=>dot(sub(p,a),u)-dot(sub(q,a),u)))if(!expanded.some(q=>Math.hypot(...Object.values(sub(p,q)))<1e-5))expanded.push(p);}const moved=expanded.map(p=>({...p,...(matching(p)?.to||{})}));return moved.filter((p,i)=>Math.hypot(...Object.values(sub(p,moved[(i+moved.length-1)%moved.length])))>1e-6);};
+  const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a);expanded.push(a);for(const p of pairs.flat().filter(p=>pointOnEdge(p,a,b)&&Math.hypot(...Object.values(sub(p,a)))>1e-5&&Math.hypot(...Object.values(sub(p,b)))>1e-5).sort((p,q)=>dot(sub(p,a),u)-dot(sub(q,a),u)))if(!expanded.some(q=>Math.hypot(...Object.values(sub(p,q)))<1e-5))expanded.push(p);}const translated=p=>({...p,...(matching(p)?.to||{})});
+   // Extruding a boundary keeps transverse neighbor edges fixed and inserts
+   // a connecting segment; edges parallel to the motion can shorten normally.
+   const keep=(a,b)=>{if(!options.preserveConnections||!!matching(a)===!!matching(b))return false;const u=sub(b,a),d={x:direction.x*amount,y:direction.y*amount,z:direction.z*amount};return Math.hypot(u.y*d.z-u.z*d.y,u.z*d.x-u.x*d.z,u.x*d.y-u.y*d.x)>1e-7;};
+   const moved=expanded.flatMap((p,i)=>{const prev=expanded[(i+expanded.length-1)%expanded.length],next=expanded[(i+1)%expanded.length];return [keep(prev,p)?p:translated(p),keep(p,next)?p:translated(p)];});return moved.filter((p,i)=>Math.hypot(...Object.values(sub(p,moved[(i+moved.length-1)%moved.length])))>1e-6);};
   const next=K.normalizeFace({...f,points:replace(f.points),holes:(f.holes||[]).map(replace),retainedPoints:(f.retainedPoints||[]).map(p=>({...p,...(matching(p)?.to||{})}))});
   if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[])&&JSON.stringify(next.retainedPoints)===JSON.stringify(f.retainedPoints||[]))return f;
   const frame=faceFrame(next);if(!frame||rings(next).flat().some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>1e-5))throw Error('That position would bend an adjoining face out of plane.');

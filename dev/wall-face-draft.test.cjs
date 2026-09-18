@@ -1978,3 +1978,25 @@ test('three selected wall bottoms lift together without moving or warping the ba
  let success=false;for(let i=0;i<4;i++){if(i)f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.6,1.8));const live=state.wallEdits.$surfaces.filter(f=>!f.deleted);if(live.length===3&&live.every(f=>f.points.slice(0,2).every(p=>p.z>.01))){success=true;break;}}
  assert.ok(success,f.message());assert.ok(!state.wallEdits.$base);assert.equal(JSON.stringify(state.base),baseBefore);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
 });
+
+for(const mode of ['m','e'])test(`${mode.toUpperCase()} moves three wall edges by typed feet with offset labels and preserved base`,()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),p=(x,y,z)=>({x,y,z}),ring=[p(0,0,0),p(4,0,0),p(4,4,0),p(0,4,0)],faces=ring.slice(0,3).map((a,i)=>({id:'wall'+i,points:[a,ring[i+1],{...ring[i+1],z:3},{...a,z:3}]}));
+ faces.push({id:'front',points:[p(-3,0,0),ring[0],p(0,0,3),p(-3,0,3)]});
+ const state={base:{faces:[{id:'base',points:ring}]},wallEdits:{$surfaces:faces}},before=JSON.stringify(state.wallEdits),baseBefore=JSON.stringify(state.base),markers=[];
+ const f=fixture({state,walls:[],selected:null,globals:{...renderGlobals(),isFreeMove:true},lengthMarker:(g,v,e)=>markers.push(e)});
+ const selection={lineSelection:ring.slice(0,3).map((a,i)=>({id:'edge'+i,pair:[a,ring[i+1]]}))};
+ const begin=()=>{f.editor.restoreSelection(selection);f.listeners.pointermove(f.e(2,0));assert.equal(f.editor.key({key:mode}),true);assert.equal(f.editor.interaction(),mode==='e'?'Extrude lines':'Move line');};
+ begin();assert.ok(f.editor.distanceInput());
+ // Exercise the real keyboard input owner, whose default unit is feet.
+ const ctx={window:{},document:{getElementById:()=>null}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_distance_input.js','utf8'),ctx);
+ ctx.window.ExteriorDistanceInput.key({key:'2',preventDefault(){},stopImmediatePropagation(){}},f.editor.distanceInput());
+ assert.equal(f.editor.distanceInput().amount,.6096);
+ for(const wall of state.wallEdits.$surfaces.filter(f=>f.id.startsWith('wall')))assert.ok(wall.points.slice(0,2).every(p=>Math.abs(p.z-.6096)<1e-8),f.message());
+ const front=state.wallEdits.$surfaces.find(f=>f.id==='front');
+ if(mode==='e'){assert.ok(front.points.some(p=>p.x===0&&p.z===0),'front bottom corner stays in place');assert.ok(front.points.some(p=>p.x===0&&p.z===.6096),'new step connection reaches lifted wall');assert.ok(front.points.some((p,i)=>p.x===-3&&p.z===0&&front.points[(i+1)%front.points.length].z===0),'front bottom stays horizontal');}
+ else assert.ok(!front.points.some(p=>p.x===0&&p.z===0),'M retains ordinary vertex movement');
+ f.editor.draw3D({add(){}},p=>p);assert.ok(markers.filter(e=>Math.abs(e.length-.6096)<1e-8).length>=3,'each moved edge shows displacement');
+ assert.equal(JSON.stringify(state.base),baseBefore);assert.ok(!state.wallEdits.$base);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ begin();f.editor.distanceInput().set(.6096);const placed=JSON.stringify(state.wallEdits.$surfaces);f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(JSON.stringify(state.wallEdits.$surfaces),placed);assert.equal(JSON.stringify(state.wallEdits.$base.faces),JSON.stringify(state.base.faces));
+});
