@@ -2,6 +2,8 @@
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
+September 18 development: [Soffit cleanup and foundation outlines](deploy/digitalocean/development-soffit-foundation-20260918.md) records `1bb13aee8795eb2ef8ea872541e2ac30eb5a385b` on all three development roles. Foundations follow cleaned inset wall outlines; collapsed roof returns and chimney-covered gaps close correctly. The previous soffit-overlap fix is included. Four browser geometry files changed; experimental access and production are unchanged.
+
 September 16 development follow-up: [Rendered exterior preview](deploy/digitalocean/development-rendered-preview-20260916.md)
 records `397ab55d6af2ef881c962be629d8223af3266100` on all three development roles.
 Adds an optional Rendered mode with bundled 2K PBR assets, HDR reflections,
