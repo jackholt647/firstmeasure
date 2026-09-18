@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 door rendering: [Solid textured door backings](deploy/digitalocean/development-door-backing-20260918.md) records the garage/door backing visibility fix.
+
 September 18 skylights: [Textured roof skylights](deploy/digitalocean/development-skylight-textures-20260918.md) records local verification and the development-only rendering delta.
 
 September 18 wall repair: [Foundation corner tracing](deploy/digitalocean/development-wall-hole-20260918.md) records `af50a6f11117c9cd208d9d42c6af1efc43f75848`. Foundation tracing retains actual wall endpoints so repaired strips remain supported during the second generation pass.
