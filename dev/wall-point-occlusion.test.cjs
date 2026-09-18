@@ -1,0 +1,35 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const THREE=require('../public/v1/node_modules/three');
+function fixture(){
+ const ctx={THREE};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
+ const scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-2,2,2,-2,.1,100);camera.position.z=10;camera.updateMatrixWorld();
+ const wall=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));scene.add(wall);
+ const points=new THREE.Points(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1),new THREE.Vector3(1.005,0,-1),new THREE.Vector3(.995,0,-1)]),new THREE.PointsMaterial({size:10,sizeAttenuation:false}));scene.add(points);scene.updateMatrixWorld(true);
+ const renderer={info:{render:{frame:0}},getSize:v=>v.set(400,400)};
+ ctx.wallPointOcclusion(points,true);
+ const render=()=>{scene.updateMatrixWorld(true);camera.updateMatrixWorld();renderer.info.render.frame++;points.onBeforeRender(renderer,scene,camera);return Array.from(points.geometry.index.array.slice(0,points.geometry.drawRange.count));};
+ return {ctx,scene,camera,wall,points,render};
+}
+test('surface and exposed anchors retain whole markers; hidden anchors cannot peek around edges',()=>{
+ const f=fixture();assert.deepEqual(f.render(),[0,2]);
+ let calls=0;const original=f.wall.raycast;f.wall.raycast=function(...a){calls++;return original.apply(this,a);};
+ assert.deepEqual(f.render(),[0,2]);assert.equal(calls,0,'unchanged views reuse visibility');
+ f.wall.visible=false;assert.deepEqual(f.render(),[0,1,2,3]);
+ f.wall.visible=true;assert.deepEqual(f.render(),[0,2]);
+ f.camera.position.z=-10;f.camera.lookAt(0,0,0);assert.deepEqual(f.render(),[0,1,2,3]);
+});
+test('translucent mode restores all markers and opaque mode recomputes occlusion',()=>{
+ const f=fixture();f.render();f.ctx.wallPointOcclusion(f.points,false);f.points.onBeforeRender({},{},{});assert.equal(f.points.geometry.index,null);assert.equal(f.points.geometry.drawRange.count,Infinity);
+ f.ctx.wallPointOcclusion(f.points,true);assert.deepEqual(f.render(),[0,2]);
+});
+
+test('all-hidden batches recover after a surface moves, and invisible surfaces do not occlude',()=>{
+ const f=fixture();f.wall.scale.set(4,4,1);f.wall.position.z=1;assert.deepEqual(f.render(),[]);
+ f.wall.position.x=20;assert.deepEqual(f.render(),[0,1,2,3]);
+ f.wall.position.x=0;f.wall.material.visible=false;assert.deepEqual(f.render(),[0,1,2,3]);
+});
+test('perspective cameras also retain surface markers and reject points behind the wall',()=>{
+ const f=fixture(),camera=new THREE.PerspectiveCamera(45,1,.1,100);camera.position.z=10;camera.updateMatrixWorld();f.scene.updateMatrixWorld(true);
+ f.points.onBeforeRender({info:{render:{frame:1}},getSize:v=>v.set(400,400)},f.scene,camera);
+ const indices=Array.from(f.points.geometry.index.array.slice(0,f.points.geometry.drawRange.count));assert.ok(indices.includes(0));assert.ok(!indices.includes(1));
+});

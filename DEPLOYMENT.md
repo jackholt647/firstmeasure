@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 deeper soffits: [Overlap alignment](deploy/digitalocean/development-deeper-soffits-20260918.md) records `f188c0ebd40d32c2112b6a212158bc2886428e28` on all three development roles. Shared wall alignment preserves the deeper overhang rather than choosing the longer roof edge, and clipped return joins stay closed. The current training and Resources releases are retained. Two browser geometry files changed; production and access settings are unchanged.
+
 September 18 exterior training: [Development training support](deploy/digitalocean/development-exterior-training-20260918.md) records source-aware practice scope, isolated references, wall editing and ungraded completion. Development only; production is unchanged.
 
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.

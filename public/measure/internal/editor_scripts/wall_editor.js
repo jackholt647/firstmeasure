@@ -4,6 +4,95 @@
 
 'use strict';
 // Apply one display policy to every exterior layer, including depth-only cues.
+// Markers draw as whole overlays only when their anchor is visible. Cache camera/surface state so idle frames do not repeat ray tests.
+const wallPointOcclusionScenes=new WeakMap();
+function wallOcclusionFrame(renderer,scene,camera){
+ let frame=wallPointOcclusionScenes.get(scene);
+  if(!frame||frame.frame!==renderer.info.render.frame||frame.camera!==camera){
+   const meshes=[],parts=[...camera.matrixWorld.elements,...camera.projectionMatrix.elements];
+   scene.traverseVisible(o=>{
+    if(!o.isMesh||o.isSprite)return;
+    const materials=Array.isArray(o.material)?o.material:[o.material];
+    if(!materials.some(m=>m&&m.visible!==false&&m.depthWrite&&!m.transparent))return;
+    meshes.push(o);parts.push(o.id,o.geometry.id,o.geometry.getAttribute('position')?.version,o.geometry.index?.version,...o.matrixWorld.elements);
+   });
+   frame={frame:renderer.info.render.frame,camera,meshes,key:parts.join(',')};wallPointOcclusionScenes.set(scene,frame);
+  }
+ return frame;
+}
+window.wallPointOcclusion=function(object,enabled){
+ object.userData.pointOcclusionEnabled=enabled;
+ if(object.userData.pointOcclusionInstalled||!object.geometry?.getAttribute)return;
+ object.userData.pointOcclusionInstalled=true;
+ const previous=object.onBeforeRender,originalIndex=object.geometry.index,originalRange={...object.geometry.drawRange};
+ const filteredIndex=new THREE.BufferAttribute(new Uint32Array(originalIndex?originalIndex.count:object.geometry.getAttribute('position').count),1);
+ let lastKey=null;
+ object.onBeforeRender=function(renderer,scene,camera,...args){
+  previous?.call(this,renderer,scene,camera,...args);
+  if(!this.userData.pointOcclusionEnabled){if(lastKey!==null){this.geometry.setIndex(originalIndex);this.geometry.setDrawRange(originalRange.start,originalRange.count);}lastKey=null;return;}
+  const frame=wallOcclusionFrame(renderer,scene,camera);
+  const position=this.geometry.getAttribute('position'),size=renderer.getSize(new THREE.Vector2()),material=this.material;
+  const key=frame.key+':'+size.x+','+size.y+','+material.size+':'+position.version+':'+this.matrixWorld.elements.join(',');
+  if(key===lastKey)return;lastKey=key;
+  const ray=new THREE.Raycaster(),p=new THREE.Vector3(),projected=new THREE.Vector3(),sample=new THREE.Vector2(),indices=[];
+  for(let j=0;j<(originalIndex?originalIndex.count:position.count);j++){
+   const i=originalIndex?originalIndex.getX(j):j;
+   p.fromBufferAttribute(position,i).applyMatrix4(this.matrixWorld);projected.copy(p).project(camera);
+   if(projected.z<-1||projected.z>1)continue;
+   // Test the actual point, not the square's corners: a hidden anchor must
+   // not leak through a wall just because its marker overlaps a silhouette.
+   const epsilon=Math.max(1,p.length())*2e-6;
+   ray.setFromCamera(sample.set(projected.x,projected.y),camera);
+   ray.far=p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-epsilon;
+   const visible=!ray.intersectObjects(frame.meshes,false).length;
+   if(visible)indices.push(i);
+  }
+  filteredIndex.array.set(indices);filteredIndex.needsUpdate=true;
+  this.geometry.setIndex(filteredIndex);this.geometry.setDrawRange(0,indices.length);
+ };
+};
+
+// Whole-label visibility comes from its surface anchor, not per-glyph depth.
+// Leave the sprite renderable when hidden so orbiting can reveal it next frame.
+window.wallLabelOcclusion=function(object,enabled){
+ object.userData.labelOcclusionEnabled=enabled;
+ if(object.userData.labelOcclusionInstalled)return;
+ object.userData.labelOcclusionInstalled=true;
+ const previous=object.onBeforeRender,opacity=object.material.opacity;let lastKey=null,visible=true;
+ object.onBeforeRender=function(renderer,scene,camera,...args){
+  previous?.call(this,renderer,scene,camera,...args);
+  if(!this.userData.labelOcclusionEnabled){this.material.opacity=opacity;lastKey=null;return;}
+  const frame=wallOcclusionFrame(renderer,scene,camera),key=frame.key+':'+this.matrixWorld.elements.join(',');
+  if(key!==lastKey){lastKey=key;const p=new THREE.Vector3().setFromMatrixPosition(this.matrixWorld),q=p.clone().project(camera),ray=new THREE.Raycaster();visible=q.z>=-1&&q.z<=1;
+   if(visible){ray.setFromCamera(new THREE.Vector2(q.x,q.y),camera);ray.far=p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-Math.max(1,p.length())*2e-6;visible=!ray.intersectObjects(frame.meshes,false).length;}
+  }
+  this.material.opacity=visible?opacity:0;
+ };
+};
+// Move drafting wire one CSS pixel toward the camera in depth only. Keep its
+// projected position and real geometry unchanged, and retain wall occlusion.
+window.wallLineDepthBias=function(object,enabled){
+ const material=object.material;material.userData||={};
+ let state=material.userData.wallLineDepthBias;
+ if(!state){
+  state=material.userData.wallLineDepthBias={height:{value:1},pixels:{value:0}};
+  const compile=material.onBeforeCompile,cache=material.customProgramCacheKey?.bind(material);
+  const cacheKey=cache?.()||'';
+  material.onBeforeCompile=function(shader,...args){compile?.call(this,shader,...args);shader.uniforms.wallLineViewportHeight=state.height;shader.uniforms.wallLineBiasPixels=state.pixels;
+   shader.vertexShader='uniform float wallLineViewportHeight;\nuniform float wallLineBiasPixels;\n'+shader.vertexShader;
+   shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>
+    float wallPixelDepth = 2.0 * (isPerspectiveMatrix(projectionMatrix) ? abs(mvPosition.z) : 1.0) / (projectionMatrix[1][1] * wallLineViewportHeight);
+    vec4 wallNearPosition = projectionMatrix * vec4(mvPosition.xy, min(-0.00001, mvPosition.z + wallPixelDepth * wallLineBiasPixels), 1.0);
+    gl_Position.z = max(-gl_Position.w, wallNearPosition.z / wallNearPosition.w * gl_Position.w);
+   `);
+  };
+  material.customProgramCacheKey=()=>cacheKey+'|wall-line-depth-v1';material.needsUpdate=true;
+ }
+ state.pixels.value=enabled?1:0;
+ if(object.userData.wallLineDepthInstalled)return;object.userData.wallLineDepthInstalled=true;
+ const previous=object.onBeforeRender;
+ object.onBeforeRender=function(renderer,...args){previous?.call(this,renderer,...args);state.height.value=Math.max(1,renderer.domElement.getBoundingClientRect().height);};
+};
 window.exteriorSurfaceDisplay=function(group,mode=true){
  const translucent=mode===true||mode==='translucent',textured=['textured','rendered','match-textured'].includes(mode);
  group.traverse(o=>{
@@ -23,19 +112,23 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
     // Brighten the existing hue consistently in every display mode.
     if(o.userData.exteriorSelected&&THREE.Color&&m.color.lerp){m.color.lerp(new THREE.Color('#ffffff'),.6);if(translucent)m.opacity=.95;}
    }
-   if(!translucent){m.depthTest=true;if(o.isMesh&&!o.isSprite){m.opacity=1;m.transparent=false;m.depthWrite=true;if(textured){m.polygonOffset=true;m.polygonOffsetFactor=o.userData.exteriorFeature?-1:1;m.polygonOffsetUnits=o.userData.exteriorFeature?-1:1;}}}
+   // Bias filled surfaces slightly behind their coplanar drafting edges.
+   // Keep depth testing on the edges so nearer faces still hide them.
+   if(!translucent){m.depthTest=true;if(o.isMesh&&!o.isSprite){m.opacity=1;m.transparent=false;m.depthWrite=true;m.polygonOffset=true;m.polygonOffsetFactor=o.userData.exteriorFeature?-1:1;m.polygonOffsetUnits=o.userData.exteriorFeature?-1:1;}if(line)m.depthWrite=false;}
    if(textured&&(line||o.userData?.exteriorSelection)){m.color?.setHex(o.userData?.exteriorSelection?0xffffff:0x303840);m.vertexColors=false;m.opacity=o.userData?.exteriorSelection ? .9 : .35;m.transparent=true;m.depthTest=true;m.depthWrite=false;}
    // Selected stickers must win coplanar depth ties in solid display modes.
    // Keep normal depth testing so genuinely nearer walls still occlude them.
    if(o.isMesh&&o.userData?.exteriorFeature){o.renderOrder=o.userData.exteriorSelected?2:1;m.polygonOffset=true;m.polygonOffsetFactor=o.userData.exteriorSelected?-4:-1;m.polygonOffsetUnits=o.userData.exteriorSelected?-4:-1;}
    // Fascia must retain its coplanar priority after textured-mode material setup.
-   if(o.isMesh&&o.userData?.roofTrimId){m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=2;}
-   // Selection outlines are overlays, including in textured mode.
-   if(line&&o.userData?.exteriorSelection){m.depthTest=false;m.depthWrite=false;}
+   if(o.isMesh&&(o.userData?.roofTrimId||o.userData?.openingTrim)){m.polygonOffset=true;m.polygonOffsetFactor=-2;m.polygonOffsetUnits=-2;o.renderOrder=2;}
+   // Separate coplanar grade/base depth without changing measured elevations.
+   if(o.isMesh&&o.userData?.pickLayer==='grade'){m.polygonOffset=true;m.polygonOffsetFactor=4;m.polygonOffsetUnits=4;}
+   if(line){m.depthTest=translucent?saved.depthTest:true;m.depthWrite=false;o.userData.exteriorLineOrder??=o.renderOrder;o.renderOrder=translucent?o.userData.exteriorLineOrder:(o.userData.exteriorSelection||o.userData.exteriorLineOrder>0?999:998);window.wallLineDepthBias(o,!translucent);}
+   if(o.userData?.selectedLineDepth){m.depthTest=!translucent;m.depthWrite=false;}
    // Point squares are drafting overlays: a surface must never slice them.
-   if(o.isPoints){m.depthTest=false;m.depthWrite=false;o.renderOrder=1000;}
+   if(o.isPoints){m.depthTest=false;m.depthWrite=false;o.renderOrder=1000;window.wallPointOcclusion(o,!translucent);}
    // Annotation sprites must remain overlays in every surface display mode.
-   if(o.isSprite&&(o.userData?.wallFeature||o.userData?.wallLength!==undefined||o.userData?.moveIndicator)){m.depthTest=false;m.depthWrite=false;}
+   if(o.isSprite&&(o.userData?.wallFeature||o.userData?.wallLength!==undefined||o.userData?.moveIndicator)){m.depthTest=false;m.depthWrite=false;window.wallLabelOcclusion(o,!translucent);}
    m.needsUpdate=true;
   }
  });
@@ -264,8 +357,12 @@ window.wallChamferLabelPosition=function(anchor,width,height,viewport,segments,p
 };
 window.wallSelectedLine=function(group,vector,pair){
  if(!THREE.Sprite){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pair.map(vector)),new THREE.LineBasicMaterial({color:'#fff',depthTest:false}));line.userData.exteriorSelection=true;line.renderOrder=1000;group.add(line);return;}
- const [a,b]=pair,sprite=new THREE.Sprite(new THREE.SpriteMaterial({color:'#fff',depthTest:false,depthWrite:false,sizeAttenuation:false}));sprite.userData.exteriorSelection=true;sprite.position.copy(vector({x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2}));sprite.renderOrder=1000;
+ const [a,b]=pair,sprite=new THREE.Sprite(new THREE.SpriteMaterial({color:'#fff',depthTest:false,depthWrite:false,sizeAttenuation:false}));sprite.userData.exteriorSelection=true;sprite.userData.selectedLineDepth=true;sprite.position.copy(vector({x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2}));sprite.renderOrder=999;
+ const depths={value:new THREE.Vector2()};
+ sprite.material.onBeforeCompile=shader=>{shader.uniforms.wallSelectedLineDepth=depths;shader.vertexShader='uniform vec2 wallSelectedLineDepth;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <logdepthbuf_vertex>','gl_Position.z = mix(wallSelectedLineDepth.x, wallSelectedLineDepth.y, uv.x) * gl_Position.w;\n#include <logdepthbuf_vertex>');};
+ sprite.material.customProgramCacheKey=()=> 'wall-selected-line-depth-v1';
  sprite.onBeforeRender=(renderer,scene,camera)=>{const r=renderer.domElement.getBoundingClientRect(),p=vector(a).clone().project(camera),q=vector(b).clone().project(camera),dx=(q.x-p.x)*r.width/2,dy=(q.y-p.y)*r.height/2,scale=2/(r.height*camera.projectionMatrix.elements[5]);// Perspective does not project the world midpoint to the screen midpoint.
+ const biasedDepth=point=>{const v=vector(point).clone().applyMatrix4(camera.matrixWorldInverse),pixel=2*(camera.isPerspectiveCamera?Math.abs(v.z):1)/(r.height*camera.projectionMatrix.elements[5]);v.z=Math.min(-.00001,v.z+pixel*3);return Math.max(-1,v.applyMatrix4(camera.projectionMatrix).z);};depths.value.set(biasedDepth(a),biasedDepth(b));
  const center=vector(a).clone().set((p.x+q.x)/2,(p.y+q.y)/2,(p.z+q.z)/2).unproject(camera);sprite.position.copy(sprite.parent? sprite.parent.worldToLocal(center):center);sprite.material.rotation=Math.atan2(dy,dx);sprite.scale.set(Math.hypot(dx,dy)*scale,3*scale,1);sprite.updateMatrixWorld(true);sprite.modelViewMatrix.multiplyMatrices(camera.matrixWorldInverse,sprite.matrixWorld);};group.add(sprite);
 };
 // Screen-facing center cue, with a fixed pixel size even on oblique faces.

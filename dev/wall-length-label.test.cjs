@@ -11,12 +11,16 @@ test('length labels apply constant pixel size on the first frame and outline onl
  }
  assert.deepEqual(paint[0],['outline','3.0\u2032','#000']);assert.deepEqual(paint[1],['fill','3.0\u2032','#fff']);
 });
-test('selected line highlight matches projected endpoints at unequal depths',()=>{
- class V{constructor(x=0,y=0,z=0){Object.assign(this,{x,y,z});}clone(){return new V(this.x,this.y,this.z);}set(x,y,z){Object.assign(this,{x,y,z});return this;}copy(v){return this.set(v.x,v.y,v.z);}project(){this.x/=this.z;this.y/=this.z;return this;}unproject(){this.x*=this.z;this.y*=this.z;return this;}}
- class Sprite{constructor(material){this.material=material;this.userData={};this.position=new V();this.modelViewMatrix={multiplyMatrices:()=>{this.drawPosition=this.position.clone();}};this.scale={set:(x,y)=>{this.sx=x;this.sy=y;}};}updateMatrixWorld(){}}
- const ctx={THREE:{Sprite,SpriteMaterial:class{constructor(o){Object.assign(this,o);}}}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
- const pair=[{x:-1,y:.3,z:2},{x:2,y:-.7,z:6}],vector=p=>new V(p.x,p.y,p.z);let s;ctx.wallSelectedLine({add:o=>s=o},vector,pair);
- for(const width of [800,1400]){const height=600;s.onBeforeRender({domElement:{getBoundingClientRect:()=>({width,height})}},null,{projectionMatrix:{elements:[0,0,0,0,0,1]}});const center=s.drawPosition.clone().project(),dx=Math.cos(s.material.rotation)*s.sx*height/4,dy=Math.sin(s.material.rotation)*s.sx*height/4;for(const [i,sign] of [[0,-1],[1,1]]){const q=vector(pair[i]).project();assert.ok(Math.abs(center.x*width/2+sign*dx-q.x*width/2)<1e-9);assert.ok(Math.abs(center.y*height/2+sign*dy-q.y*height/2)<1e-9);}assert.equal(s.sy*height/2,3);}
+test('selected line highlight matches projected endpoints and follows their depths',()=>{
+ const THREE=require('../public/v1/node_modules/three'),ctx={THREE};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
+ const pair=[{x:-1,y:.3,z:-2},{x:2,y:-.7,z:-6}],vector=p=>new THREE.Vector3(p.x,p.y,p.z);let sprite;ctx.wallSelectedLine({add:o=>sprite=o},vector,pair);
+ for(const width of [800,1400]){const height=600,camera=new THREE.PerspectiveCamera(60,width/height,.1,100);camera.updateMatrixWorld();sprite.onBeforeRender({domElement:{getBoundingClientRect:()=>({width,height})}},null,camera);
+  const center=sprite.position.clone().project(camera),f=camera.projectionMatrix.elements[5],dx=Math.cos(sprite.material.rotation)*sprite.scale.x*f*height/4,dy=Math.sin(sprite.material.rotation)*sprite.scale.x*f*height/4;
+  for(const [i,sign] of [[0,-1],[1,1]]){const q=vector(pair[i]).project(camera);assert.ok(Math.abs(center.x*width/2+sign*dx-q.x*width/2)<1e-9);assert.ok(Math.abs(center.y*height/2+sign*dy-q.y*height/2)<1e-9);}
+  assert.ok(Math.abs(sprite.scale.y*f*height/2-3)<1e-9);
+  const shader={uniforms:{},vertexShader:'#include <logdepthbuf_vertex>'};sprite.material.onBeforeCompile(shader);const depths=shader.uniforms.wallSelectedLineDepth.value;
+  assert.ok(depths.x<vector(pair[0]).project(camera).z&&depths.y<vector(pair[1]).project(camera).z);assert.ok(depths.x<depths.y,'highlight retains endpoint depth difference');
+ }
 });
 
 test('chamfer readouts avoid padded projected edges and other readouts across orbit angles',()=>{
