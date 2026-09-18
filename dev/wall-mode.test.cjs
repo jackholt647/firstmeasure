@@ -241,7 +241,17 @@ test('global undo and redo restore exact generated wall ownership without regene
  const originalMerge=f.ctx.WallGeometry.mergeCoplanar;f.ctx.WallGeometry.mergeCoplanar=()=>{throw Error('Undo must not regenerate ownership');};
  try{const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});key('z');assert.equal(JSON.stringify(state.wallEdits),JSON.stringify(before));assert.equal(JSON.stringify(state.mergedWalls),generated);key('y');assert.equal(JSON.stringify(state.wallEdits),after);assert.equal(JSON.stringify(state.mergedWalls),generated);}finally{f.ctx.WallGeometry.mergeCoplanar=originalMerge;}
 });
+test('fixed Auto builds the outer overlap footprint without clipping recovered walls to the old inset',()=>{
+ const {ctx,soffits}=fixture(true),input=require('./fixtures/complex-roof-corner.json'),pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
+ ctx.activeGeometry={points,connections:input.roof.connections.map(c=>({...c,start:points[c.startIdx],end:points[c.endIdx]})),manualFaces:input.roof.faces.map(f=>({...f,points:f.points.map(pixel),holes:(f.holes||[]).map(r=>r.map(pixel))}))};
+ ctx.dsmMin=input.options.ground;ctx.WallMode.setEnabled(true);soffits[0].onclick();const saved=ctx.WallMode.serialize();
+ assert.equal(saved.stage,7);assert.ok(saved.sources.some(s=>s.outerEnvelope));assert.equal(saved.base.source,'Wall perimeter');
+ assert.ok(!saved.sources.some(s=>s.id.startsWith('R3.')));assert.ok(saved.rakeCleanupReport.paths.some(p=>p.crossed));
+ const stable=value=>JSON.stringify(value,(_,v)=>typeof v==='number'?+v.toFixed(7):v),pointsBefore=stable(saved.geometry);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+1000}});assert.equal(stable(ctx.WallMode.serialize().geometry),pointsBefore);
+});
+
 test('rake cleanup is a sixth stage with reversible wall and foundation comparisons and save/reload',()=>{
+ // This historical cleanup fixture relies on flashing-inferred setbacks, not the new fixed Auto preset.
  const legacyGeometry={...G,buildSources:(roof,options)=>{delete options.defaultSoffitInches;return G.buildSources(roof,options);}};
  const {ctx,stages,soffits,elements,listeners}=fixture(true,{WallGeometry:legacyGeometry}),input=require('./fixtures/complex-roof-corner.json');
  const key=key=>listeners['window:keydown']({key,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
@@ -464,6 +474,30 @@ test('editor redraw requests coalesce and a commit upgrades the pending render',
  frames.shift()();host.redraw();assert.equal(frames.length,1);frames.shift()();
 });
 
+test('Tab cycles wall display modes, including plane drawing, but leaves roof and input keys alone',()=>{
+ const f=fixture(true,{createWallEditor:()=>({apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,cancelPointerGesture(){},planeActive:()=>true,keyDown(){throw Error('Tab reached drawing tool');}})});
+ const press=(options={})=>{let prevented=false;f.listeners['window:keydown']({key:'Tab',target:{closest:()=>false},preventDefault(){prevented=true;},stopImmediatePropagation(){},...options});return prevented;};
+ assert.equal(press(),false);f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ for(const mode of ['opaque','textured','translucent']){assert.equal(press(),true);assert.equal(f.ctx.WallMode.serialize().displayMode,mode);}
+ assert.equal(press({target:{closest:()=>true}}),false);assert.equal(f.ctx.WallMode.serialize().displayMode,'translucent');
+ press({repeat:true});assert.equal(f.ctx.WallMode.serialize().displayMode,'translucent');
+ f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'opaque');
+});
+
+test('From Roof Auto and 18 inches match; every preset regenerates walls and base from the original roof',()=>{
+ const f=fixture(true),points=f.ctx.activeGeometry.points;
+ f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'eave'}));f.ctx.WallMode.setEnabled(true);
+ const result=value=>{f.soffits[0].dataset.soffit=value;f.soffits[0].onclick();const s=f.ctx.WallMode.serialize();return {base:s.base,sources:s.sources};};
+ const auto=result('auto');assert.deepEqual(result('18'),auto);
+ for(const inches of ['24','2.4','12','0','18']){
+  const r=result(inches),setback=Number(inches)*G.INCH,ps=r.base.faces.flatMap(f=>f.points);
+  assert.ok(Math.abs(Math.min(...ps.map(p=>p.x))-(-5+setback))<1e-5);
+  assert.ok(Math.abs(Math.max(...ps.map(p=>p.x))-(5-setback))<1e-5);
+  for(const source of r.sources.filter(s=>s.kind==='perimeter'))assert.equal(source.setback,setback);
+ }
+ assert.deepEqual(result('auto'),auto);
+});
+
 test('project finish palette counts visible finishes, resolves defaults, and omits sticker type colors',()=>{
  let materials,host;
  const {ctx,soffits}=fixture(true,{WallFeatures:{mountUI(a,b,c,m){materials=m;}},ExteriorModel:{collect:state=>state.wallEdits.$surfaces||[]},ExteriorFinishes:{resolve:(face,defaults)=>({color:face.finishColor||defaults.color})},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false};}});
@@ -484,6 +518,11 @@ test('project finish palette counts visible finishes, resolves defaults, and omi
   ctx.FIRSTMEASURE_MATCH_TEXTURED=true;button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'match-textured');assert.equal(button.textContent,'Match textured');assert.equal(calls.at(-1),false);
   button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'translucent');
  });
+
+test('attached trim follows by default and static preference survives serialization and rebuild',()=>{
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.soffits[1].onclick();const toggle=f.elements.get('wall-static-trim');assert.equal(toggle.checked,false);toggle.onchange({target:{checked:true}});assert.equal(f.ctx.WallMode.serialize().keepTrimStatic,true);f.elements.get('wall-rebuild').onclick();assert.equal(f.ctx.WallMode.serialize().keepTrimStatic,true);toggle.onchange({target:{checked:false}});assert.equal(f.ctx.WallMode.serialize().keepTrimStatic,false);
+});
+
 
 test('From Roof traces the cleaned stepped perimeter before constructing its foundation',()=>{
  const {ctx,soffits}=fixture(true),input=require('./fixtures/stepped-eave-chimney.json');

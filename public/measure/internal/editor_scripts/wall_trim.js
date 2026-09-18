@@ -114,8 +114,31 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
    }
    const cut=box(lo,hi,0,runLength),parts=K.intersection([local],[cut]);if(!parts.length)continue;
    let entry=cutters.get(face);if(!entry){entry={face,frame,local,strips:[]};cutters.set(face,entry);}
-   entry.strips.push({parts,id:'trim:'+K.edgeKey(...pair),pair:pair.map(p=>({...p})),width,variant,material:Math.abs(dir.z)/length>.707?'trim-vertical':'trim-horizontal'});
+   entry.strips.push({cut,parts,id:'trim:'+K.edgeKey(...pair),pair:pair.map(p=>({...p})),width,variant,material:Math.abs(dir.z)/length>.707?'trim-vertical':'trim-horizontal'});
   }
+ }
+ // Join meeting runs on their supporting plane. Their finite rectangles leave
+ // an outside-corner wedge; intersect the offset sides to make a bounded miter.
+ for(const {frame,local,strips}of cutters.values()){
+  const joins=[];
+  for(let i=0;i<strips.length;i++)for(let j=i+1;j<strips.length;j++){
+   const a=strips[i],b=strips[j];
+   for(let ai=0;ai<2;ai++)for(let bi=0;bi<2;bi++){
+    if(K.pointKey(a.pair[ai])!==K.pointKey(b.pair[bi]))continue;
+    const p=W.inFrame(frame,a.pair[ai]),qa=W.inFrame(frame,a.pair[1-ai]),qb=W.inFrame(frame,b.pair[1-bi]);
+    const unit=q=>{const l=Math.hypot(q.x-p.x,q.y-p.y);return {x:(q.x-p.x)/l,y:(q.y-p.y)/l};},u=unit(qa),v=unit(qb),cross=(a,b)=>a.x*b.y-a.y*b.x,den=cross(u,v);
+    if(Math.abs(den)<1e-6)continue;
+    const ends=(strip,d)=>strip.cut.points.filter(q=>Math.abs((q.x-p.x)*d.x+(q.y-p.y)*d.y)<K.CONTACT);
+    for(const x of ends(a,u))for(const y of ends(b,v)){
+     const t=cross({x:y.x-x.x,y:y.y-x.y},v)/den,m={x:x.x+u.x*t,y:x.y+u.y*t};
+     // Only fill the outside wedge, never extend isolated ends or create spikes.
+     if(t>K.CONTACT||(m.x-y.x)*v.x+(m.y-y.y)*v.y>K.CONTACT||Math.hypot(m.x-p.x,m.y-p.y)>4*Math.max(a.width,b.width))continue;
+     const patch={points:[p,x,m,y],holes:[]};if(K.area(patch)<1e-10)continue;
+     const parts=K.intersection([local],[patch]);if(parts.length)joins.push({...b,parts,joinIds:[a.id,b.id]});
+    }
+   }
+  }
+  strips.push(...joins);
  }
  const replacements=[];
  for(const {face,frame,local,strips}of cutters.values()){
@@ -123,12 +146,12 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
   let cells=[{...local,layers:previous?.layers||[]}];
   for(const strip of strips){const next=[];for(const cell of cells){
    next.push(...K.difference(cell,strip.parts).map(p=>({...p,layers:cell.layers})));
-   const layer={id:strip.id,pair:strip.pair,width:strip.width,variant:strip.variant,material:strip.material,finishColor:finishColor|| (face.trim?face.finishColor:undefined)};
+   const layer={id:strip.id,...(strip.joinIds?{joinIds:strip.joinIds}:{}),pair:strip.pair,width:strip.width,variant:strip.variant,material:strip.material,finishColor:finishColor|| (face.trim?face.finishColor:undefined)};
    next.push(...K.intersection([cell],strip.parts).map(p=>({...p,layers:[...cell.layers.filter(l=>l.id!==layer.id),layer]})));
   }cells=next;}
   const pieces=cells.map(({layers,...p})=>{const top=layers.at(-1);return {...p,material:top?.material||face.material,finishColor:top?top.finishColor:face.finishColor,trim:top?true:face.trim,trimData:{host:previous?.host||face.id,base,layers}};});
   const total=pieces.reduce((s,p)=>s+K.area(p),0);if(Math.abs(total-K.area(local))>1e-5)throw Error('Trim could not preserve the complete face.');
-  replacements.push({face,pieces:pieces.filter(f=>K.area(f)>1e-10).map((p,i)=>({...face,...p,id:face.id+'-trim-'+i,draft:false,points:p.points.map(q=>W.fromFrame(frame,q)),holes:(p.holes||[]).map(r=>r.map(q=>W.fromFrame(frame,q)))}))});
+  replacements.push({face,pieces:pieces.filter(f=>K.area(f)>1e-10).map((p,i)=>({...face,...p,id:face.id+'-trim-'+i,draft:false,retainedPoints:(face.retainedPoints||[]).filter(q=>W.ownsPoint({...p,points:p.points.map(v=>W.fromFrame(frame,v)),holes:(p.holes||[]).map(r=>r.map(v=>W.fromFrame(frame,v)))},q)),points:p.points.map(q=>W.fromFrame(frame,q)),holes:(p.holes||[]).map(r=>r.map(q=>W.fromFrame(frame,q)))}))});
  }
  return {replacements,corner:cornerPairs.some(Boolean)};
 }
@@ -148,9 +171,9 @@ function adoptLegacy(faces,supports=[]){
 }
 function remove(faces,selected){
  const layer=selected?.trimData?.layers?.at(-1);if(!layer)return null;
- const hosts=new Set(faces.filter(f=>f.trimData?.layers?.some(l=>l.id===layer.id)).map(f=>f.trimData.host)),groups=[];
+ const hosts=new Set(faces.filter(f=>f.trimData?.layers?.some(l=>l.id===layer.id||l.joinIds?.includes(layer.id))).map(f=>f.trimData.host)),groups=[];
  for(const face of faces){if(!hosts.has(face.trimData?.host))continue;
-  const data=face.trimData,layers=data.layers.filter(l=>l.id!==layer.id),removed=layers.length!==data.layers.length,top=layers.at(-1);
+  const data=face.trimData,layers=data.layers.filter(l=>l.id!==layer.id&&!l.joinIds?.includes(layer.id)),removed=layers.length!==data.layers.length,top=layers.at(-1);
   const material=removed?(top?.material||data.base.material):face.material,finishColor=removed?(top?top.finishColor:data.base.finishColor):face.finishColor,trim=removed?(!!top||data.base.trim):face.trim;
   const key=JSON.stringify([data.host,layers,material,finishColor,!!trim]),frame=W.faceFrame(face);
   let group=groups.find(g=>g.key===key&&face.points.every(p=>Math.abs(dot(sub(p,g.frame.origin),g.frame.n))<K.CONTACT));
@@ -163,5 +186,24 @@ function remove(faces,selected){
  }
  return {replacements,pairs:[layer.pair]};
 }
-const api={materialKey,defaultMaterial,runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
+function selectionPairs(faces,kind,options={}){
+ const ground=kind.startsWith('ground'),untrimmed=kind.endsWith('-untrimmed'),saved=new Map();
+ for(const f of faces)for(const l of f.trimData?.layers||[])if(!l.joinIds)saved.set(l.id,l.pair);
+ const supports=[...(options.base?.faces||[]),...(options.ground?.faces||[])].filter(f=>f.points);
+ const existing=[...saved.values()].filter(pair=>!!W.sharedIntervals(...pair,supports).length===ground);
+ const raw=ground?groundCandidates(faces,options):candidates(faces,options);
+ const pairs=runs([...raw,...existing]);
+ if(!untrimmed)return pairs;
+ return pairs.flatMap(([a,b])=>{let lo=0;const u=sub(b,a),out=[];for(const [start,end]of [...W.sharedIntervals(a,b,[...saved.values()].map(points=>({points}))),[1,1]]){if(start-lo>1e-7)out.push([at(a,u,lo),at(a,u,start)]);lo=Math.max(lo,end);}return out;});
+}
+function removeEdges(faces,pairs){
+ const ids=new Set();for(const f of faces)for(const l of f.trimData?.layers||[])if(W.sharedIntervals(...l.pair,pairs.map(points=>({points}))).length)ids.add(l.id);
+ const replacements=new Map(faces.map(f=>[f,[f]]));let scene=faces.slice();
+ for(const id of ids){const chosen=scene.find(f=>f.trimData?.layers?.some(l=>l.id===id));if(!chosen)continue;
+  const layer=chosen.trimData.layers.find(l=>l.id===id),result=remove(scene,{trimData:{layers:[layer]}});if(!result)continue;
+  for(const r of result.replacements){for(const [original,pieces]of replacements){const i=pieces.indexOf(r.face);if(i>=0){pieces.splice(i,1,...r.pieces);break;}}const i=scene.indexOf(r.face);if(i>=0)scene.splice(i,1,...r.pieces);}
+ }
+ return {replacements:[...replacements].filter(([face,pieces])=>pieces.length!==1||pieces[0]!==face).map(([face,pieces])=>({face,pieces})),pairs};
+}
+const api={selectionPairs,removeEdges,materialKey,defaultMaterial,runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
 })(typeof window!=='undefined'?window:globalThis);

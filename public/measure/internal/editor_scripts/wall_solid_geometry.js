@@ -341,7 +341,7 @@ function snapGeometryOnPlane(clip,index,targets,edges,screen,radius=10,pointer=n
  if(!delta)for(const [a,b]of clip.edges){const v=sub(b,a),l2=dot(v,v);for(const q of targets){const t=l2?Math.max(0,Math.min(1,dot(sub(q,a),v)/l2)):0;offer(mix3(a,b,t),q);}}
  const snapped=delta?transformGeometry(clip,index,{delta}):clip;const alignment=planeAlignment(snapped.points,targets,frame,screen,radius,['u','v'],pointer);return Math.hypot(alignment.x,alignment.y)>1e-10?transformGeometry(snapped,index,{delta:alignment}):snapped;
 }
-function transformSelection(scene,original,preview){
+function transformSelection(scene,original,preview,options={}){
  const moves=original.points.map((from,i)=>({from,to:preview.points[i]}));
  const find=p=>moves.find(m=>Math.hypot(p.x-m.from.x,p.y-m.from.y,p.z-m.from.z)<=K.CONTACT);
  // Carry interior stickers for whole-face translations as well as normal moves.
@@ -355,7 +355,7 @@ function transformSelection(scene,original,preview){
  const faces=scene.map(f=>{if(![...rings(f).flat(),...(f.retainedPoints||[])].some(find))return f;affected.push(f.id);const whole=rings(f).flat().every(find),copied=whole&&original.faces.findIndex(g=>g.points.length===f.points.length&&g.points.every(p=>f.points.some(q=>vertexKey(p)===vertexKey(q))));
   const transformed=whole&&copied>=0?preview.faces[copied]:null;
   return {...f,...(transformed?K.mapCurveData(transformed,p=>({...p})):{}),points:transformed?transformed.points:f.points.map(mapped),holes:transformed?transformed.holes:(f.holes||[]).map(r=>r.map(mapped)),retainedPoints:(f.retainedPoints||[]).map(mapped),...(transformed?.feature?{feature:transformed.feature}:{})};
- });return {faces,moves,affected};
+ });return followTrim(scene,{faces,moves,affected},scene.filter(f=>f.points.every(p=>original.points.some(q=>vertexKey(p)===vertexKey(q)))).map(f=>f.id),options.keepTrimStatic);
 }
 // Fit against the actual connected geometry too: footprint bounds alone do not
 // catch a neighboring face folding or collapsing as its shared vertices move.
@@ -560,7 +560,9 @@ function cleanupSweepRemnants(edits){if(!edits?.$surfaces)return false;const bef
  const world=p=>d.frame?fromFrame(d.frame,p):({x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y}),source={...region,draftKey:f.draftKey,points:region.points.map(world),holes:(region.holes||[]).map(r=>r.map(world))};return !sweepRemnant(f,source);
  });return edits.$surfaces.length!==before;}
 function trimExtrusion(sides,neighbors){
- const changes=new Map(),originals=neighbors.filter(f=>!f.deleted&&!f.snapOnly);
+ // Openings keep their identity and dimensions; wall returns must never union
+ // with a window or door just because they meet on the same plane.
+ const changes=new Map(),originals=neighbors.filter(f=>!f.deleted&&!f.snapOnly&&!f.feature);
  const difference=(face,cuts)=>{
   const frame=faceFrame(face),local=f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))});
   return K.difference(local(face),cuts.map(local)).map((region,i)=>({...face,id:face.id+'-trim-'+i,points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p))),retainedPoints:(face.retainedPoints||[]).filter(p=>{const q=inFrame(frame,p);return pointInRing(q,region.points)||region.points.some((a,j)=>pointOnEdge(q,a,region.points[(j+1)%region.points.length]));})}));
@@ -602,8 +604,17 @@ function trimExtrusion(sides,neighbors){
 const mix3=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
 const rings=f=>[f.points,...(f.holes||[])];
 function sharedIntervals(a,b,faces){
- const u=sub(b,a),l2=dot(u,u);if(l2<1e-12)return [];const intervals=[];
- for(const face of faces.filter(f=>!f.deleted))for(const ring of rings(face))for(let i=0;i<ring.length;i++){const c=ring[i],d=ring[(i+1)%ring.length],ts=[c,d].map(p=>dot(sub(p,a),u)/l2);if([c,d].some((p,j)=>Math.hypot(...Object.values(sub(p,mix3(a,b,ts[j]))))>1e-5))continue;ts.sort((x,y)=>x-y);const lo=Math.max(0,ts[0]),hi=Math.min(1,ts[1]);if(hi-lo>1e-7)intervals.push([lo,hi]);}
+ const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz;if(l2<1e-12)return [];const intervals=[];
+ const minX=Math.min(a.x,b.x)-1e-5,maxX=Math.max(a.x,b.x)+1e-5,minY=Math.min(a.y,b.y)-1e-5,maxY=Math.max(a.y,b.y)+1e-5,minZ=Math.min(a.z,b.z)-1e-5,maxZ=Math.max(a.z,b.z)+1e-5;
+ // Reject distant segments before the exact collinearity/overlap test. Keep
+ // the original tolerances; this only avoids work on impossible contacts.
+ for(const face of faces){if(face.deleted)continue;for(const ring of rings(face))for(let i=0;i<ring.length;i++){
+  const c=ring[i],d=ring[(i+1)%ring.length];
+  if(Math.max(c.x,d.x)<minX||Math.min(c.x,d.x)>maxX||Math.max(c.y,d.y)<minY||Math.min(c.y,d.y)>maxY||Math.max(c.z,d.z)<minZ||Math.min(c.z,d.z)>maxZ)continue;
+  const tc=((c.x-a.x)*ux+(c.y-a.y)*uy+(c.z-a.z)*uz)/l2,td=((d.x-a.x)*ux+(d.y-a.y)*uy+(d.z-a.z)*uz)/l2;
+  if(Math.hypot(c.x-(a.x+ux*tc),c.y-(a.y+uy*tc),c.z-(a.z+uz*tc))>1e-5||Math.hypot(d.x-(a.x+ux*td),d.y-(a.y+uy*td),d.z-(a.z+uz*td))>1e-5)continue;
+  const lo=Math.max(0,Math.min(tc,td)),hi=Math.min(1,Math.max(tc,td));if(hi-lo>1e-7)intervals.push([lo,hi]);
+ }}
  intervals.sort((a,b)=>a[0]-b[0]);const merged=[];for(const pair of intervals){const last=merged.at(-1);if(last&&pair[0]<=last[1]+1e-7)last[1]=Math.max(last[1],pair[1]);else merged.push(pair);}return merged;
 }
 function freeEdges(face,supports){const edges=[];for(const ring of rings(face))for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length];let lo=0;for(const [start,end]of [...sharedIntervals(a,b,supports),[1,1]]){if(start-lo>1e-7)edges.push([mix3(a,b,lo),mix3(a,b,start)]);lo=end;}}return edges;}
@@ -621,27 +632,117 @@ function slideLines(faces,pairs,direction,amount){
   for(const ring of rings(next))baseGeometry().validate({points:ring.map(p=>inFrame(frame,p))});if(JSON.stringify(next.points)!==JSON.stringify(f.points)||JSON.stringify(next.holes)!==JSON.stringify(f.holes||[]))affected.push(f.id);return next;
  });return {faces:result,moves,affected,pairs:pairs.map(pair=>pair.map(p=>matching(p).to))};
 }
+// Carry coplanar finish strips with their support; shared ends on other planes
+// follow the changed edge while their opposite ends stay fixed. Always evaluate
+// from the gesture's original scene, never from the previous preview.
+function ownsPoint(face,p){
+ const frame=faceFrame(face);if(!frame)return false;const q=inFrame(frame,p);
+ if(Math.abs(dot(sub(p,frame.origin),frame.n))>K.CONTACT)return false;
+ const rs=rings(face).map(r=>r.map(p=>inFrame(frame,p)));
+ return rs.some(r=>r.some((a,i)=>pointOnEdge(q,a,r[(i+1)%r.length])))||pointInRing(q,rs[0])&&!rs.slice(1).some(r=>pointInRing(q,r));
+}
+function trimRunMap(trim,map,keepStatic=false){
+  // A trim run follows its supporting line. Moving one end sideways translates
+  // the run across its width; only longitudinal displacement stretches its end.
+  // Otherwise a vertical corner strip becomes a diagonal across the return wall.
+  const run=(trim.trimData?.layers||[]).filter(l=>l.pair&&!l.joinIds).at(-1);
+  if(run&&!keepStatic){const v=sub(run.pair[1],run.pair[0]),length=Math.hypot(v.x,v.y,v.z);if(length>K.CONTACT){const u={x:v.x/length,y:v.y/length,z:v.z/length},deltas=trim.points.map(p=>sub(map(p),p)),lateral=deltas.map(d=>{const t=dot(d,u);return {x:d.x-u.x*t,y:d.y-u.y*t,z:d.z-u.z*t};}),active=lateral.filter(d=>Math.hypot(d.x,d.y,d.z)>K.CONTACT);
+   if(active.length&&active.every(d=>Math.hypot(...Object.values(sub(d,active[0])))<=K.CONTACT)){const offset=active[0],prior=map;map=p=>{const along=dot(sub(prior(p),p),u);return {...p,x:p.x+offset.x+u.x*along,y:p.y+offset.y+u.y*along,z:p.z+offset.z+u.z*along};};}
+  }}
+ return map;
+}
+function followTrim(scene,result,selectedIds=[],keepStatic=false){
+ const selected=new Set(selectedIds),byId=new Map(result.faces.map(f=>[f.id,f]));
+ const supports=scene.filter(f=>selected.has(f.id)&&!f.trim&&!f.feature&&!f.deleted).map(before=>({before,after:byId.get(before.id)})).filter(({before,after})=>after&&!after.deleted&&before.points.length===after.points.length);
+ if(!supports.length)return result;
+ const edges=f=>rings(f).flatMap(r=>r.map((a,i)=>[a,r[(i+1)%r.length]]));
+ const changed=new Map(),maps=new Map(),fragments={};
+ for(const trim of scene){if(!trim.trim||trim.deleted||trim.snapOnly||selected.has(trim.id))continue;
+  let map=null;
+  for(const {before,after}of supports){
+   const shared=edges(trim).some(([a,b])=>sharedIntervals(a,b,[before]).some(([lo,hi])=>hi-lo>1e-6));
+   const sameHost=trim.trimData?.host&&trim.trimData.host===before.trimData?.host;
+   if(!shared&&!sameHost)continue;
+   if(keepStatic){map=p=>({...p});break;}
+   const n=normal(before.points),coplanar=n&&trim.points.every(p=>Math.abs(dot(sub(p,before.points[0]),n))<=K.CONTACT);
+   const changes=before.points.map((p,i)=>sub(after.points[i],p)),delta=changes[0];
+   const translation=changes.every(d=>Math.hypot(d.x-delta.x,d.y-delta.y,d.z-delta.z)<=K.CONTACT);
+   const onEdge=p=>{for(let i=0;i<before.points.length;i++){const a=before.points[i],b=before.points[(i+1)%before.points.length];if(!pointOnEdge(p,a,b))continue;const u=sub(b,a),t=dot(sub(p,a),u)/dot(u,u);return mix3(after.points[i],after.points[(i+1)%after.points.length],t);}return null;};
+   // A same-plane trim band is part of the face footprint, not a fixed neighbor.
+   if(coplanar&&translation){map=p=>({ ...p,x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z});break;}
+   if(coplanar){
+    const boundary=before.points.map((a,i)=>({a,b:before.points[(i+1)%before.points.length],i})).filter(({a,b})=>sharedIntervals(a,b,[trim]).length);
+    if(boundary.length){const edge=boundary.sort((a,b)=>Math.hypot(...Object.values(sub(b.b,b.a)))-Math.hypot(...Object.values(sub(a.b,a.a))))[0],u=sub(edge.b,edge.a),d0=changes[edge.i],d1=changes[(edge.i+1)%changes.length];
+     map=p=>{const t=dot(sub(p,edge.a),u)/dot(u,u),d=mix3(d0,d1,t);return {...p,x:p.x+d.x,y:p.y+d.y,z:p.z+d.z};};break;
+    }
+   }
+   if(coplanar&&sameHost){
+    const origin=before.points[0],i=before.points.reduce((best,p,j)=>dot(sub(p,origin),sub(p,origin))>dot(sub(before.points[best],origin),sub(before.points[best],origin))?j:best,1),u=sub(before.points[i],origin),j=before.points.reduce((best,p,k)=>dot(cross(u,sub(p,origin)),cross(u,sub(p,origin)))>dot(cross(u,sub(before.points[best],origin)),cross(u,sub(before.points[best],origin)))?k:best,0),v=sub(before.points[j],origin),aa=dot(u,u),bb=dot(v,v),ab=dot(u,v),det=aa*bb-ab*ab;
+    if(det>1e-16){map=p=>{const q=sub(p,origin),a=(dot(q,u)*bb-dot(q,v)*ab)/det,b=(dot(q,v)*aa-dot(q,u)*ab)/det;return {...p,...Object.fromEntries(['x','y','z'].map(k=>[k,p[k]+delta[k]+a*(changes[i][k]-delta[k])+b*(changes[j][k]-delta[k])]))};};break;}
+   }
+   const prior=map;map=p=>({...p,...(onEdge(p)||prior?.(p)||p)});
+  }
+  if(!map)continue;
+  map=trimRunMap(trim,map,keepStatic);
+  const next={...trim,...K.mapCurveData(trim,map),points:trim.points.map(map),holes:(trim.holes||[]).map(r=>r.map(map)),retainedPoints:(trim.retainedPoints||[]).filter(p=>ownsPoint(trim,p)).map(map)};
+  if(trim.trimData)next.trimData={...trim.trimData,layers:trim.trimData.layers.map(l=>({...l,pair:l.pair?.map(map)}))};
+  changed.set(trim.id,next);maps.set(trim.id,map);
+ }
+ // A corner run owns strips on both incident faces and its join cells. Follow
+ // the saved run identity across those faces rather than guessing by angle.
+ const runMaps=new Map(),seeds=new Set();
+ for(const f of scene){if(!changed.has(f.id)||!supports.some(({before})=>{const n=normal(before.points);return n&&f.points.every(p=>Math.abs(dot(sub(p,before.points[0]),n))<=K.CONTACT);}))continue;const map=maps.get(f.id);seeds.add(f.id);
+  if(!f.points.some(p=>Math.hypot(...Object.values(sub(map(p),p)))>1e-8)&&!keepStatic)continue;
+  for(const layer of f.trimData?.layers||[])if(!layer.joinIds){if(!runMaps.has(layer.id))runMaps.set(layer.id,[]);runMaps.get(layer.id).push({map,face:f,pair:layer.pair});}
+ }
+ for(const trim of scene){if(!trim.trim||trim.deleted||trim.snapOnly||selected.has(trim.id)||seeds.has(trim.id))continue;
+  const candidates=(trim.trimData?.layers||[]).flatMap(l=>[l.id,...(l.joinIds||[])].flatMap(id=>runMaps.get(id)||[]));
+  const source=candidates.find(({face,pair})=>{if(!pair)return false;const u=sub(pair[1],pair[0]),ts=f=>f.points.map(p=>dot(sub(p,pair[0]),u)),a=ts(face),b=ts(trim);return Math.min(Math.max(...a),Math.max(...b))-Math.max(Math.min(...a),Math.min(...b))>K.CONTACT*Math.hypot(u.x,u.y,u.z);});if(!source)continue;const map=source.map;
+  const next={...trim,...K.mapCurveData(trim,map),points:trim.points.map(map),holes:(trim.holes||[]).map(r=>r.map(map)),retainedPoints:(trim.retainedPoints||[]).filter(p=>ownsPoint(trim,p)).map(map),trimData:{...trim.trimData,layers:trim.trimData.layers.map(l=>({...l,pair:l.pair?.map(map)}))}};
+  changed.set(trim.id,next);maps.set(trim.id,map);
+ }
+ for(const [id,face]of changed)try{K.validateFace(face);}catch(e){e.message+=' [trim '+id+']';throw e;}
+ // Repair the other side of each moved trim boundary as part of the same
+ // transaction. This stretches return-wall faces and the ends of crossing bands.
+ const bindings=scene.filter(f=>maps.has(f.id)).flatMap(f=>edges(f).map(([a,b])=>({a,b,map:maps.get(f.id)})));
+ const bindingPoint=(p,available)=>{for(const {a,b,map}of available)if(pointOnEdge(p,a,b)){const q=map(p);if(Math.hypot(...Object.values(sub(q,p)))>1e-8)return {...p,...q};}return p;},bind=p=>bindingPoint(p,bindings);
+ if(!keepStatic)for(const face of [...scene.filter(f=>f.trim),...scene.filter(f=>!f.trim)]){if(selected.has(face.id)||changed.has(face.id)||face.feature||face.deleted||face.snapOnly)continue;
+  if(!rings(face).flat().some(p=>bind(p)!==p))continue;
+  const available=bindings.slice(),map=face.trim?trimRunMap(face,p=>bindingPoint(p,available)):p=>bindingPoint(p,available);
+  const next={...face,points:face.points.map(map),holes:(face.holes||[]).map(r=>r.map(map)),retainedPoints:(face.retainedPoints||[]).filter(p=>!face.trim||ownsPoint(face,p)).map(map)};
+  if(face.trimData)next.trimData={...face.trimData,layers:face.trimData.layers.map(l=>({...l,pair:l.pair?.map(map)}))};
+  const support=faceFrame(face);if(!support||next.points.some(p=>Math.abs(dot(sub(p,support.origin),support.n))>K.CONTACT))continue;
+  const normalized=[K.normalizeFace(next,true)].flat();normalized.forEach(K.validateFace);changed.set(face.id,normalized[0]);if(normalized.length>1)fragments[face.id]=normalized.slice(1);maps.set(face.id,map);if(face.trim)bindings.push(...edges(face).map(([a,b])=>({a,b,map})));
+ }
+ // Publish one authoritative destination for each anchor. Intermediate corner
+ // maps must not leave duplicate moves whose first entry wins in draft rebinding.
+ const finalMoves=new Map((result.moves||[]).map(m=>[vertexKey(m.from),m]));
+ for(const face of scene)if(changed.has(face.id)){const map=maps.get(face.id)||bind;for(const p of [...rings(face).flat(),...(face.retainedPoints||[]).filter(p=>ownsPoint(face,p))]){const to=map(p);if(Math.hypot(...Object.values(sub(to,p)))>1e-8)finalMoves.set(vertexKey(p),{from:p,to});}}
+ return {...result,trimFragments:fragments,faces:result.faces.flatMap(f=>[changed.get(f.id)||f,...(fragments[f.id]||[])]),moves:[...finalMoves.values()],affected:[...new Set([...(result.affected||[]),...changed.keys(),...Object.values(fragments).flat().map(f=>f.id)])]};
+}
 // Stickers belong to the supporting footprint, including its opening holes.
 function mountedStickers(faces,source){
  if(!source||source.feature)return [];
  return faces.filter(f=>f.id!==source.id&&f.feature&&!f.deleted&&!f.snapOnly&&containedBy(f,{...source,holes:[]}));
 }
-function moveFabric(faces,id,amount){
+function moveFabric(faces,id,amount,options={}){
  const source=faces.find(f=>f.id===id),n=source&&normal(source.points);if(!n)throw Error('Select a valid face.');
  const graph=K.topology(faces.filter(f=>!f.deleted),faces.flatMap(f=>f.retainedPoints||[]));
  const attached=new Set(mountedStickers(faces,source).map(f=>f.id));
  const moves=graph.vertices.filter(v=>v.faces.has(id)||[...v.faces].some(id=>attached.has(id))||v.anchors.some(p=>(source.retainedPoints||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=K.CONTACT))).map(v=>v.point).map(p=>({from:p,to:{x:p.x+n.x*amount,y:p.y+n.y*amount,z:p.z+n.z*amount}}));
  const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a),l2=dot(u,u);expanded.push(a);const cuts=moves.filter(m=>pointOnEdge(m.from,a,b)).map(m=>({p:m.from,t:l2?dot(sub(m.from,a),u)/l2:0})).filter(v=>v.t>1e-6&&v.t<1-1e-6).sort((a,b)=>a.t-b.t);for(const v of cuts)if(!expanded.some(p=>vertexKey(p)===vertexKey(v.p)))expanded.push(v.p);}return expanded.map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})}));};
- const affected=new Set([id]);let valid=true;
+ const affected=new Set([id]);
  const moved=faces.map(f=>{if(f.deleted)return f;const next={...f,retainedPoints:(f.retainedPoints||[]).map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})})),points:replace(f.points),holes:(f.holes||[]).map(replace)};if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[]))return f;affected.add(f.id);
-  const frame=faceFrame(next);if(!frame||rings(next).flat().some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>1e-5)){valid=false;return next;}
-  try{for(const ring of rings(next))baseGeometry().validate({points:ring.map(p=>inFrame(frame,p))});}catch{valid=false;}return next;
+  return next;
  });
  // The caller may construct connecting returns, but must never silently detach.
- if(!valid)throw Error('Moving this face requires connecting returns.');
- return {faces:moved,moves,affected:[...affected],detached:false};
+ const result=followTrim(faces,{faces:moved,moves,affected:[...affected],detached:false},[id],options.keepTrimStatic);
+ // Validate after attachment updates: the intermediate shared-edge move can
+ // temporarily fold a strip whose complete footprint is about to follow.
+ try{for(const f of result.faces)if(result.affected.includes(f.id)&&!f.deleted)K.validateFace(f);}catch{throw Error('Moving this face requires connecting returns.');}
+ return result;
 }
-function moveSurface(faces,id,amount){
+function moveSurface(faces,id,amount,options={}){
  const original=faces.find(f=>f.id===id);if(!original)throw Error('Select an existing face.');const n=normal(original.points);if(!n)throw Error('The selected face has no area.');const moves=[];
  const graph=K.topology(faces.filter(f=>!f.deleted),faces.flatMap(f=>f.retainedPoints||[]));
  const attached=new Set(mountedStickers(faces,original).map(f=>f.id));
@@ -652,7 +753,7 @@ function moveSurface(faces,id,amount){
   const delta=basis.reduce((d,b)=>({x:d.x+b.v.x*b.value,y:d.y+b.v.y*b.value,z:d.z+b.v.z*b.value}),{x:0,y:0,z:0});moves.push({from:p,to:{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}});
  }
  const moved=faces.map(f=>{const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a),l2=dot(u,u);expanded.push(a);const inserts=moves.filter(m=>pointOnEdge(m.from,a,b)).map(m=>({p:m.from,t:l2?dot(sub(m.from,a),u)/l2:0})).filter(v=>v.t>1e-6&&v.t<1-1e-6).sort((a,b)=>a.t-b.t);for(const v of inserts)if(!expanded.some(p=>vertexKey(p)===vertexKey(v.p)))expanded.push(v.p);}return expanded.map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})}));};return {...f,retainedPoints:(f.retainedPoints||[]).map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})})),points:replace(f.points),holes:(f.holes||[]).map(replace)};});
- const selected=moved.find(f=>f.id===id);delete selected.attachment;return {faces:moved,moves};
+ const selected=moved.find(f=>f.id===id);delete selected.attachment;return followTrim(faces,{faces:moved,moves},[id],options.keepTrimStatic);
 }
 function snapDirection(origin,p,edges,tolerance=.1){const dx=p.x-origin.x,dy=p.y-origin.y,len=Math.hypot(dx,dy);if(len<1e-9)return p;const dirs=[];for(let i=0;i<8;i++)dirs.push({x:Math.cos(i*Math.PI/4),y:Math.sin(i*Math.PI/4),label:'45-degree grid'});for(const [a,b]of edges){const x=b.x-a.x,y=b.y-a.y,l=Math.hypot(x,y);if(l>1e-8)dirs.push({x:x/l,y:y/l,label:'Parallel to edge'});}
  let best=tolerance,result=p;for(const u of dirs){const t=dx*u.x+dy*u.y,q={x:origin.x+t*u.x,y:origin.y+t*u.y,z:0},d=Math.hypot(q.x-p.x,q.y-p.y);if(d<best){best=d;result={...q,snapLabel:u.label};}}return result;}
@@ -795,7 +896,7 @@ function pointRangeIndex(points){
 
 function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).filter(f=>f.curvedSurface?.logical&&!f.deleted&&!f.drafted);edits={...edits,$surfaces:(edits.$surfaces||[]).filter(f=>!f.curvedSurface)};const nodes=new Map(),edges=new Map(),removed=new Set(edits.$removedSurfacePoints||[]),removedEdges=new Set(edits.$removedSurfaceEdges||[]);
  const cuts=[...removedEdges].map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
- for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of f.retainedPoints||[]){const k=vertexKey(p);if(!removed.has(k))nodes.set(k,{...p,id:k});}
+ for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k))nodes.set(k,{...p,id:k});}
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const ring of [f.points,...(f.holes||[])])for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],ka=vertexKey(a),kb=vertexKey(b);if(!removed.has(ka))nodes.set(ka,{...a,id:ka});if(removed.has(ka)||removed.has(kb))continue;const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=end;}}
  const curvedOwners=new Map();for(const f of edits.$surfaces||[])if(!f.drafted&&f.curvedSurface){const {range,...surface}=f.curvedSurface,key=JSON.stringify(surface)+':'+(f.material||'')+':'+(f.finishColor||'');for(const r of rings(f))for(let i=0;i<r.length;i++){const id=edgeKey(r[i],r[(i+1)%r.length]);if(!curvedOwners.has(id))curvedOwners.set(id,[]);curvedOwners.get(id).push(key);}}
  for(const [id,owners]of curvedOwners)if(owners.length===2&&owners[0]===owners[1])edges.delete(id);
@@ -816,16 +917,17 @@ function structuralIndex(faces){
  for(const f of faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f)))for(const r of rings(f))for(let i=0;i<r.length;i++){
   const p=r[i],q=r[(i+1)%r.length],a=sub(r[(i+r.length-1)%r.length],p),b=sub(q,p),c=cross(a,b);
   if(dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z)))points.add(vertexKey(p));
-  segments.push([p,q]);
+  segments.push({c:p,d:q,minX:Math.min(p.x,q.x),maxX:Math.max(p.x,q.x),minY:Math.min(p.y,q.y),maxY:Math.max(p.y,q.y),minZ:Math.min(p.z,q.z),maxZ:Math.max(p.z,q.z)});
  }
  return {point:p=>points.has(vertexKey(p)),edge:(a,b)=>{
   const key=edgeKey(a,b);if(edgeCache.has(key))return edgeCache.get(key);
-  const u=sub(b,a),l2=dot(u,u);let yes=false;
-  if(l2>1e-12)for(const [c,d]of segments){
-   if(['x','y','z'].some(k=>Math.max(c[k],d[k])<Math.min(a[k],b[k])-1e-5||Math.min(c[k],d[k])>Math.max(a[k],b[k])+1e-5))continue;
-   const ts=[dot(sub(c,a),u)/l2,dot(sub(d,a),u)/l2];
-   if([c,d].some((p,i)=>Math.hypot(p.x-a.x-u.x*ts[i],p.y-a.y-u.y*ts[i],p.z-a.z-u.z*ts[i])>1e-5))continue;
-   if(Math.min(1,Math.max(...ts))-Math.max(0,Math.min(...ts))>1e-7){yes=true;break;}
+  const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz;let yes=false;
+  const minX=Math.min(a.x,b.x)-1e-5,maxX=Math.max(a.x,b.x)+1e-5,minY=Math.min(a.y,b.y)-1e-5,maxY=Math.max(a.y,b.y)+1e-5,minZ=Math.min(a.z,b.z)-1e-5,maxZ=Math.max(a.z,b.z)+1e-5;
+  if(l2>1e-12)for(const segment of segments){
+   if(segment.maxX<minX||segment.minX>maxX||segment.maxY<minY||segment.minY>maxY||segment.maxZ<minZ||segment.minZ>maxZ)continue;
+   const {c,d}=segment,tc=((c.x-a.x)*ux+(c.y-a.y)*uy+(c.z-a.z)*uz)/l2,td=((d.x-a.x)*ux+(d.y-a.y)*uy+(d.z-a.z)*uz)/l2;
+   if(Math.hypot(c.x-a.x-ux*tc,c.y-a.y-uy*tc,c.z-a.z-uz*tc)>1e-5||Math.hypot(d.x-a.x-ux*td,d.y-a.y-uy*td,d.z-a.z-uz*td)>1e-5)continue;
+   if(Math.min(1,Math.max(tc,td))-Math.max(0,Math.min(tc,td))>1e-7){yes=true;break;}
   }
   edgeCache.set(key,yes);return yes;
  }};
@@ -978,5 +1080,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,quadDraftSnap,normal,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,quadDraftSnap,normal,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

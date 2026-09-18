@@ -1450,6 +1450,9 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/wall_features.js?v=<?=fm_editor_asset_version('editor_scripts/wall_features.js')?>"></script>
     <script src="editor_scripts/exterior_distance_input.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_distance_input.js')?>"></script>
 <script src="editor_scripts/wall_trim.js?v=<?=fm_editor_asset_version('editor_scripts/wall_trim.js')?>"></script>
+<script src="editor_scripts/exterior_frame_pipeline.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_frame_pipeline.js')?>"></script>
+<script src="editor_scripts/exterior_scene_cache.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_scene_cache.js')?>"></script>
+<script src="editor_scripts/exterior_performance.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_performance.js')?>"></script>
 <script src="editor_scripts/exterior_rendered.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_rendered.js')?>"></script>
 <script src="editor_scripts/exterior_finishes.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_finishes.js')?>"></script>
 <script src="editor_scripts/wall_face_draft.js?v=<?=fm_editor_asset_version('editor_scripts/wall_face_draft.js')?>"></script>

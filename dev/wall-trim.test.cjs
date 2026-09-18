@@ -122,3 +122,18 @@ test('material filtering trims only enabled owners without changing corner or di
  const walls=shell([[0,0],[4,0],[4,4],[0,4]]).map(f=>({...f,material:'brick'}));assert.equal(T.candidates(walls,{materials:['siding']}).length,0);assert.equal(T.candidates(walls,{materials:['brick']}).length,4);
  for(const id of ['siding','siding-vertical','soffit','unassigned'])assert.equal(T.defaultMaterial(id),true);for(const id of ['brick','stone','masonry','stucco','chimney-top'])assert.equal(T.defaultMaterial(id),false);
 });
+
+test('meeting trim runs fill the outside corner and removing either run removes its join',()=>{
+ const pairs=[[p(.5,1.5),p(2,1.5)],[p(2,.5),p(2,1.5)]],width=.2;
+ const r=T.partition([face],pairs,0,width,[]),pieces=r.replacements.flatMap(r=>r.pieces),corner=p(2.1,1.6);
+ const covers=(f,point)=>{const fr=W.faceFrame(f);return K.intersection([{points:f.points.map(p=>W.inFrame(fr,p))}],[{points:[p(point.x-.01,point.z-.01),p(point.x+.01,point.z-.01),p(point.x+.01,point.z+.01),p(point.x-.01,point.z+.01)].map(p=>W.inFrame(fr,p))}]).some(f=>K.area(f)>1e-8);};
+ assert.ok(pieces.some(f=>f.trim&&covers(f,corner)));assert.ok(Math.abs(pieces.reduce((s,f)=>s+area(f),0)-12)<1e-6);
+ for(const pair of pairs){const result=T.removeEdges(pieces,[pair]),map=new Map(result.replacements.map(r=>[r.face,r.pieces])),remaining=pieces.flatMap(f=>map.get(f)||[f]);assert.ok(!remaining.some(f=>f.trim&&covers(f,corner)));assert.ok(Math.abs(remaining.reduce((s,f)=>s+area(f),0)-12)<1e-6);}
+});
+test('all ground includes saved trim, untrimmed ground skips it, and removal restores the finish',()=>{
+ const pair=[p(0,0),p(4,0)],base={faces:[{points:[p(0,0),p(4,0),p(4,0,2),p(0,0,2)]}]};
+ const pieces=T.partition([face],[pair],0,.2,[]).replacements.flatMap(r=>r.pieces);
+ assert.equal(T.selectionPairs(pieces,'ground',{base}).length,1);
+ assert.equal(T.selectionPairs(pieces,'ground-untrimmed',{base}).length,0);
+ const removed=T.removeEdges(pieces,[pair]),map=new Map(removed.replacements.map(r=>[r.face,r.pieces])),remaining=pieces.flatMap(f=>map.get(f)||[f]);assert.ok(remaining.every(f=>!f.trim&&f.material==='siding'));
+});

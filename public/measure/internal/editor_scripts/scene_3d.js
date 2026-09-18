@@ -130,6 +130,8 @@ let _geomDirty3D = false;
 let _lastGeomRebuild = 0;
 const GEOM_REBUILD_INTERVAL_MS = 150;
 let _sceneDirty3D = true;
+// Exterior updates bypass the roof geometry builder and must invalidate drawing explicitly.
+window.invalidateScene3D=()=>{_sceneDirty3D=true;};
 let _lastSceneRender3D = 0;
 const IDLE_SCENE_RENDER_INTERVAL_MS = 100;
 let threeContainerResizeObserver = null;
@@ -569,7 +571,7 @@ function disposeObject3D(object) {
                 if (!mat) return;
                 ['map', 'alphaMap', 'emissiveMap', 'aoMap', 'lightMap', 'bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap']
                     .forEach(key => {
-                        if (mat[key] && !mat[key].userData?.exteriorLabelShared && typeof mat[key].dispose === 'function') mat[key].dispose();
+                        if (mat[key] && !mat[key].userData?.exteriorLabelShared && !mat[key].userData?.exteriorFinishShared && typeof mat[key].dispose === 'function') mat[key].dispose();
                     });
                 if (typeof mat.dispose === 'function') mat.dispose();
             });
@@ -5910,12 +5912,16 @@ function _animate3D() {
     window.WallMode?.syncVisibility();
     if(!window.enable3D) return;
     const now=performance.now();
+    window.ExteriorPerf?.frame(now);
     const controlsChanged=!!(typeof controls!=='undefined'&&controls&&controls.update());
     if(controlsChanged) _sceneDirty3D=true;
+    window.ExteriorFramePipeline?.flush();
     if(_geomDirty3D&&now-_lastGeomRebuild>GEOM_REBUILD_INTERVAL_MS){_geomDirty3D=false;_lastGeomRebuild=now;renderGeometry3D();}
     const shouldRender=_sceneDirty3D||now-_lastSceneRender3D>=IDLE_SCENE_RENDER_INTERVAL_MS;
     if(shouldRender&&typeof renderer!=='undefined'&&renderer&&typeof scene!=='undefined'&&scene&&typeof camera!=='undefined'&&camera){
-        if(!window.ExteriorRendered?.render(renderer,scene,camera))renderer.render(scene,camera);
+        const draw=()=>{if(!window.ExteriorRendered?.render(renderer,scene,camera))renderer.render(scene,camera);};
+        if(window.ExteriorPerf?.enabled)window.ExteriorPerf.measure('WebGL render (CPU)',draw);else draw();
+        window.ExteriorPerf?.rendered(renderer.info);
         _updateAxisWidget();
         _sceneDirty3D=false;
         _lastSceneRender3D=now;

@@ -76,3 +76,22 @@ test('opaque point markers remain whole overlays above filled surfaces',()=>{
  const ctx=fixture(),point={isPoints:true,visible:true,userData:{},material:{opacity:1,transparent:false,depthTest:false,depthWrite:true}},group={traverse:fn=>fn(point)};
  for(const mode of ['opaque','translucent','opaque']){ctx.exteriorSurfaceDisplay(group,mode);assert.equal(point.visible,true);assert.equal(point.material.depthTest,false);assert.equal(point.material.depthWrite,false);assert.equal(point.renderOrder,1000);}
 });
+
+test('opening UVs fit one complete texture and follow the saved feature axis',()=>{
+ const ctx=fixture();ctx.WallFeatures=require('../public/measure/internal/editor_scripts/wall_features.js');const p=(x,z)=>({x,y:0,z}),face={points:[p(2,3),p(3,3),p(3,5),p(2,5)],feature:{type:'window',axis:{x:1,y:0,z:0}}},before=JSON.stringify(face),m=mesh();ctx.ExteriorFinishes.prepare(m,face,face.points);assert.deepEqual(Array.from(m.geometry.uv.array),[0,0,1,0,1,1,0,1]);assert.ok(Math.abs(m.userData.exteriorFinish.width-1)<1e-8);assert.ok(Math.abs(m.userData.exteriorFinish.height-2)<1e-8);assert.equal(JSON.stringify(face),before);
+ face.feature.axis={x:0,y:0,z:1};ctx.ExteriorFinishes.prepare(m,face,face.points);assert.deepEqual(Array.from(m.geometry.uv.array),[0,1,0,0,1,0,1,1]);assert.ok(Math.abs(m.userData.exteriorFinish.width-2)<1e-8);
+});
+test('window door garage and vent textures are distinct, shared, and released with materials',()=>{
+ const ctx=fixture(),canvasContext=new Proxy({createLinearGradient:()=>({addColorStop(){}})},{get:(o,k)=>o[k]||(()=>{})});ctx.document={createElement:()=>({getContext:()=>canvasContext})};ctx.THREE.CanvasTexture=class{constructor(canvas){this.image=canvas;this.userData={};}dispose(){this.disposed=true;}};ctx.THREE.ClampToEdgeWrapping=1001;
+ const maps=[],materials=[];for(const type of ['window','door','garage','vent']){const data={exteriorFinish:{feature:true,featureType:type,width:1,height:2}},listeners={},m={userData:{},color:{set(){}},addEventListener:(event,fn)=>listeners[event]=fn};ctx.ExteriorFinishes.apply({userData:data},m);maps.push(m.map);materials.push(m);assert.equal(m.map.wrapS,1001);assert.equal(m.map.userData.users,1);const second={userData:{},color:{set(){}}};ctx.ExteriorFinishes.apply({userData:data},second);assert.equal(second.map,m.map);assert.equal(m.map.userData.users,2);listeners.dispose();assert.equal(second.map.userData.users,1);}
+ assert.equal(new Set(maps).size,4);
+});
+test('opening trim texture spans its width and retains coplanar priority in textured mode',()=>{
+ const ctx=fixture(),m=mesh(),face={openingTrim:true,trim:true,material:'trim-horizontal',finishColor:'#abcdef',points:[{x:0,y:0,z:2},{x:1,y:0,z:2},{x:1.05,y:0,z:2.05},{x:-.05,y:0,z:2.05}]};ctx.ExteriorFinishes.prepare(m,face,face.points);const ys=Array.from(m.geometry.uv.array).filter((_,i)=>i%2);assert.equal(Math.min(...ys),0);assert.equal(Math.max(...ys),1);assert.equal(m.userData.exteriorFinish.color,'#abcdef');const object={isMesh:true,userData:{openingTrim:true},material:{}};ctx.exteriorSurfaceDisplay({traverse:fn=>fn(object)},'textured');assert.equal(object.material.polygonOffsetFactor,-2);
+});
+
+test('opaque faces use depth bias to preserve coplanar lines without exposing hidden edges',()=>{
+ const ctx=fixture(),fill={isMesh:true,userData:{},material:{opacity:.3,transparent:true,depthTest:false,depthWrite:false,polygonOffset:false,polygonOffsetFactor:0,polygonOffsetUnits:0}},line={isLine:true,visible:true,userData:{},material:{opacity:1,transparent:false,depthTest:false,depthWrite:true}},group={traverse:fn=>[fill,line].forEach(fn)};
+ for(const mode of ['opaque','textured','opaque']){ctx.exteriorSurfaceDisplay(group,mode);assert.equal(fill.material.polygonOffset,true);assert.equal(fill.material.polygonOffsetFactor,1);assert.equal(fill.material.polygonOffsetUnits,1);assert.equal(fill.material.depthWrite,true);assert.equal(line.material.depthTest,true);assert.equal(line.material.depthWrite,false);}
+ ctx.exteriorSurfaceDisplay(group,'translucent');assert.equal(fill.material.polygonOffset,false);assert.equal(fill.material.polygonOffsetFactor,0);assert.equal(line.material.depthTest,false);
+});

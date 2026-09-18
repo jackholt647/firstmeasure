@@ -65,3 +65,10 @@ test('the deeper-soffit transition is stable under rotation and roof-face orderi
  assert.equal(b.composed.length,a.composed.length);
  for(const w of a.composed){const q=b.composed.find(q=>q.id===w.id);assert.ok(q,w.id);for(const edge of ['bottom','top'])for(let i=0;i<2;i++){const p=transform(w[edge][i]),v=q[edge][i];assert.ok(Math.hypot(p.x-v.x,p.y-v.y,p.z-v.z)<1e-5,w.id);}}
 });
+
+for(const angle of [0,.71,2.1])test(`nearby wall corners retain their repaired strip after foundation tracing at ${angle}`,()=>{
+ const f=structuredClone(require('./fixtures/nearby-wall-corners.json')),rotate=p=>{const x=p.x,y=p.y;p.x=x*Math.cos(angle)-y*Math.sin(angle);p.y=x*Math.sin(angle)+y*Math.cos(angle);};
+ f.roof.points.forEach(rotate);f.roof.faces.forEach(face=>face.points.forEach(rotate));f.ground.points.forEach(rotate);
+ const before=JSON.stringify(f),r=build('auto',f);assert.equal(r.state.base.source,'Wall perimeter');assert.ok(r.raw.some(w=>w.kind==='gap-repair'));assert.ok(r.composed.some(w=>w.kind==='gap-repair'),'the repaired wall survives the base-bound generation');assert.equal(D.detect(r.composed,f.ground).length,0);assert.equal(JSON.stringify(f),before);
+ for(const w of r.raw.filter(w=>w.kind==='gap-repair'))for(const p of [...w.bottom,{x:(w.bottom[0].x+w.bottom[1].x)/2,y:(w.bottom[0].y+w.bottom[1].y)/2}])assert.ok(C.buildingBase(r.state).some(face=>G.contains(face,p)),'base covers the actual repaired wall, not a snapped approximation');
+});

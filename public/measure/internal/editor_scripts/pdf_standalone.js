@@ -3,7 +3,7 @@
     const PDF_SYNC_SINGLE_REQUEST_MAX_BYTES = 20 * 1024 * 1024;
     const PDF_SYNC_UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
     const PDF_SYNC_UPLOAD_CONCURRENCY = 3;
-    const PDF_RENDER_RECIPE_VERSION = '2026-08-16.1';
+    const PDF_RENDER_RECIPE_VERSION = '2026-09-16.2';
     let isolatedPdfRuntimePromise = null;
 
     function ensurePdfRuntimeAvailable() {
@@ -59,10 +59,12 @@
                     }
                     await loadRuntimeScript(runtimeDocument, jsPdfUrl);
                     await loadRuntimeScript(runtimeDocument, pdfUrl);
-                    if (window.FIRSTMEASURE_FULL_HOUSE === true) {
-                        const exteriorUrl = findLoadedScriptUrl('/editor_scripts/exterior_pdf.js');
-                        if (!exteriorUrl) throw new Error('Exterior PDF renderer is unavailable.');
-                        await loadRuntimeScript(runtimeDocument, exteriorUrl);
+                    if (findLoadedScriptUrl('/editor_scripts/exterior_pdf.js')) {
+                        for (const file of ['vendor/clipper-lib-6.4.2-clipper.js', 'vendor/earcut-3.2.3-earcut.dev.js', 'exterior_geometry.js', 'exterior_pdf.js']) {
+                            const url = findLoadedScriptUrl('/editor_scripts/' + file);
+                            if (!url) throw new Error('Exterior PDF dependency is unavailable: ' + file);
+                            await loadRuntimeScript(runtimeDocument, url);
+                        }
                     }
                     await loadRuntimeScript(runtimeDocument, standaloneUrl);
                     if (!runtimeWindow.FirstMatePDFStandalone) {
@@ -751,6 +753,7 @@
     async function generateProjectPdfsViaApi(folderId, snapshot, options = {}) {
         if (!folderId) throw new Error('A project id is required for API PDF generation.');
         if (!snapshot || typeof snapshot !== 'object') throw new Error('A PDF snapshot is required for API PDF generation.');
+        if (window.ExteriorPDF) snapshot = await window.ExteriorPDF.prepareImagerySnapshot(snapshot);
 
         const endpoint = buildProjectPdfsApiEndpoint(folderId, options);
         const payload = buildProjectPdfsApiPayload(snapshot, options);
@@ -893,6 +896,7 @@
     }
 
     async function generateProjectPdfsWithBackgroundSync(folderId, snapshot, runtimeContext = {}, options = {}) {
+        if (window.ExteriorPDF) snapshot = await window.ExteriorPDF.prepareImagerySnapshot(snapshot);
         if (!folderId) throw new Error('A project id is required for background PDF synchronization.');
         const preparedSnapshot = preparePdfSyncSnapshot(snapshot, { ...options, runtimeContext });
         const serverOutputs = normalizeLocalOutputSpecs(options);

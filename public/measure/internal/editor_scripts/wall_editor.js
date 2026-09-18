@@ -409,8 +409,14 @@ window.wallLengthMarker=function(group,vector,edge){
 // Batch plain drafting wire and square markers; meshes and shader labels keep
 // their individual objects for picking and screen-size rendering.
 window.wallGeometryBatch=function(group){
- const batches=new Map();
- return {add(o){
+ const batches=new Map(),colors=new Map();
+ const raw=(line,positions,color,size,depthTest)=>{
+  if(!colors.has(color))colors.set(color,new THREE.Color(color).getHex());
+  const key=JSON.stringify([line?'line':'point',colors.get(color),1,false,depthTest,true,line?undefined:size,line?undefined:false,line?1:undefined,0]);let b=batches.get(key);
+  if(!b){const material=line?new THREE.LineBasicMaterial({color,depthTest}):new THREE.PointsMaterial({color,size,sizeAttenuation:false,depthTest});b={line,material,order:0,positions:[]};batches.set(key,b);}
+  for(const p of positions)b.positions.push(p.x,p.y,p.z);
+ };
+ return {point:THREE.Color&&THREE.Float32BufferAttribute?(p,color,size)=>raw(false,[p],color,size,false):undefined,segment:THREE.Color&&THREE.Float32BufferAttribute?(a,b,color,depthTest)=>raw(true,[a,b],color,undefined,depthTest):undefined,add(o){
   const m=o.material,p=o.geometry?.getAttribute?.('position'),line=o.isLine&&!o.isLineSegments&&m?.type==='LineBasicMaterial',point=o.isPoints&&m?.type==='PointsMaterial'&&!m.map;
   if(o.userData?.planeGuide||!p||(!line&&!point)||o.geometry.index||o.position.lengthSq()||o.rotation.x||o.rotation.y||o.rotation.z||o.scale.x!==1||o.scale.y!==1||o.scale.z!==1){group.add(o);return;}
   const key=JSON.stringify([line?'line':'point',m.color.getHex(),m.opacity,m.transparent,m.depthTest,m.depthWrite,m.size,m.sizeAttenuation,m.linewidth,o.renderOrder]);let b=batches.get(key);
@@ -418,7 +424,7 @@ window.wallGeometryBatch=function(group){
   const push=i=>b.positions.push(p.getX(i),p.getY(i),p.getZ(i));
   if(line)for(let i=1;i<p.count;i++){push(i-1);push(i);}else for(let i=0;i<p.count;i++)push(i);
   o.geometry.dispose();
- },flush(){for(const b of batches.values()){const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(b.positions,3));const o=b.line?new THREE.LineSegments(geometry,b.material):new THREE.Points(geometry,b.material);o.renderOrder=b.order;group.add(o);}batches.clear();},disposePending(){for(const b of batches.values())b.material.dispose();batches.clear();}};
+ },flush(){for(const [key,b]of batches){let built=false;const build=target=>{built=true;b.consumed=true;const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(b.positions,3));const o=b.line?new THREE.LineSegments(geometry,b.material):new THREE.Points(geometry,b.material);o.renderOrder=b.order;target.add(o);};if(window.WallMode?.renderChunk)window.WallMode.renderChunk('wire-batch:'+key,b.positions,group,build);else build(group);if(!built)b.material.dispose();}batches.clear();},disposePending(){for(const b of batches.values())if(!b.consumed)b.material.dispose();batches.clear();}};
 };
 
 // Select from editable surfaces across layers. Roof faces are reference-only;
@@ -659,7 +665,8 @@ window.createWallEditor=function(host){
 
  }
 
- function keyDown(e){
+ function keyDown(...args){if(!window.ExteriorPerf?.enabled)return perf_keyDown.apply(this,args);return window.ExteriorPerf.measure('Wall keyboard update',()=>perf_keyDown.apply(this,args));}
+function perf_keyDown(e){
 
   if(!active())return false;const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['p','t','x','enter','v','s','w','d','g','arrowleft','arrowright','arrowup','arrowdown','m','e','h','escape','z','f','r','c','u','n','delete','backspace','q','y'].includes(k))return false;
 
@@ -737,7 +744,8 @@ window.createWallEditor=function(host){
 
  }
 
- function movePointer(e){
+ function movePointer(...args){if(!window.ExteriorPerf?.enabled)return perf_movePointer.apply(this,args);return window.ExteriorPerf.measure('Wall pointer update',()=>perf_movePointer.apply(this,args));}
+function perf_movePointer(e){
   if(drag&&!drag.plane&&!(e.buttons&1)){host.state().wallEdits=drag.original;drag=null;armed=false;host.redraw();}
 
   const view=e.target.closest?.('#three-view-wrapper')?'3d':e.target.closest?.('#viewport')?'2d':null;
@@ -904,7 +912,7 @@ window.createWallEditor=function(host){
 
   host.changed();return true;
 
- },selectionSnapshot:()=>copy({selected,indices,draft:draft?.selectionSnapshot?.()}),restoreSelection(value){const s=copy(value||{});selected=s.selected||null;indices=s.indices||[];draft?.restoreSelection?.(s.draft);},togglePlane:source=>draft?.togglePlane(source),planeView:()=>draft?.planeView(),setPlaneDisplay:value=>draft?.setPlaneDisplay(value),planeActive:()=>draft?.planeActive(),planeDown:e=>draft?.planeDown(e),pointSelection:()=>draft?.pointSelection()||[],createSelectedFace:selection=>draft?.createSelectedFace(selection),extrudeFace:(...args)=>draft?.extrudeFace(...args),geometryCommand:(...args)=>draft?.geometryCommand(...args),clipboardCommand:(...args)=>draft?.clipboardCommand(...args),mergeAll:()=>host.enabled()&&draft?.mergeAll(),autoTrim:width=>host.enabled()&&draft?.autoTrim(width),trimMaterials:()=>draft?.trimMaterials()||[],selectTrimEdges:(...args)=>host.enabled()&&draft?.selectTrimEdges(...args),applyTrim:(...args)=>host.enabled()&&draft?.applyTrim(...args),chamferCommand:(selection,rounded)=>active()&&draft?.chamferCommand(selection,rounded),activeMaterial:()=>draft?.activeMaterial(),colorCommand:color=>active()&&draft?.colorCommand(color),materialCommand:(...args)=>active()&&draft?.materialCommand(...args),interaction:()=>draft?.interaction()||(drag?"Move wall":armed?"Move wall":null),cancelPointerGesture(){draft?.cancelPointerGesture();if(drag&&!drag.plane){host.state().wallEdits=drag.original;drag=null;armed=false;}},beginEntity:(mode,selection)=>draft?.beginEntity(mode,selection),distanceInput:()=>draft?.distanceInput()||(drag?.plane?{token:drag,amount:drag.amount,set(value){drag.numeric=value;if(mouse)movePointer(mouse.e);}}:null),consumeSelectionClick:()=>draft?.consumeSelectionClick(),startBox:(e,click)=>host.enabled()&&draft?.startBox(e,click),finishPointer:e=>draft?.finishPointer(e),cutFromPoint:(p,k,base)=>host.enabled()&&draft?.cutFromPoint(p,k,base),stepWheel:e=>active()&&draft?.stepWheel(e),stepCommand:()=>active()&&draft?.stepCommand(),featureCommand:(...args)=>active()&&draft?.featureCommand(...args),featurePlacement:()=>draft?.featurePlacement(),featureSelection:()=>draft?.featureSelection(),featureContext:e=>active()&&draft?.featureContext(e),canBox:()=>active()&&draft?.canBox(),pickPoint:e=>host.enabled()&&draft?.pickVisiblePoint(e),pickLine:e=>host.enabled()&&draft?.pickLine3D(e),pickSurface:e=>host.enabled()&&host.visible()&&draft?.pickSolid(e),doubleClick:e=>active()&&draft?.doubleClick(e,hit(e)||host.walls().find(w=>w.id===selected)),hasDraft:id=>draft?.has(id),apply,down,pick,hit,busy:()=>!!drag||armed||!!draft?.busy(),clear(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;armed=false;selected=null;indices=[];},keyDown,draw2D:(...args)=>inWallFrame(()=>draw2D(...args)),draw3D:(...args)=>inWallFrame(()=>draw3D(...args)),leave(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;selected=null;indices=[];armed=false;history=[];future=[];}};
+ },selectionSnapshot:()=>copy({selected,indices,draft:draft?.selectionSnapshot?.()}),restoreSelection(value){const s=copy(value||{});selected=s.selected||null;indices=s.indices||[];draft?.restoreSelection?.(s.draft);},togglePlane:source=>draft?.togglePlane(source),planeView:()=>draft?.planeView(),setPlaneDisplay:value=>draft?.setPlaneDisplay(value),planeActive:()=>draft?.planeActive(),planeDown:e=>draft?.planeDown(e),pointSelection:()=>draft?.pointSelection()||[],createSelectedFace:selection=>draft?.createSelectedFace(selection),extrudeFace:(...args)=>draft?.extrudeFace(...args),geometryCommand:(...args)=>draft?.geometryCommand(...args),clipboardCommand:(...args)=>draft?.clipboardCommand(...args),mergeAll:()=>host.enabled()&&draft?.mergeAll(),autoTrim:width=>host.enabled()&&draft?.autoTrim(width),trimMaterials:()=>draft?.trimMaterials()||[],removeTrim:()=>host.enabled()&&draft?.removeTrim(),selectTrimEdges:(...args)=>host.enabled()&&draft?.selectTrimEdges(...args),applyTrim:(...args)=>host.enabled()&&draft?.applyTrim(...args),chamferCommand:(selection,rounded)=>active()&&draft?.chamferCommand(selection,rounded),activeMaterial:()=>draft?.activeMaterial(),colorCommand:color=>active()&&draft?.colorCommand(color),materialCommand:(...args)=>active()&&draft?.materialCommand(...args),interaction:()=>draft?.interaction()||(drag?"Move wall":armed?"Move wall":null),cancelPointerGesture(){draft?.cancelPointerGesture();if(drag&&!drag.plane){host.state().wallEdits=drag.original;drag=null;armed=false;}},beginEntity:(mode,selection)=>draft?.beginEntity(mode,selection),distanceInput:()=>draft?.distanceInput()||(drag?.plane?{token:drag,amount:drag.amount,set(value){drag.numeric=value;if(mouse)movePointer(mouse.e);}}:null),consumeSelectionClick:()=>draft?.consumeSelectionClick(),startBox:(e,click)=>host.enabled()&&draft?.startBox(e,click),finishPointer:e=>draft?.finishPointer(e),cutFromPoint:(p,k,base)=>host.enabled()&&draft?.cutFromPoint(p,k,base),stepWheel:e=>active()&&draft?.stepWheel(e),stepCommand:()=>active()&&draft?.stepCommand(),featureCommand:(...args)=>active()&&draft?.featureCommand(...args),openingTrimItems:type=>draft?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>draft?.selectOpeningTrim(...args),applyOpeningTrim:(...args)=>draft?.applyOpeningTrim(...args),featurePlacement:()=>draft?.featurePlacement(),featureSelection:()=>draft?.featureSelection(),featureContext:e=>active()&&draft?.featureContext(e),canBox:()=>active()&&draft?.canBox(),pickPoint:e=>host.enabled()&&draft?.pickVisiblePoint(e),pickLine:e=>host.enabled()&&draft?.pickLine3D(e),pickSurface:e=>host.enabled()&&host.visible()&&draft?.pickSolid(e),doubleClick:e=>active()&&draft?.doubleClick(e,hit(e)||host.walls().find(w=>w.id===selected)),hasDraft:id=>draft?.has(id),apply,down,pick,hit,busy:()=>!!drag||armed||!!draft?.busy(),clear(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;armed=false;selected=null;indices=[];},keyDown,draw2D:(...args)=>inWallFrame(()=>draw2D(...args)),draw3D:(...args)=>inWallFrame(()=>draw3D(...args)),leave(){draft?.clear();if(drag)host.state().wallEdits=drag.original;drag=null;selected=null;indices=[];armed=false;history=[];future=[];}};
 
 };
 
