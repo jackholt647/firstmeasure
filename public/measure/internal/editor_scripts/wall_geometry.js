@@ -558,6 +558,13 @@
             const column={w,i,bottom,top};if(group)group.push(column);else groups.push([column]);
         }
         for(const g of groups)if(g.length>1){const anchor=g[0].bottom,lo=Math.min(...g.map(c=>c.bottom.z)),hi=Math.min(...g.map(c=>c.top.z));for(const c of g){Object.assign(c.bottom,{x:anchor.x,y:anchor.y,z:lo});Object.assign(c.top,{x:anchor.x,y:anchor.y,z:hi});}}
+        // A tapered flashing strip can end a few millimetres above its lower
+        // roof seam after plane fitting. Collapse only that terminal sliver,
+        // not short wall edges or two nearby corners in the floor plan.
+        for(const w of result)if(w.kind==='flashing')for(let i=0;i<2;i++){
+            const a=w.bottom[i],b=w.top[i],other=1-i;
+            if(distance(a,b)<1e-6&&b.z>=a.z&&b.z-a.z<=.005&&w.top[other].z-w.bottom[other].z>.02)w.top[i]={...a};
+        }
         return result;
     }
     function mergeCoplanar(walls,excluded=[]){

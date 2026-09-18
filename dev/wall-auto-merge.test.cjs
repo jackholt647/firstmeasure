@@ -30,3 +30,11 @@ test('flashing alignment requires roof provenance, endpoint contact and bounded 
   assert.deepEqual(after.bottom[1],other.bottom[1],variant);assert.deepEqual(after.top[1],other.top[1],variant);assert.equal(JSON.stringify(other),before);
  }
 });
+
+test('only sub-5mm tapered flashing tips collapse, not intentional wall corners',()=>{
+ for(const [kind,tip,collapse]of [['flashing',.004,true],['flashing',.02,false],['perimeter',.004,false]]){
+  const wall={...w('taper',0,2,2,3),kind};wall.top[1].z=2+tip;
+  const result=G.deduplicate([wall]).walls[0];assert.ok(result);
+  assert.equal(result.top[1].z,collapse?2:2+tip);assert.equal(wall.top[1].z,2+tip);
+ }
+});

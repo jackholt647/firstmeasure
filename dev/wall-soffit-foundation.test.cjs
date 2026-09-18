@@ -81,6 +81,7 @@ for(const angle of [0,.71,2.1])test(`millimetre flashing drift merges into one w
  const members=walls.filter(w=>['R11.0','R25.0','R29'].includes(w.sourceId)||w.kind==='gap-repair');
  assert.equal(new Set(members.map(w=>w.mergeGroup)).size,1);assert.ok(members[0].mergeGroup);
  const geo=G.topology(members);assert.equal(geo.faces.length,1,'one selectable face, no overlapping selectable strip');
+ const flashing=members.find(w=>w.sourceId==='R29');assert.deepEqual(flashing.top[1],flashing.bottom[1],'tapered flashing tip has one exact vertex');
  const corners=members.flatMap(w=>w.bottom),axis=walls.find(w=>w.sourceId==='R11.0').bottom;
  const len=Math.hypot(axis[1].x-axis[0].x,axis[1].y-axis[0].y);
  const along=p=>((p.x-axis[0].x)*(axis[1].x-axis[0].x)+(p.y-axis[0].y)*(axis[1].y-axis[0].y))/len;
