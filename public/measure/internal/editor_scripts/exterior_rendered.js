@@ -66,28 +66,28 @@ function openingDetails(source,target,context){
  if(n.dot(center.clone().sub(context.center))<0){n.negate();u.negate();origin.copy(world({x:b.right,y:b.bottom}));}
 
  const matrix=new THREE.Matrix4().makeBasis(u,v,n),q=new THREE.Quaternion().setFromRotationMatrix(matrix),group=new THREE.Group();group.position.copy(origin);group.quaternion.copy(q);group.scale.set(su,sv,(su+sv)/2);target.add(group);
- const width=b.right-b.left,height=b.top-b.bottom,type=data.feature.type;
+ const width=b.right-b.left,height=b.top-b.bottom,type=data.feature.type,glazed=type==='window'||type==='skylight';
  // Non-rectangular openings keep their exact source silhouette; don't add rectangular framing over them.
  const rect=data.points.length===4&&data.points.every(p=>{const a=W.inFrame(frame,p);return [b.left,b.right].some(x=>Math.abs(a.x-x)<1e-4)&&[b.top,b.bottom].some(y=>Math.abs(a.y-y)<1e-4);});
- const glass=type==='window'?new THREE.MeshPhysicalMaterial({color:color('#88a5ad'),roughness:.045,metalness:0,transmission:.25,ior:1.5,clearcoat:1,clearcoatRoughness:.025,transparent:true,opacity:.83,envMapIntensity:2.0,side:THREE.DoubleSide}):null;
- if(type==='window'){target.material.dispose();target.material=glass;target.position.addScaledVector(n,.004*(su+sv)/2);target.castShadow=false;}
+ const glass=glazed?new THREE.MeshPhysicalMaterial({color:color('#88a5ad'),roughness:.045,metalness:0,transmission:.25,ior:1.5,clearcoat:1,clearcoatRoughness:.025,transparent:true,opacity:.83,envMapIntensity:2.0,side:THREE.DoubleSide}):null;
+ if(glazed){target.material.dispose();target.material=glass;target.position.addScaledVector(n,.004*(su+sv)/2);target.castShadow=false;}
  if(!rect)return;
- const white=new THREE.MeshStandardMaterial({color:color(data.color||'#ebe9e1'),roughness:.38,metalness:.08,envMapIntensity:.75});
- const rubber=type==='window'?new THREE.MeshStandardMaterial({color:color('#202829'),roughness:.8}):null;
+ const white=new THREE.MeshStandardMaterial({color:color(data.color||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
+ const rubber=glazed?new THREE.MeshStandardMaterial({color:color('#202829'),roughness:.8}):null;
  const box=(x,y,z,w,h,d,m=white)=>{const o=new THREE.Mesh(bevelBox(w,h,d,.006),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;};
  const frameWidth=Math.min(.055,width*.08,height*.07);
- if(type==='window'){
+ if(glazed){
   // A shaded recess behind the glass gives the glazing depth rather than painting a blue rectangle.
   box(width/2,height/2,-.16,width-.04,height-.04,.015,new THREE.MeshStandardMaterial({color:color('#262b2c'),roughness:1}));
   for(const x of [frameWidth/2,width-frameWidth/2])box(x,height/2,.018,frameWidth,height,.09);
   for(const y of [frameWidth/2,height-frameWidth/2])box(width/2,y,.018,width,frameWidth,.09);
   for(const x of [frameWidth,width-frameWidth])box(x,height/2,-.005,.012,height-frameWidth,.025,rubber);
   for(const y of [frameWidth,height-frameWidth])box(width/2,y,-.005,width-frameWidth,.012,.025,rubber);
-  box(width/2,-.012,.04,width+.045,.035,.13);
+  if(type!=='skylight')box(width/2,-.012,.04,width+.045,.035,.13);
   // Thin warm interior floor catches light behind the glass without affecting model geometry.
-  box(width/2,.035,-.085,width-.08,.015,.17,new THREE.MeshStandardMaterial({color:color('#b2a493'),roughness:.9}));
+  if(type!=='skylight')box(width/2,.035,-.085,width-.08,.015,.17,new THREE.MeshStandardMaterial({color:color('#b2a493'),roughness:.9}));
  }else if(type==='door'||type==='garage'){
-  target.material.dispose();target.material=white.clone();target.material.color.copy(color(data.color||(type==='garage'?'#d8d7d0':'#c8b9a2')));
+  target.material.dispose();target.material=white.clone();target.material.side=THREE.DoubleSide;target.material.color.copy(color(data.color||(type==='garage'?'#d8d7d0':'#c8b9a2')));
   const panelMat=target.material.clone();panelMat.roughness=.48;
   const rows=type==='garage'?Math.max(3,Math.round(height/.5)):3,cols=type==='garage'?Math.max(2,Math.round(width/.65)):2;
   for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){

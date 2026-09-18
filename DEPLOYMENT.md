@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 skylights: [Textured roof skylights](deploy/digitalocean/development-skylight-textures-20260918.md) records local verification and the development-only rendering delta.
+
 September 18 wall repair: [Foundation corner tracing](deploy/digitalocean/development-wall-hole-20260918.md) records `af50a6f11117c9cd208d9d42c6af1efc43f75848`. Foundation tracing retains actual wall endpoints so repaired strips remain supported during the second generation pass.
 
 September 18 complete editor sync: [Consolidated local features](deploy/digitalocean/development-complete-editor-sync-20260918.md) records `b77f3943131657b76e10429c2082ed1cb25fdd52` on all dev roles. Tab cycling, performance tools/optimizations, trim-follow and report improvements are now included. All 65 public editor scripts and 89 runtime/asset files were verified against the reconciled local source. Preserve this complete baseline in subsequent releases.

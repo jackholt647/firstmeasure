@@ -24,7 +24,7 @@ function texture(type){
 // Opening maps cover one whole opening instead of repeating wall-sized tiles.
 const openingMaps=new Map();
 function openingTexture(finish){
- const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||({window:'#e8e7e1',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
+ const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
  if(openingMaps.has(key)){const t=openingMaps.get(key);openingMaps.delete(key);openingMaps.set(key,t);return t;}
  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d'),N=512;
  const fill=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -32,8 +32,8 @@ function openingTexture(finish){
  const bevel=(x,y,w,h,b=5)=>{fill(x,y,w,h,'#777d7c');fill(x+b,y+b,w-2*b,h-2*b,color);fill(x+1,y+1,w-2,Math.max(1,b/2),'#ffffffa0');fill(x+1,y+1,Math.max(1,b/2),h-2,'#ffffff70');fill(x+b,y+h-b,w-b,b,'#00000036');fill(x+w-b,y+b,b,h-b,'#00000028');};
  const bx=Math.min(40,Math.max(5,.045/w*N)),by=Math.min(40,Math.max(5,.045/h*N));
  fill(0,0,N,N,'#343a3c');fill(bx*.4,by*.4,N-bx*.8,N-by*.8,color);
- if(type==='window'){
-  const cols=Math.max(1,Math.min(4,Math.round(w/.95))),rows=h>1.05?2:1,gx=bx*.8,gy=by*.8,inner={x:bx*1.6,y:by*1.6,w:N-bx*3.2,h:N-by*3.2};
+ if(type==='window'||type==='skylight'){
+  const cols=type==='skylight'?1:Math.max(1,Math.min(4,Math.round(w/.95))),rows=type==='skylight'?1:h>1.05?2:1,gx=bx*.8,gy=by*.8,inner={x:bx*1.6,y:by*1.6,w:N-bx*3.2,h:N-by*3.2};
   for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
    const x=inner.x+col*inner.w/cols+gx/2,y=inner.y+row*inner.h/rows+gy/2,pw=inner.w/cols-gx,ph=inner.h/rows-gy;
    fill(x-3,y-3,pw+6,ph+6,'#616c6e');
@@ -88,7 +88,7 @@ function prepare(mesh,face,points,parameters){
  if(!mesh.geometry?.setAttribute||!points?.length)return;
  if(face.feature)mesh.userData.renderedOpening={points:face.points||points,feature:face.feature,color:face.finishColor||null};
  const W=root.WallSolidGeometry;
- if(face.feature&&['window','door','garage','vent'].includes(face.feature.type)){
+ if(face.feature&&['window','skylight','door','garage','vent'].includes(face.feature.type)){
   const d=root.WallFeatures?.dimensions(face.points||points,face.feature);if(d){const uv=points.flatMap(p=>{const q=W.inFrame(d.frame,p);return [(q.x-d.bounds.left)/Math.max(1e-8,d.bounds.right-d.bounds.left),(q.y-d.bounds.bottom)/Math.max(1e-8,d.bounds.top-d.bounds.bottom)];});mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={feature:true,featureType:face.feature.type,width:d.width*.3048,height:d.height*.3048,color:face.finishColor||null,normal:d.frame.n};return;}
  }
  if(face.openingTrim){
@@ -103,6 +103,50 @@ function prepare(mesh,face,points,parameters){
  let axes=face.textureAxes;if(['shingles','soffit'].includes(face.material)&&frame){const n=frame.n.z<0?{x:-frame.n.x,y:-frame.n.y,z:-frame.n.z}:frame.n,l=Math.hypot(n.x,n.y),a=l>1e-8?{x:-n.y/l,y:n.x/l,z:0}:{x:1,y:0,z:0};axes={u:a,v:{x:n.y*a.z-n.z*a.y,y:n.z*a.x-n.x*a.z,z:n.x*a.y-n.y*a.x}};}const dot=(p,a)=>p.x*a.x+p.y*a.y+p.z*a.z;
  const horizontal=Math.abs(frame?.n.z||0)>.999,uv=points.flatMap((p,i)=>[(axes?dot(p,axes.u):arcAt?arcAt(parameters[i].x):p.x*u.x+p.y*u.y+p.z*u.z)/(face.material==='shingles'?.9144:.6096),(axes?dot(p,axes.v):horizontal?p.x*(frame?.v.x||0)+p.y*(frame?.v.y||1):p.z)/.6096]);
  mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={material:face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':frame?.n.z<-.5?'soffit':'default'),color:face.finishColor||null,feature:!!face.feature,trim:!!face.trim,normal:frame?.n};
+}
+// Roof features stay in the roof model. These derived surfaces are presentation-only.
+function roofSkylights(roof){
+ const K=root.ExteriorGeometry,nodes=new Map(),edges=new Set();
+ const key=p=>[p.x,p.y,p.z].map(v=>Math.round(v*10000)).join(':');
+ for(const c of roof?.connections||[]){
+  if((c.type?.id||c.type)!=='skylight')continue;
+  const a=roof.points[c.startIdx],b=roof.points[c.endIdx];if(!K.finite3(a)||!K.finite3(b))continue;
+  const ak=key(a),bk=key(b),edge=[ak,bk].sort().join('|');if(ak===bk||edges.has(edge))continue;edges.add(edge);
+  for(const [k,p,other]of [[ak,a,bk],[bk,b,ak]]){if(!nodes.has(k))nodes.set(k,{point:{...p},neighbors:[]});nodes.get(k).neighbors.push(other);}
+ }
+ const visited=new Set(),out=[];
+ for(const start of nodes.keys()){
+  if(visited.has(start))continue;
+  const component=[],stack=[start];while(stack.length){const k=stack.pop();if(visited.has(k))continue;visited.add(k);component.push(k);stack.push(...nodes.get(k).neighbors);}
+  // Never invent missing edges or guess through a branch.
+  if(component.length<3||component.some(k=>nodes.get(k).neighbors.length!==2))continue;
+  const points=[];let previous=null,current=start;
+  do{const node=nodes.get(current);points.push(node.point);const next=node.neighbors.find(k=>k!==previous);previous=current;current=next;}while(current!==start&&points.length<=component.length);
+  if(current!==start||points.length!==component.length)continue;
+  try{K.validateFace({points});}catch(_){continue;}
+  const n=K.normal(points);if(!n||Math.abs(n.z)<.01)continue;if(n.z<0)points.reverse();
+  const a=points[0],b=points[1];out.push({points,feature:{type:'skylight',axis:{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z}}});
+ }
+ return out;
+}
+function roofPresentation(roof){
+ const skylights=roofSkylights(roof),K=root.ExteriorGeometry,W=root.WallSolidGeometry;
+ if(!skylights.length)return {faces:roof.faces,skylights};
+ const faces=(roof.faces||[]).flatMap(face=>{
+  const frame=W.faceFrame(face);if(!frame||Math.abs(frame.n.z)<.01)return [face];
+  const cuts=skylights.filter(s=>s.points.every(p=>Math.abs(K.local(frame,p).z)<.15));
+  if(!cuts.length||!K.intersection([face],cuts).length)return [face];
+  const lift=p=>({...p,z:frame.origin.z-(frame.n.x*(p.x-frame.origin.x)+frame.n.y*(p.y-frame.origin.y))/frame.n.z});
+  return K.difference(face,cuts).map(part=>({...face,points:part.points.map(lift),holes:(part.holes||[]).map(r=>r.map(lift))}));
+ });
+ return {faces,skylights};
+}
+function skylightMesh(face,vector){
+ const geometry=new THREE.BufferGeometry().setFromPoints(face.points.map(vector));
+ geometry.setIndex(root.ExteriorGeometry.triangles(face.points).triangles.flat());
+ const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:'#88a5ad',side:THREE.DoubleSide}));
+ mesh.name='roof-skylight';mesh.userData.pickLayer='roof';mesh.userData.exteriorFeature=true;
+ prepare(mesh,face,face.points);return mesh;
 }
 function roofMeshes(face,vector,textured){
  const rings=[face.points,...(face.holes||[])],points=rings.flat(),positions=points.map(vector),projected=rings.map(r=>r.map(p=>new THREE.Vector2(p.x,p.y)));
@@ -144,5 +188,5 @@ function apply(mesh,material){
  const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
  material.map=['unassigned','chimney-top'].includes(resolved.material)?null:texture(resolved.material);
 }
-root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes};
+root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh};
 })(window);
