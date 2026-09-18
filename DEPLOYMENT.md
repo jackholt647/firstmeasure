@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 exterior training: [Development training support](deploy/digitalocean/development-exterior-training-20260918.md) records source-aware practice scope, isolated references, wall editing and ungraded completion. Development only; production is unchanged.
+
 Operational handoff for Codex and maintainers. Baseline: September 8, 2026, after production cutover, provider repairs, and successful final database validation. Verify current inventory and configuration before acting. This guide is not an instruction to deploy automatically.
 
 September 18 development: [Soffit cleanup and foundation outlines](deploy/digitalocean/development-soffit-foundation-20260918.md) records `1bb13aee8795eb2ef8ea872541e2ac30eb5a385b` on all three development roles. Foundations follow cleaned inset wall outlines; collapsed roof returns and chimney-covered gaps close correctly. The previous soffit-overlap fix is included. Four browser geometry files changed; experimental access and production are unchanged.

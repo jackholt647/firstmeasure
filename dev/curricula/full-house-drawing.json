@@ -1,0 +1,108 @@
+{
+  "chapters": [
+    {
+      "title": "Full-house workflow and reference readiness",
+      "description": "Learn the complete roof-and-exterior workflow. Check roof imagery, surface data, and front/back/left/right reference photos; identify gaps before drawing. Practice: choose a source with Full exteriors enabled and review its reference coverage.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Build and verify the roof",
+      "description": "Draw roof facets, align imagery and heights, and verify slopes, edges, ridges, and overhangs. Practice: complete the roof and check that its geometry is ready to support the exterior drawing.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Generate walls, soffits, base and grade",
+      "description": "Create the initial exterior from the roof. Review wall placement, soffits, base heights, and grade against the reference photos. Practice: establish a consistent exterior shell on every side of the house.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Refine walls, chimneys and extensions",
+      "description": "Refine wall geometry and handle changes in height, attached sections, and chimneys. Compare each elevation with its references. Practice: resolve mismatches and inspect connections between roof and exterior surfaces.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Draw windows and doors",
+      "description": "Place and size windows and doors using the reference photos. Check alignment, spacing, divisions, and placement on the correct wall. Practice: complete openings on all visible elevations and flag anything the references cannot establish.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Apply finishes and trim",
+      "description": "Assign exterior finishes and draw the supported trim details. Check material boundaries and consistency across adjoining surfaces. Practice: complete finishes and trim on a full house and compare every elevation with the references.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Prepare and check the full-house report",
+      "description": "Review photo assignments, elevation views, dimensions, and report preview. Check for missing surfaces, openings, finishes, and unclear views. Practice: prepare a report that an instructor can verify against the source references.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    },
+    {
+      "title": "Independent full-house practice and instructor review",
+      "description": "Complete a full-house project from blank geometry, then submit it for instructor review. Review roof accuracy, exterior shape and heights, openings, finishes, trim, and report clarity. Record corrections and repeat the review. This is instructor-reviewed practice; automatic exterior exam grading is not available.",
+      "videos": [],
+      "projects": [],
+      "tests": [],
+      "draft_reject_rounds": [],
+      "pdfs": [],
+      "hidden": false,
+      "visible_to": [],
+      "show_videos": true,
+      "show_pdfs": true
+    }
+  ]
+}
