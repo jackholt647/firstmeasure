@@ -370,6 +370,7 @@ function fm_tutorial_source_manifest_subset($sourceManifest, $tutorialManifest) 
         'complexity',
         'point_value',
         'project_type',
+        'measurement_scope',
         'include_gutter_measurements',
         'components',
         'is_custom_pin',
@@ -381,6 +382,8 @@ function fm_tutorial_source_manifest_subset($sourceManifest, $tutorialManifest) 
     foreach ($keys as $key) {
         if (array_key_exists($key, $sourceManifest)) $out[$key] = $sourceManifest[$key];
     }
+    $out['measurement_scope'] = $tutorialManifest['measurement_scope'] ?? 'roof';
+    $out['tutorial_grading_enabled'] = ($tutorialManifest['measurement_scope'] ?? '') === 'full_house' ? false : ($tutorialManifest['tutorial_grading_enabled'] ?? true);
     $out['id'] = $tutorialManifest['id'] ?? '';
     $out['folder'] = $out['id'];
     $out['project_id'] = $out['id'];
@@ -1115,7 +1118,7 @@ function fm_tutorial_calculate_project_score($courseId, $userEmail, $tutorialId,
         || $answerKeyVersion < FIRSTMEASURE_TUTORIAL_ANSWER_KEY_VERSION;
     if ($needsAnswerKeyRefresh) {
         $sourceProjectId = fm_tutorial_sanitize_project_id($manifest['source_project_id'] ?? $manifest['original_master_id'] ?? '');
-        $sourceBundle = $sourceProjectId && function_exists('fm_fetch_project_bundle') ? fm_fetch_project_bundle($sourceProjectId) : null;
+        $sourceBundle = $sourceProjectId ? fm_tutorial_fetch_source_bundle($tutorialId, $userEmail, $found['course_id']) : null;
         if (is_array($sourceBundle)) {
             $answerKey = fm_tutorial_build_answer_key_from_bundle($sourceBundle, $sourceProjectId);
             fm_tutorial_write_json_file($answerKeyFile, $answerKey);
@@ -1198,6 +1201,7 @@ function fm_tutorial_score_category_audit($key, $category, $submittedMetrics, $e
 }
 
 function fm_tutorial_practice_grading_enabled($courseId, $manifest) {
+    if (($manifest['measurement_scope'] ?? '') === 'full_house') return false;
     if (!is_array($manifest)) return true;
     if (($manifest['tutorial_kind'] ?? 'practice') !== 'practice' || !empty($manifest['test_attempt_id']) || !empty($manifest['draft_reject_attempt_id'])) {
         return true;
@@ -1500,7 +1504,7 @@ function fm_tutorial_fetch_editor_bundle($tutorialId, $userEmail, $courseId = nu
     $sourceProjectId = fm_tutorial_sanitize_project_id($manifest['source_project_id'] ?? $manifest['original_master_id'] ?? '');
     if ($sourceProjectId === '') return null;
 
-    $sourceBundle = function_exists('fm_fetch_project_bundle') ? fm_fetch_project_bundle($sourceProjectId) : null;
+    $sourceBundle = fm_tutorial_fetch_source_bundle($tutorialId, $userEmail, $cid);
     if (!is_array($sourceBundle) || !is_array($sourceBundle['manifest'] ?? null)) return null;
 
     $userFiles = fm_tutorial_list_artifacts($cid, $userEmail, $tutorialId);
@@ -2433,3 +2437,5 @@ function fm_tutorial_list_user_projects($userEmail, $courseId = null) {
     });
     return $projects;
 }
+
+require_once __DIR__ . '/_tutorial_source.php';

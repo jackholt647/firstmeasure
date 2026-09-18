@@ -2427,15 +2427,14 @@
         return;
       }
       const curriculumProjectId = String(projectEntry?.curriculum_project_id || projectEntry?.practice_project_id || '').trim();
-      const data = await Portal.apiPost(cfg().endpoints.server, {
-        action:'start_tutorial_project',
-        project_id: sourceProjectId,
-        master_id: sourceProjectId,
+      const data = await this.exteriorTrainingRequest({
+        operation:'start',
+        source: sourceProjectId,
         chapter_id: this.currentChapOrigIdx + 1,
         curriculum_project_id: curriculumProjectId,
         practice_project_name: projectEntry?.name || '',
         course_id: tutorialCourseId()
-      }).catch(()=>({}));
+      }).catch(error=>({success:false,error:error.message}));
 
       if (data.success) {
         if (data.editor_url) {
@@ -3352,7 +3351,7 @@
       modal.innerHTML = `
         <div class="tut-project-search-modal" role="dialog" aria-modal="true" aria-labelledby="tutorialProjectSearchTitle">
           <div class="tut-project-search-head">
-            <h3 id="tutorialProjectSearchTitle">Add Completed Project</h3>
+            <h3 id="tutorialProjectSearchTitle">Add Training Source</h3>
             <button class="tut-project-search-close" onclick="closeTutorialProjectSearch()" title="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="tut-project-search-controls">
@@ -3370,6 +3369,7 @@
               <option value="rejected">Rejected</option>
               <option value="pending_rejection">Pending rejection</option>
               <option value="all">All statuses</option>
+              <option value="exteriors">Exterior sources</option>
             </select>
             <button class="btn-primary" id="tutorialProjectSearchBtn" onclick="searchTutorialProjects()">
               <i class="fas fa-search"></i> Search
@@ -3493,6 +3493,7 @@
 
     tutorialStatusMatches(project, status){
       const wanted = String(status || 'completed').trim().toLowerCase();
+      if (wanted === 'exteriors') return String(project?.id || project?.manifest?.id || '').startsWith('fullhouse_');
       if (wanted === 'all') return true;
       const manifest = project?.manifest && typeof project.manifest === 'object' ? project.manifest : {};
       const actual = String(project?.status || manifest.status || '').trim().toLowerCase();
@@ -3503,6 +3504,11 @@
     async fetchTutorialProjectPickerRows({ query='', complexity='all', status='completed', page=1 } = {}){
       const wanted = String(status || 'completed').trim().toLowerCase() || 'completed';
       const limit = this.projectSearchLimit;
+      if (wanted === 'exteriors') {
+        const data = await this.exteriorTrainingRequest({operation:'list'});
+        const rows = (data.projects || []).filter(p => `${p.address || ''} ${p.id}`.toLowerCase().includes(query.toLowerCase()) && (complexity === 'all' || String(p.complexity) === complexity));
+        return {projects: rows.slice((page-1)*limit, page*limit), pagination:{total_pages:Math.max(1,Math.ceil(rows.length/limit)), total_count:rows.length}};
+      }
       if (wanted === 'completed' || wanted === 'all') {
         return await fmPost('projects/list', {
           filter: 'all',
@@ -3717,6 +3723,36 @@
       window.open(`editor.php?folder=${encodeURIComponent(id)}`, '_blank', 'noopener');
     },
 
+    async exteriorTrainingRequest(body){
+      const response = await fetch('tutorial_sources.php', {method:'POST', headers:{'Content-Type':'application/json','X-Tutorial-Request':'1'}, body:JSON.stringify(body)});
+      const data = await response.json();
+      if (!response.ok || data.success === false) throw new Error(data.message || data.error || 'Training request failed.');
+      return data;
+    },
+
+    exteriorScopeControl(p, chapIdx, idx){
+      const source = String(p.project_id || p.source_project_id || p.id || '');
+      this.exteriorCapabilities ||= new Map();
+      const capability = this.exteriorCapabilities.get(source);
+      if (capability && !capability.loading && !capability.error && !['roof','full_house'].includes(p.measurement_scope)) {
+        p.measurement_scope = capability.available ? 'full_house' : 'roof';
+        if (capability.available) p.grading_enabled = false;
+      }
+      if (source && !capability) {
+        this.exteriorCapabilities.set(source, {loading:true});
+        this.exteriorTrainingRequest({operation:'capability',source}).then(data => {
+          this.exteriorCapabilities.set(source,data.capability);
+          if (!['roof','full_house'].includes(p.measurement_scope)) p.measurement_scope = data.capability.available ? 'full_house' : 'roof';
+          if (p.measurement_scope === 'full_house') p.grading_enabled = false;
+        }).catch(error => this.exteriorCapabilities.set(source,{available:false,error:error.message})).finally(() => {
+          if (this.currentEditorPage === chapIdx) this.renderProjectList(chapIdx);
+        });
+      }
+      const checked = p.measurement_scope === 'full_house';
+      const detail = !capability || capability.loading ? 'Checking source data…' : capability.error || (capability.available ? 'Reference data ready. Exterior practice is ungraded.' : `Roof only — missing ${capability.missing.join(', ')}.`);
+      return `<label style="min-width:210px;max-width:300px;font-size:12px"><span><input type="checkbox" ${checked?'checked':''} ${capability?.available || checked?'':'disabled'} onchange="updateProject(${chapIdx},${idx},'measurement_scope',this.checked?'full_house':'roof')"> Full exteriors</span><small style="display:block;color:#667085">${Portal.escapeHtml(detail)}</small></label>`;
+    },
+
     renderProjectList(chapIdx){
       const container = document.getElementById('projEditorList');
       if (!container) return;
@@ -3729,14 +3765,16 @@
         const sourceProjectId = p.project_id || p.source_project_id || p.id || '';
         const statusColor = sourceProjectId ? '#34a853' : '#fbbc04';
         const statusText = sourceProjectId ? 'Ready' : 'Missing ID';
-        const gradingEnabled = p.grading_enabled !== false;
+        const scopeControl = this.exteriorScopeControl(p, chapIdx, idx);
+        const gradingEnabled = p.measurement_scope !== 'full_house' && p.grading_enabled !== false;
 
         container.innerHTML += `
           <div class="resource-row" id="proj-row-${idx}">
             <input value="${Portal.escapeHtml(p.name||'')}" onchange="updateProject(${chapIdx}, ${idx}, 'name', this.value)" style="flex:1;">
             <input value="${Portal.escapeHtml(sourceProjectId)}" onchange="updateProject(${chapIdx}, ${idx}, 'id', this.value)" style="flex:2;" placeholder="Real Project ID">
+            ${scopeControl}
             <label class="tut-grade-switch" title="When off, submitting this practice project completes it without calculating or displaying a score.">
-              <input type="checkbox" ${gradingEnabled ? 'checked' : ''} onchange="updateProject(${chapIdx}, ${idx}, 'grading_enabled', this.checked); this.parentElement.querySelector('.tut-grade-switch-text').textContent = this.checked ? 'Grading on' : 'Grading off';">
+              <input type="checkbox" ${gradingEnabled ? 'checked' : ''} ${p.measurement_scope === 'full_house' ? 'disabled' : ''} onchange="updateProject(${chapIdx}, ${idx}, 'grading_enabled', this.checked); this.parentElement.querySelector('.tut-grade-switch-text').textContent = this.checked ? 'Grading on' : 'Grading off';">
               <span class="tut-grade-switch-track" aria-hidden="true"></span>
               <span class="tut-grade-switch-text">${gradingEnabled ? 'Grading on' : 'Grading off'}</span>
             </label>
@@ -3782,7 +3820,7 @@
               <input type="number" min="0" value="${Portal.escapeHtml(test.retake_wait_hours)}" onchange="updateTestSection(${chapIdx}, ${testIdx}, 'retake_wait_hours', this.value)" placeholder="Retake wait hours">
               <div style="font-size:11px; color:#777;">The time limit applies across this test attempt.</div>
             </div>
-            <label style="margin-top:12px;">Project Pool</label>
+            <label style="margin-top:12px;">Project Pool</label><p style="font-size:12px;color:#667085">Graded exams assess roofs only. Use practice projects for full exterior training and instructor review.</p>
             <div id="testProjEditorList-${testIdx}"></div>
             <div style="margin:10px 0; display:flex; justify-content:flex-end;">
               <button class="btn-primary btn-sm" onclick="openTutorialProjectSearch('test:${testIdx}')">
@@ -3866,7 +3904,7 @@
               <input type="number" min="0" value="${Portal.escapeHtml(round.retake_wait_hours)}" onchange="updateDraftRejectRound(${chapIdx}, ${roundIdx}, 'retake_wait_hours', this.value)" placeholder="Retake wait hours">
               <div style="font-size:11px; color:#777;">Retake wait applies to test rounds.</div>
             </div>
-            <label style="margin-top:12px;">Project Pool</label>
+            <label style="margin-top:12px;">Project Pool</label><p style="font-size:12px;color:#667085">Graded exams assess roofs only. Use practice projects for full exterior training and instructor review.</p>
             <div id="draftRejectProjectList-${roundIdx}"></div>
             <div style="margin:10px 0; display:flex; justify-content:flex-end;">
               <button class="btn-primary btn-sm" onclick="openTutorialProjectSearch('draftreject:${roundIdx}')">
@@ -4084,7 +4122,14 @@
     updateProject(chapIdx, itemIdx, field, val, target='practice'){
       if (!tutorialProjectsEnabled()) return;
       const item = this.projectListForChapter(this.curriculum.chapters[chapIdx], target)[itemIdx];
-      if (item) item[field] = val;
+      if (!item) return;
+      item[field] = val;
+      if (field === 'id') {
+        item.project_id = item.source_project_id = String(val).trim();
+        delete item.measurement_scope;
+      }
+      if (field === 'measurement_scope' && val === 'full_house') item.grading_enabled = false;
+      if (field === 'id' || field === 'measurement_scope') this.renderProjectList(chapIdx);
     },
 
     removeProject(chapIdx, itemIdx, target='practice'){

@@ -7540,7 +7540,7 @@ async function renderFinalizePage(container) {
                 </div>
             ` : ''}
 
-            ${window.FIRSTMEASURE_FULL_HOUSE === true ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
+            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
                 <div class="fin-submit-area">
                     <button class="fin-submit-btn ${storiesReady ? 'enabled' : 'disabled'}" id="finalSubmitBtn" ${storiesReady ? '' : 'disabled'}>
                         <i class="fas fa-file-pdf"></i> Submit PDF

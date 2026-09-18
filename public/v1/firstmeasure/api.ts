@@ -10926,7 +10926,7 @@ function buildInlineManifest(body: unknown): ProjectManifest {
   };
 }
 
-async function buildEditorBundle(
+export async function buildEditorBundle(
   projectId: string,
   request: {
     headers: Record<string, unknown>;

@@ -1,4 +1,9 @@
 import { managerReviewCsv } from "./manager_review_export.js";
+import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile } from './tutorial_exteriors.js';
+import { fullHouseEnabled } from '../firstmeasure/full_house.js';
+import { listFullHouseProjects } from '../firstmeasure/project_index.js';
+import { buildEditorBundle } from '../firstmeasure/api.js';
+import { readArtifact } from '../firstmeasure/storage.js';
 import { customerExportBatch } from "./customer_export.js";
 import { creditExportPage } from "./credit_export.js";
 import { trackTutorialResult } from "../staff_tracking/api.js";
@@ -162,6 +167,45 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   }));
 
   void app.register(registerDiagnosticsApi, { prefix: "/diagnostics" });
+
+  app.post('/tutorial-exteriors', async (request, reply) => {
+    const actor = await tutorialBridgeActor(request);
+    const body = asObject(request.body);
+    const courseId = tutorialCourseId(body);
+    const manager = await canManageTutorials(actor);
+    if (body.operation === 'start') {
+      const result = await handleTutorialLegacyAction('start_tutorial_project', { ...body, project_id: body.source }, actor);
+      await trackTutorialResult(request, 'start_tutorial_project', asObject(result), { ...body, actor }, app);
+      if (asObject(result).status_code) reply.code(Number(asObject(result).status_code));
+      return result;
+    }
+    if (body.operation === 'list') {
+      if (!manager || !fullHouseEnabled()) throw forbidden('forbidden', 'Training manager access required.');
+      return { success: true, projects: await listFullHouseProjects() };
+    }
+    if (body.operation === 'capability') {
+      if (!manager) throw forbidden('forbidden', 'Training manager access required.');
+      const source = sanitizeTutorialSourceProjectId(body.source);
+      return withTutorialSource(source, async () => ({ success: true, capability: await exteriorTrainingCapability(source) }));
+    }
+    if (body.operation !== 'source') throw badRequest('invalid_operation', 'Invalid training operation.');
+    const tutorialId = String(body.tutorial_id ?? '');
+    const student = String(body.student_email || actor.email).trim().toLowerCase();
+    if (!isTutorialProjectId(tutorialId) || (student !== actor.email && !manager)) throw forbidden('forbidden', 'Training access denied.');
+    const manifest = asObject(await readJsonFile(path.join(tutorialProjectDir(courseId, student, tutorialId), 'manifest.json'), {}));
+    if (manifest.id !== tutorialId || (manifest.locked_for_student && !manager)) throw forbidden('forbidden', 'Training project is unavailable.');
+    if (manifest.measurement_scope === 'full_house' && !fullHouseEnabled()) throw forbidden('exteriors_disabled', 'Exterior training is disabled.');
+    const source = sanitizeTutorialSourceProjectId(manifest.source_project_id);
+    return withTutorialSource(source, async () => {
+      if (body.name) {
+        const name = String(body.name);
+        if (!tutorialSourceFile(name)) throw forbidden('source_file_forbidden', 'This source file is not a training reference.');
+        const file = await readArtifact(source, name);
+        return reply.type('application/octet-stream').send(file.content);
+      }
+      return buildEditorBundle(source, request);
+    });
+  });
 
   app.post("/legacy-action", async (request, reply) => {
     const body = objectSchema.parse(request.body ?? {});
@@ -2365,8 +2409,17 @@ async function createTutorialProjectInstance(
   }
 
   let sourceBundle: Awaited<ReturnType<typeof getProjectDetail>>;
+  const curriculum = asObject(await readTutorialCurriculum(courseId));
+  const chapter = asObject((Array.isArray(curriculum.chapters) ? curriculum.chapters : [])[Math.max(1, Number(chapterId) || 1) - 1]);
+  const entries = Array.isArray(chapter.projects) ? chapter.projects.map(asObject) : [];
+  const assignment = entries.find(entry => sanitizeTutorialSourceProjectId(tutorialProjectSourceId(entry)) === sourceProjectId
+    && (!options.curriculum_project_id || entry.curriculum_project_id === options.curriculum_project_id));
+  // Exterior sources may only be read through a saved assignment, never an arbitrary student-supplied ID.
+  if (sourceProjectId.startsWith('fullhouse_') && !assignment && !options.test_attempt_id) {
+    return { success: false, status_code: 403, error: 'Add this source to the training curriculum before starting it.' };
+  }
   try {
-    sourceBundle = await getProjectDetail(sourceProjectId);
+    sourceBundle = await withTutorialSource(sourceProjectId, () => getProjectDetail(sourceProjectId));
   } catch {
     return { ok: false, success: false, status_code: 404, error: "Source project not found." };
   }
@@ -2375,11 +2428,19 @@ async function createTutorialProjectInstance(
   const dir = tutorialProjectDir(courseId, email, tutorialId);
   const now = new Date().toISOString();
   const sourceManifest = asObject(sourceBundle.manifest);
+  const capability = await withTutorialSource(sourceProjectId, () => exteriorTrainingCapability(sourceProjectId, sourceBundle));
+  // Exams retain roof grading until an exterior rubric exists. Practice defaults to usable source data.
+  const exterior = fullHouseEnabled() && !options.test_attempt_id && capability.available && assignment?.measurement_scope !== 'roof';
+  if (assignment?.measurement_scope === 'full_house' && !capability.available && !options.test_attempt_id) {
+    return { success: false, status_code: 409, error: `Exterior source data is missing: ${capability.missing.join(', ')}. Update the references or select Roof only.` };
+  }
   const manifest: JsonObject = {
     id: tutorialId,
     status: "tutorial_in_progress",
     is_tutorial_instance: true,
     tutorial_mode: true,
+    measurement_scope: exterior ? 'full_house' : 'roof',
+    ...(exterior ? { tutorial_grading_enabled: false } : {}),
     tutorial_course_id: courseId,
     source_project_id: sourceProjectId,
     original_master_id: sourceProjectId,

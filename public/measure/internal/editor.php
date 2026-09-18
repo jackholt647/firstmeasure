@@ -16,104 +16,7 @@ require_once __DIR__ . '/_permission_options.php';
 $GOOGLE_BROWSER_API_KEY = fm_google_provider_key('browser_internal');
 $AZURE_MAPS_SUBSCRIPTION_KEY = fm_azure_maps_provider_key();
 
-function fm_editor_internal_base_url() {
-    $base = rtrim((string)fm_api_base_url(), '/');
-    $internal = preg_replace('#/firstmeasure/?$#', '/internal', $base);
-    if (is_string($internal) && $internal !== '' && $internal !== $base) return $internal;
-    return rtrim($base, '/') . '/../internal';
-}
-
-function fm_editor_node_internal_user($email) {
-    $email = strtolower(trim((string)$email));
-    if ($email === '' || !function_exists('curl_init')) return null;
-    $headers = [
-        'Accept: application/json',
-        'X-Internal-User-Email: ' . strtolower(trim((string)($_SESSION['user_email'] ?? $email))),
-    ];
-    if (!empty($_SESSION['user_name'])) $headers[] = 'X-Internal-User-Name: ' . (string)$_SESSION['user_name'];
-    $ch = curl_init(rtrim(fm_editor_internal_base_url(), '/') . '/users/' . rawurlencode($email));
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ]);
-    $raw = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($status < 200 || $status >= 300 || !is_string($raw) || $raw === '') return null;
-    $data = json_decode($raw, true);
-    return is_array($data['user'] ?? null) ? $data['user'] : null;
-}
-
-function fm_editor_user_permissions($email) {
-    $user = fm_editor_node_internal_user($email);
-    if (!is_array($user)) return [];
-    $permissions = permissionOptionsNormalizePermissions($user['permissions'] ?? [], $user['role'] ?? 'user');
-    if (!empty($user['is_admin']) || strtolower(trim((string)($user['role'] ?? ''))) === 'admin') {
-        $permissions['manage_tutorials'] = true;
-    }
-    return $permissions;
-}
-
-function fm_editor_tutorial_find_project_owner_email($tutorialId, $courseId) {
-    $tutorialId = fm_tutorial_sanitize_project_id($tutorialId);
-    if (!fm_tutorial_is_tutorial_project_id($tutorialId)) return '';
-
-    $usersRoot = storagePath('tutorials/users');
-    if (!is_dir($usersRoot)) return '';
-
-    $courseId = (string)$courseId;
-    $preferredCourses = [];
-    if ($courseId !== '') $preferredCourses[] = $courseId;
-    $preferredCourses[] = 'default';
-
-    foreach (scandir($usersRoot) ?: [] as $safeUser) {
-        if ($safeUser === '.' || $safeUser === '..') continue;
-        $coursesRoot = $usersRoot . '/' . $safeUser . '/courses';
-        if (!is_dir($coursesRoot)) continue;
-
-        $courses = $preferredCourses;
-        foreach (scandir($coursesRoot) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            if (is_dir($coursesRoot . '/' . $entry)) $courses[] = $entry;
-        }
-        $courses = array_values(array_unique($courses));
-
-        foreach ($courses as $cid) {
-            $manifestFile = $coursesRoot . '/' . $cid . '/projects/' . $tutorialId . '/manifest.json';
-            if (!is_file($manifestFile)) continue;
-            $manifest = json_decode((string)@file_get_contents($manifestFile), true);
-            if (is_array($manifest) && ($manifest['id'] ?? '') === $tutorialId) {
-                return (string)$safeUser;
-            }
-        }
-    }
-
-    return '';
-}
-
-function fm_editor_tutorial_request_user_email($sessionEmail, $tutorialId = '', $courseId = '') {
-    $sessionEmail = strtolower(trim((string)$sessionEmail));
-    $requestedEmail = strtolower(trim((string)($_GET['student_email'] ?? $_POST['student_email'] ?? $_GET['email'] ?? $_POST['email'] ?? '')));
-    if ($requestedEmail === $sessionEmail) return $sessionEmail;
-
-    $perms = fm_editor_user_permissions($sessionEmail);
-    if (!empty($perms['manage_tutorials'])) {
-        if ($requestedEmail !== '') return $requestedEmail;
-        $ownerEmail = fm_editor_tutorial_find_project_owner_email($tutorialId, $courseId);
-        if ($ownerEmail !== '') return $ownerEmail;
-    }
-
-    if ($requestedEmail === '') return $sessionEmail;
-
-    header('Content-Type: application/json');
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+require_once __DIR__ . '/_tutorial_access.php';
 
 // --- 1. LOGIN CHECK ---
 // If the user email session is not set, redirect to the login page immediately.
@@ -132,6 +35,17 @@ if (!isset($_SESSION['user_email'])) {
 require_once __DIR__ . '/_full_house.php';
 $fmFullHouseEditor = fm_is_full_house_id($_GET['folder'] ?? $_POST['folder'] ?? '');
 if ($fmFullHouseEditor && !fm_full_house_allowed()) fm_full_house_not_found();
+$fmTutorialExterior = false;
+$fmTutorialFolder = $_GET['folder'] ?? $_POST['folder'] ?? '';
+if (fm_tutorial_is_tutorial_project_id($fmTutorialFolder)) {
+    $fmTutorialCourse = fm_tutorial_course_id_from_request();
+    $fmTutorialOwner = fm_editor_tutorial_request_user_email($_SESSION['user_email'], $fmTutorialFolder, $fmTutorialCourse);
+    $fmTutorialFound = fm_tutorial_find_project($fmTutorialFolder, $fmTutorialOwner, $fmTutorialCourse);
+    $fmTutorialExterior = ($fmTutorialFound['manifest']['measurement_scope'] ?? '') === 'full_house';
+    if ($fmTutorialExterior && !fm_tutorial_fetch_source_bundle($fmTutorialFolder, $fmTutorialOwner, $fmTutorialCourse)) fm_full_house_not_found();
+    $fmFullHouseEditor = $fmTutorialExterior;
+}
+
 
 if (strpos($editorAction, 'tutorial_project_') === 0) {
     $courseId = fm_tutorial_course_id_from_request();
@@ -245,7 +159,18 @@ if (strpos($editorAction, 'tutorial_project_') === 0) {
             exit;
         }
         $body = fm_tutorial_parse_request_body();
-        $manifest = array_merge($found['manifest'], is_array($body) ? $body : []);
+        if (!empty($found['manifest']['locked_for_student'])) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'This test project is locked.']);
+            exit;
+        }
+        // An editor patch must never retarget the privileged, read-only source bridge.
+        $patch = is_array($body) ? $body : [];
+        foreach (array_keys($patch) as $key) {
+            if (in_array($key, ['source_project_id', 'original_master_id', 'owner_email', 'measurement_scope', 'curriculum_project_id', 'chapter_id', 'locked_for_student', 'status'], true)
+                || preg_match('/^(tutorial_|test_|draft_reject_)/', $key)) unset($patch[$key]);
+        }
+        $manifest = array_merge($found['manifest'], $patch);
         $manifest['id'] = $tutorialId;
         $manifest['is_tutorial_instance'] = true;
         $manifest['tutorial_mode'] = true;

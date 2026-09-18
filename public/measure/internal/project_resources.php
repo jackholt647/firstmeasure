@@ -17,7 +17,16 @@ if ($customerOrder && ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION[
 session_write_close();
 $project = (string)($_GET['project'] ?? '');
 $name = (string)($_GET['name'] ?? '');
-if (!fm_is_full_house_id($project) || !fm_full_house_allowed()) resource_error(404, 'Not found.');
+$tutorialResource = null;
+if (strpos($project, 'tutorial_') === 0) {
+    require_once __DIR__ . '/_tutorial_access.php';
+    $tutorialCourse = fm_tutorial_course_id_from_request();
+    $tutorialOwner = fm_editor_tutorial_request_user_email($_SESSION['user_email'], $project, $tutorialCourse);
+    $tutorialResource = fm_tutorial_find_project($project, $tutorialOwner, $tutorialCourse);
+    if (!$tutorialResource || ($tutorialResource['manifest']['measurement_scope'] ?? '') !== 'full_house') resource_error(404, 'Not found.');
+    if ($customerOrder) resource_error(403, 'Student uploads cannot replace customer references.');
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!empty($tutorialResource['manifest']['locked_for_student']) || $tutorialOwner !== strtolower($_SESSION['user_email']))) resource_error(403, 'This training project is read only.');
+} elseif (!fm_is_full_house_id($project) || !fm_full_house_allowed()) resource_error(404, 'Not found.');
 if (!preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $project)) resource_error(400, 'Open a saved project first.');
 if (strlen($name) > 100 || ($name !== '' && !preg_match('/^internal-(resource|markup)-[a-zA-Z0-9._-]+$/D', $name))) resource_error(400, 'Invalid resource name.');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -27,7 +36,35 @@ if (!$secret) resource_error(503, 'Internal resource storage is not configured.'
 $artifactBase = rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode($project) . '/artifacts';
 const RESOURCE_CHUNK_BYTES = 8 * 1024 * 1024;
 function resource_api($name = '', $body = null) {
-    global $artifactBase, $secret;
+    global $artifactBase, $secret, $tutorialResource, $tutorialOwner, $tutorialCourse, $project;
+    if ($tutorialResource) {
+        static $sourceFiles = null;
+        if ($sourceFiles === null) {
+            $bundle = fm_tutorial_fetch_source_bundle($project, $tutorialOwner, $tutorialCourse);
+            if (!$bundle) resource_error(502, 'Training references are unavailable.');
+            $sourceFiles = [];
+            foreach ($bundle['files'] ?? [] as $file) {
+                if (preg_match('/^internal-(resource-|markup-part-)/', $file['name'])) $sourceFiles[$file['name']] = $file;
+            }
+        }
+        $dir = $tutorialResource['dir'] . 'artifacts/';
+        if ($body !== null) {
+            if (isset($sourceFiles[$name])) resource_error(403, 'Source references are read only.');
+            if (!is_dir($dir)) mkdir($dir, 0775, true);
+            if (file_put_contents($dir . $name, $body, LOCK_EX) === false) resource_error(500, 'Could not save training resource.');
+            return json_encode(['ok'=>true, 'artifact'=>['name'=>$name, 'size'=>strlen($body)]]);
+        }
+        if ($name === '') {
+            $files = $sourceFiles;
+            foreach (fm_tutorial_list_artifacts($tutorialCourse, $tutorialOwner, $project) as $file) $files[$file['name']] = $file;
+            return json_encode(['files'=>array_values($files)]);
+        }
+        if (is_file($dir . $name)) return file_get_contents($dir . $name);
+        if (!isset($sourceFiles[$name])) resource_error(404, 'Training resource not found.');
+        $result = fm_tutorial_source_request($project, $tutorialOwner, $tutorialCourse, $name);
+        if ($result['status'] !== 200) resource_error($result['status'], 'Training resource is unavailable.');
+        return $result['body'];
+    }
     $headers = fm_full_house_headers();
     $upload = $body !== null;
     if ($upload) {

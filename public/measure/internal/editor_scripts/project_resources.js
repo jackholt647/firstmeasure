@@ -119,7 +119,7 @@
   function savedFrameAtPlayhead(){const time=scrub?.target??media?.currentTime;return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return link?.source===current?.name&&Math.abs(link.time-time)<.02;});}
   function updateFrameAction(){const button=$('[data-action="returnVideo"]'),video=!!media?.videoWidth,saved=video&&savedFrameAtPlayhead();button.hidden=!frameSource&&!video;button.textContent=video?(saved?'Saved Frame':'Save Frame'):'Jump to video frame';button.classList.toggle('is-saved',!!saved);button.disabled=busy||!!favoriteDraft;button.title=saved?'Open the saved frame':video?'Save this frame without a title':'Open the source video at this frame';}
   const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-', markupPrefix = 'internal-markup-';
-  const url = (id, name = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}) });
+  const url = (id, name = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}), ...(window.FIRSTMEASURE_TUTORIAL?.enabled ? {course_id: window.FIRSTMEASURE_TUTORIAL.courseId || 'default', student_email: window.FIRSTMEASURE_TUTORIAL.studentEmail || ''} : {}) });
   const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
   const label = name => files.find(file => file.name === name)?.original_name || name.replace(/^internal-resource-(?:v2-)?/, '').slice(37);
   const sourceUrl = file => file.src || url(project,file.name);
