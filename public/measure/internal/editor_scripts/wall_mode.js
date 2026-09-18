@@ -291,7 +291,9 @@
     function setEnabled(on) {
         if(on&&!currentId()){alert('Load a project before entering wall mode.');return;}
         roofTrimEditor?.finish();roofTrimEditor?.reset();if(!on){window.WallFeatures?.closeUI?.();groundEditor?.leave();baseEditor?.leave();wallEditor?.leave();}
+        const entering=!!on&&!enabled;
         enabled=!!on;
+        if(entering)window.ProjectResources?.open?.();
         if(enabled){
             if(typeof exitMeasurementMode==='function')exitMeasurementMode();
             selectedPoints.clear();selectedLines.clear();if(typeof tempPoint!=='undefined')tempPoint=null;
