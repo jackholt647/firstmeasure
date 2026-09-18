@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 wall/base editing: [Independent wall edges](deploy/digitalocean/development-wall-base-detach-20260918.md) records `313e9de52398a367c3f9b159cae0963131bc22b1`. Wall-bottom Delete and Move leave the base in place, including multi-edge moves. Previous fixes are retained.
+
 September 18 offset cleanup: [Soffit overlaps at every depth](deploy/digitalocean/development-soffit-offsets-20260918.md) records `0edd665db8157b2f31e73a71015ecd5ad7f5504f`. Embedded overlap returns are removed before insetting; 0.2, 1, 1.5 and 2 ft regressions pass. Previous editor changes are retained.
 
 September 18 generated wall seams: [Flashing junction cleanup](deploy/digitalocean/development-flashing-seam-20260918.md) records `c21a7a8fb9f8ef433e239edebf6fd3f986d1fe99`. Roof-connected millimetre drift is aligned before merging, removing duplicate-looking internal wall seams. Prior editor and roof-fitting changes are retained.
