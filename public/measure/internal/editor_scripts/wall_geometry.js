@@ -135,8 +135,9 @@
             }
         }
         // Overlapping roof layers can describe one exterior side twice. A
-        // higher roof's inset must not create a recess behind the outer lower
-        // eave. Only reconcile nearby, overlapping, same-facing parallel runs.
+        // shared wall follows the more inward plane, preserving the deeper soffit
+        // rather than shortening it to match a longer roof edge. Reconcile only
+        // nearby, overlapping, same-facing parallel runs.
         const envelopes=[];
         if(Number.isFinite(Number(options.soffit))){
             const perimeter=sources.filter(s=>s.kind==='perimeter'&&s.setback>0);
@@ -161,8 +162,14 @@
                     choices.push({lower,setback,n,parent});
                 }
                 const choice=choices.sort((a,b)=>a.setback-b.setback)[0];if(!choice)continue;
-                choice.followUpper=len>distance(choice.lower.originalA,choice.lower.originalB)+.01;
-                upper.outerEnvelope={sourceId:choice.lower.id,parentId:choice.lower.parentId,previousSetback:upper.setback};if(!choice.followUpper)upper.setback=choice.setback;
+                // Both candidate offsets use the upper roof edge and inward normal.
+                // A greater offset means a deeper overhang for both roof layers.
+                choice.followUpper=upper.setback>=choice.setback;
+                // Keep measured return evidence even if its rendered flashing is
+                // hidden by the overlap. Cleanup needs the full chain to close
+                // a clipped transition between the two inset wall planes.
+                const lowerFace=faces.find(f=>f.id===choice.lower.parentId),returnGuides=flashing.filter(f=>[f.a,f.b].every(p=>lowerFace.points.some((a,i)=>onEdge(p,a,lowerFace.points[(i+1)%lowerFace.points.length],.01)))).map(f=>({...clone(f),kind:'flashing',parentId:choice.lower.parentId}));
+                upper.outerEnvelope={sourceId:choice.lower.id,parentId:choice.lower.parentId,previousSetback:upper.setback,returnGuides};if(!choice.followUpper)upper.setback=choice.setback;
                 for(const [key,original]of [['a','originalA'],['b','originalB']]){const p=upper[original],q={x:p.x+n.x*upper.setback,y:p.y+n.y*upper.setback};upper[key]={...q,z:height({plane:upper.sourcePlane},q)};}
                 envelopes.push({upper,...choice});
             }
@@ -195,7 +202,7 @@
             joins.sort((a,b)=>distance(a,corner)-distance(b,corner));
             if(joins.length)s[k]={...joins[0],z:height({plane:s.sourcePlane},joins[0])};
         }
-        // Resolve only the shared interval. A shorter roof retains its own
+        // Resolve only the shared interval. The other roof retains its own
         // wall plane beyond the overlap, including the far chimney corner.
         const envelopeContains=(e,p)=>contains(e.parent,p)&&(!e.followUpper||e.caps.every(c=>cross(sub(c.b,c.a),sub(p,c.a))*c.side>=-EPS));
         for(const e of envelopes){

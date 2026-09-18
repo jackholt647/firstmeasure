@@ -88,10 +88,10 @@ function cleanup(walls,sources,ground,excluded=[]){
  // A short measured return can disappear entirely after setback clipping.
  // Reconnect staggered parallel runs only when the original flashing chain
  // proves they were neighbors and the missing cross-edge fits in the soffit.
- const openRuns=runs(result,ground);
+ let openRuns=runs(result,ground);
  const endOpen=p=>openRuns.filter(r=>[r.a,r.b].some(q=>dist(p,q)<.002)).length===1;
  const normal=s=>{const v=sub(s.originalB,s.originalA),len=dist(s.originalA,s.originalB),n={x:-v.y/len,y:v.x/len};if((s.a.x-s.originalA.x)*n.x+(s.a.y-s.originalA.y)*n.y<0){n.x*=-1;n.y*=-1;}return n;};
- const guides=sources.filter(s=>s.kind==='flashing');
+ const guides=[...new Map([...sources.filter(s=>s.kind==='flashing'),...sources.flatMap(s=>s.outerEnvelope?.returnGuides||[])].map(s=>[s.id,s])).values()];
  const usedRuns=new Set();
  // Measured roof returns can also clip a short hole out of one continuous
  // source. Bridge that hole only with matching source provenance and a nearby
@@ -113,24 +113,29 @@ function cleanup(walls,sources,ground,excluded=[]){
   const bridge={...copy(wa),id:wa.id+':source-gap',bottom:[copy(p),copy(q)],top:[{...p,z:mix(...wa.top,at(p,...wa.bottom)).z},{...q,z:mix(...wb.top,at(q,...wb.bottom)).z}],soffitReturn:true};
   result.push(bridge);usedRuns.add(a);usedRuns.add(b);paths.push({coveredSourceGap:true,removedIds:[],oldPath:[copy(p),copy(q)],intersection:mix(p,q,.5),soffit:limit});
  }
+ // A covered gap can join two fragments of the next return candidate.
+ openRuns=runs(result,ground);usedRuns.clear();
  for(let i=0;i<openRuns.length;i++)for(let j=i+1;j<openRuns.length;j++){
   let a=openRuns[i],b=openRuns[j];if(usedRuns.has(a)||usedRuns.has(b))continue;
   let sa=sourceOf(members(a).find(w=>sourceOf(w)?.originalA)||{}),sb=sourceOf(members(b).find(w=>sourceOf(w)?.originalA)||{});
   if(!sa?.originalA||!sa.originalB||!sb?.originalA||!sb.originalB||sa.setback<=0||sb.setback<=0||!parallel(sa,sb))continue;
   const na=normal(sa),nb=normal(sb);if(na.x*nb.x+na.y*nb.y<.999)continue;
-  // Keep the longer source run. Trim only the shorter overlapping end.
+  // Keep the longer run when choosing where the closing return joins.
+  // This trims an endpoint only; it never changes either soffit plane.
   if(dist(sa.originalA,sa.originalB)>dist(sb.originalA,sb.originalB)){[a,b]=[b,a];[sa,sb]=[sb,sa];}
   const pair=[a.a,a.b].flatMap(p=>[b.a,b.b].map(q=>({p,q,d:dist(p,q)}))).sort((a,b)=>a.d-b.d)[0],{p,q}=pair,limit=Math.min(sa.setback,sb.setback);
-  if(pair.d<.005||pair.d>limit+.002||!endOpen(p)||!endOpen(q))continue;
+  if(pair.d<.005||pair.d>Math.SQRT2*limit+.002||!endOpen(p)||!endOpen(q))continue;
   const h=mix(a.a,a.b,at(q,a.a,a.b)),t=at(h,a.a,a.b);
-  if(t<=.005/dist(a.a,a.b)||t>=1-.005/dist(a.a,a.b)||dist(h,q)<.005||dist(h,q)>limit)continue;
+  if(t<=.005/dist(a.a,a.b)||t>=1-.005/dist(a.a,a.b)||dist(h,q)<.005||dist(h,q)>limit||dist(p,h)>limit+.002)continue;
   const farA=dist(p,a.a)<.002?a.b:a.a,farB=dist(q,b.a)<.002?b.b:b.a;
   const u=sub(p,farA),v=sub(q,farB);if((u.x*v.x+u.y*v.y)/(dist(p,farA)*dist(q,farB))>-.999)continue;
   const start=[sa.originalA,sa.originalB].sort((x,y)=>dist(x,p)-dist(y,p))[0],end=[sb.originalA,sb.originalB].sort((x,y)=>dist(x,q)-dist(y,q))[0];
+  // The original roof return includes the offset between these wall planes.
+  // Bound each leg of the new join separately, allowing a diagonal corner.
   const chainQueue=[{point:start,ids:[]}];let chain=null;
   for(let k=0;k<chainQueue.length&&k<64;k++){
    const step=chainQueue[k],d=dist(step.point,end);
-   if(step.ids.length&&d>.005&&d<=limit+.002&&Math.abs((step.point.x-end.x)*u.x+(step.point.y-end.y)*u.y)/dist(p,farA)<.02){chain=step.ids;break;}
+   if(step.ids.length&&d>.005&&d<=limit+dist(h,q)+.01&&Math.abs((step.point.x-end.x)*u.x+(step.point.y-end.y)*u.y)/dist(p,farA)<.02){chain=step.ids;break;}
    for(const g of guides){if(step.ids.includes(g.id))continue;for(const [x,y]of [[g.a,g.b],[g.b,g.a]])if(dist(x,step.point)<.01&&Math.abs(x.z-step.point.z)<.05)chainQueue.push({point:y,ids:[...step.ids,g.id]});}
   }
   if(!chain)continue;

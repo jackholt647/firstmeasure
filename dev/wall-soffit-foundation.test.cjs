@@ -1,8 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const root='../public/measure/internal/editor_scripts/',G=require(root+'wall_geometry'),R=require(root+'wall_rake_cleanup'),D=require(root+'wall_gaps'),B=require(root+'base_geometry'),C=require(root+'wall_chimneys'),A=require(root+'wall_chimney_cleanup');
 const captured=require('./fixtures/stepped-eave-chimney.json');
-function build(soffit=24){
- const state=structuredClone(captured);state.options={...state.options,soffit,defaultSoffitInches:18};state.sources=G.buildSources(state.roof,state.options).sources;state.wallEdits={};
+function build(soffit=24,fixture=captured){
+ const state=structuredClone(fixture);state.options={...state.options,soffit,defaultSoffitInches:18};state.sources=G.buildSources(state.roof,state.options).sources;state.wallEdits={};
  const run=ground=>G.mergeCoplanar(D.repair(G.deduplicate(G.extrude(state.roof,state.sources,ground).walls,state.options.tolerance).walls,ground).walls).walls;
  const raw=run(state.ground),pre=R.cleanup(raw,state.sources,state.ground);
  state.base=B.fromRoof(state.roof,state.ground,pre.walls,(soffit==='auto'?18:soffit)*G.INCH);state.chimneys=C.detect(state.roof);C.syncFoundation(state);C.syncVolumes(state);
@@ -34,4 +34,34 @@ test('collapsed-return cleanup requires measured flashing evidence and respects 
 for(const size of [12,18,'auto'])test(`chimney-covered stepped roof closes with ${size} soffit`,()=>{
  const r=build(size);assert.equal(r.state.base.source,'Wall perimeter');assert.equal(D.detect(r.composed,r.state.ground).length,0);
  assert.equal(r.state.chimneys.items.length,1);
+});
+
+for(const size of [12,18,24,'auto'])test(`the middle rake keeps the deeper soffit with ${size}, even beside a longer eave`,()=>{
+ const r=build(size),setback=(size==='auto'?18:size)*G.INCH;
+ const upper=r.sources.filter(s=>s.id.startsWith('R11.')),middle=r.sources.filter(s=>s.id.startsWith('R12.'));
+ assert.ok(upper.length&&middle.length);
+ for(const s of [...upper,...middle])assert.ok(Math.abs(s.setback-setback)<1e-7,'the middle rake must not lose soffit depth to the lower eave');
+ const anchor=upper[0],u={x:anchor.b.x-anchor.a.x,y:anchor.b.y-anchor.a.y},length=Math.hypot(u.x,u.y);
+ for(const w of r.composed.filter(w=>w.sourceId?.startsWith('R12.')&&!w.soffitReturn))for(const p of w.bottom)assert.ok(Math.abs((p.x-anchor.a.x)*u.y-(p.y-anchor.a.y)*u.x)/length<.002,'middle wall lines up with the upper rake across the chimney');
+ for(const s of r.sources.filter(s=>s.kind==='perimeter'&&!s.envelopeReturn))assert.ok(s.setback>=setback-1e-7,'alignment only preserves or increases the selected overhang');
+ assert.ok(r.pre.report.paths.some(p=>p.parallelReturn),'the clipped transition closes after choosing the deeper wall plane');
+ assert.equal(D.detect(r.composed,r.state.ground).length,0);assert.equal(r.state.base.source,'Wall perimeter');
+ const again=R.cleanup(r.clean.walls,r.sources,B.terrain(r.state.base));assert.equal(again.report.paths.length,0,'cleanup does not move the corner a second time');
+});
+
+test('hidden roof-return evidence closes the deeper inset without crossing protected edits',()=>{
+ const r=build(18),path=r.pre.report.paths.find(p=>p.parallelReturn);assert.ok(path);
+ assert.ok(r.sources.some(s=>s.outerEnvelope?.returnGuides?.length));
+ const protectedResult=R.cleanup(r.raw,r.sources,r.state.ground,path.removedIds);assert.ok(!protectedResult.report.paths.some(p=>p.parallelReturn));assert.ok(protectedResult.report.skippedEdited>0);
+ const noEvidence=r.sources.filter(s=>s.kind!=='flashing').map(s=>({...s,outerEnvelope:s.outerEnvelope?{...s.outerEnvelope,returnGuides:[]}:undefined}));
+ assert.ok(!R.cleanup(r.raw,noEvidence,r.state.ground).report.paths.some(p=>p.parallelReturn));
+});
+
+test('the deeper-soffit transition is stable under rotation and roof-face ordering',()=>{
+ const angle=.71,c=Math.cos(angle),s=Math.sin(angle),transform=p=>({...p,x:c*p.x-s*p.y+20,y:s*p.x+c*p.y-10}),rotated=structuredClone(captured);
+ rotated.roof.points=rotated.roof.points.map(transform);rotated.roof.faces=rotated.roof.faces.map(f=>({...f,points:f.points.map(transform),holes:(f.holes||[]).map(r=>r.map(transform))})).reverse();
+ rotated.ground.points=rotated.ground.points.map(transform);rotated.ground.plane=G.plane(rotated.ground.points);
+ const a=build(18),b=build(18,rotated);assert.equal(b.state.base.source,'Wall perimeter');assert.equal(D.detect(b.composed,b.state.ground).length,0);
+ assert.equal(b.composed.length,a.composed.length);
+ for(const w of a.composed){const q=b.composed.find(q=>q.id===w.id);assert.ok(q,w.id);for(const edge of ['bottom','top'])for(let i=0;i<2;i++){const p=transform(w[edge][i]),v=q[edge][i];assert.ok(Math.hypot(p.x-v.x,p.y-v.y,p.z-v.z)<1e-5,w.id);}}
 });
