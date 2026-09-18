@@ -166,7 +166,7 @@
         return Number.isFinite(dsmMin)?dsmMin:0;
     }
     function initializeGround(){
-        if(state&&!state.ground&&window.GroundGeometry)state.ground=GroundGeometry.fromPlane(GroundGeometry.bounds(state.roof),{dx:0,dy:0,k:state.options.ground},{visible:true,source:'Flat'});
+        if(state&&!state.ground&&window.GroundGeometry)state.ground=GroundGeometry.fromPlane(GroundGeometry.bounds(state.roof),{dx:0,dy:0,k:state.options.ground},{visible:false,source:'Flat',simpleGrade:1});
         if(state?.ground&&window.GroundGeometry&&state.ground.simpleGrade!==1)state.ground=GroundGeometry.reference(state.ground,state.roof);
     }
     function groundChanged(rebuild=true){
@@ -281,7 +281,6 @@
             const finishDefaults=copy(state?.finishDefaults||{}),roofTrim=copy(state?.roofTrim||roofTrimOnly),ground=state?.ground,groundCandidates=state?.groundCandidates,base=resetBase?undefined:state?.base,wallCenters=state?.wallCenters!==false,displayMode=state?.displayMode,translucent=state?.translucent!==false,boundExtrusionToRoof=state?.boundExtrusionToRoof!==false,undoSelections=state?.undoSelections!==false,wallTrimWidthInches=state?.wallTrimWidthInches===8?8:6;
             state={schemaVersion:1,engineVersion:ENGINE,...captured,roofSignature:signature,options,sources:r.sources,warnings:r.warnings,savedAt:Date.now(),ground,groundCandidates,base,wallCenters,translucent,displayMode,boundExtrusionToRoof,undoSelections,wallTrimWidthInches,roofTrim,finishDefaults};
             initializeGround();
-            if(!ground&&groundEditor){try{state.ground=groundEditor.fitDSM();}catch(e){state.warnings.push(`Ground: ${e.message} Flat fallback retained.`);}}
             initializeBase(true);
             sourceContext=state.context;projectId=currentId();calculateStage(7);stage=7;selected=null;menu.hidden=true;document.getElementById('wall-auto').setAttribute('aria-expanded','false');
             details.textContent='';persist();render();
