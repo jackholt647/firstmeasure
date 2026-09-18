@@ -87,7 +87,7 @@ function openingDetails(source,target,context){
   // Thin warm interior floor catches light behind the glass without affecting model geometry.
   if(type!=='skylight')box(width/2,.035,-.085,width-.08,.015,.17,new THREE.MeshStandardMaterial({color:color('#b2a493'),roughness:.9}));
  }else if(type==='door'||type==='garage'){
-  target.material.dispose();target.material=white.clone();target.material.color.copy(color(data.color||(type==='garage'?'#d8d7d0':'#c8b9a2')));
+  target.material.dispose();target.material=white.clone();target.material.side=THREE.DoubleSide;target.material.color.copy(color(data.color||(type==='garage'?'#d8d7d0':'#c8b9a2')));
   const panelMat=target.material.clone();panelMat.roughness=.48;
   const rows=type==='garage'?Math.max(3,Math.round(height/.5)):3,cols=type==='garage'?Math.max(2,Math.round(width/.65)):2;
   for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
