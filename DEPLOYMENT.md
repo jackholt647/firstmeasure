@@ -2,6 +2,8 @@
 
 September 18 wall repair: [Foundation corner tracing](deploy/digitalocean/development-wall-hole-20260918.md) records `af50a6f11117c9cd208d9d42c6af1efc43f75848`. Foundation tracing retains actual wall endpoints so repaired strips remain supported during the second generation pass.
 
+September 18 complete editor sync: [Consolidated local features](deploy/digitalocean/development-complete-editor-sync-20260918.md) records `b77f3943131657b76e10429c2082ed1cb25fdd52` on all dev roles. Tab cycling, performance tools/optimizations, trim-follow and report improvements are now included. All 65 public editor scripts and 89 runtime/asset files were verified against the reconciled local source. Preserve this complete baseline in subsequent releases.
+
 September 18 initial grade: [Hidden flat grade](deploy/digitalocean/development-flat-grade-20260918.md) records `3ca9f780538614c3ab78a6f7bc11118faa0e6fe1`. Wall projects start with hidden flat grade, preserving explicit saved grade choices. The concurrent exterior training release is retained.
 
 September 18 exterior visibility: [Opaque depth ordering](deploy/digitalocean/development-opaque-depth-20260918.md) records `c6963cea9c6bc4165c56b022021933ab7838b9d7`. Development now includes the local line, marker and label occlusion helpers, stronger selected-line depth bias, and grade/base depth separation. One browser runtime file changes; saved geometry is preserved.
