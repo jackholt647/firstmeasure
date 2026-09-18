@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 initial grade: [Hidden flat grade](deploy/digitalocean/development-flat-grade-20260918.md) records `3ca9f780538614c3ab78a6f7bc11118faa0e6fe1`. Wall projects start with hidden flat grade, preserving explicit saved grade choices. The concurrent exterior training release is retained.
+
 September 18 exterior visibility: [Opaque depth ordering](deploy/digitalocean/development-opaque-depth-20260918.md) records `c6963cea9c6bc4165c56b022021933ab7838b9d7`. Development now includes the local line, marker and label occlusion helpers, stronger selected-line depth bias, and grade/base depth separation. One browser runtime file changes; saved geometry is preserved.
 
 September 18 deeper soffits: [Overlap alignment](deploy/digitalocean/development-deeper-soffits-20260918.md) records `f188c0ebd40d32c2112b6a212158bc2886428e28` on all three development roles. Shared wall alignment preserves the deeper overhang rather than choosing the longer roof edge, and clipped return joins stay closed. The current training and Resources releases are retained. Two browser geometry files changed; production and access settings are unchanged.
