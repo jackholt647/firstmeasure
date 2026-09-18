@@ -1,0 +1,11 @@
+{
+  "baseline": "e35244102a4f7c6e8fc952287d9f5ee7b225b2b6",
+  "release": "c21a7a8fb9f8ef433e239edebf6fd3f986d1fe99",
+  "files": [
+    {
+      "name": "public/measure/internal/editor_scripts/wall_geometry.js",
+      "before": "4e808bb79bf8935e5d0fbd45feb6f22e507710689481a5fcbb66c0e08631913c",
+      "after": "c7b1ca65323bb4f92b60a34c24871575b5b8ca3c8da6e64a49013e3f919e9643"
+    }
+  ]
+}

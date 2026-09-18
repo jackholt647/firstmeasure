@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 generated wall seams: [Flashing junction cleanup](deploy/digitalocean/development-flashing-seam-20260918.md) records `c21a7a8fb9f8ef433e239edebf6fd3f986d1fe99`. Roof-connected millimetre drift is aligned before merging, removing duplicate-looking internal wall seams. Prior editor and roof-fitting changes are retained.
+
 September 18 roof editing: [Move and Extrude roof fitting](deploy/digitalocean/development-roof-move-fit-20260918.md) records `e35244102a4f7c6e8fc952287d9f5ee7b225b2b6`. Both tools fit measured roof surfaces and snap to finite eaves; M preserves connected walls. Complete editor and skylight changes are retained.
 
 September 18 skylights: [Textured roof skylights](deploy/digitalocean/development-skylight-textures-20260918.md) records local verification and the development-only rendering delta.
