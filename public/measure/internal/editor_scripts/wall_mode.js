@@ -434,7 +434,10 @@ function perf_render3DFrame() {
         if(!roof){try{const c=captureRoof();roof=c.roof;sourceContext=c.context;}catch(e){syncVisibility();return;}}
         if(roofVisible){
             addLines(roof.points,roof.connections,GREEN);
-            (window.WallChimneys?.roofWithOpenings(state)||roof).faces.forEach((f,index)=>renderChunk('roof:'+index,f,group3D,target=>{for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,['textured','match-textured'].includes(surfaceMode())))target.add(mesh);}));
+            const textured=['textured','match-textured'].includes(surfaceMode()),visibleRoof=window.WallChimneys?.roofWithOpenings(state)||roof;
+            const presentation=textured?window.ExteriorFinishes.roofPresentation(visibleRoof):{faces:visibleRoof.faces,skylights:[]};
+            presentation.faces.forEach((f,index)=>renderChunk('roof:'+index,f,group3D,target=>{for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,textured))target.add(mesh);}));
+            presentation.skylights.forEach((f,index)=>renderChunk('roof-skylight:'+index,f,group3D,target=>target.add(window.ExteriorFinishes.skylightMesh(f,vector))));
             drawRoofTrim(group3D,roof,vector);
         }
         if(wallsVisible&&state&&stage===1){const ps=[],cs=[];for(const s of state.sources){const i=ps.length;ps.push(s.a,s.b);cs.push({startIdx:i,endIdx:i+1});}addLines(ps,cs,YELLOW);}
