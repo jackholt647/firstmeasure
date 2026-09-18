@@ -66,6 +66,11 @@ function portalTutorialCourseOptions() {
             'label' => 'Software Update Refresh',
             'description' => 'Retraining curriculum for team members active before May 1, 2026.',
         ],
+        'full-house-drawing' => [
+            'id' => 'full-house-drawing',
+            'label' => 'Full House Drawing',
+            'description' => 'Roof and exterior drawing, reference review, and full-house report preparation.',
+        ],
     ];
 }
 
