@@ -12,3 +12,7 @@ Validation: 846 local regression tests passed; 32 focused staged Linux tests pas
 Deployment changes one runtime file, wall_geometry.js. Staging verifies 18,100 unchanged public files on each role. All development roles use the guarded activation and readiness/outbound-isolation checks. Production, access settings and prior roof-fitting/skylight/editor changes are retained. Public and local served bytes are checked against the committed file.
 
 Refresh and run From Roof to regenerate existing walls with this cleanup. This is a geometry regeneration operation; existing manually edited geometry is not silently replaced on reload.
+
+## Tapered tip follow-up
+
+Release `2b0f882317e38f89de377148ef80a6ad1d631a17` follows `c21a7a8fb9f8ef433e239edebf6fd3f986d1fe99`. The merged flashing tip retained a 4.01 mm terminal vertical edge. Generated flashing wedges now collapse tips no taller than 5 mm onto their lower seam, while retaining other wall edges and larger flashing returns. The fixture asserts identical tip coordinates in three rotations; separate negative cases preserve intentional edges. All 847 regression tests passed. The same one-file guarded dev deployment preserves all other runtime files; local and public script bytes are verified. Refresh and From Roof applies the cleanup to regenerated geometry.
