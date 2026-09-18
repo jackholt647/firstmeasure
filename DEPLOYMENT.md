@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 corner cleanup: [Generated corner welding](deploy/digitalocean/development-corner-weld-20260918.md) records `06b984f518dc4b17bed771a400289648a8f35dfb`. Floor and roof joins are reconciled separately using original roof-corner references, retaining real steps and independent wall/base editing.
+
 September 18 wall/base editing: [Independent wall edges](deploy/digitalocean/development-wall-base-detach-20260918.md) records `313e9de52398a367c3f9b159cae0963131bc22b1`. Wall-bottom Delete and Move leave the base in place, including multi-edge moves. Previous fixes are retained.
 
 September 18 offset cleanup: [Soffit overlaps at every depth](deploy/digitalocean/development-soffit-offsets-20260918.md) records `0edd665db8157b2f31e73a71015ecd5ad7f5504f`. Embedded overlap returns are removed before insetting; 0.2, 1, 1.5 and 2 ft regressions pass. Previous editor changes are retained.
