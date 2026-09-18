@@ -495,3 +495,9 @@ test('From Roof traces the cleaned stepped perimeter before constructing its fou
  const C=ctx.WallChimneys,A=ctx.WallChimneyCleanup,D=ctx.WallGaps,composed=A.compose(C.compose(s.alignedWalls,s),s.chimneyCleanupReport);
  assert.equal(D.detect(composed,s.ground).length,0);
 });
+
+test('wall mode opens Resources on entry only',()=>{
+ let opened=0;const f=fixture(true,{ProjectResources:{open(){opened++;}}});
+ f.ctx.WallMode.setEnabled(true);assert.equal(opened,1);f.ctx.WallMode.setEnabled(true);assert.equal(opened,1);
+ f.ctx.WallMode.setEnabled(false);assert.equal(opened,1);f.ctx.WallMode.setEnabled(true);assert.equal(opened,2);
+});

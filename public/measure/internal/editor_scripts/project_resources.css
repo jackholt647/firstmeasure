@@ -163,3 +163,14 @@
 #resource-3d-controls header{position:static;background:transparent;border:0;box-shadow:none;padding:0;width:auto;height:auto;min-height:0;color:inherit}
 
  #project-resources .resource-empty{white-space:pre-wrap;overflow:auto}
+
+#project-resources .resource-core-button{display:block;width:calc(100% - 16px);margin:8px;text-align:left;font-weight:600;color:#285c8e;border:1px solid #d2dce8;background:#f5f8fc}
+#project-resources .resource-core-button[aria-pressed=true]{background:#e3effc;border-color:#94b9e2}
+#project-resources .resource-core-grid{position:absolute;inset:0;padding:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:8px;background:#eef2f6;overflow:hidden;cursor:default}
+#project-resources .resource-core-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:0;padding:0;overflow:hidden;border:1px solid #d2dce6;border-radius:6px;background:#fff;color:#394b60;white-space:normal}
+#project-resources .resource-core-cell img{display:block;width:100%;flex:1;min-height:0;object-fit:contain;background:#e5eaf0}
+#project-resources .resource-core-cell strong{flex:none;padding:4px;font-size:11px}
+#project-resources .resource-core-cell:disabled{opacity:1;background:#f8fafc;color:#8793a2}
+#project-resources .resource-core-missing{flex:1;display:grid;place-items:center;font-size:11px}
+#project-resources .resource-core-house svg{flex:1;min-height:0;width:100%;max-width:130px}
+#project-resources .resource-core-house span{font-size:10px;padding:3px}
