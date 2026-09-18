@@ -501,3 +501,14 @@ test('wall mode opens Resources on entry only',()=>{
  f.ctx.WallMode.setEnabled(true);assert.equal(opened,1);f.ctx.WallMode.setEnabled(true);assert.equal(opened,1);
  f.ctx.WallMode.setEnabled(false);assert.equal(opened,1);f.ctx.WallMode.setEnabled(true);assert.equal(opened,2);
 });
+
+test('first wall grade is hidden and flat; explicitly chosen slope survives rebuild and reload',()=>{
+ const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();
+ let saved=ctx.WallMode.serialize();assert.equal(saved.ground.source,'Flat');assert.equal(saved.ground.visible,false);assert.equal(saved.ground.plane.dx,0);assert.equal(saved.ground.plane.dy,0);
+ elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().ground.visible,false);
+ const slope=ctx.GroundGeometry.fromPlane(ctx.GroundGeometry.bounds(saved.roof),{dx:.1,dy:.05,k:0},{source:'DSM',visible:true,simpleGrade:1});
+ saved=ctx.WallMode.serialize();saved.groundCandidates={dsm:slope};saved.savedAt=Date.now()+1000;ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
+ assert.equal(ctx.WallMode.serialize().ground.visible,false);elements.get('ground-dsm').onclick();let chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);assert.ok(Math.abs(chosen.ground.plane.dx-.1)<1e-9);
+ elements.get('wall-rebuild').onclick();chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);
+ ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...chosen,savedAt:Date.now()+2000}});assert.deepEqual(ctx.WallMode.serialize().ground,chosen.ground);
+});
