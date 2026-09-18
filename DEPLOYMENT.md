@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 soffit default: [24-inch default](deploy/digitalocean/development-soffit-default-20260918.md) records `03616a26140b9013e34f28ca2046e79d69d013ae`. New Auto generation uses 2 ft; saved choices are preserved.
+
 September 18 corner cleanup: [Generated corner welding](deploy/digitalocean/development-corner-weld-20260918.md) records `06b984f518dc4b17bed771a400289648a8f35dfb`. Floor and roof joins are reconciled separately using original roof-corner references, retaining real steps and independent wall/base editing.
 
 September 18 wall/base editing: [Independent wall edges](deploy/digitalocean/development-wall-base-detach-20260918.md) records `313e9de52398a367c3f9b159cae0963131bc22b1`. Wall-bottom Delete and Move leave the base in place, including multi-edge moves. Previous fixes are retained.
