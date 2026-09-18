@@ -45,3 +45,21 @@ The course registry now includes `full-house-drawing` / **Full House Drawing**. 
 The starter was created exclusively (refusing overwrite) under the development compatibility service's configured durable tutorial root at `courses/full-house-drawing/master/curriculum.json`. The seed verified the running service was development and set ownership to the existing tutorial root owner. This is a one-time scaffold: future editor changes are authoritative; do not reapply the fixture over them. No production curriculum was created.
 
 Validation: PHP syntax and diff checks passed. All three development roles activated and verified the follow-up release. Public readiness recovered with development isolation enforced. The authenticated browser displayed all eight saved chapters, opened the Full House Drawing editor, successfully saved through its normal Save Curriculum action, and reopened the editor. The editor was left open for the user.
+
+## Assignment-only optional curricula
+
+Runtime release: `7d341c1ececfdbbffa0167285bbfa50e7562d92b`, based on `c6963cea9c6bc4165c56b022021933ab7838b9d7`. The concurrent soffit and opaque-depth changes are preserved.
+
+New Hire Training is the default for every employee. Account creation date no longer grants or selects Software Update Refresh. Software Update Refresh and Full House Drawing require explicit assignments. Instructors select a course in Tutorials and use **Assignments** to search people and assign or remove access. Students see New Hire plus their assigned optional courses in the selector. Managers retain editing/review access without being enrolled. The Student Progress list for an optional course includes its assigned students.
+
+Assignments are stored on the existing internal user record as `assigned_tutorial_course_ids`. An existing explicit `assigned_tutorial_course_id` remains valid until the first assignment edit migrates it to the array. An empty array deliberately revokes all optional access. Removing access retains progress and project data; reassignment restores access. No users are enrolled by deployment, and no existing curriculum contents change.
+
+Server checks cover curriculum fetch, start, progress, project save, artifact upload, the exterior source bridge, and PHP editor/resources access. PHP resolves the project's actual course so an omitted or changed query parameter cannot bypass revocation. Instructor assignment endpoints reject student requests.
+
+Validation: TypeScript build/check and PHP/JavaScript syntax checks passed. Real PHP + Node integration tests exercise old unassigned accounts, default access, self-assignment denial, independent optional assignments, legacy explicit assignments, revocation, direct-link bypass denial, instructor review, retained work after reassignment, and existing exterior drawing behavior. The curriculum-cutover test now explicitly assigns its refresher student and passes.
+
+Deployment: all three development roles staged the eight-file delta, verified 18,090 other runtime files unchanged, and activated the exact release with development isolation enforced. Production was not changed.
+
+Live verification initially showed duplicate retained user records for the same email. The assignment-list follow-up resolves duplicates to the canonical user record used by assignment writes. Follow-up release `c7ad4a788c5dce86f62b1c10ff3ca52ff2d4d550` uses baseline `3ca9f780538614c3ab78a6f7bc11118faa0e6fe1`, preserving the concurrent opaque-mode default update. The guard rejected staging against the superseded baseline before changing it. Only internal API source and matching compiled output differ in the follow-up.
+
+Follow-up validation: all three development roles activated `c7ad4a788c5dce86f62b1c10ff3ca52ff2d4d550`; staging verified 18,096 other runtime files unchanged. Public readiness reports this release with development isolation enforced. The authenticated browser defaults to New Hire, displays the assignment controls, and shows the refresher assignment list with one row per employee (including one canonical Jack Test row). Assignment and revocation writes were tested with isolated synthetic users, not live employees.
