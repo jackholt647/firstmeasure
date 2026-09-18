@@ -2896,7 +2896,15 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
   if (action === "fetch_tutorial_assignments" || action === "set_tutorial_assignment") {
     if (!(await canManageTutorials(actor))) return { success: false, status_code: 403, error: "Unauthorized" };
     if (action === "fetch_tutorial_assignments") {
-      const users = (await listInternalUsers()).filter(user => String(user.account_type ?? "employee").toLowerCase() !== "customer");
+      const usersByEmail = new Map<string, JsonObject>();
+      for (const user of await listInternalUsers()) {
+        const email = String(user.email ?? "").trim().toLowerCase();
+        if (!email) continue;
+        // Retained user indexes can contain more than one record for an email.
+        // Assignment writes use the canonical record, so show that same record once.
+        usersByEmail.set(email, usersByEmail.has(email) ? await readInternalUser(email) || user : user);
+      }
+      const users = [...usersByEmail.values()].filter(user => String(user.account_type ?? "employee").toLowerCase() !== "customer");
       return { success: true, course_id: courseId, students: users.map(user => ({
         email: user.email, name: user.name || user.email, assigned: hasTutorialCourse(user, courseId)
       })) };
