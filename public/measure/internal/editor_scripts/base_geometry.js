@@ -21,8 +21,10 @@ function terrain(base){
 function boundary(polys){return K.union(polys.map(points=>({points}))).map(f=>f.points);}
 function wallLoops(walls,grade,occluders=[]){
  const ground=p=>{for(const ids of grade.faces){const f={points:ids.map(i=>grade.points[i])};if(G.contains(f,p)){const pl=G.plane(f.points);return pl.dx*p.x+pl.dy*p.y+pl.k;}}return null;};
- const nodes=[],adj=[];const node=p=>{let i=nodes.findIndex(q=>dist(p,q)<.05);if(i<0){i=nodes.length;nodes.push(p);adj.push(new Set());}return i;};
- for(const w of walls){if(!w.bottom.every(p=>{const z=ground(p);return z!==null&&Math.abs(z-p.z)<.05;}))continue;const a=node(w.bottom[0]),b=node(w.bottom[1]);if(a!==b){adj[a].add(b);adj[b].add(a);}}
+ // Cluster endpoints for connectivity, but trace their actual positions so
+ // a repaired wall is not clipped away by a snapped foundation corner.
+ const nodes=[],adj=[],endsByEdge=new Map();const node=p=>{let i=nodes.findIndex(q=>dist(p,q)<.05);if(i<0){i=nodes.length;nodes.push(p);adj.push(new Set());}return i;};
+ for(const w of walls){if(!w.bottom.every(p=>{const z=ground(p);return z!==null&&Math.abs(z-p.z)<.05;}))continue;const a=node(w.bottom[0]),b=node(w.bottom[1]);if(a!==b){adj[a].add(b);adj[b].add(a);endsByEdge.set(a+':'+b,w.bottom);endsByEdge.set(b+':'+a,[w.bottom[1],w.bottom[0]]);}}
  // A chimney masks a wall interval without opening the house footprint.
  // Reconnect dangling ends only when the whole link is masked by the same chimney.
  const ends=nodes.map((p,i)=>i).filter(i=>adj[i].size===1);
@@ -37,7 +39,8 @@ function wallLoops(walls,grade,occluders=[]){
  const sorted=adj.map((ids,i)=>[...ids].sort((a,b)=>Math.atan2(nodes[a].y-nodes[i].y,nodes[a].x-nodes[i].x)-Math.atan2(nodes[b].y-nodes[i].y,nodes[b].x-nodes[i].x))),seen=new Set(),loops=[];
  for(let i=0;i<nodes.length;i++)for(const j of sorted[i]){
   if(seen.has(i+':'+j))continue;const loop=[];let a=i,b=j,closed=false;
-  for(let step=0;step<1000;step++){const key=a+':'+b;if(seen.has(key)){closed=a===i&&b===j;break;}seen.add(key);loop.push(nodes[a]);const list=sorted[b],n=list[(list.indexOf(a)+list.length-1)%list.length];a=b;b=n;}
+  for(let step=0;step<1000;step++){const key=a+':'+b;if(seen.has(key)){closed=a===i&&b===j;break;}seen.add(key);for(const p of endsByEdge.get(key)||[nodes[a],nodes[b]])if(!loop.length||dist(loop[loop.length-1],p)>1e-7)loop.push(p);const list=sorted[b],n=list[(list.indexOf(a)+list.length-1)%list.length];a=b;b=n;}
+  if(loop.length>1&&dist(loop[0],loop[loop.length-1])<1e-7)loop.pop();
   if(closed&&loop.length>=3&&area(loop)>.05){try{validate({points:loop});loops.push(loop);}catch{}}
  }return loops;
 }
