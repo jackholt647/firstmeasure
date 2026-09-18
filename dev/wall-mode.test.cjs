@@ -228,7 +228,8 @@ test('global undo and redo restore exact generated wall ownership without regene
  try{const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});key('z');assert.equal(JSON.stringify(state.wallEdits),JSON.stringify(before));assert.equal(JSON.stringify(state.mergedWalls),generated);key('y');assert.equal(JSON.stringify(state.wallEdits),after);assert.equal(JSON.stringify(state.mergedWalls),generated);}finally{f.ctx.WallGeometry.mergeCoplanar=originalMerge;}
 });
 test('rake cleanup is a sixth stage with reversible wall and foundation comparisons and save/reload',()=>{
- const {ctx,stages,soffits,elements,listeners}=fixture(true),input=require('./fixtures/complex-roof-corner.json');
+ const legacyGeometry={...G,buildSources:(roof,options)=>{delete options.defaultSoffitInches;return G.buildSources(roof,options);}};
+ const {ctx,stages,soffits,elements,listeners}=fixture(true,{WallGeometry:legacyGeometry}),input=require('./fixtures/complex-roof-corner.json');
  const key=key=>listeners['window:keydown']({key,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
  const pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
  ctx.activeGeometry={points,connections:input.roof.connections.map(c=>({...c,start:points[c.startIdx],end:points[c.endIdx]})),manualFaces:input.roof.faces.map(f=>({...f,points:f.points.map(pixel),holes:(f.holes||[]).map(r=>r.map(pixel))}))};
@@ -469,3 +470,14 @@ test('project finish palette counts visible finishes, resolves defaults, and omi
   ctx.FIRSTMEASURE_MATCH_TEXTURED=true;button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'match-textured');assert.equal(button.textContent,'Match textured');assert.equal(calls.at(-1),false);
   button.onclick();assert.equal(ctx.WallMode.serialize().displayMode,'translucent');
  });
+
+test('From Roof traces the cleaned stepped perimeter before constructing its foundation',()=>{
+ const {ctx,soffits}=fixture(true),input=require('./fixtures/stepped-eave-chimney.json');
+ const pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
+ ctx.activeGeometry={points,connections:input.roof.connections.map(c=>({...c,start:points[c.startIdx],end:points[c.endIdx]})),manualFaces:input.roof.faces.map(f=>({...f,points:f.points.map(pixel),holes:(f.holes||[]).map(r=>r.map(pixel))}))};
+ ctx.dsmMin=input.options.ground;ctx.WallMode.setEnabled(true);soffits[3].onclick();
+ const s=ctx.WallMode.serialize();assert.equal(s.stage,7);assert.equal(s.base.source,'Wall perimeter');
+ assert.ok(s.rakeCleanupReport.paths.some(p=>p.parallelReturn));
+ const C=ctx.WallChimneys,A=ctx.WallChimneyCleanup,D=ctx.WallGaps,composed=A.compose(C.compose(s.alignedWalls,s),s.chimneyCleanupReport);
+ assert.equal(D.detect(composed,s.ground).length,0);
+});

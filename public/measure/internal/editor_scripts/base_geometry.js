@@ -24,13 +24,12 @@ function wallLoops(walls,grade,occluders=[]){
  const nodes=[],adj=[];const node=p=>{let i=nodes.findIndex(q=>dist(p,q)<.05);if(i<0){i=nodes.length;nodes.push(p);adj.push(new Set());}return i;};
  for(const w of walls){if(!w.bottom.every(p=>{const z=ground(p);return z!==null&&Math.abs(z-p.z)<.05;}))continue;const a=node(w.bottom[0]),b=node(w.bottom[1]);if(a!==b){adj[a].add(b);adj[b].add(a);}}
  // A chimney masks a wall interval without opening the house footprint.
- // Reconnect only collinear dangling ends covered by the same chimney.
+ // Reconnect dangling ends only when the whole link is masked by the same chimney.
  const ends=nodes.map((p,i)=>i).filter(i=>adj[i].size===1);
  for(let a=0;a<ends.length;a++)for(let b=a+1;b<ends.length;b++){
   const i=ends[a],j=ends[b];if(adj[i].size!==1||adj[j].size!==1)continue;
   const p=nodes[i],q=nodes[j],len=dist(p,q);if(len<1e-6)continue;
   const u=nodes[[...adj[i]][0]],v=nodes[[...adj[j]][0]];
-  if(Math.abs(cross(p,q,u))/len>.05||Math.abs(cross(p,q,v))/len>.05)continue;
   if((u.x-p.x)*(q.x-p.x)+(u.y-p.y)*(q.y-p.y)>=0||(v.x-q.x)*(p.x-q.x)+(v.y-q.y)*(p.y-q.y)>=0)continue;
   if(!occluders.some(f=>[p,q,{x:(p.x+q.x)/2,y:(p.y+q.y)/2}].every(n=>G.contains(f,n)||f.points.some((r,k)=>G.onEdge(n,r,f.points[(k+1)%f.points.length],.05)))))continue;
   adj[i].add(j);adj[j].add(i);
@@ -49,15 +48,28 @@ function groundWalls(walls,grade){
 function coversWalls(loops,walls){
  return walls.every(w=>[...w.bottom,{x:(w.bottom[0].x+w.bottom[1].x)/2,y:(w.bottom[0].y+w.bottom[1].y)/2}].every(p=>loops.some(points=>G.contains({points},p)||points.some((a,i)=>G.onEdge(p,a,points[(i+1)%points.length],.05)))));
 }
-function fromRoof(roof,grade,walls=[]){
+// If interrupted wall runs cannot form a loop, retain the chosen roof setback
+// instead of silently reverting to the eave footprint. Clipper handles concave
+// corners, disconnected wings and offsets which collapse narrow regions.
+function insetRoof(roof,setback){
+ const C=typeof module==='object'&&module.exports?require('./vendor/clipper-lib-6.4.2-clipper.js'):root.ClipperLib;
+ const regions=K.union(roof.faces.map(f=>({points:f.points}))),scale=1/K.GRID;
+ if(!setback)return regions.map(f=>f.points);
+ const offset=new C.ClipperOffset(4),paths=[];
+ for(const f of regions){const path=f.points.map(p=>({X:Math.round(p.x*scale),Y:Math.round(p.y*scale)}));if(!C.Clipper.Orientation(path))path.reverse();paths.push(path);}
+ offset.AddPaths(paths,C.JoinType.jtMiter,C.EndType.etClosedPolygon);
+ const result=[];offset.Execute(result,-setback*scale);
+ return result.map(path=>path.map(p=>({x:p.X/scale,y:p.Y/scale})));
+}
+function fromRoof(roof,grade,walls=[],setback=0){
  const C=typeof module==='object'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;
  const occluders=C?.detect(roof)?.items||[];
  const plane=G.plane(grade.points),traced=wallLoops(walls,grade,occluders);
  // A small closed dormer loop must not stand in for an open main perimeter.
  const complete=traced.length&&coversWalls(traced,groundWalls(walls,grade));
- const loops=complete?traced:boundary(roof.faces.map(f=>f.points));
+ const loops=complete?traced:insetRoof(roof,setback);
  if(!loops.length)throw Error('Cannot trace a closed house outline from the roof.');
- return {visible:true,centers:true,source:complete?'Wall perimeter':'Roof footprint',faces:loops.map((ps,i)=>validate({id:'base-'+(i+1),points:ps.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}))};
+ return {visible:true,centers:true,source:complete?'Wall perimeter':setback?'Inset roof footprint':'Roof footprint',faces:loops.map((ps,i)=>validate({id:'base-'+(i+1),points:ps.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}))};
 }
 function repairInitial(base,roof,grade,walls){
  if(base?.source!=='Wall perimeter'||base.sketch?.nodes.some(p=>!p.fixed)||base.sketch?.edges.some(e=>!e.fixed))return base;

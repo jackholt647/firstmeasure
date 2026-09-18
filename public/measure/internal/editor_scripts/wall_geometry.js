@@ -97,6 +97,8 @@
         return [...new Set(ts.map(t=>+t.toFixed(8)))].sort((a,b)=>a-b);
     }
     function buildSources(roof,options={}) {
+        // New From Roof presets use a fixed default; legacy saved Auto retains its inferred sources.
+        if(options.soffit==='auto'&&Number.isFinite(options.defaultSoffitInches))options={...options,soffit:options.defaultSoffitInches};
         const faces=surfaces(roof),warnings=[],sources=[];
         const edges=(roof.connections||[]).map((c,i)=>({id:`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
         const flashing=edges.filter(e=>isFlashing(e.type));
@@ -132,6 +134,39 @@
                 }
             }
         }
+        // Overlapping roof layers can describe one exterior side twice. A
+        // higher roof's inset must not create a recess behind the outer lower
+        // eave. Only reconcile nearby, overlapping, same-facing parallel runs.
+        const envelopes=[];
+        if(Number.isFinite(Number(options.soffit))){
+            const perimeter=sources.filter(s=>s.kind==='perimeter'&&s.setback>0);
+            for(const upper of perimeter){
+                const len=distance(upper.originalA,upper.originalB),u={x:(upper.originalB.x-upper.originalA.x)/len,y:(upper.originalB.y-upper.originalA.y)/len},parent=faces.find(f=>f.id===upper.parentId),n=normalFor(parent,upper.originalA,upper.originalB);
+                const choices=[];
+                for(const lower of perimeter){
+                    if(lower===upper||lower.parentId===upper.parentId)continue;
+                    const l=distance(lower.originalA,lower.originalB),v={x:(lower.originalB.x-lower.originalA.x)/l,y:(lower.originalB.y-lower.originalA.y)/l},lp=faces.find(f=>f.id===lower.parentId),ln=normalFor(lp,lower.originalA,lower.originalB);
+                    if(l<Math.min(2,len*.5)||!ln||Math.abs(cross(u,v))>.001||n.x*ln.x+n.y*ln.y<.999)continue;
+                    const setback=(lower.a.x-upper.originalA.x)*n.x+(lower.a.y-upper.originalA.y)*n.y,shift=upper.setback-setback;
+                    if(setback<.002||shift<.005||shift>upper.setback+.002)continue;
+                    const ts=[lower.originalA,lower.originalB].map(p=>(p.x-upper.originalA.x)*u.x+(p.y-upper.originalA.y)*u.y).sort((a,b)=>a-b),lo=Math.max(0,ts[0]),hi=Math.min(len,ts[1]);
+                    if(hi-lo<Math.max(.3,2*shift))continue;
+                    const mid={x:upper.originalA.x+u.x*(lo+hi)/2+n.x*setback,y:upper.originalA.y+u.y*(lo+hi)/2+n.y*setback};
+                    if(!contains(parent,mid)||!contains(lp,mid)||height(parent,mid)<=height(lp,mid)+.02)continue;
+                    // Roof pitches which cross in the shared interval are a real
+                    // junction, not an upper layer hiding a duplicate facade.
+                    const at=t=>({x:upper.originalA.x+u.x*t+n.x*setback,y:upper.originalA.y+u.y*t+n.y*setback}),a=at(lo),b=at(hi),cuts=splitParameters(a,b,[parent,lp]);
+                    const crossed=cuts.some((t,i)=>{if(!i)return false;const mid=mix(a,b,(cuts[i-1]+t)/2);if(!contains(parent,mid)||!contains(lp,mid))return false;return [cuts[i-1],t].some(q=>{const p=mix(a,b,q);return height(parent,p)<height(lp,p)-.02;});});
+                    if(crossed)continue;
+                    choices.push({lower,setback,n,parent});
+                }
+                const choice=choices.sort((a,b)=>a.setback-b.setback)[0];if(!choice)continue;
+                choice.followUpper=len>distance(choice.lower.originalA,choice.lower.originalB)+.01;
+                upper.outerEnvelope={sourceId:choice.lower.id,parentId:choice.lower.parentId,previousSetback:upper.setback};if(!choice.followUpper)upper.setback=choice.setback;
+                for(const [key,original]of [['a','originalA'],['b','originalB']]){const p=upper[original],q={x:p.x+n.x*upper.setback,y:p.y+n.y*upper.setback};upper[key]={...q,z:height({plane:upper.sourcePlane},q)};}
+                envelopes.push({upper,...choice});
+            }
+        }
         // Miter adjacent inset edges so the exterior closes at eave/rake corners.
         const perimeters=sources.filter(s=>s.kind==='perimeter');
         for(let i=0;i<perimeters.length;i++) for(let j=i+1;j<perimeters.length;j++) {
@@ -160,9 +195,59 @@
             joins.sort((a,b)=>distance(a,corner)-distance(b,corner));
             if(joins.length)s[k]={...joins[0],z:height({plane:s.sourcePlane},joins[0])};
         }
+        // Resolve only the shared interval. A shorter roof retains its own
+        // wall plane beyond the overlap, including the far chimney corner.
+        const envelopeContains=(e,p)=>contains(e.parent,p)&&(!e.followUpper||e.caps.every(c=>cross(sub(c.b,c.a),sub(p,c.a))*c.side>=-EPS));
+        for(const e of envelopes){
+            const {upper,lower,n,parent,followUpper}=e;if(!followUpper)continue;
+            // Preserve real miter corners. Embedded flashing may terminate inside
+            // the overlapping roof, so there the enclosing roof boundary wins.
+            const mid=mix(upper.a,upper.b,.5);
+            e.caps=[upper.a,upper.b].filter(p=>!flashing.some(f=>onEdge(p,f.a,f.b,.005))).map(p=>{
+                const a=p,b={x:p.x+n.x,y:p.y+n.y};return {a,b,side:Math.sign(cross(sub(b,a),sub(mid,a)))};
+            });
+            const project=p=>{const d=(upper.a.x-p.x)*n.x+(upper.a.y-p.y)*n.y,q={x:p.x+n.x*d,y:p.y+n.y*d};return {...q,z:height({plane:lower.sourcePlane},q)};};
+            const a=project(lower.a),b=project(lower.b),cuts=splitParameters(a,b,[parent]);
+            const addCross=values=>{if(values[0]*values[1]<0)cuts.push(values[0]/(values[0]-values[1]));};
+            for(const c of e.caps)addCross([a,b].map(p=>cross(sub(c.b,c.a),sub(p,c.a))));
+            addCross([a,b].map(p=>height(parent,p)-p.z-.02));
+            cuts.sort((a,b)=>a-b);
+            const parts=[];
+            for(let i=1;i<cuts.length;i++){
+                const start=mix(a,b,cuts[i-1]),end=mix(a,b,cuts[i]),mid=mix(start,end,.5);
+                if(distance(start,end)<.005||!envelopeContains(e,mid)||height(parent,mid)<=mid.z+.02)continue;
+                parts.push({...lower,id:lower.id+'.aligned'+parts.length,a:start,b:end,soffitAlignment:{sourceId:upper.id},setback:lower.setback+upper.setback-e.setback});
+            }
+            for(const part of parts)for(const p of [part.a,part.b]){
+                const edges=[...e.caps,...parent.points.map((a,i)=>({a,b:parent.points[(i+1)%parent.points.length]}))];
+                const edge=edges.find(c=>Math.abs(cross(sub(c.b,c.a),sub(p,c.a)))/distance(c.a,c.b)<.005);
+                if(!edge)continue;
+                const v=sub(lower.b,lower.a),w=sub(edge.b,edge.a),den=cross(v,w);if(Math.abs(den)<EPS)continue;
+                const t=cross(sub(edge.a,lower.a),w)/den;if(t<0||t>1)continue;
+                const q=mix(lower.a,lower.b,t);if(distance(p,q)<.005)continue;
+                sources.push({...lower,id:lower.id+'.return'+sources.length,a:{...p,z:height({plane:upper.sourcePlane},p)},b:q,envelopeReturn:true,envelopeParentId:parent.id});
+            }
+            for(const part of parts)for(const p of [part.a,part.b]){
+                const v=sub(upper.b,upper.a),len=distance(upper.a,upper.b),t=((p.x-upper.a.x)*v.x+(p.y-upper.a.y)*v.y)/(len*len);
+                const key=t<0?'a':t>1?'b':null;
+                if(key&&distance(p,upper[key])<=upper.setback*2&&flashing.some(f=>onEdge(upper[key],f.a,f.b,.005)))upper[key]={...p,z:height({plane:upper.sourcePlane},p)};
+            }
+            sources.push(...parts);
+        }
         const clipped=[];
+        const hiddenByEnvelope=(s,p)=>envelopes.some(e=>s.parentId===e.lower.parentId&&
+            !s.soffitAlignment&&!s.envelopeReturn&&(e.followUpper||(p.x-e.upper.a.x)*e.n.x+(p.y-e.upper.a.y)*e.n.y>.002)&&envelopeContains(e,p)&&height(e.parent,p)>p.z+.02);
+        const envelopeCuts=s=>{
+            const ts=[0,1];for(const {upper,lower,n,parent,caps=[]}of envelopes){if(s.parentId!==lower.parentId)continue;
+                for(const c of caps){const v=[s.a,s.b].map(p=>cross(sub(c.b,c.a),sub(p,c.a)));if(v[0]*v[1]<0)ts.push(v[0]/(v[0]-v[1]));}
+                ts.push(...splitParameters(s.a,s.b,[parent]));
+                for(const values of [[s.a,s.b].map(p=>(p.x-upper.a.x)*n.x+(p.y-upper.a.y)*n.y),[s.a,s.b].map(p=>height(parent,p)-p.z-.02)]){
+                    if(values[0]*values[1]<0&&Math.abs(values[0])>EPS&&Math.abs(values[1])>EPS)ts.push(values[0]/(values[0]-values[1]));
+                }
+            }return [...new Set(ts.map(t=>+t.toFixed(8)))].sort((a,b)=>a-b);
+        };
         for(const s of sources) {
-            if(s.kind==='flashing'){clipped.push(s);continue;}
+            if(s.kind==='flashing'){const ts=envelopeCuts(s),parts=[];for(let i=1;i<ts.length;i++)if(!hiddenByEnvelope(s,mix(s.a,s.b,(ts[i-1]+ts[i])/2)))parts.push({...s,a:mix(s.a,s.b,ts[i-1]),b:mix(s.a,s.b,ts[i])});clipped.push(...parts.map((p,i)=>({...p,id:i?s.id+'.envelope'+i:s.id})));continue;}
             if(distance(s.a,s.b)<.005)continue;
             const f=faces.find(f=>f.id===s.parentId);
             // A setback near a hip can enter the neighboring face before reaching
@@ -170,10 +255,11 @@
             // source's corner; unrelated/stacked roofs must not extend the wall.
             const same=(a,b)=>distance(a,b)<.01&&Math.abs(a.z-b.z)<.05;
             const support=[f,...faces.filter(g=>g!==f&&[s.originalA,s.originalB].some(c=>g.points.some(p=>same(p,c)))&&f.points.filter(p=>g.points.some(q=>same(p,q))).length>=2)];
-            const ts=splitParameters(s.a,s.b,support),pieces=[];
+            const ts=[...new Set([...splitParameters(s.a,s.b,support),...envelopeCuts(s)])].sort((a,b)=>a-b),pieces=[];
             for(let i=0;i<ts.length-1;i++){
                 if((ts[i+1]-ts[i])*distance(s.a,s.b)<.005)continue;
                 const mid=mix(s.a,s.b,(ts[i]+ts[i+1])/2);
+                if(hiddenByEnvelope(s,mid))continue;
                 // Several neighboring roof layers may overlap in plan. Keep the
                 // original parent where possible; otherwise use the layer nearest
                 // the source height, not whichever face occurs first in the list.
@@ -224,11 +310,14 @@
                 return {...f,plane};
             });
             const relevant=[...alignedFaces,...(s.direction==='down'?terrain:[])].filter(f=>{
-                if(f.id===s.parentId)return false;
+                if(f.id===s.parentId||(s.envelopeReturn&&f.id===s.envelopeParentId))return false;
                 const cuts=splitParameters(s.a,s.b,[f]);
                 return cuts.some((t,i)=>i>0&&contains(f,mix(s.a,s.b,(cuts[i-1]+t)/2)));
             });
             const ts=splitParameters(s.a,s.b,relevant);
+            const envelopeRuns=s.outerEnvelope?sources.filter(r=>r.id===s.outerEnvelope.sourceId||r.id.startsWith(s.outerEnvelope.sourceId+'.')):[];
+            const sourceLength=distance(s.a,s.b),sourceT=p=>((p.x-s.a.x)*(s.b.x-s.a.x)+(p.y-s.a.y)*(s.b.y-s.a.y))/(sourceLength*sourceLength);
+            for(const r of envelopeRuns)for(const p of [r.a,r.b]){const t=sourceT(p);if(t>EPS&&t<1-EPS)ts.push(t);}
             // Split where surfaces cross the source elevation, ground, or each other.
             const equations=[...(flat!==null?[{dx:0,dy:0,k:flat}]:[]),...relevant.map(f=>f.plane)];
             const sourceZ=t=>mix(s.a,s.b,t).z;
@@ -246,13 +335,15 @@
                 const groundFace=relevant.filter(f=>f.terrain&&contains(f,m)).sort((a,b)=>height(b,m)-height(a,m))[0];
                 const floor=groundFace?height(groundFace,m):flat;
                 if(s.direction==='down'&&floor===null){uncovered=true;continue;}
-                const targets=relevant.filter(f=>!f.terrain&&contains(f,m)).map(f=>({f,z:height(f,m)}))
+                const targets=relevant.filter(f=>!f.terrain&&contains(f,m)&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
                     .filter(v=>s.direction==='up'?v.z>m.z+.02:v.z<m.z-.02&&v.z>floor);
                 targets.sort((a,b)=>s.direction==='up'?a.z-b.z:b.z-a.z);
                 const target=targets[0]?.f||(s.direction==='down'?groundFace:null);
                 if(!target && s.direction==='up'){missed=true;continue;}
                 const a=mix(s.a,s.b,t0),b=mix(s.a,s.b,t1);
-                const ta={...a,z:target?height(target,a):flat},tb={...b,z:target?height(target,b):flat};
+                const edgeTarget=target?.id===s.outerEnvelope?.parentId?envelopeRuns.find(r=>onEdge(m,r.a,r.b,.005)):null;
+                const targetHeight=p=>{if(!edgeTarget)return target?height(target,p):flat;const u=sub(edgeTarget.b,edgeTarget.a),t=((p.x-edgeTarget.a.x)*u.x+(p.y-edgeTarget.a.y)*u.y)/(u.x*u.x+u.y*u.y);return mix(edgeTarget.a,edgeTarget.b,t).z;};
+                const ta={...a,z:targetHeight(a)},tb={...b,z:targetHeight(b)};
                 if(s.direction==='down' && m.z<=floor+.02)continue;
                 const bottom=s.direction==='up'?[a,b]:[ta,tb],top=s.direction==='up'?[ta,tb]:[a,b];
                 walls.push({id:`${s.id}:${i}`,sourceId:s.id,...(s.parentId!==undefined?{sourceRoofId:s.parentId}:{}),kind:s.kind,type:s.type,bottom,top,targetId:target?.id??'ground'});

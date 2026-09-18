@@ -90,3 +90,20 @@ test('roof regeneration traces the inset wall perimeter across a chimney-covered
  // A genuinely open wall outline must not be closed just by extrapolation.
  const roof={...c.roof,connections:[]};assert.equal(B.fromRoof(roof,c.ground,c.walls).source,'Roof footprint');
 });
+
+test('explicit setbacks survive an interrupted wall perimeter instead of reverting to roof edges',()=>{
+ const D=require('../public/measure/internal/editor_scripts/wall_gaps'),c=require('./fixtures/base-rebuild-chimney.json');
+ for(const inches of [2.4,12,18,24]){
+  const sources=G.buildSources(c.roof,{soffit:inches}).sources,walls=D.repair(G.deduplicate(G.extrude(c.roof,sources,c.ground).walls,18*G.INCH).walls,c.ground).walls;
+  const base=B.fromRoof(c.roof,c.ground,walls,inches*G.INCH);assert.ok(['Wall perimeter','Inset roof footprint'].includes(base.source));
+  // Overlap reconciliation can now close this captured outline. An actually
+  // interrupted outline must still retain the requested setback as its fallback.
+  assert.equal(B.fromRoof(c.roof,c.ground,[],inches*G.INCH).source,'Inset roof footprint');
+  const roofArea=require('../public/measure/internal/editor_scripts/exterior_geometry').area;
+  assert.ok(base.faces.reduce((n,f)=>n+roofArea(f),0)<B.fromRoof(c.roof,c.ground).faces.reduce((n,f)=>n+roofArea(f),0));
+ }
+});
+test('fallback inset handles concave roofs and rejects a setback that consumes the whole footprint',()=>{
+ const points=[p(0,0,5),p(10,0,5),p(10,4,5),p(4,4,5),p(4,10,5),p(0,10,5)],roof={faces:[{points}]},grade=T.fromPlane({x0:-1,x1:11,y0:-1,y1:11},{dx:0,dy:0,k:0});
+ const b=B.fromRoof(roof,grade,[],1);assert.equal(b.faces.length,1);assert.ok(b.faces[0].points.some(p=>p.x===3&&p.y===3));assert.throws(()=>B.fromRoof(roof,grade,[],6),/closed house outline/);
+});

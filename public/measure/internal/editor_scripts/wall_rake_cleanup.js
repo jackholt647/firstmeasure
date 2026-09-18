@@ -85,6 +85,106 @@ function restoreSoffits(walls,sources,removedSources,ground,blocked){
 function cleanup(walls,sources,ground,excluded=[]){
  let result=copy(walls);const paths=[],skippedEdited=new Set(),blocked=new Set(excluded),source=new Map(sources.map(s=>[s.id,s]));
  const sourceOf=w=>source.get(w.sourceId),members=r=>result.filter(w=>r.ids.includes(w.id));
+ // A short measured return can disappear entirely after setback clipping.
+ // Reconnect staggered parallel runs only when the original flashing chain
+ // proves they were neighbors and the missing cross-edge fits in the soffit.
+ const openRuns=runs(result,ground);
+ const endOpen=p=>openRuns.filter(r=>[r.a,r.b].some(q=>dist(p,q)<.002)).length===1;
+ const normal=s=>{const v=sub(s.originalB,s.originalA),len=dist(s.originalA,s.originalB),n={x:-v.y/len,y:v.x/len};if((s.a.x-s.originalA.x)*n.x+(s.a.y-s.originalA.y)*n.y<0){n.x*=-1;n.y*=-1;}return n;};
+ const guides=sources.filter(s=>s.kind==='flashing');
+ const usedRuns=new Set();
+ // Measured roof returns can also clip a short hole out of one continuous
+ // source. Bridge that hole only with matching source provenance and a nearby
+ // flashing guide; never infer a connection across arbitrary open wall ends.
+ for(let i=0;i<openRuns.length;i++)for(let j=i+1;j<openRuns.length;j++){
+  const a=openRuns[i],b=openRuns[j];if(usedRuns.has(a)||usedRuns.has(b))continue;
+  const am=members(a),bm=members(b),pairs=am.flatMap(w=>bm.map(v=>({w,v,s:sourceOf(w),t:sourceOf(v)})));
+  const match=pairs.find(({s,t})=>s?.originalA&&s.originalB&&t?.originalA&&t.originalB&&s.setback>0&&[s.originalA,s.originalB].every(p=>[t.originalA,t.originalB].some(q=>dist(p,q)<.002)));
+  if(!match)continue;
+  const pair=[a.a,a.b].flatMap(p=>[b.a,b.b].map(q=>({p,q,d:dist(p,q)}))).sort((a,b)=>a.d-b.d)[0],{p,q}=pair,limit=match.s.setback;
+  if(pair.d<.005||pair.d>limit||!endOpen(p)||!endOpen(q))continue;
+  const len=dist(a.a,a.b);if(Math.abs(cross(sub(p,a.a),sub(a.b,a.a)))/len>.002||Math.abs(cross(sub(q,a.a),sub(a.b,a.a)))/len>.002)continue;
+  const farA=dist(p,a.a)<.002?a.b:a.a,farB=dist(q,b.a)<.002?b.b:b.a;
+  if((farA.x-p.x)*(q.x-p.x)+(farA.y-p.y)*(q.y-p.y)>=0||(farB.x-q.x)*(p.x-q.x)+(farB.y-q.y)*(p.y-q.y)>=0)continue;
+  const nearby=(p,g)=>dist(p,mix(g.a,g.b,Math.max(0,Math.min(1,at(p,g.a,g.b)))))<=limit;
+  if(!guides.some(g=>g.parentId===match.s.parentId&&nearby(p,g)&&nearby(q,g)))continue;
+  if([...am,...bm].some(w=>blocked.has(w.id))){skippedEdited.add([a.ids[0],b.ids[0]].sort().join('|'));continue;}
+  const wa=am.find(w=>G.onEdge(p,...w.bottom,.002)),wb=bm.find(w=>G.onEdge(q,...w.bottom,.002));if(!wa||!wb)continue;
+  const bridge={...copy(wa),id:wa.id+':source-gap',bottom:[copy(p),copy(q)],top:[{...p,z:mix(...wa.top,at(p,...wa.bottom)).z},{...q,z:mix(...wb.top,at(q,...wb.bottom)).z}],soffitReturn:true};
+  result.push(bridge);usedRuns.add(a);usedRuns.add(b);paths.push({coveredSourceGap:true,removedIds:[],oldPath:[copy(p),copy(q)],intersection:mix(p,q,.5),soffit:limit});
+ }
+ for(let i=0;i<openRuns.length;i++)for(let j=i+1;j<openRuns.length;j++){
+  let a=openRuns[i],b=openRuns[j];if(usedRuns.has(a)||usedRuns.has(b))continue;
+  let sa=sourceOf(members(a).find(w=>sourceOf(w)?.originalA)||{}),sb=sourceOf(members(b).find(w=>sourceOf(w)?.originalA)||{});
+  if(!sa?.originalA||!sa.originalB||!sb?.originalA||!sb.originalB||sa.setback<=0||sb.setback<=0||!parallel(sa,sb))continue;
+  const na=normal(sa),nb=normal(sb);if(na.x*nb.x+na.y*nb.y<.999)continue;
+  // Keep the longer source run. Trim only the shorter overlapping end.
+  if(dist(sa.originalA,sa.originalB)>dist(sb.originalA,sb.originalB)){[a,b]=[b,a];[sa,sb]=[sb,sa];}
+  const pair=[a.a,a.b].flatMap(p=>[b.a,b.b].map(q=>({p,q,d:dist(p,q)}))).sort((a,b)=>a.d-b.d)[0],{p,q}=pair,limit=Math.min(sa.setback,sb.setback);
+  if(pair.d<.005||pair.d>limit+.002||!endOpen(p)||!endOpen(q))continue;
+  const h=mix(a.a,a.b,at(q,a.a,a.b)),t=at(h,a.a,a.b);
+  if(t<=.005/dist(a.a,a.b)||t>=1-.005/dist(a.a,a.b)||dist(h,q)<.005||dist(h,q)>limit)continue;
+  const farA=dist(p,a.a)<.002?a.b:a.a,farB=dist(q,b.a)<.002?b.b:b.a;
+  const u=sub(p,farA),v=sub(q,farB);if((u.x*v.x+u.y*v.y)/(dist(p,farA)*dist(q,farB))>-.999)continue;
+  const start=[sa.originalA,sa.originalB].sort((x,y)=>dist(x,p)-dist(y,p))[0],end=[sb.originalA,sb.originalB].sort((x,y)=>dist(x,q)-dist(y,q))[0];
+  const chainQueue=[{point:start,ids:[]}];let chain=null;
+  for(let k=0;k<chainQueue.length&&k<64;k++){
+   const step=chainQueue[k],d=dist(step.point,end);
+   if(step.ids.length&&d>.005&&d<=limit+.002&&Math.abs((step.point.x-end.x)*u.x+(step.point.y-end.y)*u.y)/dist(p,farA)<.02){chain=step.ids;break;}
+   for(const g of guides){if(step.ids.includes(g.id))continue;for(const [x,y]of [[g.a,g.b],[g.b,g.a]])if(dist(x,step.point)<.01&&Math.abs(x.z-step.point.z)<.05)chainQueue.push({point:y,ids:[...step.ids,g.id]});}
+  }
+  if(!chain)continue;
+  const affected=members(a),discard=result.filter(w=>chain.includes(w.sourceId)),transaction=[...affected,...members(b),...discard];
+  if(transaction.some(w=>blocked.has(w.id))){skippedEdited.add([a.ids[0],b.ids[0]].sort().join('|'));continue;}
+  const support=affected.find(w=>G.onEdge(h,...w.bottom,.002)),other=members(b).find(w=>G.onEdge(q,...w.bottom,.002));if(!support||!other)continue;
+  const z=groundAt(ground,h);if(z===null)continue;
+  const top=mix(...support.top,at(h,...support.bottom)),qTop=mix(...other.top,at(q,...other.bottom));
+  const keep=p=>((p.x-h.x)*(farA.x-h.x)+(p.y-h.y)*(farA.y-h.y))>=-1e-8;
+  const replacement=[];for(const w of affected){const next=copy(w),side=next.bottom.map(keep);if(!side.some(Boolean))continue;for(let k=0;k<2;k++)if(!side[k]){next.bottom[k]={...h,z};next.top[k]={...h,z:top.z};}replacement.push(next);}
+  const removedIds=[...affected,...discard].map(w=>w.id),remove=new Set(removedIds);
+  const bridge={...copy(support),id:support.id+':soffit-return',kind:'return',bottom:[{...h,z},copy(q)],top:[{...h,z:top.z},{...q,z:qTop.z}],soffitReturn:true};
+  result=result.filter(w=>!remove.has(w.id));result.push(...replacement,bridge);usedRuns.add(a);usedRuns.add(b);
+  paths.push({parallelReturn:true,removedIds,oldPath:[copy(p),copy(q)],intersection:copy(h),soffit:limit});
+ }
+ // A larger explicit setback can carry the main inset run across the outer
+ // rake before extrusion. The little eave/inner-rake return is then a spur,
+ // not a degree-two detour. Recognize that same roof-edge pattern by provenance.
+ const samePoint=(a,b)=>a&&b&&dist(a,b)<.01&&Math.abs(a.z-b.z)<.05;
+ const original=s=>[s.originalA,s.originalB];
+ const sameRun=(a,b)=>a.originalA&&b.originalA&&original(a).every(p=>original(b).some(q=>samePoint(p,q)));
+ for(const eave of sources.filter(s=>s.type==='eave'&&s.setback>0&&s.originalA)){
+  const limit=eave.setback;if(dist(eave.a,eave.b)>limit+.002)continue;
+  const incident=sources.filter(s=>s.type==='rake'&&s.setback>0&&s.originalA&&original(s).some(p=>original(eave).some(q=>samePoint(p,q))));
+  for(const outer of incident){
+   if(dist(...original(outer))<Math.max(.5,2*limit))continue;
+   const inner=incident.find(s=>!sameRun(s,outer)&&parallel(s,outer)&&dist(...original(s))<=2*limit&&dist(s.a,s.b)<=limit+.002);if(!inner)continue;
+   const n=sub(outer.a,outer.originalA),outerCorner=[outer.a,outer.b].sort((a,b)=>Math.min(dist(a,eave.a),dist(a,eave.b))-Math.min(dist(b,eave.a),dist(b,eave.b)))[0];
+   if((inner.a.x-outer.a.x)*n.x+(inner.a.y-outer.a.y)*n.y<=.00001)continue;
+   const outerWalls=result.filter(w=>sameRun(sourceOf(w)||{},outer)&&w.bottom.every(p=>Math.abs(cross(sub(p,outer.a),sub(outer.b,outer.a)))/dist(outer.a,outer.b)<.01));
+   for(const anchor of sources.filter(s=>s.kind==='perimeter'&&s.originalA&&!sameRun(s,outer)&&!sameRun(s,inner)&&dist(...original(s))>Math.max(.5,2*limit))){
+    const u=sub(anchor.b,anchor.a),v=sub(outer.b,outer.a),den=cross(u,v);if(Math.abs(den)<1e-8)continue;
+    const t=cross(sub(outer.a,anchor.a),v)/den,hit=mix(anchor.a,anchor.b,t);if(dist(hit,outerCorner)>limit+.002)continue;
+    const anchorWalls=result.filter(w=>sameRun(sourceOf(w)||{},anchor)&&w.bottom.every(p=>Math.abs(cross(sub(p,anchor.a),u))/dist(anchor.a,anchor.b)<.01));
+    if(!anchorWalls.length||!outerWalls.length)continue;
+    // This pass handles an already crossed run only. The detour walk below
+    // handles genuine extensions; do not guess across disconnected walls.
+    const span=anchorWalls.flatMap(w=>w.bottom).map(p=>at(p,anchor.a,anchor.b));if(t<Math.min(...span)-.002/dist(anchor.a,anchor.b)||t>Math.max(...span)+.002/dist(anchor.a,anchor.b))continue;
+    const far=anchorWalls.flatMap(w=>w.bottom.map((p,i)=>({w,i,p}))).sort((a,b)=>dist(b.p,hit)-dist(a.p,hit))[0];
+    const target=outerWalls.find(w=>G.onEdge(hit,...w.bottom,.01));if(!target||dist(far.p,hit)<Math.max(.5,2*limit))continue;
+    const near=1-far.i,di=dist(target.bottom[0],outerCorner)<dist(target.bottom[1],outerCorner)?0:1;
+    const removed=new Set(result.filter(w=>sameRun(sourceOf(w)||{},eave)||sameRun(sourceOf(w)||{},inner)).map(w=>w.id));
+    for(const w of anchorWalls)removed.add(w.id);
+    for(const w of result)if(w.kind==='flashing'&&w.sourceRoofId===eave.parentId&&w.targetId===far.w.sourceRoofId&&w.bottom.every(p=>dist(p,outerCorner)<2*limit))removed.add(w.id);
+    if([...removed,target.id].some(id=>blocked.has(id))){skippedEdited.add([far.w.id,target.id].sort().join('|'));continue;}
+    const z=groundAt(ground,hit),top=mix(...target.top,at(hit,...target.bottom)).z;if(z===null||top-z<.02)continue;
+    const nextA=copy(far.w),nextD=copy(target);nextA.bottom[near]={...hit,z};nextA.top[near]={...hit,z:top};nextD.bottom[di]={...hit,z};nextD.top[di]={...hit,z:top};
+    nextA.rakeCleanup={targetSource:target.sourceId,removed:[...removed]};
+    const innerEnds=[inner.a,inner.b].sort((a,b)=>Math.min(dist(b,eave.a),dist(b,eave.b))-Math.min(dist(a,eave.a),dist(a,eave.b)));
+    paths.push({rakeSource:outer.id,extendedSource:far.w.sourceId,oldPath:[...innerEnds,outerCorner].map(p=>({...p,z:groundAt(ground,p)??z})),intersection:{...hit,z},soffit:limit,removedIds:[...removed],crossed:true});
+    result=result.filter(w=>!removed.has(w.id)&&w.id!==target.id);result.push(nextA,nextD);break;
+   }
+  }
+ }
  // Every accepted pass removes a return. The bound also handles malformed
  // graphs without unbounded searches or repeatedly changing a corner.
  for(let pass=0;pass<walls.length;pass++){
@@ -138,7 +238,7 @@ function cleanup(walls,sources,ground,excluded=[]){
   path.finalIntersection=patch?copy(patch.points[3-patch.oldPath.findIndex(q=>dist(q,path.intersection)<.002)]):copy(path.intersection);
  }
  if(paths.length){for(const w of result)delete w.mergeGroup;result=G.mergeCoplanar(result,excluded).walls;}
- return {walls:result,report:{version:2,paths,setbackCorrections:restored.corrections,foundationPatches:restored.patches,skippedEdited:skippedEdited.size,removed:paths.reduce((n,p)=>n+p.removedIds.length-1,0)}};
+ return {walls:result,report:{version:2,paths,setbackCorrections:restored.corrections,foundationPatches:restored.patches,skippedEdited:skippedEdited.size,removed:paths.reduce((n,p)=>n+Math.max(0,p.removedIds.length-1),0)}};
 }
 // Apply the same local replacement to the foundation, preserving its planes,
 // materials, chimney provenance and any independent sketch geometry.
