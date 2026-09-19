@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 roof trim controls: [Eaves, Rakes and opt-in defaults](deploy/digitalocean/development-roof-trim-options-20260918.md) records `9d5ae2be91dbea3c50798ea42ea6292977ae1470`. Unset trim is zero; explicit saved heights remain.
+
 September 18 trim contact: [Stop at existing trim](deploy/digitalocean/development-trim-stop-20260918.md) records `f4af452c4556d5b0fa288fe5fc0688047a9c85a3`. New strips stop across their full width at saved wall trim and generated window/door trim.
 
 September 18 multi-point cuts: [Batch H/V](deploy/digitalocean/development-multi-axis-20260918.md) records `6500d2fb9d1cddf30a7173c046d14e1adde7b487`. Selected points preview and commit cuts together with one undo step.
