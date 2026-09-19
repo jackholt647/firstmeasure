@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 opaque imagery performance: [Exclude reference imagery from visibility raycasts](deploy/digitalocean/development-image-occlusion-20260918.md) records `c21d3dc6426c1f54360d897b44d8501a40be5b41`. Dense DSM and tile meshes no longer enter per-point and per-label occlusion checks.
+
 September 18 copied sticker alignment: [Explicit sticker face copies](deploy/digitalocean/development-copy-snap-20260918.md) records `4b82d3564e580233785462df2012a33443286c75`. Copy excludes coincident unselected wall patches so pasted windows retain cross-wall alignment and trim.
 
 September 18 shared sticker placement: [Copy groups, snapping and trim](deploy/digitalocean/development-sticker-shared-20260918.md) records `47d4779dce649c5f9224b7efbfa700adc1bdd2c2`. New and copied stickers share placement and trim paths; groups keep their dimensions and spacing.
