@@ -660,7 +660,7 @@ test('marquee points overlapping on screen at different depths remain distinct f
  const p=(x,z,y)=>({x,y,z}),f=fixture({selected:null,walls:[],state:{wallEdits:{$surfaces:[0,1].map(y=>({id:'wall-'+y,points:[p(0,0,y),p(4,0,y),p(4,4,y),p(0,4,y)]}))}}});
  f.editor.startBox(f.e(-.1,-.1));f.listeners.pointermove(f.e(.1,.1));f.listeners.pointerup(f.e(.1,.1));
  assert.equal(f.message(),'2 points selected');const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'v'});
- assert.match(f.message(),/Select one point/);assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),before);
+ assert.match(f.message(),/No vertical cuts fit/);assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
 
 
@@ -2093,4 +2093,22 @@ test('saved windows with attached cuts move all their anchors and delete cleanly
  for(const p of moved.points){const n=state.wallEdits.$drafts[key].sketch.nodes.find(n=>n.id===p.nodeId);assert.ok(Math.hypot(n.x-p.x,n.y-p.y)<1e-8);}
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
  select(0);select(1,true);f.editor.key({key:'Delete'});const after=state.wallEdits.$drafts[key];assert.equal(after.faces.filter(f=>f.feature).length,0);assert.equal(after.sketch.edges.filter(e=>!e.fixed).length,2,'both deliberate vertical cuts remain, all window outlines are removed');assert.equal(JSON.stringify(f.history.at(-1)),before);
+});
+
+for(const axis of ['v','h'])test(`${axis.toUpperCase()} cuts from every selected point, cancels together and commits one undo`,()=>{
+ const f=fixture();f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const d=f.d(),sources=[{x:1,y:1,z:0},{x:3,y:3,z:0}],ids=sources.map(p=>S.add(d,p,.0001));
+ f.editor.restoreSelection({activeDraftKey:'w',preferredDraft:'w',picked:ids,draftSelection:{w:ids}});const before=JSON.stringify(f.state.wallEdits),history=f.history.length;
+ const check=()=>{const d=f.d();for(const p of sources){const edges=d.sketch.edges.filter(e=>!e.fixed).map(e=>[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id)));assert.ok(edges.some(pair=>pair.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<1e-7)&&Math.abs(axis==='v'?pair[0].x-pair[1].x:pair[0].y-pair[1].y)<1e-7),f.message());}};
+ f.editor.key({key:axis});assert.equal(f.editor.interaction(),'H/V cut');check();assert.equal(f.history.length,history);f.editor.key({key:axis});check();f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.editor.pointSelection().length,2);
+ f.editor.key({key:axis});check();f.editor.finishAxisCut();assert.equal(f.editor.busy(),false);assert.equal(f.history.length,history+1);assert.equal(JSON.stringify(f.history.at(-1)),before);
+});
+test('multi-point V works across separately selected wall drafts',()=>{
+ const a={id:'a',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:0}],top:[{x:0,y:0,z:4},{x:4,y:0,z:4}]},b={id:'b',bottom:[{x:4,y:0,z:0},{x:4,y:4,z:0}],top:[{x:4,y:0,z:4},{x:4,y:4,z:4}]},f=fixture({walls:[a,b],selected:null});
+ f.editor.beginFace(f.e(2,2),a);f.listeners.pointerup(f.e(2,2));f.editor.beginFace(f.e(2,2),b);f.listeners.pointerup(f.e(2,2));const drafts=f.state.wallEdits.$drafts,groups={};for(const key of ['a','b'])groups[key]=[S.add(drafts[key],{x:2,y:1,z:0},.0001)];
+ f.editor.restoreSelection({activeDraftKey:'a',picked:groups.a,draftSelection:groups});f.editor.key({key:'v'});assert.equal(f.editor.interaction(),'H/V cut',f.message());for(const d of Object.values(f.state.wallEdits.$drafts))assert.ok(d.sketch.edges.some(e=>!e.fixed));f.editor.finishAxisCut();assert.equal(f.editor.busy(),false);
+});
+
+test('batch H cuts the base from two selected perimeter points in one transaction',()=>{
+ const p=(x,y)=>({x,y,z:0}),base={faces:[{id:'base',points:[p(0,0),p(4,0),p(4,4),p(0,4)]}]},f=fixture({state:{base,wallEdits:{}},walls:[],selected:null});const before=JSON.stringify(f.state.wallEdits);
+ f.editor.cutFromPoints([p(1,0),p(3,0)],'h','base');assert.equal(f.editor.interaction(),'H/V cut',f.message());assert.equal(f.state.wallEdits.$base.faces.length,3);f.editor.finishAxisCut();assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
 });
