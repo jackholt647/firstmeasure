@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 textured ground imagery: [Flat image ground](deploy/digitalocean/development-image-ground-20260918.md) records `3240bc71374eb13dc65852c81a12f26e033fd8c6`. Enabled imagery remains visible as a lightweight flat ground plane beneath the textured model.
+
 September 18 garage trim: [Garage sticker trim shortcut](deploy/digitalocean/development-garage-trim-20260918.md) records `cf2f2d99bd18aeafc104360ed5c8fb654b714fd2`. T adds garage trim instead of entering geometry Flip; top and side trim preserve recess depth.
 
 September 18 opaque imagery performance: [Exclude reference imagery from visibility raycasts](deploy/digitalocean/development-image-occlusion-20260918.md) records `c21d3dc6426c1f54360d897b44d8501a40be5b41`. Dense DSM and tile meshes no longer enter per-point and per-label occlusion checks.
