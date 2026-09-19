@@ -2051,3 +2051,15 @@ test('V from a window corner passes through trim without cutting or importing th
  assert.ok(reachesRoof,'wall cut reaches the roof beyond the top trim');f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
  f.editor.cutFromPoint(opening[3],'v');f.editor.finishAxisCut();assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
 });
+
+test('saved base-to-window cut splits bridged wall regions and commits without trapping selection',()=>{
+ const input=structuredClone(require('./fixtures/vertical-cut-window-bridge.json')),state=input.state,before=JSON.stringify(state.wallEdits),f=fixture({state,walls:[],selected:null}),M=require('../public/measure/internal/editor_scripts/exterior_model');
+ f.editor.cutFromPoint(input.point,'v');assert.equal(f.editor.busy(),true,f.message());assert.doesNotThrow(()=>M.validateEdits(structuredClone(state.wallEdits),JSON.parse(before)));
+ const faces=Object.values(state.wallEdits.$drafts).flatMap(d=>d.faces);assert.ok(faces.some(f=>f.id.includes('~region-')),'both pieces of the split wall survive');assert.ok(faces.flatMap(f=>[f.points,...(f.holes||[])].flat()).every(p=>p.nodeId),'split boundaries retain sketch IDs');
+ f.editor.down(f.e(input.point.x,input.point.z+.2));f.listeners.pointerup(f.e(input.point.x,input.point.z+.2));assert.equal(f.editor.busy(),false,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ assert.equal(f.editor.pickLine3D(f.e(input.point.x,input.point.z+.2)),true,'new line is selectable');const committed=JSON.stringify(state.wallEdits);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),committed);
+});
+test('unexpected axis cut commit rejection releases controls and restores the prior geometry',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model');let reject=false;const f=fixture({globals:{ExteriorModel:{...M,validateEdits(...args){if(reject)throw Error('Rejected test commit');return M.validateEdits(...args);}}}}),before=JSON.stringify(f.state.wallEdits);
+ f.editor.cutFromPoint({x:2,y:0,z:0},'v');assert.equal(f.editor.busy(),true);reject=true;assert.doesNotThrow(()=>f.editor.finishAxisCut());assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);assert.match(f.message(),/Rejected test commit/);
+});

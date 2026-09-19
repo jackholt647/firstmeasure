@@ -129,7 +129,12 @@ function validateEdits(edits,before={}){
  if(edits.$loose){if((edits.$loose.points||[]).some(p=>!K.finite3(p))||(edits.$loose.edges||[]).some(pair=>pair.length!==2||pair.some(p=>!K.finite3(p))))throw Error('Copied geometry contains an invalid point or line.');}
  const old=new Map((before.$surfaces||[]).map(f=>[f.id,JSON.stringify(f)]));
  if(edits.$surfaces)edits.$surfaces=edits.$surfaces.flatMap(f=>{if(f.deleted||f.drafted||old.get(f.id)===JSON.stringify(f))return [f];const parts=K.normalizeFaces(f);for(const part of parts)K.validateFace(part);Object.assign(f,parts[0]);return [f,...parts.slice(1)];});
- const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;for(const f of d.faces||[]){if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))continue;Object.assign(f,K.normalizeFace(f));K.triangles(f.points,f.holes||[]);}}
+ const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;d.faces=(d.faces||[]).flatMap(f=>{if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))return [f];
+  // A cut ending at an opening can split a bridged wall ring into multiple
+  // valid regions. Retain each region and its sketch-node ownership.
+  const parts=f.feature?[K.normalizeFace(f)]:K.normalizeFaces(f),anchors=[f.points,...(f.holes||[])].flat();
+  for(const part of parts){if(parts.length>1){const restore=p=>{const a=anchors.find(a=>Math.hypot(a.x-p.x,a.y-p.y,(a.z||0)-(p.z||0))<=K.CONTACT);if(a)return {...p,nodeId:a.nodeId};const n=d.sketch?.nodes.find(n=>Math.hypot(n.x-p.x,n.y-p.y)<=K.CONTACT);if(!n)throw Error('The split wall needs a connected sketch point.');return {...p,nodeId:n.id};};part.points=part.points.map(restore);part.holes=(part.holes||[]).map(r=>r.map(restore));}K.triangles(part.points,part.holes||[]);}
+  Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
  if(edits.$base&&JSON.stringify(edits.$base.faces)!==JSON.stringify(before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
 const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
