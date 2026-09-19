@@ -69,21 +69,22 @@ function resized(points,preset,anchor={}){const b=bounds(points),w=preset.w*FT,h
 
  return shape({left,right:left+w,bottom,top:bottom+h},preset.shape);}
 
-function place(center,preset,boundaries,screen,radius=12,regions=boundaries.filter(r=>r.length>=3).map(points=>({points}))){let points=shape({left:center.x-preset.w*FT/2,right:center.x+preset.w*FT/2,bottom:center.y-preset.h*FT/2,top:center.y+preset.h*FT/2},preset.shape),b=bounds(points);const offsets={x:null,y:null};
+function place(center,preset,boundaries,screen,radius=12,regions=boundaries.filter(r=>r.length>=3).map(points=>({points}))){return placeGroup([shape({left:center.x-preset.w*FT/2,right:center.x+preset.w*FT/2,bottom:center.y-preset.h*FT/2,top:center.y+preset.h*FT/2},preset.shape)],boundaries,screen,radius,regions)[0];}
+function placeGroup(shapes,boundaries,screen,radius=12,regions=boundaries.filter(r=>r.length>=3).map(points=>({points}))){let points=shapes.flat(),b=bounds(points);const offsets={x:null,y:null},original=points[0];
  // Establish the unsnapped, contained position first. Rank snaps by the
  // translation from this position, never by target-to-cursor distance.
  const initialFit=W.boundedTranslation(points,regions,{x:0,y:0},{axis:'y'})||W.boundedTranslation(points,regions,{x:0,y:0});
  if(!initialFit)throw Error('That size does not fit inside the supporting face.');
- points=points.map(p=>({...p,x:p.x+initialFit.x,y:p.y+initialFit.y}));b=bounds(points);
+ points=points.map(p=>({...p,x:p.x+initialFit.x,y:p.y+initialFit.y}));b=bounds(points);const snapBounds=[b,...(shapes.length>1?shapes.map(r=>bounds(r.map(p=>({...p,x:p.x+initialFit.x,y:p.y+initialFit.y})))):[])];
 
- for(const ring of boundaries)for(let i=0;i<ring.length;i++){const a=ring[i],c=ring[(i+1)%ring.length];for(const axis of ['x','y']){if(a.alignmentAxes&&!a.alignmentAxes.includes(axis))continue;if(Math.abs(a[axis]-c[axis])>1e-5)continue;for(const value of a.alignmentCenter?[axis==='x'?(b.left+b.right)/2:(b.bottom+b.top)/2]:axis==='x'?[b.left,b.right]:[b.bottom,b.top]){const from={x:(b.left+b.right)/2,y:(b.bottom+b.top)/2,z:0};from[axis]=value;const to={...from,[axis]:a[axis]},p=screen(from),q=screen(to),distance=Math.hypot(q.x-p.x,q.y-p.y);const delta=a[axis]-value,travel=Math.abs(delta),previous=offsets[axis];if(Number.isFinite(distance)&&distance<=radius&&(!previous||travel<previous.travel-1e-9||Math.abs(travel-previous.travel)<1e-9&&distance<previous.distance))offsets[axis]={distance,travel,delta};}}}
+ for(const ring of boundaries)for(let i=0;i<ring.length;i++){const a=ring[i],c=ring[(i+1)%ring.length];for(const axis of ['x','y']){if(a.alignmentAxes&&!a.alignmentAxes.includes(axis))continue;if(Math.abs(a[axis]-c[axis])>1e-5)continue;for(const value of snapBounds.flatMap(b=>a.alignmentCenter?[axis==='x'?(b.left+b.right)/2:(b.bottom+b.top)/2]:axis==='x'?[b.left,b.right]:[b.bottom,b.top])){const from={x:(b.left+b.right)/2,y:(b.bottom+b.top)/2,z:0};from[axis]=value;const to={...from,[axis]:a[axis]},p=screen(from),q=screen(to),distance=Math.hypot(q.x-p.x,q.y-p.y);const delta=a[axis]-value,travel=Math.abs(delta),previous=offsets[axis];if(Number.isFinite(distance)&&distance<=radius&&(!previous||travel<previous.travel-1e-9||Math.abs(travel-previous.travel)<1e-9&&distance<previous.distance))offsets[axis]={distance,travel,delta};}}}
 
  points=points.map(p=>({...p,x:p.x+(offsets.x?.delta||0),y:p.y+(offsets.y?.delta||0)}));
  // Snapping is a proximity preference; fitting is a containment constraint.
  // Keep the pointer's horizontal position when a vertical adjustment can fit.
  const fit=W.boundedTranslation(points,regions,{x:0,y:0},{axis:'y'})||W.boundedTranslation(points,regions,{x:0,y:0});
  if(!fit)throw Error('That size does not fit inside the supporting face.');
- return points.map(p=>({...p,x:p.x+fit.x,y:p.y+fit.y}));}
+ const delta={x:points[0].x+fit.x-original.x,y:points[0].y+fit.y-original.y};return shapes.map(r=>r.map(p=>({...p,x:p.x+delta.x,y:p.y+delta.y})));}
 
 function containsShape(points,outlines){const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);return W.subtract({points},outlines.map(points=>({points}))).reduce((s,p)=>s+area(p),0)<1e-7;}
 
@@ -163,7 +164,7 @@ function groupedStickers(faces){
   }
  }return result;
 }
-const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 

@@ -1720,7 +1720,7 @@ test('an extruded window-edge point supports N and V on the window rather than t
 
 test('sticker placement includes loose coplanar point guides and excludes points behind the wall',()=>{
  const F=require('../public/measure/internal/editor_scripts/wall_features.js'),host={id:'wall',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]};let targets;
- const state={wallEdits:{$surfaces:[host],$loose:{points:[{x:1,y:0,z:0},{x:1.06,y:1,z:0}],edges:[]}}},f=fixture({state,walls:[],selected:null,featureHost:()=>({solid:host,points:host.points}),globals:{WallFeatures:{...F,place(...args){targets=args[2];return F.place(...args);}}}});
+ const state={wallEdits:{$surfaces:[host],$loose:{points:[{x:1,y:0,z:0},{x:1.06,y:1,z:0}],edges:[]}}},f=fixture({state,walls:[],selected:null,featureHost:()=>({solid:host,points:host.points}),globals:{WallFeatures:{...F,placeGroup(...args){targets=args[1];return F.placeGroup(...args);}}}});
  f.editor.featureCommand('garage',2,true);f.listeners.pointermove(f.e(2.25,1));assert.ok(targets.some(r=>r.length===1&&Math.abs(r[0].x-1)<1e-8));assert.ok(!targets.some(r=>r.length===1&&Math.abs(r[0].x-1.06)<1e-8));
 });
 
@@ -1780,7 +1780,7 @@ test('moving a sticker aligns to an inset garage edge and a perpendicular window
 
 test('sticker placement receives cross-wall height targets and inset width targets',()=>{
  const F=require('../public/measure/internal/editor_scripts/wall_features.js'),p=(x,y,z)=>({x,y,z}),host={id:'host',points:[p(0,0,0),p(8,0,0),p(8,0,6),p(0,0,6)]},side={id:'side',feature:{type:'window'},points:[p(8,1,2),p(8,2,2),p(8,2,4),p(8,1,4)]},garage={id:'garage',feature:{type:'garage'},points:[p(3,.4,0),p(5,.4,0),p(5,.4,3),p(3,.4,3)]};let targets;
- const f=fixture({state:{wallEdits:{$surfaces:[host,side,garage]}},walls:[],selected:null,featureHost:()=>({solid:host,points:host.points}),globals:{WallFeatures:{...F,place(...args){targets=args[2];return F.place(...args);}}}});
+ const f=fixture({state:{wallEdits:{$surfaces:[host,side,garage]}},walls:[],selected:null,featureHost:()=>({solid:host,points:host.points}),globals:{WallFeatures:{...F,placeGroup(...args){targets=args[1];return F.placeGroup(...args);}}}});
  f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));assert.ok(targets.some(r=>r[0].alignmentAxes?.length===1&&r[0].y===4));assert.ok(targets.some(r=>r[0].alignmentAxes?.length===2&&r[0].x===3));
 });
 
@@ -2111,4 +2111,19 @@ test('multi-point V works across separately selected wall drafts',()=>{
 test('batch H cuts the base from two selected perimeter points in one transaction',()=>{
  const p=(x,y)=>({x,y,z:0}),base={faces:[{id:'base',points:[p(0,0),p(4,0),p(4,4),p(0,4)]}]},f=fixture({state:{base,wallEdits:{}},walls:[],selected:null});const before=JSON.stringify(f.state.wallEdits);
  f.editor.cutFromPoints([p(1,0),p(3,0)],'h','base');assert.equal(f.editor.interaction(),'H/V cut',f.message());assert.equal(f.state.wallEdits.$base.faces.length,3);f.editor.finishAxisCut();assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+});
+
+for(const count of [1,2])test(`copied ${count} sticker group shares placement snapping and T trim before and after placement`,()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),M=require('../public/measure/internal/editor_scripts/exterior_model.js'),p=(x,z)=>({x,y:0,z}),stickers=Array.from({length:count},(_,i)=>({id:'window-'+i,points:[p(1+2*i,1),p(2+2*i,1),p(2+2*i,2.5),p(1+2*i,2.5)],feature:{type:'window',shape:'custom',axis:p(1,0)}})),host={id:'host',points:[p(0,0),p(12,0),p(12,6),p(0,6)]};let calls=[];
+ const globals={...renderGlobals(),WallFeatures:{...F,placeGroup(...args){const result=F.placeGroup(...args);calls.push({shapes:args[0],targets:args[1],result});return result;}}},f=fixture({state:{wallEdits:{$surfaces:[...stickers,host],$loose:{points:[p(8,0)],edges:[]}}},walls:[],selected:null,globals,featureHost:()=>({solid:host,points:host.points})});
+ f.editor.clipboardCommand('copy',{points:stickers.flatMap(f=>f.points)});const clipboard=JSON.stringify(f.clipboard()),before=JSON.stringify(f.state.wallEdits);f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(8.46,3.05));assert.equal(calls.at(-1).shapes.length,count);assert.ok(calls.at(-1).targets.some(r=>r.length===1&&Math.abs(r[0].x-8)<1e-8),'same intentional point guides as sticker tool');
+ const geometry=JSON.stringify(calls.at(-1).result);f.editor.key({key:'t'});f.editor.key({key:'t'});assert.equal(JSON.stringify(calls.at(-1).result),geometry,'T does not rotate or translate copied stickers');assert.equal(JSON.stringify(f.clipboard()),clipboard);assert.equal(JSON.stringify(f.state.wallEdits),before);
+ f.editor.key({key:'Enter'});assert.equal(f.editor.busy(),false,f.message());const placed=M.collect(f.state).filter(s=>s.feature&&!stickers.some(o=>o.id===s.id));assert.equal(placed.length,count);assert.ok(placed.some(s=>s.points.some(p=>Math.abs(p.x-8)<1e-8)),'group snaps a sticker edge to the loose point guide');assert.ok(placed.every(s=>Math.abs(s.feature.trim.width-3*.0254)<1e-8));for(const s of placed){const b=F.dimensions(s.points,s.feature).bounds;assert.ok(Math.abs(b.right-b.left-1)<1e-8);assert.ok(Math.abs(b.top-b.bottom-1.5)<1e-8);}
+ if(count===2){const centers=placed.map(s=>s.points.reduce((sum,p)=>sum+p.x/4,0)).sort();assert.ok(Math.abs(centers[1]-centers[0]-2)<1e-8);}
+ assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);f.editor.key({key:'t'});assert.ok(M.collect(f.state).filter(s=>s.feature&&!stickers.some(o=>o.id===s.id)).every(s=>Math.abs(s.feature.trim.width-4*.0254)<1e-8),'placed group remains selected for T');
+});
+test('fresh and copied sticker placement share the same snap solver and copied cancellation restores everything',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),p=(x,z)=>({x,y:0,z}),host={id:'host',points:[p(0,0),p(8,0),p(8,6),p(0,6)]};let groups=0;
+ const f=fixture({state:{wallEdits:{$surfaces:[host]}},walls:[],selected:null,globals:{...renderGlobals(),WallFeatures:{...F,placeGroup(...args){groups++;return F.placeGroup(...args);}}},featureHost:()=>({solid:host,points:host.points})});
+ f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));assert.ok(groups);f.editor.down(f.e(2,2));f.editor.clipboardCommand('copy');const before=JSON.stringify(f.state.wallEdits),history=f.history.length;groups=0;f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(5,2));assert.ok(groups);f.editor.key({key:'t'});f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,history);
 });
