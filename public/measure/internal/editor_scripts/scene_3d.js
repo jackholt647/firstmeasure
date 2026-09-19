@@ -581,6 +581,7 @@ function disposeObject3D(object) {
 function ensureGoogleTileSceneRoots() {
     if (!scene || googleTileGeospatialRoot) return;
     googleTileGeospatialRoot = new THREE.Group();
+    googleTileGeospatialRoot.userData.exteriorReferenceImagery = true;
     googleTileGeospatialRoot.matrixAutoUpdate = false;
     googleTileGeospatialRoot.visible = false;
     scene.add(googleTileGeospatialRoot);
@@ -1621,6 +1622,7 @@ function init3D() {
     mesh = new THREE.Mesh(geometry, material);
     mesh.userData = {
         ...(mesh.userData || {}),
+        exteriorReferenceImagery: true,
         imageWidth,
         imageHeight,
         sceneWidth: planeSize.width,

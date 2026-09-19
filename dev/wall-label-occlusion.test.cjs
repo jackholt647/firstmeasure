@@ -23,3 +23,8 @@ test('label visibility follows surfaces, geometry updates and display mode',()=>
  f.ctx.wallLabelOcclusion(f.label,false);assert.equal(f.render(),.85);f.ctx.wallLabelOcclusion(f.label,true);assert.equal(f.render(),0);
  const position=f.wall.geometry.getAttribute('position');for(let i=0;i<position.count;i++)position.setX(i,position.getX(i)+5);position.needsUpdate=true;f.wall.geometry.computeBoundingSphere();assert.equal(f.render(),.85);
 });
+
+test('opaque labels never raycast reference image tiles and still hide behind walls',()=>{
+ const f=fixture(),root=new THREE.Group(),image=new THREE.Mesh(new THREE.PlaneGeometry(8,8,128,128),new THREE.MeshBasicMaterial());root.userData.exteriorReferenceImagery=true;root.add(image);f.scene.add(root);image.position.z=2;let calls=0;image.raycast=()=>{calls++;};
+ assert.equal(f.render(),.85);f.label.position.z=-1;assert.equal(f.render(),0);f.camera.position.x=.1;assert.equal(f.render(),0);assert.equal(calls,0);f.wall.visible=false;assert.equal(f.render(),.85);image.geometry.dispose();
+});

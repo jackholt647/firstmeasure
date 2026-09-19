@@ -12,6 +12,9 @@ function wallOcclusionFrame(renderer,scene,camera){
    const meshes=[],parts=[...camera.matrixWorld.elements,...camera.projectionMatrix.elements];
    scene.traverseVisible(o=>{
     if(!o.isMesh||o.isSprite)return;
+    // Reference DSM/photogrammetry can contain millions of triangles. It is
+    // not an editable wall and must not enter per-marker/label ray tests.
+    for(let parent=o;parent;parent=parent.parent)if(parent.userData?.exteriorReferenceImagery)return;
     const materials=Array.isArray(o.material)?o.material:[o.material];
     if(!materials.some(m=>m&&m.visible!==false&&m.depthWrite&&!m.transparent))return;
     meshes.push(o);parts.push(o.id,o.geometry.id,o.geometry.getAttribute('position')?.version,o.geometry.index?.version,...o.matrixWorld.elements);

@@ -33,3 +33,11 @@ test('perspective cameras also retain surface markers and reject points behind t
  f.points.onBeforeRender({info:{render:{frame:1}},getSize:v=>v.set(400,400)},f.scene,camera);
  const indices=Array.from(f.points.geometry.index.array.slice(0,f.points.geometry.drawRange.count));assert.ok(indices.includes(0));assert.ok(!indices.includes(1));
 });
+
+for(const nested of [false,true])test(`opaque markers exclude ${nested?'nested tile':'DSM'} imagery while retaining wall occlusion`,()=>{
+ const f=fixture(),image=new THREE.Mesh(new THREE.PlaneGeometry(8,8,128,128),new THREE.MeshBasicMaterial({side:THREE.DoubleSide})),root=nested?new THREE.Group():image;
+ root.userData.exteriorReferenceImagery=true;if(nested)root.add(image);image.position.z=2;f.scene.add(root);let calls=0;image.raycast=()=>{calls++;};
+ assert.deepEqual(f.render(),[0,2]);assert.equal(calls,0,'dense image is never raycast for point visibility');
+ f.ctx.wallPointOcclusion(f.points,false);f.points.onBeforeRender({},{},{});f.ctx.wallPointOcclusion(f.points,true);f.camera.position.x=.01;assert.deepEqual(f.render(),[0,2]);assert.equal(calls,0,'mode switches and camera motion do not raycast imagery');
+ f.wall.visible=false;assert.deepEqual(f.render(),[0,1,2,3],'imagery does not hide drafting markers');image.geometry.dispose();
+});
