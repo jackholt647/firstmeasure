@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 multi-point cuts: [Batch H/V](deploy/digitalocean/development-multi-axis-20260918.md) records `6500d2fb9d1cddf30a7173c046d14e1adde7b487`. Selected points preview and commit cuts together with one undo step.
+
 September 18 sticker ownership: [Move and delete cleanup](deploy/digitalocean/development-sticker-lifecycle-20260918.md) records `f605ec2e2185bf07172ee35825aa8d96ec07cf70`. Sticker anchors follow their face; Delete removes sticker wires while preserving deliberate wall cuts.
 
 September 18 vertical cut commit: [Split wall validation](deploy/digitalocean/development-axis-commit-20260918.md) records `565faf923e73c909e438a3e3b2348c646f91f228`. Cuts retain both valid wall pieces and cannot trap controls after a rejected commit.
