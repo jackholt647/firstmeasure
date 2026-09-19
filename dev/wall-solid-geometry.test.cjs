@@ -195,7 +195,7 @@ test('sticker alignment reaches inset edges and perpendicular wall heights witho
  const garage={feature:{type:'garage'},points:[p(2,.3,0),p(5,.3,0),p(5,.3,3),p(2,.3,3)]};
  const side={feature:{type:'window'},points:[p(6,1,2),p(6,3,2),p(6,3,4),p(6,1,4)]};
  const inset=G.stickerAlignmentTargets([garage],frame),corner=G.stickerAlignmentTargets([side],frame);
- assert.equal(inset.length,4);assert.ok(inset.every(q=>q.y===0));assert.ok(corner.every(q=>q.alignmentAxes.length===1));
+ assert.equal(inset.length,5);assert.equal(inset.filter(q=>q.alignmentCenter).length,1);assert.equal(G.stickerAlignmentTargets([{...garage,trim:true}],frame).length,0);assert.ok(inset.every(q=>q.y===0));assert.ok(corner.every(q=>q.alignmentAxes.length===1));
  const a=G.planeAlignment([p(2.06,0,1)],inset,frame,screen);assert.ok(Math.abs(a.x+.06)<1e-8);assert.equal(a.y,0);
  const b=G.planeAlignment([p(5.94,0,3.94)],corner,frame,screen);assert.equal(b.x,0);assert.ok(Math.abs(b.y-.06)<1e-8);
  assert.equal(G.stickerAlignmentTargets([{...side,feature:null}],frame).length,0);

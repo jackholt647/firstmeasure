@@ -77,3 +77,9 @@ test('low and high cursors clamp continuously on an irregular wall with a sloped
   assert.ok(Math.abs(b.left-4)<1e-8);assert.ok(Math.abs(b.top-b.bottom-2)<1e-8);
  }
 });
+
+test('different sized windows snap center to center independently of trim',()=>{
+ const source={feature:{type:'window',trim:{width:.5}},points:[p(1,1),p(3,1),p(3,3),p(1,3)]},frame=W.faceFrame(source),targets=W.stickerAlignmentTargets([source],frame),center=targets.find(p=>p.alignmentCenter),local=W.inFrame(frame,center),boundary=F.shape({left:-10,right:10,bottom:-10,top:10});
+ const points=F.place(p(local.x+.04,local.y+.06),{w:3,h:4},[boundary,[{...local,alignmentCenter:true,alignmentAxes:['x','y']}]],p=>({x:p.x*100,y:p.y*100}),12,[{points:boundary}]),b=F.bounds(points);
+ assert.ok(Math.abs((b.left+b.right)/2-local.x)<1e-8);assert.ok(Math.abs((b.bottom+b.top)/2-local.y)<1e-8);
+});

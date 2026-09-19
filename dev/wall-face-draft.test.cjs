@@ -2017,3 +2017,21 @@ for(const amount of [-.6096,.6096])test(`edge extrusion ${amount} preserves unse
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
  begin();f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
 });
+
+for(const type of ['window','door'])test(`T cycles placed ${type} trim without changing sticker geometry`,()=>{
+ const p=(x,z)=>({x,y:0,z}),face={id:'opening',points:[p(1,1),p(2,1),p(2,3),p(1,3)],feature:{type}},state={wallEdits:{$surfaces:[face]}},f=fixture({state,walls:[],selected:null}),points=JSON.stringify(face.points);
+ f.editor.restoreSelection({selectedSolid:face.id});
+ for(const width of [2,3,4,6,0]){const before=JSON.stringify(state.wallEdits);assert.equal(f.editor.key({key:'t'}),true);assert.ok(Math.abs((state.wallEdits.$surfaces[0].feature.trim?.width||0)-width*.0254)<1e-8);assert.equal(JSON.stringify(state.wallEdits.$surfaces[0].points),points);assert.equal(JSON.stringify(f.history.at(-1)),before);assert.equal(f.editor.busy(),false);}
+ assert.equal(f.history.length,5);
+});
+for(const type of ['window','door'])test(`${type} placement ignores trim width and nearby trim snap targets`,()=>{
+ const p=(x,z)=>({x,y:0,z}),host={id:'host',points:[p(0,0),p(6,0),p(6,6),p(0,6)]},out=[];
+ for(const trim of [false,true])for(const cycles of [0,1,4]){
+  const surfaces=[structuredClone(host)];if(trim)for(let i=0;i<12;i++)surfaces.push({id:'trim'+i,trim:true,points:[p(2.4+i*.013,0),p(2.41+i*.013,0),p(2.41+i*.013,6),p(2.4+i*.013,6)]});
+  const f=fixture({state:{wallEdits:{$surfaces:surfaces}},walls:[],selected:null,featureHost:()=>({solid:surfaces[0],points:surfaces[0].points})});
+  f.editor.featureCommand(type,0,true);f.listeners.pointermove(f.e(3,3));for(let i=0;i<cycles;i++)f.editor.key({key:'t'});f.editor.down(f.e(3,3));
+  const face=require('../public/measure/internal/editor_scripts/exterior_model.js').collect(f.state).find(f=>f.feature?.type===type);assert.ok(face,f.message());out.push(JSON.stringify(face.points.map(({x,y,z})=>({x,y,z}))));
+  const before=JSON.stringify(face.points);f.editor.key({key:'t'});const after=require('../public/measure/internal/editor_scripts/exterior_model.js').collect(f.state).find(f=>f.feature?.type===type);assert.equal(JSON.stringify(after.points),before);assert.ok(after.feature.trim||cycles===4,'T works immediately after placing a drafted sticker');
+ }
+ assert.ok(out.every(points=>points===out[0]),'all trim variants place the same opening at the same center: '+JSON.stringify(out));
+});

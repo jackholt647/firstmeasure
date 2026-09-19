@@ -306,10 +306,11 @@ function snapGeometryScale(clip,index,factor,axis,targets,edges,screen){
 // Parallel faces share width and height; other walls share world height only.
 function stickerAlignmentTargets(faces,frame,excluded=[]){
  const targets=[];
- for(const f of faces){if(!f.feature||f.deleted||f.snapOnly||f.points.every(p=>excluded.some(q=>vertexKey(p)===vertexKey(q))))continue;
+ for(const f of faces){if(!f.feature||f.trim||f.feature.type==='trim'||f.deleted||f.snapOnly||f.points.every(p=>excluded.some(q=>vertexKey(p)===vertexKey(q))))continue;
   const n=normal(f.points);if(!n)continue;const parallel=Math.abs(dot(n,frame.n))>.99999;
   const axes=parallel?['x','y']:['x','y'].filter(a=>Math.abs(frame[a==='x'?'u':'v'].z)>.99999);
   if(!axes.length)continue;
+  const center=f.points.reduce((c,p)=>({x:c.x+p.x/f.points.length,y:c.y+p.y/f.points.length,z:c.z+p.z/f.points.length}),{x:0,y:0,z:0}),localCenter=K.local(frame,center);targets.push({...K.world(frame,{...localCenter,z:0}),alignmentAxes:axes,alignmentCenter:true,alignmentSource:center});
   for(const p of f.points){const q=K.local(frame,p);targets.push({...K.world(frame,{x:q.x,y:q.y,z:0}),alignmentAxes:axes,alignmentSource:{x:p.x,y:p.y,z:p.z}});}
  }
  return targets;
@@ -330,7 +331,7 @@ function planeAlignment(points,targets,frame,screen,radius=12,axes=['u','v'],poi
  // Sticker callers supply a pointer, but rank the displacement of the supplied
  // unsnapped footprint. Cursor-to-target distance is not a snap displacement.
  const delta={x:0,y:0};
- for(const axis of axes){let best=Infinity,bestTravel=Infinity,amount=0;for(const p of points)for(const q of targets){if(q.alignmentAxes&&!q.alignmentAxes.includes(axis==='u'?'x':'y'))continue;const v=sub(q,p);if(Math.abs(dot(v,frame.n))>K.CONTACT)continue;const t=dot(v,frame[axis]),end={x:p.x+frame[axis].x*t,y:p.y+frame[axis].y*t,z:p.z+frame[axis].z*t},a=screen(p),b=screen(end);if(a.visible===false||b.visible===false)continue;const distance=Math.max(Math.hypot(a.x-b.x,a.y-b.y),Math.abs(t)*33.33);const travel=pointer?Math.abs(t):distance;if(distance<=radius&&(travel<bestTravel-1e-9||Math.abs(travel-bestTravel)<1e-9&&distance<best)){best=distance;bestTravel=travel;amount=t;}}
+ for(const axis of axes){let best=Infinity,bestTravel=Infinity,amount=0;for(const q of targets)for(const p of q.alignmentCenter?[points.reduce((c,p)=>({x:c.x+p.x/points.length,y:c.y+p.y/points.length,z:c.z+p.z/points.length}),{x:0,y:0,z:0})]:points){if(q.alignmentAxes&&!q.alignmentAxes.includes(axis==='u'?'x':'y'))continue;const v=sub(q,p);if(Math.abs(dot(v,frame.n))>K.CONTACT)continue;const t=dot(v,frame[axis]),end={x:p.x+frame[axis].x*t,y:p.y+frame[axis].y*t,z:p.z+frame[axis].z*t},a=screen(p),b=screen(end);if(a.visible===false||b.visible===false)continue;const distance=Math.max(Math.hypot(a.x-b.x,a.y-b.y),Math.abs(t)*33.33);const travel=pointer?Math.abs(t):distance;if(distance<=radius&&(travel<bestTravel-1e-9||Math.abs(travel-bestTravel)<1e-9&&distance<best)){best=distance;bestTravel=travel;amount=t;}}
   delta[axis==='u'?'x':'y']=amount;
  }return delta;
 }
