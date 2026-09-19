@@ -2134,3 +2134,12 @@ for(const count of [1,2])test(`copying ${count} selected windows excludes coinci
  f.editor.restoreSelection({selectedSolid:windows[0].id,faceSelection:windows.map(w=>({solid:w.id}))});f.editor.key({key:'c',ctrlKey:true});const clip=f.clipboard();assert.equal(clip.faces.length,count,'unselected wall patches are not copied');assert.ok(clip.faces.every(f=>f.feature));assert.equal(clip.edges.length,4*count,'no diagonal from an unselected wall triangle');
  f.editor.key({key:'v',ctrlKey:true});f.listeners.pointermove(f.e(8,3.61));assert.equal(result?.length,count,f.message());assert.ok(result.every(r=>Math.abs(Math.max(...r.map(p=>p.y))-4.3)<1e-7),'tops align with window on perpendicular wall');const before=JSON.stringify(result);f.editor.key({key:'t'});assert.equal(JSON.stringify(result),before,'trim preserves aligned placement');f.editor.key({key:'Escape'});
 });
+
+for(const draft of [false,true])test(`T trims a recessed garage ${draft?'draft':'solid'} without flipping or moving it`,()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),p=(x,z)=>({x,y:.1524,z}),door={id:'garage',points:[p(0,0),p(16*F.FT,0),p(16*F.FT,7*F.FT),p(0,7*F.FT)],feature:{type:'garage'}},state={wallEdits:{$surfaces:[door]}};
+ if(draft){const saved=structuredClone(require('./fixtures/sticker-attached-cuts.json'));saved.draft.faces.find(f=>f.feature).feature={type:'garage'};state.wallEdits={$drafts:{saved:saved.draft},$surfaces:[saved.surface]};}
+ const f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ f.editor.selectOpeningTrim('garage');if(draft)f.editor.applyOpeningTrim('garage',0);f.listeners.pointermove(f.e(2,1));const snapshot=()=>JSON.stringify(f.state.wallEdits,(key,value)=>key==='drafted'?undefined:value),before=snapshot(),points=JSON.stringify(f.editor.openingTrimItems('garage')[0].points);
+ for(const inches of [2,3,4,6,0]){assert.equal(f.editor.key({key:'t'}),true);assert.equal(f.editor.busy(),false,'T never enters Flip');const item=f.editor.openingTrimItems('garage')[0];assert.equal(JSON.stringify(item.points),points);assert.ok(Math.abs((item.f.feature.trim?.width||0)-inches*.0254)<1e-8);}
+ assert.deepEqual(JSON.parse(snapshot()),JSON.parse(before),'full cycle changes no geometry');
+});

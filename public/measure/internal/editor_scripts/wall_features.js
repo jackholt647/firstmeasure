@@ -92,15 +92,17 @@ function validate(points,outlines,others=[]){if(points.length<3||!points.every(p
 
 // Trim is derived from the opening, so edits and copies cannot leave orphan strips.
 const trimSizes=[0,2,3,4,6];
+const trimTypes=['window','door','garage'];
+const supportsTrim=type=>trimTypes.includes(type);
 function setTrim(feature,inches,color='#f5f3ef'){
- if(!['window','door'].includes(feature?.type))return feature;
+ if(!supportsTrim(feature?.type))return feature;
  if(!Number.isFinite(inches)||inches<0)throw Error('Enter a nonnegative trim width.');
  const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,color};return next;
 }
 function trimFaces(points,feature){
- const width=feature?.trim?.width;if(!(width>0)||!['window','door'].includes(feature.type))return [];
+ const width=feature?.trim?.width;if(!(width>0)||!supportsTrim(feature.type))return [];
  const fr=orientedFrame(points,feature.axis),ps=points.map(p=>W.inFrame(fr,p)),b=bounds(ps),area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;
- const edges=ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy),bottom=feature.type==='door'&&Math.abs(p.y-b.bottom)<1e-5&&Math.abs(q.y-b.bottom)<1e-5;return {x:sign*dy/(l||1),y:-sign*dx/(l||1),width:bottom?0:width};});
+ const edges=ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy),bottom=defs.get(feature.type)?.floor&&Math.abs(p.y-b.bottom)<1e-5&&Math.abs(q.y-b.bottom)<1e-5;return {x:sign*dy/(l||1),y:-sign*dx/(l||1),width:bottom?0:width};});
  const outer=ps.map((p,i)=>{const a=edges[(i+ps.length-1)%ps.length],b=edges[i],det=a.x*b.y-a.y*b.x;if(Math.abs(det)<1e-8)return {...p,x:p.x+b.x*b.width,y:p.y+b.y*b.width};return {...p,x:p.x+(a.width*b.y-a.y*b.width)/det,y:p.y+(a.x*b.width-a.width*b.x)/det};});
  return ps.flatMap((p,i)=>{if(!edges[i].width)return [];const j=(i+1)%ps.length;return [{points:[p,ps[j],outer[j],outer[i]].map(p=>W.fromFrame(fr,p)),trim:true,finishColor:feature.trim.color||'#f5f3ef',material:Math.abs(ps[j].y-p.y)>Math.abs(ps[j].x-p.x)?'trim-vertical':'trim-horizontal'}];});
 }
@@ -164,7 +166,7 @@ function groupedStickers(faces){
   }
  }return result;
 }
-const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -261,7 +263,7 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
    const extras=def.sizes.map((s,index)=>({...s,index})).filter(s=>!standard.some(v=>v.index===s.index));if(extras.length){const heading=document.createElement('h5');heading.textContent='Other sizes & shapes';other.appendChild(heading);const options=document.createElement('div');options.className='exterior-size-options';other.appendChild(options);for(const s of extras)add(options,s.index,feet(s.w)+' \u00d7 '+feet(s.h)+(s.shape==='circle'?' \u00b7 Round':''));}
    }
   }
-  const size=def.sizes[active.index];placementPanel.querySelector('.placement-current').textContent='Selected: '+feet(size.w)+' wide \u00d7 '+feet(size.h)+' tall'+(size.shape==='circle'?' \u00b7 Round':'')+(['window','door'].includes(active.type)?' · Trim: '+(active.trimInches?active.trimInches+' in':'off')+' · T cycles trim.':'')+'. Click the wall to place.';
+  const size=def.sizes[active.index];placementPanel.querySelector('.placement-current').textContent='Selected: '+feet(size.w)+' wide \u00d7 '+feet(size.h)+' tall'+(size.shape==='circle'?' \u00b7 Round':'')+(F.supportsTrim(active.type)?' · Trim: '+(active.trimInches?active.trimInches+' in':'off')+' · T cycles trim.':'')+'. Click the wall to place.';
   for(const {b,index}of placementChoices)b.setAttribute('aria-pressed',String(index===active.index));
  }
  const toggle=document.createElement('button');toggle.className='exterior-sticker-toggle';toggle.innerHTML='<i class="fas fa-chevron-right" aria-hidden="true"></i>';toggle.title='Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded','true');toggle.onclick=()=>{strip.hidden=!strip.hidden;closeFace();placementPanel.hidden=true;toggle.innerHTML='<i class="fas fa-chevron-'+(strip.hidden?'left':'right')+'" aria-hidden="true"></i>';toggle.title=strip.hidden?'Show wall stickers':'Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(!strip.hidden));};bar.appendChild(toggle);parent.appendChild(bar);
