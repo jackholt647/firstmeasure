@@ -137,3 +137,18 @@ test('all ground includes saved trim, untrimmed ground skips it, and removal res
  assert.equal(T.selectionPairs(pieces,'ground-untrimmed',{base}).length,0);
  const removed=T.removeEdges(pieces,[pair]),map=new Map(removed.replacements.map(r=>[r.face,r.pieces])),remaining=pieces.flatMap(f=>map.get(f)||[f]);assert.ok(remaining.every(f=>!f.trim&&f.material==='siding'));
 });
+
+for(const type of ['window','door'])for(const variant of [0,1,2])test(`new trim stops at existing ${type} trim on side ${variant}`,()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),opening={id:'opening',points:[p(1,1),p(2,1),p(2,2),p(1,2)],feature:F.setTrim({type},4)},wall={...face,holes:[opening.points]},before=JSON.stringify(opening),pair=[p(2,0),p(2,1.8)],result=T.partition([wall,opening],[pair],variant,.1524,[pair]),trim=result.replacements.flatMap(r=>r.pieces).filter(f=>f.trim);
+ assert.ok(trim.length);const stop=type==='window'?1-4*.0254:1;assert.ok(trim.every(f=>f.points.every(p=>p.z<=stop+1e-6)),'the full strip stops at the first trim contact');assert.equal(JSON.stringify(opening),before);
+ const fr=W.faceFrame(wall),local=f=>({points:f.points.map(p=>W.inFrame(fr,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(fr,p)))});
+ assert.ok(K.intersection(trim.map(local),F.trimFaces(opening.points,opening.feature).map(local)).reduce((s,f)=>s+K.area(f),0)<1e-9);
+ assert.ok(Math.abs(result.replacements[0].pieces.reduce((s,f)=>s+area(f),0)-area(wall))<1e-6);
+});
+test('new trim leaves an existing saved strip unchanged and stops flush against it',()=>{
+ const oldPair=[p(0,1),p(4,1)],initial=applyTrim([face],T.partition([face],[oldPair],0,.2,[oldPair])),old=initial.filter(f=>f.trim),pair=[p(2,0),p(2,1.1)],result=T.partition(initial,[pair],0,.15,[pair]);
+ assert.ok(result.replacements.every(r=>!r.face.trim));const next=applyTrim(initial,result);for(const original of old)assert.ok(next.includes(original));const added=result.replacements.flatMap(r=>r.pieces).filter(f=>f.trim);assert.ok(added.length);assert.ok(added.every(f=>f.points.every(p=>p.z<=1+1e-6)));
+});
+test('trim on a different wall plane does not block the selected run',()=>{
+ const obstacle={id:'rear',trim:true,points:[p(1.9,1,1),p(2.4,1,1),p(2.4,2,1),p(1.9,2,1)]},pair=[p(2,0),p(2,3)],result=T.partition([face,obstacle],[pair],0,.2,[pair]);assert.ok(Math.abs(result.replacements.flatMap(r=>r.pieces).filter(f=>f.trim).reduce((s,f)=>s+area(f),0)-.6)<1e-6);
+});

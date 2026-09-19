@@ -3,6 +3,7 @@
 const common=typeof module!=='undefined'&&module.exports;
 const K=common?require('./exterior_geometry.js'):root.ExteriorGeometry;
 const W=common?require('./wall_solid_geometry.js'):root.WallSolidGeometry;
+const F=common?require('./wall_features.js'):root.WallFeatures;
 const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z});
 const boundaries=faces=>faces.flatMap(f=>[f.points,...(f.holes||[])].flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])));
 const at=(a,u,t)=>({x:a.x+u.x*t,y:a.y+u.y*t,z:a.z+u.z*t});
@@ -72,6 +73,9 @@ function groundCandidates(faces,options={}){const {base,ground}=options;
 function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),finishColor,options={}){
  if(!Number.isFinite(width)||width<=K.CONTACT)throw Error('Enter a positive trim width.');
  const cutters=new Map(),cornerPairs=[];
+ const blockers=[...faces.filter(f=>f.trim&&!f.deleted&&!f.snapOnly),...(F?.groupedStickers(faces.filter(f=>f.feature&&!f.deleted&&!f.snapOnly))||[]).flatMap(f=>F.trimFaces(f.points,f.feature))];
+ const onPlane=frame=>blockers.filter(f=>f.points.every(p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT)).map(f=>({points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))}));
+
  for(const pair of runs(pairs,segments)){
   const dir=sub(pair[1],pair[0]),length=Math.hypot(dir.x,dir.y,dir.z);if(length<K.CONTACT)continue;
   const owners=[];
@@ -94,7 +98,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
    // A narrow finite probe requires actual contact with this selected segment.
    if(!K.intersection([local],[box(-.0001,.0001,0,l)]).some(f=>K.area(f)>1e-10))continue;
    const coordinates=local.points.map(p=>({x:(p.x-a.x)*u.x+(p.y-a.y)*u.y,y:(p.x-a.x)*v.x+(p.y-a.y)*v.y}));
-   owners.push({face,frame,local,box,coordinates,length:l});
+   owners.push({face,frame,local,box,coordinates,length:l,along:p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y});
   }
   // Classify each supporting plane separately. A return/soffit touching a
   // divider must not turn the two coplanar wall regions into a corner.
@@ -106,13 +110,17 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
   const corner=owners.some(o=>o.perimeter&&owners.some(b=>b!==o&&b.perimeter&&Math.abs(dot(o.frame.n,b.frame.n))<.99999));cornerPairs.push(corner);
   for(const owner of owners){
    const {face,frame,local,box,coordinates,length:runLength}=owner;
-   if(!eligibleMaterial(face,options))continue;
+   if(face.trim||!eligibleMaterial(face,options))continue;
    let lo=variant===1?-width:variant===2?-width/2:0,hi=variant===1?0:variant===2?width/2:width;
    // Perimeter edges have only an inward side; corners get a full strip on each wall.
    if(owner.perimeter){
     const positive=coordinates.reduce((s,p)=>s+p.y,0)>=0;lo=positive?0:-width;hi=positive?width:0;
    }
-   const cut=box(lo,hi,0,runLength),parts=K.intersection([local],[cut]);if(!parts.length)continue;
+   const cut=box(lo,hi,0,runLength),obstacles=onPlane(frame),contacts=K.intersection([cut],obstacles).filter(f=>K.area(f)>1e-10);
+   // Stop the entire strip at an existing trim boundary, including opening
+   // trim generated from sticker metadata rather than stored wall surfaces.
+   const stops=contacts.map(f=>{const ts=f.points.map(owner.along);return box(lo,hi,Math.min(...ts),Math.max(...ts));});
+   const parts=K.intersection([local],K.difference(cut,stops));if(!parts.length)continue;
    let entry=cutters.get(face);if(!entry){entry={face,frame,local,strips:[]};cutters.set(face,entry);}
    entry.strips.push({cut,parts,id:'trim:'+K.edgeKey(...pair),pair:pair.map(p=>({...p})),width,variant,material:Math.abs(dir.z)/length>.707?'trim-vertical':'trim-horizontal'});
   }
@@ -134,7 +142,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
      // Only fill the outside wedge, never extend isolated ends or create spikes.
      if(t>K.CONTACT||(m.x-y.x)*v.x+(m.y-y.y)*v.y>K.CONTACT||Math.hypot(m.x-p.x,m.y-p.y)>4*Math.max(a.width,b.width))continue;
      const patch={points:[p,x,m,y],holes:[]};if(K.area(patch)<1e-10)continue;
-     const parts=K.intersection([local],[patch]);if(parts.length)joins.push({...b,parts,joinIds:[a.id,b.id]});
+     const parts=K.intersection([local],K.difference(patch,onPlane(frame)));if(parts.length)joins.push({...b,parts,joinIds:[a.id,b.id]});
     }
    }
   }
