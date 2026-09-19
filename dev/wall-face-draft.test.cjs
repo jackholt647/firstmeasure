@@ -2035,3 +2035,19 @@ for(const type of ['window','door'])test(`${type} placement ignores trim width a
  }
  assert.ok(out.every(points=>points===out[0]),'all trim variants place the same opening at the same center: '+JSON.stringify(out));
 });
+
+test('V from a window corner passes through trim without cutting or importing the trim',()=>{
+ const p=(x,z)=>({x,y:0,z}),opening=[p(1,1),p(2,1),p(2,3),p(1,3)],wall={id:'host',points:[p(0,0),p(4,0),p(4,5),p(0,5)],holes:[opening]},window={id:'window',points:opening,feature:{type:'window',trim:{width:.1524,color:'#fff'}}},F=require('../public/measure/internal/editor_scripts/wall_features'),trims=F.trimFaces(opening,window.feature).map((f,i)=>({...f,id:'trim'+i,trim:true}));
+ const state={wallEdits:{$surfaces:[wall,window,...trims]}},f=fixture({state,walls:[],selected:null}),before=JSON.stringify(state.wallEdits),trimBefore=JSON.stringify(trims);
+ f.editor.cutFromPoint(opening[3],'v');assert.equal(f.editor.interaction(),'H/V cut',f.message());
+ let reachesRoof=false;
+ assert.ok(Object.values(state.wallEdits.$drafts||{}).some(d=>d.sketch.nodes.some(n=>Math.abs(n.x-1)<1e-6&&Math.abs(n.y-5)<1e-6)),'first V reaches the outer wall boundary');
+ for(let i=0;i<4;i++){
+  const drafts=state.wallEdits.$drafts||{};assert.ok(!Object.keys(drafts).some(key=>key.startsWith('solid:trim')),'trim is never a candidate cutting plane');
+  reachesRoof ||=Object.values(drafts).some(d=>d.sketch.nodes.some(n=>Math.abs(n.x-1)<1e-6&&Math.abs(n.y-5)<1e-6));
+  assert.equal(JSON.stringify(state.wallEdits.$surfaces.filter(f=>f.trim)),trimBefore,'trim geometry is unchanged');
+  f.editor.key({key:'v'});
+ }
+ assert.ok(reachesRoof,'wall cut reaches the roof beyond the top trim');f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ f.editor.cutFromPoint(opening[3],'v');f.editor.finishAxisCut();assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+});
