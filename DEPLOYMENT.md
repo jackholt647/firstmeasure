@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 copied sticker alignment: [Explicit sticker face copies](deploy/digitalocean/development-copy-snap-20260918.md) records `4b82d3564e580233785462df2012a33443286c75`. Copy excludes coincident unselected wall patches so pasted windows retain cross-wall alignment and trim.
+
 September 18 shared sticker placement: [Copy groups, snapping and trim](deploy/digitalocean/development-sticker-shared-20260918.md) records `47d4779dce649c5f9224b7efbfa700adc1bdd2c2`. New and copied stickers share placement and trim paths; groups keep their dimensions and spacing.
 
 September 18 roof trim controls: [Eaves, Rakes and opt-in defaults](deploy/digitalocean/development-roof-trim-options-20260918.md) records `9d5ae2be91dbea3c50798ea42ea6292977ae1470`. Unset trim is zero; explicit saved heights remain.
