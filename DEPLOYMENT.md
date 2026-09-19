@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 opening cuts: [V through trim](deploy/digitalocean/development-cut-trim-20260918.md) records `8d5ae5d37e2e53c72c9528b69632b3f7661d0912`. Window-corner cuts use the adjoining wall and ignore trim.
+
 September 18 sticker trim: [Opening snapping and placed trim cycling](deploy/digitalocean/development-sticker-trim-20260918.md) records `598146a875939f3710ed33deb59a88d119708e1b`. Snapping ignores trim; T cycles placed window and door trim without moving them.
 
 September 18 downward extrusion: [Preserved sketch connections](deploy/digitalocean/development-edge-down-20260918.md) records `68bc6c78fc269710d2263355b718c49109f8dfbe`. E keeps unselected sketch and loose edges fixed and connects each original endpoint to its clone.
