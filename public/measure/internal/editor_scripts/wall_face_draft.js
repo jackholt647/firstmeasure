@@ -877,11 +877,20 @@ function perf_previewLineMove(e){
  }
  function applyLineResult(t,result,edits){
   if(t.scene)result=W.followTrim(t.scene,result,(result.affected||[]).filter(id=>!t.scene.find(f=>f.id===id)?.trim),host.state()?.keepTrimStatic===true);
-  if(edits.$loose){const move=p=>({...p,...(result.moves.find(m=>distance3(m.from,p)<1e-5)?.to||{})});edits.$loose={points:edits.$loose.points.map(move),edges:edits.$loose.edges.map(pair=>pair.map(move))};}
+  if(edits.$loose&&!t.extrude){const move=p=>({...p,...(result.moves.find(m=>distance3(m.from,p)<1e-5)?.to||{})});edits.$loose={points:edits.$loose.points.map(move),edges:edits.$loose.edges.map(pair=>pair.map(move))};}
    edits.$surfaces=[...(edits.$surfaces||[]).filter(f=>f.drafted),...result.faces.filter(f=>!f.draft&&!f.baseId)];
    for(const f of result.faces.filter(f=>f.draft&&result.affected.includes(f.id))){const region=edits.$drafts[f.draftKey]?.faces.find(r=>r.id===f.regionId);if(region){const id='line-move-'+f.id+'-'+t.op;region.solidId=id;edits.$surfaces.push({...f,id,draft:false});}}
-   for(const [key,d]of Object.entries(edits.$drafts||{}))for(const n of d.sketch.nodes){const p=world(d,n),move=result.moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<1e-5);if(move){const q=d.frame?W.inFrame(d.frame,move.to):{x:(move.to.x-d.origin.x)*d.u.x+(move.to.y-d.origin.y)*d.u.y,y:move.to.z,z:0};Object.assign(n,q);}}
+   if(!t.extrude)for(const [key,d]of Object.entries(edits.$drafts||{}))for(const n of d.sketch.nodes){const p=world(d,n),move=result.moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<1e-5);if(move){const q=d.frame?W.inFrame(d.frame,move.to):{x:(move.to.x-d.origin.x)*d.u.x+(move.to.y-d.origin.y)*d.u.y,y:move.to.z,z:0};Object.assign(n,q);}}
 
+  if(t.extrude){
+   // Sketch and loose edges retain their original endpoints. Only the selected
+   // face boundaries move; fill any uncovered original-to-clone connections.
+   const loose=edits.$loose||={points:[],edges:[]},supports=result.faces.filter(f=>!f.deleted);
+   for(const {from:a,to:b}of result.moves){if(distance3(a,b)<1e-6)continue;let lo=0;
+    const intervals=W.sharedIntervals(a,b,[...supports,...loose.edges.map(points=>({points}))]);
+    for(const [start,end]of [...intervals,[1,1]]){if(start-lo>1e-6){const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});loose.edges.push([at(lo),at(start)]);}lo=Math.max(lo,end);}
+   }
+  }
   if(result.faces.some(f=>f.baseId&&result.affected.includes(f.id))){const base=copy(t.base||edits.$base||host.state().base);for(const f of result.faces.filter(f=>f.baseId)){const target=base.faces.find(b=>b.id===f.baseId);if(target){target.points=f.points;if(f.curves)target.curves=copy(f.curves);}}const before=copy(t.base||edits.$base||host.state().base);S.rebind(before,base);edits.$base=base;}
  }
  function deleteLines3D(selectedSegments=lineSelection.map(l=>l.pair)){

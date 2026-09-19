@@ -2000,3 +2000,20 @@ for(const mode of ['m','e'])test(`${mode.toUpperCase()} moves three wall edges b
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
  begin();f.editor.distanceInput().set(.6096);const placed=JSON.stringify(state.wallEdits.$surfaces);f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(JSON.stringify(state.wallEdits.$surfaces),placed);assert.equal(JSON.stringify(state.wallEdits.$base.faces),JSON.stringify(state.base.faces));
 });
+
+for(const amount of [-.6096,.6096])test(`edge extrusion ${amount} preserves unselected draft and loose edges`,()=>{
+ const p=(x,y,z)=>({x,y,z}),side={id:'side',points:[p(4,0,0),p(4,4,0),p(4,4,3),p(4,0,3)]},front={id:'front',bottom:[p(0,0,0),p(4,0,0)],top:[p(0,0,3),p(4,0,3)]};
+ const loose=[p(-10,0,0),p(4,0,0)],state={wallEdits:{$surfaces:[side],$loose:{points:[],edges:[loose]}}},f=fixture({state,walls:[front],selectedId:'front',globals:{isFreeMove:true}});
+ f.editor.doubleClick(f.e(2,1),front);f.editor.key({key:'Escape'});f.history.length=0;
+ const drafts=state.wallEdits.$drafts,source=Object.values(drafts)[0],nodes=JSON.stringify(source.sketch.nodes),before=JSON.stringify(state.wallEdits);
+ const selection={lineSelection:[{id:'bottom',pair:side.points.slice(0,2)}]};
+ const begin=()=>{f.editor.restoreSelection(selection);f.listeners.pointermove(f.e(4,0));f.editor.key({key:'e'});f.editor.distanceInput().set(amount);};
+ begin();assert.equal(f.editor.distanceInput().amount,amount,f.message());
+ assert.equal(JSON.stringify(Object.values(state.wallEdits.$drafts)[0].sketch.nodes),nodes,'original sketch must not get diagonalized');
+ assert.equal(JSON.stringify(state.wallEdits.$loose.edges[0]),JSON.stringify(loose),'unselected loose line stays fixed');
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),surfaces=state.wallEdits.$surfaces.filter(s=>!s.deleted),connections=[...surfaces,...state.wallEdits.$loose.edges.map(points=>({points}))];
+ for(const from of side.points.slice(0,2)){const to={...from,z:amount};assert.ok(W.sharedIntervals(from,to,connections).reduce((sum,[a,b])=>sum+b-a,0)>.99999,'new endpoint connects to its original endpoint');}
+ for(const edge of state.wallEdits.$loose.edges.slice(1))assert.ok(edge[0].x===edge[1].x&&edge[0].y===edge[1].y,'only local vertical connectors may be added');
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ begin();f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+});
