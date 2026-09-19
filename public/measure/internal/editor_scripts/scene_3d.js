@@ -738,6 +738,8 @@ function updateGoogleTileRootTransform(manifest) {
         googleTileCalibrationRoot.position.set(0, 0, 0);
     }
 }
+// Textured presentation uses the image as a flat reference, never the dense DSM.
+window.exteriorGroundImageSource=()=>googleTileState.surfaceVisible&&mesh?.material?.map?mesh:null;
 function apply3DSurfaceVisibility() {
     const showHeight = googleTileState.surfaceVisible && googleTileState.mode === 'height';
     const showTiles = googleTileState.surfaceVisible && googleTileState.mode === 'tiles' && googleTileState.ready;

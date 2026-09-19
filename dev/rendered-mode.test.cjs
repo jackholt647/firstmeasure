@@ -59,6 +59,14 @@ test('Rendered builds a separate PBR scene, loads real assets, exports 4K, and r
   const ground=surfaces.initial.find(o=>o.layer==='grade'),foundation=surfaces.initial.find(o=>o.layer==='base');
   assert.deepEqual(ground.positions,surfaces.expected.positions);assert.deepEqual(ground.index,surfaces.expected.index);assert.equal(ground.map,false);assert.equal(foundation.map,false);assert.ok(foundation.offset<ground.offset);assert.equal(surfaces.initial.some(o=>o.geometry==='PlaneGeometry'),false,'no synthetic studio ground');
   await page.getByLabel('Render exposure',{exact:true}).press('Escape');assert.equal(await graphics.getAttribute('open'),null);await summary.click();await page.locator('#wall-advanced>summary').click();assert.equal(await graphics.getAttribute('open'),null);
+  const imageGround=await page.evaluate(()=>{
+   const canvas=document.createElement('canvas');canvas.width=canvas.height=16;canvas.getContext('2d').fillRect(0,0,16,16);
+   const texture=new THREE.CanvasTexture(canvas),image=new THREE.Mesh(new THREE.PlaneGeometry(20,12,4,4),new THREE.MeshBasicMaterial({map:texture}));image.rotation.x=-Math.PI/2;image.position.set(4,8,2);let enabled=true,disposed=false;texture.addEventListener('dispose',()=>disposed=true);window.exteriorGroundImageSource=()=>enabled?image:null;
+   const render=demo.renderer.render;let ground;demo.renderer.render=(scene,camera)=>{ground=scene.getObjectByName('rendered-image-ground');return render(scene,camera);};demo.draw();
+   const positions=Array.from(ground.geometry.attributes.position.array),count=ground.geometry.attributes.position.count,hasMap=!!ground.material.map;enabled=false;demo.draw();const off=!ground.visible;enabled=true;demo.draw();const on=ground.visible;const unchanged=image.position.y===8&&image.geometry.attributes.position.count===25;
+   ExteriorRendered.stop();const preserved=!disposed;window.exteriorGroundImageSource=()=>null;ExteriorRendered.update(demo.group,{enabled:true,scene:demo.source,vector:demo.vector});demo.draw();texture.dispose();image.geometry.dispose();image.material.dispose();return {positions,count,hasMap,off,on,unchanged,preserved};
+  });
+  assert.equal(imageGround.count,4);assert.equal(imageGround.hasMap,true);assert.equal(imageGround.off,true);assert.equal(imageGround.on,true);assert.equal(imageGround.unchanged,true);assert.equal(imageGround.preserved,true);const imageY=imageGround.positions.filter((_,i)=>i%3===1);assert.ok(imageY.every(y=>Math.abs(y-imageY[0])<1e-8));assert.ok(imageY[0]<-.2);assert.deepEqual(imageGround.positions.filter((_,i)=>i%3===0),[-6,14,-6,14]);
   const result=await page.evaluate(()=>{
    const {renderer,source,camera,group}=demo;clearInterval(demo.timer);
    const pixels=new Uint8Array(4);renderer.getContext().readPixels(600,400,1,1,renderer.getContext().RGBA,renderer.getContext().UNSIGNED_BYTE,pixels);
