@@ -2063,3 +2063,34 @@ test('unexpected axis cut commit rejection releases controls and restores the pr
  const M=require('../public/measure/internal/editor_scripts/exterior_model');let reject=false;const f=fixture({globals:{ExteriorModel:{...M,validateEdits(...args){if(reject)throw Error('Rejected test commit');return M.validateEdits(...args);}}}}),before=JSON.stringify(f.state.wallEdits);
  f.editor.cutFromPoint({x:2,y:0,z:0},'v');assert.equal(f.editor.busy(),true);reject=true;assert.doesNotThrow(()=>f.editor.finishAxisCut());assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);assert.match(f.message(),/Rejected test commit/);
 });
+
+test('moving a sticker carries collinear sketch anchors omitted from its resolved face',()=>{
+ const f=stickerFixture(),d=f.d(),face=d.faces.find(f=>f.feature),a=face.points[0],b=face.points[1],anchor={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:0};
+ const id=S.add(d,anchor,.0001),before=JSON.stringify(f.state.wallEdits);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});f.editor.distanceInput().set(.3);
+ const n=f.d().sketch.nodes.find(n=>n.id===id);assert.ok(Math.abs(n.x-anchor.x-.3)<1e-7,f.message());assert.ok(Math.abs(n.y-anchor.y)<1e-7);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+test('deleting a trimmed sticker removes its outline and corners and fills its host hole',()=>{
+ const f=stickerFixture();f.editor.key({key:'t'});const before=JSON.stringify(f.state.wallEdits),ids=f.d().faces.find(f=>f.feature).points.map(p=>p.nodeId);
+ f.editor.key({key:'Delete'});assert.ok(!f.d().faces.some(f=>f.feature));assert.ok(!f.d().sketch.nodes.some(n=>ids.includes(n.id)));assert.ok(!f.d().sketch.edges.some(e=>ids.includes(e.a)||ids.includes(e.b)));assert.equal(f.d().faces.length,1);assert.equal(f.d().faces[0].holes.length,0);assert.equal(JSON.stringify(f.history.at(-1)),before);
+});
+test('deleting a sticker keeps a deliberate wall cut attached to its former corner',()=>{
+ const f=stickerFixture(),d=f.d(),face=d.faces.find(f=>f.feature),corner=face.points[0],floor=S.add(d,{x:corner.x,y:0,z:0},.0001);S.connect(d,[floor,corner.nodeId]);const edge=d.sketch.edges.find(e=>[e.a,e.b].includes(floor)&&[e.a,e.b].includes(corner.nodeId));
+ f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));f.editor.key({key:'Delete'});assert.ok(f.d().sketch.edges.some(e=>e.id===edge.id));assert.ok(f.d().sketch.nodes.some(n=>n.id===corner.nodeId));assert.ok(!f.d().faces.some(f=>f.feature));
+});
+test('deleting a solid sticker also removes the matching host opening',()=>{
+ const p=(x,z)=>({x,y:0,z}),points=[p(1,1),p(3,1),p(3,3),p(1,3)],sticker={id:'window',points,feature:{type:'window'}},host={id:'host',points:[p(0,0),p(4,0),p(4,4),p(0,4)],holes:[points]};
+ const f=fixture({state:{wallEdits:{$surfaces:[sticker,host]}},walls:[],selected:null,globals:renderGlobals()});f.editor.draw3D({add(){}},p=>p);f.editor.pickSolid(f.e(2,2));f.listeners.pointerup(f.e(2,2));f.editor.key({key:'Delete'});assert.ok(!f.state.wallEdits.$surfaces.some(f=>f.id===sticker.id));assert.equal(host.holes.length,0);const wire=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').surfaceWire(f.state.wallEdits);assert.equal(wire.nodes.length,4);assert.equal(wire.edges.length,4);
+});
+
+test('saved windows with attached cuts move all their anchors and delete cleanly as a group',()=>{
+ const saved=JSON.parse(fs.readFileSync('dev/fixtures/sticker-attached-cuts.json','utf8')),d=saved.draft,key='saved',frame=d.frame,K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),globals=renderGlobals();let wanted;
+ globals.THREE.Raycaster=class{setFromCamera(){}intersectObjects(ms){return ms.filter(m=>m.userData.regionId===wanted).map(object=>({object}));}};
+ const state={wallEdits:{$drafts:{[key]:d},$surfaces:[saved.surface]}},f=fixture({state,walls:[],selected:null,globals,screen:p=>{const q=K.local(frame,p);return {x:q.x*100,y:q.y*100};},projectPoint:(plane,e)=>K.local(plane.frame,K.world(frame,{x:e.clientX/100,y:e.clientY/100,z:0}))});
+ const windows=d.faces.filter(f=>f.feature),centers=windows.map(B.center),before=JSON.stringify(state.wallEdits);
+ const select=(i,add=false)=>{wanted=windows[i].id;f.editor.draw3D({add(){}},p=>p);const p=centers[i],e=f.e(p.x,p.y,add);f.editor.pickSolid(e);f.listeners.pointerup(e);f.listeners.pointermove(e);};
+ select(1);f.editor.key({key:'m'});f.editor.distanceInput().set(.3);const moved=state.wallEdits.$drafts[key].faces.find(f=>f.id===windows[1].id);
+ for(const p of moved.points){const n=state.wallEdits.$drafts[key].sketch.nodes.find(n=>n.id===p.nodeId);assert.ok(Math.hypot(n.x-p.x,n.y-p.y)<1e-8);}
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ select(0);select(1,true);f.editor.key({key:'Delete'});const after=state.wallEdits.$drafts[key];assert.equal(after.faces.filter(f=>f.feature).length,0);assert.equal(after.sketch.edges.filter(e=>!e.fixed).length,2,'both deliberate vertical cuts remain, all window outlines are removed');assert.equal(JSON.stringify(f.history.at(-1)),before);
+});

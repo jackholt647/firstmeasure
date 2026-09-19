@@ -1262,9 +1262,35 @@ function perf_structuralFaces(includeConsumed=false){
  function asDraft(selection){if(selection.d)return selection;const d=solidDraft(selection.solid),f=d.faces.find(f=>!f.solidId&&!deleted(d,f));return {d,f,points:f.points.map(p=>world(d,p)),feature:f.feature};}
  function matchingRegion(d,points){return d.faces.filter(f=>!f.boundaryHole&&f.points.every(p=>G.contains({points},p))&&points.every(p=>G.contains({points:f.points},p))).sort((a,b)=>a.points.length-b.points.length)[0];}
  function editRegion(d,f,points){F.validate(points,d.sketch.outlines,d.faces.filter(o=>o!==f&&(o.feature||o.boundaryHole)&&!o.solidId&&!deleted(d,o)));B.validate({points});const meta=f.feature&&copy(f.feature),old=copy(d.faces),priorPoints=f.points.map(p=>world(d,p));
-  if(points.length===f.points.length){const moves=f.points.map((p,i)=>({id:p.nodeId,to:points[i]}));for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Error('Resolve the face boundary before editing it.');if(n.fixed&&!d.sketch.outlines.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y,t=((m.to.x-a.x)*u.x+(m.to.y-a.y)*u.y)/l2;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(m.to.x-a.x-t*u.x,m.to.y-a.y-t*u.y)<1e-5;})))throw Error('That would move a shared building boundary off its face.');Object.assign(n,m.to);}S.resolve(d);
+  if(points.length===f.points.length){const moves=f.points.map((p,i)=>({id:p.nodeId,to:points[i]}));
+   // Resolved face loops can omit collinear anchors and coincident sketch nodes.
+   // Carry every sticker-owned anchor through the same affine edit as its face.
+   if(meta){const a=f.points[0],b=f.points[1],j=f.points.findIndex(p=>Math.abs((b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x))>1e-8),c=f.points[j];if(c){const det=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);for(const n of d.sketch.nodes){if(n.fixed||moves.some(m=>m.id===n.id)||!G.contains(f,n))continue;const u=((n.x-a.x)*(c.y-a.y)-(n.y-a.y)*(c.x-a.x))/det,v=((b.x-a.x)*(n.y-a.y)-(b.y-a.y)*(n.x-a.x))/det;moves.push({id:n.id,to:{x:points[0].x+u*(points[1].x-points[0].x)+v*(points[j].x-points[0].x),y:points[0].y+u*(points[1].y-points[0].y)+v*(points[j].y-points[0].y),z:0}});}}}
+for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Error('Resolve the face boundary before editing it.');if(n.fixed&&!d.sketch.outlines.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y,t=((m.to.x-a.x)*u.x+(m.to.y-a.y)*u.y)/l2;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(m.to.x-a.x-t*u.x,m.to.y-a.y-t*u.y)<1e-5;})))throw Error('That would move a shared building boundary off its face.');Object.assign(n,m.to);}S.resolve(d);
   }else{const boundary=new Set(f.points.map(p=>p.nodeId));d.sketch.edges=d.sketch.edges.filter(e=>e.fixed||!boundary.has(e.a)||!boundary.has(e.b));delete f.feature;S.resolve(d);W.importDraft(d,[points]);}
   restoreMovedRegions(d,old);classify(d);const next=matchingRegion(d,points);if(!next)throw Error('This edit would cross a divider or split the feature.');if(meta)next.feature=meta;if(priorPoints.length===points.length){const moves=priorPoints.map((from,i)=>({from,to:world(d,points[i])})),move=p=>({...p,...(moves.find(m=>distance3(m.from,p)<=window.ExteriorGeometry.CONTACT)?.to||{})}),edits=host.state().wallEdits;if(edits.$loose){edits.$loose.points=edits.$loose.points.map(move);edits.$loose.edges=edits.$loose.edges.map(pair=>pair.map(move));}for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.map(move);}selectFeature(d,next);return next;
+ }
+ function removeSticker(ref){
+  const edits=host.state().wallEdits,points=ref.d?ref.f.points.map(p=>world(ref.d,p)):ref.f.points,K=window.ExteriorGeometry;
+  const sameRing=r=>r.length>=3&&r.every(p=>points.some(q=>distance3(p,q)<=K.CONTACT))&&points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT));
+  const sources=[];if(ref.d){const live=ref.d.faces.find(f=>f.id===ref.f.id);if(live)sources.push({d:ref.d,f:live});}
+  else{edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==ref.f.id);for(const d of Object.values(all()))for(const f of d.faces)if(f.solidId===ref.f.id)sources.push({d,f});}
+  for(const {d,f}of sources){
+   const old=copy(d.faces),shape={points:f.points.map(p=>({...p,...(f.solidId?d.sketch.nodes.find(n=>n.id===p.nodeId):null),z:0}))},inside=n=>G.contains(shape,n),boundary=pair=>W.sharedIntervals(...pair,[shape]).reduce((sum,[a,b])=>sum+b-a,0)>.99999;
+   const candidates=new Set(d.sketch.nodes.filter(inside).map(n=>n.id));
+   d.sketch.edges=d.sketch.edges.filter(e=>e.fixed||!boundary([e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id))));
+   const used=new Set(d.sketch.edges.flatMap(e=>[e.a,e.b]));d.sketch.nodes=d.sketch.nodes.filter(n=>n.fixed||!candidates.has(n.id)||used.has(n.id));
+   delete f.feature;delete f.solidId;d.faces=d.faces.filter(other=>other!==f);
+   if(d.faces.length){S.resolve(d);restoreMovedRegions(d,old.filter(o=>o.id!==f.id));classify(d);}else{d.sketch.edges=[];d.sketch.nodes=[];d.sketch.outlines=[];}
+   d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));
+  }
+  for(const surface of edits.$surfaces||[])if(!surface.deleted){surface.holes=(surface.holes||[]).filter(r=>!sameRing(r));}
+  const boundary=p=>points.some((a,i)=>onSegment(p,a,points[(i+1)%points.length]));
+  if(edits.$loose){edits.$loose.edges=edits.$loose.edges.filter(pair=>W.sharedIntervals(...pair,[{points}]).reduce((sum,[a,b])=>sum+b-a,0)<.99999);edits.$loose.points=edits.$loose.points.filter(p=>!boundary(p));}
+  for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.filter(p=>!boundary(p)||[surface.points,...(surface.holes||[])].some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length]))));
+ }
+ function deleteSelectedStickers(){const refs=selectedFaces();if(!refs.length||refs.some(r=>!r.f.feature))return false;
+  const ok=transaction(()=>{for(const ref of refs)removeSticker(ref);});if(ok){faceSelection=[];selectedSolid=null;selectedRegion=null;preferredSolid=null;preferredRegion=null;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];host.redraw();}return true;
  }
  function resizeFeature(selection,type,index){const ref=asDraft(selection),{d,f}=ref,def=F.defs.get(type),preset=def.sizes[index],frame=F.orientedFrame(ref.points,ref.feature?.axis),local=ref.points.map(p=>W.inFrame(frame,p)),boundaries=[...d.sketch.outlines,...d.sketch.edges.filter(e=>{const nodes=[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id));return nodes.some(n=>!G.contains({points:f.points},n));}).map(e=>[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id)))].map(r=>r.map(p=>W.inFrame(frame,world(d,p)))),anchor=F.anchors(local,boundaries),next=F.resized(local,preset,anchor).map(p=>toLocal(d,W.fromFrame(frame,p)));
   // Keep vertex ordering and split points when scaling a shape in place.
@@ -1505,6 +1531,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,
    if(['delete','backspace'].includes(k)){transaction(()=>{removeSolidPoints(solidPoints,solidEdges);for(const [key,ids]of groups){const d=all()[key];if(ids.length)removeDraftPoints(d,ids);}});draftSelection={};picked=[];solidPoints=[];host.redraw();return true;}
   }
   if(!tool&&(k==='delete'||k==='backspace')){
+   if(deleteSelectedStickers())return true;
    if(!solidPoints.length&&solidEdges.length){const graph=wire(),segments=graph.edges.filter(e=>solidEdges.includes(e.id)).map(e=>[graph.nodes.find(n=>n.id===e.a),graph.nodes.find(n=>n.id===e.b)]);transaction(()=>deleteLines3D(segments));solidEdges=[];host.redraw();return true;}
    if(pickedLines.length&&d&&!d.sketch.edges.some(e=>pickedLines.includes(e.id)&&e.curveId)&&viewOf(mouse)==='3d'){const segments=draftSegments(d).filter(e=>pickedLines.includes(e.id)).map(e=>[world(d,e.start),world(d,e.end)]);transaction(()=>deleteLines3D(segments));pickedLines=[];host.redraw();return true;}
    if(solidPoints.length||solidEdges.length){transaction(()=>removeSolidPoints(solidPoints,solidEdges));solidPoints=[];solidEdges=[];host.redraw();return true;}
