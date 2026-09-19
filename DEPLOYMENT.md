@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 sticker ownership: [Move and delete cleanup](deploy/digitalocean/development-sticker-lifecycle-20260918.md) records `f605ec2e2185bf07172ee35825aa8d96ec07cf70`. Sticker anchors follow their face; Delete removes sticker wires while preserving deliberate wall cuts.
+
 September 18 vertical cut commit: [Split wall validation](deploy/digitalocean/development-axis-commit-20260918.md) records `565faf923e73c909e438a3e3b2348c646f91f228`. Cuts retain both valid wall pieces and cannot trap controls after a rejected commit.
 
 September 18 trim units: [Typed widths in inches](deploy/digitalocean/development-trim-inches-20260918.md) records `957a20c52f04bfdece4df9e3e770da223601dfc5`. The T trim tool reads inches and displays in.
