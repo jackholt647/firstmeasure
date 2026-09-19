@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 18 garage trim: [Garage sticker trim shortcut](deploy/digitalocean/development-garage-trim-20260918.md) records `cf2f2d99bd18aeafc104360ed5c8fb654b714fd2`. T adds garage trim instead of entering geometry Flip; top and side trim preserve recess depth.
+
 September 18 opaque imagery performance: [Exclude reference imagery from visibility raycasts](deploy/digitalocean/development-image-occlusion-20260918.md) records `c21d3dc6426c1f54360d897b44d8501a40be5b41`. Dense DSM and tile meshes no longer enter per-point and per-label occlusion checks.
 
 September 18 copied sticker alignment: [Explicit sticker face copies](deploy/digitalocean/development-copy-snap-20260918.md) records `4b82d3564e580233785462df2012a33443286c75`. Copy excludes coincident unselected wall patches so pasted windows retain cross-wall alignment and trim.
