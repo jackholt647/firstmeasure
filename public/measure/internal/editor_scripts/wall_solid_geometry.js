@@ -455,8 +455,9 @@ function roofContactExtensions(source,roof){
  // A previous side extrusion can carry a wall's roof-contact edge just past
  // the survey polygon. Continue that same roof there on the next extrusion.
  // Require a real, coplanar edge interval on the measured roof, and extend
- // only by its overhanging length; unrelated planes and roof holes stay free.
- const extensions=[],outer=roof.faces.filter(f=>!f.deleted).map(f=>({...f,holes:[]}));
+ // by its overhanging length plus an outer-edge seam tolerance. Unrelated
+ // planes and roof holes stay free.
+ const edgeTolerance=.002,extensions=[],outer=roof.faces.filter(f=>!f.deleted).map(f=>({...f,holes:[]}));
  const contactInterval=(a,b,points)=>{let lo=0,hi=1;const side=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x),sign=Math.sign(side(...points));for(let i=0;i<3;i++){const p=points[i],q=points[(i+1)%3],da=sign*side(p,q,a),db=sign*side(p,q,b);if(da<0&&db<0)return null;if(da<0)lo=Math.max(lo,da/(da-db));if(db<0)hi=Math.min(hi,da/(da-db));}return hi-lo>1e-7?[lo,hi]:null;};
  const hull=ps=>{const sorted=ps.slice().sort((a,b)=>a.x-b.x||a.y-b.y),half=ps=>{const out=[];for(const p of ps){while(out.length>1&&(out.at(-1).x-out.at(-2).x)*(p.y-out.at(-2).y)-(out.at(-1).y-out.at(-2).y)*(p.x-out.at(-2).x)<=1e-12)out.pop();out.push(p);}return out;};return [...half(sorted).slice(0,-1),...half(sorted.slice().reverse()).slice(0,-1)];};
  for(const face of roof.faces){
@@ -466,6 +467,15 @@ function roofContactExtensions(source,roof){
    for(const ring of rings(source))for(let i=0;i<ring.length;i++){
     const a=ring[i],b=ring[(i+1)%ring.length];if([a,b].some(p=>Math.abs(dot(n,p)-k)>K.CONTACT))continue;
     const interval=contactInterval(a,b,points);if(!interval)continue;const [lo,hi]=interval;
+    // An exact edge snap can round to either side of the surveyed boundary.
+    // Keep the contacted outer edge inside the cutter, including its adjacent
+    // wall return; a micron-wide miss otherwise leaves a full-height sliver.
+    // This halo is only for established roof contacts, never for roof holes.
+    const winding=Math.sign(face.points.reduce((s,p,i)=>s+p.x*face.points[(i+1)%face.points.length].y-p.y*face.points[(i+1)%face.points.length].x,0));
+    for(let j=0;j<face.points.length;j++){
+     const p=face.points[j],q=face.points[(j+1)%face.points.length],dx=q.x-p.x,dy=q.y-p.y,len=Math.hypot(dx,dy);if(len<K.CONTACT)continue;
+     if([a,b].some(v=>{const t=((v.x-p.x)*dx+(v.y-p.y)*dy)/(len*len);return t>=0&&t<=1&&Math.abs(dx*(v.y-p.y)-dy*(v.x-p.x))/len<=edgeTolerance;}))offsets.push({x:winding*dy/len*edgeTolerance,y:-winding*dx/len*edgeTolerance,z:0});
+    }
     const spans=triangles.filter(ps=>ps.every(p=>Math.abs(dot(n,p)-k)<=K.CONTACT)).map(ps=>contactInterval(a,b,ps)).filter(Boolean),first=Math.min(...spans.map(s=>s[0])),last=Math.max(...spans.map(s=>s[1]));
     // Triangle seams and holes are not outside roof edges.
     if(lo>K.CONTACT&&Math.abs(lo-first)<1e-7&&!pointInRing(a,face.points))offsets.push(sub(a,mix3(a,b,lo)));

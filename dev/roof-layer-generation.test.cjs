@@ -158,3 +158,18 @@ for(const roofId of [34,35,36,37])test(`saved house lower roof ${roofId} constra
  const result=M.createExtrusion({face:next,scene:[first.cap,...first.sides],roof}).preview(frontSource.setback-.002);
  for(const face of [result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)]){K.validateFace(face);for(const p of [...face.points,...(face.retainedPoints||[])])assert.ok(p.z<=plane.dx*p.x+plane.dy*p.y+plane.k+.00001,'lower roof bounds every shared edge after both edits');}
 });
+
+// Exercise the mouse snap path, including the height fit performed before the
+// first roof cut. Typed distances alone missed the exact boundary regression.
+for(const roofId of [34,35,36,37])test(`snapped side then front extrusion keeps lower roof ${roofId} boundary closed`,()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),M=require('../public/measure/internal/editor_scripts/exterior_model'),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ const vm=require('node:vm'),fs=require('node:fs'),ctx={WallGeometry:G};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
+ const r=build(fixture,18),roof=C.roofWithOpenings(r.state),scene=r.composed.map(w=>({...w,points:[...w.bottom,w.top[1],w.top[0]],holes:[]})),sources=r.state.sources.filter(s=>s.parentId===roofId),ss=sources.find(s=>s.type==='rake'),front=scene.find(f=>f.sourceId===sources.find(s=>s.type==='eave').id),side=scene.find(f=>f.sourceId===ss.id);
+ const n=W.normal(side.points),u={x:n.y,y:-n.x},ts=side.points.map(p=>p.x*u.x+p.y*u.y),ends=[Math.min(...ts),Math.max(...ts)].map(t=>side.points.filter((p,i)=>Math.abs(ts[i]-t)<1e-5).sort((a,b)=>b.z-a.z)[0]),bottom=ends.map(p=>({...p,z:Math.min(...side.points.map(q=>q.z))})),snap=ctx.findWallRoofSnap({bottom,top:ends},ss.setback,roof,.1,{fitSurface:true});
+ const fit=(cap,sides)=>{const [a,b]=snap.edge,dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,ids=side.points.map((p,i)=>side.points.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<1e-5&&q.z>p.z+1e-5)?-1:i).filter(i=>i>=0),moves=ids.map(i=>({from:{...cap.points[i]},z:a.z+((cap.points[i].x-a.x)*dx+(cap.points[i].y-a.y)*dy)/l2*(b.z-a.z)}));for(const f of [cap,...sides])for(const p of f.points){const m=moves.find(m=>W.vertexKey(m.from)===W.vertexKey(p));if(m)p.z=m.z;}return moves;};
+ const first=M.createExtrusion({face:side,scene,roof}).preview(snap.amount,{fit}),next=first.replacements.find(r=>r.face.id===front.id)?.pieces[0],plane=G.plane(r.state.roof.faces.find(f=>f.id===roofId).points);
+ const result=M.createExtrusion({face:next,scene:[first.cap,...first.sides],roof}).preview(.14),ps=[result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)].flatMap(f=>[...f.points,...(f.retainedPoints||[])]);
+ assert.ok(snap,'the measured rake is selected by the real roof snap resolver');
+ for(const p of ps)assert.ok(p.z<=plane.dx*p.x+plane.dy*p.y+plane.k+K.CONTACT,'no shared corner or return protrudes above the contacted lower roof');
+ for(const f of [result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)])K.validateFace(f);
+});
