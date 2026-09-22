@@ -25,10 +25,14 @@ test("mobile configuration and private builds preserve tenant and deployment bou
     const config=`/v1/mobile/organizations/${org}/config`, apk=`/v1/mobile/organizations/${org}/downloads/android`;
     const get=(url:string)=>app.inject({method:"GET",url,headers:{cookie}});
     assert.equal((await app.inject({method:"GET",url:config})).statusCode,401);
+    assert.equal((await get(config)).statusCode,403, "Unset flags must hide downloads for existing and new companies");
+    await platform.saveGlobal(org,{data:{app_flags:{mobile:{developer_downloads:true}}}});
+    assert.equal((await get(config)).statusCode,403, "Testing downloads must not bypass the parent flag");
+    await platform.saveGlobal(org,{data:{app_flags:{mobile:{app_download:true,developer_downloads:false}}}});
     const defaults=await get(config);assert.equal(defaults.statusCode,200,defaults.body);assert.equal(defaults.json().developer,null);assert.equal(defaults.headers["cache-control"],"private, no-store");
     assert.equal((await get(apk)).statusCode,403);
     assert.notEqual((await get("/v1/mobile/organizations/someone-else/config")).statusCode,200);
-    await platform.saveGlobal(org,{data:{app_flags:{mobile:{developer_downloads:true}}}});
+    await platform.saveGlobal(org,{data:{app_flags:{mobile:{app_download:true,developer_downloads:true}}}});
     assert.equal((await get(apk)).statusCode,404);
     const file=path.join(root,"test.apk");await writeFile(file,"test-artifact");process.env.MOBILE_ANDROID_TEST_APK_PATH=file;
     assert.equal((await get(config)).json().developer.android,apk);

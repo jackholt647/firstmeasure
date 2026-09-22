@@ -41,7 +41,7 @@ const NEW_BUTTON_ITEM_OPTIONS: Array<[string, string]> = [
  */
 
 const definitions: CapabilityDefinition[] = [
-  { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings.", default: true },
+  { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings.", default: false },
   { key: "mobile.developer_downloads", kind: "feature", label: "Mobile Test Downloads", description: "Allow private test builds on development deployments only.", requires: ["mobile.app_download"], default: false },
   { key: "firstmeasure.metric_measurements", kind: "feature", label: "Metric Measurements", description: "Default new reports to metric measurements.", default: false },
   { key: "firstmeasure.report_localization", kind: "feature", label: "Platform Language and Units", description: "Allow Company settings to customize platform language, report language and measurement units, with optional personal interface language.", default: false },

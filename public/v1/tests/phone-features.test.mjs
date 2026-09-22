@@ -29,3 +29,17 @@ test('settings categories without terminology keys keep their supplied title',()
   const title=vm.runInNewContext(expression,{terminologyLabel:(key,fallback)=>{assert.equal(typeof key,'string');return 'Translated '+fallback;}});
   assert.equal(title({title:'App download'}),'App download');assert.equal(title({title:'Company',term:'settings.company_tab'}),'Translated Company');assert.equal(title(null),'');
 });
+
+test('app download stays hidden until an organization explicitly enables it',()=>{
+  const company=fs.readFileSync(new URL('../../libraries/apps/settings/company.js',import.meta.url),'utf8');
+  const defaults=company.match(/const DEFAULT_VISIBLE_APP_FLAGS = (\{[\s\S]*?\n  \});/)[1];
+  const flag=company.slice(company.indexOf('  function appFlag(group, flag){'),company.indexOf('  function appFlagValue('));
+  for(const loaded of [false,true]) {
+    for(const value of [undefined,false,true]) {
+      const enabled=vm.runInNewContext(`const DEFAULT_VISIBLE_APP_FLAGS=${defaults};${flag};appFlag('mobile','app_download')`,{
+        appFlagsLoaded:()=>loaded,window:{PlatformAPI:{appFlags:{has:()=>value===true,value:()=>value}}}
+      });
+      assert.equal(enabled,loaded && value===true);
+    }
+  }
+});

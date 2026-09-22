@@ -34,7 +34,7 @@ For a physical iPhone/TestFlight, choose your Apple development team, register t
 
 ## App download Settings tab
 
-`mobile.app_download` defaults on for both old and new organizations, independently of expanded apps. It adds one category after Billing. Unpublished store URLs render as unavailable, never fake store destinations. Set `MOBILE_ANDROID_STORE_URL` to a Google Play URL and `MOBILE_IOS_STORE_URL` to an App Store URL when listings exist.
+`mobile.app_download` defaults off for both old and new organizations, independently of expanded apps. Explicitly enable it for an organization to show the category after Billing. Unpublished store URLs render as unavailable, never fake store destinations. Set `MOBILE_ANDROID_STORE_URL` to a Google Play URL and `MOBILE_IOS_STORE_URL` to an App Store URL when listings exist.
 
 Test downloads require **both** `mobile.developer_downloads=true` for the organization (default false) and `MOBILE_DEVELOPER_DOWNLOADS_ENABLED=1` on a `FIRSTMEASURE_DATA_ENVIRONMENT=development|test` server. Set `MOBILE_ANDROID_TEST_APK_PATH` to an absolute, private `.apk` path outside the web root, `MOBILE_TEST_BUILD_VERSION`, and optionally `MOBILE_IOS_TESTFLIGHT_URL`. Every request checks membership and current flags; the APK URL has no public static alias. Production refuses test binaries even if an organization has the testing flag.
 

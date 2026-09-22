@@ -1659,7 +1659,7 @@
     `;
   }
   const DEFAULT_VISIBLE_APP_FLAGS = {
-    mobile: ['app_download'],
+    mobile: [],
     platform: [],
     scheduling: ['routing', 'gantt'],
     email: [],
@@ -2260,7 +2260,7 @@
       { id:'proposals', allowed:canProposalSettings, icon:'fas fa-file-signature', term:'proposals.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_3129f3f0e39249","Proposals") ?? "Proposals"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_5f72a4f87b9f6a","Set branch defaults for new proposals.") ?? "Set branch defaults for new proposals."), tabId:'csTabProposals', paneId:'csPaneProposals' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
       { id:'billing', allowed:canBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
-      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-screen', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
+      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
     ];
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
