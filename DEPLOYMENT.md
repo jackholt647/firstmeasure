@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 UTC wall and plane editing: [Development editor release](deploy/digitalocean/development-wall-plane-20260922.md) records `18a81abf43bc80ca38ed5f84a2809cfd78fdb3fd` on all three development roles. Four editor assets were updated with 815 passing tests and public checksum verification. Preserve this baseline in subsequent releases.
+
 September 21 complete local development sync: [Platform, localization and exterior release](deploy/digitalocean/development-complete-local-20260921.md) records `2325b63c541aec4eb785a8998f2d11a752755d47` on all three development roles. Preserve this complete baseline. Production is unchanged; rollout capabilities remain default-off.
 
 September 18 textured ground imagery: [Flat image ground](deploy/digitalocean/development-image-ground-20260918.md) records `3240bc71374eb13dc65852c81a12f26e033fd8c6`. Enabled imagery remains visible as a lightweight flat ground plane beneath the textured model.
