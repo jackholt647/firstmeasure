@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 shallow soffit follow-up: [Minimum clearance for lower roof layers](deploy/digitalocean/development-layer-clearance-20260922.md) records `453277465a814dd3bb1079fdd105ae4ca3cb4abb` on all three development roles. The saved house is rebuilt at 1.5 feet while affected walls retain the deeper clearance required by lower roofs. All 825 selected tests and four saved-model checks pass. Preserve this baseline.
+
 September 22 chimney shell follow-up: [Roof clipping, wall alignment and chimney exposure](deploy/digitalocean/development-chimney-shell-20260922.md) records `4a773213df4bd219c8a053825a8dbfb1a1bbf8a0` on all three development roles. The house was rebuilt and saved with roof-bounded wall tops, no overlapping chimney-junction panels, and continuous chimney sides above the lower caps. All 814 selected tests and the three new regressions against the saved dev state pass. Preserve this baseline.
 
 September 22 chimney soffit follow-up: [Attached contacts and layered setbacks](deploy/digitalocean/development-chimney-soffits-20260922.md) records `c6953cd9c9034697fab031d15cc6544c9ebefa68` on all three development roles. Both chimney junctions were rebuilt and saved; 811 tests pass, including physical-contact and soffit-depth regressions missing from the earlier gap checks. Preserve this baseline.
