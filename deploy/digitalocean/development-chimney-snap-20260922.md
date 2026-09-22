@@ -1,4 +1,4 @@
-# Snapped roof-edge extrusion tolerance — September 22, 2026
+# Snapped roof-edge extrusion tolerance â€” September 22, 2026
 
 Development runtime: `da6f7094b847ad14f1ed69969d3bbb46b40be627`.
 Previous runtime: `0a8957121da0933d2e98f552c67c62ac834763b2`.
