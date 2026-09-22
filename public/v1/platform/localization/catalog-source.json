@@ -10507,11 +10507,11 @@
     }
   },
   "mobile": {
-    "loading": "Loading app downloadsâ€¦",
+    "loading": "Loading app downloads…",
     "title": "Get the FirstMeasure app",
     "description": "Use your existing account, projects, language and company settings on your phone.",
-    "unpublished": " â€” not published yet",
-    "recommended": " Â· Your device",
+    "unpublished": " — not published yet",
+    "recommended": " · Your device",
     "testing": "Developer testing",
     "android_test": "Download Android test build",
     "ios_test": "Install iPhone test build with TestFlight",

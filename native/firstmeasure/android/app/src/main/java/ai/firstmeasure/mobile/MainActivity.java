@@ -54,6 +54,8 @@ public class MainActivity extends ComponentActivity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        android.content.SharedPreferences auth=getPreferences(MODE_PRIVATE);
+        if(auth.getLong("auth_expires",0)>System.currentTimeMillis()){authState=auth.getString("auth_state",null);authVerifier=auth.getString("auth_verifier",null);}
         root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); setContentView(root);
         ViewCompat.setOnApplyWindowInsetsListener(root, (view,insets)->{
             androidx.core.graphics.Insets i=insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
@@ -76,7 +78,7 @@ public class MainActivity extends ComponentActivity {
         });
         web.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
-                if(!request.isForMainFrame()) return !policy.trusted(request.getUrl().toString());
+                if(!request.isForMainFrame()) return !"https".equals(request.getUrl().getScheme());
                 return navigate(request.getUrl().toString());
             }
             @Override public void onPageFinished(WebView view,String url){ CookieManager.getInstance().flush(); }
@@ -124,6 +126,7 @@ public class MainActivity extends ComponentActivity {
             @Override public void handleOnBackPressed(){if(web.canGoBack())web.goBack();else finish();}
         });
         if(saved==null || web.restoreState(saved)==null) web.loadUrl(BuildConfig.PORTAL_ORIGIN+"/portal/");
+        acceptAuthReturn(getIntent());
         pruneFiles();
     }
     private boolean navigate(String url){ if(policy.trusted(url))return false;external(url);return true; }
@@ -153,6 +156,7 @@ public class MainActivity extends ComponentActivity {
             switch(call.getString("method")){
                 case "authenticate":
                     authVerifier=nonce();authState=nonce();
+                    getPreferences(MODE_PRIVATE).edit().putString("auth_state",authState).putString("auth_verifier",authVerifier).putLong("auth_expires",System.currentTimeMillis()+600000).apply();
                     String challenge=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(authVerifier.getBytes(java.nio.charset.StandardCharsets.UTF_8)),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);
                     startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/browser?challenge="+challenge+"&state="+authState)));respond(reply,id,true,null);break;
                 case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","share","download","haptic","settings"))),null);break;
@@ -212,10 +216,14 @@ public class MainActivity extends ComponentActivity {
     private File phoneDirectory(){File directory=new File(getCacheDir(),"phone");directory.mkdirs();return directory;}
     private String nonce(){byte[] bytes=new byte[32];new java.security.SecureRandom().nextBytes(bytes);return android.util.Base64.encodeToString(bytes,android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);}
     @Override protected void onNewIntent(Intent intent){
-        super.onNewIntent(intent);Uri url=intent.getData();
+        super.onNewIntent(intent);acceptAuthReturn(intent);
+    }
+    private void acceptAuthReturn(Intent intent){
+        Uri url=intent.getData();
         if(url==null||!BuildConfig.APPLICATION_ID.equals(url.getScheme())||!"auth".equals(url.getHost())||authState==null||!authState.equals(url.getQueryParameter("state")))return;
         String code=url.getQueryParameter("code");if(code==null||!code.matches("[A-Za-z0-9_-]{43}"))return;
         String body="code="+code+"&verifier="+authVerifier;authState=null;authVerifier=null;
+        getPreferences(MODE_PRIVATE).edit().remove("auth_state").remove("auth_verifier").remove("auth_expires").apply();
         web.postUrl(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/exchange",body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
     private void pruneFiles(){File[] files=phoneDirectory().listFiles();if(files!=null)for(File file:files)if(file.lastModified()<System.currentTimeMillis()-86400000L)file.delete();}

@@ -2,6 +2,7 @@ import UIKit
 import WebKit
 import AuthenticationServices
 import CryptoKit
+import Security
 
 final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate, ASWebAuthenticationPresentationContextProviding {
     private let policy = OriginPolicy(Bundle.main.object(forInfoDictionaryKey: "PortalOrigin") as? String ?? "https://dev.1m8.ai")
@@ -49,6 +50,7 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
     private func loadPortal() { web.load(URLRequest(url: policy.origin.appendingPathComponent("portal/"))) }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }
+        if action.targetFrame?.isMainFrame == false { decisionHandler(url.scheme == "https" ? .allow : .cancel); return }
         if policy.trusted(url) {
             if action.shouldPerformDownload { decisionHandler(.download) }
             else if action.targetFrame == nil { web.load(action.request); decisionHandler(.cancel) }
@@ -59,6 +61,7 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
         }
     }
     func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if !response.isForMainFrame { decisionHandler(response.response.url?.scheme == "https" ? .allow : .cancel); return }
         guard policy.trusted(response.response.url) else { decisionHandler(.cancel); return }
         if !response.canShowMIMEType || (response.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition")?.lowercased().contains("attachment") == true {
             decisionHandler(.download)

@@ -762,9 +762,9 @@
     {
       "file": "public/libraries/google-auth/firstmate-google-auth.js",
       "namespace": "google-auth",
-      "references": 0,
-      "candidates": 1,
-      "edits": 1
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/insights/firstmate-insights.js",
