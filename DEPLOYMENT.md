@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 chimney editing: [Selection and sequential roof-bound extrusion](deploy/digitalocean/development-chimney-edit-20260922.md) records `0a8957121da0933d2e98f552c67c62ac834763b2` on all three development roles. Selection retains chimney exposure; side-then-front extrusion follows lower roof contacts across both chimneys. All 852 Node checks and fresh saved-model checks pass. Saved project metadata is unchanged. Preserve this baseline.
+
 September 22 Resoffit: [Selected soffit depth editing](deploy/digitalocean/development-resoffit-20260922.md) records `a13f0d95c67f602682420bec95ba3fc38f530c2b` on all three development roles. Shared corners retain neighboring planes, roof-contact lines are red-orange, Shift-empty selection is preserved, and repeated edits retain exact edge selections. Final 839 Node checks and live turret UI checks pass. Saved project metadata is unchanged. Preserve this baseline.
 
 September 22 shallow soffit follow-up: [Minimum clearance for lower roof layers](deploy/digitalocean/development-layer-clearance-20260922.md) records `453277465a814dd3bb1079fdd105ae4ca3cb4abb` on all three development roles. The saved house is rebuilt at 1.5 feet while affected walls retain the deeper clearance required by lower roofs. All 825 selected tests and four saved-model checks pass. Preserve this baseline.
