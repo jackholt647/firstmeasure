@@ -14,7 +14,8 @@ function chimneyJunctions(r,soffit=24){
  const edge=roof.connections[104],a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],length=Math.hypot(b.x-a.x,b.y-a.y),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length};
  const walls=r.composed.filter(w=>w.kind==='perimeter'&&w.top.every(p=>p.z>69)&&w.bottom.every(p=>p.z<64.01)&&Math.abs((w.bottom[1].x-w.bottom[0].x)*u.y-(w.bottom[1].y-w.bottom[0].y)*u.x)<.002);
  assert.ok(walls.length,'main upper eave has a supporting wall');
- for(const wall of walls)for(const p of wall.bottom)assert.ok(Math.abs(Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)-soffit*G.INCH)<.02001,'main setback only adjusts within the 2 cm measured flashing contact tolerance');
+ const clearance=Math.max(...r.state.sources.filter(s=>s.kind==='flashing'&&[36,37].includes(s.parentId)).flatMap(s=>[s.a,s.b]).map(p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)));
+ for(const wall of walls)for(const p of wall.bottom)assert.ok(Math.abs(Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)-Math.max(soffit*G.INCH,clearance))<.02001,'main wall respects selected setback and lower-layer clearance');
 }
 for(const soffit of [0,12,18,24,'auto'])test(`layered turrets: closed exterior and exposed chimney supports at ${soffit} inches`,()=>{
  const before=JSON.stringify(fixture),r=build(fixture,soffit);
@@ -45,10 +46,25 @@ for(const angle of [.71,2.1])test(`layer classification and foundation closure s
  f.roof.points=f.roof.points.map(point);for(const face of f.roof.faces){face.points=face.points.map(point);face.holes=(face.holes||[]).map(r=>r.map(point));}f.roof.faces.reverse();
  f.ground.points=f.ground.points.map(point);f.ground.plane=G.plane(f.ground.points);
  for(const chimney of f.chimneys.items){chimney.points=chimney.points.map(point);const r=chimney.roofCrossing;if(r){r.a=point(r.a);r.b=point(r.b);const n=r.outward;r.outward={x:c*n.x-s*n.y,y:s*n.x+c*n.y};const p=r.plane,dx=c*p.dx-s*p.dy,dy=s*p.dx+c*p.dy;r.plane={dx,dy,k:p.k-dx*20+dy*10};}}
- const r=build(f);assert.equal(r.open.length,0);assert.ok(!r.composed.some(w=>upper.has(w.sourceRoofId)&&w.bottom.some(p=>p.z<66)));chimneyJunctions(r);
+ const r=build(f);assert.equal(r.open.length,0);assert.ok(!r.composed.some(w=>upper.has(w.sourceRoofId)&&w.bottom.some(p=>p.z<66)));chimneyJunctions(r);const shallow=build(f,18);lowerLayerClearance(shallow);assert.equal(shallow.open.length,0);
 });
 
 for(const soffit of [12,18,24])test(`chimney caps stay exposed and meet masonry with ${soffit} inch main soffits`,()=>chimneyJunctions(build(fixture,soffit),soffit));
+
+function lowerLayerClearance(r){
+ for(const cap of r.state.roof.faces.filter(f=>[34,35,36,37].includes(f.id))){
+  const plane=G.plane(cap.points);
+  for(const wall of r.composed.filter(w=>!w.chimney)){
+   const [a,b]=wall.top,ts=G.splitParameters(a,b,[cap]);
+   for(let i=1;i<ts.length;i++){
+    const t=(ts[i-1]+ts[i])/2,p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t};
+    if(!G.contains(cap,p)||cap.points.some((q,j)=>G.onEdge(p,q,cap.points[(j+1)%cap.points.length],.002)))continue;
+    assert.ok(p.z<=plane.dx*p.x+plane.dy*p.y+plane.k+.002,`wall ${wall.id} buries lower roof ${cap.id}`);
+   }
+  }
+ }
+}
+for(const soffit of [0,6,12,18,24,30])test(`lower layers constrain wall clearance at ${soffit} inch soffits`,()=>lowerLayerClearance(build(fixture,soffit)));
 
 test('duplicate chimney contacts override free rake edges only on the same 3D layer',()=>{
  const roof={points:[{x:0,y:0,z:2},{x:1,y:0,z:3},{x:1,y:0,z:3},{x:0,y:0,z:2}],connections:[{type:'chimney_edge',startIdx:0,endIdx:1}]};
@@ -67,23 +83,23 @@ test('regeneration is deterministic and does not reintroduce secondary turret sh
 });
 
 function roofMesh(roof){const K=require('../public/measure/internal/editor_scripts/exterior_geometry');return roof.faces.flatMap(f=>{const mesh=K.triangles(f.points,f.holes||[]);return mesh.triangles.map(ids=>({points:ids.map(i=>mesh.points[i])}));}).map(f=>({...f,plane:G.plane(f.points)}));}
-test('generated walls stay below the rendered roof triangles, including hip corners and flashing remnants',()=>{
- const r=build(fixture),mesh=roofMesh(r.state.roof);
+for(const soffit of [18,24])test(`generated walls stay below the rendered roof triangles at ${soffit} inches`,()=>{
+ const r=build(fixture,soffit),mesh=roofMesh(r.state.roof);
  for(const w of r.composed.filter(w=>!w.chimney))for(const t of [0,.25,.5,.75,1]){
   const a=w.top[0],b=w.top[1],p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t},heights=mesh.filter(f=>G.contains(f,p)).map(f=>f.plane.dx*p.x+f.plane.dy*p.y+f.plane.k);
   if(heights.length)assert.ok(p.z<=Math.max(...heights)+.002,'wall cannot protrude above the actual roof: '+w.id);
  }
 });
-test('measured chimney flashing and the nearby main wall form one plane without overlapping panels',()=>{
- const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture),walls=r.composed.filter(w=>!w.chimney),ring=w=>[w.bottom[0],w.bottom[1],w.top[1],w.top[0]];
+for(const soffit of [18,24])test(`measured chimney flashing and the main wall do not overlap at ${soffit} inches`,()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture,soffit),walls=r.composed.filter(w=>!w.chimney),ring=w=>[w.bottom[0],w.bottom[1],w.top[1],w.top[0]];
  for(let i=0;i<walls.length;i++)for(let j=i+1;j<walls.length;j++){
   const a=walls[i],b=walls[j],frame=K.frame({points:ring(a)});if(!frame||ring(b).some(p=>Math.abs(K.local(frame,p).z)>.02))continue;
   const overlap=K.intersection([{points:ring(a).map(p=>K.local(frame,p))}],[{points:ring(b).map(p=>K.local(frame,p))}]).reduce((sum,f)=>sum+K.area(f),0);
   assert.ok(overlap<.005,'parallel wall overlap: '+a.id+' / '+b.id);
  }
 });
-test('both chimney sides remain continuous above each sloping lower cap in the rendered geometry',()=>{
- const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture),defs=C.definitions(r.state),geo=G.topology(r.composed),faces=[...geo.faces.filter(f=>f.chimney).flatMap(f=>f.triangles.map(ids=>({...f,points:ids.map(i=>geo.points[i])}))),...r.state.wallEdits.$surfaces.filter(f=>f.chimney&&!f.chimney.cap)];
+for(const soffit of [18,24])test(`both chimney sides remain continuous above lower caps at ${soffit} inches`,()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture,soffit),defs=C.definitions(r.state),geo=G.topology(r.composed),faces=[...geo.faces.filter(f=>f.chimney).flatMap(f=>f.triangles.map(ids=>({...f,points:ids.map(i=>geo.points[i])}))),...r.state.wallEdits.$surfaces.filter(f=>f.chimney&&!f.chimney.cap)];
  for(const index of [130,131,139,140])for(const fraction of [.2,.5,.8]){
   const edge=r.state.roof.connections[index],a=r.state.roof.points[edge.startIdx],b=r.state.roof.points[edge.endIdx],sample={x:a.x+(b.x-a.x)*fraction,y:a.y+(b.y-a.y)*fraction,z:a.z+(b.z-a.z)*fraction};let closest;
   for(const c of defs)for(let i=0;i<c.points.length;i++){
@@ -95,5 +111,28 @@ test('both chimney sides remain continuous above each sloping lower cap in the r
   for(const z of [sample.z+.03,66,(66+ceiling)/2,ceiling]){
    const p={...closest.hit,z};assert.ok(faces.some(f=>{if(f.chimney.id!==closest.c.id)return false;const frame=K.frame(f);if(!frame)return false;const local=K.local(frame,p);return Math.abs(local.z)<.002&&G.contains({points:f.points.map(p=>K.local(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},local);}),`missing chimney shell above cap ${index} at ${fraction}, ${z}`);
   }
+ }
+});
+
+test('lower-layer clearance leaves unrelated eaves at the selected soffit',()=>{
+ const r=build(fixture,18),plain=r.state.sources.filter(s=>s.kind==='perimeter'&&!s.clearanceRoofIds);
+ assert.ok(plain.length>20);
+ assert.ok(plain.every(s=>s.setback<=18*G.INCH+1e-6));
+ const deeper=build(fixture,30).state.sources.filter(s=>s.clearanceRoofIds);
+ assert.ok(deeper.length>=4);assert.ok(deeper.every(s=>s.setback>=s.contactSetback-.002));
+});
+
+test('clearance requires an overlapping lower layer reaching the same eave',()=>{
+ const source=(x=4,y=0,z=3)=>{
+  const points=[{x:0,y:0,z:10},{x:10,y:0,z:10},{x:10,y:10,z:10},{x:0,y:10,z:10},
+   {x,y,z},{x:x+2,y,z},{x:x+2,y:y+.6,z:z+1},{x,y:y+.6,z:z+1}];
+  const roof={points,faces:[{id:0,points:points.slice(0,4)},{id:1,points:points.slice(4)}],connections:[{type:'eave',startIdx:0,endIdx:1},{type:'head_wall',startIdx:6,endIdx:7}]};
+  return G.buildSources(roof,{soffit:18,roofContacts:true}).sources.find(s=>s.id.startsWith('R1'));
+ };
+ assert.ok(Math.abs(source().setback-.6)<1e-6);
+ assert.deepEqual(source().clearanceRoofIds,[1]);
+ for(const s of [source(4,1),source(11,0),source(4,0,12)]){
+  assert.ok(Math.abs(s.setback-18*G.INCH)<1e-6);
+  assert.equal(s.clearanceRoofIds,undefined);
  }
 });

@@ -61,14 +61,20 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
   const center=points.reduce((s,p)=>({x:s.x+p.x/points.length,y:s.y+p.y/points.length}),{x:0,y:0});
   return {points:points.sort((p,q)=>Math.atan2(p.y-center.y,p.x-center.x)-Math.atan2(q.y-center.y,q.x-center.x))};
  });
- const regions=K.union([...roof.faces.map(f=>({points:f.points})),...notchFill]),scale=1/K.GRID;
- if(!setback)return regions.map(f=>f.points);
+ // Surveyed layers can meet a millimetre apart in plan. Weld those contact
+ // vertices before offsetting so a tiny union edge cannot turn into a long
+ // setback notch. This only normalizes the footprint, never the roof itself.
+ const clearanceLayers=new Set((sources||[]).flatMap(s=>s.clearanceRoofIds||[]));
+ const contacts=roof.faces.filter(f=>clearanceLayers.has(f.id)).flatMap(f=>f.points);
+ const input=[...roof.faces.map(f=>({points:f.points})),...notchFill];
+ const regions=K.union(input.map(f=>({points:f.points.map(p=>contacts.find(q=>dist(p,q)<.002)||p)}))),scale=1/K.GRID;
+ if(!setback&&!sources?.length)return regions.map(f=>f.points);
  const offset=new C.ClipperOffset(4),paths=[];
  for(const f of regions){const path=f.points.map(p=>({X:Math.round(p.x*scale),Y:Math.round(p.y*scale)}));if(!C.Clipper.Orientation(path))path.reverse();paths.push(path);}
  offset.AddPaths(paths,C.JoinType.jtMiter,C.EndType.etClosedPolygon);
  const result=[];offset.Execute(result,-setback*scale);
  let regular=result.map(path=>({points:path.map(p=>({x:p.X/scale,y:p.Y/scale}))}));
- if(sources?.some(s=>s.contactSetback!==undefined)){
+ if(sources?.some(s=>s.contactSetback!==undefined||s.clearanceRoofIds?.length)){
   const paths=[];
   for(const region of regions){
    let ps=region.points;if(area(ps)<0)ps=ps.slice().reverse();
@@ -94,7 +100,7 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
  const groups=[...new Set(G.roofLayers(roof).values())];
  for(const group of groups){
   const limit=G.layerSetback(group,setback);
-  if(limit>=setback-1e-6)continue;
+  if(limit>=setback-1e-6&&!group.some(f=>clearanceLayers.has(f.id)))continue;
   if(group.length===1&&group[0].points.every((p,i,ps)=>cross(ps[(i+ps.length-1)%ps.length],p,ps[(i+1)%ps.length])*area(ps)>=-1e-8)){
    let parts=[{points:group[0].points}];
    for(const edge of roof.connections||[]){if(!['eave','rake'].includes(edge.type))continue;const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
@@ -170,6 +176,7 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
  const floor=p=>{const f=terrainFaces.find(f=>G.contains(f,p));return f?height(G.plane(f.points),p):height(G.plane(grade.points),p);};
  const remaining=walls.filter(w=>!(w.kind==='perimeter'&&String(w.targetId).startsWith('ground'))&&!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02));
  const perimeters=sources.filter(s=>s.kind==='perimeter'),result=[];
+ const clearanceIds=new Set(sources.flatMap(s=>s.clearanceRoofIds||[])),lowerFaces=roof.faces.filter(f=>clearanceIds.has(f.id));
  for(let fi=0;fi<regions.length;fi++)for(const ring of [regions[fi].points,...regions[fi].holes])for(let ei=0;ei<ring.length;ei++){
   const a=ring[ei],b=ring[(ei+1)%ring.length],length=dist(a,b);if(length<.002)continue;
   const u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},at=p=>((p.x-a.x)*u.x+(p.y-a.y)*u.y)/length;
@@ -185,7 +192,10 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
    const plane=owner?.sourcePlane||roofFace?.plane;if(!plane)continue;
    // Offset source planes extrapolate a pitch beyond its measured hip seam.
    // The finite roof face covering this interval caps that extrapolation.
-   const ceiling=point=>Math.min(height(plane,point),roofFace?height(roofFace.plane,point):Infinity);
+   // The support under a lower cap ends at that cap. Short survey-junction
+   // edges can be closer to the main source, but must not grow through it.
+   const lower=lowerFaces.filter(f=>G.contains(f,mid)&&!sources.some(s=>s.kind==='flashing'&&s.parentId===f.id&&G.onEdge(mid,s.a,s.b,.002))).map(f=>G.plane(f.points)).filter(Boolean);
+   const ceiling=point=>Math.min(height(plane,point),roofFace?height(roofFace.plane,point):Infinity,...lower.map(p=>height(p,point)));
    const bottom=[p,q].map(p=>({...p,z:floor(p)})),top=[p,q].map(p=>({...p,z:Math.max(floor(p),ceiling(p))}));if(top.every((p,i)=>p.z-bottom[i].z<.02))continue;
    result.push({id:`envelope-${fi}-${ei}-${i}`,sourceId:owner?.id||`envelope-${fi}-${ei}`,sourceRoofId:owner?.parentId??roofFace?.f.id,kind:'perimeter',type:owner?.type||'wall',targetId:'ground:envelope',bottom,top});
   }

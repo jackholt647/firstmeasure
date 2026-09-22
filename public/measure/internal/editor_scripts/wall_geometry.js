@@ -115,6 +115,28 @@
         const inference=inferredSetback({a,b},flashing,n);
         return {setback:inference?.distance??18*INCH,inferred:!!inference,normal:n};
     }
+    // A lower layer reaching an upper eave needs room up to its head flashing.
+    // This is a construction clearance, independent of the selected soffit.
+    // Finite overlap, height and boundary checks exclude interior dormers and
+    // unrelated parallel roof edges.
+    function lowerLayerClearance(edge,flashing,faces,parent,n){
+        const len=distance(edge.a,edge.b),u={x:(edge.b.x-edge.a.x)/len,y:(edge.b.y-edge.a.y)/len};
+        let setback=0;const roofIds=[];
+        for(const f of flashing){
+            if(!['head_wall','headwall','roof_to_wall','roof-to-wall'].includes(f.type))continue;
+            const fl=distance(f.a,f.b);if(fl<EPS||Math.abs(cross(u,{x:(f.b.x-f.a.x)/fl,y:(f.b.y-f.a.y)/fl}))>.002)continue;
+            const ts=[f.a,f.b].map(p=>(p.x-edge.a.x)*u.x+(p.y-edge.a.y)*u.y).sort((a,b)=>a-b);
+            if(Math.min(len,ts[1])-Math.max(0,ts[0])<.002)continue;
+            const depth=p=>(p.x-edge.a.x)*n.x+(p.y-edge.a.y)*n.y,required=Math.max(depth(f.a),depth(f.b));
+            if(Math.min(depth(f.a),depth(f.b))<0)continue;
+            const lower=parentFace(faces,f.a,f.b);if(!lower||lower===parent)continue;
+            const depths=lower.points.map(depth);
+            if(Math.min(...depths)>.02||Math.max(...depths)>required+.02)continue;
+            const mid=mix(f.a,f.b,.5);if(!contains({...parent,holes:[]},mid)||height(parent,mid)<=mid.z+.02)continue;
+            setback=Math.max(setback,required);roofIds.push(lower.id);
+        }
+        return {setback,roofIds};
+    }
     function intersectionT(a,b,c,d) {
         const u=sub(b,a),v=sub(d,c),den=cross(u,v);
         if(Math.abs(den)<EPS) return null;
@@ -148,6 +170,8 @@
             // Preserve at least a foot across a narrow roof-supported body.
             // Measure the whole connected layer, not an individual hip triangle.
             setback=layerSetback(layers.get(parent.id),setback);
+            const clearance=options.roofContacts&&e.type==='eave'?lowerLayerClearance(e,flashing,faces,parent,n):null;
+            if(clearance)setback=Math.max(setback,clearance.setback);
             // Keep measured edge heights exact, using the parent only for the
             // inward pitch. A best-fit face need not pass through every vertex.
             const len=distance(e.a,e.b),u={x:(e.b.x-e.a.x)/len,y:(e.b.y-e.a.y)/len};
@@ -155,7 +179,7 @@
             const dx=along*u.x+inward*n.x,dy=along*u.y+inward*n.y;
             const sourcePlane={dx,dy,k:e.a.z-dx*e.a.x-dy*e.a.y};
             const shifted=p=>{const q={x:p.x+n.x*setback,y:p.y+n.y*setback};return {...q,z:height({plane:sourcePlane},q)};};
-            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
+            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(clearance?.roofIds.length?{clearanceRoofIds:clearance.roofIds}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
         }
         // A short return/flashing/return chain inside two overlapping exterior
         // edges is an overlap seam, not a recess in the building. Resolve it
