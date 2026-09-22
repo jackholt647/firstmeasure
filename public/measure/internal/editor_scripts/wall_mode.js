@@ -111,7 +111,7 @@ function perf_finishEdit(){
             // fallback. Trace its cleaned outline before making the base, or
             // that fallback clips away the very walls the envelope recovered.
             if((state.sources.some(s=>s.outerEnvelope)||Number.isFinite(Number(state.options.soffit))||Number.isFinite(state.options.defaultSoffitInches))&&window.WallRakeCleanup)walls=WallRakeCleanup.cleanup(G.mergeCoplanar(walls).walls,state.sources,state.ground).walls;
-            state.base=BaseGeometry.fromRoof(state.roof,state.ground,walls,Number(state.options.soffit==='auto'?state.options.defaultSoffitInches??0:state.options.soffit)*G.INCH,state.chimneys);invalidateWalls();
+            state.base=BaseGeometry.fromRoof(state.roof,state.ground,walls,Number(state.options.soffit==='auto'?state.options.defaultSoffitInches??0:state.options.soffit)*G.INCH,state.chimneys,state.options.roofContacts?state.sources:null);invalidateWalls();
         }
     }
     const copy=v=>JSON.parse(JSON.stringify(v));
@@ -194,8 +194,8 @@ function perf_finishEdit(){
         window.BaseSketchGeometry?.upgrade(state.wallEdits?.$base||state.base);
         window.WallChimneys?.syncFoundation(state);
         if(next>=2){window.WallChimneys?.syncVolumes(state);window.WallChimneys?.syncFoundation(state);}
-        if(next>=2&&!state.extruded){const r=G.extrude(state.roof,state.sources,wallFloor());state.extruded=r.walls;state.extrusionWarnings=r.warnings;}
-        if(next>=3&&!state.deduplicated){const r=G.deduplicate(state.extruded,state.options.tolerance);state.deduplicated=r.walls;state.removed=r.removed;}
+        if(next>=2&&!state.extruded){const r=G.extrude(state.roof,state.sources,state.options.roofContacts&&window.BaseGeometry?.usesRoofEnvelope(state.base,state.ground)&&!state.wallEdits?.$base?state.ground:wallFloor());state.extruded=r.walls;state.extrusionWarnings=r.warnings;}
+        if(next>=3&&!state.deduplicated){const r=G.deduplicate(state.extruded,state.options.tolerance);state.deduplicated=state.options.roofContacts&&state.base&&window.BaseGeometry?.reconcileRoofWalls&&!state.wallEdits?.$base?BaseGeometry.reconcileRoofWalls(r.walls,state.roof,state.sources,state.base,state.ground):r.walls;state.removed=r.removed;}
         if(next>=4&&(!state.gapRepaired||state.gapReport?.cleanupVersion!==2)){const r=window.WallGaps.repair(state.deduplicated,wallFloor(),{sliverWidth:Math.min(.25,Math.max(.03,2*state.context.mpp))});state.gapRepaired=r.walls;state.gapReport={cleanupVersion:2,sliversRemoved:r.sliversRemoved.length,paths:r.paths,before:r.before.length,remaining:r.gaps.length,added:r.added.length};}
         if(next>=5&&!state.mergedWalls){
             const edits=state.wallEdits||{},protectedIds=[...Object.keys(edits).filter(k=>!k.startsWith('$')),...Object.values(edits.$drafts||{}).flatMap(d=>d.members||[])];
@@ -276,7 +276,7 @@ function perf_persist(touch=true) {
         let before=null;const beforeSelection=selectionSnapshot();
         try {
             const signature=roofSignature(),captured=captureRoof(true);
-            const options={soffit,defaultSoffitInches:24,ground:state?.options.ground??estimateGround(),tolerance:state?.options.tolerance??18*G.INCH};
+            const options={soffit,defaultSoffitInches:24,roofContacts:true,ground:state?.options.ground??estimateGround(),tolerance:state?.options.tolerance??18*G.INCH};
             const r=G.buildSources(captured.roof,options);
             roofTrimEditor?.finish();roofTrimEditor?.reset();wallEditor?.leave?.();baseEditor?.leave?.();baseEditor?.clearSelection?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
             before={state:copy(state),stage};baseTerrainKey=null;baseTerrainCache=null;

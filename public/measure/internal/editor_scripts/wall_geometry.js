@@ -51,6 +51,27 @@
             .sort((f,g)=>Math.abs(height(f,mid)-mid.z)-Math.abs(height(g,mid)-mid.z))[0];
     }
     const isFlashing = type => ['head_wall','side_wall','roof_to_wall','headwall','sidewall','roof-to-wall'].includes(type);
+    // Connected roof pitches form one support layer. Flashing and chimney
+    // boundaries separate layers even when their measured endpoints coincide.
+    function roofLayers(roof,faces) {
+        const groups=faces.map(f=>[f]),same=(a,b)=>distance(a,b)<.002&&Math.abs(a.z-b.z)<.02;
+        const edges=(roof.connections||[]).filter(e=>isFlashing(e.type)||['eave','rake'].includes(e.type)||String(e.type).startsWith('chimney')).map(e=>[roof.points[e.startIdx],roof.points[e.endIdx]]);
+        for(let i=0;i<faces.length;i++)for(let j=i+1;j<faces.length;j++){
+            const a=faces[i],b=faces[j],shared=a.points.filter(p=>b.points.some(q=>same(p,q)));
+            if(shared.length<2)continue;
+            const linked=shared.some((p,k)=>shared.slice(k+1).some(q=>distance(p,q)>.01&&a.points.some((v,n)=>onEdge(p,v,a.points[(n+1)%a.points.length])&&onEdge(q,v,a.points[(n+1)%a.points.length]))&&b.points.some((v,n)=>onEdge(p,v,b.points[(n+1)%b.points.length])&&onEdge(q,v,b.points[(n+1)%b.points.length]))&&!edges.some(([v,w])=>v&&w&&onEdge(p,v,w)&&onEdge(q,v,w))));
+            if(!linked)continue;const ga=groups.find(g=>g.includes(a)),gb=groups.find(g=>g.includes(b));if(ga!==gb){ga.push(...gb);groups.splice(groups.indexOf(gb),1);}
+        }
+        return new Map(groups.flatMap(g=>g.map(f=>[f.id,g])));
+    }
+    function layerSetback(layer,wanted){
+        const vertices=layer.flatMap(f=>f.points);let limit=wanted;
+        for(const f of layer)for(let i=0;i<f.points.length;i++){
+            const a=f.points[i],b=f.points[(i+1)%f.points.length],length=distance(a,b);if(length<EPS)continue;
+            const n={x:(b.y-a.y)/length,y:(a.x-b.x)/length},values=vertices.map(p=>p.x*n.x+p.y*n.y);
+            limit=Math.min(limit,Math.max(0,(Math.max(...values)-Math.min(...values)-12*INCH)/2));
+        }return limit;
+    }
     function normalFor(face,a,b) {
         const len=distance(a,b),n={x:-(b.y-a.y)/len,y:(b.x-a.x)/len},m=mix(a,b,.5);
         if(contains(face,{x:m.x+n.x*.02,y:m.y+n.y*.02})) return n;
@@ -72,7 +93,7 @@
         // Weight by supported length: tiny overlaps with the neighboring walls
         // must not outvote the long flashing directly beneath a projecting eave.
         const half=matches.reduce((sum,m)=>sum+m.overlap,0)/2;
-        let weight=0;for(const m of matches.sort((a,b)=>a.d-b.d)){weight+=m.overlap;if(weight>=half)return {distance:m.d,sourceIds:matches.filter(f=>Math.abs(f.d-m.d)<.02).map(f=>f.id)};}
+        let weight=0;for(const m of matches.sort((a,b)=>a.d-b.d)){weight+=m.overlap;if(weight>=half)return {distance:m.d,coverage:matches.filter(f=>Math.abs(f.d-m.d)<.02).reduce((sum,f)=>sum+f.overlap,0)/len,sourceIds:matches.filter(f=>Math.abs(f.d-m.d)<.02).map(f=>f.id)};}
         return null;
     }
     function soffitWithoutSources(source,sources,excluded){
@@ -99,7 +120,7 @@
     function buildSources(roof,options={}) {
         // New From Roof presets use a fixed default; legacy saved Auto retains its inferred sources.
         if(options.soffit==='auto'&&Number.isFinite(options.defaultSoffitInches))options={...options,soffit:options.defaultSoffitInches};
-        const faces=surfaces(roof),warnings=[],sources=[];
+        const faces=surfaces(roof),warnings=[],sources=[],layers=roofLayers(roof,faces);
         const edges=(roof.connections||[]).map((c,i)=>({id:`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
         const flashing=edges.filter(e=>isFlashing(e.type));
         for(const e of edges) {
@@ -109,7 +130,12 @@
             if(!parent) { warnings.push(`${e.id}: no resolved roof face for ${e.type}.`); continue; }
             const n=normalFor(parent,e.a,e.b); if(!n) {warnings.push(`${e.id}: cannot determine inward side.`);continue;}
             const inferred=options.soffit==='auto' ? inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n) : null;
-            const setback=options.soffit==='auto' ? (inferred?.distance??18*INCH) : Number(options.soffit??18)*INCH;
+            let setback=options.soffit==='auto' ? (inferred?.distance??18*INCH) : Number(options.soffit??18)*INCH;
+            const contact=inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n);
+            if(options.roofContacts&&contact?.coverage>=.45&&e.type==='eave')setback=Math.min(setback,contact.distance);
+            // Preserve at least a foot across a narrow roof-supported body.
+            // Measure the whole connected layer, not an individual hip triangle.
+            setback=layerSetback(layers.get(parent.id),setback);
             // Keep measured edge heights exact, using the parent only for the
             // inward pitch. A best-fit face need not pass through every vertex.
             const len=distance(e.a,e.b),u={x:(e.b.x-e.a.x)/len,y:(e.b.y-e.a.y)/len};
@@ -117,7 +143,7 @@
             const dx=along*u.x+inward*n.x,dy=along*u.y+inward*n.y;
             const sourcePlane={dx,dy,k:e.a.z-dx*e.a.x-dy*e.a.y};
             const shifted=p=>{const q={x:p.x+n.x*setback,y:p.y+n.y*setback};return {...q,z:height({plane:sourcePlane},q)};};
-            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(inferred?{setbackFrom:inferred.sourceIds}:{})});
+            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
         }
         // A short return/flashing/return chain inside two overlapping exterior
         // edges is an overlap seam, not a recess in the building. Resolve it
@@ -296,6 +322,7 @@
         for(const s of sources) {
             if(s.kind==='flashing'){const ts=envelopeCuts(s),parts=[];for(let i=1;i<ts.length;i++)if(!hiddenByEnvelope(s,mix(s.a,s.b,(ts[i-1]+ts[i])/2)))parts.push({...s,a:mix(s.a,s.b,ts[i-1]),b:mix(s.a,s.b,ts[i])});clipped.push(...parts.map((p,i)=>({...p,id:i?s.id+'.envelope'+i:s.id})));continue;}
             if(distance(s.a,s.b)<.005)continue;
+            if(options.roofContacts&&!s.envelopeReturn&&!s.soffitAlignment&&!s.overlapSeam&&(s.b.x-s.a.x)*(s.originalB.x-s.originalA.x)+(s.b.y-s.a.y)*(s.originalB.y-s.originalA.y)<=0)continue;
             const f=faces.find(f=>f.id===s.parentId);
             // A setback near a hip can enter the neighboring face before reaching
             // flashing. Restrict support to faces sharing a roof edge at this
@@ -337,7 +364,15 @@
         return {sources:clipped,warnings};
     }
     function extrude(roof,sources,ground=0) {
-        const faces=surfaces(roof),walls=[],warnings=[];
+        const faces=surfaces(roof),walls=[],warnings=[],layers=roofLayers(roof,faces);
+        const insideBody=(f,p)=>{
+            if(!contains(f,p))return false;
+            const layer=layers.get(f.id);
+            for(const edge of sources){if(!edge.originalA||!layer.some(f=>f.id===edge.parentId))continue;
+                const a=edge.originalA,b=edge.originalB,d=sub(b,a),length=distance(a,b),t=Math.max(0,Math.min(1,((p.x-a.x)*d.x+(p.y-a.y)*d.y)/(length*length)));
+                if(distance(p,mix(a,b,t))<edge.setback+.002)return false;
+            }return true;
+        };
         const terrain=typeof ground==='object'?surfaces({faces:ground.faces.map((ids,i)=>({id:`ground:${i}`,points:ids.map(id=>ground.points[id]),terrain:true}))}):[];
         const flat=typeof ground==='number'?ground:null;
         for(const s of sources) {
@@ -362,7 +397,7 @@
             const relevant=[...alignedFaces,...(s.direction==='down'?terrain:[])].filter(f=>{
                 if(f.id===s.parentId||(s.envelopeReturn&&f.id===s.envelopeParentId))return false;
                 const cuts=splitParameters(s.a,s.b,[f]);
-                return cuts.some((t,i)=>i>0&&contains(f,mix(s.a,s.b,(cuts[i-1]+t)/2)));
+                return cuts.some((t,i)=>i>0&&(contains(f,mix(s.a,s.b,(cuts[i-1]+t)/2))||s.direction==='down'&&faces.some(p=>p.id===s.parentId&&contains(p,mix(s.a,s.b,(cuts[i-1]+t)/2)))&&inside(mix(s.a,s.b,(cuts[i-1]+t)/2),f.points)));
             });
             const ts=splitParameters(s.a,s.b,relevant);
             const envelopeRuns=s.outerEnvelope?sources.filter(r=>r.id===s.outerEnvelope.sourceId||r.id.startsWith(s.outerEnvelope.sourceId+'.')):[];
@@ -386,11 +421,21 @@
                 const groundFace=relevant.filter(f=>f.terrain&&contains(f,m)).sort((a,b)=>height(b,m)-height(a,m))[0];
                 const floor=groundFace?height(groundFace,m):flat;
                 if(s.direction==='down'&&floor===null){uncovered=true;continue;}
+                // A low roof detail entirely inside a higher roof's wall
+                // footprint is embedded material. Near the eave, keep the
+                // exposed lower projection and its own smaller setback.
+                if(s.direction==='down'&&faces.some(f=>f.id!==s.parentId&&height(f,m)>m.z+.02&&insideBody(f,m)&&!layers.get(s.parentId)?.includes(f)))continue;
                 const inSeam=s.overlapSeam&&onEdge(m,s.overlapSeam.a,s.overlapSeam.b,.005);
-                const targets=relevant.filter(f=>!inSeam&&!f.terrain&&contains(f,m)&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
-                    .filter(v=>s.direction==='up'?v.z>m.z+.02:v.z<m.z-.02&&v.z>floor);
+                // A dormer opening removes roof material, not the house below it.
+                // Its upper roof still meets the lower support plane at the hole.
+                const parent=faces.find(f=>f.id===s.parentId),coveredOpening=f=>s.direction==='down'&&parent&&contains(parent,m)&&inside(m,f.points);
+                const targets=relevant.filter(f=>!inSeam&&!f.terrain&&(contains(f,m)||coveredOpening(f))&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
+                    .filter(v=>s.direction==='up'?v.z>m.z+.02:v.z<(layers.get(s.parentId)?.includes(faces.find(f=>f.id===v.f.id))?m.z-.02:m.z+.02)&&v.z>floor);
                 targets.sort((a,b)=>s.direction==='up'?a.z-b.z:b.z-a.z);
                 const target=targets[0]?.f||(s.direction==='down'?groundFace:null);
+                // Near-coincident roof contact terminates the wall; dropping a
+                // contact within survey tolerance must never send it to grade.
+                if(s.direction==='down'&&target&&!target.terrain&&Math.abs(height(target,m)-m.z)<=.02)continue;
                 if(!target && s.direction==='up'){missed=true;continue;}
                 const a=mix(s.a,s.b,t0),b=mix(s.a,s.b,t1);
                 const edgeTarget=target?.id===s.outerEnvelope?.parentId?envelopeRuns.find(r=>onEdge(m,r.a,r.b,.005)):null;
@@ -545,8 +590,8 @@
         }
         return result;
     }
-    function deduplicate(walls,tolerance=.4572) {
-        walls=trimFlashingTails(alignFlashingPlanes(walls),tolerance);
+    function deduplicate(walls,tolerance=.4572,options={}) {
+        if(!options.preserveJunctions)walls=trimFlashingTails(alignFlashingPlanes(walls),tolerance);
         let result=walls.filter(w=>w.kind==='flashing').map(clone); let removed=0;
         const flashing=result.slice();
         for(const original of walls.filter(w=>w.kind!=='flashing')) {
@@ -590,7 +635,7 @@
         const seen=new Set(); result=result.filter(w=>{const k=[...w.bottom,...w.top].map(p=>[p.x,p.y,p.z].map(v=>v.toFixed(4)).join(',')).sort().join('|');if(seen.has(k)){removed++;return false;}seen.add(k);return true;});
         const unique=coalesce(result),used=new Set(unique.map(w=>w.id)),seenIds=new Set();
         for(const w of unique){if(seenIds.has(w.id)){const original=w.id;let i=1;while(used.has(original+':dedupe-part-'+i))i++;w.id=original+':dedupe-part-'+i;used.add(w.id);}seenIds.add(w.id);}
-        return {walls:weldGeneratedJunctions(unique),removed};
+        return {walls:options.preserveJunctions?unique:weldGeneratedJunctions(unique),removed};
     }
     // Roof plane fits can disagree by millimetres at the same generated junction.
     // Weld complete vertical columns only; do not merge deliberate short edges
@@ -687,7 +732,7 @@
         }
         return group.map(w=>w.id);
     }
-    const api={soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,plane,contains,onEdge,generatedMoveGroup,INCH};
+    const api={layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,plane,contains,onEdge,generatedMoveGroup,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

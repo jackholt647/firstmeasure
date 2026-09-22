@@ -54,25 +54,114 @@ function coversWalls(loops,walls){
 // If interrupted wall runs cannot form a loop, retain the chosen roof setback
 // instead of silently reverting to the eave footprint. Clipper handles concave
 // corners, disconnected wings and offsets which collapse narrow regions.
-function insetRoof(roof,setback){
+function insetRoof(roof,setback,chimneys=[],sources=null){
  const C=typeof module==='object'&&module.exports?require('./vendor/clipper-lib-6.4.2-clipper.js'):root.ClipperLib;
- const regions=K.union(roof.faces.map(f=>({points:f.points}))),scale=1/K.GRID;
+ const notchFill=chimneys.filter(c=>c.roofCrossing).map(c=>{
+  const {a,b,outward}=c.roofCrossing,inside=c.points.filter(p=>(p.x-a.x)*outward.x+(p.y-a.y)*outward.y<=1e-6),points=[...inside,a,b];
+  const center=points.reduce((s,p)=>({x:s.x+p.x/points.length,y:s.y+p.y/points.length}),{x:0,y:0});
+  return {points:points.sort((p,q)=>Math.atan2(p.y-center.y,p.x-center.x)-Math.atan2(q.y-center.y,q.x-center.x))};
+ });
+ const regions=K.union([...roof.faces.map(f=>({points:f.points})),...notchFill]),scale=1/K.GRID;
  if(!setback)return regions.map(f=>f.points);
  const offset=new C.ClipperOffset(4),paths=[];
  for(const f of regions){const path=f.points.map(p=>({X:Math.round(p.x*scale),Y:Math.round(p.y*scale)}));if(!C.Clipper.Orientation(path))path.reverse();paths.push(path);}
  offset.AddPaths(paths,C.JoinType.jtMiter,C.EndType.etClosedPolygon);
  const result=[];offset.Execute(result,-setback*scale);
- return result.map(path=>path.map(p=>({x:p.X/scale,y:p.Y/scale})));
+ let regular=result.map(path=>({points:path.map(p=>({x:p.X/scale,y:p.Y/scale}))}));
+ if(sources?.some(s=>s.contactSetback!==undefined)){
+  const paths=[];
+  for(const region of regions){
+   let ps=region.points;if(area(ps)<0)ps=ps.slice().reverse();
+   const edges=ps.map((a,i)=>{const b=ps[(i+1)%ps.length],length=dist(a,b),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},n={x:-u.y,y:u.x};
+    const matches=sources.filter(s=>s.originalA&&[s.originalA,s.originalB].every(p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)<.005)&&Math.abs((s.originalB.x-s.originalA.x)*u.x+(s.originalB.y-s.originalA.y)*u.y)>.01);
+    const overlapping=matches.filter(s=>{const ts=[s.originalA,s.originalB].map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y).sort((a,b)=>a-b);return Math.min(length,ts[1])-Math.max(0,ts[0])>.002;});
+    const offsets=overlapping.map(s=>s.setback),d=offsets.length?Math.min(...offsets):setback;
+    return {a:{x:a.x+n.x*d,y:a.y+n.y*d},b:{x:b.x+n.x*d,y:b.y+n.y*d}};
+   });
+   const points=edges.flatMap((e,i)=>{const prev=edges[(i+edges.length-1)%edges.length],u={x:prev.b.x-prev.a.x,y:prev.b.y-prev.a.y},v={x:e.b.x-e.a.x,y:e.b.y-e.a.y},den=u.x*v.y-u.y*v.x;
+    if(Math.abs(den)<1e-9)return dist(prev.b,e.a)<1e-6?[e.a]:[prev.b,e.a];const t=((e.a.x-prev.a.x)*v.y-(e.a.y-prev.a.y)*v.x)/den;return [{x:prev.a.x+u.x*t,y:prev.a.y+u.y*t}];
+   });
+   paths.push(points.map(p=>({X:Math.round(p.x*scale),Y:Math.round(p.y*scale)})));
+  }
+  const simplified=C.Clipper.SimplifyPolygons(paths,C.PolyFillType.pftPositive);
+  if(simplified.length)regular=simplified.map(path=>({points:path.map(p=>({x:p.X/scale,y:p.Y/scale}))}));
+ }
+ // Small, separate lower roofs need their own reduced setback. Offsetting
+ // only the union with the main roof erases these supporting wall footprints.
+ const groups=[...new Set(G.roofLayers(roof).values())];
+ for(const group of groups){
+  const limit=G.layerSetback(group,setback);
+  if(limit>=setback-1e-6)continue;
+  if(group.length===1&&group[0].points.every((p,i,ps)=>cross(ps[(i+ps.length-1)%ps.length],p,ps[(i+1)%ps.length])*area(ps)>=-1e-8)){
+   let parts=[{points:group[0].points}];
+   for(const edge of roof.connections||[]){if(!['eave','rake'].includes(edge.type))continue;const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
+    const len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};if(!G.contains(group[0],{x:mid.x+n.x*.02,y:mid.y+n.y*.02})){n.x=-n.x;n.y=-n.y;}
+    const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;parts=K.intersection(parts,[{points:[at(-size,limit),at(size,limit),at(size,size),at(-size,size)]}]);
+   }
+   regular.push(...parts);continue;
+  }
+  const small=K.union(group.map(f=>({points:f.points}))),offset=new C.ClipperOffset(4),paths=small.map(f=>f.points.map(p=>({X:Math.round(p.x*scale),Y:Math.round(p.y*scale)})));
+  for(const path of paths)if(!C.Clipper.Orientation(path))path.reverse();offset.AddPaths(paths,C.JoinType.jtMiter,C.EndType.etClosedPolygon);const output=[];offset.Execute(output,-limit*scale);regular.push(...output.map(path=>({points:path.map(p=>({x:p.X/scale,y:p.Y/scale}))})));
+ }
+ return K.union(regular).map(f=>f.points);
 }
-function fromRoof(roof,grade,walls=[],setback=0,chimneys=null){
+function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
  const C=typeof module==='object'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;
  const occluders=chimneys?.items||C?.detect(roof)?.items||[];
  const plane=G.plane(grade.points),traced=wallLoops(walls,grade,occluders);
  // A small closed dormer loop must not stand in for an open main perimeter.
  const complete=traced.length&&coversWalls(traced,groundWalls(walls,grade));
- const loops=complete?traced:insetRoof(roof,setback);
+ let loops=complete?traced:insetRoof(roof,setback,occluders,sources);
+ // Boolean roof unions can retain sub-pixel survey drift beside a chimney.
+ // Resolve those foundation junctions onto the measured volume boundary so
+ // its exposed shell and the generated house wall share the same endpoint.
+ if(!complete&&sources)loops=loops.map(ring=>ring.map(p=>{
+  let best=p,distance=.005;
+  for(const c of occluders)for(let i=0;i<c.points.length;i++){
+   const a=c.points[i],b=c.points[(i+1)%c.points.length],dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy,t=((p.x-a.x)*dx+(p.y-a.y)*dy)/length;
+   if(t<0||t>1)continue;const q={x:a.x+dx*t,y:a.y+dy*t},d=dist(p,q);if(d<distance){best=q;distance=d;}
+  }return best;
+ }));
  if(!loops.length)throw Error('Cannot trace a closed house outline from the roof.');
  return {visible:true,centers:true,source:complete?'Wall perimeter':setback?'Inset roof footprint':'Roof footprint',faces:loops.map((ps,i)=>validate({id:'base-'+(i+1),points:ps.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}))};
+}
+// A fallback foundation is the regularized union of the inset roof bodies.
+// Use that same boundary for ground-reaching walls, rather than clipping an
+// independently mitered set of open source runs against it. Upper roof-mounted
+// walls remain independent and keep their roof contact elevations.
+function usesRoofEnvelope(base,grade){
+ if(!['Inset roof footprint','Roof footprint'].includes(base?.source)||!grade?.faces?.length)return false;
+ const planes=grade.faces.map(ids=>{const points=ids.map(i=>grade.points[i]);return {points,plane:G.plane(points)};});
+ return base.faces.every(f=>f.points.every(p=>planes.some(g=>G.contains(g,p)&&Math.abs(p.z-g.plane.dx*p.x-g.plane.dy*p.y-g.plane.k)<.002)));
+}
+function reconcileRoofWalls(walls,roof,sources,base,grade){
+ if(!usesRoofEnvelope(base,grade))return walls;
+ const C=typeof module==='object'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;
+ const faces=C?C.buildingBase({base}):base.faces,regions=K.union(faces),terrainFaces=grade.faces.map(ids=>({points:ids.map(i=>grade.points[i])}));
+ const height=(plane,p)=>plane.dx*p.x+plane.dy*p.y+plane.k;
+ const floor=p=>{const f=terrainFaces.find(f=>G.contains(f,p));return f?height(G.plane(f.points),p):height(G.plane(grade.points),p);};
+ const remaining=walls.filter(w=>!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02));
+ const perimeters=sources.filter(s=>s.kind==='perimeter'),result=[];
+ for(let fi=0;fi<regions.length;fi++)for(const ring of [regions[fi].points,...regions[fi].holes])for(let ei=0;ei<ring.length;ei++){
+  const a=ring[ei],b=ring[(ei+1)%ring.length],length=dist(a,b);if(length<.002)continue;
+  const u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},at=p=>((p.x-a.x)*u.x+(p.y-a.y)*u.y)/length;
+  const parallel=perimeters.filter(s=>Math.abs((s.b.x-s.a.x)*u.y-(s.b.y-s.a.y)*u.x)/dist(s.a,s.b)<.01);
+  const cuts=[0,1,...G.splitParameters({...a,z:0},{...b,z:0},roof.faces)];
+  for(const s of parallel)for(const p of [s.a,s.b]){const t=at(p);if(t>0&&t<1&&Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)<.01)cuts.push(t);}
+  const ts=[...new Set(cuts.map(t=>+t.toFixed(8)))].sort((a,b)=>a-b);
+  for(let i=1;i<ts.length;i++){
+   const point=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}),p=point(ts[i-1]),q=point(ts[i]),mid=point((ts[i-1]+ts[i])/2);if(dist(p,q)<.002)continue;
+   const score=s=>{const d={x:s.b.x-s.a.x,y:s.b.y-s.a.y},l=dist(s.a,s.b),t=Math.max(0,Math.min(1,((mid.x-s.a.x)*d.x+(mid.y-s.a.y)*d.y)/(l*l)));return dist(mid,{x:s.a.x+d.x*t,y:s.a.y+d.y*t});};
+   const ranked=parallel.map(s=>({s,d:score(s)})).sort((a,b)=>a.d-b.d),owner=ranked[0]&&ranked[0].d<=Math.max(.02,4*(ranked[0].s.setback||0))?ranked[0].s:null;
+   const roofFace=roof.faces.filter(f=>G.contains({...f,holes:[]},mid)).map(f=>({f,plane:G.plane(f.points)})).filter(f=>f.plane).sort((a,b)=>height(b.plane,mid)-height(a.plane,mid))[0];
+   const plane=owner?.sourcePlane||roofFace?.plane;if(!plane)continue;
+   const bottom=[p,q].map(p=>({...p,z:floor(p)})),top=[p,q].map(p=>({...p,z:Math.max(floor(p),height(plane,p))}));if(top.every((p,i)=>p.z-bottom[i].z<.02))continue;
+   result.push({id:`envelope-${fi}-${ei}-${i}`,sourceId:owner?.id||`envelope-${fi}-${ei}`,sourceRoofId:owner?.parentId??roofFace?.f.id,kind:'perimeter',type:owner?.type||'wall',targetId:'ground:envelope',bottom,top});
+  }
+ }
+ // The incoming upper walls are already deduplicated. Reapplying survey
+ // alignment here would move the exact foundation junctions apart again.
+ return G.deduplicate([...remaining,...result],.002,{preserveJunctions:true}).walls;
 }
 function repairInitial(base,roof,grade,walls){
  if(base?.source!=='Wall perimeter'||base.sketch?.nodes.some(p=>!p.fixed)||base.sketch?.edges.some(e=>!e.fixed))return base;
@@ -220,6 +309,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
+const api={usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
