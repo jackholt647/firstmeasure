@@ -671,7 +671,7 @@ window.createWallEditor=function(host){
  function keyDown(...args){if(!window.ExteriorPerf?.enabled)return perf_keyDown.apply(this,args);return window.ExteriorPerf.measure('Wall keyboard update',()=>perf_keyDown.apply(this,args));}
 function perf_keyDown(e){
 
-  if(!active())return false;const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['p','t','x','enter','v','s','w','d','g','arrowleft','arrowright','arrowup','arrowdown','m','e','h','escape','z','f','r','c','u','n','delete','backspace','q','y'].includes(k))return false;
+  if(!active())return false;const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['b','l','a','p','t','x','enter','v','s','w','d','g','arrowleft','arrowright','arrowup','arrowdown','m','e','h','escape','z','f','r','c','u','n','delete','backspace','q','y'].includes(k))return false;
 
   e.stopImmediatePropagation();e.preventDefault();
 

@@ -335,9 +335,9 @@ function planeAlignment(points,targets,frame,screen,radius=12,axes=['u','v'],poi
   delta[axis==='u'?'x':'y']=amount;
  }return delta;
 }
-function snapGeometryOnPlane(clip,index,targets,edges,screen,radius=10,pointer=null){
+function snapGeometryOnPlane(clip,index,targets,edges,screen,radius=10,pointer=null,normalTolerance=K.CONTACT){
  const frame=clip.mounts[index].frame;let best=radius,delta=null;
- const offer=(p,q)=>{if(q.alignmentAxes)return;const d=sub(q,p);if(Math.abs(dot(d,frame.n))>K.CONTACT||Math.hypot(d.x,d.y,d.z)>.5)return;const a=screen(p),b=screen(q),distance=Math.hypot(a.x-b.x,a.y-b.y);if(a.visible!==false&&b.visible!==false&&distance<best){best=distance;delta={x:dot(d,frame.u),y:dot(d,frame.v)};}};
+ const offer=(p,q)=>{if(q.alignmentAxes)return;const d=sub(q,p);if(Math.abs(dot(d,frame.n))>normalTolerance||Math.hypot(d.x,d.y,d.z)>.5)return;const a=screen(p),b=screen(q),distance=Math.hypot(a.x-b.x,a.y-b.y);if(a.visible!==false&&b.visible!==false&&distance<best){best=distance;delta={x:dot(d,frame.u),y:dot(d,frame.v)};}};
  for(const p of clip.points){for(const q of targets)offer(p,q);for(const [a,b]of edges){const v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;offer(p,mix3(a,b,t));}}
  if(!delta)for(const [a,b]of clip.edges){const v=sub(b,a),l2=dot(v,v);for(const q of targets){const t=l2?Math.max(0,Math.min(1,dot(sub(q,a),v)/l2)):0;offer(mix3(a,b,t),q);}}
  const snapped=delta?transformGeometry(clip,index,{delta}):clip;const alignment=planeAlignment(snapped.points,targets,frame,screen,radius,['u','v'],pointer);return Math.hypot(alignment.x,alignment.y)>1e-10?transformGeometry(snapped,index,{delta:alignment}):snapped;
@@ -409,13 +409,13 @@ function boundedTranslation(points,regions,wanted,options={}){
  return results.sort((a,b)=>Math.hypot(a.x-wanted.x,a.y-wanted.y)-Math.hypot(b.x-wanted.x,b.y-wanted.y))[0]||null;
 }
 function pasteGeometry(clip,mountIndex,target,location,options={}){
- const source=clip.mounts[mountIndex%clip.mounts.length].frame,normal0=options.normal||normal(target.points),frame=clipboardFrame(location,normal0),transform=p=>K.world(frame,K.local(source,p));
+ const source=clip.mounts[mountIndex%clip.mounts.length].frame,normal0=options.normal||normal(target.points),frame=options.frame?{...options.frame,origin:location}:clipboardFrame(location,normal0),transform=p=>K.world(frame,K.local(source,p));
  let points=clip.points.map(transform),delta={x:0,y:0,z:0},snap=null;
  const contacts=clip.points.map((p,i)=>Math.abs(K.local(source,p).z)<=K.CONTACT?i:-1).filter(i=>i>=0),targets=[...(options.points||rings(target).flat()),...stickerAlignmentTargets(options.stickerFaces||[],frame)];
  const stickerPlacement=clip.faces.length>0&&clip.faces.every(f=>f.feature);
  if(stickerPlacement&&options.bound&&contacts.length){const region={points:target.points.map(p=>K.local(frame,p)),holes:(target.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},localPoints=contacts.map(i=>K.local(frame,points[i])),fit=boundedTranslation(localPoints,[region],{x:0,y:0},{axis:'y'})||boundedTranslation(localPoints,[region],{x:0,y:0});if(fit)delta={x:frame.u.x*fit.x+frame.v.x*fit.y,y:frame.u.y*fit.x+frame.v.y*fit.y,z:frame.u.z*fit.x+frame.v.z*fit.y};}
  if(!stickerPlacement&&options.screen&&options.snap!==false){let best=options.radius||10;for(const i of contacts)for(const targetPoint of targets){if(targetPoint.alignmentAxes)continue;if(Math.abs(K.local(frame,targetPoint).z)>K.CONTACT)continue;const a=options.screen(points[i]),b=options.screen(targetPoint),pixels=Math.hypot(a.x-b.x,a.y-b.y);if(a.visible!==false&&b.visible!==false&&pixels<best&&Math.hypot(...Object.values(sub(targetPoint,points[i])))<.5){best=pixels;delta=sub(targetPoint,points[i]);snap={from:points[i],target:targetPoint};}}
-  if(!snap)for(const i of contacts)for(const r of rings(target))for(let j=0;j<r.length;j++){const a=r[j],b=r[(j+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(points[i],a),v)/l2)):0,q=mix3(a,b,t),x=options.screen(points[i]),y=options.screen(q),pixels=Math.hypot(x.x-y.x,x.y-y.y);if(pixels<best&&Math.hypot(...Object.values(sub(q,points[i])))<.5){best=pixels;delta=sub(q,points[i]);snap={from:points[i],target:q};}}
+  if(!snap&&!options.unbounded)for(const i of contacts)for(const r of rings(target))for(let j=0;j<r.length;j++){const a=r[j],b=r[(j+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(points[i],a),v)/l2)):0,q=mix3(a,b,t),x=options.screen(points[i]),y=options.screen(q),pixels=Math.hypot(x.x-y.x,x.y-y.y);if(pixels<best&&Math.hypot(...Object.values(sub(q,points[i])))<.5){best=pixels;delta=sub(q,points[i]);snap={from:points[i],target:q};}}
  }
  if(options.screen&&options.snap!==false){const current=points.map(p=>({x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z})),aligned=planeAlignment(contacts.map(i=>current[i]),targets,frame,options.screen,options.radius||12,['u','v'],stickerPlacement?location:null);delta={x:delta.x+frame.u.x*aligned.x+frame.v.x*aligned.y,y:delta.y+frame.u.y*aligned.x+frame.v.y*aligned.y,z:delta.z+frame.u.z*aligned.x+frame.v.z*aligned.y};if(Math.hypot(aligned.x,aligned.y)>1e-7)snap={kind:'Alignment'};}
 
@@ -425,8 +425,9 @@ function pasteGeometry(clip,mountIndex,target,location,options={}){
  let valid=contacts.every(i=>inside(points[i]));
  if(contacts.length>=3){const ps=contacts.map(i=>K.local(tf,points[i])).sort((a,b)=>a.x-b.x||a.y-b.y),turn=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),half=list=>{const out=[];for(const p of list){while(out.length>1&&turn(out.at(-2),out.at(-1),p)<=1e-10)out.pop();out.push(p);}return out;},lo=half(ps),hi=half(ps.slice().reverse()),hull=[...lo.slice(0,-1),...hi.slice(0,-1)];if(hull.length>=3&&K.difference({points:hull},[local]).reduce((s,f)=>s+K.area(f),0)>1e-8)valid=false;}
 for(const pair of clip.edges)if(pair.every(p=>Math.abs(K.local(source,p).z)<=K.CONTACT))for(let i=0;i<=20;i++)valid&&=inside(moved(mix3(pair[0],pair[1],i/20)));
+ if(options.unbounded)valid=true;
  const guides=valid&&options.snap!==false?planeAlignmentGuides(contacts.map(i=>points[i]),targets,frame):[];
- return {points,location:{x:location.x+delta.x,y:location.y+delta.y,z:location.z+delta.z},edges:clip.edges.map(pair=>pair.map(moved)),faces:clip.faces.map(f=>({...f,...K.mapCurveData(f,moved),points:f.points.map(moved),holes:f.holes.map(r=>r.map(moved)),retainedPoints:f.retainedPoints.map(moved),...(f.feature?.axis?{feature:{...f.feature,axis:sub(moved({x:source.origin.x+f.feature.axis.x,y:source.origin.y+f.feature.axis.y,z:source.origin.z+(f.feature.axis.z||0)}),moved(source.origin))}}:{})})),valid,snap,guides};
+ return {points,...(clip.curves?{curves:clip.curves.map(c=>K.mapCurve(c,moved))}:{}),location:{x:location.x+delta.x,y:location.y+delta.y,z:location.z+delta.z},edges:clip.edges.map(pair=>pair.map(moved)),faces:clip.faces.map(f=>({...f,...K.mapCurveData(f,moved),points:f.points.map(moved),holes:f.holes.map(r=>r.map(moved)),retainedPoints:f.retainedPoints.map(moved),...(f.feature?.axis?{feature:{...f.feature,axis:sub(moved({x:source.origin.x+f.feature.axis.x,y:source.origin.y+f.feature.axis.y,z:source.origin.z+(f.feature.axis.z||0)}),moved(source.origin))}}:{})})),valid,snap,guides};
 }
 // A merged wall/chimney region owns the joined area; do not clip it back out
 // using the source chimney footprint. It no longer drives a single chimney side.
