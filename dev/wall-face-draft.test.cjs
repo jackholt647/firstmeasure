@@ -2295,3 +2295,43 @@ test('Shift rectangle adds contained lines without dropping previously selected 
  f.editor.startBox(f.e(-.2,3.8,true),()=>{});f.listeners.pointerup(f.e(4.2,4.2,true));
  const lines=f.editor.selectionSnapshot().lineSelection;assert.equal(lines.length,2);assert.equal(lines[0].id,'existing');assert.ok(lines[1].pair.every(p=>p.z===4));
 });
+
+
+for(const source of ['R37.0','R38.0','R43.0','R44.0','R46.1','R57.0','R58.0','R63.0','R64.0','R66.1','R77.0','R78.0','R83.0','R84.0','R86.1'])test(`turret Resoffit reconciles ${source} independently, repeatedly and after reload`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18);
+ let f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
+ const before=f.editor.soffitEdges(),line=before.find(c=>c.source.id===source);assert.ok(line);
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});
+ for(const depth of [.6096,.1524,0,.3048]){
+  const snapshot=JSON.stringify(r.state.wallEdits);assert.equal(f.editor.resoffit(depth),true,`${depth}: ${f.message()}`);
+  const selection=f.editor.selectionSnapshot();assert.ok(selection.lineSelection.length,'selected contact survives topology changes');
+  for(const face of (r.state.wallEdits.$surfaces||[]).filter(f=>!f.deleted))K.validateFace(face);
+  for(const face of (r.state.wallEdits.$base?.faces||[]).filter(f=>!f.deleted))K.validateFace(face);
+  const after=f.editor.soffitEdges(),selected=after.filter(c=>c.source.id===source);assert.ok(selected.length);
+  assert.ok(selected.every(c=>Math.abs(c.inset-depth)<.002),'requested depth is absolute');
+  for(const c of after.filter(c=>c.source.id!==source)){const old=before.find(o=>o.source.id===c.source.id);if(old)assert.ok(Math.abs(old.inset-c.inset)<.003,`neighbor ${c.source.id} retains its plane`);}
+  const undo=f.history.at(-1);assert.equal(JSON.stringify(undo),snapshot,'one complete undo snapshot');
+  const persisted=JSON.parse(JSON.stringify(r.state.wallEdits));r.state.wallEdits=persisted;
+  f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});f.editor.restoreSelection(selection);
+ }
+});
+
+test('mixed and combined turret depths retain shared corners and exact selections',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
+ const ids=['R37.0','R38.0','R43.0','R44.0','R46.1'];
+ for(const [selected,depth]of [[ids,.6096],[['R37.0'],.1524],[['R38.0','R44.0'],.3048],[ids,0],[ids,.6096]]){
+  const lines=f.editor.soffitEdges().filter(c=>selected.includes(c.source.id));assert.ok(lines.length>=selected.length);
+  f.editor.restoreSelection({lineSelection:lines.map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());
+  for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
+  assert.ok(f.editor.soffitEdges().filter(c=>selected.includes(c.source.id)).every(c=>Math.abs(c.inset-depth)<.002));
+ }
+});
+
+
+for(const source of ['R37.0','R46.1','R57.0','R66.1','R77.0','R86.1'])test(`deep turret Resoffit ${source} consumes its short return without reversing it`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id===source);
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.9144),true,f.message());
+ const contacts=f.editor.soffitEdges().filter(c=>c.source.id===source);assert.ok(contacts.length);assert.ok(contacts.every(c=>Math.abs(c.inset-.9144)<.002));
+ assert.ok(r.state.wallEdits.$surfaces.some(f=>f.deleted),'consumed face is removed');
+ for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
+});

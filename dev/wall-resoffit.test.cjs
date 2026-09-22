@@ -45,3 +45,37 @@ test('shortening a neighbor clips intermediate roof vertices to the new wall cor
  const f=fixture(),right=f.faces[1];right.points.splice(3,0,p(4,.8,f.z(4,.8)));
  const r=R.apply(f.faces,[f.pair],1.2,f.roof,f.sources);assert.ok(r.faces[1].points.every(p=>p.y>=1.2-1e-7));K.validateFace(r.faces[1]);
 });
+
+
+test('an inset consumes a short neighbor and joins the surviving planes across it',()=>{
+ const f=fixture(),wall=(id,a,b)=>({id,points:[p(...a,0),p(...b,0),p(...b,f.z(...b)),p(...a,f.z(...a))]});
+ f.faces[1]=wall('short',[4,.6096],[4,1]);f.faces.push(wall('diagonal',[4,1],[5,2]));
+ const r=R.apply(f.faces,[f.pair],1.2,f.roof,f.sources),front=r.faces.find(f=>f.id==='front'),side=r.faces.find(f=>f.id==='diagonal');
+ assert.equal(r.faces.find(f=>f.id==='short').deleted,true);
+ assert.ok(front.points.some(p=>Math.abs(p.x-4.2)<1e-7&&Math.abs(p.y-1.2)<1e-7));
+ assert.ok(side.points.every(p=>Math.abs(p.x-p.y-3)<1e-7));
+ for(const face of r.faces.filter(f=>!f.deleted))K.validateFace(face);
+});
+
+test('a lower roof boundary continues its contacted sheet instead of jumping to an overlapping upper roof',()=>{
+ const f=fixture(),lowZ=(x,y)=>2+y;
+ f.roof.faces.push({id:2,points:[p(-2,.6096,lowZ(0,.6096)),p(8,.6096,lowZ(0,.6096)),p(8,2,lowZ(0,2)),p(-2,2,lowZ(0,2))]});
+ for(const face of f.faces)face.points=face.points.map(q=>q.z===0?{...q,z:lowZ(q.x,q.y)}:q);
+ f.pair=f.faces[0].points.slice(2);
+ const r=R.apply(f.faces,[f.pair],.1524,f.roof,f.sources),front=r.faces[0];
+ assert.equal(front.points.length,4);
+ assert.ok(front.points.filter(q=>q.z<4).every(q=>Math.abs(q.z-lowZ(q.x,q.y))<1e-7));
+ assert.ok(front.points.filter(q=>q.z>4).every(q=>Math.abs(q.z-f.z(q.x,q.y))<1e-7));
+});
+
+
+test('a moved wall top is split at the new roof hip instead of cutting across the pitches',()=>{
+ const f=fixture(),z=(x,y)=>5+Math.min(x,y);
+ f.roof={faces:[{id:1,points:[p(-2,-2,3),p(-2,8,3),p(8,8,13)]},{id:2,points:[p(-2,-2,3),p(8,-2,3),p(8,8,13)]}]};
+ for(const face of f.faces)face.points=face.points.map(q=>q.z>0?{...q,z:z(q.x,q.y)}:q);
+ f.faces[0].points.splice(3,0,p(.6096,.6096,z(.6096,.6096)));f.sources[0].sourcePlane={dx:0,dy:1,k:5};
+ f.pair=f.faces[0].points.slice(2,4);
+ const r=R.apply(f.faces,[f.pair],1.2,f.roof,f.sources),top=r.faces[0].points.filter(q=>q.z>0).sort((a,b)=>a.x-b.x);
+ assert.ok(top.some(q=>Math.abs(q.x-1.2)<1e-7&&Math.abs(q.y-1.2)<1e-7));
+ for(let i=1;i<top.length;i++){const a=top[i-1],b=top[i],x=(a.x+b.x)/2,y=(a.y+b.y)/2;assert.ok(Math.abs((a.z+b.z)/2-z(x,y))<1e-7);}
+});
