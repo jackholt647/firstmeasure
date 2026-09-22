@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 chimney soffit follow-up: [Attached contacts and layered setbacks](deploy/digitalocean/development-chimney-soffits-20260922.md) records `c6953cd9c9034697fab031d15cc6544c9ebefa68` on all three development roles. Both chimney junctions were rebuilt and saved; 811 tests pass, including physical-contact and soffit-depth regressions missing from the earlier gap checks. Preserve this baseline.
+
 September 22 layered roof generation: [Chimney, turret and foundation fixes](deploy/digitalocean/development-roof-layers-20260922.md) records `11b13e0e444c7af901381bcf4e6e67e8017f80d8` on all three development roles. The saved house was rebuilt and verified with zero ground gaps; 807 tests pass. Development NGINX temporary-directory ownership was also repaired so saves and large imagery downloads work. Preserve this baseline.
 
 September 22 mobile apps: [Development mobile hosts and private downloads](deploy/digitalocean/development-mobile-apps-20260922.md) records `a639aad1132f425ed567aafd03f4d08ffbba5dfe` on all development roles, preserving the concurrent `18a81ab` wall/plane editor release. Android and iPhone simulator CI passed; physical iPhone distribution awaits Apple signing. Production is unchanged.

@@ -11,3 +11,9 @@ Chimney clipping uses a tolerance consistent with the polygon kernel's grid, avo
 Validation: 807 passing tests across wall editing/construction, base/sketch geometry, kernel/replay, chimney, and extrusion suites. Eleven new regressions exercise the captured house at 0, 12, 18, 24 inches and Auto, rotated/translated coordinates, saved and inferred chimney outlines, minimum body width, interior/exterior termination, immutable inputs, deterministic regeneration, and edited foundation elevations.
 
 The new behavior is enabled by From Roof generation. Existing saved editing state is not silently rebuilt on load. Regeneration is an undoable editor action.
+
+## Chimney soffit follow-up
+
+A collinear lower cap edge must not determine the entire upper eave setback after roof elevations have been flattened into a footprint. The variable offset keeps the deeper setback; separate narrow layers add their own smaller support footprints. A duplicate rake on a measured chimney edge is attached masonry, so it creates neither a free-edge source nor a side soffit. Contact matching checks finite extent and interpolated elevation, tolerating duplicated/reversed vertices without conflating different roof levels.
+
+The updated suite passes 811 tests. Explicit support-to-masonry contact and main-eave depth assertions now supplement foundation closure, including rotated fixtures and 12-, 18-, and 24-inch presets. These assertions reproduce the remaining defects in the previous release.
