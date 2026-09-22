@@ -743,6 +743,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 </div>
 </div>
 
+<script src="/libraries/phone-features/phone-features.js"></script>
 <script src="/libraries/google-auth/firstmate-google-auth.js"></script>
 <script>
     // --- HELPER: Parse URL params ---

@@ -2203,7 +2203,9 @@ session_write_close();
   <script src="../libraries/apps/settings/payroll.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/domains.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= $ver ?>"></script>
+<script src="../libraries/phone-features/phone-features.js?v=<?= $ver ?>"></script>
+<script src="../libraries/phone-features/app-download.js?v=<?= $ver ?>"></script>
+<script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= $ver ?>"></script>
   <script src="scripts/dev_overlay.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/promo-inject/app.js?v=<?= $ver ?>"></script>

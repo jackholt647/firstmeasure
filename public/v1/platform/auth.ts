@@ -582,6 +582,7 @@ export async function loginPlatformIdentity(input: LoginInput) {
 }
 
 export async function buildAuthContext(sessionId: string, session: JsonObject): Promise<PlatformAuthContext> {
+  if (asObject(session.metadata).mobile_pkce) throw unauthorized("handoff_only", "Complete app sign-in to use this ticket.");
   const identityId = String(session.identity_id || "");
   const orgId = String(session.organization_id || "");
   const userId = String(session.user_id || "");

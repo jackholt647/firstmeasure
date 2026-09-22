@@ -10052,6 +10052,9 @@
     "conversation_not_found": "This conversation was not found.",
     "messaging_record_not_found": "The requested messaging record was not found.",
     "messaging_organization_not_found": "The messaging organization was not found.",
+    "mobile_disabled": "App downloads are disabled for this organization.",
+    "developer_download_disabled": "Test downloads are not enabled.",
+    "build_unavailable": "No Android test build has been published.",
     "staff_admin_required": "Only FirstMate internal admins can use the boarding ops console.",
     "merchant_config_not_found": "This organization has no merchant configuration.",
     "provider_invalid": "Provider must be \"mock\", \"forward\", or null.",
@@ -10260,11 +10263,11 @@
     "invalid_attention_entry": "An attention entry id is required.",
     "attention_banner_not_found": "No stored attention banner with that id.",
     "identity_inactive": "This account is not active.",
-    "membership_required": "This user is not assigned to an organization.",
     "user_disabled": "This organization user is disabled.",
     "account_device_required": "No remembered accounts are available in this browser.",
     "remembered_account_unavailable": "That remembered account is no longer available.",
     "remembered_account_expired": "Please sign in again to continue with this account.",
+    "handoff_only": "Complete app sign-in to use this ticket.",
     "application_access_denied": "This user does not have access to the requested application.",
     "csrf_required": "A valid CSRF token is required.",
     "preset_name_required": "A preset name is required.",
@@ -10502,5 +10505,20 @@
       "format": "icu",
       "message": "Review and respond here: {url}"
     }
+  },
+  "mobile": {
+    "loading": "Loading app downloadsâ€¦",
+    "title": "Get the FirstMeasure app",
+    "description": "Use your existing account, projects, language and company settings on your phone.",
+    "unpublished": " â€” not published yet",
+    "recommended": " Â· Your device",
+    "testing": "Developer testing",
+    "android_test": "Download Android test build",
+    "ios_test": "Install iPhone test build with TestFlight",
+    "testing_note": "Test builds use the development environment. iPhone installation requires TestFlight or an Apple-signed build for your registered device.",
+    "retry": "Try again"
+  },
+  "google-auth": {
+    "m_f9f23fe0070310": "Continue with browser sign-in"
   }
 }

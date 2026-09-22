@@ -1659,6 +1659,7 @@
     `;
   }
   const DEFAULT_VISIBLE_APP_FLAGS = {
+    mobile: ['app_download'],
     platform: [],
     scheduling: ['routing', 'gantt'],
     email: [],
@@ -2258,11 +2259,12 @@
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
       { id:'proposals', allowed:canProposalSettings, icon:'fas fa-file-signature', term:'proposals.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_3129f3f0e39249","Proposals") ?? "Proposals"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_5f72a4f87b9f6a","Set branch defaults for new proposals.") ?? "Set branch defaults for new proposals."), tabId:'csTabProposals', paneId:'csPaneProposals' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
-      { id:'billing', allowed:canBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' }
+      { id:'billing', allowed:canBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
+      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-screen', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
     ];
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
-    const sectionTitle = (section) => section ? terminologyLabel(section.term, section.title) : '';
+    const sectionTitle = (section) => section ? (section.term ? terminologyLabel(section.term, section.title) : section.title) : '';
     const defaultActiveTab = sectionFor('my_settings')?.id || availableSettingsSections[0]?.id || 'my_settings';
     if (viewState.activeTab === 'lead_import') viewState.activeTab = 'forms';
     if (viewState.activeTab === 'crm' || viewState.activeTab === 'custom_fields' || viewState.activeTab === 'terminology') viewState.activeTab = 'configuration';
@@ -13995,6 +13997,7 @@
         else delete titleNode.dataset.settingsTerminologyKey;
       }
       if (which === 'my_settings' && canMySettings) renderMySettings();
+      if (which === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
       if (which === 'users' && canUsers) refreshUsers();
       if (which === 'money' && canPayments) renderMoneySettings();
       if (which === 'calls' && canCallWorkflows) renderCallsSettings();
@@ -19463,6 +19466,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       }
       if (canReports) renderReports();
       if (canMySettings && activeTab === 'my_settings') renderMySettings();
+      if (activeTab === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
       if (canPayments && activeTab === 'money') renderMoneySettings();
       if (canDocuments && activeTab === 'documents') renderDocumentSettings();
       if (canCallWorkflows && activeTab === 'calls') renderCallsSettings();

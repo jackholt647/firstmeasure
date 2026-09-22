@@ -49,7 +49,9 @@
     "window-manager",
     "reports",
     "errors",
-    "notifications"
+    "notifications",
+    "mobile",
+    "google-auth"
   ],
   "namespaces": {
     "billing": "billing.ec312cf4714fc955.json",
@@ -137,7 +139,9 @@
     "web-widgets": "web-widgets.d185a3c977547c83.json",
     "window-manager": "window-manager.1686b5e969ac1648.json",
     "reports": "reports.2631a3576fe2c48c.json",
-    "errors": "errors.50f1b19120da2b3c.json",
-    "notifications": "notifications.7e2136ac1d78bb3f.json"
+    "errors": "errors.6fb77660646da3e6.json",
+    "notifications": "notifications.7e2136ac1d78bb3f.json",
+    "mobile": "mobile.548d6614ae99afe4.json",
+    "google-auth": "google-auth.d182d37f7adbff2e.json"
   }
 }

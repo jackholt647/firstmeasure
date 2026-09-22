@@ -882,6 +882,17 @@ export async function deleteAuthSession(sessionId: string) {
   await rm(sessionPath(sessionId), { force: true });
 }
 
+/** Consume a phone sign-in ticket once, including across web workers. */
+export async function consumeMobileAuthSession(sessionId: string, challenge: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).consumeMobileAuthSession(sessionId, challenge);
+  return withFileLock(sessionPath(sessionId) + ".consume-lock", async () => {
+    const session = await readAuthSession(sessionId);
+    if (asObject(session.metadata).mobile_pkce !== challenge) throw notFound("handoff_invalid", "This app sign-in has expired or is invalid.");
+    await deleteAuthSession(sessionId);
+    return session;
+  });
+}
+
 export async function deleteIdentitySessions(identityId: string) {
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteIdentitySessions(identityId);
   await ensurePlatformStorage();

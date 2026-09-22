@@ -116,6 +116,11 @@
     const container = options && options.container;
     const apiBaseUrl = String(options && options.apiBaseUrl || '').replace(/\/$/, '');
     if (!container || !apiBaseUrl) throw new Error('Google sign-in requires a container and API base URL.');
+    if (global.PhoneFeatures?.isNative()) {
+      const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=(globalThis.PlatformLanguage?.text("google-auth","m_f9f23fe0070310","Continue with browser sign-in") ?? "Continue with browser sign-in");
+      button.onclick=()=>global.PhoneFeatures.authenticate().catch(error=>options.onError?.(error));
+      container.replaceChildren(button);return {native:true};
+    }
     const entry = {
       container,
       apiBaseUrl,

@@ -50,6 +50,7 @@ import { registerLaborApi } from "../labor/api.js";
 import { registerMaterialsApi } from "../materials/api.js";
 import { registerPaymentsApi } from "../payments/api.js";
 import { registerPlatformApi } from "../platform/api.js";
+import { registerMobileApi } from "../mobile/api.js";
 import { registerProposalsApi } from "../proposals/api.js";
 import { registerPublicFirstMeasureApi } from "../public-firstmeasure/api.js";
 import { registerWeatherApi } from "../weather/api.js";
@@ -185,6 +186,7 @@ export async function buildApp() {
   void app.register(registerMaterialsApi, { prefix: "/v1/materials" });
   void app.register(registerPaymentsApi, { prefix: "/v1/payments" });
   void app.register(registerPlatformApi, { prefix: "/v1/platform" });
+  void app.register(registerMobileApi, { prefix: "/v1/mobile" });
   void app.register(registerProposalsApi, { prefix: "/v1/proposals" });
   void app.register(registerPublicFirstMeasureApi, { prefix: "/v1/public/firstmeasure" });
   void app.register(registerWeatherApi, { prefix: "/v1/weather" });

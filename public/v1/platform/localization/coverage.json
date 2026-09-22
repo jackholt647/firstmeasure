@@ -1,7 +1,7 @@
 {
-  "files": 151,
-  "namespaces": 87,
-  "messages": 8560,
+  "files": 153,
+  "namespaces": 89,
+  "messages": 8574,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -209,7 +209,7 @@
     {
       "file": "public/libraries/apps/firstmeasure/order/exteriors.js",
       "namespace": "firstmeasure",
-      "references": 32,
+      "references": 26,
       "candidates": 0,
       "edits": 0
     },
@@ -763,8 +763,8 @@
       "file": "public/libraries/google-auth/firstmate-google-auth.js",
       "namespace": "google-auth",
       "references": 0,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/libraries/insights/firstmate-insights.js",
@@ -825,6 +825,20 @@
     {
       "file": "public/libraries/payroll-api/payroll-api.js",
       "namespace": "payroll-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/phone-features/app-download.js",
+      "namespace": "phone-features",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/phone-features/phone-features.js",
+      "namespace": "phone-features",
       "references": 0,
       "candidates": 0,
       "edits": 0

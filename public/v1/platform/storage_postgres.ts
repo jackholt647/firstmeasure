@@ -257,6 +257,12 @@ export async function deleteAuthSession(sessionId: string) {
   await ensurePostgresPlatformStorage();
   await queryPostgres("DELETE FROM platform_sessions WHERE id_hash = $1", [hashId(sessionId)]);
 }
+export async function consumeMobileAuthSession(sessionId: string, challenge: string) {
+  await ensurePostgresPlatformStorage();
+  const result = await queryPostgres<DocumentRow>("DELETE FROM platform_sessions WHERE id_hash = $1 AND expires_at > now() AND document->'metadata'->>'mobile_pkce' = $2 AND (document->>'revoked_at') IS NULL RETURNING document", [hashId(sessionId), challenge]);
+  if (!result.rows[0]) throw notFound("handoff_invalid", "This app sign-in has expired or is invalid.");
+  return asObject(result.rows[0].document);
+}
 export async function deleteIdentitySessions(identityId: string) {
   await ensurePostgresPlatformStorage();
   const result = await queryPostgres("DELETE FROM platform_sessions WHERE identity_id = $1", [sanitizeId(identityId, "identity_id")]);
