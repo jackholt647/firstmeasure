@@ -1,3 +1,50 @@
+
+import { formatIdentityPhone, identifierLooksLikeEmail, normalizeIdentityPhone } from "./identity_phone.js";
+
+function registrationLockRoot() {
+  return path.join(authIndexRoot(), "registration_locks");
+}
+
+function identityLockRoot() {
+  return path.join(authIndexRoot(), "identity_locks");
+}
+
+async function writeJsonExclusive(filePath: string, value: unknown) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" });
+}
+
+async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): Promise<T> {
+  await mkdir(path.dirname(lockPath), { recursive: true });
+  const deadline = Date.now() + 30_000;
+  while (true) {
+    try {
+      await mkdir(lockPath);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      try {
+        const lockStat = await stat(lockPath);
+        if (Date.now() - lockStat.mtimeMs > 120_000) {
+          await rm(lockPath, { recursive: true, force: true });
+          continue;
+        }
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw statError;
+      }
+      if (Date.now() >= deadline) {
+        throw conflict("registration_in_progress", "Account registration is already in progress. Please try again.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+  try {
+    return await operation();
+  } finally {
+    await rm(lockPath, { recursive: true, force: true });
+  }
+}
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -6,12 +53,11 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { isSpacesArtifactStorageEnabled } from "../src/storage/project_artifacts.js";
 import { badRequest, conflict, notFound } from "./errors.js";
-import { formatIdentityPhone, identifierLooksLikeEmail, normalizeIdentityPhone } from "./identity_phone.js";
 
 export type JsonObject = Record<string, unknown>;
-export type PlatformCollection = "users" | "projects" | "customers" | "branch" | "notifications" | "action_items" | "activity" | "customer_portals" | "onboarding_events" | "proposals" | "proposal_snapshots" | "proposal_events" | "material_lists" | "material_list_versions" | "material_orders" | "material_deliveries" | "material_events" | "payment_schedules" | "payment_obligations" | "payment_transactions" | "payment_allocations" | "payment_intents" | "payment_payables" | "payment_disbursements" | "payment_ledger_events" | "payment_events";
+export type PlatformCollection = "users" | "projects" | "customers" | "branch" | "notifications" | "attention_banners" | "action_items" | "activity" | "customer_portals" | "public_links" | "calendar_events" | "onboarding_events" | "proposals" | "proposal_snapshots" | "proposal_events" | "material_lists" | "material_list_versions" | "material_orders" | "material_deliveries" | "material_events" | "recurrence_series" | "recurrence_occurrences" | "payment_schedules" | "payment_obligations" | "payment_transactions" | "payment_allocations" | "payment_intents" | "payment_payables" | "payment_disbursements" | "payment_ledger_events" | "payment_events" | "payment_expense_items" | "payment_expense_overrides" | "payment_receipts" | "payment_invoices" | "payment_merchant_config" | "payment_provider_events" | "payment_provider_mock" | "payment_payouts" | "payment_disputes" | "payment_saved_methods" | "payment_autopay" | "feedback_requests" | "document_templates" | "document_template_versions" | "documents" | "document_snapshots" | "document_events" | "document_themes" | "document_theme_versions" | "document_workflows" | "document_workflow_versions" | "document_folders" | "document_folder_items" | "document_folder_item_versions" | "contact_imports" | "websites" | "website_pages" | "website_page_versions" | "website_events" | "domain_quotes" | "domain_registrations" | "domain_events";
 
-const COLLECTIONS: PlatformCollection[] = ["users", "projects", "customers", "branch", "notifications", "action_items", "activity", "customer_portals", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events"];
+const COLLECTIONS: PlatformCollection[] = ["users", "projects", "customers", "branch", "notifications", "attention_banners", "action_items", "activity", "customer_portals", "public_links", "calendar_events", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "recurrence_series", "recurrence_occurrences", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events", "payment_expense_items", "payment_expense_overrides", "payment_receipts", "payment_invoices", "payment_merchant_config", "payment_provider_events", "payment_provider_mock", "payment_payouts", "payment_disputes", "payment_saved_methods", "payment_autopay", "feedback_requests", "document_templates", "document_template_versions", "documents", "document_snapshots", "document_events", "document_themes", "document_theme_versions", "document_workflows", "document_workflow_versions", "document_folders", "document_folder_items", "document_folder_item_versions", "contact_imports", "websites", "website_pages", "website_page_versions", "website_events", "domain_quotes", "domain_registrations", "domain_events"];
 const PLATFORM_SCHEMA_VERSION = 1;
 
 let postgresStoragePromise: Promise<typeof import("./storage_postgres.js")> | null = null;
@@ -109,16 +155,12 @@ function sessionsRoot() {
   return path.join(storageRoot(), "sessions");
 }
 
+function accountDevicesRoot() {
+  return path.join(sessionsRoot(), "account_devices");
+}
+
 function emailIndexRoot() {
   return path.join(authIndexRoot(), "email");
-}
-
-function registrationLockRoot() {
-  return path.join(authIndexRoot(), "registration_locks");
-}
-
-function identityLockRoot() {
-  return path.join(authIndexRoot(), "identity_locks");
 }
 
 function sanitizeId(value: string, label = "id") {
@@ -137,9 +179,12 @@ function generatedDocumentPrefix(collection: PlatformCollection) {
   if (collection === "customers") return "customer";
   if (collection === "branch") return "branch";
   if (collection === "notifications") return "notification";
+  if (collection === "attention_banners") return "attention";
   if (collection === "action_items") return "action_item";
   if (collection === "activity") return "activity";
   if (collection === "customer_portals") return "customer_portal";
+  if (collection === "public_links") return "public_link";
+  if (collection === "calendar_events") return "calendar_event";
   if (collection === "onboarding_events") return "onboarding_event";
   if (collection === "proposals") return "proposal";
   if (collection === "proposal_snapshots") return "proposal_snapshot";
@@ -149,6 +194,8 @@ function generatedDocumentPrefix(collection: PlatformCollection) {
   if (collection === "material_orders") return "material_order";
   if (collection === "material_deliveries") return "material_delivery";
   if (collection === "material_events") return "material_event";
+  if (collection === "recurrence_series") return "recurrence_series";
+  if (collection === "recurrence_occurrences") return "recurrence_occurrence";
   if (collection === "payment_schedules") return "payment_schedule";
   if (collection === "payment_obligations") return "payment_obligation";
   if (collection === "payment_transactions") return "payment";
@@ -192,6 +239,105 @@ function mediaKind(contentType: string) {
   if (normalized.startsWith("video/")) return "video";
   if (normalized === "application/pdf") return "pdf";
   return "file";
+}
+
+function markupNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function markupUnit(value: unknown) {
+  return Math.max(0, Math.min(1, markupNumber(value)));
+}
+
+function markupXml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function markupColor(value: unknown, fallback = "#111111") {
+  const color = String(value ?? "").trim();
+  return /^(?:#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i.test(color) ? color : fallback;
+}
+
+function markupArrowParts(item: JsonObject) {
+  const x1 = markupUnit(item.x1);
+  const y1 = markupUnit(item.y1);
+  const x2 = markupUnit(item.x2);
+  const y2 = markupUnit(item.y2);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const length = 0.035;
+  const spread = Math.PI / 7;
+  return [
+    { x1, y1, x2, y2 },
+    { x1: x2, y1: y2, x2: x2 - Math.cos(angle - spread) * length, y2: y2 - Math.sin(angle - spread) * length },
+    { x1: x2, y1: y2, x2: x2 - Math.cos(angle + spread) * length, y2: y2 - Math.sin(angle + spread) * length }
+  ];
+}
+
+function wrapMarkupThumbnailText(value: unknown, maxWidth: number, fontSize: number) {
+  const maxChars = Math.max(1, Math.floor(maxWidth / Math.max(1, fontSize * 0.58)));
+  const output: string[] = [];
+  String(value ?? "").replace(/\r/g, "").split("\n").forEach((sourceLine) => {
+    const words = sourceLine.split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      output.push(" ");
+      return;
+    }
+    let line = "";
+    words.forEach((word) => {
+      const next = line ? `${line} ${word}` : word;
+      if (line && next.length > maxChars) {
+        output.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    });
+    output.push(line || " ");
+  });
+  return output.length ? output : [" "];
+}
+
+function markupThumbnailSvg(data: JsonObject, width: number, height: number) {
+  const items = Array.isArray(data.items) ? data.items.map((entry) => asObject(entry)) : [];
+  if (!items.length) return "";
+  const strokeScale = Math.max(1, Math.sqrt(width * height) / 100);
+  const elements: string[] = [];
+  items.forEach((item) => {
+    const color = markupColor(item.color);
+    if (item.type === "stroke") {
+      const points = Array.isArray(item.points) ? item.points.map((entry) => asObject(entry)) : [];
+      if (!points.length) return;
+      const pathData = points.map((point, index) => `${index ? "L" : "M"}${(markupUnit(point.x) * width).toFixed(2)} ${(markupUnit(point.y) * height).toFixed(2)}`).join(" ");
+      const strokeWidth = Math.max(1, markupNumber(item.size, 2.2) * strokeScale);
+      elements.push(`<path d="${pathData}" fill="none" stroke="${markupXml(color)}" stroke-width="${strokeWidth.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+      return;
+    }
+    if (item.type === "arrow") {
+      const strokeWidth = Math.max(1, markupNumber(item.size, 2.8) * strokeScale);
+      markupArrowParts(item).forEach((part) => {
+        elements.push(`<line x1="${(part.x1 * width).toFixed(2)}" y1="${(part.y1 * height).toFixed(2)}" x2="${(part.x2 * width).toFixed(2)}" y2="${(part.y2 * height).toFixed(2)}" stroke="${markupXml(color)}" stroke-width="${strokeWidth.toFixed(2)}" stroke-linecap="round"/>`);
+      });
+      return;
+    }
+    if (item.type !== "text") return;
+    const x = markupUnit(item.x) * width;
+    const y = markupUnit(item.y) * height;
+    const boxWidth = Math.max(1, markupNumber(item.width, 0.24) * width);
+    const boxHeight = Math.max(1, markupNumber(item.height, 0.07) * height);
+    const explicitLines = String(item.text ?? "").split("\n").length || 1;
+    const fontSize = Math.max(8, (boxHeight - 8) / Math.max(1, explicitLines * 1.14));
+    const lines = wrapMarkupThumbnailText(item.text, Math.max(20, boxWidth - 10), fontSize);
+    elements.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${boxWidth.toFixed(2)}" height="${boxHeight.toFixed(2)}" rx="${Math.max(1, fontSize * 0.18).toFixed(2)}" fill="white" fill-opacity="0.72"/>`);
+    const tspans = lines.map((line, index) => `<tspan x="${(x + 5).toFixed(2)}" y="${(y + 4 + index * fontSize * 1.14).toFixed(2)}">${markupXml(line)}</tspan>`).join("");
+    elements.push(`<text fill="${markupXml(color)}" font-family="Arial, sans-serif" font-size="${fontSize.toFixed(2)}" font-weight="700" dominant-baseline="text-before-edge">${tspans}</text>`);
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${elements.join("")}</svg>`;
 }
 
 function contentTypeForFormat(format: string) {
@@ -261,62 +407,47 @@ async function pathExists(filePath: string) {
   }
 }
 
+const documentMutationTails = new Map<string, Promise<void>>();
+
+async function withDocumentMutationLock<T>(filePath: string, work: () => Promise<T>) {
+  const previous = documentMutationTails.get(filePath) || Promise.resolve();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => gate);
+  documentMutationTails.set(filePath, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await work();
+  } finally {
+    release();
+    if (documentMutationTails.get(filePath) === tail) documentMutationTails.delete(filePath);
+  }
+}
+
 async function writeFileAtomic(filePath: string, content: string) {
   await mkdir(path.dirname(filePath), { recursive: true });
   const tempPath = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${randomBytes(6).toString("hex")}.tmp`);
   try {
     await writeFile(tempPath, content);
-    try {
-      await rename(tempPath, filePath);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (process.platform !== "win32" || (code !== "EPERM" && code !== "EEXIST")) throw error;
-      await rm(filePath, { force: true });
-      await rename(tempPath, filePath);
+    // Windows: rename-over-existing races with concurrent readers/writers of
+    // the same record (e.g. parallel requests touching one session file) and
+    // surfaces as EPERM/EACCES. Retry briefly before giving up.
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        await rename(tempPath, filePath);
+        return;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (process.platform !== "win32" || !["EPERM", "EEXIST", "EACCES"].includes(String(code))) throw error;
+        lastError = error;
+        await rm(filePath, { force: true }).catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 15 * (attempt + 1)));
+      }
     }
+    throw lastError;
   } finally {
     await rm(tempPath, { force: true });
-  }
-}
-
-async function writeJsonAtomic(filePath: string, value: unknown) {
-  await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-async function writeJsonExclusive(filePath: string, value: unknown) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" });
-}
-
-async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): Promise<T> {
-  await mkdir(path.dirname(lockPath), { recursive: true });
-  const deadline = Date.now() + 30_000;
-  while (true) {
-    try {
-      await mkdir(lockPath);
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      try {
-        const lockStat = await stat(lockPath);
-        if (Date.now() - lockStat.mtimeMs > 120_000) {
-          await rm(lockPath, { recursive: true, force: true });
-          continue;
-        }
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code === "ENOENT") continue;
-        throw statError;
-      }
-      if (Date.now() >= deadline) {
-        throw conflict("registration_in_progress", "Account registration is already in progress. Please try again.");
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-  }
-  try {
-    return await operation();
-  } finally {
-    await rm(lockPath, { recursive: true, force: true });
   }
 }
 
@@ -324,6 +455,10 @@ export async function withIdentityRegistrationLock<T>(emailValue: string, operat
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).withIdentityRegistrationLock(emailValue, operation);
   const email = normalizeEmail(emailValue);
   return await withFileLock(path.join(registrationLockRoot(), `${hashId(email)}.lock`), operation);
+}
+
+export async function writeJsonAtomic(filePath: string, value: unknown) {
+  await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 async function readJsonFile<T>(filePath: string): Promise<T> {
@@ -343,6 +478,10 @@ function identityPath(identityId: string) {
 
 function sessionPath(sessionId: string) {
   return path.join(sessionsRoot(), `${hashId(sessionId)}.json`);
+}
+
+function accountDevicePath(deviceId: string) {
+  return path.join(accountDevicesRoot(), `${hashId(deviceId)}.json`);
 }
 
 function emailIndexPath(email: string) {
@@ -401,6 +540,165 @@ function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
 }
 
+function projectContactText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function normalizedContactTags(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const entry of raw) {
+    const tag = projectContactText(entry).replace(/\s+/g, " ").slice(0, 80);
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+  }
+  return tags.slice(0, 64);
+}
+
+function normalizedProjectContact(value: unknown) {
+  const contact = asObject(value);
+  const id = projectContactText(contact.id || contact.contact_id);
+  return {
+    id,
+    contact_id: id,
+    name: projectContactText(contact.name || contact.full_name || contact.display_name),
+    email: projectContactText(contact.email || contact.email_address).toLowerCase(),
+    phone: projectContactText(contact.phone || contact.phone_number || contact.mobile),
+    address: projectContactText(contact.address || contact.default_address),
+    default_address: projectContactText(contact.default_address || contact.address),
+    role: projectContactText(contact.role),
+    company: projectContactText(contact.company || contact.organization),
+    notes: projectContactText(contact.notes),
+    birthday: projectContactText(contact.birthday),
+    tags: normalizedContactTags(contact.tags),
+    imported_at: projectContactText(contact.imported_at),
+    import_id: projectContactText(contact.import_id),
+    import_source: projectContactText(contact.import_source),
+    primary: contact.primary === true
+  };
+}
+
+function projectContactHasIdentity(contact: ReturnType<typeof normalizedProjectContact>) {
+  return !!(contact.id || contact.name || contact.email || contact.phone || contact.address);
+}
+
+function projectContactSemanticKey(contact: ReturnType<typeof normalizedProjectContact>) {
+  if (contact.email) return `email:${contact.email}`;
+  const phone = contact.phone.replace(/\D+/g, "");
+  if (phone.length >= 7) return `phone:${phone}`;
+  const name = contact.name.toLowerCase().replace(/\s+/g, " ").trim();
+  return name ? `name:${name}` : "";
+}
+
+function mergeProjectContacts(
+  current: ReturnType<typeof normalizedProjectContact>,
+  incoming: ReturnType<typeof normalizedProjectContact>
+) {
+  const id = incoming.id || current.id;
+  return {
+    id,
+    contact_id: id,
+    name: incoming.name || current.name,
+    email: incoming.email || current.email,
+    phone: incoming.phone || current.phone,
+    address: incoming.address || current.address,
+    default_address: incoming.default_address || current.default_address || incoming.address || current.address,
+    role: incoming.role || current.role,
+    company: incoming.company || current.company,
+    notes: incoming.notes || current.notes,
+    birthday: incoming.birthday || current.birthday,
+    tags: normalizedContactTags([...current.tags, ...incoming.tags]),
+    imported_at: current.imported_at || incoming.imported_at,
+    import_id: current.import_id || incoming.import_id,
+    import_source: current.import_source || incoming.import_source,
+    primary: current.primary || incoming.primary
+  };
+}
+
+function stableProjectContactId(projectId: string, index: number) {
+  return `contact_${hashId(`${projectId}:contact:${index}`).slice(0, 16)}`;
+}
+
+function normalizeProjectDataContacts(projectId: string, data: JsonObject, previousData: JsonObject = {}): JsonObject {
+  const incoming = (Array.isArray(data.contacts) ? data.contacts : [])
+    .map(normalizedProjectContact)
+    .filter(projectContactHasIdentity);
+  const previous = (Array.isArray(previousData.contacts) ? previousData.contacts : [])
+    .map(normalizedProjectContact)
+    .filter(projectContactHasIdentity);
+  const topLevelId = projectContactText(data.contact_id || data.primary_contact_id);
+  const alias = normalizedProjectContact({
+    id: topLevelId,
+    name: data.customer_name || data.customerName || data.primary_contact_name || data.resident_name || data.residentName || (typeof data.resident === "string" ? data.resident : ""),
+    email: data.customer_email || data.customerEmail || data.primary_contact_email || data.resident_email || data.residentEmail,
+    phone: data.customer_phone || data.customerPhone || data.primary_contact_phone || data.resident_phone || data.residentPhone,
+    address: data.contact_address || data.customer_address || data.primary_contact_address,
+    primary: true
+  });
+
+  if (projectContactHasIdentity(alias)) {
+    const aliasSemanticKey = projectContactSemanticKey(alias);
+    let aliasIndex = incoming.findIndex((contact) => alias.id && contact.id === alias.id);
+    if (aliasIndex < 0 && aliasSemanticKey) {
+      aliasIndex = incoming.findIndex((contact) => projectContactSemanticKey(contact) === aliasSemanticKey && (!contact.id || !alias.id));
+    }
+    if (aliasIndex < 0 && alias.id) aliasIndex = incoming.findIndex((contact) => !contact.id && contact.primary);
+    if (aliasIndex < 0 && alias.id) aliasIndex = incoming.findIndex((contact) => !contact.id);
+    if (aliasIndex >= 0) incoming[aliasIndex] = mergeProjectContacts(alias, incoming[aliasIndex]!);
+    else if (alias.id || !incoming.length) incoming.unshift(alias);
+  }
+
+  const merged: ReturnType<typeof normalizedProjectContact>[] = [];
+  for (const contact of incoming) {
+    const semanticKey = projectContactSemanticKey(contact);
+    const existingIndex = merged.findIndex((candidate) => (
+      !!(candidate.id && contact.id && candidate.id === contact.id)
+      || !!(semanticKey && semanticKey === projectContactSemanticKey(candidate) && (!candidate.id || !contact.id))
+    ));
+    if (existingIndex >= 0) merged[existingIndex] = mergeProjectContacts(merged[existingIndex]!, contact);
+    else merged.push(contact);
+  }
+
+  const usedPreviousIds = new Set<string>();
+  const contacts = merged.map((contact, index) => {
+    let id = contact.id;
+    if (!id) {
+      const semanticKey = projectContactSemanticKey(contact);
+      let previousMatch = semanticKey
+        ? previous.find((candidate) => candidate.id && !usedPreviousIds.has(candidate.id) && projectContactSemanticKey(candidate) === semanticKey)
+        : undefined;
+      if (!previousMatch && previous[index]?.id && !usedPreviousIds.has(previous[index].id)) previousMatch = previous[index];
+      id = previousMatch?.id || (index === 0 ? topLevelId : "") || stableProjectContactId(projectId, index);
+    }
+    usedPreviousIds.add(id);
+    return { ...contact, id, contact_id: id };
+  });
+
+  if (!contacts.length) return { ...data, contacts: [] };
+  let primaryIndex = contacts.findIndex((contact) => topLevelId && contact.id === topLevelId);
+  if (primaryIndex < 0) primaryIndex = contacts.findIndex((contact) => contact.primary);
+  if (primaryIndex < 0) primaryIndex = 0;
+  contacts.forEach((contact, index) => { contact.primary = index === primaryIndex; });
+  const primary = contacts[primaryIndex]!;
+  const contactIds = Array.from(new Set(contacts.map((contact) => contact.id).filter(Boolean)));
+  return {
+    ...data,
+    contacts,
+    contact_id: primary.id,
+    primary_contact_id: primary.id,
+    contact_ids: contactIds,
+    customer_name: primary.name || projectContactText(data.customer_name),
+    primary_contact_name: primary.name || projectContactText(data.primary_contact_name),
+    customer_email: primary.email || projectContactText(data.customer_email),
+    primary_contact_email: primary.email || projectContactText(data.primary_contact_email),
+    customer_phone: primary.phone || projectContactText(data.customer_phone),
+    primary_contact_phone: primary.phone || projectContactText(data.primary_contact_phone)
+  };
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -452,9 +750,62 @@ export async function ensurePlatformStorage() {
   await mkdir(organizationsRoot(), { recursive: true });
   await mkdir(identitiesRoot(), { recursive: true });
   await mkdir(sessionsRoot(), { recursive: true });
+  await mkdir(accountDevicesRoot(), { recursive: true });
   await mkdir(emailIndexRoot(), { recursive: true });
-  await mkdir(registrationLockRoot(), { recursive: true });
-  await mkdir(identityLockRoot(), { recursive: true });
+}
+
+/**
+ * A browser-owned account bundle. The opaque device id is the only value placed
+ * in a cookie; the referenced session ids remain server-side.
+ */
+export async function createAccountDevice(input: JsonObject = {}) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).createAccountDevice(input);
+  await ensurePlatformStorage();
+  const now = nowIso();
+  const deviceId = randomBytes(32).toString("base64url");
+  const record = {
+    schema_version: PLATFORM_SCHEMA_VERSION,
+    id_hash: hashId(deviceId),
+    created_at: now,
+    updated_at: now,
+    last_seen_at: now,
+    accounts: Array.isArray(input.accounts) ? input.accounts : [],
+    metadata: asObject(input.metadata)
+  };
+  await writeJsonAtomic(accountDevicePath(deviceId), record);
+  return { deviceId, record };
+}
+
+export async function readAccountDevice(deviceId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readAccountDevice(deviceId);
+  await ensurePlatformStorage();
+  return await readJsonFile<JsonObject>(accountDevicePath(deviceId));
+}
+
+export async function saveAccountDevice(deviceId: string, input: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).saveAccountDevice(deviceId, input);
+  await ensurePlatformStorage();
+  const existing = await readAccountDevice(deviceId).catch(() => null);
+  if (!existing) throw notFound("account_device_not_found", "The remembered account device was not found.");
+  const now = nowIso();
+  const next = {
+    ...existing,
+    ...input,
+    id_hash: hashId(deviceId),
+    created_at: String(existing.created_at || now),
+    updated_at: now,
+    last_seen_at: now,
+    accounts: Array.isArray(input.accounts) ? input.accounts : (Array.isArray(existing.accounts) ? existing.accounts : []),
+    metadata: { ...asObject(existing.metadata), ...asObject(input.metadata) }
+  };
+  await writeJsonAtomic(accountDevicePath(deviceId), next);
+  return next;
+}
+
+export async function deleteAccountDevice(deviceId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteAccountDevice(deviceId);
+  await ensurePlatformStorage();
+  await rm(accountDevicePath(deviceId), { force: true });
 }
 
 export async function createAuthSession(input: JsonObject = {}) {
@@ -505,6 +856,19 @@ export async function touchAuthSession(sessionId: string) {
   const session = await readAuthSession(sessionId);
   const next = {
     ...session,
+    updated_at: nowIso(),
+    last_seen_at: nowIso()
+  };
+  await writeJsonAtomic(sessionPath(sessionId), next);
+  return next;
+}
+
+export async function rotateAuthSessionCsrf(sessionId: string) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).rotateAuthSessionCsrf(sessionId);
+  const session = await readAuthSession(sessionId);
+  const next = {
+    ...session,
+    csrf_token: randomBytes(24).toString("base64url"),
     updated_at: nowIso(),
     last_seen_at: nowIso()
   };
@@ -818,6 +1182,19 @@ export async function createOrganization(input: JsonObject = {}) {
     created_at: now,
     updated_at: now
   });
+  // Dynamic import: work/engine imports this module, so a static import would
+  // be a cycle. Never let event emission break organization creation.
+  try {
+    const { emitWorkEvent } = await import("../work/engine.js");
+    await emitWorkEvent({
+      organization_id: id,
+      type: "organization.created",
+      idempotency_key: `organization.created:${id}`,
+      payload: { organization_id: id, name: organization.name }
+    });
+  } catch {
+    // Event emission must not abort organization creation.
+  }
   return organization;
 }
 
@@ -880,14 +1257,21 @@ export async function listDocuments(orgId: string, collectionValue: string) {
   const documents = await mapWithConcurrency(fileEntries, 32, (entry) => (
     readJsonFile<StoredDocument>(path.join(directory, entry.name))
   ));
-  return documents.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  return documents
+    .map((document) => collection === "projects"
+      ? { ...document, data: normalizeProjectDataContacts(document.id, asObject(document.data)) }
+      : document)
+    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
 }
 
 export async function readDocument(orgId: string, collectionValue: string, documentId: string) {
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readDocument(orgId, collectionValue, documentId) as Promise<StoredDocument>;
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
-  return await readJsonFile<StoredDocument>(documentPath(orgId, collection, documentId));
+  const document = await readJsonFile<StoredDocument>(documentPath(orgId, collection, documentId));
+  return collection === "projects"
+    ? { ...document, data: normalizeProjectDataContacts(document.id, asObject(document.data)) }
+    : document;
 }
 
 export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
@@ -896,41 +1280,44 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
   await readOrganization(orgId);
   const id = input.id ? sanitizeId(String(input.id), "document_id") : generateId(generatedDocumentPrefix(collection));
   const filePath = documentPath(orgId, collection, id);
-  const exists = await pathExists(filePath);
-  const now = nowIso();
-  const data = asObject(input.data);
-  const metadata = asObject(input.metadata);
-  const expectedRevision = Number(input.expected_revision ?? 0);
+  return await withDocumentMutationLock(filePath, async () => {
+    const exists = await pathExists(filePath);
+    const now = nowIso();
+    const data = asObject(input.data);
+    const metadata = asObject(input.metadata);
+    const expectedRevision = Number(input.expected_revision ?? 0);
 
-  if (!exists) {
-    const created: StoredDocument = {
-      schema_version: PLATFORM_SCHEMA_VERSION,
-      id,
-      organization_id: sanitizeId(orgId, "organization_id"),
-      collection,
-      data,
-      metadata,
-      revision: 1,
-      created_at: now,
+    if (!exists) {
+      const created: StoredDocument = {
+        schema_version: PLATFORM_SCHEMA_VERSION,
+        id,
+        organization_id: sanitizeId(orgId, "organization_id"),
+        collection,
+        data: collection === "projects" ? normalizeProjectDataContacts(id, data) : data,
+        metadata,
+        revision: 1,
+        created_at: now,
+        updated_at: now
+      };
+      await writeJsonAtomic(filePath, created);
+      return created;
+    }
+
+    const current = await readJsonFile<StoredDocument>(filePath);
+    if (expectedRevision && expectedRevision !== current.revision) {
+      throw conflict("revision_conflict", "Document revision does not match.");
+    }
+    const nextData = options.replace ? data : { ...asObject(current.data), ...data };
+    const next: StoredDocument = {
+      ...current,
+      data: collection === "projects" ? normalizeProjectDataContacts(id, nextData, asObject(current.data)) : nextData,
+      metadata: options.replace ? metadata : { ...asObject(current.metadata), ...metadata },
+      revision: current.revision + 1,
       updated_at: now
     };
-    await writeJsonAtomic(filePath, created);
-    return created;
-  }
-
-  const current = await readJsonFile<StoredDocument>(filePath);
-  if (expectedRevision && expectedRevision !== current.revision) {
-    throw conflict("revision_conflict", "Document revision does not match.");
-  }
-  const next: StoredDocument = {
-    ...current,
-    data: options.replace ? data : { ...asObject(current.data), ...data },
-    metadata: options.replace ? metadata : { ...asObject(current.metadata), ...metadata },
-    revision: current.revision + 1,
-    updated_at: now
-  };
-  await writeJsonAtomic(filePath, next);
-  return next;
+    await writeJsonAtomic(filePath, next);
+    return next;
+  });
 }
 
 export async function deleteDocument(orgId: string, collectionValue: string, documentId: string) {
@@ -1117,6 +1504,97 @@ export async function readMediaMetadata(orgId: string, mediaId: string) {
   return await readJsonFile<JsonObject>(mediaMetadataPath(orgId, mediaId));
 }
 
+export function normalizeMediaTags(value: unknown) {
+  const values = Array.isArray(value) ? value : String(value ?? "").split(",");
+  return [...new Set(values
+    .map((entry) => String(entry ?? "")
+      .trim()
+      .replace(/^#+/, "")
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_-]/g, "")
+      .replace(/^[_-]+|[_-]+$/g, "")
+      .slice(0, 64))
+    .filter(Boolean))]
+    .slice(0, 50);
+}
+
+async function mutateMediaMetadata(orgId: string, mediaId: string, mutate: (media: JsonObject) => JsonObject) {
+  if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).mutateMediaMetadata(orgId, mediaId, mutate);
+  const file = mediaMetadataPath(orgId, mediaId);
+  return withDocumentMutationLock(file, async () => {
+    const next = mutate(await readMediaMetadata(orgId, mediaId));
+    await writeJsonAtomic(file, next);
+    return next;
+  });
+}
+
+export async function updateMediaTags(orgId: string, mediaId: string, tagsValue: unknown) {
+  const normalizedOrgId = sanitizeId(orgId, "organization_id");
+  const normalizedMediaId = sanitizeId(mediaId, "media_id");
+  return await mutateMediaMetadata(normalizedOrgId, normalizedMediaId, (media) => {
+    const tags = normalizeMediaTags(tagsValue);
+    const next = {
+      ...media,
+      tags,
+      metadata: {
+        ...asObject(media.metadata),
+        tags
+      },
+      updated_at: nowIso()
+    };
+    return next;
+  });
+}
+
+/* Renames a media item for display. The stored file path is derived from the
+ * media id, so only the human-facing name changes; the extension is preserved
+ * from the existing file name so downloads keep opening in the right app. */
+export async function renameMedia(orgId: string, mediaId: string, nameValue: unknown) {
+  const normalizedOrgId = sanitizeId(orgId, "organization_id");
+  const normalizedMediaId = sanitizeId(mediaId, "media_id");
+  const requested = String(nameValue ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[.\-\s]+/, "")
+    .trim()
+    .slice(0, 160);
+  if (!requested) throw badRequest("media_name_required", "A media name is required.");
+  return await mutateMediaMetadata(normalizedOrgId, normalizedMediaId, (media) => {
+    const previousName = String(media.file_name || "");
+    const previousExt = /\.([a-z0-9]{1,8})$/i.exec(previousName)?.[1] || "";
+    const hasExt = previousExt && new RegExp(`\\.${previousExt}$`, "i").test(requested);
+    const fileName = previousExt && !hasExt ? `${requested}.${previousExt}` : requested;
+    const base = fileName.replace(/\.[a-z0-9]{1,8}$/i, "") || requested;
+    // Downloads read the variant's own file_name first, so rename those too,
+    // each keeping its own extension (thumbnails may differ from the original).
+    const variants = asObject(media.variants);
+    const renamedVariants: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(variants)) {
+      const entry = asObject(value);
+      const entryName = String(entry.file_name || "");
+      const entryExt = /\.([a-z0-9]{1,8})$/i.exec(entryName)?.[1] || previousExt;
+      renamedVariants[key] = entryName
+        ? { ...entry, file_name: entryExt ? `${base}.${entryExt}` : base }
+        : entry;
+    }
+    const next = {
+      ...media,
+      file_name: fileName,
+      label: requested,
+      variants: renamedVariants,
+      metadata: {
+        ...asObject(media.metadata),
+        file_name: fileName,
+        label: requested
+      },
+      updated_at: nowIso()
+    };
+    return next;
+  });
+}
+
 export async function storeMediaUpload(orgId: string, input: MediaUploadOptions) {
   if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).storeMediaUpload(orgId, input);
   await readOrganization(orgId);
@@ -1251,7 +1729,12 @@ export async function storeMediaUpload(orgId: string, input: MediaUploadOptions)
       compression: settings.compression,
       warnings: processingWarnings
     },
-    metadata: asObject(input.metadata),
+    metadata: {
+      ...asObject(input.metadata),
+      ...(normalizeMediaTags(asObject(input.metadata).tags).length
+        ? { tags: normalizeMediaTags(asObject(input.metadata).tags) }
+        : {})
+    },
     created_at: now,
     updated_at: now
   };
@@ -1293,6 +1776,73 @@ async function renderImageVariant(
   };
 }
 
+async function refreshMarkupThumbnailVariants(orgId: string, mediaId: string, media: JsonObject, layer: JsonObject) {
+  const contentType = String(media.content_type || "").toLowerCase();
+  if (String(media.kind || mediaKind(contentType)) !== "image" || contentType === "image/svg+xml") return media;
+  const variants = { ...asObject(media.variants) };
+  const original = asObject(variants.original);
+  const originalPath = String(original.path || "");
+  if (!originalPath || originalPath.includes("..") || path.isAbsolute(originalPath)) return media;
+
+  const processing = asObject(media.processing);
+  const thumbnailSettings = asObject(processing.thumbnails);
+  const configuredSizes = Array.isArray(thumbnailSettings.sizes) ? thumbnailSettings.sizes : [];
+  const existingSizes = Object.keys(variants)
+    .map((variant) => variant.match(/^thumb_(\d+)$/)?.[1])
+    .filter(Boolean);
+  const sizes = [...new Set([...configuredSizes, ...existingSizes, 320]
+    .map((value) => numberInRange(value, 0, 32, 2400))
+    .filter(Boolean))]
+    .sort((a, b) => a - b);
+  const originalBytes = await readFile(path.join(mediaDir(orgId, mediaId), originalPath));
+  const sharp = (await import("sharp")).default;
+  const data = asObject(layer.data);
+  const generatedVariants: string[] = [];
+
+  for (const size of sizes) {
+    const base = await sharp(originalBytes, { failOn: "none" })
+      .rotate()
+      .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer({ resolveWithObject: true });
+    const overlay = markupThumbnailSvg(data, base.info.width, base.info.height);
+    const generated = overlay
+      ? await sharp(base.data)
+        .composite([{ input: Buffer.from(overlay) }])
+        .webp({ quality: 82 })
+        .toBuffer({ resolveWithObject: true })
+      : base;
+    const variantName = `thumb_${size}_markup`;
+    const fileName = `${variantName}.webp`;
+    await writeFile(path.join(mediaDir(orgId, mediaId), "renditions", fileName), generated.data);
+    variants[variantName] = {
+      path: `renditions/${fileName}`,
+      content_type: "image/webp",
+      file_name: fileName,
+      size_bytes: generated.data.length,
+      width: generated.info.width,
+      height: generated.info.height,
+      updated_at: String(layer.updated_at || nowIso()),
+      markup_revision: Number(layer.revision || 0)
+    };
+    generatedVariants.push(variantName);
+  }
+
+  return {
+    ...media,
+    variants,
+    renditions: Object.entries(variants)
+      .filter(([key]) => key !== "original")
+      .map(([key, value]) => ({ variant: key, ...asObject(value) })),
+    markup_thumbnail: {
+      layer_id: String(layer.id || "photo_markup"),
+      revision: Number(layer.revision || 0),
+      updated_at: String(layer.updated_at || nowIso()),
+      variants: generatedVariants
+    }
+  };
+}
+
 async function writeInitialMarkup(orgId: string, mediaId: string, input: unknown) {
   const markup = asObject(input);
   const rawLayers = Array.isArray(markup.layers) ? markup.layers : [];
@@ -1330,32 +1880,37 @@ export async function saveMediaMarkupLayer(orgId: string, mediaId: string, layer
   const normalizedOrgId = sanitizeId(orgId, "organization_id");
   const normalizedMediaId = sanitizeId(mediaId, "media_id");
   const normalizedLayerId = sanitizeId(layerId, "markup_layer_id");
-  const layer = await writeMediaMarkupLayerFile(normalizedOrgId, normalizedMediaId, normalizedLayerId, data, metadata);
-
-  let media = await readMediaMetadata(normalizedOrgId, normalizedMediaId);
-  const markup = asObject(media.markup);
-  const layers = Array.isArray(markup.layers) ? markup.layers.map((entry) => asObject(entry)) : [];
-  const reference = {
-    id: normalizedLayerId,
-    path: `markup/${normalizedLayerId}.json`,
-    revision: layer.revision,
-    updated_at: layer.updated_at,
-    ...asObject(metadata)
-  };
-  const index = layers.findIndex((entry) => String(entry.id || entry.layer_id) === normalizedLayerId);
-  if (index >= 0) layers[index] = { ...layers[index], ...reference };
-  else layers.push(reference);
-  media = {
-    ...media,
-    markup: {
-      ...markup,
-      layers,
-      current_layer_id: markup.current_layer_id || normalizedLayerId
-    },
-    updated_at: nowIso()
-  };
-  await writeJsonAtomic(mediaMetadataPath(normalizedOrgId, normalizedMediaId), media);
-  return { media, layer };
+  const metadataPath = mediaMetadataPath(normalizedOrgId, normalizedMediaId);
+  return await withDocumentMutationLock(metadataPath, async () => {
+    const layer = await writeMediaMarkupLayerFile(normalizedOrgId, normalizedMediaId, normalizedLayerId, data, metadata);
+    let media = await readMediaMetadata(normalizedOrgId, normalizedMediaId);
+    const markup = asObject(media.markup);
+    const layers = Array.isArray(markup.layers) ? markup.layers.map((entry) => asObject(entry)) : [];
+    const reference = {
+      id: normalizedLayerId,
+      path: `markup/${normalizedLayerId}.json`,
+      revision: layer.revision,
+      updated_at: layer.updated_at,
+      ...asObject(metadata)
+    };
+    const index = layers.findIndex((entry) => String(entry.id || entry.layer_id) === normalizedLayerId);
+    if (index >= 0) layers[index] = { ...layers[index], ...reference };
+    else layers.push(reference);
+    media = {
+      ...media,
+      markup: {
+        ...markup,
+        layers,
+        current_layer_id: markup.current_layer_id || normalizedLayerId
+      },
+      updated_at: nowIso()
+    };
+    if (normalizedLayerId === "photo_markup" || normalizedLayerId === "markup_photo_markup") {
+      media = await refreshMarkupThumbnailVariants(normalizedOrgId, normalizedMediaId, media, layer);
+    }
+    await writeJsonAtomic(metadataPath, media);
+    return { media, layer };
+  });
 }
 
 async function writeMediaMarkupLayerFile(orgId: string, mediaId: string, layerId: string, data: JsonObject = {}, metadata: JsonObject = {}) {
@@ -1428,7 +1983,12 @@ export async function readMediaFile(orgId: string, mediaId: string, variantValue
   const metadata = await readMediaMetadata(orgId, mediaId);
   const variant = sanitizeId(variantValue || "original", "variant");
   const variants = asObject(metadata.variants);
-  const entry = asObject(variants[variant]);
+  const markupThumbnailSize = variant.match(/^thumb_(\d+)_markup$/)?.[1] || "";
+  const requestedEntry = asObject(variants[variant]);
+  const fallbackEntry = markupThumbnailSize
+    ? asObject(variants[`thumb_${markupThumbnailSize}`] || variants.original)
+    : {};
+  const entry = Object.keys(requestedEntry).length ? requestedEntry : fallbackEntry;
   const relativePath = String(entry.path || "");
   if (!relativePath || relativePath.includes("..") || path.isAbsolute(relativePath)) {
     throw notFound("media_variant_not_found", "The requested media variant was not found.");
@@ -1441,4 +2001,24 @@ export async function readMediaFile(orgId: string, mediaId: string, variantValue
     fileName: String(entry.file_name || metadata.file_name || `${mediaId}`),
     bytes: await readFile(filePath)
   };
+}
+
+function platformConfigurationPath(name: string) {
+  if (!/^[a-z][a-z0-9_]{0,79}$/.test(name)) throw badRequest("invalid_configuration_name", "Invalid configuration name.");
+  return path.join(storageRoot(), "config", `${name}.json`);
+}
+export async function readPlatformConfiguration(name: string): Promise<JsonObject | null> {
+  const file = platformConfigurationPath(name);
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readControlDocument("configuration", name);
+  try { return await readJsonFile<JsonObject>(file); }
+  catch (error) { if ((error as { code?: string; statusCode?: number }).code === "ENOENT" || (error as { statusCode?: number }).statusCode === 404) return null; throw error; }
+}
+export async function mutatePlatformConfiguration(name: string, mutate: (current: JsonObject | null) => JsonObject): Promise<JsonObject> {
+  const file = platformConfigurationPath(name);
+  if (isFirstMeasurePostgresEnabled()) return (await (await postgresStorage()).mutateControlDocument("configuration", name, mutate))!;
+  return withDocumentMutationLock(file, async () => {
+    const next = mutate(await readPlatformConfiguration(name));
+    await writeJsonAtomic(file, next);
+    return next;
+  });
 }

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Proposal Renderer</title>
+  <script>
+    (function(){
+      function escapeHtml(value){
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function(match){
+          if (match === '&') return '&amp;';
+          if (match === '<') return '&lt;';
+          if (match === '>') return '&gt;';
+          if (match === '"') return '&quot;';
+          return '&#39;';
+        });
+      }
+      window.__APP = window.__APP || {};
+      window.Portal = {
+        modules: {},
+        cfg: window.__APP,
+        util: {
+          $: function(sel, root){ return (root || document).querySelector(sel); },
+          escapeHtml: escapeHtml,
+          injectCSS: function(id, css){
+            if (!id || document.getElementById(id)) return;
+            var style = document.createElement('style');
+            style.id = id;
+            style.textContent = css || '';
+            document.head.appendChild(style);
+          },
+          fmUrl: function(path){ return String(path || ''); },
+          formatDate: function(value){ return String(value || ''); },
+          currentActor: function(){ return {}; }
+        },
+        ui: { showToast: function(){} }
+      };
+      window.FirstMateEmbeddableApps = { registerApp: function(){} };
+    })();
+  </script>
+  <script src="../libraries/apps/project-request/app.js"></script>
+  <script>
+    (function(){
+      try {
+        window.Portal.modules.request && window.Portal.modules.request.ensureStyles && window.Portal.modules.request.ensureStyles();
+        window.Portal.modules.request && window.Portal.modules.request.ensureProposalContext && window.Portal.modules.request.ensureProposalContext();
+        var requestStyle = document.getElementById('request');
+        if (requestStyle && !document.getElementById('css_request')) {
+          var clone = document.createElement('style');
+          clone.id = 'css_request';
+          clone.textContent = requestStyle.textContent || '';
+          document.head.appendChild(clone);
+        }
+      } catch (error) {
+        console.warn('Unable to prepare proposal renderer styles.', error);
+      }
+    })();
+  </script>
+  <script src="../libraries/apps/proposals/project.js"></script>
+  <script>
+    (function(){
+      function renderProposal(proposal, index){
+        var api = window.Portal && window.Portal.modules && window.Portal.modules.proposalsTab;
+        if (!api || typeof api.invoke !== 'function') {
+          throw new Error('Proposal Builder renderer is unavailable.');
+        }
+        var proposalIndex = Number(index || 0) || 0;
+        var portalContext = proposal && proposal.__portalContext && typeof proposal.__portalContext === 'object' ? proposal.__portalContext : {};
+        var project = portalContext.project && typeof portalContext.project === 'object' ? portalContext.project : {};
+        var organization = portalContext.organization && typeof portalContext.organization === 'object' ? portalContext.organization : {};
+        var branding = organization.branding && typeof organization.branding === 'object' ? organization.branding : {};
+        var colors = branding.colors && typeof branding.colors === 'object' ? branding.colors : {};
+        var portalMedia = Array.isArray(portalContext.media) ? portalContext.media : [];
+        var platformApiBase = String(portalContext.platformApiBase || window.__APP.platformApiBase || '').trim().replace(/\/+$/, '');
+        if (platformApiBase) {
+          window.__APP.platformApiBase = platformApiBase;
+          window.Portal.cfg.platformApiBase = platformApiBase;
+        }
+        var orgId = String(organization.id || organization.org_id || organization.organization_id || '').trim();
+        if (orgId) {
+          window.__APP.orgId = orgId;
+          window.__APP.userOrgId = orgId;
+          window.Portal.cfg.orgId = orgId;
+          window.Portal.cfg.userOrgId = orgId;
+        }
+        function photoId(photo){
+          return String(photo && (photo.id || photo.photo_id || photo.media_id || photo.src || photo.thumb) || '').trim();
+        }
+        function normalizePhoto(photo, fallbackId){
+          if (!photo || typeof photo !== 'object') return null;
+          var src = String(photo.src || photo.url || photo.original || photo.file_url || photo.thumb || '').trim();
+          var thumb = String(photo.thumb || photo.thumbnail || photo.thumbnail_url || src).trim();
+          var id = String(photo.id || photo.photo_id || photo.media_id || fallbackId || src || thumb || '').trim();
+          if (!id && !src && !thumb) return null;
+          return {
+            id: id,
+            photo_id: id,
+            media_id: String(photo.media_id || photo.mediaId || '').trim(),
+            src: src || thumb,
+            thumb: thumb || src,
+            alt: String(photo.alt || photo.label || 'Project image').trim(),
+            label: String(photo.label || photo.alt || 'Project image').trim(),
+            designator: String(photo.designator || (photo.metadata && photo.metadata.designator) || '').trim(),
+            is_thumbnail: !!(photo.is_thumbnail || photo.is_default_thumbnail),
+            is_default_thumbnail: !!(photo.is_default_thumbnail || photo.is_thumbnail),
+            is_top_down_thumbnail: !!(photo.is_top_down_thumbnail || String(photo.designator || (photo.metadata && photo.metadata.designator) || '').trim() === 'top_down_thumbnail')
+          };
+        }
+        var topDown = normalizePhoto(project.thumbnail_photo, 'top_down_thumbnail')
+          || normalizePhoto(project.top_down_thumbnail, 'top_down_thumbnail')
+          || normalizePhoto(project.proposal_thumbnail, 'top_down_thumbnail');
+        if (topDown) {
+          topDown.id = 'top_down_thumbnail';
+          topDown.photo_id = 'top_down_thumbnail';
+          topDown.designator = 'top_down_thumbnail';
+          topDown.is_top_down_thumbnail = true;
+          topDown.is_thumbnail = true;
+          topDown.is_default_thumbnail = true;
+        }
+        var photos = [];
+        if (topDown) photos.push(topDown);
+        if (Array.isArray(project.photos)) photos = photos.concat(project.photos.map(normalizePhoto).filter(Boolean));
+        photos = photos.concat(portalMedia.map(normalizePhoto).filter(Boolean));
+        var seenPhotoIds = {};
+        photos = photos.filter(function(photo){
+          var id = photoId(photo);
+          if (!id || seenPhotoIds[id]) return false;
+          seenPhotoIds[id] = true;
+          return true;
+        });
+        if (branding || colors) {
+          window.Portal.cfg.branding = branding;
+          window.Portal.cfg.orgName = organization.name || window.Portal.cfg.orgName || '';
+          window.__APP.theme = {
+            name: organization.name || '',
+            logo: branding.logo || branding.logo_node_url || '',
+            primary: colors.primary || branding.primary || colors.accent || branding.accent || '',
+            secondary: colors.secondary || branding.secondary || ''
+          };
+        }
+        window.proposals = [proposal || {}];
+        window.activeProposalIndex = 0;
+        window.activeProposalPageIndex = 0;
+        window.activeBaseProject = project || {};
+        window.projectPhotos = photos;
+        window.proposalEditorMode = 'preview';
+        window.proposalWorkspaceMode = 'preview';
+        window.proposalMarkupMode = false;
+        window.proposalInsertIndex = null;
+        window.proposalDeleteConfirmBlockId = null;
+        window.proposalDeleteConfirmPageId = null;
+        window.proposalDeleteConfirmProposalId = null;
+        window.proposalCoverAdjustOpen = false;
+        window.proposalPhotoPicker = null;
+        window.proposalMarkupTool = 'select';
+        window.proposalMarkupStrokeColor = '#111111';
+        window.proposalMarkupStrokeSize = 2.2;
+        window.proposalMarkupDockOpen = false;
+        window.proposalSignatureModalState = null;
+        window.proposalSigningMode = false;
+        window.proposalSigningSession = null;
+        window.proposalPricebookOpenState = {};
+        window.proposalSettingsPanelOpen = false;
+        window.branchPresentationStyle = window.branchPresentationStyle || {};
+        window.PROPOSAL_FONT_OPTIONS = window.PROPOSAL_FONT_OPTIONS || ['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3'];
+        window.PROPOSAL_THEMES = window.PROPOSAL_THEMES || {
+          margin: { label: 'Margin' },
+          triangles: { label: 'Triangles' },
+          clean: { label: 'Clean' }
+        };
+        window.PROPOSAL_COVER_DEFAULT_SIZE = window.PROPOSAL_COVER_DEFAULT_SIZE || 380;
+        window.PROPOSAL_ITEM_PAGE_HEIGHT = window.PROPOSAL_ITEM_PAGE_HEIGHT || 720;
+        window.PROPOSAL_MEDIA_PAGE_HEIGHT = window.PROPOSAL_MEDIA_PAGE_HEIGHT || 900;
+        window.PROPOSAL_MEDIA_BLOCK_GAP = window.PROPOSAL_MEDIA_BLOCK_GAP || 12;
+        window.PROPOSAL_MEDIA_BOTTOM_GUTTER = window.PROPOSAL_MEDIA_BOTTOM_GUTTER || 28;
+        window.PROPOSAL_IMAGE_TEXT_DEFAULT = window.PROPOSAL_IMAGE_TEXT_DEFAULT || { ratio: 50, height: 220, imageLeft: true };
+        window.proposalPhotoById = function(id){
+          var key = String(id || '').trim();
+          if (!key) return null;
+          if (key === 'top_down_thumbnail') return photos.find(function(photo){ return photo.is_top_down_thumbnail || photo.designator === 'top_down_thumbnail' || photo.id === 'top_down_thumbnail'; }) || null;
+          return photos.find(function(photo){ return photoId(photo) === key || photo.src === key || photo.thumb === key; }) || null;
+        };
+        window.projectPhotoId = function(photo){ return photoId(photo); };
+        window.projectThumbnailPhoto = function(){
+          return photos.find(function(photo){ return photo.is_thumbnail || photo.is_default_thumbnail; })
+            || photos.find(function(photo){ return photo.is_top_down_thumbnail || photo.designator === 'top_down_thumbnail'; })
+            || photos[0]
+            || null;
+        };
+        delete proposal.__portalContext;
+        return api.invoke('proposalPdfDocumentHtml', [proposal || {}, proposalIndex]);
+      }
+      window.addEventListener('message', function(event){
+        var data = event.data || {};
+        if (!data || data.type !== 'fm-render-proposal-document') return;
+        try {
+          event.source.postMessage({
+            type: 'fm-render-proposal-document-result',
+            requestId: data.requestId || '',
+            ok: true,
+            html: renderProposal(data.proposal || {}, data.index || 0) || ''
+          }, '*');
+        } catch (error) {
+          event.source.postMessage({
+            type: 'fm-render-proposal-document-result',
+            requestId: data.requestId || '',
+            ok: false,
+            error: error && error.message ? error.message : 'Unable to render proposal.'
+          }, '*');
+        }
+      });
+      document.documentElement.setAttribute('data-proposal-renderer-ready', 'true');
+    })();
+  </script>
+</head>
+<body></body>
+</html>

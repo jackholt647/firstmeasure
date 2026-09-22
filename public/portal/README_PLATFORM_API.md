@@ -108,7 +108,7 @@ App rollout flag rule:
 - Use branch settings for customer-visible configuration after an app flag is enabled.
 - Current app flag groups are `platform`, `email`, `canvassing`, and `firstmeasure`.
 - Current lead-related flags: `platform.lead_import`, `email.inbound_lead_import`, `platform.website_embed_import`, and `canvassing.app`.
-- Current portal shell flags include `platform.top_bar`, `platform.left_column_todo_list`, `platform.cobrand_sidebar_logo`, and `platform.project_stages_view`.
+- Current portal shell flags include `platform.top_bar`, `platform.left_column_apps`, `platform.left_column_todo_list`, `platform.left_column_default_mode` (`apps`, `todo`, or `channels`), `platform.cobrand_sidebar_logo`, and `platform.project_stages_view`.
 - Current FirstMeasure-compatible flags: `firstmeasure.gutter_reports`, `firstmeasure.instant_reports`, `firstmeasure.bonus_upfront_match`, and `firstmeasure.referral_program_banner`.
 - Browser code should call `PlatformAPI.appFlags.load(orgId)` and check `PlatformAPI.appFlags.has(group, flag)`. Do not render customer settings, tabs, or marketing copy for features whose app flags are off.
 - APIs must also gate direct calls server-side. Do not rely only on hiding UI.

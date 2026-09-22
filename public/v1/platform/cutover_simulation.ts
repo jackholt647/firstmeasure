@@ -177,6 +177,7 @@ async function runRuntimeSmoke(options: CutoverSimulationOptions): Promise<Cutov
     const owner = createSessionClient(app, checks);
     const registered = await owner.request("register smoke owner", "POST", "/v1/platform/auth/register", {
       email: `cutover-owner-${suffix}@example.test`,
+      phone: "2025550198",
       password: "cutover-smoke-password",
       name: "Cutover Smoke Owner",
       company: "Cutover Smoke Roofing",

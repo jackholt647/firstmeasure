@@ -8,7 +8,6 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { readWeatherReport } from "./storage.js";
 import type { GeoPoint, WeatherEventSummary, WeatherFinding, WeatherModeledHistoryEvent, WeatherRecord, WeatherReport, WeatherStormArea } from "./types.js";
-import { finalizeFirstMatePdf } from "../src/pdf_metadata.js";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PAGE_WIDTH_PX = 1836;
@@ -88,11 +87,7 @@ export async function renderWeatherPdfDocument(report: WeatherReport) {
       margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
       preferCSSPageSize: true
     });
-    return finalizeFirstMatePdf(pdf, {
-      title: `${String(report.property.address ?? "Property").trim() || "Property"} - FirstMate Weather Report`,
-      subject: "FirstMate property weather report",
-      keywords: ["weather", "property weather", "report"]
-    });
+    return pdf;
   } finally {
     await browser.close();
   }

@@ -3,7 +3,7 @@ import { z } from "zod";
 export const PROPOSAL_SCHEMA_VERSION = 1;
 export const PROPOSAL_SNAPSHOT_SCHEMA_VERSION = 1;
 
-export const proposalStatusSchema = z.enum(["draft", "sent", "viewed", "signed", "archived", "void"]);
+export const proposalStatusSchema = z.enum(["draft", "sent", "viewed", "signed", "expired", "archived", "void"]);
 export const proposalSnapshotReasonSchema = z.enum(["manual", "send", "sign", "pdf", "archive"]);
 
 export const jsonObjectSchema = z.object({}).passthrough();
@@ -42,11 +42,74 @@ export const proposalResourcesSchema = jsonObjectSchema.extend({
   markup_refs: z.array(jsonObjectSchema).optional()
 }).passthrough();
 
+export const proposalSelectionSchema = jsonObjectSchema.extend({
+  mode: z.enum(["fixed", "optional", "choice"]).optional(),
+  selected: z.boolean().optional(),
+  selected_by: z.enum(["internal", "customer", "system"]).optional(),
+  selectable_by: z.array(z.enum(["internal", "customer", "system"])).optional(),
+  group_id: z.string().trim().optional(),
+  group_behavior: z.enum(["single", "multiple"]).optional(),
+  required: z.boolean().optional(),
+  default_selected: z.boolean().optional(),
+  locked_after: z.string().trim().optional()
+}).passthrough();
+
+export const proposalVariationSelectionSchema = jsonObjectSchema.extend({
+  selected_variation_id: z.string().trim().optional(),
+  selected_by: z.enum(["internal", "customer", "system"]).optional(),
+  selectable_by: z.array(z.enum(["internal", "customer", "system"])).optional(),
+  required: z.boolean().optional(),
+  default_variation_id: z.string().trim().optional()
+}).passthrough();
+
+export const proposalVariationSchema = jsonObjectSchema.extend({
+  id: z.string().trim().min(1),
+  label: z.string().trim().optional(),
+  name: z.string().trim().optional(),
+  overrides: jsonObjectSchema.optional()
+}).passthrough();
+
+export const proposalScopeItemSchema: z.ZodType<any> = z.lazy(() => jsonObjectSchema.extend({
+  id: z.string().trim().min(1),
+  type: z.string().trim().optional(),
+  name: z.string().trim().min(1),
+  display_name: z.string().trim().optional(),
+  description: z.string().optional(),
+  unit: z.string().trim().optional(),
+  quantity: z.union([z.number(), z.string()]).optional(),
+  base_price: z.union([z.number(), z.string(), jsonObjectSchema]).optional(),
+  unit_price: z.union([z.number(), z.string(), jsonObjectSchema]).optional(),
+  amount: z.union([z.number(), z.string(), jsonObjectSchema]).optional(),
+  included: z.boolean().optional(),
+  price_driving: z.boolean().optional(),
+  variables: jsonObjectSchema.optional(),
+  measurements: jsonObjectSchema.optional(),
+  formula: z.string().optional(),
+  formula_config: jsonObjectSchema.optional(),
+  media_refs: z.array(jsonObjectSchema).optional(),
+  selection: proposalSelectionSchema.optional(),
+  variation_selection: proposalVariationSelectionSchema.optional(),
+  variations: z.array(proposalVariationSchema).optional(),
+  selection_groups: z.array(jsonObjectSchema).optional(),
+  children: z.array(proposalScopeItemSchema).optional()
+}).passthrough());
+
+export const proposalScopeSchema = jsonObjectSchema.extend({
+  schema_version: z.number().int().positive().optional(),
+  template: jsonObjectSchema.optional(),
+  pieces: z.array(jsonObjectSchema).optional(),
+  root_items: z.array(proposalScopeItemSchema).optional(),
+  variables: jsonObjectSchema.optional(),
+  measurements: jsonObjectSchema.optional(),
+  selection_state: jsonObjectSchema.optional()
+}).passthrough();
+
 export const proposalEditableSchema = jsonObjectSchema.extend({
   schema_version: z.number().int().positive().optional(),
   title: z.string().trim().optional(),
   theme: jsonObjectSchema.optional(),
   pages: z.array(jsonObjectSchema).optional(),
+  scope: proposalScopeSchema.optional(),
   pricing: jsonObjectSchema.optional(),
   measurements: jsonObjectSchema.optional(),
   payment: jsonObjectSchema.optional(),
@@ -57,7 +120,7 @@ export const proposalEditableSchema = jsonObjectSchema.extend({
 }).passthrough();
 
 export const proposalDeliverySchema = jsonObjectSchema.extend({
-  state: z.enum(["not_sent", "sent", "viewed", "signed", "void"]).optional(),
+  state: z.enum(["not_sent", "sent", "viewed", "signed", "expired", "void"]).optional(),
   send_count: z.number().int().min(0).optional(),
   sent_at: z.string().trim().optional(),
   first_viewed_at: z.string().trim().optional(),

@@ -7,13 +7,14 @@ The backend owns notification records and per-user state. Frontend code should n
 ## Core Calls
 
 ```js
-await PlatformNotifications.load(orgId, { branchId });
+await PlatformNotifications.load(orgId, { branchId, includeDismissed: true });
 await PlatformNotifications.markSeen(orgId, notificationId);
 await PlatformNotifications.dismiss(orgId, notificationId);
+await PlatformNotifications.restore(orgId, notificationId);
 await PlatformNotifications.complete(orgId, notificationId);
 ```
 
-`subscribe(fn)` receives `{ notifications, unread_count, active_count, loaded_at }` whenever the local cache refreshes.
+`subscribe(fn)` receives `{ notifications, dismissed_notifications, unread_count, active_count, loaded_at }` whenever the local cache refreshes. `dismissed_notifications` contains notifications dismissed on the current local day when `includeDismissed` is enabled.
 
 ## Notification Shape
 

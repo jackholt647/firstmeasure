@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-const src=await readFile('../../outputs/qa-pass-build/firstmeasure/api.js','utf8');
+const src=await readFile('./dist/firstmeasure/api.js','utf8');
 function section(a,b){return src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));}
 const now=Date.now(), dayStart=now-3600000;
 const cache=new Map();

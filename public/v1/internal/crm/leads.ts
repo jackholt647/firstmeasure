@@ -488,6 +488,68 @@ export async function queryLeads(body: JsonObject) {
   });
 }
 
+export async function callQueue(body: JsonObject) {
+  await ensureLeadDatabase();
+  const actor = String(body.actor_email ?? body.owner_email ?? "").trim().toLowerCase();
+  const limit = Math.max(1, Math.min(100, Number(body.limit ?? 50) || 50));
+  const now = nowUnix();
+  return withLeadDb((db) => {
+    const ownerWhere = actor ? "AND COALESCE(lm.assigned_to_email, ll.assigned_to_email, '') IN ('', :actor)" : "";
+    const base = `
+      SELECT lm.*, ll.name AS list_name,
+        (SELECT full_name FROM lead_contacts c WHERE c.lead_id = lm.id AND COALESCE(c.phone, '') <> '' ORDER BY c.updated_at DESC LIMIT 1) AS contact_name,
+        (SELECT phone FROM lead_contacts c WHERE c.lead_id = lm.id AND COALESCE(c.phone, '') <> '' ORDER BY c.updated_at DESC LIMIT 1) AS contact_phone,
+        (SELECT title FROM lead_followups f WHERE f.lead_id = lm.id AND f.status = 'open' AND f.due_at <= :now ORDER BY f.due_at ASC LIMIT 1) AS followup_title,
+        (SELECT body FROM lead_followups f WHERE f.lead_id = lm.id AND f.status = 'open' AND f.due_at <= :now ORDER BY f.due_at ASC LIMIT 1) AS followup_body,
+        (SELECT due_at FROM lead_followups f WHERE f.lead_id = lm.id AND f.status = 'open' AND f.due_at <= :now ORDER BY f.due_at ASC LIMIT 1) AS followup_due_at
+      FROM lead_memberships lm LEFT JOIN lead_lists ll ON ll.id = lm.list_id
+      WHERE COALESCE(lm.phone, '') <> '' ${ownerWhere}`;
+    const params = { actor, now, limit } as any;
+    const pending = "NOT EXISTS (SELECT 1 FROM lead_dial_events d WHERE d.lead_id = lm.id AND json_extract(d.context_json, '$.call_disposition') IS NOT NULL)";
+    const groups = [
+      { id: "follow_ups", title: "Follow-ups", icon: "fa-clock", tone: "followup", where: "EXISTS (SELECT 1 FROM lead_followups f WHERE f.lead_id = lm.id AND f.status = 'open' AND f.due_at <= :now)", meta: "Follow-up due" },
+      { id: "new_leads", title: "New Leads", icon: "fa-phone-volume", tone: "lead", where: `${pending} AND COALESCE(lm.organization_id, '') = ''`, meta: "New lead" },
+      { id: "new_customers", title: "New Customers", icon: "fa-handshake", tone: "customer", where: `${pending} AND COALESCE(lm.organization_id, '') <> ''`, meta: "New customer" }
+    ];
+    return {
+      ok: true, success: true,
+      columns: groups.map((group) => ({
+        ...group,
+        tasks: rows(db, `${base} AND ${group.where} ORDER BY COALESCE(followup_due_at, lm.created_at) ASC LIMIT :limit`, params).map((row) => ({
+          ...normalizeRow(row), name: String(row.contact_name || row.lead_name || row.company || "Contact"),
+          phone: String(row.contact_phone || row.phone || ""), meta: String(row.followup_title || group.meta)
+        }))
+      }))
+    };
+  });
+}
+
+export async function recordLeadCall(leadId: string, body: JsonObject) {
+  await ensureLeadDatabase();
+  const disposition = String(body.disposition ?? "").trim().toLowerCase();
+  if (!['answered', 'voicemail', 'no_answer', 'skipped'].includes(disposition)) throw badRequest("invalid_disposition", "A valid call disposition is required.");
+  const actor = String(body.actor_email ?? body.owner_email ?? "").trim().toLowerCase();
+  const note = String(body.note_text ?? body.note ?? "").trim();
+  const followup = asObject(body.followup);
+  const now = nowUnix();
+  return withLeadDb((db) => {
+    ensureLeadExists(db, leadId);
+    const eventId = `dial_${randomBytes(8).toString("hex")}`;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("INSERT INTO lead_dial_events (id, lead_id, owner_email, source, context_json, dialed_at, created_at) VALUES (:id, :lead_id, :owner_email, 'calls_dialer', :context_json, :dialed_at, :created_at)")
+        .run({ id: eventId, lead_id: leadId, owner_email: actor, context_json: JSON.stringify({ call_disposition: disposition, outcome: body.outcome ?? '', followup: followup.due_at ?? null }), dialed_at: now, created_at: now } as any);
+      if (note) db.prepare("INSERT INTO lead_notes (id, lead_id, owner_email, note_text, created_at, updated_at, created_by_email, updated_by_email, dial_event_id) VALUES (:id, :lead_id, :owner_email, :note_text, :created_at, :updated_at, :created_by_email, :updated_by_email, :dial_event_id)")
+        .run({ id: `note_${randomBytes(8).toString("hex")}`, lead_id: leadId, owner_email: actor, note_text: note, created_at: now, updated_at: now, created_by_email: actor, updated_by_email: actor, dial_event_id: eventId } as any);
+      if (followup.due_at) db.prepare("INSERT INTO lead_followups (id, lead_id, list_id, owner_email, title, body, due_at, status, created_at, updated_at, created_by_email, updated_by_email, dial_event_id, metadata_json) VALUES (:id, :lead_id, :list_id, :owner_email, :title, :body, :due_at, 'open', :created_at, :updated_at, :created_by_email, :updated_by_email, :dial_event_id, '{}')")
+        .run({ id: `followup_${randomBytes(8).toString("hex")}`, lead_id: leadId, list_id: String((db.prepare("SELECT list_id FROM lead_memberships WHERE id = :id").get({ id: leadId } as any) as any)?.list_id ?? ''), owner_email: actor, title: String(followup.title ?? 'Call follow-up'), body: String(followup.body ?? note ?? 'Follow up after call'), due_at: parseDateish(followup.due_at), created_at: now, updated_at: now, created_by_email: actor, updated_by_email: actor, dial_event_id: eventId } as any);
+      touchLead(db, leadId, actor, now);
+      db.exec("COMMIT");
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    return { ok: true, success: true, event_id: eventId };
+  });
+}
+
 export async function exportSelectedLeads(body: JsonObject) {
   await ensureLeadDatabase();
   const customFields = await leadCustomFields();

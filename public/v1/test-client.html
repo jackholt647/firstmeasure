@@ -116,7 +116,7 @@
         <button id="ping" class="secondary" type="button">Quick Ping</button>
         <button id="copyCurl" class="ghost" type="button">Copy cURL</button>
       </div>
-      <label>API Base<input id="baseUrl" value="http://127.0.0.1:3111"></label>
+      <label>API Base<input id="baseUrl" value="http://127.0.0.1:3101"></label>
       <div class="row">
         <label>Project ID<input id="projectId" value="example-project"></label>
         <label>Method<input id="method" readonly></label>
@@ -185,7 +185,7 @@
       { id: "apple", title: "Apple Key", items: [
         { id: "apple-key-get", method: "GET", path: "/v1/firstmeasure/apple-key", title: "Get Apple Key Info", description: "Returns whether a key exists plus preview metadata.", requestBody: "", responseNotes: "JSON with `has_key`, `key_preview`, and `updated_at_utc`." },
         { id: "apple-key-set", method: "POST", path: "/v1/firstmeasure/apple-key", title: "Set Apple Key", description: "Stores an Apple access key directly.", requestBody: JSON.stringify({ key: "abcd1234EFGH5678" }, null, 2), responseNotes: "JSON with masked key info." },
-        { id: "apple-key-ingest", method: "POST", path: "/v1/firstmeasure/apple-key/ingest", title: "Ingest Apple Key From URL", description: "Extracts the `accessKey` query param from a URL payload and stores it. `tile_version` is optional; omit it to preserve the current version.", requestBody: JSON.stringify({ url: "https://example.com?foo=bar&accessKey=abcd1234EFGH5678", tile_version: 10401 }, null, 2), responseNotes: "JSON with masked key info and the active tile version." }
+        { id: "apple-key-ingest", method: "POST", path: "/v1/firstmeasure/apple-key/ingest", title: "Ingest Apple Key From URL", description: "Extracts the `accessKey` query param from a URL payload and stores it.", requestBody: JSON.stringify({ url: "https://example.com?foo=bar&accessKey=abcd1234EFGH5678" }, null, 2), responseNotes: "JSON with masked key info." }
       ]}
     ];
 

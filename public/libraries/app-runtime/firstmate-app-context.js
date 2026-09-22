@@ -17,7 +17,7 @@
     {
       id: 'preset_roofing_standard',
       name: 'Standard Roof Proposal',
-      description: 'A clean contract-ready proposal with scope, pricing, signature, and terms.',
+      description: (globalThis.PlatformLanguage?.text("app-runtime","m_ed4d92fc9f4e08","A clean contract-ready proposal with scope, pricing, signature, and terms.") ?? "A clean contract-ready proposal with scope, pricing, signature, and terms."),
       theme: 'margin',
       createdBy: 'FirstMate',
       preset: true,
@@ -27,7 +27,7 @@
     {
       id: 'preset_visual_estimate',
       name: 'Visual Estimate',
-      description: 'A photo-forward proposal for jobs where visuals and simple pricing matter.',
+      description: (globalThis.PlatformLanguage?.text("app-runtime","m_0af6f24566a621","A photo-forward proposal for jobs where visuals and simple pricing matter.") ?? "A photo-forward proposal for jobs where visuals and simple pricing matter."),
       theme: 'clean',
       createdBy: 'FirstMate',
       preset: true,
@@ -37,7 +37,7 @@
     {
       id: 'preset_premium_contract',
       name: 'Premium Contract',
-      description: 'A polished presentation with added details and full terms.',
+      description: (globalThis.PlatformLanguage?.text("app-runtime","m_dc8bbc832598bf","A polished presentation with added details and full terms.") ?? "A polished presentation with added details and full terms."),
       theme: 'triangles',
       createdBy: 'FirstMate',
       preset: true,
@@ -56,29 +56,32 @@
   ];
 
   const PROPOSAL_MEASUREMENT_FIELDS = [
-    { key: 'wastePercent', label: 'Waste %' },
-    { key: 'eavesLf', label: 'Eaves (LF)' },
-    { key: 'rakesLf', label: 'Rakes (LF)' },
-    { key: 'hipsLf', label: 'Hips (LF)' },
-    { key: 'ridgesLf', label: 'Ridges (LF)' },
-    { key: 'valleyLf', label: 'Valleys (LF)' },
-    { key: 'transitionsLf', label: 'Transitions (LF)' },
-    { key: 'sideWallLf', label: 'Side Wall (LF)' },
-    { key: 'headWallLf', label: 'Head Wall (LF)' },
-    { key: 'gutterLf', label: 'Gutters (LF)' },
-    { key: 'downspoutLf', label: 'Downspouts (LF)' },
-    { key: 'structures', label: 'Structures' },
-    { key: 'chimneysEa', label: 'Chimneys' },
-    { key: 'skylightsEa', label: 'Skylights' },
+    { key: 'wastePercent', label: (globalThis.PlatformLanguage?.text("app-runtime","m_185415b1d2c50e","Waste %") ?? "Waste %") },
+    { key: 'eavesLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_440f5bc2a4a952","Eaves (LF)") ?? "Eaves (LF)") },
+    { key: 'rakesLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_bf4b9cfb1b180a","Rakes (LF)") ?? "Rakes (LF)") },
+    { key: 'hipsLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_2fcb2eeb6acb94","Hips (LF)") ?? "Hips (LF)") },
+    { key: 'ridgesLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_c52328c3032f2e","Ridges (LF)") ?? "Ridges (LF)") },
+    { key: 'valleyLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_e68824fd286246","Valleys (LF)") ?? "Valleys (LF)") },
+    { key: 'transitionsLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_a38eff4477656a","Transitions (LF)") ?? "Transitions (LF)") },
+    { key: 'sideWallLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_18d57aea0dc79e","Side Wall (LF)") ?? "Side Wall (LF)") },
+    { key: 'headWallLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_4a283fa6e37581","Head Wall (LF)") ?? "Head Wall (LF)") },
+    { key: 'gutterLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_7b63c9ab1a740a","Gutters (LF)") ?? "Gutters (LF)") },
+    { key: 'downspoutLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_911bbaded09649","Downspouts (LF)") ?? "Downspouts (LF)") },
+    { key: 'chimneysEa', label: (globalThis.PlatformLanguage?.text("app-runtime","m_2586b5b0f04d70","Chimneys") ?? "Chimneys") },
+    { key: 'skylightsEa', label: (globalThis.PlatformLanguage?.text("app-runtime","m_f8cd783f0f9952","Skylights") ?? "Skylights") },
+    { key: 'pipeBootsEa', label: (globalThis.PlatformLanguage?.text("app-runtime","m_e3f935307ef27c","Pipe Boots") ?? "Pipe Boots") },
+    { key: 'roofVentsEa', label: (globalThis.PlatformLanguage?.text("app-runtime","m_684d328858cea9","Roof Vents") ?? "Roof Vents") },
+    { key: 'ridgeVentLf', label: (globalThis.PlatformLanguage?.text("app-runtime","m_f3dd7d16439791","Ridge Vent (LF)") ?? "Ridge Vent (LF)") },
+    { key: 'boxVentsEa', label: (globalThis.PlatformLanguage?.text("app-runtime","m_0293b757a0a77c","Box Vents") ?? "Box Vents") },
   ];
 
   const proposalGlobals = {
     PROJECT_CONFIG_MODULE_ID: 'project_configuration',
     PROPOSAL_COVER_DEFAULT_SIZE: 380,
     PROPOSAL_THEMES: {
-      margin: { label: 'Margin' },
-      triangles: { label: 'Triangles' },
-      clean: { label: 'Clean' },
+      margin: { label: (globalThis.PlatformLanguage?.text("app-runtime","m_190ca7354b9101","Margin") ?? "Margin") },
+      triangles: { label: (globalThis.PlatformLanguage?.text("app-runtime","m_a7933e949ff793","Triangles") ?? "Triangles") },
+      clean: { label: (globalThis.PlatformLanguage?.text("app-runtime","m_bf7af1d2354e74","Clean") ?? "Clean") },
     },
     PRESENTATION_STYLE_MODULE_ID: 'presentation_style',
     PROPOSAL_TEMPLATES_MODULE_ID: 'proposal_templates',
@@ -96,16 +99,7 @@
   };
 
   const defaultState = () => ({
-    activeBaseProject: {
-      id: 'project_smoke_1',
-      title: 'Smoke Test Project',
-      address: '123 Example St',
-      project_type: 'residential',
-      contacts: [{ name: 'Example Customer', phone: '', email: 'customer@example.com', primary: true }],
-      photos: [],
-      proposals: [],
-      events: []
-    },
+    activeBaseProject: null,
     projectPhotos: [],
     activePhotoIndex: 0,
     photoViewerOpen: false,
@@ -232,7 +226,7 @@
   }
 
   function projectId(model){
-    return cleanText(model.state.activeBaseProject?.id || model.options?.projectId || 'project_smoke_1');
+    return cleanText(model.state.activeBaseProject?.id || model.options?.projectId);
   }
 
   function orgId(model){
@@ -240,7 +234,21 @@
   }
 
   function ensureProject(model){
-    if (!model.state.activeBaseProject) model.state.activeBaseProject = defaultState().activeBaseProject;
+    if (!model.state.activeBaseProject) {
+      const uuid = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replace(/-/g, '').slice(0, 18)
+        : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+      model.state.activeBaseProject = {
+        id: `project_${uuid}`,
+        title: '',
+        address: '',
+        project_type: 'residential',
+        contacts: [],
+        photos: [],
+        proposals: [],
+        events: []
+      };
+    }
     model.state.activeBaseProject.photos = model.state.projectPhotos.map((photo) => ({ ...photo, file: undefined }));
     model.state.activeBaseProject.proposals = model.state.proposals;
     model.state.activeBaseProject.events = Array.isArray(model.state.activeBaseProject.events) ? model.state.activeBaseProject.events : [];
@@ -395,6 +403,23 @@
       setPhotos: (photos) => { model.state.projectPhotos = Array.isArray(photos) ? photos : []; return model.state.projectPhotos; },
       getProposals: () => model.state.proposals,
       setProposals: (proposals) => { model.state.proposals = Array.isArray(proposals) ? proposals : []; return model.state.proposals; },
+      saveContactEmail: ({ contact_id: contactId = '', index = 0, email = '' } = {}) => {
+        const project = ensureProject(model);
+        const contacts = Array.isArray(project.contacts) ? project.contacts : [];
+        const normalizedId = cleanText(contactId);
+        let contactIndex = normalizedId
+          ? contacts.findIndex((contact) => cleanText(contact?.id || contact?.contact_id) === normalizedId)
+          : Number(index) || 0;
+        if (contactIndex < 0) contactIndex = Number(index) || 0;
+        const contact = { ...(contacts[contactIndex] || {}), email: cleanText(email), primary: contacts[contactIndex]?.primary ?? contactIndex === 0 };
+        contacts[contactIndex] = contact;
+        project.contacts = contacts;
+        if (contact.primary || contacts.length === 1) {
+          project.customer_email = contact.email;
+          project.primary_contact_email = contact.email;
+        }
+        return contact;
+      },
       installContextAccessors: (options = {}) => installProjectContextAccessors(model, options)
     };
   }

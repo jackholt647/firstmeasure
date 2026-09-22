@@ -21,6 +21,8 @@ import {
   createPricebook,
   deleteAsset,
   deleteItem,
+  getGlobalMarketPricebook,
+  getOrganizationPricebook,
   getPricebookDetail,
   listAssetEntries,
   listPricebookManifests,
@@ -30,8 +32,11 @@ import {
   readAsset,
   readCatalog,
   readTemplateCatalog,
+  resolveAutoAddItems,
+  resolveItem,
   saveAsset,
   saveCatalog,
+  saveOrganizationCatalog,
   sanitizePricebookId
 } from "./storage.js";
 
@@ -80,7 +85,9 @@ export const registerPricebookApi: FastifyPluginAsync = async (app) => {
       templates: "/templates",
       catalog: "/pricebooks/:id/catalog",
       items: "/pricebooks/:id/items",
-      assets: "/pricebooks/:id/assets"
+      assets: "/pricebooks/:id/assets",
+      global: "/global",
+      organization: "/organizations/:organizationId"
     }
   }));
 
@@ -109,6 +116,33 @@ export const registerPricebookApi: FastifyPluginAsync = async (app) => {
   app.get("/templates/:key", async (request) => {
     const key = String(asRecord(request.params).key ?? "");
     return { ok: true, template: { key, catalog: readTemplateCatalog(key) } };
+  });
+
+  app.get("/global", async () => ({
+    ok: true,
+    pricebook: await getGlobalMarketPricebook()
+  }));
+
+  app.put("/global/catalog", async (request) => {
+    const body = saveCatalogSchema.parse(request.body ?? {});
+    const global = await getGlobalMarketPricebook();
+    const updated = await saveCatalog(String(global.manifest.id), body.catalog, body.expected_revision);
+    return { ok: true, pricebook: updated };
+  });
+
+  app.get("/organizations/:organizationId", async (request) => ({
+    ok: true,
+    pricebook: await getOrganizationPricebook(String(asRecord(request.params).organizationId ?? ""))
+  }));
+
+  app.put("/organizations/:organizationId/catalog", async (request) => {
+    const body = saveCatalogSchema.parse(request.body ?? {});
+    const updated = await saveOrganizationCatalog(
+      String(asRecord(request.params).organizationId ?? ""),
+      body.catalog,
+      body.expected_revision
+    );
+    return { ok: true, pricebook: updated };
   });
 
   app.get("/pricebooks", async () => {
@@ -152,6 +186,16 @@ export const registerPricebookApi: FastifyPluginAsync = async (app) => {
   app.get("/pricebooks/:id/catalog", async (request) => ({
     ok: true,
     catalog: await readCatalog(getPricebookId(request.params))
+  }));
+
+  app.get("/pricebooks/:id/items/:itemId/resolve", async (request) => ({
+    ok: true,
+    scope_item: await resolveItem(getPricebookId(request.params), String(asRecord(request.params).itemId ?? ""))
+  }));
+
+  app.get("/pricebooks/:id/auto-add/resolve", async (request) => ({
+    ok: true,
+    scope_items: await resolveAutoAddItems(getPricebookId(request.params))
   }));
 
   app.put("/pricebooks/:id/catalog", async (request) => {

@@ -15,7 +15,7 @@
   }
 
   class ProjectViewer {
-    constructor({ root, tabsEl, panelSelector, tabClass = 'pv-tab', activeClass = 'active', pendingClass = 'pending', onTabChange } = {}){
+    constructor({ root, tabsEl, panelSelector, tabClass = 'pv-tab', activeClass = 'active', pendingClass = 'pending', iconOnly = false, onTabChange } = {}){
       this.root = root || null;
       this.tabsEl = tabsEl || null;
       this.panelSelector = panelSelector || '';
@@ -23,6 +23,7 @@
       this.activeClass = activeClass;
       this.pendingClass = pendingClass;
       this.onTabChange = onTabChange;
+      this.iconOnly = iconOnly === true;
       this.tabs = [];
       this.activeTab = 'map';
     }
@@ -43,6 +44,13 @@
       this.onTabChange?.(tab.id, tab);
     }
 
+    setPresentation(options = {}){
+      const nextIconOnly = options.iconOnly === true || options.tabs === 'icons' || options.tabMode === 'icons';
+      if (this.iconOnly === nextIconOnly) return;
+      this.iconOnly = nextIconOnly;
+      this.render();
+    }
+
     render(){
       ProjectViewer.renderTabs(this.tabsEl, this.tabs.map((tab) => ({
         ...tab,
@@ -51,6 +59,7 @@
         tabClass: this.tabClass,
         activeClass: this.activeClass,
         pendingClass: this.pendingClass,
+        iconOnly: this.iconOnly,
         onTabClick: (tab) => this.setActiveTab(tab.id)
       });
       if (!this.root || !this.panelSelector) return;
@@ -65,8 +74,10 @@
       const activeClass = options.activeClass || 'active';
       const pendingClass = options.pendingClass || 'pending';
       const disabledClass = options.disabledClass || '';
+      const iconOnly = options.iconOnly === true;
       const items = (tabs || []).filter(Boolean);
       tabsEl.classList.toggle('single-tab', items.length <= 1);
+      tabsEl.classList.toggle('icon-only', iconOnly);
       tabsEl.innerHTML = items.map((tab) => {
         const classes = [
           tabClass,
@@ -79,7 +90,10 @@
         const idAttr = buttonId ? ` id="${escapeHtml(buttonId)}"` : '';
         const disabledAttr = tab.disabled ? ' disabled' : '';
         const iconHtml = tab.icon ? `<i class="fas ${escapeHtml(tab.icon)}"></i> ` : '';
-        return `<button type="button" class="${escapeHtml(classes)}"${idAttr} data-tab="${escapeHtml(tab.id)}"${disabledAttr}>${iconHtml}${escapeHtml(tab.label || tab.id)}</button>`;
+        const label = tab.label || tab.id;
+        const badgeHtml = tab.badge ? `<span class="pv-tab-badge">${escapeHtml(tab.badge)}</span>` : '';
+        const labelHtml = (iconOnly && tab.icon && !tab.badge ? '' : `<span class="pv-tab-label">${escapeHtml(label)}</span>`) + badgeHtml;
+        return `<button type="button" class="${escapeHtml(classes)}"${idAttr} data-tab="${escapeHtml(tab.id)}" aria-label="${escapeHtml(tab.badge ? label + ", " + tab.badge : label)}" title="${escapeHtml(tab.badge ? label + ", " + tab.badge : label)}"${disabledAttr}>${iconHtml}${labelHtml}</button>`;
       }).join('');
       if (options.hideWhenEmpty) {
         tabsEl.style.display = items.length ? (options.display || 'flex') : 'none';
@@ -237,6 +251,30 @@
 
   const generatedId = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
+  const contactSemanticKey = (contact = {}) => {
+    const email = firstText(contact.email).toLowerCase();
+    if (email) return `email:${email}`;
+    const phone = firstText(contact.phone).replace(/\D+/g, '');
+    if (phone.length >= 7) return `phone:${phone}`;
+    const name = firstText(contact.name).toLowerCase().replace(/\s+/g, ' ');
+    return name ? `name:${name}` : '';
+  };
+
+  const mergeProjectContact = (current = {}, incoming = {}) => {
+    const id = firstText(incoming.id, incoming.contact_id, current.id, current.contact_id);
+    return {
+      id,
+      contact_id: id,
+      name: firstText(incoming.name, current.name),
+      email: firstText(incoming.email, current.email),
+      phone: firstText(incoming.phone, current.phone),
+      address: firstText(incoming.address, incoming.default_address, current.address, current.default_address),
+      default_address: firstText(incoming.default_address, incoming.address, current.default_address, current.address),
+      role: firstText(incoming.role, current.role),
+      primary: current.primary === true || incoming.primary === true
+    };
+  };
+
   const measurementKeys = (measurement = {}) => {
     return [
       measurement.id,
@@ -275,31 +313,76 @@
     const contact = contacts.find((entry) => firstText(entry?.name, entry?.email, entry?.phone)) || {};
     const resident = project.resident && typeof project.resident === 'object' && !Array.isArray(project.resident) ? project.resident : {};
     const customer = project.customer && typeof project.customer === 'object' && !Array.isArray(project.customer) ? project.customer : {};
+    const id = firstText(contact.id, contact.contact_id, project.contact_id, project.primary_contact_id, customer.id, customer.contact_id, resident.id, resident.contact_id);
     return {
+      id,
+      contact_id: id,
       name: firstText(contact.name, project.customer_name, project.customerName, project.primary_contact_name, project.resident_name, project.residentName, typeof project.resident === 'string' ? project.resident : '', customer.name, resident.name),
       email: firstText(contact.email, project.customer_email, project.primary_contact_email, project.resident_email, project.residentEmail, customer.email, resident.email),
-      phone: firstText(contact.phone, project.customer_phone, project.primary_contact_phone, project.resident_phone, project.residentPhone, customer.phone, resident.phone)
+      phone: firstText(contact.phone, project.customer_phone, project.primary_contact_phone, project.resident_phone, project.residentPhone, customer.phone, resident.phone),
+      address: firstText(contact.address, contact.default_address, project.contact_address, project.customer_address, project.primary_contact_address, customer.address, resident.address),
+      primary: true
     };
   };
 
+  const normalizeProjectContacts = (project = {}) => {
+    const contacts = dedupeProjectContacts(project.contacts);
+    const alias = projectPrimaryContactAlias(project);
+    if (firstText(alias.id, alias.name, alias.email, alias.phone, alias.address)) {
+      const aliasId = firstText(alias.id, alias.contact_id);
+      const aliasSemantic = contactSemanticKey(alias);
+      let index = contacts.findIndex((contact) => aliasId && firstText(contact.id, contact.contact_id) === aliasId);
+      if (index < 0 && aliasSemantic) {
+        index = contacts.findIndex((contact) => contactSemanticKey(contact) === aliasSemantic && (!firstText(contact.id, contact.contact_id) || !aliasId));
+      }
+      if (index < 0 && aliasId) index = contacts.findIndex((contact) => !firstText(contact.id, contact.contact_id) && contact.primary === true);
+      if (index < 0 && aliasId) index = contacts.findIndex((contact) => !firstText(contact.id, contact.contact_id));
+      if (index >= 0) contacts[index] = mergeProjectContact(alias, contacts[index]);
+      else contacts.unshift(alias);
+    }
+    const merged = [];
+    contacts.forEach((contact) => {
+      const id = firstText(contact.id, contact.contact_id);
+      const semantic = contactSemanticKey(contact);
+      const index = merged.findIndex((candidate) => {
+        const candidateId = firstText(candidate.id, candidate.contact_id);
+        return !!(id && candidateId && id === candidateId)
+          || !!(semantic && semantic === contactSemanticKey(candidate) && (!id || !candidateId));
+      });
+      if (index >= 0) merged[index] = mergeProjectContact(merged[index], contact);
+      else merged.push(contact);
+    });
+    const withIds = merged.map((contact) => {
+      const id = firstText(contact.id, contact.contact_id) || generatedId('contact');
+      return { ...contact, id, contact_id: id };
+    });
+    const topLevelId = firstText(project.contact_id, project.primary_contact_id);
+    let primaryIndex = withIds.findIndex((contact) => topLevelId && contact.id === topLevelId);
+    if (primaryIndex < 0) primaryIndex = withIds.findIndex((contact) => contact.primary === true);
+    if (primaryIndex < 0 && withIds.length) primaryIndex = 0;
+    withIds.forEach((contact, index) => { contact.primary = index === primaryIndex; });
+    return withIds;
+  };
+
   const withProjectDisplayAliases = (project = {}) => {
-    const contact = projectPrimaryContactAlias(project);
-    const contacts = dedupeProjectContacts([
-      ...(Array.isArray(project.contacts) ? project.contacts : []),
-      contact
-    ]);
+    const contacts = normalizeProjectContacts(project);
+    const contact = contacts.find((entry) => entry.primary === true) || contacts[0] || {};
+    const contactId = firstText(contact.id, contact.contact_id);
     const projectTitle = firstProjectDisplayText(project.title, project.project_title, project.project_name, project.projectName, project.name, project.address, project.customer_name, project.customerName, project.primary_contact_name, contact.name);
     return {
       ...project,
       contacts,
+      contact_id: contactId,
+      primary_contact_id: contactId,
+      contact_ids: contacts.map((entry) => firstText(entry.id, entry.contact_id)).filter(Boolean),
       title: projectTitle || 'New Project',
       project_title: projectTitle || 'New Project',
-      customer_name: firstText(project.customer_name, project.customerName, contact.name),
-      primary_contact_name: firstText(project.primary_contact_name, contact.name),
-      customer_email: firstText(project.customer_email, contact.email),
-      primary_contact_email: firstText(project.primary_contact_email, contact.email),
-      customer_phone: firstText(project.customer_phone, contact.phone),
-      primary_contact_phone: firstText(project.primary_contact_phone, contact.phone)
+      customer_name: firstText(contact.name, project.customer_name, project.customerName),
+      primary_contact_name: firstText(contact.name, project.primary_contact_name),
+      customer_email: firstText(contact.email, project.customer_email),
+      primary_contact_email: firstText(contact.email, project.primary_contact_email),
+      customer_phone: firstText(contact.phone, project.customer_phone),
+      primary_contact_phone: firstText(contact.phone, project.primary_contact_phone)
     };
   };
 
@@ -384,6 +467,9 @@
       updated_at: new Date().toISOString()
     });
     store.projects[id] = next;
+    Object.keys(store.measurementIndex).forEach((key) => {
+      if (store.measurementIndex[key] === id) delete store.measurementIndex[key];
+    });
     measurementKeys(next.measurement_project || next.measurement || {}).forEach((key) => { store.measurementIndex[key] = id; });
     writeStore(store);
     return next;
@@ -476,6 +562,8 @@
       folder: firstText(project.folder, measurementId),
       status: firstText(project.status, 'queued'),
       report_mode: firstText(project.report_mode, project.instant_enabled ? 'both' : 'full'),
+      measurement_system: project.measurement_system || "imperial",
+      report_language: project.report_language || "en-US",
       include_gutters: project.include_gutter_measurements === true || project.include_gutter_measurements === 1 || project.include_gutter_measurements === '1',
       include_instant: !!project.instant_enabled || String(project.report_mode || '').trim().toLowerCase() === 'both',
       report_expedite_option: firstText(project.report_expedite_option),
@@ -562,7 +650,7 @@
       await window.PlatformAPI.projects.remove(orgId, id);
       return true;
     },
-    fromQueue(payload = {}, data = {}){
+    fromQueue(payload = {}, data = {}, options = {}){
       const contacts = parseJson(payload.contacts, []);
       const project = data.project || data.manifest || {};
       const measurementId = firstMeasurementText(data.folder, project.id, project.project_id, project.folder);
@@ -589,9 +677,16 @@
         submitted_at: firstText(project.created_at, new Date().toISOString()),
         raw: data
       };
-      return this.save({
+      const ordered = {
         ...(existingProject || {}),
         id: existingProject?.id || existingProjectId || projectIdFromMeasurement(measurement),
+        measurement_project_id: measurementId,
+        project_id: measurementId,
+        folder: measurementId,
+        previous_measurement_ids: [...new Set([
+          ...(existingProject?.previous_measurement_ids || []),
+          ...measurementKeys(existingProject?.measurement_project || existingProject?.measurement || {})
+        ])].filter((id) => id !== measurementId),
         title: firstProjectDisplayText(payload.project_title, existingProject?.title, payload.residentName),
         address: firstText(payload.address, project.address),
         project_type: firstText(payload.project_type, project.project_type, 'residential'),
@@ -610,11 +705,24 @@
         stage: firstText(existingProject?.stage, existingProject?.stage_id, 'contacting'),
         stage_id: firstText(existingProject?.stage_id, existingProject?.stage, 'contacting'),
         workflow_state: 'measurement_ordered',
+        status: measurement.status,
+        refund_issued: false,
+        refund_amount: 0,
+        refund_reason: '',
+        rejection_reason: '',
+        rejection_message: '',
+        customer_rejection_message: '',
+        has_report: false,
+        report_url: '',
+        pdf_url: '',
+        summary_url: '',
+        xml_url: '',
         created_at: firstText(existingProject?.created_at, project.created_at, project.queued_at, measurement.submitted_at, new Date().toISOString()),
         submitted_at: firstText(existingProject?.submitted_at, project.created_at, project.queued_at, measurement.submitted_at, new Date().toISOString()),
         measurement,
         measurement_project: measurement
-      });
+      };
+      return options.persist === false ? this.cache(ordered) : this.save(ordered);
     },
     findByMeasurement(project){
       const normalized = project || {};

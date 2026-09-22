@@ -1,3 +1,4 @@
+import { mutatePlatformConfiguration } from "../platform/storage.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { managerReviewCsv } from "./manager_review_export.js";
 import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile } from './tutorial_exteriors.js';
@@ -898,7 +899,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       updated_at: new Date().toISOString(),
       updated_by: cleanText(actor.email).toLowerCase()
     };
-    await writeJsonFile(platformAppFlagDefaultsConfigPath(), record);
+    await mutatePlatformConfiguration("app_flag_defaults", () => record);
     return { ok: true, success: true, defaults: record };
   });
 
@@ -2375,9 +2376,9 @@ async function makeTutorialProjectPhpWritable(dir: string) {
   await Promise.all([
     chmod(dir, 0o777).catch(() => undefined),
     chmod(path.join(dir, "artifacts"), 0o777).catch(() => undefined),
-    ...["manifest.json", "answer_key.json", "metadata.json", "pdf_state.json"].map((name) =>
+    ...(await Promise.all(["manifest.json", "answer_key.json", "metadata.json", "pdf_state.json"].map((name) =>
       chmod(path.join(dir, name), 0o666).catch(() => undefined)
-    )
+    )))
   ]);
 }
 

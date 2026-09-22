@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FMWorkflowEditor — shared visual editor harness</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="../doc-renderer/doc-renderer.css">
+  <link rel="stylesheet" href="../doc-editor/doc-editor.css">
+  <style>
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,sans-serif;background:#eef1f6}#bar{height:34px;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #d0d5dd;background:#fff;color:#344054;font-size:11px;font-weight:800}#bar span{color:#667085;font-weight:600}#host{position:absolute;inset:34px 0 0}
+  </style>
+</head>
+<body>
+  <div id="bar"><strong>Workflow wrapper harness</strong><span id="status">booting…</span></div>
+  <div id="host"></div>
+  <script src="../doc-model/firstmate-doc-model.js?v=2"></script>
+  <script src="../doc-widgets/firstmate-doc-widgets.js?v=3"></script>
+  <script src="../doc-renderer/firstmate-doc-renderer.js?v=2"></script>
+  <script src="../doc-editor/firstmate-doc-editor.js?v=5"></script>
+  <script src="../visual-editor/firstmate-visual-editor.js?v=4"></script>
+  <script src="firstmate-workflow-editor.js?v=11"></script>
+  <script>
+    window.onerror=function(message){document.getElementById('status').textContent='error: '+message;window.__lastError=String(message)};
+    const definition={schema_version:1,name:'Kitchen finish selections',contract:{params:{finish_family:{type:'string'},countertop:{type:'string'}},outputs:{}},steps:[
+      {id:'style',title:'Choose a finish family',audience:['customer'],sections:[{id:'style_fields',title:'Finish direction',items:[{kind:'select',label:'Which look feels right?',writes:'params.finish_family',required:true,options:[{value:'warm',label:'Warm natural',icon:'fa-sun'},{value:'modern',label:'Clean modern',icon:'fa-cube'},{value:'classic',label:'Classic',icon:'fa-landmark'}],presentation:{style:'tiles'}}]}]},
+      {id:'surfaces',title:'Select surfaces',audience:['customer'],sections:[{id:'surface_fields',title:'Counters and splash',items:[{kind:'select',label:'Countertop',writes:'params.countertop',options:[{value:'quartz',label:'Quartz'},{value:'granite',label:'Granite'}],presentation:{style:'tiles'}}]}]}
+    ]};
+    window.__workflowEditor=FMWorkflowEditor.mount(document.getElementById('host'),{definition,itemKinds:[{id:'text'},{id:'select'},{id:'multi_select'},{id:'boolean'},{id:'date'},{id:'payment',disabled:true,disabled_reason:'Payments is disabled for this organization.'}],profile:'designer',allowedModes:['visual','preview'],sidePanels:[{id:'agent',label:'Agent',render(host){host.innerHTML='<div style="padding:16px"><strong>Workflow Agent</strong><p data-test-agent>Preview editing is available here.</p></div>';}}]});
+    document.getElementById('status').textContent='ready · FMVisualEditor + workflow adapter';window.__ready=true;
+  </script>
+</body>
+</html>

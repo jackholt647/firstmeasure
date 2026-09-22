@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FMDocWorkflow — dev harness</title>
+<script src="../doc-model/firstmate-doc-model.js"></script>
+<script src="../doc-widgets/firstmate-doc-widgets.js"></script>
+<script src="../doc-renderer/firstmate-doc-renderer.js"></script>
+<script src="./firstmate-doc-workflow.js"></script>
+<style>
+  body{margin:0;font:13px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:#e9edf3;color:#111827}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid #dbe1ea}
+  header strong{font-size:14px}
+  header button{border:1px solid #cbd4e1;border-radius:8px;background:#fff;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer}
+  header button.active{background:#2563EB;border-color:#2563EB;color:#fff}
+  #host{height:calc(100vh - 300px);min-height:420px;background:#fff;border-bottom:1px solid #dbe1ea}
+  #results{padding:12px 16px;max-height:240px;overflow:auto;font-family:Consolas,monospace;font-size:12px}
+  #results .pass{color:#0c7a43}
+  #results .fail{color:#b42318;font-weight:700}
+  #results .head{font-weight:700;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <strong>FMDocWorkflow dev harness</strong>
+  <button id="btnInternal" class="active">Internal audience</button>
+  <button id="btnCustomer">Customer audience</button>
+  <span id="summary"></span>
+</header>
+<div id="host"></div>
+<div id="results"></div>
+<script>
+(function(){
+  'use strict';
+  const results = document.getElementById('results');
+  const summary = document.getElementById('summary');
+  let passCount = 0, failCount = 0;
+  function log(cls, text){
+    const row = document.createElement('div');
+    row.className = cls;
+    row.textContent = text;
+    results.appendChild(row);
+  }
+  function assert(name, condition){
+    if (condition) { passCount += 1; log('pass', 'PASS  ' + name); }
+    else { failCount += 1; log('fail', 'FAIL  ' + name); }
+    summary.textContent = passCount + ' passed, ' + failCount + ' failed';
+    summary.dataset.pass = String(passCount);
+    summary.dataset.fail = String(failCount);
+  }
+  const section = (t) => log('head', '— ' + t);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // 1x1 px data URI (blue) for fake photos / option images.
+  const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkqGeoBwAChAGA6oM7fwAAAABJRU5ErkJggg==';
+
+  // ---------------------------------------------------- demo definition
+  // Mirrors the reshaped seeded "Roofing proposal intake": NATIVE steps only
+  // — piece_select first, conditional measurements, generated line-items
+  // review — no legacy builder embed anywhere.
+  const demoWorkflow = {
+    schema_version: 1,
+    name: 'Roofing estimate intake',
+    contract: { params: {}, outputs: {} },
+    steps: [
+      { id: 'st_what', title: 'What are we doing?', items: [
+        { kind: 'piece_select', writes: 'params.scope_pieces', required: true,
+          label: 'What are we doing?', description: 'Pick one or more project types.', presentation: { multi: true } }
+      ]},
+      { id: 'st_basics', title: 'Basics', description: 'Job facts.', items: [
+        { kind: 'text', writes: 'params.customer_note', label: 'Customer note' },
+        { kind: 'currency', writes: 'params.deposit_cents', label: 'Deposit', required: true },
+        { kind: 'number', writes: 'params.crew_size', label: 'Crew size' },
+        { kind: 'date', writes: 'params.start_date', label: 'Start date' },
+        { kind: 'boolean', writes: 'params.include_warranty', label: 'Include warranty' }
+      ]},
+      { id: 'st_measure', title: 'Measurements', when: '{{count(params.measurement_requirements) > 0}}', auto_skip_when_complete: true, items: [
+        { kind: 'measurements', writes: 'params.measurements', label: 'Measurements', fields_from: 'measurement_requirements', prefill: 'project.measurements' }
+      ]},
+      { id: 'st_items', title: 'Line items', items: [
+        { kind: 'line_items_review', writes: 'params.scope_items', required: true, label: 'Line items' }
+      ]},
+      { id: 'st_options', title: 'Options', audience: ['internal', 'customer'], items: [
+        { kind: 'select', writes: 'params.shingle_line', label: 'Shingle line', audience: ['internal'],
+          options_from: "{{pricebook.category('shingles')}}", presentation: { style: 'cards', images: true } },
+        { kind: 'choice_group', writes: 'outputs.selections', label: 'Pick your color', required: true, options: [
+          { value: 'charcoal', label: 'Charcoal', image: PX, price_cents: 0 },
+          { value: 'weathered_wood', label: 'Weathered wood', image: PX, price_cents: 25000 }
+        ]},
+        { kind: 'multi_select', writes: 'outputs.addons', label: 'Add-ons', options: ['gutters', 'skylight', 'ridge_vent'] },
+        { kind: 'media_picker', writes: 'params.hero_photo', label: 'Hero photo', audience: ['internal'] }
+      ]},
+      { id: 'st_sign', title: 'Sign & pay', audience: ['customer'], items: [
+        { kind: 'signature', writes: 'outputs.sig_customer', label: 'Signature' },
+        { kind: 'payment', writes: 'outputs.payment', label: 'Deposit payment' }
+      ]},
+      { id: 'st_review', title: 'Review', audience: ['internal', 'customer'], items: [
+        { kind: 'review', writes: '', label: 'Review everything' }
+      ]}
+    ],
+    audiences: { internal: {}, customer: { theme: 'portal' } }
+  };
+
+  // -------------------------------------------------------- fake hosts
+  const writes = [];               // every onWrite the host received
+  let previewResolveCount = 0;
+  const params = {}, outputs = {};
+
+  function fakePreviewResolve(){
+    previewResolveCount += 1;
+    const FM = window.FMDocModel;
+    const doc = FM.createDocument({ kind: 'document' });
+    const text = FM.createNode('text', { frame: { x: 40, y: 40, w: 500, h: 240 } });
+    text.props.blocks = [
+      { id: 'b1', type: 'paragraph', align: 'left', runs: [{ text: 'Live preview — deposit ' + ((params.deposit_cents || 0) / 100) }] },
+      { id: 'b2', type: 'paragraph', align: 'left', runs: [{ text: 'Color: ' + (outputs.selections || '—') }] }
+    ];
+    doc.pages[0].children.push(text);
+    return Promise.resolve({ resolved_definition: doc, theme: null, widget_data: {} });
+  }
+
+  // Piece vocabulary stub (what project.js sources from PlatformAPI.scopes
+  // templates / the legacy PROPOSAL_BUILDER_TEMPLATES defaults).
+  const PIECE_CATALOG = [
+    { id: 'roof_replacement', name: 'Roof Replacement', description: 'Replacement scope with measurements and materials.', icon: 'fa-house-chimney', color: '#dc2626' },
+    { id: 'repairs', name: 'Repairs', description: 'Repair-first scope with a lighter workflow.', icon: 'fa-screwdriver-wrench', color: '#eab308' },
+    { id: 'maintenance', name: 'Maintenance', description: 'Upkeep and inspection work — no measurements needed.', icon: 'fa-clipboard-check', color: '#0d9488' }
+  ];
+  let generateCalls = 0;
+
+  // Generation stub (what project.js builds on the legacy module's exported
+  // proposalBuilderScopeForTemplate + FirstMatePricebook.scopeItemFromPricebook):
+  // roof scopes carry measurement formula tokens + a customer-optional child;
+  // maintenance is a simple fixed row with no formula tokens.
+  function stubGenerate(selection, measurements){
+    generateCalls += 1;
+    const meas = measurements || {};
+    return Promise.resolve((selection || []).map((piece) => {
+      const templateId = String(piece.template_id || piece.id || '');
+      if (templateId === 'roof_replacement') {
+        return {
+          id: 'gen_roof', type: 'scope_item', name: 'Roof Replacement', display_name: 'Roof Replacement',
+          unit: 'ea', quantity: '1', unit_price: 0, included: true, price_driving: false,
+          selection: { mode: 'fixed', selected: true },
+          formula_config: { tokens: [{ type: 'measurement', value: 'roof_squares' }, { type: 'measurement', value: 'ridge_lf' }] },
+          children: [
+            { id: 'gen_shingles', type: 'scope_item', name: 'Architectural Shingles', unit: 'sq',
+              quantity: String(meas.roof_squares || 1), unit_price: 310,
+              selection: { mode: 'choice', group_id: 'shingle_profile', selected: true, selectable_by: ['internal', 'customer'] }, children: [] },
+            { id: 'gen_ridge', type: 'scope_item', name: 'Ridge Cap', unit: 'lf',
+              quantity: String(meas.ridge_lf || 1), unit_price: 4.5,
+              selection: { mode: 'fixed', selected: true }, children: [] },
+            { id: 'gen_iw', type: 'scope_item', name: 'Ice & Water Upgrade', unit: 'sq', quantity: '3', unit_price: 78,
+              selection: { mode: 'optional', selected: false, selectable_by: ['internal', 'customer'] }, children: [] }
+          ]
+        };
+      }
+      return {
+        id: 'gen_' + templateId, type: 'scope_item', name: piece.name || templateId, display_name: piece.name || templateId,
+        unit: 'scope', quantity: '1', unit_price: templateId === 'maintenance' ? 450 : 850,
+        selection: { mode: 'fixed', selected: true }, children: []
+      };
+    }));
+  }
+
+  const services = {
+    pieceCatalog: () => Promise.resolve(PIECE_CATALOG.map((p) => Object.assign({}, p))),
+    generateScopeItems: stubGenerate,
+    pricebook: {
+      pick: () => Promise.resolve([{ id: 'pb_1', name: 'Drip edge', unit: 'lf', quantity: '120', unit_price: 3.5 }]),
+      category: (name) => name === 'shingles'
+        ? [{ id: 'sh_1', name: 'Duration', unit_price: 310 }, { id: 'sh_2', name: 'Oakridge', unit_price: 260 }]
+        : [],
+      getState: () => ({ items: [] })
+    },
+    media: {
+      photos: () => [
+        { media_id: 'm1', label: 'Front', url: PX },
+        { media_id: 'm2', label: 'Back', url: PX }
+      ],
+      url: () => PX
+    }
+  };
+
+  const host = document.getElementById('host');
+  let handle = null;
+  let stepStates = [];
+  let completions = 0;
+
+  function mountAudience(audience){
+    if (handle) { try { handle.destroy(); } catch (e) {} }
+    handle = window.FMDocWorkflow.mount(host, {
+      workflow: demoWorkflow,
+      audience: audience,
+      contract: demoWorkflow.contract,
+      state: { params: JSON.parse(JSON.stringify(params)), outputs: JSON.parse(JSON.stringify(outputs)) },
+      scope: { project: { measurements: { roof_squares: 21 } } },
+      onWrite: (path, value) => {
+        writes.push({ audience, path, value });
+        // emulate the host persisting onto the instance
+        const parts = path.split('.');
+        const bucket = parts[0] === 'outputs' ? outputs : params;
+        bucket[parts.slice(1).join('.')] = value;
+      },
+      onStepState: (s) => stepStates.push(s),
+      onComplete: () => { completions += 1; },
+      preview: { resolve: fakePreviewResolve },
+      services: services
+    });
+    document.getElementById('btnInternal').classList.toggle('active', audience === 'internal');
+    document.getElementById('btnCustomer').classList.toggle('active', audience === 'customer');
+    return handle;
+  }
+  document.getElementById('btnInternal').addEventListener('click', () => mountAudience('internal'));
+  document.getElementById('btnCustomer').addEventListener('click', () => mountAudience('customer'));
+
+  const $ = (sel) => host.querySelector(sel);
+  const $$ = (sel) => [...host.querySelectorAll(sel)];
+  const railTitles = () => $$('.fmdw-step-title').map((el) => el.textContent.trim());
+  const currentTitle = () => ($('.fmdw-step.current .fmdw-step-title') || {}).textContent?.trim() || '';
+
+  async function run(){
+    section('Runtime API');
+    assert('FMDocWorkflow global with mount/registerKind', typeof window.FMDocWorkflow.mount === 'function' && typeof window.FMDocWorkflow.registerKind === 'function');
+    const kinds = window.FMDocWorkflow.kinds();
+    const expected = ['text','currency','number','date','boolean','select','multi_select','choice_group','measurements','media_picker','line_item_editor','piece_picker','piece_select','line_items_review','review','signature','payment'];
+    assert('all 17 built-in kinds registered (' + kinds.length + ')', expected.every((k) => kinds.includes(k)));
+    window.FMDocWorkflow.registerKind('demo_custom', (el) => { el.textContent = 'custom kind'; return {}; });
+    assert('registerKind adds a custom kind', window.FMDocWorkflow.kinds().includes('demo_custom'));
+    window.FMDocWorkflow.ensureStyles();
+    assert('styles self-injected (#fmdw-styles)', !!document.getElementById('fmdw-styles'));
+
+    section('Internal mount — native step 1, no legacy embed');
+    mountAudience('internal');
+    await sleep(60);
+    assert('rail renders steps', $$('.fmdw-step').length >= 4);
+    assert('FIRST step is "What are we doing?"', currentTitle() === 'What are we doing?');
+    assert('piece-type cards render from services.pieceCatalog', $$('[data-fmdw-piece-type]').length === 3);
+    assert('NO legacy scope-builder embed anywhere', !$('[data-fmdw-piece-host]') && !$('.fmdw-piece-embed'));
+    assert('st_measure hidden while nothing selected (when-condition)', !railTitles().includes('Measurements'));
+    assert('customer-only step st_sign hidden from internal', !railTitles().includes('Sign & pay'));
+    assert('preview pane present', !!$('.fmdw-preview'));
+
+    section('50/50 preview split');
+    const mainEl = $('.fmdw-main');
+    const previewEl = $('.fmdw-preview');
+    const mainW = mainEl.getBoundingClientRect().width;
+    const previewW = previewEl.getBoundingClientRect().width;
+    if (mainW > 0 && previewW > 0) {
+      assert('step content and preview split ~50/50 (' + Math.round(mainW) + 'px vs ' + Math.round(previewW) + 'px)',
+        Math.abs(mainW - previewW) <= Math.max(mainW, previewW) * 0.12);
+    } else {
+      // Non-composited pane (no layout): verify the flex contract instead.
+      const mc = getComputedStyle(mainEl);
+      const pc = getComputedStyle(previewEl);
+      assert('step content and preview share equal flex basis (1 1 0 each, no max-width)',
+        mc.flexGrow === '1' && pc.flexGrow === '1' && mc.flexBasis === pc.flexBasis && (pc.maxWidth === 'none' || pc.maxWidth === ''));
+    }
+    const railStyles = getComputedStyle($('.fmdw-rail'));
+    assert('rail stays thin (flex:none @ ≤260px)', railStyles.flexGrow === '0' && parseInt(railStyles.width || '230', 10) <= 260);
+
+    section('piece_select — selection drives conditional Measurements');
+    $$('[data-fmdw-piece-type]').find((b) => b.dataset.fmdwPieceType === 'maintenance').click();
+    await sleep(40);
+    assert('selecting maintenance writes params.scope_pieces', Array.isArray(params.scope_pieces) && params.scope_pieces.length === 1);
+    assert('maintenance needs NO measurements → step still hidden', Array.isArray(params.measurement_requirements) && params.measurement_requirements.length === 0 && !railTitles().includes('Measurements'));
+    $$('[data-fmdw-piece-type]').find((b) => b.dataset.fmdwPieceType === 'roof_replacement').click();
+    await sleep(40);
+    assert('multi-select keeps both pieces', params.scope_pieces.length === 2);
+    assert('roof selection derives measurement keys from its formulas', (params.measurement_requirements || []).includes('roof_squares') && (params.measurement_requirements || []).includes('ridge_lf'));
+    assert('Measurements step now appears in the rail', railTitles().includes('Measurements'));
+    assert('selected cards show active state', $$('.fmdw-piece-type.active').length === 2);
+
+    section('validation + continue to Basics');
+    $('[data-fmdw-continue]').click();
+    await sleep(30);
+    assert('Continue advances to Basics', currentTitle() === 'Basics');
+    $('[data-fmdw-continue]').click();
+    await sleep(20);
+    assert('required currency blocks Continue', $$('.fmdw-item.invalid').length === 1 && currentTitle() === 'Basics');
+    const depositInput = $$('.fmdw-money input')[0];
+    depositInput.value = '150.00';
+    depositInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(20);
+    assert('currency write is cents through onWrite', writes.some((w) => w.path === 'params.deposit_cents' && w.value === 15000));
+    $('[data-fmdw-continue]').click();
+    await sleep(30);
+    assert('step state emitted (completed_steps includes st_what)', stepStates.some((s) => (s.completed_steps || []).includes('st_what')));
+    assert('done step marked in rail', !!$('.fmdw-step.done'));
+
+    section('measurements — asked ONCE, from the selection (no double-ask)');
+    assert('Continue lands on Measurements (keys still missing)', currentTitle() === 'Measurements');
+    await sleep(30);
+    assert('prefill loaded project measurements (roof_squares=21)', $$('[data-fmdw-meas]').some((i) => i.dataset.fmdwMeas === 'roof_squares' && i.value === '21'));
+    assert('selection-derived key ridge_lf rendered as needed input', $$('[data-fmdw-meas]').some((i) => i.dataset.fmdwMeas === 'ridge_lf'));
+    const ridgeInput = $$('[data-fmdw-meas]').find((i) => i.dataset.fmdwMeas === 'ridge_lf');
+    ridgeInput.value = '60';
+    ridgeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(20);
+    assert('measurement write lands on params.measurements', params.measurements && params.measurements.ridge_lf === 60 && params.measurements.roof_squares === 21);
+    $('[data-fmdw-continue]').click();
+    await sleep(60);
+
+    section('line_items_review — native generated list');
+    assert('Continue reaches Line items', currentTitle() === 'Line items');
+    assert('items auto-generated on entry (selection + measurements)', generateCalls >= 2 && Array.isArray(params.scope_items) && params.scope_items.length === 2);
+    assert('generation consumed the measurements (qty 21 sq)', $$('.fmdw-li-qty').some((i) => i.value === '21'));
+    const rowCount = $$('.fmdw-li-row').length;
+    assert('ALL generated rows listed (parents + children)', rowCount >= 5);
+    assert('customer-optional row flagged distinctly', $$('.fmdw-li-flag.optional').length === 1 && $('.fmdw-li-flag.optional').textContent.trim() === 'Customer optional');
+    assert('Regenerate affordance present', !!$('[data-fmdw-lir-generate]') && $('[data-fmdw-lir-generate]').textContent.includes('Regenerate'));
+    const totalBefore = $('.fmdw-li-total b').textContent;
+    const qtyInput = $$('.fmdw-li-qty').find((i) => i.value === '21');
+    qtyInput.value = '30';
+    qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(20);
+    assert('inline qty edit recomputes the total', $('.fmdw-li-total b').textContent !== totalBefore);
+    assert('inline edit writes params.scope_items through', JSON.stringify(params.scope_items).includes('"30"'));
+    $('[data-fmdw-lir-add]').click();
+    await sleep(20);
+    assert('Add row appends an editable row', $$('.fmdw-li-row').length === rowCount + 1);
+
+    section('options: select cards / choice_group / multi_select / media');
+    $('[data-fmdw-continue]').click();
+    await sleep(30);
+    assert('Continue reaches Options', currentTitle() === 'Options');
+    assert('options_from pricebook sugar resolves to cards', $$('[data-fmdw-choice]').some((b) => b.textContent.includes('Duration')));
+    const colorCard = $$('[data-fmdw-choice]').find((b) => b.dataset.fmdwChoice === 'charcoal');
+    colorCard.click();
+    await sleep(20);
+    assert('choice_group writes outputs.selections', outputs.selections === 'charcoal');
+    const addon = $$('.fmdw-check input')[0];
+    addon.click();
+    await sleep(20);
+    assert('multi_select writes an array', Array.isArray(outputs.addons) && outputs.addons.length === 1);
+    assert('media_picker renders the photo grid', $$('.fmdw-photo').length === 2);
+    $$('.fmdw-photo')[0].click();
+    await sleep(20);
+    assert('media_picker writes {media_id}', params.hero_photo && params.hero_photo.media_id === 'm1');
+
+    section('review + preview');
+    $('[data-fmdw-continue]').click();
+    await sleep(30);
+    assert('Continue reaches Review', currentTitle() === 'Review');
+    assert('review lists written values', $$('.fmdw-review-row').length >= 5);
+    assert('review formats currency from cents', $$('.fmdw-review-row').some((r) => r.textContent.includes('$150.00')));
+    assert('review summarizes the piece selection by name', $$('.fmdw-review-row').some((r) => r.textContent.includes('Roof Replacement')));
+    await sleep(900); // debounce + resolve
+    assert('preview.resolve called', previewResolveCount > 0);
+    assert('preview stage rendered a page via FMDocRenderer', !!$('.fmdw-preview-stage .fmdoc-page'));
+
+    section('auto-skip: completed Measurements skipped on forward navigation');
+    $$('.fmdw-step').find((b) => b.textContent.includes('Basics')).click();
+    await sleep(20);
+    assert('rail click enters Basics', currentTitle() === 'Basics');
+    $('[data-fmdw-continue]').click(); // Basics → (Measurements complete, auto-skips) → Line items
+    await sleep(40);
+    assert('Continue from Basics auto-skips completed Measurements → Line items', currentTitle() === 'Line items');
+    $$('.fmdw-step').find((b) => b.textContent.includes('Measurements')).click();
+    await sleep(20);
+    assert('auto-skipped Measurements stays enterable from the rail', currentTitle() === 'Measurements');
+
+    section('customer audience');
+    const writesBefore = writes.length;
+    mountAudience('customer');
+    await sleep(60);
+    const custTitles = railTitles();
+    assert('internal-only steps hidden from customer', !custTitles.includes('What are we doing?') && !custTitles.includes('Basics') && !custTitles.includes('Line items') && !custTitles.includes('Measurements'));
+    assert('customer sees Options / Sign & pay / Review', custTitles.includes('Options') && custTitles.includes('Sign & pay') && custTitles.includes('Review'));
+    assert('internal-only items hidden inside shared step', !$$('[data-fmdw-choice]').some((b) => b.textContent.includes('Duration')) && $$('.fmdw-photo').length === 0);
+    const custCard = $$('[data-fmdw-choice]').find((b) => b.dataset.fmdwChoice === 'weathered_wood');
+    custCard.click();
+    await sleep(20);
+    assert('customer choice_group write went through (outputs.*)', outputs.selections === 'weathered_wood');
+    assert('no params.* writes from customer audience', writes.slice(writesBefore).every((w) => w.path.indexOf('outputs.') === 0));
+    $('[data-fmdw-continue]').click(); // completes Options → Sign & pay
+    await sleep(20);
+    assert('locked steps stay locked until Continue', currentTitle() === 'Sign & pay');
+    assert('signature renders interactively for customer (doc-widgets)', !!$('.fmdoc-signature') || !!$('.fmdw-status-card'));
+
+    section('handle API');
+    mountAudience('internal');
+    await sleep(40);
+    assert('handle.state() reports params/outputs/steps', typeof handle.state === 'function' && Array.isArray(handle.state().completed_steps));
+    handle.destroy();
+    assert('destroy clears the container', host.innerHTML === '');
+
+    // ================================================================
+    // Wave: content blocks + media attach + popup widgets (spec §10.1/§10.2)
+    // ================================================================
+
+    section('content_blocks kind (spec §10.1)');
+    assert('content_blocks kind registered', window.FMDocWorkflow.kinds().includes('content_blocks'));
+    let cbPreviewCount = 0;
+    const cbParams = {};
+    // Stub preview that emulates the doc-model repeater's variant_by_index:
+    // layout "auto" alternates media_left / media_right by row index.
+    function cbPreviewResolve(){
+      cbPreviewCount += 1;
+      const FM = window.FMDocModel;
+      const doc = FM.createDocument({ kind: 'document' });
+      const blocks = (cbParams.content_blocks || []).map((b, i) => {
+        const layout = b.layout === 'auto' ? (i % 2 === 0 ? 'media_left' : 'media_right') : b.layout;
+        return { id: 'cb' + i, type: 'paragraph', align: 'left', runs: [{ text: (b.title || 'Block ' + (i + 1)) + ' :: ' + layout + ' :: ' + b.display }] };
+      });
+      const text = FM.createNode('text', { frame: { x: 40, y: 40, w: 500, h: 500 } });
+      text.props.blocks = blocks.length ? blocks : [{ id: 'none', type: 'paragraph', align: 'left', runs: [{ text: 'No blocks yet' }] }];
+      doc.pages[0].children.push(text);
+      return Promise.resolve({ resolved_definition: doc, theme: null, widget_data: {} });
+    }
+    const cbWorkflow = {
+      schema_version: 1, name: 'Content blocks', contract: { params: {}, outputs: {} },
+      steps: [{ id: 'st_cb', title: 'Project details', items: [
+        { kind: 'content_blocks', writes: 'params.content_blocks', label: 'Content blocks', description: 'Photo + text rows for the document.' }
+      ]}],
+      audiences: { internal: {} }
+    };
+    handle = window.FMDocWorkflow.mount(host, {
+      workflow: cbWorkflow, audience: 'internal', state: { params: {}, outputs: {} },
+      onWrite: (path, value) => { if (path === 'params.content_blocks') cbParams.content_blocks = value; },
+      preview: { resolve: cbPreviewResolve },
+      services: services
+    });
+    await sleep(40);
+    assert('empty state offers Add block', !!$('[data-fmdw-cb-add]'));
+    $('[data-fmdw-cb-add]').click();
+    await sleep(20);
+    $('[data-fmdw-cb-add]').click();
+    await sleep(20);
+    assert('Add block writes rows to params.content_blocks', Array.isArray(cbParams.content_blocks) && cbParams.content_blocks.length === 2);
+    assert('rows default to layout auto + display inline', cbParams.content_blocks.every((b) => b.layout === 'auto' && b.display === 'inline'));
+    const cbTitle = $$('[data-fmdw-cb-title]')[0];
+    cbTitle.value = 'Tear-off';
+    cbTitle.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(20);
+    assert('title edit writes through', cbParams.content_blocks[0].title === 'Tear-off');
+    $$('[data-fmdw-cb-pick]')[0].click();
+    await sleep(20);
+    assert('media picker opens the same project-photo grid', $$('[data-fmdw-cb-photo]').length === 2);
+    $$('[data-fmdw-cb-photo]')[0].click();
+    await sleep(20);
+    assert('photo pick writes media {media_id}', !!cbParams.content_blocks[0].media && cbParams.content_blocks[0].media.media_id === 'm1');
+    const cbLayout = $$('[data-fmdw-cb-layout]')[1];
+    cbLayout.value = 'media_right';
+    cbLayout.dispatchEvent(new Event('change', { bubbles: true }));
+    const cbDisplay = $$('[data-fmdw-cb-display]')[0];
+    cbDisplay.value = 'popup';
+    cbDisplay.dispatchEvent(new Event('change', { bubbles: true }));
+    const cbVideo = $$('[data-fmdw-cb-video]')[1];
+    cbVideo.value = 'https://youtu.be/abc12345xyz';
+    cbVideo.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(20);
+    assert('layout select writes media_right', cbParams.content_blocks[1].layout === 'media_right');
+    assert('display select writes popup', cbParams.content_blocks[0].display === 'popup');
+    assert('video URL writes video {url}', !!cbParams.content_blocks[1].video && cbParams.content_blocks[1].video.url === 'https://youtu.be/abc12345xyz');
+    await sleep(900); // debounce + resolve
+    assert('edits drive the stubbed live preview', cbPreviewCount > 0);
+    const cbPreviewText = ($('.fmdw-preview-stage') || {}).textContent || '';
+    assert('preview reflects auto-alternating layout (media_left for row 1)', cbPreviewText.includes('Tear-off :: media_left :: popup'));
+    assert('preview reflects the explicit media_right layout', cbPreviewText.includes(':: media_right :: inline'));
+    $$('[data-fmdw-cb-up]')[1].click();
+    await sleep(20);
+    assert('reorder (move up) swaps the rows', cbParams.content_blocks[0].layout === 'media_right');
+    $$('[data-fmdw-cb-remove]')[0].click();
+    await sleep(20);
+    assert('remove deletes the row', cbParams.content_blocks.length === 1 && cbParams.content_blocks[0].title === 'Tear-off');
+
+    section('line-item media/video attach (line_items_review)');
+    try { handle.destroy(); } catch (e) {}
+    const liParams = { scope_items: [
+      { id: 'li_a', type: 'scope_item', name: 'Shingles', display_name: 'Shingles', unit: 'sq', quantity: '20', unit_price: 310, selection: { mode: 'fixed', selected: true }, children: [] },
+      { id: 'li_b', type: 'scope_item', name: 'Ridge cap', display_name: 'Ridge cap', unit: 'lf', quantity: '60', unit_price: 4.5, selection: { mode: 'fixed', selected: true }, children: [] }
+    ] };
+    const liWorkflow = {
+      schema_version: 1, name: 'Line items', contract: { params: {}, outputs: {} },
+      steps: [{ id: 'st_li', title: 'Line items', items: [{ kind: 'line_items_review', writes: 'params.scope_items', label: 'Line items' }] }],
+      audiences: { internal: {} }
+    };
+    handle = window.FMDocWorkflow.mount(host, {
+      workflow: liWorkflow, audience: 'internal',
+      state: { params: JSON.parse(JSON.stringify(liParams)), outputs: {} },
+      onWrite: (path, value) => { if (path === 'params.scope_items') liParams.scope_items = value; },
+      services: services
+    });
+    await sleep(40);
+    assert('attach affordance (photo icon) on every row', $$('[data-fmdw-lir-attach]').length === 2);
+    $$('[data-fmdw-lir-attach]')[0].click();
+    await sleep(20);
+    const attachPop = document.querySelector('.fmdw-attach-pop');
+    assert('attach popover opens', !!attachPop);
+    assert('popover shows the project-photo grid', attachPop && attachPop.querySelectorAll('[data-fmdw-attach-photo]').length === 2);
+    attachPop.querySelector('[data-fmdw-attach-photo]').click();
+    await sleep(10);
+    attachPop.querySelector('[data-fmdw-attach-caption]').value = 'Ridge detail';
+    attachPop.querySelector('[data-fmdw-attach-video]').value = 'https://vimeo.com/12345';
+    const attachDisplay = attachPop.querySelector('[data-fmdw-attach-display]');
+    attachDisplay.value = 'popup';
+    attachDisplay.dispatchEvent(new Event('change', { bubbles: true }));
+    attachPop.querySelector('[data-fmdw-attach-save]').click();
+    await sleep(20);
+    const attachedItem = liParams.scope_items[0];
+    assert('save writes media [{media_id, caption}] onto the scope item', Array.isArray(attachedItem.media) && attachedItem.media[0].media_id === 'm1' && attachedItem.media[0].caption === 'Ridge detail');
+    assert('save writes video {url} + display "popup"', !!attachedItem.video && attachedItem.video.url === 'https://vimeo.com/12345' && attachedItem.display === 'popup');
+    assert('popover closes after save', !document.querySelector('.fmdw-attach-pop'));
+    assert('row shows the attached-media thumbnail', !!$('.fmdw-li-thumb'));
+    assert('attach button flags rows that carry media', !!$('[data-fmdw-lir-attach].has-media'));
+
+    section('doc.media_popup + shared lightbox (FMDocWidgets)');
+    const W = window.FMDocWidgets;
+    const widgetCtx = (extra) => Object.assign({
+      node: { id: 'w_' + Math.random().toString(36).slice(2, 7) }, config: {}, data: null, mode: 'static',
+      scope: {}, themeVars: {}, skin: {}, outputs: {}, api: {},
+      submitOutput: function () {}, refresh: function () {}
+    }, extra || {});
+    assert('doc.media_popup registered (category media)', !!W.get('doc.media_popup', 1) && W.get('doc.media_popup', 1).category === 'media');
+    assert('FMDocWidgets.openLightbox + installLightboxDelegate exported', typeof W.openLightbox === 'function' && typeof W.installLightboxDelegate === 'function');
+    W.openLightbox({ url: PX, caption: 'Front elevation' });
+    assert('openLightbox renders backdrop + image + caption', !!document.querySelector('.fmdoc-lightbox .fmdoc-lightbox-backdrop') && !!document.querySelector('.fmdoc-lightbox-image') && document.querySelector('.fmdoc-lightbox-caption').textContent === 'Front elevation');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    assert('Esc closes the lightbox', !document.querySelector('.fmdoc-lightbox'));
+    W.openLightbox({ url: PX });
+    document.querySelector('.fmdoc-lightbox-backdrop').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    assert('backdrop click closes the lightbox', !document.querySelector('.fmdoc-lightbox'));
+    const ytBox = W.openLightbox({ video: { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' } });
+    const ytFrame = document.querySelector('.fmdoc-lightbox iframe.fmdoc-lightbox-video');
+    assert('YouTube URL opens as an embed iframe', !!ytFrame && ytFrame.src.indexOf('youtube.com/embed/dQw4w9WgXcQ') !== -1);
+    ytBox.close();
+    // Delegated chip contract: data-fmdoc-media-popup + JSON payload.
+    W.installLightboxDelegate();
+    const chip = document.createElement('span');
+    chip.setAttribute('data-fmdoc-media-popup', JSON.stringify({ media: { url: PX }, caption: 'Chip photo' }));
+    chip.textContent = 'chip';
+    document.body.appendChild(chip);
+    chip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    assert('delegated [data-fmdoc-media-popup] click opens the lightbox', !!document.querySelector('.fmdoc-lightbox') && document.querySelector('.fmdoc-lightbox-caption').textContent === 'Chip photo');
+    document.querySelector('.fmdoc-lightbox-close').click();
+    assert('close button (X) closes the lightbox', !document.querySelector('.fmdoc-lightbox'));
+    chip.remove();
+    const mpStatic = document.createElement('div');
+    W.get('doc.media_popup', 1).renderStatic(mpStatic, widgetCtx({ config: { media: { url: PX }, caption: 'Static cap', thumb_size_pt: 48 } }));
+    assert('static render: inline thumbnail + caption (print-safe)', !!mpStatic.querySelector('.fmdoc-media-popup-thumb img') && mpStatic.textContent.indexOf('Static cap') !== -1);
+    const mpVideo = document.createElement('div');
+    W.get('doc.media_popup', 1).renderStatic(mpVideo, widgetCtx({ config: { video_url: 'https://vimeo.com/999' } }));
+    assert('static video render: poster-style box + printed URL', !!mpVideo.querySelector('.fmdoc-media-popup-video') && mpVideo.textContent.indexOf('vimeo.com/999') !== -1);
+
+    section('doc.layers_diagram (spec §10.2 sample plugin)');
+    const layersDef = W.get('doc.layers_diagram', 1);
+    assert('doc.layers_diagram registered', !!layersDef);
+    const ldHost = document.createElement('div');
+    document.body.appendChild(ldHost);
+    layersDef.renderInteractive(ldHost, widgetCtx({ mode: 'interactive', config: {} }));
+    const slabs = [...ldHost.querySelectorAll('.fmdoc-layers-slab')];
+    assert('6 default roof layers render as stacked slabs', slabs.length === 6);
+    assert('side panel shows the active layer', !!ldHost.querySelector('.fmdoc-layers-panel-name'));
+    const deckSlab = slabs.find((s) => s.getAttribute('data-layer-index') === '4');
+    deckSlab.dispatchEvent(new Event('mouseenter'));
+    assert('hover highlights the layer + updates the blurb panel', deckSlab.classList.contains('fmdoc-layers-slab--active') && ldHost.querySelector('.fmdoc-layers-panel-name').textContent === 'Roof decking');
+    assert('other layers dim while one is active', ldHost.querySelectorAll('.fmdoc-layers-slab--dim').length === 5);
+    ldHost.remove();
+    const ldStatic = document.createElement('div');
+    layersDef.renderStatic(ldStatic, widgetCtx({ config: { title: 'Roof system', layers: [
+      { name: 'Layer A', blurb: 'top', color: '#123456' },
+      { name: 'Layer B', blurb: 'bottom', color: '#654321' }
+    ] } }));
+    assert('static render: flat diagram + numbered legend', !!ldStatic.querySelector('svg') && ldStatic.querySelectorAll('.fmdoc-layers-legend li').length === 2 && ldStatic.textContent.indexOf('Roof system') !== -1);
+
+    section('doc.line_items — popup chips + inline media rows');
+    const liDef = W.get('doc.line_items', 1);
+    const liHost = document.createElement('div');
+    document.body.appendChild(liHost);
+    liDef.renderInteractive(liHost, widgetCtx({
+      mode: 'interactive',
+      config: { source: 'params.scope_items', show_prices: false },
+      scope: { params: { scope_items: [
+        { id: 'r1', name: 'Shingles', quantity: 20, unit: 'sq', unit_price_cents: 31000, media: [{ url: PX, caption: 'Ridge detail' }], video: { url: 'https://vimeo.com/1' }, display: 'popup' },
+        { id: 'r2', name: 'Underlayment', quantity: 1, unit: 'roll', unit_price_cents: 8000, media: [{ url: PX }], display: 'inline' }
+      ] } }
+    }));
+    assert('popup-display row renders a data-fmdoc-media-popup chip', !!liHost.querySelector('.fmdoc-media-chip[data-fmdoc-media-popup]'));
+    assert('inline-display row renders a print-safe thumbnail strip', !!liHost.querySelector('.fmdoc-li-inline-media img'));
+    liHost.querySelector('.fmdoc-media-chip').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    assert('chip click opens the shared lightbox via the delegate', !!document.querySelector('.fmdoc-lightbox'));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    assert('lightbox closes again (Esc)', !document.querySelector('.fmdoc-lightbox'));
+    liHost.remove();
+
+    section('when-gated variant steps: not_empty(params.option_b_items) hides/reveals live');
+    try { handle.destroy(); } catch (e) {}
+    const slotParams = { option_a_items: [
+      { id: 'oa_roof', type: 'scope_item', name: 'Architectural system', display_name: 'Architectural system', unit: 'job', quantity: '1', unit_price: 38000, selection: { mode: 'fixed', selected: true }, children: [] }
+    ] };
+    const slotWorkflow = {
+      schema_version: 1, name: 'Three options', contract: { params: {}, outputs: {} },
+      steps: [
+        { id: 'st_option_a', title: 'Option A', items: [{ kind: 'line_items_review', writes: 'params.option_a_items', label: 'Option A items' }] },
+        { id: 'st_option_b', title: 'Option B', when: '{{not_empty(params.option_b_items)}}', items: [{ kind: 'line_items_review', writes: 'params.option_b_items', label: 'Option B items' }] },
+        { id: 'st_option_c', title: 'Option C', when: '{{not_empty(params.option_c_items)}}', items: [{ kind: 'line_items_review', writes: 'params.option_c_items', label: 'Option C items' }] },
+        { id: 'st_choice', title: 'Choose a package', items: [{ kind: 'review', writes: '', label: 'Review' }] }
+      ],
+      audiences: { internal: {} }
+    };
+    handle = window.FMDocWorkflow.mount(host, {
+      workflow: slotWorkflow, audience: 'internal',
+      state: { params: JSON.parse(JSON.stringify(slotParams)), outputs: {} },
+      onWrite: (path, value) => {
+        const key = path.replace(/^params\./, '');
+        slotParams[key] = value;
+      },
+      services: services
+    });
+    await sleep(40);
+    assert('empty slots hide their steps (rail = A + choice only)', railTitles().includes('Option A') && !railTitles().includes('Option B') && !railTitles().includes('Option C'));
+    // Host-driven reveal: the app's "Add variant" PATCHes the slot then hands
+    // the stepper the fresh params + a jump via handle.refresh().
+    handle.refresh({
+      params: Object.assign(JSON.parse(JSON.stringify(slotParams)), { option_b_items: JSON.parse(JSON.stringify(slotParams.option_a_items)) }),
+      current_step: 'st_option_b'
+    });
+    await sleep(30);
+    assert('refresh({params}) reveals the when-gated step', railTitles().includes('Option B'));
+    assert('refresh({current_step}) lands on the revealed step (bypasses rail locks)', currentTitle() === 'Option B');
+    assert('Option C stays hidden while its slot is empty', !railTitles().includes('Option C'));
+    // Live write path: emptying the slot from inside the runtime hides the
+    // step again on the very next re-render (writePath → updateRail).
+    while ($$('.fmdw-li-row').length) {
+      $('.fmdw-li-row [data-fmdw-lir-remove]').click();
+      await sleep(10);
+    }
+    await sleep(30);
+    assert('clearing the slot hides the step live (runtime re-evaluates when on write)', !railTitles().includes('Option B'));
+    assert('stepper falls back to a visible step after its step hides', currentTitle() !== 'Option B' && !!currentTitle());
+
+    mountAudience('internal'); // leave the harness usable
+
+    log('head', 'DONE — ' + passCount + ' passed, ' + failCount + ' failed');
+    document.title = (failCount ? 'FAIL ' : 'PASS ') + 'FMDocWorkflow dev harness';
+  }
+
+  run().catch((error) => {
+    failCount += 1;
+    log('fail', 'HARNESS ERROR: ' + (error && error.message));
+    document.title = 'FAIL FMDocWorkflow dev harness';
+    console.error(error);
+  });
+})();
+</script>
+</body>
+</html>

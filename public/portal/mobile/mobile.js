@@ -8,6 +8,7 @@
     role: 'sales',
     projects: [],
     appointments: [],
+    followUps: [],
     activeProject: null,
     activeEvent: null,
     activePhoto: null,
@@ -266,24 +267,27 @@
 
   function needsAction(project = {}, event = {}){
     const end = eventEnd(event) || eventStart(event);
-    const workflow = lower(project.workflow_state || project.stage || project.status || '');
+    const lifecycle = project.lifecycle && typeof project.lifecycle === 'object' ? project.lifecycle : {};
+    const lifecycleStatus = lower(lifecycle.status || '');
+    if (lifecycle.sold_at || ['completed', 'canceled', 'lost'].includes(lifecycleStatus)) return false;
+    const instances = Array.isArray(project.work_projection?.instances) ? project.work_projection.instances : [];
+    const pipeline = instances.find((instance) => instance && instance.kind === 'pipeline') || null;
+    const workflow = lower(project.workflow_state || pipeline?.stage_id || project.status || '');
     const outcome = lower(event.outcome || event.result || project.sales_outcome || project.appointment_outcome);
     const actionStatus = lower(project.sales_action_status || project.action_status || event.action_status);
     if (outcome || ['sold', 'lost', 'cancelled', 'canceled', 'completed'].includes(actionStatus)) return false;
     return !!(end && end.getTime() < Date.now() && !workflow.includes('sold') && !workflow.includes('lost'));
   }
 
-  function needsFollowUp(project = {}, event = {}){
-    const fields = [
-      project.follow_up_at,
-      project.followup_at,
-      project.next_follow_up_at,
-      event.follow_up_at,
-      event.next_follow_up_at
-    ].filter(Boolean);
-    if (fields.length) return true;
-    const workflow = lower(project.workflow_state || project.stage || project.status || '');
-    return workflow.includes('follow');
+  function isFollowUpTodo(item = {}){
+    const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+    const tags = Array.isArray(metadata.type_tags) ? metadata.type_tags.map(clean) : [];
+    return clean(item.kind || metadata.kind) === 'follow_up' || tags.includes('follow_up');
+  }
+
+  function needsFollowUp(project = {}){
+    const projectId = clean(project.id);
+    return !!projectId && state.followUps.some((item) => clean(item.project_id || item?.metadata?.payload?.project_id) === projectId);
   }
 
   function normalizeProjects(result){
@@ -305,7 +309,7 @@
           start,
           end: eventEnd(event) || start,
           action: needsAction(project, event),
-          follow: needsFollowUp(project, event)
+          follow: needsFollowUp(project)
         });
       });
     });
@@ -336,8 +340,12 @@
     setStatus('Loading');
     await loadCurrentUser();
     try {
-      const result = await API.projects.list(orgId());
+      const [result, todosResult] = await Promise.all([
+        API.projects.list(orgId()),
+        API.work?.todos ? API.work.todos(orgId(), { includeFuture:true }) : Promise.resolve({ todos:[] })
+      ]);
       state.projects = normalizeProjects(result);
+      state.followUps = (Array.isArray(todosResult?.todos) ? todosResult.todos : []).filter(isFollowUpTodo);
       state.appointments = buildAppointments(state.projects);
       renderAppointments();
       setStatus('Synced');

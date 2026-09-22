@@ -13,6 +13,7 @@
 
   const state = {
     mounted: false,
+    root: null,
     map: null,
     markerLayer: null,
     pins: [],
@@ -136,7 +137,7 @@
 
   function renderFilters(root){
     const statuses = state.settings?.statuses || [];
-    const chips = [{ id:'all', label:'All' }, ...statuses.filter((status) => status.id !== 'deleted')];
+    const chips = [{ id:'all', label:(globalThis.PlatformLanguage?.text("canvassing","m_61df468d92e238","All") ?? "All") }, ...statuses.filter((status) => status.id !== 'deleted')];
     $('.canvassing-filter', root).innerHTML = chips.map((status) => `
       <button class="canvassing-chip ${state.activeStatus === status.id ? 'active' : ''}" data-status="${escapeHtml(status.id)}">
         ${status.id !== 'all' ? `<span class="canvassing-status-dot" style="background:${escapeHtml(status.color || statusColor(status.id))}"></span>` : ''}
@@ -146,6 +147,7 @@
     $('.canvassing-filter', root).querySelectorAll('[data-status]').forEach((button) => {
       button.addEventListener('click', () => {
         state.activeStatus = button.dataset.status || 'all';
+        window.Portal?.navigation?.replace?.({ canvassingStatus:state.activeStatus === 'all' ? null : state.activeStatus }, { source:'canvassing-filter', ownedKeys:['canvassingStatus'] });
         render(root);
       });
     });
@@ -160,11 +162,11 @@
             <div class="title">${escapeHtml(pinTitle(pin))}</div>
             <div class="meta"><span class="canvassing-status-dot" style="background:${escapeHtml(statusColor(pin.status_id))}"></span>${escapeHtml(statusLabel(pin.status_id))}</div>
           </div>
-          <div class="meta">${escapeHtml(new Date(pin.updated_at || Date.now()).toLocaleDateString())}</div>
+          <div class="meta">${escapeHtml(new Date(pin.updated_at || Date.now()).toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.()))}</div>
         </div>
         <div class="meta">${escapeHtml(pin.contact?.name || pin.contact?.phone || pin.notes || '')}</div>
       </div>
-    `).join('') : '<div class="canvassing-pin-row"><div class="title">No pins yet</div><div class="meta">Click the map to create the first canvassing pin.</div></div>';
+    `).join('') : `<div class="canvassing-pin-row"><div class="title">${(globalThis.PlatformLanguage?.text("canvassing","m_1e41b6ab3f6265","No pins yet") ?? "No pins yet")}</div><div class="meta">${(globalThis.PlatformLanguage?.text("canvassing","m_99c929975502fe","Click the map to create the first canvassing pin.") ?? "Click the map to create the first canvassing pin.")}</div></div>`;
     $('.canvassing-list', root).querySelectorAll('[data-pin-id]').forEach((row) => {
       row.addEventListener('click', () => openPinPanel(state.pins.find((pin) => pin.id === row.dataset.pinId)));
     });
@@ -208,7 +210,14 @@
     render(root);
   }
 
-  function openPinPanel(pin = null, coordinates = null){
+  function closePinPanel(options = {}){
+    $('#canvassingPinPanel')?.classList.remove('open');
+    if (!options.fromRoute && !window.Portal?.navigation?.applying) {
+      window.Portal?.navigation?.backOrClose?.(['pin'], { pin:null }, { source:'canvassing-pin-close' });
+    }
+  }
+
+  function openPinPanel(pin = null, coordinates = null, options = {}){
     const panel = $('#canvassingPinPanel');
     if (!panel) return;
     const statuses = (state.settings?.statuses || []).filter((status) => status.id !== 'deleted');
@@ -217,22 +226,23 @@
     panel.dataset.lat = coordinates?.lat ?? pin?.coordinates?.lat ?? '';
     panel.dataset.lng = coordinates?.lng ?? pin?.coordinates?.lng ?? '';
     panel.classList.add('open');
+    if (!options.fromRoute && pin?.id) window.Portal?.navigation?.push?.({ tab:'canvassing', pin:pin.id }, { source:'canvassing-pin-open', ownedKeys:['pin'] });
     panel.innerHTML = `
       <div class="inner">
-        <h3>${pin ? 'Canvassing Pin' : 'New Pin'}</h3>
-        <div class="canvassing-field"><label>Status</label><select id="canvassingPinStatus">${statuses.map((status) => `<option value="${escapeHtml(status.id)}" ${String(pin?.status_id || state.settings?.default_status_id || 'new') === String(status.id) ? 'selected' : ''}>${escapeHtml(status.label)}</option>`).join('')}</select></div>
-        <div class="canvassing-field"><label>Address</label><input id="canvassingPinAddress" value="${escapeHtml(pin?.address || '')}" placeholder="Address or nearest property"></div>
-        <div class="canvassing-field"><label>Contact</label><input id="canvassingPinName" value="${escapeHtml(contact.name || '')}" placeholder="Name"></div>
-        <div class="canvassing-field"><label>Phone</label><input id="canvassingPinPhone" value="${escapeHtml(contact.phone || '')}" placeholder="Phone"></div>
-        <div class="canvassing-field"><label>Notes</label><textarea id="canvassingPinNotes" placeholder="Notes">${escapeHtml(pin?.notes || '')}</textarea></div>
+        <h3>${String(pin ? 'Canvassing Pin' : 'New Pin')}</h3>
+        <div class="canvassing-field"><label>${(globalThis.PlatformLanguage?.text("canvassing","m_1352cafa75b8da","Status") ?? "Status")}</label><select id="canvassingPinStatus">${String(statuses.map((status) => `<option value="${escapeHtml(status.id)}" ${String(pin?.status_id || state.settings?.default_status_id || 'new') === String(status.id) ? 'selected' : ''}>${escapeHtml(status.label)}</option>`).join(''))}</select></div>
+        <div class="canvassing-field"><label>${(globalThis.PlatformLanguage?.text("canvassing","m_53d803cdbe9ab1","Address") ?? "Address")}</label><input id="canvassingPinAddress" value="${String(escapeHtml(pin?.address || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("canvassing","m_5a1140e15aac38","Address or nearest property") ?? "Address or nearest property")}"></div>
+        <div class="canvassing-field"><label>${(globalThis.PlatformLanguage?.text("canvassing","m_46c8aea84388c3","Contact") ?? "Contact")}</label><input id="canvassingPinName" value="${String(escapeHtml(contact.name || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("canvassing","m_8cf345002184e5","Name") ?? "Name")}"></div>
+        <div class="canvassing-field"><label>${(globalThis.PlatformLanguage?.text("canvassing","m_ed04c65845180f","Phone") ?? "Phone")}</label><input id="canvassingPinPhone" value="${String(escapeHtml(contact.phone || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("canvassing","m_ed04c65845180f","Phone") ?? "Phone")}"></div>
+        <div class="canvassing-field"><label>${(globalThis.PlatformLanguage?.text("canvassing","m_de7d6168ae1ad6","Notes") ?? "Notes")}</label><textarea id="canvassingPinNotes" placeholder="${(globalThis.PlatformLanguage?.text("canvassing","m_de7d6168ae1ad6","Notes") ?? "Notes")}">${String(escapeHtml(pin?.notes || ''))}</textarea></div>
         <div class="canvassing-panel-actions">
-          <button class="canvassing-btn" id="canvassingClosePin">Close</button>
-          <button class="canvassing-btn primary" id="canvassingSavePin">Save</button>
+          <button class="canvassing-btn" id="canvassingClosePin">${(globalThis.PlatformLanguage?.text("canvassing","m_3742924668fb10","Close") ?? "Close")}</button>
+          <button class="canvassing-btn primary" id="canvassingSavePin">${(globalThis.PlatformLanguage?.text("canvassing","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
         </div>
-        ${pin ? `<div class="canvassing-panel-actions"><button class="canvassing-btn primary" id="canvassingPromotePin">Create Lead</button><button class="canvassing-btn" id="canvassingDeletePin">Delete</button></div>` : ''}
+        ${String(pin ? `<div class="canvassing-panel-actions"><button class="canvassing-btn primary" id="canvassingPromotePin">Create Lead</button><button class="canvassing-btn" id="canvassingDeletePin">Delete</button></div>` : '')}
       </div>
     `;
-    $('#canvassingClosePin').addEventListener('click', () => panel.classList.remove('open'));
+    $('#canvassingClosePin').addEventListener('click', () => closePinPanel());
     $('#canvassingSavePin').addEventListener('click', () => savePanelPin());
     $('#canvassingPromotePin')?.addEventListener('click', () => promotePanelPin());
     $('#canvassingDeletePin')?.addEventListener('click', () => deletePanelPin());
@@ -260,18 +270,18 @@
   async function savePanelPin(){
     const payload = panelPinPayload();
     if (!Number.isFinite(payload.coordinates.lat) || !Number.isFinite(payload.coordinates.lng)) {
-      toast('Missing location', 'A canvassing pin needs map coordinates.', false);
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_c8563e08f09a81","Missing location") ?? "Missing location"), (globalThis.PlatformLanguage?.text("canvassing","m_4356dd392ba95a","A canvassing pin needs map coordinates.") ?? "A canvassing pin needs map coordinates."), false);
       return;
     }
     try {
       const result = payload.id
         ? await window.CanvassingAPI.pins.patch(orgId(), branchId(), payload.id, payload)
         : await window.CanvassingAPI.pins.create(orgId(), branchId(), payload);
-      $('#canvassingPinPanel')?.classList.remove('open');
+      closePinPanel();
       await load(document.getElementById('tab_canvassing'));
-      toast('Pin saved', result.pin?.address || result.pin?.status_label || 'Canvassing pin updated.');
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_ef132e8733d91b","Pin saved") ?? "Pin saved"), result.pin?.address || result.pin?.status_label || 'Canvassing pin updated.');
     } catch (error) {
-      toast('Pin save failed', error.message, false);
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_8247bf44835dd1","Pin save failed") ?? "Pin save failed"), error.message, false);
     }
   }
 
@@ -280,11 +290,11 @@
     if (!payload.id) return;
     try {
       await window.CanvassingAPI.pins.promote(orgId(), branchId(), payload.id, payload);
-      $('#canvassingPinPanel')?.classList.remove('open');
+      closePinPanel();
       await load(document.getElementById('tab_canvassing'));
-      toast('Lead created', payload.address || 'The canvassing pin is now a Platform lead.');
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_546e337a0ad168","Lead created") ?? "Lead created"), payload.address || 'The canvassing pin is now a Platform lead.');
     } catch (error) {
-      toast('Lead creation failed', error.message, false);
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_f0680f044b3c64","Lead creation failed") ?? "Lead creation failed"), error.message, false);
     }
   }
 
@@ -293,11 +303,11 @@
     if (!pinId) return;
     try {
       await window.CanvassingAPI.pins.remove(orgId(), branchId(), pinId);
-      $('#canvassingPinPanel')?.classList.remove('open');
+      closePinPanel();
       await load(document.getElementById('tab_canvassing'));
-      toast('Pin deleted', 'The canvassing pin was removed.');
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_6d3a2ea4f71a36","Pin deleted") ?? "Pin deleted"), (globalThis.PlatformLanguage?.text("canvassing","m_927411b5fb78a2","The canvassing pin was removed.") ?? "The canvassing pin was removed."));
     } catch (error) {
-      toast('Delete failed', error.message, false);
+      toast((globalThis.PlatformLanguage?.text("canvassing","m_cf2c70cfda409b","Delete failed") ?? "Delete failed"), error.message, false);
     }
   }
 
@@ -329,15 +339,17 @@
 
   function mount(root){
     injectCss();
+    state.root = root;
+    state.activeStatus = window.Portal?.navigation?.read?.().canvassingStatus || 'all';
     root.innerHTML = `
       <div class="canvassing-shell">
         <section class="canvassing-side">
           <div class="canvassing-head">
-            <h2>Canvassing</h2>
-            <p>Manage branch canvassers, field pins, and promote promising doors into Platform leads.</p>
+            <h2>${(globalThis.PlatformLanguage?.text("canvassing","m_88f66f0b968bb2","Canvassing") ?? "Canvassing")}</h2>
+            <p>${(globalThis.PlatformLanguage?.text("canvassing","m_4fbc4684a1260c","Manage branch canvassers, field pins, and promote promising doors into Platform leads.") ?? "Manage branch canvassers, field pins, and promote promising doors into Platform leads.")}</p>
             <div class="canvassing-actions">
-              <button class="primary" id="canvassingRefresh"><i class="fas fa-rotate"></i> Refresh</button>
-              <a class="canvassing-btn" href="/apps/canvassing/" target="_blank"><i class="fas fa-mobile-screen"></i> App</a>
+              <button class="primary" id="canvassingRefresh"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("canvassing","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
+              <a class="canvassing-btn" href="/apps/canvassing/" target="_blank"><i class="fas fa-mobile-screen"></i>${(globalThis.PlatformLanguage?.text("canvassing","m_d220fd8b0204c9"," App") ?? " App")}</a>
             </div>
           </div>
           <div class="canvassing-stats"></div>
@@ -350,15 +362,27 @@
         </section>
       </div>
     `;
-    $('#canvassingRefresh', root).addEventListener('click', () => load(root).catch((error) => toast('Refresh failed', error.message, false)));
-    load(root).then(() => initMap(root)).catch((error) => {
-      root.querySelector('.canvassing-list').innerHTML = `<div class="canvassing-pin-row"><div class="title">Canvassing unavailable</div><div class="meta">${escapeHtml(error.message)}</div></div>`;
+    $('#canvassingRefresh', root).addEventListener('click', () => load(root).catch((error) => toast((globalThis.PlatformLanguage?.text("canvassing","m_0d3ee333048643","Refresh failed") ?? "Refresh failed"), error.message, false)));
+    load(root).then(() => { initMap(root); restorePinRoute(); }).catch((error) => {
+      root.querySelector('.canvassing-list').innerHTML = `<div class="canvassing-pin-row"><div class="title">${(globalThis.PlatformLanguage?.text("canvassing","m_5998d9f05fec0a","Canvassing unavailable") ?? "Canvassing unavailable")}</div><div class="meta">${String(escapeHtml(error.message))}</div></div>`;
     });
   }
 
   function onShow(){
     if (state.map) setTimeout(() => state.map.invalidateSize(), 80);
   }
+
+  function restorePinRoute(route = window.Portal?.navigation?.read?.() || {}){
+    const nextStatus = route.canvassingStatus || 'all';
+    if (nextStatus !== state.activeStatus) { state.activeStatus = nextStatus; if (state.root) render(state.root); }
+    if (route.tab !== 'canvassing' || !route.pin) {
+      if ($('#canvassingPinPanel')?.classList.contains('open')) closePinPanel({ fromRoute:true });
+      return;
+    }
+    const pin = state.pins.find((item) => String(item.id) === String(route.pin));
+    if (pin) openPinPanel(pin, null, { fromRoute:true });
+  }
+  window.Portal?.navigation?.registerHandler?.('canvassing-pin', { priority:450, apply:restorePinRoute });
 
   let tabRegistered = false;
   let syncTimer = null;
@@ -385,7 +409,7 @@
     window.Portal.apps.registerPortalApp({
       id: 'portal.canvassing',
       tabId: 'canvassing',
-      title: 'Canvassing',
+      title: (globalThis.PlatformLanguage?.text("canvassing","m_88f66f0b968bb2","Canvassing") ?? "Canvassing"),
       icon: 'fa-map-location-dot',
       order: 55,
       fullBleed: true,

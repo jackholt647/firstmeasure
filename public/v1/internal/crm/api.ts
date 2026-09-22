@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ZodError, z } from "zod";
 
-import { PlatformError } from "../../platform/errors.js";
+import { PlatformError, forbidden } from "../../platform/errors.js";
 import {
   CRM_COLLECTIONS,
   asObject,
@@ -14,8 +14,11 @@ import {
   readCrmDocument,
   upsertCrmDocument
 } from "./storage.js";
-import { addLeadContactNote, addLeadFollowup, addLeadNote, commitLeadImport, createLeadCustomField, deleteLeadCustomField, ensureLeadDatabase, exportSelectedLeads, leadDetail, leadFields, leadFilterOptions, leadViewer, previewLeadImport, queryLeads, reassignSelectedLeads, updateLeadContact, updateLeadCustomField, updateLeadRecord } from "./leads.js";
+import { callQueue, recordLeadCall, addLeadContactNote, addLeadFollowup, addLeadNote, commitLeadImport, createLeadCustomField, deleteLeadCustomField, ensureLeadDatabase, exportSelectedLeads, leadDetail, leadFields, leadFilterOptions, leadViewer, previewLeadImport, queryLeads, reassignSelectedLeads, updateLeadContact, updateLeadCustomField, updateLeadRecord } from "./leads.js";
 import { acquisitionCampaignReport, attachReferralOrganization, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
+
+import { requirePlatformAuth } from "../../platform/auth.js";
+import { readInternalUser } from "../storage.js";
 
 const objectSchema = z.object({}).passthrough();
 const CRM_API_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -82,6 +85,24 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
   app.get("/leads/:leadId/detail", async (request) => leadDetail(param(request.params, "leadId")));
 
   app.get("/leads/:leadId/viewer", async (request) => leadViewer(param(request.params, "leadId")));
+
+  // The global legacy lead dialer stays on the compatibility role. Unlike
+  // organization call lists, these rows span customers and require a verified
+  // internal user as well as explicit platform access.
+  const leadCaller = async (request: Parameters<typeof requirePlatformAuth>[0]) => {
+    const ctx = await requirePlatformAuth(request, { csrf: true, capability: "apps.comms", permission: "make_calls|manage_communications|manage_company_settings" });
+    const email = String(ctx.identity.email || "").trim().toLowerCase();
+    const staff = await readInternalUser(email).catch(() => null);
+    if (!staff || staff.disabled === true || !["active", "enabled"].includes(String(staff.status || "").toLowerCase())) {
+      throw forbidden("internal_user_required", "Only internal users may access global lead calls.");
+    }
+    return email;
+  };
+  app.post("/calls/queue", async request => callQueue({ ...asObject(request.body), actor_email: await leadCaller(request) }));
+  app.post("/calls/:leadId/disposition", async (request, reply) => {
+    const result = await recordLeadCall(param(request.params, "leadId"), { ...asObject(request.body), actor_email: await leadCaller(request) });
+    return reply.code(201).send(result);
+  });
 
   app.patch("/leads/:leadId", async (request) => updateLeadRecord(param(request.params, "leadId"), asObject(request.body)));
 

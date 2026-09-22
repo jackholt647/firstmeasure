@@ -2437,7 +2437,8 @@ function appendActivityWindowClause(input: {
 }
 
 function buildFtsQuery(tokens: string[]) {
-  return tokens.map((token) => `${token}*`).join(" AND ");
+  // Quote each literal term so email/address punctuation is not FTS syntax.
+  return tokens.map((token) => `"${token.replace(/"/g, '\"\"')}"*`).join(" AND ");
 }
 
 function parseTimestamp(value: string) {

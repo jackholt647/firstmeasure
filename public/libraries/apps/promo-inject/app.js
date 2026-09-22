@@ -1,4 +1,4 @@
-﻿(function(){
+(function(){
   if (!window.Portal) return;
 
   const { $, injectCSS, postAction, hasPerm, escapeHtml } = window.Portal.util;
@@ -11,7 +11,6 @@
   let promoState = null;
   let countdownInterval = null;
   let lastAutoOpenSignature = '';
-  let promoLayoutListenerBound = false;
 
   function checkoutSessionIdFromResponse(data){
     return String(data?.session?.id || data?.session_id || '').trim();
@@ -59,61 +58,6 @@
   }
 
   const css = `
-    body.has-bonus-promo .main{
-      margin-top:58px;
-      height:calc(100vh - 58px);
-    }
-    body.has-bonus-promo .sidebar{
-      margin-top:58px;
-      height:calc(100vh - 58px);
-    }
-    body.has-bonus-promo .mobile-topbar{ margin-top:58px; }
-    .promo-bonus-bar{
-      position:fixed; top:0; left:0; right:0; z-index:95000;
-      height:58px;
-      display:flex; align-items:center; justify-content:center; gap:14px;
-      padding:10px 16px;
-      background:linear-gradient(90deg, #d93025 0%, #f05a28 45%, #f59e0b 100%);
-      color:#fff;
-      box-shadow:0 10px 26px rgba(217,48,37,0.28);
-    }
-    .promo-bonus-inner{
-      width:min(1280px, 100%);
-      display:flex; align-items:center; justify-content:space-between; gap:16px;
-    }
-    .promo-bonus-copy{ display:flex; align-items:center; gap:14px; min-width:0; }
-    .promo-bonus-badge{
-      width:34px; height:34px; border-radius:12px;
-      background:rgba(255,255,255,0.18);
-      display:flex; align-items:center; justify-content:center;
-      font-size:15px; flex:0 0 auto;
-    }
-    .promo-bonus-text{
-      min-width:0;
-      font-size:14px;
-      font-weight:1000;
-      letter-spacing:-0.2px;
-      line-height:1.15;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .promo-bonus-mobile-text{ display:none; }
-    .promo-bonus-right{ display:flex; align-items:center; gap:12px; flex:0 0 auto; }
-    .promo-bonus-timer{
-      min-width:118px;
-      padding:9px 12px;
-      border-radius:14px;
-      background:rgba(0,0,0,0.16);
-      font-size:12px; font-weight:1000; letter-spacing:0.3px;
-      text-align:center;
-    }
-    .promo-bonus-btn{
-      height:40px; padding:0 18px; border-radius:999px; border:none;
-      background:#fff; color:#b42318; font-weight:1000; font-size:13px; cursor:pointer;
-      box-shadow:0 8px 18px rgba(0,0,0,0.16);
-      transition:.16s ease;
-    }
-    .promo-bonus-btn:hover{ transform:translateY(-1px); background:#fff8f3; }
-
     .promo-modal{
       position:fixed; inset:0; z-index:2147483200;
       background:rgba(10,14,20,0.68);
@@ -286,88 +230,6 @@
       .promo-tier-grid{ grid-template-columns:1fr; }
     }
     @media (max-width: 820px){
-      body.has-bonus-promo{
-        padding-bottom:var(--promo-bonus-bar-offset, 58px);
-      }
-      body.has-bonus-promo .main,
-      body.has-bonus-promo .sidebar{
-        margin-top:0;
-      }
-      body.has-bonus-promo .sidebar{
-        height:calc(100vh - var(--promo-sidebar-top-offset, 0px) - var(--promo-bonus-bar-offset, 58px)) !important;
-        height:calc(100dvh - var(--promo-sidebar-top-offset, 0px) - var(--promo-bonus-bar-offset, 58px)) !important;
-      }
-      body.has-bonus-promo .mobile-topbar{ margin-top:0; }
-      .promo-bonus-bar{
-        top:auto; bottom:0; left:0; right:0;
-        z-index:95000;
-        width:100%;
-        height:auto;
-        min-height:0;
-        padding:8px 10px calc(8px + env(safe-area-inset-bottom));
-        background:linear-gradient(90deg, #d93025 0%, #f05a28 45%, #f59e0b 100%);
-        color:#fff;
-        box-shadow:0 -12px 30px rgba(217,48,37,0.30);
-      }
-      .promo-bonus-inner{
-        align-items:center;
-        display:grid;
-        grid-template-columns:auto minmax(0, 1fr) auto;
-        gap:6px;
-        width:100%;
-      }
-      .promo-bonus-copy{
-        flex:initial;
-        width:auto;
-        min-width:0;
-        gap:0;
-        justify-content:center;
-      }
-      .promo-bonus-badge{ display:none; }
-      .promo-bonus-text{
-        white-space:normal;
-        overflow:visible;
-        text-overflow:clip;
-        font-size:12px;
-        line-height:1.15;
-        letter-spacing:0;
-        max-width:none;
-        text-align:center;
-      }
-      .promo-bonus-desktop-text{ display:inline; }
-      .promo-bonus-mobile-text{ display:none; }
-      .promo-bonus-right{
-        display:contents;
-      }
-      .promo-bonus-copy{
-        order:2;
-      }
-      .promo-bonus-timer{
-        order:1;
-      }
-      .promo-bonus-btn{
-        order:3;
-      }
-      .promo-bonus-timer{
-        min-width:70px;
-        padding:6px 6px;
-        border-radius:10px;
-        background:rgba(0,0,0,0.16);
-        color:#fff;
-        font-size:11px;
-        letter-spacing:0;
-      }
-      .promo-bonus-btn{
-        height:32px;
-        padding:0 8px;
-        border-radius:999px;
-        background:#fff;
-        color:#b42318;
-        font-size:11px;
-        box-shadow:0 6px 14px rgba(0,0,0,0.16);
-        white-space:nowrap;
-      }
-      .promo-bonus-btn:hover{ background:#fff8f3; }
       .promo-modal{
         padding:16px;
         align-items:center;
@@ -427,7 +289,6 @@
       .promo-side-error:empty{ display:none; }
       .promo-action-group{ width:100%; margin-left:0; }
       .promo-side-btn, .promo-side-ghost{ flex:1 1 auto; height:38px; border-radius:12px; padding:0 12px; font-size:12px; }
-      body.promo-project-open .promo-bonus-bar{ display:none !important; }
     }
     @media (max-width: 820px) and (max-height: 740px){
       .promo-modal-subtitle{ display:none; }
@@ -453,7 +314,7 @@
       customerPays,
       bonus,
       total,
-      label: `Option ${index + 1}`,
+      label: ((v0) => globalThis.PlatformLanguage?.text("promo-inject","m_9f35fbe4f31045",`Option ${v0}`,{v0}) ?? `Option ${v0}`)(index + 1),
       months,
       matchPercent
     };
@@ -483,7 +344,7 @@
   }
 
   function formatMoney(value){
-    return `$${Number(value || 0).toLocaleString()}`;
+    return `$${Number(value || 0).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())}`;
   }
 
   function formatRemaining(seconds){
@@ -504,20 +365,20 @@
         <div class="promo-modal-win">
           <div class="promo-modal-top">
             <div class="promo-modal-head">
-              <h2 class="promo-modal-title">Thank you for choosing FirstMate!</h2>
-              <div class="promo-modal-subtitle">Get up to 50% bonus credit when you load your account today.</div>
-              <div class="promo-modal-expiry"><i class="fas fa-hourglass-half"></i> Offer expires in <span id="promoModalExpiry">00:00:00</span></div>
+              <h2 class="promo-modal-title">${(globalThis.PlatformLanguage?.text("promo-inject","m_eb9ce81bc40229","Thank you for choosing FirstMate!") ?? "Thank you for choosing FirstMate!")}</h2>
+              <div class="promo-modal-subtitle">${(globalThis.PlatformLanguage?.text("promo-inject","m_f63e22c5463880","Get up to 50% bonus credit when you load your account today.") ?? "Get up to 50% bonus credit when you load your account today.")}</div>
+              <div class="promo-modal-expiry"><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.text("promo-inject","m_feff91ced3b954"," Offer expires in ") ?? " Offer expires in ")}<span id="promoModalExpiry">00:00:00</span></div>
             </div>
             <button class="promo-modal-close" id="promoBonusClose" type="button" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="promo-modal-body">
             <div class="promo-tier-grid" id="promoTierGrid"></div>
             <div class="promo-modal-actions">
-              <div class="promo-modal-selection" id="promoSummaryNote">Select an option to continue to Stripe checkout.</div>
+              <div class="promo-modal-selection" id="promoSummaryNote">${(globalThis.PlatformLanguage?.text("promo-inject","m_5683072373aec0","Select an option to continue to Stripe checkout.") ?? "Select an option to continue to Stripe checkout.")}</div>
               <div class="promo-side-error" id="promoSummaryError"></div>
               <div class="promo-action-group">
-                <button class="promo-side-ghost" id="promoCheckoutCancel" type="button">Not now</button>
-                <button class="promo-side-btn" id="promoCheckoutBtn" type="button">Continue to Checkout</button>
+                <button class="promo-side-ghost" id="promoCheckoutCancel" type="button">${(globalThis.PlatformLanguage?.text("promo-inject","m_2d4675a22ab6bd","Not now") ?? "Not now")}</button>
+                <button class="promo-side-btn" id="promoCheckoutBtn" type="button">${(globalThis.PlatformLanguage?.text("promo-inject","m_0878467cb960ff","Continue to Checkout") ?? "Continue to Checkout")}</button>
               </div>
             </div>
           </div>
@@ -533,98 +394,44 @@
     }
   }
 
-  window.addEventListener('fm:modal:open', (event) => {
-    const isOpen = !!event?.detail?.open;
-    document.body.classList.toggle('promo-project-open', isOpen);
-    schedulePromoLayoutUpdate();
-  });
+  // --- attention feed integration -------------------------------------------
+  // The promo no longer renders its own fixed bar. It contributes a low
+  // priority client-source entry to the shared PlatformBanners topbar surface;
+  // all gating (app flag, manage_billing, server show_banner, countdown)
+  // stays here, and the CTA opens the existing tier modal via onCta.
 
-  function setPromoCssVar(name, value){
-    document.documentElement.style.setProperty(name, value);
-    document.body.style.setProperty(name, value);
-  }
+  let promoSourceRegistered = false;
 
-  function clearPromoLayoutVars(){
-    ['--promo-bonus-bar-offset', '--promo-sidebar-top-offset'].forEach((name) => {
-      document.documentElement.style.removeProperty(name);
-      document.body.style.removeProperty(name);
-    });
-  }
-
-  function updatePromoLayoutOffset(){
-    const bar = document.getElementById('promoBonusBar');
-    const barHeight = bar ? Math.ceil(bar.getBoundingClientRect().height || 0) : 0;
-    const sidebar = document.querySelector('.sidebar');
-    let sidebarTop = 0;
-    if (sidebar && getComputedStyle(sidebar).position === 'fixed') {
-      const parsedTop = parseFloat(getComputedStyle(sidebar).top || '0');
-      sidebarTop = Number.isFinite(parsedTop) ? Math.max(0, Math.ceil(parsedTop)) : 0;
-    }
-    setPromoCssVar('--promo-bonus-bar-offset', `${barHeight}px`);
-    setPromoCssVar('--promo-sidebar-top-offset', `${sidebarTop}px`);
-  }
-
-  function schedulePromoLayoutUpdate(){
-    if (window.requestAnimationFrame) {
-      window.requestAnimationFrame(updatePromoLayoutOffset);
-    } else {
-      setTimeout(updatePromoLayoutOffset, 0);
-    }
-  }
-
-  function bindPromoLayoutListener(){
-    if (promoLayoutListenerBound) return;
-    promoLayoutListenerBound = true;
-    window.addEventListener('resize', schedulePromoLayoutUpdate);
-    window.addEventListener('orientationchange', schedulePromoLayoutUpdate);
-  }
-
-  function removeBanner(){
-    document.body.classList.remove('has-bonus-promo');
-    const bar = document.getElementById('promoBonusBar');
-    if (bar) bar.remove();
-    clearPromoLayoutVars();
-  }
-
-  function renderBanner(){
-    if (!promoState?.show_banner) {
-      removeBanner();
-      return;
-    }
-    let bar = document.getElementById('promoBonusBar');
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'promoBonusBar';
-      bar.className = 'promo-bonus-bar';
-      bar.innerHTML = `
-        <div class="promo-bonus-inner">
-          <div class="promo-bonus-copy">
-            <div class="promo-bonus-badge"><i class="fas fa-gift"></i></div>
-            <div class="promo-bonus-text"><span class="promo-bonus-desktop-text" id="promoBonusDesktopCopy">One-time credit bonus</span><span class="promo-bonus-mobile-text" id="promoBonusMobileCopy"><i class="fas fa-gift"></i>One-time credit bonus</span></div>
-          </div>
-          <div class="promo-bonus-right">
-            <div class="promo-bonus-timer" id="promoBonusTimer">00:00:00</div>
-            <button class="promo-bonus-btn" id="promoBonusOpen" type="button">View Offer</button>
-          </div>
-        </div>
-      `;
-      document.body.prepend(bar);
-      $('#promoBonusOpen')?.addEventListener('click', openModal);
-    }
+  function promoAttentionEntries(){
+    if (!promoState?.show_banner) return [];
     const maxBonus = maxBonusDollars();
-    const desktopCopy = $('#promoBonusDesktopCopy');
-    const mobileCopy = $('#promoBonusMobileCopy');
-    if (desktopCopy) desktopCopy.textContent = maxBonus
-      ? `Get up to ${formatMoney(maxBonus)} in free credits with your limited time offer`
-      : 'Limited time offer';
-    if (mobileCopy) mobileCopy.innerHTML = maxBonus
-      ? `<i class="fas fa-gift"></i>Limited time offer`
-      : '<i class="fas fa-gift"></i>Limited time offer';
-    document.body.classList.add('has-bonus-promo');
-    bindPromoLayoutListener();
-    updateCountdownDisplays();
-    schedulePromoLayoutUpdate();
-    setTimeout(updatePromoLayoutOffset, 250);
+    return [{
+      id: 'attention_firstmeasure_promo_bonus',
+      source: 'firstmeasure_promo',
+      key: OFFER_ID,
+      priority: 10,
+      surfaces: ['topbar'],
+      title: maxBonus
+        ? `Get up to ${formatMoney(maxBonus)} in free credits with your limited time offer`
+        : 'Limited time offer',
+      body: `Offer expires in ${formatRemaining(promoState?.seconds_remaining || 0)}`,
+      cta_label: 'View Offer',
+      tone: 'orange',
+      state: 'active',
+      dismissible: { topbar: true },
+      onCta: openModal
+    }];
+  }
+
+  function ensurePromoSourceRegistered(){
+    if (promoSourceRegistered || !window.PlatformBanners?.registerClientSource) return;
+    promoSourceRegistered = true;
+    window.PlatformBanners.registerClientSource('firstmeasure_promo', promoAttentionEntries);
+  }
+
+  function syncPromoBanner(){
+    ensurePromoSourceRegistered();
+    window.PlatformBanners?.notifySourceChanged?.('firstmeasure_promo');
   }
 
   function buildTierCards(){
@@ -633,21 +440,21 @@
     const tiers = promoOfferTiers();
     grid.innerHTML = tiers.map((tier) => {
       return `
-        <button class="promo-tier-card" type="button" data-tier-id="${escapeHtml(tier.tierId)}">
+        <button class="promo-tier-card" type="button" data-tier-id="${String(escapeHtml(tier.tierId))}">
           <div class="promo-tier-top">
-            <div class="promo-tier-name">${escapeHtml(tier.label || '')}</div>
+            <div class="promo-tier-name">${String(escapeHtml(tier.label || ''))}</div>
           </div>
           <div class="promo-tier-main">
             <div class="promo-tier-main-block">
-              <div class="promo-tier-main-value">${formatMoney(tier.customerPays || 0)}</div>
-              <div class="promo-tier-label">Payment</div>
+              <div class="promo-tier-main-value">${String(formatMoney(tier.customerPays || 0))}</div>
+              <div class="promo-tier-label">${(globalThis.PlatformLanguage?.text("promo-inject","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</div>
             </div>
             <div class="promo-tier-main-block">
-              <div class="promo-tier-value">${formatMoney(tier.bonus || 0)}</div>
-              <div class="promo-tier-value-label">Free Credits</div>
+              <div class="promo-tier-value">${String(formatMoney(tier.bonus || 0))}</div>
+              <div class="promo-tier-value-label">${(globalThis.PlatformLanguage?.text("promo-inject","m_d24a472aa5dc24","Free Credits") ?? "Free Credits")}</div>
             </div>
           </div>
-          <div class="promo-tier-bonus">${formatMoney(tier.total || 0)} total, ${Math.round(tier.matchPercent || 0)}% bonus</div>
+          <div class="promo-tier-bonus">${((v4,v5) => globalThis.PlatformLanguage?.text("promo-inject","m_58ccc0c2abd0fc",`${v4} total, ${v5}% bonus`,{v4,v5}) ?? `${v4} total, ${v5}% bonus`)(formatMoney(tier.total || 0),Math.round(tier.matchPercent || 0))}</div>
         </button>
       `;
     }).join('');
@@ -679,9 +486,9 @@
     const note = $('#promoSummaryNote');
     if (!note) return;
     if (!quote.valid) {
-      note.textContent = 'Choose one of the featured options.';
+      note.textContent = (globalThis.PlatformLanguage?.text("promo-inject","m_7b0cf949f780b9","Choose one of the featured options.") ?? "Choose one of the featured options.");
     } else {
-      note.textContent = `Selected: pay ${formatMoney(quote.customerPays || 0)} and get ${formatMoney(quote.total || 0)} total.`;
+      note.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("promo-inject","m_940b94914a87a2",`Selected: pay ${v0} and get ${v1} total.`,{v0,v1}) ?? `Selected: pay ${v0} and get ${v1} total.`)(formatMoney(quote.customerPays || 0),formatMoney(quote.total || 0));
     }
   }
 
@@ -721,7 +528,7 @@
     err.textContent = '';
     const quote = selectedQuote();
     if (!quote.valid) {
-      err.textContent = 'Choose a valid offer amount before continuing.';
+      err.textContent = (globalThis.PlatformLanguage?.text("promo-inject","m_b591b5deef8510","Choose a valid offer amount before continuing.") ?? "Choose a valid offer amount before continuing.");
       return;
     }
     const original = btn.innerHTML;
@@ -749,7 +556,7 @@
       window.Portal?.stripeCheckout?.showOverlay?.('Taking you to secure checkout...');
       window.location.href = data.url;
     }catch(e){
-      err.textContent = 'Connection error.';
+      err.textContent = (globalThis.PlatformLanguage?.text("promo-inject","m_9e84c7aed4d069","Connection error.") ?? "Connection error.");
       btn.disabled = false;
       btn.innerHTML = original;
     }
@@ -758,10 +565,11 @@
   function updateCountdownDisplays(){
     const remaining = Math.max(0, parseInt(String(promoState?.seconds_remaining || 0), 10) || 0);
     const text = formatRemaining(remaining);
-    const barTimer = $('#promoBonusTimer');
     const modalTimer = $('#promoModalExpiry');
-    if (barTimer) barTimer.textContent = text;
     if (modalTimer) modalTimer.textContent = text;
+    // The topbar countdown lives in the attention entry's body; re-emit the
+    // client source so PlatformBanners refreshes the text in place.
+    syncPromoBanner();
   }
 
   function stopCountdown(){
@@ -781,7 +589,7 @@
       if (promoState.seconds_remaining <= 0) {
         stopCountdown();
         promoState.show_banner = false;
-        removeBanner();
+        syncPromoBanner();
         closeModal();
       }
     }, 1000);
@@ -799,7 +607,8 @@
       await window.Portal.credits?.refreshCredits?.().catch(()=>null);
     }
     if (!hasPerm('manage_billing')) {
-      removeBanner();
+      promoState = null;
+      syncPromoBanner();
       closeModal();
       stopCountdown();
       return;
@@ -807,7 +616,8 @@
     try{
       const { data } = await postAction(PROMO_STATUS_ACTION, {});
       if (!data || !data.success) {
-        removeBanner();
+        promoState = null;
+        syncPromoBanner();
         stopCountdown();
         return;
       }
@@ -818,16 +628,17 @@
       };
       promoState.selectedTierId = quoteForTierId(previousSelectedTierId).valid ? previousSelectedTierId : defaultTierId();
       if (!promoState.show_banner) {
-        removeBanner();
+        syncPromoBanner();
         closeModal();
         stopCountdown();
         return;
       }
-      renderBanner();
+      syncPromoBanner();
       startCountdown();
       maybeAutoOpenModal();
     }catch(e){
-      removeBanner();
+      promoState = null;
+      syncPromoBanner();
       stopCountdown();
     }
   }

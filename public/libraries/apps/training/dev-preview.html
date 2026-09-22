@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training — dev preview harness</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif}
+  #harnessBar{position:fixed;top:8px;right:8px;z-index:2147483600;display:flex;gap:6px}
+  #harnessBar button{border:1px solid #cfd6e4;border-radius:8px;background:#fff;padding:6px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+  #mountRoot{height:100%}
+</style>
+</head>
+<body>
+<div id="harnessBar">
+  <button data-mount="portal.training">Viewer</button>
+  <button data-mount="portal.training_studio">Studio</button>
+</div>
+<div id="mountRoot"></div>
+<script>
+/* Minimal Portal + runtime stubs so the real bundles mount standalone. */
+(function(){
+  const registered = {};
+  window.FirstMateEmbeddableApps = {
+    escapeHtml: (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))
+  };
+  window.Portal = {
+    util: {
+      injectCSS(id, cssText){
+        let style = document.getElementById('css_' + id);
+        if (!style) { style = document.createElement('style'); style.id = 'css_' + id; document.head.appendChild(style); }
+        style.textContent = cssText;
+      },
+      escapeHtml: window.FirstMateEmbeddableApps.escapeHtml
+    },
+    ui: { showToast(title, message, ok){ console.log('[toast]', ok ? 'OK' : 'ERR', title, '-', message); } },
+    apps: { registerPortalApp(definition){ registered[definition.id] = definition; } },
+    navigation: null
+  };
+  window.__HARNESS = { registered };
+})();
+</script>
+<script>
+/* Fixture TrainingAPI — deterministic sample data, no auth required. */
+(function(){
+  const content = (id, title, blocks) => ({ id, kind:'content', title, config:{ blocks } });
+  const roofLessons = [
+    { id:'l1', title:'Welcome & Safety Basics', summary:'Why safety comes before speed, and the rules that are never optional.', icon:'fa-helmet-safety', minutes:8,
+      unlock:{ mode:'previous', available_on:'' }, state:'completed', lock_reason:'', step_count:3, has_required_test:true, score_percent:92, completed_at:'2026-07-18T10:00:00Z',
+      reward_deck_ids:[], reward_quiz_ids:['quiz1'],
+      steps:[
+        content('l1s1','Welcome to the crew',[
+          { type:'heading', body:'Safety is the job' },
+          { type:'text', body:'Roofing is one of the most rewarding trades — and one of the most dangerous. Falls are the #1 cause of serious injury on our sites, and every single one is preventable.' },
+          { type:'image', url:'https://picsum.photos/seed/fm-roof-safety/900/540', caption:'Full harness, anchor, and clean staging: the start of every job.' },
+          { type:'callout', body:'Rule zero: if you are not tied off above 6 feet, you are not working. No exceptions.', icon:'fa-triangle-exclamation' }
+        ]),
+        content('l1s2','Your daily gear',[
+          { type:'heading', body:'The non-negotiables' },
+          { type:'gallery', urls:['https://picsum.photos/seed/fm-gear-1/700/500','https://picsum.photos/seed/fm-gear-2/700/500','https://picsum.photos/seed/fm-gear-3/700/500'], caption:'Harness, boots, eye protection — inspect all three every morning.' },
+          { type:'video', url:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', caption:'Watch: morning gear inspection (2 min).' },
+          { type:'document', url:'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', name:'Site Safety Checklist.pdf', description:'Print one per job.' }
+        ]),
+        { id:'l1s3', kind:'quiz', title:'Safety check', config:{ required:true, pass_percent:100, questions:[
+          { id:'q1', kind:'multiple_choice', prompt:'At what height does fall protection become mandatory?', image:'', explanation:'OSHA requires fall protection at 6 feet in residential work.',
+            choices:[{id:'q1a',text:'6 feet'},{id:'q1b',text:'12 feet'},{id:'q1c',text:'Only on steep roofs'}], correct_choice_ids:['q1a'], answers:[], case_sensitive:false },
+          { id:'q2', kind:'text_input', prompt:'A ladder should extend ____ feet above the roof edge.', image:'', explanation:'Three feet gives you a handhold.', choices:[], correct_choice_ids:[], answers:['3','three'], case_sensitive:false }
+        ] } }
+      ] },
+    { id:'l2', title:'Tools & Materials', summary:'Squares, pitch, courses, and everything in your belt.', icon:'fa-toolbox', minutes:10,
+      unlock:{ mode:'previous', available_on:'' }, state:'current', lock_reason:'', step_count:2, has_required_test:false, score_percent:null, completed_at:'',
+      reward_deck_ids:['deck1'], reward_quiz_ids:[],
+      steps:[
+        content('l2s1','Talk like a roofer',[
+          { type:'heading', body:'Squares, pitch, and courses' },
+          { type:'text', body:'Roofs are measured in squares — one square is 100 sq ft. Pitch is rise over run: a 6/12 roof rises 6 inches per foot of run.' },
+          { type:'callout', body:'If the work order says 28 squares, order 10% extra for waste.' }
+        ]),
+        { id:'l2s2', kind:'flashcards', title:'Tools & terms practice', config:{ mode:'practice', required:false, pass_percent:0, cards:[
+          { id:'c1', kind:'flip', front_text:'Square', back_text:'100 square feet of roof area.', choices:[], correct_choice_ids:[], answers:[], case_sensitive:false },
+          { id:'c2', kind:'multiple_choice', front_text:'Standard fastener for asphalt shingles?', choices:[{id:'c2a',text:'1 1/4" roofing nail'},{id:'c2b',text:'Drywall screw'},{id:'c2c',text:'Staple'}], correct_choice_ids:['c2a'], answers:[], case_sensitive:false },
+          { id:'c3', kind:'text_input', front_text:'Metal that sheds water around chimneys is called ____.', back_text:'flashing', choices:[], correct_choice_ids:[], answers:['flashing'], case_sensitive:false }
+        ] } }
+      ] },
+    { id:'l3', title:'Tear-Off & Deck Prep', summary:'Strip it clean and inspect every inch of the deck.', icon:'fa-hammer', minutes:9,
+      unlock:{ mode:'previous', available_on:'' }, state:'unlocked', lock_reason:'', step_count:1, has_required_test:false, score_percent:null, completed_at:'', reward_deck_ids:[], reward_quiz_ids:[],
+      steps:[ content('l3s1','Strip it to the deck',[ { type:'text', body:'Work top-down, keep the magnet sweeper moving, and tarp the landscaping.' } ]) ] },
+    { id:'l4', title:'Underlayment & Flashing', summary:'The waterproofing layer nobody sees.', icon:'fa-layer-group', minutes:12,
+      unlock:{ mode:'date', available_on:'2026-08-01' }, state:'locked', lock_reason:'Unlocks 2026-08-01', step_count:2, has_required_test:true, score_percent:null, completed_at:'', reward_deck_ids:[], reward_quiz_ids:[] },
+    { id:'l5', title:'Shingle Installation', summary:'Where craftsmanship shows.', icon:'fa-house-chimney', minutes:15,
+      unlock:{ mode:'manual', available_on:'' }, state:'locked', lock_reason:'Your trainer unlocks this one', step_count:1, has_required_test:false, score_percent:null, completed_at:'', reward_deck_ids:[], reward_quiz_ids:[] },
+    { id:'l6', title:'Final Inspection & Cleanup', summary:'The walkthrough that earns five stars.', icon:'fa-clipboard-check', minutes:8,
+      unlock:{ mode:'previous', available_on:'' }, state:'locked', lock_reason:'Finish the previous lesson first', step_count:2, has_required_test:true, score_percent:null, completed_at:'', reward_deck_ids:[], reward_quiz_ids:[] }
+  ];
+
+  const summarize = (course) => {
+    const completed = course.lessons.filter((lesson) => lesson.state === 'completed').length;
+    const next = course.lessons.find((lesson) => lesson.state === 'current');
+    return { ...course, lesson_count: course.lessons.length, completed_count: completed,
+      percent_complete: Math.round(completed / course.lessons.length * 100),
+      next_lesson_id: next ? next.id : '', next_lesson_title: next ? next.title : '' };
+  };
+
+  const courses = {
+    roof: { id:'roof', title:'Roof Installation 101', description:'Everything a new crew member needs before their first tear-off.', icon:'fa-house-chimney', color:'#f59e0b', status:'published', settings:{ progression:'sequential' }, lessons: roofLessons },
+    sales: { id:'sales', title:'Sales 101', description:'The FirstMate sales method: earn trust, handle objections, close with confidence.', icon:'fa-handshake', color:'#10b981', status:'published', settings:{ progression:'sequential' },
+      lessons: [
+        { id:'s1', title:'The Sales Mindset', summary:'Solve, do not sell.', icon:'fa-brain', minutes:6, unlock:{mode:'previous',available_on:''}, state:'current', lock_reason:'', step_count:1, has_required_test:false, score_percent:null, completed_at:'', reward_deck_ids:[], reward_quiz_ids:[],
+          steps:[ content('s1s1','Solve, don\'t sell',[ { type:'text', body:'Homeowners want the leak gone and the process painless.' } ]) ] },
+        { id:'s2', title:'The Perfect First Visit', summary:'Rapport, discovery, inspection, next step.', icon:'fa-door-open', minutes:12, unlock:{mode:'previous',available_on:''}, state:'locked', lock_reason:'Finish the previous lesson first', step_count:2, has_required_test:true, score_percent:null, completed_at:'', reward_deck_ids:[], reward_quiz_ids:[] }
+      ] }
+  };
+
+  const decks = [
+    { id:'deck1', course_id:'roof', unlock_lesson_id:'', course_title:'Roof Installation 101', locked:false, title:'Roofing Tools & Terms', description:'The everyday vocabulary of a roofing crew.', icon:'fa-toolbox', color:'#f59e0b', status:'published', shuffle:true, source:'assigned', attempt_count:3, best_score_percent:88, last_score_percent:75,
+      cards:[
+        { id:'d1', kind:'flip', front_text:'Square', back_text:'100 sq ft of roof.', choices:[], correct_choice_ids:[], answers:[], case_sensitive:false },
+        { id:'d2', kind:'flip', front_text:'Drip edge', back_text:'Metal flashing at roof edges directing water off the fascia.', choices:[], correct_choice_ids:[], answers:[], case_sensitive:false },
+        { id:'d3', kind:'multiple_choice', front_text:'How many sq ft in 12 squares?', choices:[{id:'d3a',text:'1,200'},{id:'d3b',text:'120'},{id:'d3c',text:'12,000'}], correct_choice_ids:['d3a'], answers:[], case_sensitive:false },
+        { id:'d4', kind:'text_input', front_text:'Rise per 12" of run is the roof\'s ____.', back_text:'pitch', choices:[], correct_choice_ids:[], answers:['pitch','slope'], case_sensitive:false }
+      ] },
+    { id:'deck2', course_id:'sales', unlock_lesson_id:'s2', course_title:'Sales 101', locked:true, unlock_hint:'Finish "The Perfect First Visit" to unlock', title:'Objection Handling', description:'Common homeowner objections and graceful responses.', icon:'fa-comments', color:'#8b5cf6', status:'published', shuffle:true, source:'reward', attempt_count:0, best_score_percent:null, last_score_percent:null,
+      cards:[ { id:'o1', kind:'flip', front_text:'"I need to think about it."', back_text:'"Totally fair — which part: price, timing, or trust?"', choices:[], correct_choice_ids:[], answers:[], case_sensitive:false } ] }
+  ];
+  const quizzes = [
+    { id:'quiz1', course_id:'roof', unlock_lesson_id:'', course_title:'Roof Installation 101', locked:false, title:'Roofing Safety Refresher', description:'A quick self-check on fall protection and site safety.', icon:'fa-helmet-safety', color:'#ef4444', status:'published', shuffle:true, pass_percent:80, source:'assigned', attempt_count:2, best_score_percent:83, last_score_percent:83,
+      questions:[
+        { id:'sq1', kind:'multiple_choice', prompt:'Fall protection is required at:', image:'', explanation:'', choices:[{id:'sq1a',text:'6 feet'},{id:'sq1b',text:'10 feet'},{id:'sq1c',text:'12 feet'}], correct_choice_ids:['sq1a'], answers:[], case_sensitive:false },
+        { id:'sq2', kind:'text_input', prompt:'Anchor, harness, and ____.', image:'', explanation:'', choices:[], correct_choice_ids:[], answers:['lanyard','lifeline'], case_sensitive:false }
+      ] }
+  ];
+
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const delay = (value) => new Promise((resolve) => setTimeout(() => resolve(clone(value)), 220));
+
+  window.TrainingAPI = {
+    me: {
+      courses(){ return delay({ ok:true, courses:[summarize(courses.roof), summarize(courses.sales)] }); },
+      course(_org, courseId){ return delay({ ok:true, course: summarize(courses[courseId] || courses.roof) }); },
+      completeLesson(_org, courseId, lessonId){
+        const course = courses[courseId];
+        const lesson = course.lessons.find((item) => item.id === lessonId);
+        if (lesson) { lesson.state = 'completed'; lesson.score_percent = 90; }
+        const next = course.lessons.find((item) => item.state !== 'completed' && item.unlock.mode === 'previous' && item.lock_reason !== 'Unlocks 2026-08-01');
+        if (next && next.state === 'locked') { next.state = 'current'; next.lock_reason = ''; }
+        else if (next && next.state === 'unlocked') next.state = 'current';
+        const done = summarize(course);
+        return delay({ ok:true, course: done, completed_lesson_id: lessonId,
+          unlocked_deck_ids: lesson ? lesson.reward_deck_ids : [], unlocked_quiz_ids: lesson ? lesson.reward_quiz_ids : [],
+          course_completed: done.completed_count === done.lesson_count });
+      },
+      decks(){ return delay({ ok:true, decks }); },
+      deck(_org, deckId){ return delay({ ok:true, deck: decks.find((deck) => deck.id === deckId) || decks[0] }); },
+      quizzes(){ return delay({ ok:true, quizzes }); },
+      quiz(_org, quizId){ return delay({ ok:true, quiz: quizzes.find((quiz) => quiz.id === quizId) || quizzes[0] }); },
+      recordAttempt(){ return delay({ ok:true, attempt:{} }); }
+    },
+    manage: {
+      courses(){ return delay({ ok:true, courses:[courses.roof, courses.sales].map(clone) }); },
+      course(_org, courseId){ return delay({ ok:true, course: clone(courses[courseId] || courses.roof) }); },
+      createCourse(_org, input){ return delay({ ok:true, course:{ ...input, id:'course_new', revision:1 } }); },
+      saveCourse(_org, courseId, input){ return delay({ ok:true, course:{ ...input, id:courseId, revision:(input.expected_revision||1)+1 } }); },
+      archiveCourse(){ return delay({ ok:true }); },
+      decks(_org, options){ const courseId = options && options.courseId; return delay({ ok:true, decks: decks.filter((deck) => !courseId || deck.course_id === courseId) }); },
+      deck(_org, deckId){ return delay({ ok:true, deck: decks.find((deck) => deck.id === deckId) || decks[0] }); },
+      createDeck(_org, input){ return delay({ ok:true, deck:{ ...input, id:'deck_new', revision:1 } }); },
+      saveDeck(_org, deckId, input){ return delay({ ok:true, deck:{ ...input, id:deckId, revision:2 } }); },
+      archiveDeck(){ return delay({ ok:true }); },
+      quizzes(_org, options){ const courseId = options && options.courseId; return delay({ ok:true, quizzes: quizzes.filter((quiz) => !courseId || quiz.course_id === courseId) }); },
+      quiz(_org, quizId){ return delay({ ok:true, quiz: quizzes.find((quiz) => quiz.id === quizId) || quizzes[0] }); },
+      createQuiz(_org, input){ return delay({ ok:true, quiz:{ ...input, id:'quiz_new', revision:1 } }); },
+      saveQuiz(_org, quizId, input){ return delay({ ok:true, quiz:{ ...input, id:quizId, revision:2 } }); },
+      archiveQuiz(){ return delay({ ok:true }); },
+      assignments(){ return delay({ ok:true, assignments:[
+        { id:'a1', subject_kind:'course', subject_id:'roof', target_kind:'everyone', target_id:'', schedule:{} },
+        { id:'a2', subject_kind:'course', subject_id:'sales', target_kind:'role', target_id:'manager', schedule:{} },
+        { id:'a3', subject_kind:'deck', subject_id:'deck1', target_kind:'everyone', target_id:'', schedule:{} },
+        { id:'a4', subject_kind:'quiz', subject_id:'quiz1', target_kind:'user', target_id:'user_1', schedule:{} }
+      ] }); },
+      createAssignment(){ return delay({ ok:true, assignment:{} }); },
+      deleteAssignment(){ return delay({ ok:true }); },
+      progress(){ return delay({ ok:true, report:{
+        course_id:'roof', course_title:'Roof Installation 101',
+        lessons: roofLessons.map((lesson) => ({ id:lesson.id, title:lesson.title, unlock:lesson.unlock })),
+        users:[
+          { user_id:'user_1', completed_lesson_ids:['l1','l2'], completed_count:2, percent_complete:33, average_score_percent:90, manual_unlock_lesson_ids:[], last_completed_at:'2026-07-18' },
+          { user_id:'user_2', completed_lesson_ids:['l1'], completed_count:1, percent_complete:17, average_score_percent:80, manual_unlock_lesson_ids:['l5'], last_completed_at:'2026-07-15' }
+        ] } }); },
+      unlockLesson(){ return delay({ ok:true, report:{} }); },
+      relockLesson(){ return delay({ ok:true, report:{} }); }
+    }
+  };
+  window.PlatformAPI = {
+    media: {
+      upload(_org, file){ return new Promise((resolve) => setTimeout(() => resolve({ ok:true, media:{ id:'media_' + Math.random().toString(36).slice(2, 8), file_name:file.name } }), 250)); },
+      fileUrl(_org, mediaId){ return 'https://picsum.photos/seed/' + mediaId + '/800/500'; }
+    }
+  };
+  window.CrewAPI = {
+    request(){ return Promise.resolve({ users:[ { id:'user_1', name:'Morgan Member' }, { id:'user_2', name:'Casey Foreman' } ] }); },
+    access: { roles(){ return Promise.resolve({ roles:[ { id:'crew_member', name:'Crew member' }, { id:'crew_foreman', name:'Crew foreman' }, { id:'manager', name:'Manager' } ] }); } }
+  };
+})();
+</script>
+<script src="app.js"></script>
+<script src="studio.js"></script>
+<script>
+(function(){
+  const mountRoot = document.getElementById('mountRoot');
+  let activeHandle = null;
+  function mountApp(appId){
+    const definition = window.__HARNESS.registered[appId];
+    if (!definition) { mountRoot.textContent = 'App not registered: ' + appId; return; }
+    activeHandle?.destroy?.();
+    mountRoot.innerHTML = '';
+    activeHandle = definition.mount(mountRoot, { orgId: 'org_demo' });
+  }
+  document.querySelectorAll('#harnessBar [data-mount]').forEach((button) => button.addEventListener('click', () => mountApp(button.dataset.mount)));
+  mountApp(new URLSearchParams(location.search).get('app') || 'portal.training');
+})();
+</script>
+</body>
+</html>

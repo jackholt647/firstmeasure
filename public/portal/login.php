@@ -1,5 +1,6 @@
 <?php
-$initialReferralCode = strtoupper(trim((string)($_GET['ref'] ?? '')));
+$publicRegistrationEnabled = (getenv('PUBLIC_REGISTRATION_ENABLED') ?: ($_SERVER['PUBLIC_REGISTRATION_ENABLED'] ?? 'true')) !== 'false';
+$initialReferralCode = $publicRegistrationEnabled ? strtoupper(trim((string)($_GET['ref'] ?? ''))) : '';
 $hasReferralInvite = $initialReferralCode !== '';
 $loginBillboardFile = basename((string)(defined('LOGIN_MARKETING_BILLBOARD_FILE') ? LOGIN_MARKETING_BILLBOARD_FILE : 'login_billboard.php'));
 $loginBannerFile = basename((string)(defined('LOGIN_MARKETING_BANNER_FILE') ? LOGIN_MARKETING_BANNER_FILE : 'login_banner.php'));
@@ -7,8 +8,8 @@ $loginBillboardPath = __DIR__ . '/marketing/' . $loginBillboardFile;
 $loginBannerPath = __DIR__ . '/marketing/' . $loginBannerFile;
 $loginBillboardSrc = 'marketing/' . $loginBillboardFile;
 $loginBannerSrc = 'marketing/' . $loginBannerFile;
-$showLoginBillboard = !$hasReferralInvite && is_file($loginBillboardPath);
-$showLoginBanner = !$hasReferralInvite && is_file($loginBannerPath);
+$showLoginBillboard = $publicRegistrationEnabled && !$hasReferralInvite && is_file($loginBillboardPath);
+$showLoginBanner = $publicRegistrationEnabled && !$hasReferralInvite && is_file($loginBannerPath);
 $hasLoginMarketing = $showLoginBillboard || $showLoginBanner;
 ?>
 <!DOCTYPE html>
@@ -617,7 +618,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     <div class="auth-pane">
     <div class="tabs" id="authTabs">
         <div class="tab <?= $hasReferralInvite ? '' : 'active' ?>" id="tabLogin" onclick="switchTab('login')"<?= $hasReferralInvite ? ' style="display:none;"' : '' ?>>Login</div>
-        <div class="tab <?= $hasReferralInvite ? 'active' : '' ?>" id="tabRegister" onclick="switchTab('register')"><?= $hasReferralInvite ? 'Create your company account to activate this invitation.' : 'Create Account' ?></div>
+        <div class="tab <?= $hasReferralInvite ? 'active' : '' ?>" id="tabRegister" <?= $publicRegistrationEnabled ? '' : 'hidden style="display:none"' ?> onclick="switchTab('register')"><?= $hasReferralInvite ? 'Create your company account to activate this invitation.' : 'Create Account' ?></div>
     </div>
 
     <div class="form-area">
@@ -643,7 +644,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         </form>
 
         <!-- REGISTER FORM -->
-        <form class="auth-form <?= $hasReferralInvite ? 'active' : '' ?>" id="registerForm">
+        <form class="auth-form <?= $hasReferralInvite ? 'active' : '' ?>" id="registerForm" <?= $publicRegistrationEnabled ? '' : 'hidden style="display:none"' ?>>
             <input type="hidden" name="referral_code" id="registerReferralCode" value="<?= htmlspecialchars($initialReferralCode, ENT_QUOTES) ?>">
             <input type="hidden" name="referral_attribution_id" id="registerReferralAttributionId" value="">
             <input type="hidden" name="acquisition_code" id="registerAcquisitionCode" value="">
@@ -809,7 +810,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     function platformApiBaseUrl(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost') {
-            return `${location.protocol}//${location.hostname}:3111/v1/platform`;
+            return `${location.origin}/v1/platform`;
         }
         return `${location.origin}/v1/platform`;
     }
@@ -1108,6 +1109,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     }
 
     function switchTab(tab) {
+        if (!<?= json_encode($publicRegistrationEnabled) ?> && tab !== 'login') tab = 'login';
         hideAll();
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.getElementById('authTabs').style.display = 'flex';
@@ -1277,7 +1279,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             setReferralPending(true);
             const base = (() => {
                 const host = (location.hostname || '').toLowerCase();
-                if (host === '127.0.0.1' || host === 'localhost') return 'http://127.0.0.1:3111/v1/platform';
+                if (host === '127.0.0.1' || host === 'localhost') return `${location.origin}/v1/platform`;
                 return `${location.origin}/v1/platform`;
             })();
             const res = await fetch(`${base}/referrals/public/${encodeURIComponent(referralCode)}`, {
@@ -1487,5 +1489,6 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     initializeGoogleAuth();
 </script>
 
+<script src="signup-sandbox/devbar.js" defer></script>
 </body>
 </html>

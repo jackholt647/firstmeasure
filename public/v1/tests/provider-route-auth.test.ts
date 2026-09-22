@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 process.env.FIRSTMEASURE_JOB_WORKERS = "0";
+process.env.FIRSTMEASURE_INTERNAL_API_SECRET = "isolated-provider-route-secret";
 
 async function appAndEnv() {
   const [{ buildApp }, { env }] = await Promise.all([

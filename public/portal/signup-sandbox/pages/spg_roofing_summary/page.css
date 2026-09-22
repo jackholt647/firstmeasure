@@ -1,0 +1,23 @@
+.rsum-page,.rsum-page *{box-sizing:border-box}
+.rsum-page{width:100%;max-width:680px;margin:0 auto;color:#101828}
+.rsum-loading{color:#667085;font-size:13px}
+.rsum-kicker{color:var(--primary,#c82127);font-size:11px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.rsum-page h1{max-width:600px;margin:8px 0 10px;font-size:clamp(27px,4vw,34px);line-height:1.12;letter-spacing:-.035em}
+.rsum-lead{max-width:610px;margin:0 0 20px;color:#667085;font-size:14px;line-height:1.55}
+.rsum-page button{font:inherit}
+.rsum-rows{display:grid;gap:10px}
+.rsum-row{display:grid;grid-template-columns:40px minmax(0,1fr) 22px;gap:12px;align-items:center;border:1px solid #e1e5ea;border-radius:12px;padding:13px 15px;background:#fff}
+.rsum-icon{width:40px;height:40px;border-radius:11px;background:#f2f4f7;color:#667085;display:grid;place-items:center;font-size:15px}
+.rsum-copy strong{display:block;font-size:13.5px;color:#101828}
+.rsum-copy small{display:block;margin-top:3px;color:#667085;font-size:12px;line-height:1.45}
+.rsum-check{color:#137333;font-size:16px}
+.rsum-callout{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:start;margin-top:14px;border:1px solid color-mix(in srgb,var(--primary,#c82127) 30%,#e1e5ea);border-radius:12px;padding:14px 15px;background:color-mix(in srgb,var(--primary,#c82127) 3%,#fff)}
+.rsum-callout-icon{width:40px;height:40px;border-radius:11px;background:color-mix(in srgb,var(--primary,#c82127) 12%,#fff);color:var(--primary,#c82127);display:grid;place-items:center;font-size:15px}
+.rsum-callout strong{display:block;font-size:13.5px;color:#101828}
+.rsum-callout small{display:block;margin-top:3px;color:#475467;font-size:12px;line-height:1.5}
+.rsum-callout code{background:#f2f4f7;border-radius:5px;padding:1px 6px;font-size:11px}
+.rsum-callout-warn{border-color:#f2c94c;background:#fffaeb}
+.rsum-callout-warn .rsum-callout-icon{background:#fdefc8;color:#93700d}
+.rsum-actions{display:flex;justify-content:space-between;align-items:center;margin-top:20px}
+.rsum-back{border:0;background:transparent;color:#475467;cursor:pointer;font-weight:750;padding:10px 0}.rsum-back:before{content:'\2190';margin-right:7px}
+.rsum-continue{min-width:150px;min-height:44px;border:0;border-radius:10px;padding:11px 18px;background:var(--primary,#c82127);color:#fff;cursor:pointer;font-size:13px;font-weight:800}

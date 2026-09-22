@@ -1,6 +1,10 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { JsonObject } from "../platform/storage.js";
-import { env } from "../src/config/env.js";
 
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+let cachedApiKey: string | null | undefined;
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -14,6 +18,56 @@ function providerError(body: JsonObject) {
 function numberValue(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function keyFromText(text: string) {
+  const patterns = [
+    /\$GOOGLE_API_KEY\s*=\s*(?:\$GLOBALS\[['"]GOOGLE_API_KEY['"]\]\s*\?\?\s*)?['"]([^'"]+)['"]/,
+    /\bGOOGLE_API_KEY\s*=\s*['"]([^'"]+)['"]/,
+    /define\(\s*['"]TERRITORY_GOOGLE_API_KEY['"]\s*,\s*['"]([^'"]+)['"]\s*\)/
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    const key = cleanText(match?.[1]);
+    if (key) return key;
+  }
+  return "";
+}
+
+async function apiKey() {
+  const configured = cleanText(
+    process.env.GOOGLE_SOLAR_API_KEY ||
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.FIRSTMEASURE_GOOGLE_API_KEY
+  );
+  if (configured) return configured;
+  if (cachedApiKey !== undefined) return cachedApiKey || "";
+
+  const candidates = [
+    path.resolve(MODULE_DIR, "../../measure/internal/editor.php"),
+    path.resolve(MODULE_DIR, "../../measure/internal/index.php"),
+    path.resolve(MODULE_DIR, "../../measure/internal/editor_scripts/main.js"),
+    path.resolve(MODULE_DIR, "../../measure/internal/main.js"),
+    path.resolve(process.cwd(), "../measure/internal/editor.php"),
+    path.resolve(process.cwd(), "../measure/internal/index.php"),
+    path.resolve(process.cwd(), "../measure/internal/editor_scripts/main.js"),
+    path.resolve(process.cwd(), "../measure/internal/main.js")
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const key = keyFromText(await readFile(candidate, "utf8"));
+      if (key) {
+        cachedApiKey = key;
+        return key;
+      }
+    } catch {
+      // Keep looking; the v1 runtime may be launched from several public/ paths.
+    }
+  }
+
+  cachedApiKey = null;
+  return "";
 }
 
 function asObject(value: unknown): JsonObject {
@@ -95,16 +149,55 @@ function roofAreaMeters2(insights: JsonObject) {
     .reduce((sum, value) => sum + Math.max(0, value), 0);
 }
 
+function roofGeometry(insights: JsonObject) {
+  const segments = asArray(asObject(insights.solarPotential).roofSegmentStats)
+    .map((segment) => {
+      const item = asObject(segment);
+      return {
+        area_m2: numberValue(item.areaMeters2) ?? numberValue(asObject(item.stats).areaMeters2) ?? 0,
+        pitch_degrees: numberValue(item.pitchDegrees) ?? numberValue(asObject(item.stats).pitchDegrees)
+      };
+    })
+    .filter((segment) => segment.area_m2 > 0);
+  const pitched = segments.filter((segment) => segment.pitch_degrees !== null);
+  const pitchedArea = pitched.reduce((sum, segment) => sum + segment.area_m2, 0);
+  const averagePitch = pitchedArea > 0
+    ? pitched.reduce((sum, segment) => sum + segment.area_m2 * Number(segment.pitch_degrees), 0) / pitchedArea
+    : null;
+  const maxPitch = pitched.length ? Math.max(...pitched.map((segment) => Number(segment.pitch_degrees))) : null;
+  const totalArea = segments.reduce((sum, segment) => sum + segment.area_m2, 0);
+  const flatArea = pitched
+    .filter((segment) => Number(segment.pitch_degrees) <= 5)
+    .reduce((sum, segment) => sum + segment.area_m2, 0);
+  const flatShare = totalArea > 0 ? flatArea / totalArea : 0;
+  const pitchCategory = averagePitch === null
+    ? ""
+    : flatShare >= 0.5 || averagePitch <= 5
+      ? "Flat"
+      : averagePitch < 18.5
+        ? "Low"
+        : averagePitch < 33.7
+          ? "Moderate"
+          : "Steep";
+  return {
+    segment_count: segments.length,
+    predominant_pitch_degrees: averagePitch === null ? null : Math.round(averagePitch * 10) / 10,
+    max_pitch_degrees: maxPitch === null ? null : Math.round(maxPitch * 10) / 10,
+    pitch_category: pitchCategory,
+    flat_roof_area_sqft: Math.round(flatArea * 10.7639104167),
+    flat_roof_percent: Math.round(flatShare * 100)
+  };
+}
+
 export async function measureSolarRoof(input: { address?: string; latitude?: unknown; longitude?: unknown }) {
-  const key = cleanText(env.googleSolarApiKey);
-  const geocodeKey = cleanText(env.googleMapsApiKey);
-  if (!key || !geocodeKey) return { ok: false, status: "unavailable", error: "missing_google_server_api_key" };
+  const key = await apiKey();
+  if (!key) return { ok: false, status: "unavailable", error: "missing_google_solar_api_key" };
 
   let latitude = numberValue(input.latitude);
   let longitude = numberValue(input.longitude);
   let formattedAddress = cleanText(input.address);
   if ((latitude === null || longitude === null) && formattedAddress) {
-    const geocoded = await geocodeAddress(formattedAddress, geocodeKey);
+    const geocoded = await geocodeAddress(formattedAddress, key);
     if (!geocoded.ok) return geocoded;
     latitude = numberValue(geocoded.latitude);
     longitude = numberValue(geocoded.longitude);
@@ -131,6 +224,7 @@ export async function measureSolarRoof(input: { address?: string; latitude?: unk
   }
 
   const areaMeters2 = roofAreaMeters2(body);
+  const geometry = roofGeometry(body);
   if (!areaMeters2) {
     return {
       ok: false,
@@ -151,6 +245,7 @@ export async function measureSolarRoof(input: { address?: string; latitude?: unk
     formatted_address: formattedAddress || cleanText(body.name),
     roof_area_m2: Math.round(areaMeters2 * 10) / 10,
     roof_area_sqft: Math.round(areaMeters2 * 10.7639104167),
+    ...geometry,
     imagery_quality: cleanText(body.imageryQuality),
     imagery_date: asObject(body.imageryDate),
     building_name: cleanText(body.name)
@@ -164,16 +259,14 @@ export async function previewSolarProperty(input: {
   tint?: string;
   imageSource?: "solar" | "maps";
 }) {
-  const key = cleanText(env.googleSolarApiKey);
-  const geocodeKey = cleanText(env.googleMapsApiKey);
-  const staticMapsKey = cleanText(env.googleMapsStaticApiKey);
-  if (!key || !geocodeKey) return { ok: false, status: "unavailable", error: "missing_google_server_api_key" };
+  const key = await apiKey();
+  if (!key) return { ok: false, status: "unavailable", error: "missing_google_solar_api_key" };
 
   let latitude = numberValue(input.latitude);
   let longitude = numberValue(input.longitude);
   let formattedAddress = cleanText(input.address);
   if (formattedAddress) {
-    const geocoded = await geocodeAddress(formattedAddress, geocodeKey);
+    const geocoded = await geocodeAddress(formattedAddress, key);
     if (geocoded.ok) {
       latitude = numberValue(geocoded.latitude);
       longitude = numberValue(geocoded.longitude);
@@ -188,7 +281,7 @@ export async function previewSolarProperty(input: {
   }
 
   if (input.imageSource === "maps") {
-    const mapsPreview = await renderMapsSatellitePreview(latitude, longitude, staticMapsKey);
+    const mapsPreview = await renderMapsSatellitePreview(latitude, longitude, key);
     if (mapsPreview.ok) {
       return {
         ok: true,
@@ -301,6 +394,13 @@ export async function previewSolarProperty(input: {
       formatted_address: formattedAddress,
       imagery_quality: cleanText(body.imageryQuality),
       imagery_date: asObject(body.imageryDate),
+      measurement: buildingInsights ? {
+        ok: true,
+        source: "google_solar",
+        roof_area_m2: Math.round(roofAreaMeters2(buildingInsights) * 10) / 10,
+        roof_area_sqft: Math.round(roofAreaMeters2(buildingInsights) * 10.7639104167),
+        ...roofGeometry(buildingInsights)
+      } : null,
       image: `data:image/png;base64,${croppedRgb.data.toString("base64")}`,
       mask: `data:image/png;base64,${overlay.toString("base64")}`
     };

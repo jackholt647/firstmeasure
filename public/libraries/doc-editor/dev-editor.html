@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FMDocEditor — dev harness</title>
+<link rel="stylesheet" href="../doc-renderer/doc-renderer.css">
+<link rel="stylesheet" href="doc-editor.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: flex;
+    flex-direction: column;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    background: #f4f6f8;
+    --fm-primary: #2563eb;
+  }
+  .dev-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: #111827;
+    color: #fff;
+    font-size: 12.5px;
+    flex: 0 0 auto;
+  }
+  .dev-bar strong { font-weight: 800; letter-spacing: 0.02em; }
+  .dev-bar select, .dev-bar button {
+    font: inherit;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+  }
+  .dev-bar select option { color: #111827; }
+  .dev-bar .dev-note { margin-left: auto; opacity: 0.7; }
+  #editor { flex: 1 1 auto; min-height: 0; }
+
+  /* Minimal page/node styling for the fallback shim renderer (only used when
+     the real doc-renderer is not present; class names match its contract). */
+  .fmdoc-shim .fmdoc-page { background: #fff; overflow: hidden; }
+  .fmdoc-shim .fmdoc-node { position: absolute; }
+  .fmdoc-shim .fmdoc-text { white-space: pre-wrap; overflow-wrap: break-word; }
+  .fmdoc-shim .fmdoc-widget-placeholder {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
+    border: 1.5pt dashed #cbd5e1; border-radius: 4pt;
+    color: #64748b; font: 700 10pt Inter, sans-serif; background: #f8fafc;
+  }
+  .fmdoc-shim table.fmdoc-li { width: 100%; border-collapse: collapse; font: 9.5pt/1.35 Inter, sans-serif; color: #111827; }
+  .fmdoc-shim table.fmdoc-li th {
+    text-align: left; padding: 5pt 6pt; font-size: 8pt; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #fff; background: var(--fm-primary, #2563eb);
+  }
+  .fmdoc-shim table.fmdoc-li td { padding: 5pt 6pt; border-bottom: 0.75pt solid #e5e7eb; vertical-align: top; }
+  .fmdoc-shim table.fmdoc-li td.num, .fmdoc-shim table.fmdoc-li th.num { text-align: right; white-space: nowrap; }
+  .fmdoc-shim .fmdoc-li-desc { color: #6b7280; font-size: 8.5pt; }
+  .fmdoc-shim .fmdoc-li-totals { margin-top: 6pt; font: 700 10pt Inter, sans-serif; text-align: right; color: #111827; }
+  .fmdoc-shim .fmdoc-sig {
+    display: flex; flex-direction: column; justify-content: flex-end;
+    width: 100%; height: 100%; font: 9pt Inter, sans-serif; color: #374151;
+  }
+  .fmdoc-shim .fmdoc-sig-line { border-bottom: 1pt solid #111827; height: 60%; display: flex; align-items: flex-end; }
+  .fmdoc-shim .fmdoc-sig-line button {
+    margin-bottom: 4pt; font: 600 9pt Inter, sans-serif; color: var(--fm-primary, #2563eb);
+    background: none; border: 1pt dashed var(--fm-primary, #2563eb); border-radius: 3pt; padding: 3pt 8pt; cursor: pointer;
+  }
+  .fmdoc-shim .fmdoc-sig-line .signed { font-family: Georgia, serif; font-size: 16pt; color: #111827; margin-bottom: 2pt; }
+</style>
+</head>
+<body>
+<div class="dev-bar">
+  <strong>FMDocEditor dev harness</strong>
+  <label>Profile
+    <select id="devProfile">
+      <option value="document" selected>document</option>
+      <option value="designer">designer</option>
+      <option value="fill">fill</option>
+      <option value="inline">inline</option>
+    </select>
+  </label>
+  <button id="devLog">Log document</button>
+  <button id="devValidate">Validate</button>
+  <span class="dev-note" id="devNote"></span>
+</div>
+<div id="editor"></div>
+
+<script src="../doc-model/firstmate-doc-model.js"></script>
+<script src="../doc-widgets/firstmate-doc-widgets.js"></script>
+<script src="../doc-renderer/firstmate-doc-renderer.js"></script>
+<script src="../doc-language/firstmate-doc-language.js"></script>
+<script src="firstmate-doc-editor.js"></script>
+<script src="../visual-editor/firstmate-visual-editor.js"></script>
+<script>
+(function () {
+  "use strict";
+  var M = window.FMDocModel;
+  var PX_PER_PT = 96 / 72;
+  var usingShims = [];
+
+  // -------------------------------------------------------------------------
+  // Fallback widget registry shim (contract §2 shape) — used only when the
+  // real doc-widgets library is not present yet.
+  // -------------------------------------------------------------------------
+  if (!window.FMDocWidgets) {
+    usingShims.push("doc-widgets");
+    (function () {
+      var defs = [];
+      window.FMDocWidgets = {
+        register: function (def) { defs.push(def); },
+        get: function (id, version) {
+          var best = null;
+          for (var i = 0; i < defs.length; i++) {
+            var d = defs[i];
+            if (d.id !== id) continue;
+            if (d.version <= (version || 1) && (!best || d.version > best.version)) best = d;
+          }
+          return best || defs.find(function (d) { return d.id === id; }) || null;
+        },
+        list: function () { return defs.slice(); }
+      };
+    })();
+
+    function money(cents) { return M.formatters.money(cents); }
+
+    window.FMDocWidgets.register({
+      id: "doc.line_items",
+      version: 1,
+      title: "Line items",
+      icon: "fa-table-list",
+      category: "data",
+      defaults: { config: { source: "params.scope_items", show_prices: true, show_included: true, columns: ["name", "description", "qty", "unit_price", "amount"], compact: false }, frame: { w: 540, h: 260 } },
+      configPanel: [
+        { key: "source", label: "Source", kind: "binding" },
+        { key: "show_prices", label: "Show prices", kind: "toggle" },
+        { key: "show_included", label: "Show included", kind: "toggle" },
+        { key: "compact", label: "Compact (legal style)", kind: "toggle" },
+        { key: "columns", label: "Columns", kind: "list" },
+        { key: "depth", label: "Depth", kind: "number", min: 0, max: 4, when: { key: "compact", equals: false } }
+      ],
+      renderStatic: function (el, ctx) { renderLineItems(el, ctx); },
+      renderInteractive: function (el, ctx) { renderLineItems(el, ctx); }
+    });
+
+    function renderLineItems(el, ctx) {
+      var data = ctx.data;
+      var config = ctx.config || {};
+      if (!data || !data.rows) {
+        el.innerHTML = '<div class="fmdoc-widget-placeholder">line items — no data</div>';
+        return;
+      }
+      var showPrices = config.show_prices !== false;
+      var html = '<table class="fmdoc-li"><thead><tr><th>Item</th>' + (showPrices ? '<th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th>' : "") + "</tr></thead><tbody>";
+      data.rows.forEach(function (row) {
+        html += "<tr><td><div>" + row.name + "</div>" + (row.description ? '<div class="fmdoc-li-desc">' + row.description + "</div>" : "") + "</td>";
+        if (showPrices) {
+          html += '<td class="num">' + row.quantity + " " + (row.unit || "") + '</td><td class="num">' + money(row.unit_price_cents) + '</td><td class="num">' + (row.included ? "Included" : money(row.amount_cents)) + "</td>";
+        }
+        html += "</tr>";
+      });
+      html += "</tbody></table>";
+      if (showPrices && data.totals) {
+        html += '<div class="fmdoc-li-totals">Total ' + money(data.totals.total_cents) + "</div>";
+      }
+      el.innerHTML = html;
+    }
+
+    window.FMDocWidgets.register({
+      id: "doc.signature",
+      version: 1,
+      title: "Signature",
+      icon: "fa-signature",
+      category: "input",
+      defaults: { config: { output_key: "sig_customer", label: "Customer signature" }, frame: { w: 240, h: 70 } },
+      configPanel: [
+        { key: "output_key", label: "Output key", kind: "text" },
+        { key: "label", label: "Label", kind: "text" }
+      ],
+      renderStatic: function (el, ctx) { renderSignature(el, ctx, true); },
+      renderInteractive: function (el, ctx) { renderSignature(el, ctx, false); }
+    });
+
+    function renderSignature(el, ctx, isStatic) {
+      var key = (ctx.config && ctx.config.output_key) || "sig";
+      var value = ctx.outputs ? ctx.outputs[key] : null;
+      el.innerHTML = "";
+      var box = document.createElement("div");
+      box.className = "fmdoc-sig";
+      var line = document.createElement("div");
+      line.className = "fmdoc-sig-line";
+      if (value && value.text) {
+        line.innerHTML = '<span class="signed">' + value.text + "</span>";
+      } else if (!isStatic) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Sign here";
+        btn.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          var name = window.prompt("Type your signature", "");
+          if (name) {
+            ctx.submitOutput(key, { type: "typed", text: name, signer_name: name, style: "script", signed_at: new Date().toISOString() });
+            ctx.refresh();
+          }
+        });
+        line.appendChild(btn);
+      }
+      box.appendChild(line);
+      var label = document.createElement("div");
+      label.textContent = (ctx.config && ctx.config.label) || "Signature";
+      box.appendChild(label);
+      el.appendChild(box);
+    }
+
+    window.FMDocWidgets.register({
+      id: "doc.form_field",
+      version: 1,
+      title: "Form field",
+      icon: "fa-input-text",
+      category: "input",
+      defaults: { config: { output_key: "field_1", label: "Field", kind: "text" }, frame: { w: 220, h: 44 } },
+      configPanel: [
+        { key: "output_key", label: "Output key", kind: "text" },
+        { key: "label", label: "Label", kind: "text" },
+        { key: "kind", label: "Type", kind: "select", options: ["text", "number", "date"] }
+      ],
+      renderStatic: function (el, ctx) {
+        var v = ctx.outputs ? ctx.outputs[(ctx.config || {}).output_key] : "";
+        el.innerHTML = '<div style="font:8pt Inter,sans-serif;color:#6b7280">' + ((ctx.config || {}).label || "Field") + '</div><div style="border-bottom:1pt solid #111;min-height:14pt;font:10pt Inter,sans-serif">' + (v || "") + "</div>";
+      },
+      renderInteractive: function (el, ctx) {
+        var cfg = ctx.config || {};
+        el.innerHTML = '<label style="display:block;font:8pt Inter,sans-serif;color:#6b7280">' + (cfg.label || "Field") + "</label>";
+        var input = document.createElement("input");
+        input.type = cfg.kind === "number" ? "number" : cfg.kind === "date" ? "date" : "text";
+        input.value = (ctx.outputs && ctx.outputs[cfg.output_key]) || "";
+        input.style.cssText = "width:100%;font:10pt Inter,sans-serif;border:none;border-bottom:1pt solid #111;outline:none;background:transparent";
+        input.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
+        input.addEventListener("change", function () { ctx.submitOutput(cfg.output_key, input.value); });
+        el.appendChild(input);
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Fallback renderer shim (contract §1 handle shape) — used only when the
+  // real doc-renderer is not present yet. Absolute-position rendering only;
+  // enough to drive the editor overlay and play with the demo document.
+  // -------------------------------------------------------------------------
+  if (!window.FMDocRenderer) {
+    usingShims.push("doc-renderer");
+    window.FMDocRenderer = (function () {
+      function render(container, options) {
+        var stateOpts = Object.assign({}, options);
+        container.classList.add("fmdoc-shim");
+        var handle = {
+          scale: stateOpts.scale || 1,
+          destroy: function () { container.innerHTML = ""; container.classList.remove("fmdoc-shim"); },
+          update: function (next) {
+            Object.assign(stateOpts, next || {});
+            handle.scale = (stateOpts.scale || 1) * PX_PER_PT;
+            draw();
+          },
+          pageElements: function () {
+            return Array.prototype.slice.call(container.querySelectorAll(".fmdoc-page"));
+          },
+          nodeElement: function (nodeId) {
+            return container.querySelector('[data-node-id="' + nodeId + '"]');
+          },
+          measureNode: function (nodeId) {
+            var el = handle.nodeElement(nodeId);
+            if (!el) return null;
+            var page = el.closest(".fmdoc-page");
+            if (!page) return null;
+            var er = el.getBoundingClientRect();
+            var pr = page.getBoundingClientRect();
+            var dims = M.paperDimensions(stateOpts.document);
+            var k = dims.w_pt / pr.width;
+            // Bounding rect of a rotated element is its AABB; recover the
+            // unrotated frame from the doc when rotation is present.
+            var found = M.findNode(stateOpts.document, nodeId);
+            if (found && found.node.frame && found.node.frame.rotation) {
+              var f = found.node.frame;
+              var cx = (er.left + er.right) / 2 - pr.left;
+              var cy = (er.top + er.bottom) / 2 - pr.top;
+              return { x: cx * k - f.w / 2, y: cy * k - f.h / 2, w: f.w, h: f.h };
+            }
+            return { x: (er.left - pr.left) * k, y: (er.top - pr.top) * k, w: er.width * k, h: er.height * k };
+          }
+        };
+
+        function draw() {
+          var doc = stateOpts.document;
+          var scale = stateOpts.scale || 1;
+          container.innerHTML = "";
+          if (stateOpts.theme) {
+            var vars = M.resolveThemeTokens(stateOpts.theme, stateOpts.themeContext || {});
+            for (var name in vars) container.style.setProperty(name, vars[name]);
+          }
+          container.setAttribute("data-scale", String(scale));
+          var dims = M.paperDimensions(doc);
+          (doc.pages || []).forEach(function (page) {
+            var wrap = document.createElement("div");
+            wrap.className = "fmdoc-page-wrap";
+            wrap.style.width = dims.w_pt * PX_PER_PT * scale + "px";
+            wrap.style.height = dims.h_pt * PX_PER_PT * scale + "px";
+            var section = document.createElement("section");
+            section.className = "fmdoc-page";
+            section.setAttribute("data-page-id", page.id);
+            section.setAttribute("data-role", page.role || "body");
+            section.style.cssText = "position:relative;width:" + dims.w_pt + "pt;height:" + dims.h_pt + "pt;transform:scale(" + scale + ");transform-origin:0 0;";
+            (page.children || []).forEach(function (node) {
+              var el = renderNode(node);
+              if (el) section.appendChild(el);
+            });
+            wrap.appendChild(section);
+            container.appendChild(wrap);
+          });
+        }
+
+        function frameCss(node) {
+          var f = node.frame || {};
+          var css = "position:absolute;left:" + (f.x || 0) + "pt;top:" + (f.y || 0) + "pt;width:" + (f.w || 0) + "pt;height:" + (f.h || 0) + "pt;z-index:" + (f.z || 0) + ";";
+          if (f.rotation) css += "transform:rotate(" + f.rotation + "deg);";
+          var s = node.style || {};
+          if (s.opacity !== undefined && s.opacity !== 1) css += "opacity:" + s.opacity + ";";
+          if (s.radius) {
+            var r = Array.isArray(s.radius) ? s.radius.map(function (v) { return v + "pt"; }).join(" ") : s.radius + "pt";
+            css += "border-radius:" + r + ";";
+          }
+          if (s.shadow) css += "box-shadow:" + (s.shadow.x || 0) + "pt " + (s.shadow.y || 0) + "pt " + (s.shadow.blur || 0) + "pt " + (s.shadow.color || "rgba(0,0,0,.3)") + ";";
+          if (s.stroke && s.stroke.color) css += "border:" + (s.stroke.width_pt || 1) + "pt solid " + s.stroke.color + ";";
+          return css;
+        }
+
+        function renderNode(node) {
+          if (node.visible === false) return null;
+          var el = document.createElement("div");
+          el.className = "fmdoc-node fmdoc-" + node.type;
+          el.setAttribute("data-node-id", node.id);
+          el.setAttribute("data-node-type", node.type);
+          el.style.cssText = frameCss(node);
+          var s = node.style || {};
+          var props = node.props || {};
+
+          if (node.type === "frame") {
+            var bg = props.background || s.fill;
+            if (bg) el.style.background = M.fillToCss(bg);
+            if (props.clip) el.style.overflow = "hidden";
+            (node.children || []).forEach(function (child) {
+              var c = renderNode(child);
+              if (c) el.appendChild(c);
+            });
+          } else if (node.type === "text") {
+            var fontCss = M.fontToCss(s.font || {}, (stateOpts.document.settings || {}).base_font_pt);
+            for (var k in fontCss) el.style.setProperty(k, fontCss[k]);
+            if (!fontCss["font-family"]) el.style.fontFamily = "Inter, sans-serif";
+            el.style.lineHeight = String(props.line_height || 1.4);
+            if (props.letter_spacing) el.style.letterSpacing = props.letter_spacing + "pt";
+            (props.blocks || []).forEach(function (block) {
+              var div = document.createElement("div");
+              if (block.align && block.align !== "left") div.style.textAlign = block.align;
+              (block.runs || []).forEach(function (run) {
+                var span = document.createElement("span");
+                span.textContent = run.text || "";
+                if (run.weight) span.style.fontWeight = String(run.weight);
+                if (run.italic) span.style.fontStyle = "italic";
+                var deco = [];
+                if (run.underline) deco.push("underline");
+                if (run.strike) deco.push("line-through");
+                if (deco.length) span.style.textDecoration = deco.join(" ");
+                if (run.color) span.style.color = run.color;
+                if (run.font && run.font.size_pt) span.style.fontSize = run.font.size_pt + "pt";
+                if (run.font && run.font.family) span.style.fontFamily = "'" + run.font.family + "', sans-serif";
+                div.appendChild(span);
+              });
+              if (!(block.runs || []).length) div.innerHTML = "<br>";
+              el.appendChild(div);
+            });
+          } else if (node.type === "image") {
+            var img = document.createElement("img");
+            img.draggable = false;
+            img.src = (props.media && (props.media.url || props.media.src)) || placeholderImage("#e2e8f0", "#94a3b8", "image");
+            img.alt = props.alt || "";
+            img.style.cssText = "width:100%;height:100%;object-fit:" + (props.fit || "cover") + ";display:block;pointer-events:none;";
+            var filterCss = M.filtersToCss(s.filters);
+            if (filterCss) img.style.filter = filterCss;
+            if (s.radius) img.style.borderRadius = el.style.borderRadius;
+            el.appendChild(img);
+          } else if (node.type === "shape") {
+            var fill = M.fillToCss(s.fill) || "transparent";
+            var shape = props.shape || "rect";
+            if (shape === "rect") {
+              el.style.background = fill;
+              if (props.corner_radius) el.style.borderRadius = props.corner_radius + "pt";
+            } else if (shape === "ellipse") {
+              el.style.background = fill;
+              el.style.borderRadius = "50%";
+            } else {
+              var svgNS = "http://www.w3.org/2000/svg";
+              var svg = document.createElementNS(svgNS, "svg");
+              svg.setAttribute("viewBox", "0 0 1 1");
+              svg.setAttribute("preserveAspectRatio", "none");
+              svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;overflow:visible";
+              var pts = props.points || [];
+              if (shape === "line") {
+                var line = document.createElementNS(svgNS, "line");
+                line.setAttribute("x1", pts[0] ? pts[0].x : 0); line.setAttribute("y1", pts[0] ? pts[0].y : 0.5);
+                line.setAttribute("x2", pts[1] ? pts[1].x : 1); line.setAttribute("y2", pts[1] ? pts[1].y : 0.5);
+                line.setAttribute("stroke", (s.stroke && s.stroke.color) || "#111827");
+                line.setAttribute("stroke-width", String((s.stroke && s.stroke.width_pt) || 1));
+                line.setAttribute("vector-effect", "non-scaling-stroke");
+                svg.appendChild(line);
+                el.style.border = "none";
+              } else if (shape === "polygon") {
+                var poly = document.createElementNS(svgNS, "polygon");
+                poly.setAttribute("points", pts.map(function (p) { return p.x + "," + p.y; }).join(" "));
+                poly.setAttribute("fill", fill);
+                svg.appendChild(poly);
+              } else if (shape === "path" && props.d) {
+                var path = document.createElementNS(svgNS, "path");
+                path.setAttribute("d", props.d);
+                path.setAttribute("fill", fill);
+                svg.appendChild(path);
+              }
+              el.appendChild(svg);
+            }
+          } else if (node.type === "widget") {
+            var ref = String(props.widget || "");
+            var at = ref.lastIndexOf("@");
+            var id = at === -1 ? ref : ref.slice(0, at);
+            var version = at === -1 ? 1 : Number(ref.slice(at + 1)) || 1;
+            var def = window.FMDocWidgets && window.FMDocWidgets.get ? window.FMDocWidgets.get(id, version) : null;
+            if (def) {
+              var wc = stateOpts.widgetContext || {};
+              var ctx = {
+                node: node,
+                config: props.config || {},
+                data: (stateOpts.widgetData || {})[node.id] || null,
+                mode: stateOpts.mode || "interactive",
+                scope: {},
+                themeVars: {},
+                skin: {},
+                submitOutput: wc.submitOutput || function () {},
+                outputs: wc.outputs || {},
+                api: wc.api || {},
+                refresh: wc.refresh || function () {}
+              };
+              try {
+                if (stateOpts.mode === "static" && def.renderStatic) def.renderStatic(el, ctx);
+                else (def.renderInteractive || def.renderStatic)(el, ctx);
+              } catch (err) {
+                el.innerHTML = '<div class="fmdoc-widget-placeholder">' + id + " failed</div>";
+              }
+            } else {
+              el.innerHTML = '<div class="fmdoc-widget-placeholder">' + (id || "widget") + "</div>";
+            }
+          } else {
+            el.innerHTML = '<div class="fmdoc-widget-placeholder">' + node.type + "</div>";
+          }
+          return el;
+        }
+
+        handle.update({});
+        return handle;
+      }
+      return { render: render, _shim: true };
+    })();
+  }
+
+  function placeholderImage(from, to, label) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="' + from + '"/><stop offset="1" stop-color="' + to + '"/></linearGradient></defs>' +
+      '<rect width="640" height="420" fill="url(#g)"/>' +
+      '<circle cx="510" cy="90" r="46" fill="rgba(255,255,255,0.55)"/>' +
+      '<path d="M0 340 L200 210 L340 300 L470 220 L640 330 L640 420 L0 420 Z" fill="rgba(255,255,255,0.35)"/>' +
+      '<text x="20" y="400" font-family="Inter,sans-serif" font-size="24" font-weight="700" fill="rgba(17,24,39,0.5)">' + label + "</text></svg>";
+    return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  }
+
+  // -------------------------------------------------------------------------
+  // Demo document
+  // -------------------------------------------------------------------------
+  function nd(type, over) { return M.createNode(type, over); }
+  function textNode(over, text, fontOver) {
+    var node = nd("text", over);
+    node.props.blocks = [{ id: M.generateId("blk"), type: "paragraph", align: (over && over.align) || "left", runs: Array.isArray(text) ? text : [{ text: text }] }];
+    if (fontOver) node.style.font = fontOver;
+    return node;
+  }
+
+  var LINE_ITEMS_ID = "nd_demo_lineitems";
+  var doc = M.createDocument({ first_page_role: "cover", metadata: { document_type: "proposal" } });
+  doc.edit_policy = {
+    base_profile: "document",
+    max_profile: "designer",
+    features: {},
+    unlock: { allowed: true, permission: "manage_company_settings" }
+  };
+
+  // --- cover page
+  var cover = doc.pages[0];
+  cover.name = "Cover";
+  var accent = nd("shape", {
+    name: "Accent panel",
+    frame: { x: -40, y: 520, w: 700, h: 320, rotation: -6, z: 1 },
+    props: { shape: "rect", corner_radius: 0 },
+    style: { fill: { type: "solid", color: "var(--fm-primary, #2563EB)" } },
+    locks: { move: "role:designer", resize: "role:designer", rotate: "role:designer", delete: "role:designer" }
+  });
+  var coverImage = nd("image", {
+    name: "Hero photo",
+    frame: { x: 66, y: 96, w: 480, h: 300, z: 2 },
+    props: { media: { url: placeholderImage("#bfdbfe", "#1d4ed8", "hero photo") }, fit: "cover" },
+    style: { radius: [6, 6, 6, 6], shadow: { x: 0, y: 6, blur: 18, color: "rgba(15,23,42,0.3)" } }
+  });
+  var coverTitle = textNode({
+    name: "Title",
+    frame: { x: 66, y: 430, w: 480, h: 46, z: 3 }
+  }, [{ text: "Roof Replacement Proposal" }], { family: "Montserrat", size_pt: 28, weight: 800, color: "#111827" });
+  var coverFor = textNode({
+    name: "Prepared for",
+    frame: { x: 66, y: 484, w: 480, h: 22, z: 3 }
+  }, [{ text: "Prepared for " }, { text: "{{params.customer.name}}", color: "var(--fm-primary, #2563EB)", weight: 700 }], { family: "Inter", size_pt: 13, color: "#374151" });
+  var coverFoot = textNode({
+    name: "Footer",
+    frame: { x: 66, y: 690, w: 480, h: 22, z: 4 }
+  }, [{ text: "{{params.org.name}} — {{params.project.address}}", color: "#ffffff" }], { family: "Inter", size_pt: 11, weight: 600, color: "#ffffff" });
+  cover.children.push(accent, coverImage, coverTitle, coverFor, coverFoot);
+
+  // --- body page
+  var body = M.createPage("body", { name: "Scope of work" });
+  body.children.push(
+    textNode({ name: "Heading", frame: { x: 56, y: 56, w: 500, h: 30, z: 1 } }, "Scope of work", { family: "Montserrat", size_pt: 20, weight: 800, color: "#111827" }),
+    nd("shape", { name: "Rule", frame: { x: 56, y: 92, w: 90, h: 4, z: 1 }, props: { shape: "rect" }, style: { fill: { type: "solid", color: "var(--fm-primary, #2563EB)" } } }),
+    textNode({ name: "Intro", frame: { x: 56, y: 112, w: 500, h: 80, z: 2 } },
+      "We will remove the existing roofing down to the deck, inspect and replace damaged decking, install synthetic underlayment and architectural shingles, and complete a full site cleanup with magnetic sweep. Work at {{params.project.address}} is scheduled to take {{params.duration_days}} days.",
+      { family: "Inter", size_pt: 11, color: "#374151" }),
+    nd("image", {
+      name: "Site photo",
+      frame: { x: 56, y: 210, w: 240, h: 160, z: 2 },
+      props: { media: { url: placeholderImage("#fde68a", "#f59e0b", "site photo") }, fit: "cover" },
+      style: { radius: [5, 5, 5, 5], filters: { brightness: 1.05, contrast: 1.02, saturate: 1.1 } }
+    }),
+    nd("image", {
+      name: "Drone photo",
+      frame: { x: 316, y: 210, w: 240, h: 160, z: 2 },
+      props: { media: { url: placeholderImage("#bbf7d0", "#16a34a", "drone photo") }, fit: "cover" },
+      style: { radius: [5, 5, 5, 5] }
+    }),
+    textNode({ name: "Materials heading", frame: { x: 56, y: 400, w: 500, h: 24, z: 2 } }, "Materials and workmanship", { family: "Montserrat", size_pt: 14, weight: 700, color: "#111827" }),
+    textNode({ name: "Materials copy", frame: { x: 56, y: 430, w: 500, h: 120, z: 2 } },
+      "All materials are manufacturer-certified and installed to spec. Workmanship is covered by our 10-year warranty in addition to the manufacturer's 30-year limited warranty. Deposit due at signing: {{params.deposit_cents | money}}.",
+      { family: "Inter", size_pt: 11, color: "#374151" })
+  );
+
+  // --- pricing page
+  var pricing = M.createPage("pricing", { name: "Investment" });
+  var lineItems = nd("widget", {
+    name: "Line items",
+    frame: { x: 36, y: 120, w: 540, h: 420, z: 2 },
+    props: { widget: "doc.line_items@1", config: { source: "{{params.scope_items}}", show_prices: true, show_included: true, columns: ["name", "description", "qty", "unit_price", "amount"], compact: false } }
+  });
+  lineItems.id = LINE_ITEMS_ID;
+  pricing.children.push(
+    textNode({ name: "Heading", frame: { x: 36, y: 56, w: 540, h: 30, z: 1 } }, "Your investment", { family: "Montserrat", size_pt: 20, weight: 800, color: "#111827" }),
+    lineItems
+  );
+
+  // --- signature page
+  var signature = M.createPage("signature", { name: "Approval" });
+  var sigWidget = nd("widget", {
+    name: "Customer signature",
+    frame: { x: 56, y: 480, w: 240, h: 72, z: 2 },
+    props: { widget: "doc.signature@1", config: { output_key: "sig_customer", label: "Customer signature" } }
+  });
+  var dateField = nd("widget", {
+    name: "Date",
+    frame: { x: 330, y: 500, w: 160, h: 50, z: 2 },
+    props: { widget: "doc.form_field@1", config: { output_key: "sign_date", label: "Date", kind: "date" } }
+  });
+  signature.children.push(
+    textNode({ name: "Heading", frame: { x: 56, y: 56, w: 500, h: 30, z: 1 } }, "Approval", { family: "Montserrat", size_pt: 20, weight: 800, color: "#111827" }),
+    textNode({
+      name: "Legal",
+      frame: { x: 56, y: 100, w: 500, h: 340, z: 1 },
+      locks: { content: "role:designer" }
+    }, "By signing below, {{params.customer.name}} accepts this proposal, the scope of work described herein, and the payment schedule. This agreement may be cancelled within three business days of signing. All work will be performed in a workmanlike manner consistent with local building codes.",
+      { family: "Inter", size_pt: 10, color: "#4b5563" }),
+    sigWidget,
+    dateField
+  );
+
+  // -------------------------------------------------------------------------
+  // v2 demo content: named styles, a chained 3-page letter (line splits +
+  // page_break + auto pages), components + a repeater (borrowed from the
+  // renderer dev-preview chain demos).
+  // -------------------------------------------------------------------------
+  doc.styles = {
+    h1: { family: "Montserrat", size_pt: 22, weight: 800, color: "#111827", line_height: 1.15, space_after_pt: 8 },
+    clause_h: { family: "Montserrat", size_pt: 11.5, weight: 800, color: "var(--fm-primary, #2563EB)", transform: "uppercase", letter_spacing: 0.6, space_before_pt: 10, space_after_pt: 5 },
+    legal: { family: "Georgia", size_pt: 9.5, weight: 400, color: "#1f2937", line_height: 1.55, space_after_pt: 7 },
+    bodytext: { family: "Inter", size_pt: 10.5, weight: 400, color: "#111827", line_height: 1.5, space_after_pt: 6 }
+  };
+  doc.chains = {
+    letter: {
+      auto_pages: true,
+      page_defaults: { role: "body", margins_pt: { top: 64, right: 64, bottom: 64, left: 64 }, columns: 1, column_gap_pt: 24 },
+      keep_rules: { widow_lines: 2, orphan_lines: 2 }
+    },
+    scopeRep: {
+      auto_pages: true,
+      page_defaults: { role: "body", margins_pt: { top: 56, right: 48, bottom: 56, left: 48 }, columns: 1, column_gap_pt: 24 },
+      keep_rules: { widow_lines: 2, orphan_lines: 2 }
+    }
+  };
+  doc.components = {
+    li_row: {
+      params: { row: { type: "object" } },
+      root: {
+        id: "c_li_root", type: "frame", name: "Row", visible: true,
+        frame: { x: 0, y: 0, w: 0, h: "auto", z: 0, layout: "flow" },
+        props: { flow: { direction: "row", gap: 8, padding: [3, 4, 3, 4], align: "start" }, background: { type: "solid", color: "rgba(17,24,39,.03)" } },
+        children: [
+          { id: "c_li_name", type: "text", visible: true, frame: { x: 0, y: 0, w: 300, h: "auto", z: 0 }, props: { blocks: [
+            { id: "c_b1", type: "paragraph", runs: [{ bind: "row.name", weight: 600 }] },
+            { id: "c_b2", type: "paragraph", runs: [{ bind: "row.desc", color: "#6b7280", size_pt: 8 }] }
+          ], valign: "top", line_height: 1.3 } },
+          { id: "c_li_qty", type: "text", visible: true, frame: { x: 0, y: 0, w: 80, h: "auto", z: 0 }, props: { blocks: [{ id: "c_b3", type: "paragraph", align: "right", runs: [{ bind: "row.qty" }] }], valign: "top" } },
+          { id: "c_li_amt", type: "text", visible: true, frame: { x: 0, y: 0, w: 100, h: "auto", z: 0 }, props: { blocks: [{ id: "c_b4", type: "paragraph", align: "right", runs: [{ bind: "row.amount", weight: 600 }] }], valign: "top" } }
+        ]
+      }
+    }
+  };
+
+  var LEGAL = "The contractor shall furnish all labor, materials, equipment, and services necessary for the complete and workmanlike execution of the roofing scope described herein, subject to the exclusions and allowances set out in the schedules. ";
+  function rep(s, n) { var out = ""; for (var i = 0; i < n; i += 1) out += s; return out; }
+  function chainFrame(id, chainId, index, frame) {
+    return nd("frame", {
+      id: id,
+      frame: Object.assign({ z: 1, layout: "flow" }, frame),
+      props: { chain: { id: chainId, index: index }, flow: { direction: "column", gap: 0, padding: [0, 0, 0, 0], align: "stretch" } }
+    });
+  }
+  function chainText(id, blocks) {
+    return nd("text", { id: id, anchor: "flow", frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 }, props: { blocks: blocks, valign: "top" } });
+  }
+
+  var letter1 = M.createPage("body", { name: "Terms 1" });
+  letter1.id = "pg_letter1";
+  var letterF0 = chainFrame("nd_letter_f0", "letter", 0, { x: 64, y: 64, w: 484, h: 660 });
+  letterF0.children = [
+    chainText("nd_let_title", [{ id: "lb_t", type: "heading", level: 1, style_ref: "h1", runs: [{ text: "Service agreement" }] }]),
+    chainText("nd_let_h1", [{ id: "lb_h1", type: "heading", level: 2, style_ref: "clause_h", runs: [{ text: "1. General conditions" }] }]),
+    chainText("nd_let_p1", [{ id: "lb_p1", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 26) }] }]),
+    chainText("nd_let_p2", [
+      { id: "lb_p2a", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 5) }] },
+      { id: "lb_p2b", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 5) }] },
+      { id: "lb_p2c", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 5) }] }
+    ]),
+    nd("page_break", { id: "nd_let_break", anchor: "flow", frame: { x: 0, y: 0, w: 0, h: 0, z: 0 } }),
+    chainText("nd_let_h2", [{ id: "lb_h2", type: "heading", level: 2, style_ref: "clause_h", runs: [{ text: "2. Warranty and remedies" }] }]),
+    chainText("nd_let_p3", [
+      { id: "lb_p3a", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 8) }] },
+      { id: "lb_p3b", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 8) }] },
+      { id: "lb_p3c", type: "paragraph", style_ref: "legal", runs: [{ text: rep(LEGAL, 8) }] }
+    ])
+  ];
+  letter1.children = [letterF0];
+
+  var letter2 = M.createPage("body", { name: "Terms 2" });
+  letter2.id = "pg_letter2";
+  letter2.children = [chainFrame("nd_letter_f1", "letter", 1, { x: 64, y: 64, w: 484, h: 660 })];
+
+  var compPage = M.createPage("body", { name: "Components" });
+  compPage.id = "pg_components";
+  var repFrame = chainFrame("nd_rep_f0", "scopeRep", 0, { x: 48, y: 56, w: 516, h: 470 });
+  repFrame.children = [
+    chainText("nd_rep_h", [{ id: "rb_h", type: "heading", level: 2, style_ref: "clause_h", runs: [{ text: "Scope rows (repeater over li_row)" }] }]),
+    nd("repeater", {
+      id: "nd_rep_demo",
+      anchor: "flow",
+      frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 },
+      props: {
+        source: "{{params.rep_rows}}",
+        component: "li_row",
+        as: "row",
+        layout: { direction: "column", columns: 1, gap_pt: 4 },
+        break_rules: { repeat_header: true, header_component: "li_row", min_rows_per_segment: 2, keep_with_next: [] },
+        empty_text: "No scope rows."
+      }
+    })
+  ];
+  var compRef1 = nd("component_ref", {
+    id: "nd_ci_1",
+    frame: { x: 48, y: 560, w: 516, h: 52, z: 2 },
+    props: { component: "li_row", input: { row: "{{params.instance_row}}" } }
+  });
+  var compRef2 = nd("component_ref", {
+    id: "nd_ci_2",
+    frame: { x: 48, y: 630, w: 516, h: 52, z: 2 },
+    props: { component: "li_row", input: { row: "{{params.instance_row2}}" } }
+  });
+  compPage.children = [
+    repFrame,
+    textNode({ name: "Instances label", frame: { x: 48, y: 536, w: 400, h: 18, z: 1 } }, "Standalone instances (edit-all vs detach):", { family: "Inter", size_pt: 9, weight: 700, color: "#6b7280" }),
+    compRef1,
+    compRef2
+  ];
+
+  doc.pages.push(body, pricing, signature, letter1, letter2, compPage);
+
+  // -------------------------------------------------------------------------
+  // Scope, widget data, catalog, mount
+  // -------------------------------------------------------------------------
+  var repRows = [{ name: "Item", desc: "Scope details", qty: "Qty", amount: "Amount" }];
+  for (var ri = 1; ri <= 14; ri += 1) {
+    repRows.push({
+      name: "Work item " + ri,
+      desc: "Includes flashing, underlayment, fastening and cleanup for area " + ri + ".",
+      qty: ((ri % 4) + 1) + " ea",
+      amount: "$" + (450 + ri * 7) + ".00"
+    });
+  }
+  var resolveScope = {
+    params: {
+      customer: { name: "Dana Whitfield" },
+      org: { name: "Harbor Roofing Co." },
+      project: { address: "418 Beacon Hill Rd, Portsmouth NH" },
+      duration_days: 3,
+      deposit_cents: 415000,
+      scope_items: [],
+      rep_rows: repRows,
+      instance_row: { name: "Ridge vent upgrade", desc: "ShingleVent II with external baffle", qty: "60 lf", amount: "$510.00" },
+      instance_row2: { name: "Gutter guards", desc: "Micro-mesh, front elevation only", qty: "80 lf", amount: "$960.00" }
+    }
+  };
+
+  var widgetData = {};
+  widgetData[LINE_ITEMS_ID] = {
+    rows: [
+      { id: "r1", depth: 0, name: "Tear-off and disposal", description: "Remove existing shingles down to deck, haul away debris", quantity: 32, unit: "sq", unit_price_cents: 9500, amount_cents: 304000, included: false, optional: false, selected: true },
+      { id: "r2", depth: 0, name: "Architectural shingles", description: "CertainTeed Landmark Pro, Max Def Weathered Wood", quantity: 32, unit: "sq", unit_price_cents: 28500, amount_cents: 912000, included: false, optional: false, selected: true },
+      { id: "r3", depth: 0, name: "Synthetic underlayment", description: "Full-deck coverage plus ice-and-water shield at eaves", quantity: 32, unit: "sq", unit_price_cents: 4200, amount_cents: 134400, included: false, optional: false, selected: true },
+      { id: "r4", depth: 0, name: "Ridge vent system", description: "Continuous ridge vent with matching cap shingles", quantity: 64, unit: "lf", unit_price_cents: 1250, amount_cents: 80000, included: false, optional: false, selected: true },
+      { id: "r5", depth: 0, name: "Magnetic sweep and cleanup", description: "", quantity: 1, unit: "job", unit_price_cents: 0, amount_cents: 0, included: true, optional: false, selected: true }
+    ],
+    totals: { subtotal_cents: 1430400, tax_cents: 0, tax_percent: 0, total_cents: 1430400, currency: "USD" },
+    columns: ["name", "description", "qty", "unit_price", "amount"]
+  };
+
+  var mediaCycle = 0;
+  var mediaPalettes = [["#ddd6fe", "#7c3aed", "picked media"], ["#fecaca", "#dc2626", "picked media"], ["#bae6fd", "#0284c7", "picked media"], ["#bbf7d0", "#059669", "picked media"]];
+
+  var editor = window.FMDocEditor.mount(document.getElementById("editor"), {
+    document: doc,
+    theme: null,
+    themeContext: { branding: { colors: { primary: "#2563eb" } } },
+    profile: "document",
+    mode: "visual",
+    dataPreview: true,
+    widgetData: widgetData,
+    resolveScope: resolveScope,
+    catalog: {
+      widgets: window.FMDocWidgets.list(),
+      fonts: ["Inter", "Montserrat", "Georgia", "Arial", "Times New Roman", "Courier New"],
+      themes: [],
+      params: Object.keys(resolveScope.params)
+    },
+    media: {
+      pick: function () {
+        var p = mediaPalettes[mediaCycle++ % mediaPalettes.length];
+        return Promise.resolve({ url: placeholderImage(p[0], p[1], p[2]) });
+      },
+      url: function (ref) { return ref && ref.url ? ref.url : ""; }
+    },
+    onChange: function (docState, meta) {
+      console.log("[harness] onChange — " + meta.commands.length + " command(s)", meta.commands.map(function (c) { return c.type; }).join(", "));
+    },
+    onCommand: function (cmd) { console.log("[harness] command", cmd.type, cmd); },
+    onSelect: function (ids) { console.log("[harness] selection", ids); },
+    onRequestUnlock: function (target, permission) {
+      console.log("[harness] unlock requested ->", target, "(permission gate: " + permission + ")");
+      return true; // the host would check the permission here
+    }
+  });
+  window.editor = editor; // poke at it from the console
+
+  editor.on("profile", function (profile) {
+    document.getElementById("devProfile").value = profile;
+  });
+  editor.on("dirty", function () {
+    document.getElementById("devNote").textContent = usingShims.length ? "shims: " + usingShims.join(", ") + " — unsaved changes" : "unsaved changes";
+  });
+
+  document.getElementById("devProfile").addEventListener("change", function (ev) {
+    editor.setProfile(ev.target.value);
+  });
+  document.getElementById("devLog").addEventListener("click", function () {
+    console.log("[harness] document", editor.getDocument());
+  });
+  document.getElementById("devValidate").addEventListener("click", function () {
+    var result = M.validateDocument(editor.getDocument());
+    console.log("[harness] validate", result);
+    document.getElementById("devNote").textContent = result.ok ? "document valid" : result.errors.length + " validation error(s) — see console";
+  });
+  document.getElementById("devNote").textContent = usingShims.length ? "using fallback shims: " + usingShims.join(", ") : "real renderer + widgets loaded";
+})();
+</script>
+</body>
+</html>

@@ -2,16 +2,43 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
-import { readGlobal, type JsonObject } from "./storage.js";
+import "./capability_defs.js";
+import {
+  capabilityValuesForUser,
+  capabilityDefinition,
+  flattenGroupedValues,
+  groupCapabilityValues,
+  newOrganizationCapabilityValues,
+  normalizeCapabilityValue,
+  resolveCapabilities,
+  valueCapabilities,
+  type CapabilityValue,
+  type NormalizedCapability
+} from "./capabilities.js";
+import { readGlobal, readPlatformConfiguration, type JsonObject } from "./storage.js";
 
-export type AppFlagGroup = "platform" | "email" | "canvassing" | "calls" | "firstmeasure" | "lead_forms";
+/**
+ * Legacy app-flags compatibility layer.
+ *
+ * The capability registry (`capabilities.ts` + `capability_defs.ts`) is the
+ * single source of truth. This module derives the historical
+ * `group.flag`-shaped registry, defaults, resolution, and API payloads from
+ * it so every existing `isAppFlagEnabled(orgId, group, flag)` call site,
+ * the stored `data.app_flags` document shape, the internal operator console,
+ * and the legacy client module keep working unchanged.
+ */
+
+export type AppFlagGroup = string;
 export type AppFlagValue = boolean | number | string;
+export type AppPlacement = "sidebar" | "more" | "settings" | "hidden";
+
+const APP_PLACEMENTS = new Set<AppPlacement>(["sidebar", "more", "settings", "hidden"]);
 
 export type AppFlagDefinition = {
   group: AppFlagGroup;
   flag: string;
   key: string;
-  type: "boolean" | "number" | "select";
+  type: "boolean" | "number" | "select" | "multi_select";
   label: string;
   description: string;
   default: AppFlagValue;
@@ -27,396 +54,6 @@ export type AppVariantDefinition = {
   label: string;
   description: string;
   requires: string[];
-};
-
-const APP_FLAG_REGISTRY: Record<string, Omit<AppFlagDefinition, "key">> = {
-  "platform.lead_import": {
-    group: "platform",
-    flag: "lead_import",
-    type: "boolean",
-    label: "Lead Import",
-    description: "Enables lead intake settings and lead import surfaces.",
-    default: false,
-    requires: []
-  },
-  "platform.website_embed_import": {
-    group: "platform",
-    flag: "website_embed_import",
-    type: "boolean",
-    label: "Website Forms",
-    description: "Enables the Forms settings tab and website lead intake APIs.",
-    default: false,
-    requires: ["platform.lead_import"]
-  },
-  "platform.scheduling": {
-    group: "platform",
-    flag: "scheduling",
-    type: "boolean",
-    label: "Scheduling",
-    description: "Enables the Scheduling tab, scheduling settings, and appointment-slot features.",
-    default: false,
-    requires: []
-  },
-  "platform.contacts": {
-    group: "platform",
-    flag: "contacts",
-    type: "boolean",
-    label: "My Contacts",
-    description: "Enables the My Contacts tab for contact and project lookup.",
-    default: false,
-    requires: []
-  },
-  "platform.crew_management": {
-    group: "platform",
-    flag: "crew_management",
-    type: "boolean",
-    label: "Crew Management",
-    description: "Enables crew setup, labor compensation plans, and crew-aware scheduling.",
-    default: false,
-    requires: ["platform.scheduling"]
-  },
-  "platform.project_photos": {
-    group: "platform",
-    flag: "project_photos",
-    type: "boolean",
-    label: "Project Photos",
-    description: "Enables project photo galleries and uploads in New Project and project viewer workflows.",
-    default: false,
-    requires: []
-  },
-  "platform.photos_feed": {
-    group: "platform",
-    flag: "photos_feed",
-    type: "boolean",
-    label: "Photo Feed",
-    description: "Enables the organization-wide photo feed, photo comments, and photo markup review workflows.",
-    default: false,
-    requires: ["platform.project_photos"]
-  },
-  "platform.proposals": {
-    group: "platform",
-    flag: "proposals",
-    type: "boolean",
-    label: "Proposals",
-    description: "Enables proposal creation, proposal tabs, and proposal editing workflows.",
-    default: false,
-    requires: []
-  },
-  "platform.project_docs": {
-    group: "platform",
-    flag: "project_docs",
-    type: "boolean",
-    label: "Project Docs",
-    description: "Enables project document storage, required documents, and document markup workflows.",
-    default: false,
-    requires: []
-  },
-  "platform.project_stages_view": {
-    group: "platform",
-    flag: "project_stages_view",
-    type: "boolean",
-    label: "Project Stages View",
-    description: "Enables the Stages view mode in the Projects tab.",
-    default: false,
-    requires: []
-  },
-  "platform.proposal_agent": {
-    group: "platform",
-    flag: "proposal_agent",
-    type: "boolean",
-    label: "Proposal Agent",
-    description: "Shows the AI prompt panel inside the proposal builder.",
-    default: false,
-    requires: ["platform.proposals"]
-  },
-  "platform.materials": {
-    group: "platform",
-    flag: "materials",
-    type: "boolean",
-    label: "Materials",
-    description: "Enables project material lists, ordering, delivery tracking, and material amendments.",
-    default: false,
-    requires: ["platform.pricebook"]
-  },
-  "platform.money": {
-    group: "platform",
-    flag: "money",
-    type: "boolean",
-    label: "Money",
-    description: "Enables project payment schedules, customer payment tracking, profitability, payables, and disbursements.",
-    default: false,
-    requires: []
-  },
-  "platform.top_bar": {
-    group: "platform",
-    flag: "top_bar",
-    type: "boolean",
-    label: "Platform Top Bar",
-    description: "Enables the global search box and notifications bell in the platform header.",
-    default: false,
-    requires: []
-  },
-  "platform.left_column_todo_list": {
-    group: "platform",
-    flag: "left_column_todo_list",
-    type: "boolean",
-    label: "Left Column To Do List",
-    description: "Enables the Apps/To Do switcher and today's action-item list in the portal left column.",
-    default: false,
-    requires: []
-  },
-  "platform.cobrand_sidebar_logo": {
-    group: "platform",
-    flag: "cobrand_sidebar_logo",
-    type: "boolean",
-    label: "Co-Branded Sidebar Logo",
-    description: "Shows the FirstMate logo in the org primary color before the company logo in the portal sidebar.",
-    default: false,
-    requires: []
-  },
-  "platform.new_button_mode": {
-    group: "platform",
-    flag: "new_button_mode",
-    type: "select",
-    label: "New Button Mode",
-    description: "Choose whether the sidebar New button opens the selector or directly starts one workflow.",
-    default: "report",
-    options: [
-      ["selector", "Selector menu"],
-      ["project", "New Project"],
-      ["report", "New Report"],
-      ["proposal", "New Proposal"],
-      ["appointment", "New Appointment"]
-    ],
-    requires: []
-  },
-  "platform.configuration": {
-    group: "platform",
-    flag: "configuration",
-    type: "boolean",
-    label: "Configuration",
-    description: "Shows the Configuration settings tab.",
-    default: false,
-    requires: []
-  },
-  "platform.pricebook": {
-    group: "platform",
-    flag: "pricebook",
-    type: "boolean",
-    label: "Pricebook",
-    description: "Shows the Pricebook settings tab and editor.",
-    default: false,
-    requires: []
-  },
-  "platform.user_modals": {
-    group: "platform",
-    flag: "user_modals",
-    type: "boolean",
-    label: "User Modals",
-    description: "Enables clickable user profile modals with uploaded-photo views.",
-    default: false,
-    requires: []
-  },
-  "platform.user_activity": {
-    group: "platform",
-    flag: "user_activity",
-    type: "boolean",
-    label: "User Activity",
-    description: "Shows activity streams in user profile modals.",
-    default: false,
-    requires: ["platform.user_modals"]
-  },
-  "platform.storage_limits": {
-    group: "platform",
-    flag: "storage_limits",
-    type: "boolean",
-    label: "Storage Limits",
-    description: "Shows storage usage and enforces media upload limits.",
-    default: false,
-    requires: []
-  },
-  "platform.free_storage_gb": {
-    group: "platform",
-    flag: "free_storage_gb",
-    type: "number",
-    label: "Free Storage GB",
-    description: "Included media storage in gigabytes before upload limits apply.",
-    default: 1,
-    min: 0,
-    step: 0.25,
-    requires: ["platform.storage_limits"]
-  },
-  "platform.customer_portal": {
-    group: "platform",
-    flag: "customer_portal",
-    type: "boolean",
-    label: "Customer Portal",
-    description: "Enables secure per-project customer portal links and portal sharing controls.",
-    default: false,
-    requires: []
-  },
-  "platform.customer_portal_media": {
-    group: "platform",
-    flag: "customer_portal_media",
-    type: "boolean",
-    label: "Customer Portal Media",
-    description: "Allows project photos and videos to be shared with customer portal visitors.",
-    default: false,
-    requires: ["platform.customer_portal", "platform.project_photos"]
-  },
-  "platform.purchasable_storage": {
-    group: "platform",
-    flag: "purchasable_storage",
-    type: "boolean",
-    label: "Purchasable Storage",
-    description: "Shows storage checkout entry points.",
-    default: false,
-    requires: ["platform.storage_limits"]
-  },
-  "email.inbound_lead_import": {
-    group: "email",
-    flag: "inbound_lead_import",
-    type: "boolean",
-    label: "Email Inbox Leads",
-    description: "Enables inbound email lead capture.",
-    default: false,
-    requires: ["platform.lead_import"]
-  },
-  "canvassing.app": {
-    group: "canvassing",
-    flag: "app",
-    type: "boolean",
-    label: "Canvassing",
-    description: "Enables canvassing settings, canvassing APIs, and the Canvassing tab.",
-    default: false,
-    requires: []
-  },
-  "calls.app": {
-    group: "calls",
-    flag: "app",
-    type: "boolean",
-    label: "Calls",
-    description: "Enables the Calls tab and call workflow settings.",
-    default: false,
-    requires: []
-  },
-  "lead_forms.contact_form": {
-    group: "lead_forms",
-    flag: "contact_form",
-    type: "boolean",
-    label: "Contact Form",
-    description: "Enables basic website contact forms.",
-    default: false,
-    requires: ["platform.website_embed_import"]
-  },
-  "lead_forms.appointment_form": {
-    group: "lead_forms",
-    flag: "appointment_form",
-    type: "boolean",
-    label: "Appointment Form",
-    description: "Enables website appointment forms that depend on scheduling.",
-    default: false,
-    requires: ["platform.website_embed_import", "platform.scheduling"]
-  },
-  "lead_forms.instant_estimate": {
-    group: "lead_forms",
-    flag: "instant_estimate",
-    type: "boolean",
-    label: "Instant Estimate",
-    description: "Enables website instant estimate forms.",
-    default: false,
-    requires: ["platform.website_embed_import"]
-  },
-  "firstmeasure.bonus_upfront_match": {
-    group: "firstmeasure",
-    flag: "bonus_upfront_match",
-    type: "boolean",
-    label: "Bonus Upfront Match",
-    description: "Enables the upfront credit match offer.",
-    default: false,
-    requires: []
-  },
-  "firstmeasure.gutter_reports": {
-    group: "firstmeasure",
-    flag: "gutter_reports",
-    type: "boolean",
-    label: "Gutter Reports",
-    description: "Enables roof and gutter measurement report options.",
-    default: true,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.weather_reports": {
-    group: "firstmeasure",
-    flag: "weather_reports",
-    type: "boolean",
-    label: "Historical Weather Reports",
-    description: "Enables historical severe-weather report ordering and project report tabs.",
-    default: false,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.measurement_report_summary": {
-    group: "firstmeasure",
-    flag: "measurement_report_summary",
-    type: "boolean",
-    label: "Measurement Report Summary",
-    description: "Enables the gated roof report summary sub-tab in project reports.",
-    default: true,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.report_orders": {
-    group: "firstmeasure",
-    flag: "report_orders",
-    type: "boolean",
-    label: "Report Orders",
-    description: "Enables ordering FirstMeasure roof measurement reports.",
-    default: true,
-    requires: []
-  },
-  "firstmeasure.report_expedite_options": {
-    group: "firstmeasure",
-    flag: "report_expedite_options",
-    type: "boolean",
-    label: "Report Expedite Options",
-    description: "Enables customer-facing turnaround choices for report orders.",
-    default: true,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.report_cancellations": {
-    group: "firstmeasure",
-    flag: "report_cancellations",
-    type: "boolean",
-    label: "Report Cancellations",
-    description: "Enables customer cancellation of report orders during the grace period.",
-    default: true,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.report_followup": {
-    group: "firstmeasure",
-    flag: "report_followup",
-    type: "boolean",
-    label: "Report Follow-up",
-    description: "Enables customer issue reports, correction requests, additional structure requests, and the Changes Pending tab.",
-    default: false,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.instant_reports": {
-    group: "firstmeasure",
-    flag: "instant_reports",
-    type: "boolean",
-    label: "Instant Reports",
-    description: "Enables FirstMeasure instant report options.",
-    default: false,
-    requires: ["firstmeasure.report_orders"]
-  },
-  "firstmeasure.referral_program_banner": {
-    group: "firstmeasure",
-    flag: "referral_program_banner",
-    type: "boolean",
-    label: "Referral Program Banner",
-    description: "Enables the customer referral banner.",
-    default: false,
-    requires: []
-  }
 };
 
 const APP_VARIANT_REGISTRY: Record<string, AppVariantDefinition[]> = {
@@ -438,74 +75,7 @@ const APP_VARIANT_REGISTRY: Record<string, AppVariantDefinition[]> = {
   ]
 };
 
-const APP_FLAG_GROUPS = Array.from(new Set(Object.values(APP_FLAG_REGISTRY).map((definition) => definition.group))) as AppFlagGroup[];
-
-const DEFAULT_APP_FLAGS = APP_FLAG_GROUPS.reduce((result, group) => {
-  result[group] = {};
-  return result;
-}, {} as Record<AppFlagGroup, Record<string, AppFlagValue>>);
-
-for (const [key, definition] of Object.entries(APP_FLAG_REGISTRY)) {
-  DEFAULT_APP_FLAGS[definition.group][definition.flag] = definition.default;
-}
-
 const TEST_APP_FLAG_ADMIN_EMAILS = new Set(["notifications@1m8.ai"]);
-
-const LEGACY_DEFAULT_APP_FLAGS: Record<AppFlagGroup, Record<string, AppFlagValue>> = {
-  platform: {
-    lead_import: false,
-    website_embed_import: false,
-    scheduling: false,
-    contacts: false,
-    crew_management: false,
-    project_photos: false,
-    photos_feed: false,
-    proposals: false,
-    project_docs: false,
-    project_stages_view: false,
-    proposal_agent: false,
-    materials: false,
-    money: false,
-    top_bar: false,
-    left_column_todo_list: false,
-    cobrand_sidebar_logo: false,
-    new_button_mode: "report",
-    configuration: false,
-    pricebook: false,
-    user_modals: false,
-    user_activity: false,
-    storage_limits: false,
-    free_storage_gb: 1,
-    customer_portal: false,
-    customer_portal_media: false,
-    purchasable_storage: false
-  },
-  email: {
-    inbound_lead_import: false
-  },
-  canvassing: {
-    app: false
-  },
-  calls: {
-    app: false
-  },
-  firstmeasure: {
-    bonus_upfront_match: false,
-    gutter_reports: true,
-    measurement_report_summary: true,
-    report_orders: true,
-    report_expedite_options: true,
-    report_cancellations: true,
-    report_followup: false,
-    instant_reports: false,
-    referral_program_banner: false
-  },
-  lead_forms: {
-    contact_form: false,
-    appointment_form: false,
-    instant_estimate: false
-  }
-};
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
@@ -515,9 +85,43 @@ function cleanText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function legacyDefinition(node: NormalizedCapability): Omit<AppFlagDefinition, "key"> {
+  return {
+    group: node.group,
+    flag: node.flag,
+    type: node.type || "boolean",
+    label: node.label,
+    description: node.description,
+    default: node.default as AppFlagValue,
+    requires: [...(node.parent ? [node.parent] : []), ...node.requires],
+    ...(node.options.length ? { options: node.options.map((option) => [...option] as [string, string]) } : {}),
+    ...(node.min !== undefined ? { min: node.min } : {}),
+    ...(node.step !== undefined ? { step: node.step } : {})
+  };
+}
+
+function flagRegistry() {
+  const entries: Record<string, Omit<AppFlagDefinition, "key">> = {};
+  for (const node of valueCapabilities()) entries[node.key] = legacyDefinition(node);
+  return entries;
+}
+
+function flagGroups(): AppFlagGroup[] {
+  return Array.from(new Set(valueCapabilities().map((node) => node.group)));
+}
+
+function defaultsByGroup() {
+  const defaults: Record<AppFlagGroup, Record<string, AppFlagValue>> = {};
+  for (const node of valueCapabilities()) {
+    const groupDefaults = defaults[node.group] ?? (defaults[node.group] = {});
+    groupDefaults[node.flag] = node.default as AppFlagValue;
+  }
+  return defaults;
+}
+
 function normalizeGroup(value: string): AppFlagGroup | "" {
   const group = cleanText(value).toLowerCase();
-  return Object.prototype.hasOwnProperty.call(LEGACY_DEFAULT_APP_FLAGS, group) ? group as AppFlagGroup : "";
+  return flagGroups().includes(group) ? group : "";
 }
 
 function normalizeVariantKey(family: string, value: unknown) {
@@ -526,45 +130,8 @@ function normalizeVariantKey(family: string, value: unknown) {
   return (APP_VARIANT_REGISTRY[family] || []).some((variant) => variant.key === key) ? key : "";
 }
 
-function normalizeFlagValue(definition: Omit<AppFlagDefinition, "key">, value: unknown): AppFlagValue {
-  if (definition.type === "number") {
-    const numeric = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(numeric) ? numeric : definition.default;
-  }
-  if (definition.type === "select") {
-    const selected = cleanText(value).toLowerCase();
-    const options = Array.isArray(definition.options)
-      ? definition.options.map((option) => Array.isArray(option) ? option[0] : option)
-      : [];
-    return options.includes(selected) ? selected : definition.default;
-  }
-  return value !== false;
-}
-
-function mergeGroup(group: AppFlagGroup, overrides: JsonObject) {
-  const defaults = DEFAULT_APP_FLAGS[group];
-  const result: Record<string, AppFlagValue> = { ...defaults };
-  for (const [key, value] of Object.entries(overrides)) {
-    const normalizedKey = cleanText(key);
-    if (!normalizedKey) continue;
-    const definition = APP_FLAG_REGISTRY[`${group}.${normalizedKey}`];
-    if (!definition) continue;
-    result[normalizedKey] = normalizeFlagValue(definition, value);
-  }
-  return result;
-}
-
-function normalizeOverrides(raw: JsonObject) {
-  const flags = asObject(raw.app_flags || raw.feature_flags);
-  const normalized: Partial<Record<AppFlagGroup, JsonObject>> = {};
-  for (const group of Object.keys(DEFAULT_APP_FLAGS) as AppFlagGroup[]) {
-    normalized[group] = asObject(flags[group]);
-  }
-  return normalized;
-}
-
 export function appFlagDefinitions() {
-  return Object.entries(APP_FLAG_REGISTRY).map(([key, definition]) => ({
+  return Object.entries(flagRegistry()).map(([key, definition]) => ({
     key,
     ...definition,
     defaultValue: definition.default,
@@ -581,7 +148,7 @@ export function appVariantDefinitions() {
 }
 
 export function appFlagDefaults() {
-  return JSON.parse(JSON.stringify(DEFAULT_APP_FLAGS)) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
+  return JSON.parse(JSON.stringify(defaultsByGroup())) as Record<AppFlagGroup, Record<string, AppFlagValue>> & { firstmeasure: Record<string, AppFlagValue> };
 }
 
 function platformStorageRoot() {
@@ -594,34 +161,29 @@ function appFlagDefaultsConfigPath() {
 
 export function normalizeFullAppFlags(input: JsonObject = {}) {
   const source = asObject(input.app_flags || input.flags || input);
-  const normalized = {} as Record<AppFlagGroup, Record<string, AppFlagValue>>;
-  for (const group of APP_FLAG_GROUPS) {
-    normalized[group] = mergeGroup(group, asObject(source[group]));
-  }
-  return normalized;
+  const flat = { ...Object.fromEntries(valueCapabilities().map((node) => [node.key, node.default as CapabilityValue])), ...flattenGroupedValues(source) };
+  return groupCapabilityValues(flat) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
 }
 
 export async function newOrganizationAppFlagDefaults() {
-  try {
-    const raw = JSON.parse(await readFile(appFlagDefaultsConfigPath(), "utf8")) as JsonObject;
+  const raw = await readPlatformConfiguration("app_flag_defaults");
+  if (raw) {
     const data = asObject(raw.data);
-    const source = asObject(data.app_flags || data.feature_flags || raw.app_flags || raw.feature_flags);
-    return normalizeFullAppFlags(source);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return appFlagDefaults();
+    const defaults = normalizeFullAppFlags(asObject(data.app_flags || data.feature_flags || raw.app_flags || raw.feature_flags));
+    defaults.platform = { ...defaults.platform, expanded_access: false, more_apps: false };
+    return defaults;
   }
+  return groupCapabilityValues(await newOrganizationCapabilityValues()) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
 }
 
 export async function rawAppFlags(orgId: string) {
   const globalDoc = await readGlobal(orgId);
   const data = asObject(globalDoc.data);
-  const overrides = normalizeOverrides(data);
-  const raw = {} as Record<AppFlagGroup, Record<string, AppFlagValue>>;
-  for (const group of APP_FLAG_GROUPS) {
-    raw[group] = mergeGroup(group, asObject(overrides[group]));
-  }
-  return raw;
+  const flat = {
+    ...Object.fromEntries(valueCapabilities().map((node) => [node.key, node.default as CapabilityValue])),
+    ...flattenGroupedValues(asObject(data.app_flags || data.feature_flags))
+  };
+  return groupCapabilityValues(flat) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
 }
 
 export async function rawAppVariants(orgId: string) {
@@ -636,65 +198,49 @@ export async function rawAppVariants(orgId: string) {
   return normalized;
 }
 
-function resolveFlag(
-  key: string,
-  raw: Record<AppFlagGroup, Record<string, AppFlagValue>>,
-  resolved: Record<string, boolean>,
-  reasons: Record<string, string | null>,
-  stack: string[] = []
-) {
-  if (Object.prototype.hasOwnProperty.call(resolved, key)) return resolved[key];
-  const definition = APP_FLAG_REGISTRY[key];
-  if (!definition) {
-    resolved[key] = false;
-    reasons[key] = "unknown_flag";
-    return false;
+export async function rawAppPlacements(orgId: string) {
+  const globalDoc = await readGlobal(orgId);
+  const data = asObject(globalDoc.data);
+  return normalizeAppPlacementInput(data.app_placements);
+}
+
+/**
+ * Normalizes the operator-managed app launcher projection. App ids deliberately
+ * remain manifest ids (for example `portal.equipment`) so adding a new app does
+ * not require a backend registry change.
+ */
+export function normalizeAppPlacementInput(input: unknown) {
+  const source = asObject(input);
+  const normalized: Record<string, AppPlacement> = {};
+  for (const [rawId, rawPlacement] of Object.entries(source)) {
+    const id = cleanText(rawId).toLowerCase();
+    const placement = cleanText(rawPlacement).toLowerCase() as AppPlacement;
+    if (!/^[a-z0-9][a-z0-9._-]{1,119}$/.test(id) || !APP_PLACEMENTS.has(placement)) continue;
+    normalized[id] = placement;
   }
-  if (definition.type !== "boolean") {
-    resolved[key] = false;
-    reasons[key] = null;
-    return false;
-  }
-  const rawEnabled = raw[definition.group]?.[definition.flag] !== false;
-  if (!rawEnabled) {
-    resolved[key] = false;
-    reasons[key] = "flag_disabled";
-    return false;
-  }
-  if (stack.includes(key)) {
-    resolved[key] = false;
-    reasons[key] = "dependency_cycle";
-    return false;
-  }
-  for (const requirement of definition.requires) {
-    if (!resolveFlag(requirement, raw, resolved, reasons, [...stack, key])) {
-      resolved[key] = false;
-      reasons[key] = `requires ${requirement}`;
-      return false;
-    }
-  }
-  resolved[key] = true;
-  reasons[key] = null;
-  return true;
+  return normalized;
 }
 
 export function resolveAppFlags(raw: Record<AppFlagGroup, Record<string, AppFlagValue>>) {
+  const flat = flattenGroupedValues(raw as JsonObject);
+  const resolution = resolveCapabilities(flat);
   const resolvedByKey: Record<string, boolean> = {};
   const disabledReasons: Record<string, string | null> = {};
-  for (const key of Object.keys(APP_FLAG_REGISTRY)) {
-    resolveFlag(key, raw, resolvedByKey, disabledReasons);
-  }
-  const resolved = appFlagDefaults();
-  for (const group of APP_FLAG_GROUPS) resolved[group] = {};
-  for (const [key, value] of Object.entries(resolvedByKey)) {
-    const definition = APP_FLAG_REGISTRY[key];
-    if (!definition || definition.type !== "boolean") continue;
-    resolved[definition.group][definition.flag] = value;
-  }
-  for (const [key, definition] of Object.entries(APP_FLAG_REGISTRY)) {
-    if (definition.type === "boolean") continue;
-    resolved[definition.group][definition.flag] = raw[definition.group]?.[definition.flag] ?? definition.default;
-    disabledReasons[key] = null;
+  const resolved: Record<AppFlagGroup, Record<string, AppFlagValue>> = {};
+  for (const group of flagGroups()) resolved[group] = {};
+  for (const node of valueCapabilities()) {
+    const groupValues = resolved[node.group] ?? (resolved[node.group] = {});
+    if (node.type === "boolean") {
+      resolvedByKey[node.key] = resolution.effectiveByKey[node.key] === true;
+      disabledReasons[node.key] = resolution.reasons[node.key] ?? null;
+      groupValues[node.flag] = resolution.effectiveByKey[node.key] === true;
+    } else {
+      // Legacy behavior: non-boolean flags never appear "resolved" and carry
+      // their raw (or default) value through.
+      resolvedByKey[node.key] = false;
+      disabledReasons[node.key] = null;
+      groupValues[node.flag] = resolution.values[node.key] as AppFlagValue;
+    }
   }
   return { resolved, resolvedByKey, disabledReasons };
 }
@@ -725,14 +271,18 @@ export function resolveAppVariants(
   return { resolved, disabledReasons };
 }
 
-export async function effectiveAppFlags(orgId: string) {
-  return resolveAppFlags(await rawAppFlags(orgId)).resolved;
+export async function effectiveAppFlags(orgId: string, userId?: string) {
+  const raw = flattenGroupedValues(await rawAppFlags(orgId));
+  return resolveAppFlags(groupCapabilityValues(await capabilityValuesForUser(orgId, userId, raw))).resolved;
 }
 
-export async function appFlagState(orgId: string) {
-  const raw = await rawAppFlags(orgId);
-  const rawVariants = await rawAppVariants(orgId);
-  const resolvedState = resolveAppFlags(raw);
+export async function appFlagState(orgId: string, userId?: string) {
+  const [raw, rawVariants, appPlacements] = await Promise.all([
+    rawAppFlags(orgId),
+    rawAppVariants(orgId),
+    rawAppPlacements(orgId)
+  ]);
+  const resolvedState = resolveAppFlags(groupCapabilityValues(await capabilityValuesForUser(orgId, userId, flattenGroupedValues(raw))));
   const variantState = resolveAppVariants(rawVariants, resolvedState.resolvedByKey);
   return {
     definitions: appFlagDefinitions(),
@@ -741,6 +291,7 @@ export async function appFlagState(orgId: string) {
     raw_variants: rawVariants,
     effective: resolvedState.resolved,
     effective_variants: variantState.resolved,
+    app_placements: appPlacements,
     enabled: enabledOnlyAppFlags(resolvedState.resolved),
     disabled_reasons: resolvedState.disabledReasons,
     variant_disabled_reasons: variantState.disabledReasons
@@ -748,8 +299,8 @@ export async function appFlagState(orgId: string) {
 }
 
 export function enabledOnlyAppFlags(flags: Record<AppFlagGroup, Record<string, AppFlagValue>>) {
-  const enabled = {} as Record<AppFlagGroup, string[]>;
-  for (const group of APP_FLAG_GROUPS) {
+  const enabled: Record<AppFlagGroup, string[]> = {};
+  for (const group of flagGroups()) {
     enabled[group] = Object.entries(flags[group] || {})
       .filter(([, value]) => value === true)
       .map(([key]) => key)
@@ -772,30 +323,34 @@ export function containsAppFlagMutation(input: JsonObject = {}) {
     || Object.prototype.hasOwnProperty.call(data, "feature_flags")
     || Object.prototype.hasOwnProperty.call(data, "app_variants")
     || Object.prototype.hasOwnProperty.call(data, "feature_variants")
+    || Object.prototype.hasOwnProperty.call(data, "app_placements")
     || Object.prototype.hasOwnProperty.call(input, "app_flags")
     || Object.prototype.hasOwnProperty.call(input, "feature_flags")
     || Object.prototype.hasOwnProperty.call(input, "app_variants")
-    || Object.prototype.hasOwnProperty.call(input, "feature_variants");
+    || Object.prototype.hasOwnProperty.call(input, "feature_variants")
+    || Object.prototype.hasOwnProperty.call(input, "app_placements");
 }
 
-export function canManageTestAppFlags(input: { identity?: JsonObject; role?: string }) {
+export function canManageTestAppFlags(input: { identity?: JsonObject; role?: string; orgId?: string }) {
   const email = cleanText(asObject(input.identity).email).toLowerCase();
   const role = cleanText(input.role).toLowerCase();
-  return TEST_APP_FLAG_ADMIN_EMAILS.has(email) && ["owner", "admin", "super_admin"].includes(role);
+  // Deployment-owned allowlist: organization/profile writes and signup presets
+  // cannot turn an ordinary customer organization into a test organization.
+  const testOrganizations = new Set((process.env.PLATFORM_TEST_ORG_IDS || "").split(",").map(value => value.trim()).filter(Boolean));
+  return testOrganizations.has(cleanText(input.orgId))
+    && TEST_APP_FLAG_ADMIN_EMAILS.has(email) && ["owner", "admin", "super_admin"].includes(role);
 }
 
 export function normalizeAppFlagInput(input: JsonObject = {}) {
   const source = asObject(input.app_flags || input.flags || input);
-  const normalized = {} as Record<AppFlagGroup, Record<string, AppFlagValue>>;
-  for (const group of APP_FLAG_GROUPS) {
+  const normalized: Record<AppFlagGroup, Record<string, AppFlagValue>> = {};
+  for (const group of flagGroups()) {
     const groupInput = asObject(source[group]);
     normalized[group] = {};
-    for (const flag of Object.keys(DEFAULT_APP_FLAGS[group] || {})) {
-      if (Object.prototype.hasOwnProperty.call(groupInput, flag)) {
-        const definition = APP_FLAG_REGISTRY[`${group}.${flag}`];
-        if (!definition) continue;
-        normalized[group][flag] = normalizeFlagValue(definition, groupInput[flag]);
-      }
+    for (const [flag, value] of Object.entries(groupInput)) {
+      const node = capabilityDefinition(`${group}.${cleanText(flag)}`);
+      if (!node?.stores_value) continue;
+      normalized[group][node.flag] = normalizeCapabilityValue(node, value);
     }
   }
   return normalized;

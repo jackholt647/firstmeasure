@@ -5,7 +5,7 @@
   const root = window;
   const PlatformAPI = root.PlatformAPI;
   const listeners = new Set();
-  let state = { notifications: [], unread_count: 0, active_count: 0, loaded_at: null };
+  let state = { notifications: [], dismissed_notifications: [], unread_count: 0, active_count: 0, loaded_at: null };
   let knownIds = new Set();
 
   function notify(){
@@ -14,14 +14,44 @@
     });
   }
 
+  function isToday(value){
+    if (!value) return false;
+    const date = new Date(value);
+    const today = new Date();
+    return !Number.isNaN(date.getTime())
+      && date.getFullYear() === today.getFullYear()
+      && date.getMonth() === today.getMonth()
+      && date.getDate() === today.getDate();
+  }
+
+  function isCelebrationNotification(item){
+    if (String(item?.kind || '').toLowerCase() === 'celebration') return true;
+    const celebration = item?.celebration || item?.context?.celebration;
+    return !!celebration
+      && typeof celebration === 'object'
+      && !Array.isArray(celebration)
+      && Object.keys(celebration).length > 0;
+  }
+
+  function wasAutoCompletedByCelebrationBug(item){
+    if (isCelebrationNotification(item) || !item?.user_state?.completed_at) return false;
+    const createdAt = new Date(item.created_at || '').getTime();
+    const completedAt = new Date(item.user_state.completed_at).getTime();
+    return Number.isFinite(createdAt)
+      && Number.isFinite(completedAt)
+      && completedAt >= createdAt
+      && completedAt - createdAt <= 2000;
+  }
+
   async function load(orgId, options = {}){
     if (!PlatformAPI?.notifications || !orgId) return state;
     const data = await PlatformAPI.notifications.list(orgId, options);
     const nextNotifications = Array.isArray(data.notifications) ? data.notifications : [];
     await root.PlatformCelebrations?.loadConfig?.(orgId, options.branchId || options.branch_id || root.__APP?.userBranchId || 'default').catch?.(() => null);
     const visibleNotifications = [];
+    const dismissedNotifications = [];
     for (const item of nextNotifications) {
-      if (String(item?.kind || '') === 'celebration' || item?.celebration || item?.context?.celebration) {
+      if (isCelebrationNotification(item)) {
         const id = String(item?.id || '');
         if (id && !knownIds.has(id) && !item?.user_state?.completed_at) {
           root.PlatformCelebrations?.fromNotification?.(item);
@@ -29,7 +59,16 @@
         }
         continue;
       }
-      visibleNotifications.push(item);
+      if (wasAutoCompletedByCelebrationBug(item)) {
+        item.user_state = { ...(item.user_state || {}) };
+        delete item.user_state.completed_at;
+        setState(orgId, String(item.id || ''), { completed: false }, { ...options, reload: false }).catch(() => null);
+      }
+      if (item?.user_state?.dismissed_at) {
+        if (!item?.user_state?.completed_at && isToday(item.user_state.dismissed_at)) dismissedNotifications.push(item);
+        continue;
+      }
+      if (!item?.user_state?.completed_at) visibleNotifications.push(item);
     }
     const newNotification = state.loaded_at && visibleNotifications.some((item) => {
       const id = String(item?.id || '');
@@ -37,6 +76,7 @@
     });
     state = {
       notifications: visibleNotifications,
+      dismissed_notifications: dismissedNotifications,
       unread_count: visibleNotifications.filter((item) => !item?.user_state?.seen_at).length,
       active_count: visibleNotifications.length,
       loaded_at: new Date().toISOString(),
@@ -94,6 +134,7 @@
     load,
     markSeen(orgId, notificationId, options = {}){ return setState(orgId, notificationId, { seen: true }, options); },
     dismiss(orgId, notificationId, options = {}){ return setState(orgId, notificationId, { dismissed: true }, options); },
+    restore(orgId, notificationId, options = {}){ return setState(orgId, notificationId, { dismissed: false }, options); },
     complete(orgId, notificationId, options = {}){ return setState(orgId, notificationId, { completed: true }, options); },
     create(orgId, notification){ return PlatformAPI.notifications.create(orgId, notification); },
   };

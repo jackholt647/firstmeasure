@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acme Exteriors — Live Chat Widget Demo</title>
+  <style>
+    body{font-family:system-ui,-apple-system,sans-serif;margin:0;color:#1f2937;background:#fff}
+    header{background:#0f3d2e;color:#fff;padding:48px 24px;text-align:center}
+    header h1{margin:0 0 8px;font-size:34px}
+    header p{margin:0;opacity:.85}
+    main{max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.7}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:18px}
+    footer{color:#9ca3af;text-align:center;padding:32px;font-size:13px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Acme Exteriors</h1>
+    <p>Roofing • Siding • Gutters — serving the metro since 1998</p>
+  </header>
+  <main>
+    <p>This is a stand-in customer website used to exercise the FirstMate live chat embed exactly as a third-party page would load it. Pass the widget key as <code>?key=cw_…</code>.</p>
+    <div class="cards">
+      <div class="card"><b>Roof replacement</b><br>Architectural shingle, cedar, and metal.</div>
+      <div class="card"><b>Storm repair</b><br>Insurance claims handled end to end.</div>
+      <div class="card"><b>Free estimates</b><br>On-site within 48 hours.</div>
+    </div>
+  </main>
+  <footer>© Acme Exteriors — demo page for the FirstMate chat widget</footer>
+  <script>
+    (function(){
+      const key = new URLSearchParams(location.search).get('key') || '';
+      if (!key) { document.querySelector('main').insertAdjacentHTML('beforeend', '<p style="color:#b91c1c"><b>No widget key.</b> Append ?key=cw_… to the URL.</p>'); return; }
+      const script = document.createElement('script');
+      script.src = '/libraries/chat-embed/firstmate-chat-embed.js';
+      script.dataset.widgetKey = key;
+      script.async = true;
+      document.body.appendChild(script);
+    })();
+  </script>
+</body>
+</html>

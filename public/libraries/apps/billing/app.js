@@ -1,4 +1,4 @@
-﻿/* public/libraries/apps/billing/app.js
+/* public/libraries/apps/billing/app.js
  * Factors in 'manage_billing' permission.
  */
 (function(){
@@ -9,7 +9,6 @@
   const { showToast } = window.Portal.ui;
 
   const ROOF_COST = Number(cfg.roofCost || 7);
-  const EXPEDITE_FEE_PERCENT = 115;
   const INSTANT_ADDON_RESIDENTIAL = 2;
   const INSTANT_ADDON_COMMERCIAL = 4;
   const DEFAULT_CREDIT_AMOUNT = 250;
@@ -110,6 +109,7 @@
   }
 
   function pendingReportModeLabel(fields){
+    if(fields?.measurement_scope === 'full_house') return ({exteriors_standard:'24 hours',exteriors_same_day:'Under 6 hours',exteriors_priority:'Under 3 hours'})[fields.report_expedite_option] || 'Full House';
     const mode = pendingReportMode(fields);
     if (mode === 'both') return 'Standard + Instant Preview';
     return 'Standard';
@@ -292,13 +292,10 @@
       };
     }
     const wait = Number(fields?.report_estimated_wait_minutes);
-    const normalizedWait = Number.isFinite(wait) ? Math.max(240, Math.min(420, wait)) : 240;
-    const ratio = (normalizedWait - 240) / 180;
-    const previousRush23 = Math.round((8 + ratio * 2) * 10) / 10;
-    const previousRushDelta = previousRush23 - ROOF_COST;
-    const increaseFee = (fee) => Math.round(Math.round(fee * 100) * EXPEDITE_FEE_PERCENT / 100) / 100;
-    const rush23 = Math.round((ROOF_COST + increaseFee(previousRushDelta)) * 100) / 100;
-    const rush12 = Math.round((ROOF_COST + increaseFee(previousRushDelta * 3)) * 100) / 100;
+    const normalizedWait = Number.isFinite(wait) ? Math.max(180, Math.min(360, wait)) : 180;
+    const ratio = (normalizedWait - 180) / 180;
+    const rush23 = Math.round((8 + ratio * 2) * 10) / 10;
+    const rush12 = Math.round((ROOF_COST + (rush23 - ROOF_COST) * 3) * 100) / 100;
     if (key === 'rush_under_1') return { key, residentialPrice: rush12, rushDelta: Math.max(0, Math.round((rush12 - ROOF_COST) * 100) / 100) };
     if (key === 'rush_1_3') return { key, residentialPrice: rush23, rushDelta: Math.max(0, Math.round((rush23 - ROOF_COST) * 100) / 100) };
     if (key === 'standard_3_6' || key === 'rush_3_4' || key === 'no_rush') return { key, residentialPrice: ROOF_COST, rushDelta: 0 };
@@ -352,7 +349,8 @@
   }
 
   function pendingOrderQuote(fields){
-    const original = pendingOriginalOrderAmount(fields);
+    const original = fields?.measurement_scope === 'full_house' ? Number(fields.exteriors_quoted_amount) : pendingOriginalOrderAmount(fields);
+    if (fields?.measurement_scope === 'full_house') return {active:false,original_amount:original,final_amount:original,discount_amount:0,discountable_amount:0,discount_percent:0};
     return window.Portal?.pricing?.referralDiscountPreview?.(original, pendingDiscountableBase(fields)) || {
       active: false,
       original_amount: original,
@@ -521,66 +519,66 @@
       <div class="b-win">
         <div class="b-top">
           <div>
-            <h3 class="b-title" id="bTitle">Add Credit</h3>
+            <h3 class="b-title" id="bTitle">${(globalThis.PlatformLanguage?.text("billing","m_1a12a0453685f9","Add Credit") ?? "Add Credit")}</h3>
             <div class="b-subtitle" id="bSubtitle"></div>
           </div>
           <button class="buy-close" id="bCloseX" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
         </div>
         <div class="b-body">
           <div class="b-first-report" id="bFirstReportCard">
-            <div class="b-first-kicker"><i class="fas fa-gift"></i> First report checkout</div>
-            <h4 class="b-first-title">Thanks for trying FirstMeasure.</h4>
-            <p class="b-first-copy">Add credit to your account to pay for this report.</p>
-            <div class="b-first-address" id="bFirstAddress">Your first roof report</div>
+            <div class="b-first-kicker"><i class="fas fa-gift"></i>${(globalThis.PlatformLanguage?.text("billing","m_3e58777454c792"," First report checkout") ?? " First report checkout")}</div>
+            <h4 class="b-first-title">${(globalThis.PlatformLanguage?.text("billing","m_55d1ab4693f267","Thanks for trying FirstMeasure.") ?? "Thanks for trying FirstMeasure.")}</h4>
+            <p class="b-first-copy">${(globalThis.PlatformLanguage?.text("billing","m_822c0e40ff60e8","Add credit to your account to pay for this report.") ?? "Add credit to your account to pay for this report.")}</p>
+            <div class="b-first-address" id="bFirstAddress">${(globalThis.PlatformLanguage?.text("billing","m_b09a10270594d4","Your first roof report") ?? "Your first roof report")}</div>
             <div class="b-first-numbers">
-              <div class="b-first-number"><span>Needed for order</span><strong id="bFirstReportTotal">$0</strong></div>
-              <div class="b-first-number"><span>Your balance</span><strong id="bFirstBalance">$0</strong></div>
-              <div class="b-first-number due"><span>Difference</span><strong id="bFirstDue">$0</strong></div>
+              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_087b20ba6645bc","Needed for order") ?? "Needed for order")}</span><strong id="bFirstReportTotal">$0</strong></div>
+              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_56ddeabdd68349","Your balance") ?? "Your balance")}</span><strong id="bFirstBalance">$0</strong></div>
+              <div class="b-first-number due"><span>${(globalThis.PlatformLanguage?.text("billing","m_a66599d9c29a1c","Difference") ?? "Difference")}</span><strong id="bFirstDue">$0</strong></div>
             </div>
             <div class="b-msg" id="bFirstAutoSubmit" style="margin-top:10px;"></div>
           </div>
           <div class="b-pending" id="bPendingCard">
-            <div class="b-pk">Pending order</div>
+            <div class="b-pk">${(globalThis.PlatformLanguage?.text("billing","m_766a83e1f9a403","Pending order") ?? "Pending order")}</div>
             <div class="b-pa" id="bPendingAddr">—</div>
             <div class="b-ps" id="bPendingSub">—</div>
             <div class="b-prow">
-              <button class="b-plink" id="bEditOrder"><i class="fas fa-pen"></i> Edit order</button>
-              <button class="b-plink" id="bDiscard"><i class="fas fa-trash"></i> Discard</button>
+              <button class="b-plink" id="bEditOrder"><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.text("billing","m_8148bb5b1cb98b"," Edit order") ?? " Edit order")}</button>
+              <button class="b-plink" id="bDiscard"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("billing","m_0fb22e465f80a9"," Discard") ?? " Discard")}</button>
             </div>
-            <div class="b-msg" style="margin-top:10px;">After payment goes through, this report order will submit automatically. You do not need to place it again.</div>
+            <div class="b-msg" style="margin-top:10px;">${(globalThis.PlatformLanguage?.text("billing","m_d2d68d1ba00317","After payment goes through, this report order will submit automatically. You do not need to place it again.") ?? "After payment goes through, this report order will submit automatically. You do not need to place it again.")}</div>
           </div>
           <div class="b-credit-grid" id="bCreditGrid">
             <div class="b-credit-panel">
               <div class="b-amountrow">
                 <button class="b-nudge" id="bMinus" data-fm-tooltip="Decrease"><i class="fas fa-minus"></i></button>
                 <div class="b-group">
-                  <label id="bCreditLabel">Credit To Add</label>
-                  <input class="b-inp" id="bQty" type="number" min="${MIN_CREDIT_AMOUNT}" max="${MAX_CREDIT_AMOUNT}" value="${DEFAULT_CREDIT_AMOUNT}">
+                  <label id="bCreditLabel">${(globalThis.PlatformLanguage?.text("billing","m_2876b1ad5e7aa6","Credit To Add") ?? "Credit To Add")}</label>
+                  <input class="b-inp" id="bQty" type="number" min="${String(MIN_CREDIT_AMOUNT)}" max="${String(MAX_CREDIT_AMOUNT)}" value="${String(DEFAULT_CREDIT_AMOUNT)}">
                 </div>
                 <button class="b-nudge" id="bPlus" data-fm-tooltip="Increase"><i class="fas fa-plus"></i></button>
               </div>
             </div>
             <div class="b-credit-panel b-price">
-              <div class="b-price-label">Total</div>
-              <div class="big" id="bTotal">$${DEFAULT_CREDIT_AMOUNT}</div>
+              <div class="b-price-label">${(globalThis.PlatformLanguage?.text("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
+              <div class="big" id="bTotal">$${String(DEFAULT_CREDIT_AMOUNT)}</div>
             </div>
           </div>
-          <div class="b-hint" id="bHint">${CREDIT_AMOUNT_HELP_TEXT}</div>
+          <div class="b-hint" id="bHint">${String(CREDIT_AMOUNT_HELP_TEXT)}</div>
           <div class="b-insufficient-message" id="bInsufficientMessage"></div>
           <div class="b-auto" id="bAutoTopupCard">
             <div class="b-auto-top">
               <div>
-                <div class="b-auto-title"><i class="fas fa-bolt"></i> Automatically top up your account next time?</div>
-                <div class="b-auto-note" id="bAutoNote">Loading auto top-up settings...</div>
+                <div class="b-auto-title"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("billing","m_898767400ea623"," Automatically top up your account next time?") ?? " Automatically top up your account next time?")}</div>
+                <div class="b-auto-note" id="bAutoNote">${(globalThis.PlatformLanguage?.text("billing","m_a9cd7fbc11013b","Loading auto top-up settings...") ?? "Loading auto top-up settings...")}</div>
               </div>
               <button class="b-auto-switch" id="bAutoToggle" type="button" disabled>
                 <span class="dot"></span>
-                <span id="bAutoToggleText">Loading</span>
+                <span id="bAutoToggleText">${(globalThis.PlatformLanguage?.text("billing","m_284e580b5cc6ed","Loading") ?? "Loading")}</span>
               </button>
             </div>
             <div class="b-auto-grid">
               <div class="b-auto-field">
-                <label>Top up when below</label>
+                <label>${(globalThis.PlatformLanguage?.text("billing","m_826e89b7f000b4","Top up when below") ?? "Top up when below")}</label>
                 <div class="b-auto-moneyrow">
                   <button class="b-auto-step" id="bAutoThMinus" type="button" disabled><i class="fas fa-minus"></i></button>
                   <input class="b-auto-money" id="bAutoThreshold" inputmode="numeric" disabled>
@@ -588,7 +586,7 @@
                 </div>
               </div>
               <div class="b-auto-field">
-                <label>Auto top-up amount</label>
+                <label>${(globalThis.PlatformLanguage?.text("billing","m_bf9fa2c63394a7","Auto top-up amount") ?? "Auto top-up amount")}</label>
                 <div class="b-auto-moneyrow">
                   <button class="b-auto-step" id="bAutoAmtMinus" type="button" disabled><i class="fas fa-minus"></i></button>
                   <input class="b-auto-money" id="bAutoTopup" inputmode="numeric" disabled>
@@ -602,14 +600,14 @@
           <div class="b-err" id="bErr"></div>
         </div>
         <div class="b-actions">
-          <button class="b-btn" id="bCancel">Cancel</button>
-          <button class="b-btn primary" id="bGo">Go to Checkout</button>
+          <button class="b-btn" id="bCancel">${(globalThis.PlatformLanguage?.text("billing","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button class="b-btn primary" id="bGo">${(globalThis.PlatformLanguage?.text("billing","m_30c6d0451d9309","Go to Checkout") ?? "Go to Checkout")}</button>
         </div>
       </div>
     `;
     document.body.appendChild(el);
     const pendingHint = el.querySelector('#bPendingCard .b-msg');
-    if (pendingHint) pendingHint.textContent = 'After payment goes through, this report order will submit automatically. You do not need to place it again.';
+    if (pendingHint) pendingHint.textContent = (globalThis.PlatformLanguage?.text("billing","m_d2d68d1ba00317","After payment goes through, this report order will submit automatically. You do not need to place it again.") ?? "After payment goes through, this report order will submit automatically. You do not need to place it again.");
 
     $('#bCloseX').addEventListener('click', close);
     $('#bCancel').addEventListener('click', close);
@@ -625,15 +623,19 @@
     $('#bGo').addEventListener('click', startCheckout);
     wireAutoTopupControls();
 
-    $('#bEditOrder').addEventListener('click', ()=>{
+    $('#bEditOrder').addEventListener('click', async ()=>{
+      const fields=readPending()?.fields;
       close();
-      window.Portal.modules.request?.open?.();
+      if(fields?.measurement_scope==='full_house' && fields.platform_project_id){
+        await window.Portal.modules.request?.openProject?.({id:fields.platform_project_id,address:fields.address,project_type:fields.project_type,workflow_intent:'report'});
+        window.Portal.ExteriorOrder?.restore?.(fields);
+      }else window.Portal.modules.request?.open?.();
     });
     $('#bDiscard').addEventListener('click', ()=>{
       clearPending();
       renderPendingSafe();
       renderFundingContext();
-      showToast('Order discarded', 'No pending order will be submitted.', false);
+      showToast((globalThis.PlatformLanguage?.text("billing","m_c17bd73fb19177","Order discarded") ?? "Order discarded"), (globalThis.PlatformLanguage?.text("billing","m_ec537d4bdb8a5c","No pending order will be submitted.") ?? "No pending order will be submitted."), false);
     });
   }
 
@@ -729,7 +731,7 @@
     }
     if (toggleText) toggleText.textContent = autoTopupState?.loading ? 'Loading' : (enabled ? 'Yes' : 'No');
     if (note) {
-      if (autoTopupState?.loading) note.textContent = 'Loading auto top-up settings...';
+      if (autoTopupState?.loading) note.textContent = (globalThis.PlatformLanguage?.text("billing","m_a9cd7fbc11013b","Loading auto top-up settings...") ?? "Loading auto top-up settings...");
       else if (autoTopupState?.error) note.textContent = autoTopupState.error;
       else note.textContent = '';
     }
@@ -806,7 +808,7 @@
     autoTopupState.enabled = v.enabled;
     autoTopupState.threshold_dollars = v.threshold_dollars;
     autoTopupState.topup_dollars = v.topup_dollars;
-    if (status) status.textContent = 'Saving auto top-up settings...';
+    if (status) status.textContent = (globalThis.PlatformLanguage?.text("billing","m_1f9da956561ed1","Saving auto top-up settings...") ?? "Saving auto top-up settings...");
     try{
       const { data } = await postAction('org_update_my_billing', {
         billing_json: JSON.stringify({
@@ -818,7 +820,7 @@
         })
       });
       if (!data || !data.success) {
-        showToast('Save failed', data?.error || 'Could not save auto top-up settings.', false);
+        showToast((globalThis.PlatformLanguage?.text("billing","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), data?.error || 'Could not save auto top-up settings.', false);
         if (status) status.textContent = '';
         return false;
       }
@@ -827,7 +829,7 @@
       renderAutoTopup();
       return true;
     }catch(e){
-      showToast('Save failed', 'Connection error.', false);
+      showToast((globalThis.PlatformLanguage?.text("billing","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), (globalThis.PlatformLanguage?.text("billing","m_9e84c7aed4d069","Connection error.") ?? "Connection error."), false);
       if (status) status.textContent = '';
       return false;
     }finally{
@@ -998,7 +1000,7 @@
         amount: Number(amount) || 0,
         saved_at: Date.now()
       }));
-    } catch(e){}
+      } catch(e){}
   }
   function rememberStripeCheckoutPending(details = {}){
     try {
@@ -1050,8 +1052,8 @@
     overlay.innerHTML = `
       <div class="fm-stripe-checkout-card">
         <div class="fm-stripe-checkout-spinner" aria-hidden="true"></div>
-        <div class="fm-stripe-checkout-title">Secure checkout</div>
-        <div class="fm-stripe-checkout-message" data-stripe-checkout-overlay-message>Opening Stripe...</div>
+        <div class="fm-stripe-checkout-title">${(globalThis.PlatformLanguage?.text("billing","m_c59c75f49dfbac","Secure checkout") ?? "Secure checkout")}</div>
+        <div class="fm-stripe-checkout-message" data-stripe-checkout-overlay-message>${(globalThis.PlatformLanguage?.text("billing","m_aa5df8cffe43ce","Opening Stripe...") ?? "Opening Stripe...")}</div>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -1210,19 +1212,19 @@
     const purchase = purchaseTopupContext;
     const po = readPending();
     if (purchase && po?.fields?.address) {
-      title.textContent = 'More credit needed';
+      title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = '';
       return;
     }
     if (firstReportAccountLoadEligible) {
-      title.textContent = 'Load your account';
+      title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3460e2ac6317dc","Load your account") ?? "Load your account");
       subtitle.textContent = balance === null
         ? 'Add credit before ordering your first report.'
         : `Your balance is $${fmtMoney(balance)}. Add credit before ordering your first report.`;
       return;
     }
     if (po?.fields?.address) {
-      title.textContent = 'More credit needed';
+      title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = balance === null
         ? 'Checking your balance. More credit is needed to fulfill this order.'
         : `Your balance is $${fmtMoney(balance)}. More credit is needed to fulfill this order.`;
@@ -1230,13 +1232,13 @@
     }
     if (purchase) {
       const current = balance ?? purchase.balance;
-      title.textContent = 'More credit needed';
+      title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = current === null
         ? `Please top up your account to complete ${purchase.label}.`
         : `Your balance is $${fmtMoney(current)}. Please top up your account to complete ${purchase.label}.`;
       return;
     }
-    title.textContent = 'Add credit';
+    title.textContent = (globalThis.PlatformLanguage?.text("billing","m_a3144fad58241a","Add credit") ?? "Add credit");
     subtitle.textContent = balance === null ? 'Checking your balance.' : `Your balance is $${fmtMoney(balance)}.`;
   }
 
@@ -1261,7 +1263,7 @@
     const typeLabel = projectType === 'commercial'
       ? 'Commercial'
       : (projectType === 'multifamily' ? 'Multi-Family' : 'Residential');
-    const scopeLabel = pendingIncludesGutters(po.fields) ? 'Roof & Gutters' : 'Roof Only';
+    const scopeLabel = po.fields.measurement_scope === 'full_house' ? 'Full House · roof + gutters included' : pendingIncludesGutters(po.fields) ? 'Roof & Gutters' : 'Roof Only';
     const packageLabel = `${pendingReportModeLabel(po.fields)} - ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
@@ -1288,7 +1290,7 @@
     const typeLabel = projectType === 'commercial'
       ? 'Commercial'
       : (projectType === 'multifamily' ? 'Multi-Family' : 'Residential');
-    const scopeLabel = pendingIncludesGutters(po.fields) ? 'Roof & Gutters' : 'Roof Only';
+    const scopeLabel = po.fields.measurement_scope === 'full_house' ? 'Full House · roof + gutters included' : pendingIncludesGutters(po.fields) ? 'Roof & Gutters' : 'Roof Only';
     const packageLabel = `${pendingReportModeLabel(po.fields)} · ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
@@ -1310,7 +1312,7 @@
     try{
       const rawQty = String($('#bQty').value || '').trim();
       if (!rawQty){
-        errEl.textContent = 'Enter an amount to continue.';
+        errEl.textContent = (globalThis.PlatformLanguage?.text("billing","m_88805c828bf9b0","Enter an amount to continue.") ?? "Enter an amount to continue.");
         btn.disabled = false;
         btn.innerHTML = old;
         return;
@@ -1330,7 +1332,7 @@
         btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Saving`;
         const saved = await saveAutoTopupSettings();
         if (!saved) {
-          errEl.textContent = 'Could not save auto top-up settings.';
+          errEl.textContent = (globalThis.PlatformLanguage?.text("billing","m_73c8541443181f","Could not save auto top-up settings.") ?? "Could not save auto top-up settings.");
           btn.disabled = false;
           btn.innerHTML = old;
           return;
@@ -1356,7 +1358,7 @@
       showStripeCheckoutOverlay('Taking you to secure checkout...');
       window.location.href = data.url;
     }catch(err){
-      errEl.textContent = 'Connection error.';
+      errEl.textContent = (globalThis.PlatformLanguage?.text("billing","m_9e84c7aed4d069","Connection error.") ?? "Connection error.");
       btn.disabled = false;
       btn.innerHTML = old;
     }
@@ -1376,7 +1378,7 @@
       const requiredAmount = pendingOrderAmount(po.fields);
       if (bal < requiredAmount) return false;
 
-      showToast('Submitting order…', po.fields.address, true);
+      showToast((globalThis.PlatformLanguage?.text("billing","m_6dd3d30653a1b5","Submitting order…") ?? "Submitting order…"), po.fields.address, true);
 
       const f = po.fields;
       const { data } = await postAction('queue', {
@@ -1421,15 +1423,28 @@
         base_project_id: f.base_project_id || '',
         reorder_project_id: f.reorder_project_id || '',
         source_project_id: f.source_project_id || '',
+        ...(f.measurement_scope === 'full_house' ? {measurement_scope:f.measurement_scope,exterior_references:f.exterior_references} : {}),
         client_note: `auto_submit_after_${reason || 'credit'}`
       });
 
       if (!data || !data.success){
-        showToast('Couldn’t submit order', data?.error || 'Order submission failed.', false);
+        showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), data?.error || 'Order submission failed.', false);
         return false;
       }
 
+      // The charge and order already succeeded. Never repeat them if saving
+      // the platform link fails; keep the successful result in the project cache.
       clearPending();
+      const orderedProject = window.Portal.ProjectStore?.fromQueue?.({
+        ...f, project_notes: f.projectNotes || f.project_notes || ''
+      }, data, { persist:false });
+      if (orderedProject) {
+        try { await window.Portal.ProjectStore.saveRemote(orderedProject); }
+        catch (error) { console.warn('Ordered report project link could not be saved', error); }
+        window.dispatchEvent(new CustomEvent('fm:projects:optimistic-update', {
+          detail: { project: orderedProject, redraw:true }
+        }));
+      }
       renderPendingSafe();
       close();
 
@@ -1444,11 +1459,11 @@
 
       await window.Portal.credits.refreshCredits().catch(()=>null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail:{ redraw:true } }));
-      showToast('Order submitted', 'Report is now processing.', true);
+      showToast((globalThis.PlatformLanguage?.text("billing","m_cc62e55e54a2f4","Order submitted") ?? "Order submitted"), (globalThis.PlatformLanguage?.text("billing","m_ed0b887f68e96e","Report is now processing.") ?? "Report is now processing."), true);
       return true;
     }catch(err){
       if (err?.code === 'AUTH_REQUIRED') return false;
-      showToast('Couldn’t submit order', 'Connection error.', false);
+      showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), (globalThis.PlatformLanguage?.text("billing","m_9e84c7aed4d069","Connection error.") ?? "Connection error."), false);
       return false;
     }finally{
       inFlightAutoSubmit = false;
@@ -1501,7 +1516,7 @@
       });
       try {
         if (paid !== '1'){
-          showToast('Payment canceled', 'No charges were made.', false);
+          showToast((globalThis.PlatformLanguage?.text("billing","m_c6eccac84fbaaf","Payment canceled") ?? "Payment canceled"), (globalThis.PlatformLanguage?.text("billing","m_b92d4e19575bde","No charges were made.") ?? "No charges were made."), false);
           clearStripeCheckoutPending();
           clearStripeCheckoutPurchase();
           return false;
@@ -1510,7 +1525,7 @@
         const rememberedPending = initialPending || readStripeCheckoutPending(sid);
         const sessionToFulfill = sid || rememberedPending?.session_id || '';
         showStripeCheckoutOverlay(reason === 'bfcache_restore' ? 'Confirming your payment...' : 'Finishing your payment...');
-        showToast(reason === 'bfcache_restore' ? 'Checking payment status' : 'Payment received', 'Updating credits...');
+        showToast(reason === 'bfcache_restore' ? 'Checking payment status' : 'Payment received', (globalThis.PlatformLanguage?.text("billing","m_6bdbfe8fea2f29","Updating credits...") ?? "Updating credits..."));
         if (sessionToFulfill){
           const fulfilled = await fulfillStripeCheckoutWithPolling(sessionToFulfill, reason);
           fulfillData = fulfilled.data;
@@ -1518,7 +1533,7 @@
         }
         const paidByReturnUrl = reason !== 'bfcache_restore';
         if (!sessionToFulfill || fulfillData?.success !== true) {
-          showToast('Payment not complete', 'No charge has been confirmed yet.', false);
+          showToast((globalThis.PlatformLanguage?.text("billing","m_0b51da47b5df80","Payment not complete") ?? "Payment not complete"), (globalThis.PlatformLanguage?.text("billing","m_5a3dca8919c4c0","No charge has been confirmed yet.") ?? "No charge has been confirmed yet."), false);
           return false;
         }
         const remembered = readStripeCheckoutPurchase(sessionToFulfill) || rememberedPending;
@@ -1530,17 +1545,14 @@
         const pendingOrder = hasPendingOrder();
         if (pendingOrder) clearAutoSubmitSuppression();
         const suppressAutoSubmit = !pendingOrder && autoSubmitSuppressed();
-        showToast('Credits updated', pendingOrder ? 'Submitting your report order now.' : (suppressAutoSubmit ? 'You can continue with the add-on purchase.' : 'You can submit orders now.'));
+        showToast((globalThis.PlatformLanguage?.text("billing","m_c5e73b482b12dd","Credits updated") ?? "Credits updated"), pendingOrder ? 'Submitting your report order now.' : (suppressAutoSubmit ? 'You can continue with the add-on purchase.' : 'You can submit orders now.'));
         close();
         if (!suppressAutoSubmit) await tryAutoSubmitPending(reason || 'stripe_return');
         reconciled = true;
         return true;
       } finally {
         if (clearReturnUrl) {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('paid');
-          url.searchParams.delete('session_id');
-          window.history.replaceState({}, document.title, url.toString());
+          window.Portal?.navigation?.replace?.({ paid:null, session_id:null }, { source:'billing-stripe-return' });
         }
         setStripeReconcileActive(false, {
           paid,
@@ -1585,7 +1597,7 @@
   function open(context){
     // PERMISSION CHECK
     if (!hasPerm('manage_billing')) {
-      showToast('Access denied', 'You do not have permission to manage billing.', false);
+      showToast((globalThis.PlatformLanguage?.text("billing","m_60fa00527e725c","Access denied") ?? "Access denied"), (globalThis.PlatformLanguage?.text("billing","m_ef03abbb9958f0","You do not have permission to manage billing.") ?? "You do not have permission to manage billing."), false);
       return;
     }
 

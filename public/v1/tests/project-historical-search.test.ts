@@ -24,6 +24,8 @@ test('address searches include old reports but retain explicit dates and actor v
   const search='2900 S Jefferson Ave, Springfield, MO 65807, USA';
   const found=await query({search});assert.equal(found.pagination.total_count,2);assert.equal(found.activity_start,null);
   assert.equal((await query({search,activity_start:new Date(Date.now()-86400000).toISOString()})).pagination.total_count,0);
+  const emailMatch=await query({search:'tech@example.test'});assert.equal(emailMatch.pagination.total_count,1);assert.equal(emailMatch.projects[0].id,'old-visible');
+  assert.equal((await query({search:'absent-name@example.test'})).pagination.total_count,0);
   const scoped=await query({search,filter:'mine',actor:{email:'tech@example.test',roles:['technician']}});
   assert.equal(scoped.pagination.total_count,1);assert.equal(scoped.projects[0].id,'old-visible');
  }finally{await app.close();await index.closeFirstMeasureProjectIndex();if(pgUrl)await(await import('../src/database/postgres.js')).closePostgresPools();await rm(root,{recursive:true,force:true,maxRetries:3});}

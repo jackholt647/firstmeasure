@@ -13,7 +13,7 @@
     if (APP.materialsApiBase) return cleanText(APP.materialsApiBase).replace(/\/+$/, '');
     if (APP.platformApiBase) return cleanText(APP.platformApiBase).replace(/\/v1\/platform\/?$/i, '/v1/materials').replace(/\/+$/, '');
     const host = cleanText(location.hostname).toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost') return `${location.protocol}//${location.hostname}:3111/v1/materials`;
+    if (host === '127.0.0.1' || host === 'localhost') return `${location.origin}/v1/materials`;
     return `${location.origin}/v1/materials`;
   }
 
@@ -110,6 +110,12 @@
     list(orgId, projectId){
       return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/material-lists`);
     },
+    initializeFromScope(orgId, projectId, options = {}){
+      return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/material-lists/initialize-from-scope`, {
+        method: 'POST',
+        body: options || {}
+      });
+    },
     create(orgId, projectId, materialList = {}){
       return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/material-lists`, {
         method: 'POST',
@@ -126,6 +132,7 @@
     createVersion(orgId, listId, version = {}){ return request(listPath(orgId, listId, '/versions'), { method: 'POST', body: version || {} }); },
     orders(orgId, listId){ return request(listPath(orgId, listId, '/orders')); },
     createOrder(orgId, listId, order = {}){ return request(listPath(orgId, listId, '/orders'), { method: 'POST', body: order || {} }); },
+    scheduleEvent(orgId, listId, options = {}){ return request(listPath(orgId, listId, '/schedule-event'), { method: 'POST', body: options || {} }); },
     events(orgId, listId){ return request(listPath(orgId, listId, '/events')); }
   };
 

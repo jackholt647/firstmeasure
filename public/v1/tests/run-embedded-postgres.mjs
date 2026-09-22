@@ -28,6 +28,7 @@ const postgres = new EmbeddedPostgres({
   password,
   port,
   persistent: false,
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
   onLog: () => undefined,
   onError: (value) => process.stderr.write(`[embedded-postgres] ${String(value)}\n`)
 });

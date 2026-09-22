@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FMDocEditor — website surface harness</title>
+<!--
+  Dev harness for the WEBSITE editing surface (doc.kind === "view", profile
+  "website"). Mirrors how apps/web-editor mounts the editor, but without the
+  portal shell, so selection/drag/resize/rotate/insert can be exercised in
+  isolation. Loads a real published page from /v1/websites/public when one is
+  reachable, else a built-in flow-laid-out fixture matching the seeds.
+
+  Serve from the web host, e.g. http://127.0.0.1:8011/libraries/doc-editor/dev-website.html
+  Optional: ?site=<siteKey>&page=<slug|~home>
+-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+  html, body { margin: 0; height: 100%; font-family: Inter, system-ui, sans-serif; }
+  #bar { height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 12px;
+         border-bottom: 1px solid #e4e7ec; font-size: 12px; font-weight: 700; color: #344054; }
+  #bar code { font-weight: 600; color: #667085; }
+  #host { position: absolute; inset: 34px 0 0 0; }
+</style>
+</head>
+<body>
+<div id="bar">Website editor harness <code id="status">booting…</code></div>
+<div id="host"></div>
+
+<script src="../doc-model/firstmate-doc-model.js"></script>
+<script src="../doc-widgets/firstmate-doc-widgets.js"></script>
+<script src="../doc-renderer/firstmate-doc-renderer.js"></script>
+<script src="../web-widgets/firstmate-web-widgets.js"></script>
+<script src="../doc-editor/firstmate-doc-editor.js"></script>
+<script>
+(function () {
+  window.__FMDE_TRACE = new URLSearchParams(location.search).has('trace2');
+  window.onerror = function (msg) { window.__lastError = String(msg); };
+  const params = new URLSearchParams(location.search);
+  // ?trace=1 — read breadcrumbs from the previous (possibly hung) run without
+  // mounting anything.
+  if (params.get('trace')) {
+    window.__trace = JSON.parse(localStorage.getItem('fmde_trace') || '[]');
+    document.getElementById('status').textContent = 'trace: ' + window.__trace.length + ' marks';
+    window.__ready = true;
+    return;
+  }
+  localStorage.removeItem('fmde_trace');
+  const siteKey = params.get('site') || 's45c0e038ad';
+  const pageSlug = params.get('page') || '~home';
+  const apiBase = (location.hostname === '127.0.0.1' || location.hostname === 'localhost')
+    ? 'http://' + location.hostname + ':3101/v1/websites'
+    : '/v1/websites';
+  const status = document.getElementById('status');
+
+  /** Fallback fixture: same shape the website seeds author (all flow). */
+  function fixture() {
+    const doc = FMDocModel.createDocument({ kind: 'view' });
+    doc.root.frame = { x: 0, y: 0, w: 720, h: 0, rotation: 0, z: 0, layout: 'flow' };
+    doc.root.props = { flow: { direction: 'column', gap: 0, padding: [0, 0, 0, 0], align: 'stretch', wrap: false } };
+    const text = (t, size, color) => FMDocModel.createNode('text', {
+      frame: { x: 0, y: 0, w: 'auto', h: 'auto', layout: 'absolute' },
+      props: { blocks: [{ id: 'b_' + Math.random().toString(36).slice(2, 8), align: 'left', runs: [{ text: t, color: color || '#101828', weight: 700 }] }] },
+      style: { font: { size_pt: size || 14 } }
+    });
+    const cta = FMDocModel.createNode('frame', {
+      name: 'CTA',
+      frame: { x: 0, y: 0, w: 160, h: 'auto', layout: 'flow' },
+      style: { fill: { type: 'solid', color: '#ffffff' }, corner_radius: 6 },
+      props: { flow: { direction: 'column', gap: 0, padding: [10, 18, 10, 18], align: 'center', wrap: false } },
+      children: [text('Get in touch', 12, '#2563eb')]
+    });
+    const hero = FMDocModel.createNode('frame', {
+      name: 'Hero',
+      frame: { x: 0, y: 0, w: 720, h: 'auto', layout: 'flow' },
+      style: { fill: { type: 'solid', color: '#2563eb' } },
+      props: { flow: { direction: 'column', gap: 14, padding: [72, 48, 72, 48], align: 'start', wrap: false } },
+      children: [text('Harbor Roofing Co', 34, '#ffffff'), text('Quality work, honest pricing.', 14, '#e8eefc'), cta]
+    });
+    const about = FMDocModel.createNode('frame', {
+      name: 'About',
+      frame: { x: 0, y: 0, w: 720, h: 'auto', layout: 'flow' },
+      props: { flow: { direction: 'column', gap: 10, padding: [48, 48, 56, 48], align: 'start', wrap: false } },
+      children: [text('About us', 22), text('We show up on time and stand behind our work.', 13)]
+    });
+    doc.root.children = [hero, about];
+    return doc;
+  }
+
+  /** Fluid fixture: mirrors websites/seeds.ts blankPageDefinition — a fresh
+   *  "New page" (settings.paper.size = "fill", one flow section w/ heading). */
+  function fillFixture() {
+    const doc = FMDocModel.createDocument({ kind: 'view' });
+    doc.root.frame = { x: 0, y: 0, w: 720, h: 0, rotation: 0, z: 0, layout: 'flow' };
+    doc.root.props = { flow: { direction: 'column', gap: 0, padding: [0, 0, 0, 0], align: 'stretch', wrap: false } };
+    doc.settings = Object.assign({}, doc.settings, { paper: { size: 'fill' } });
+    const section = FMDocModel.createNode('frame', {
+      name: 'Section',
+      frame: { x: 0, y: 0, w: 720, h: 'auto', layout: 'flow' },
+      props: { flow: { direction: 'column', gap: 10, padding: [48, 48, 48, 48], align: 'stretch', wrap: false } },
+      children: [FMDocModel.createNode('text', {
+        frame: { x: 0, y: 0, w: 'auto', h: 'auto', layout: 'flow' },
+        style: { font: { size_pt: 22, weight: 800 } },
+        props: { blocks: [{ id: 'b_fill1', type: 'paragraph', align: 'left', runs: [{ text: 'Test 2', weight: 800 }] }] }
+      })]
+    });
+    doc.root.children = [section];
+    return doc;
+  }
+
+  function mount(definition, label) {
+    const editor = FMDocEditor.mount(document.getElementById('host'), {
+      document: definition,
+      profile: 'website',
+      mode: 'visual',
+      catalog: { widgets: [], themes: [], fonts: [] },
+      media: {
+        // Deterministic stand-in so Insert > Image needs no picker UI.
+        pick: () => Promise.resolve({ url: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140"><rect width="200" height="140" fill="#94a3b8"/><text x="100" y="76" font-size="18" text-anchor="middle" fill="#fff">IMG</text></svg>') }),
+        url: (ref) => (ref && ref.url) || ''
+      },
+      onChange: () => { window.__changes = (window.__changes || 0) + 1; }
+    });
+    window.editor = editor;
+    window.__ready = true;
+    status.textContent = label + ' · profile=website';
+    if (params.has('autotest')) runBattery();
+  }
+
+  /** Self-running interaction battery: click-select, drag-move, resize,
+   *  rotate, insert. Results land in window.__testResult. */
+  function runBattery() {
+    const out = { ok: true, steps: {} };
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const P = (t, x, y, el) => (el || document).dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 1 }));
+    const box = (id) => { const e = document.querySelector('[data-node-id="' + id + '"]'); return e ? e.getBoundingClientRect() : null; };
+    const frameOf = (id) => { let f = null; (function w(n) { if (!n || f) return; if (n.id === id) { f = n.frame; return; } (n.children || []).forEach(w); })(window.editor.getDocument().root); return f; };
+    const R = (n) => Math.round(n * 10) / 10;
+
+    (async () => {
+      try {
+        await wait(2200); // let flow->absolute normalization settle
+        const doc = window.editor.getDocument();
+        out.steps.normalized = (doc.root.children || []).map((s) => ({
+          name: s.name, layout: s.frame.layout, h: R(s.frame.h),
+          kids: (s.children || []).map((k) => ({ t: k.type, x: R(k.frame.x), y: R(k.frame.y), w: R(k.frame.w), h: R(k.frame.h) }))
+        }));
+
+        const hero = doc.root.children[0];
+        const cta = (hero.children || []).find((c) => c.type === 'frame');
+        if (!cta) throw new Error('no CTA frame found');
+        const r0 = box(cta.id);
+        const cx = r0.x + r0.width / 2;
+        const cy = r0.y + r0.height / 2;
+
+        // 1 — click selects
+        P('pointerdown', cx, cy, document.elementFromPoint(cx, cy));
+        P('pointerup', cx, cy);
+        await wait(250);
+        out.steps.clickSelect = { selected: window.editor.selection(), isCta: window.editor.selection()[0] === cta.id };
+
+        // 2 — drag moves (and stays moved)
+        const f0 = Object.assign({}, frameOf(cta.id));
+        P('pointerdown', cx, cy, document.elementFromPoint(cx, cy));
+        P('pointermove', cx + 60, cy + 20);
+        P('pointermove', cx + 120, cy + 40);
+        await wait(120);
+        const midRect = box(cta.id);
+        P('pointerup', cx + 120, cy + 40);
+        await wait(450);
+        const f1 = frameOf(cta.id);
+        const afterRect = box(cta.id);
+        out.steps.drag = {
+          from: { x: R(f0.x), y: R(f0.y) }, to: { x: R(f1.x), y: R(f1.y) },
+          domDxDuringDrag: midRect ? Math.round(midRect.x - r0.x) : null,
+          domDxAfterCommit: afterRect ? Math.round(afterRect.x - r0.x) : null
+        };
+
+        // 3 — resize via SE handle
+        const h = document.querySelector('[data-fmde-handle="se"]');
+        if (h) {
+          const hr = h.getBoundingClientRect();
+          const before = Object.assign({}, frameOf(cta.id));
+          P('pointerdown', hr.x + hr.width / 2, hr.y + hr.height / 2, h);
+          P('pointermove', hr.x + 50, hr.y + 30);
+          await wait(120);
+          P('pointerup', hr.x + 50, hr.y + 30);
+          await wait(450);
+          const after = frameOf(cta.id);
+          out.steps.resize = { dw: R(after.w - before.w), dh: R(after.h - before.h), x: R(after.x), y: R(after.y),
+                               keptPosition: Math.abs(after.x - before.x) < 2 && Math.abs(after.y - before.y) < 2 };
+        } else { out.steps.resize = 'no handle'; }
+
+        // 4 — rotate persists visually
+        const rot = document.querySelector('.fmde-handle-rotate');
+        if (rot) {
+          const rr = rot.getBoundingClientRect();
+          const b = box(cta.id);
+          const ccx = b.x + b.width / 2;
+          const ccy = b.y + b.height / 2;
+          P('pointerdown', rr.x + rr.width / 2, rr.y + rr.height / 2, rot);
+          P('pointermove', ccx + 90, ccy - 30);
+          await wait(120);
+          P('pointerup', ccx + 90, ccy - 30);
+          await wait(500);
+          const el = document.querySelector('[data-node-id="' + cta.id + '"]');
+          out.steps.rotate = { model: Math.round(frameOf(cta.id).rotation || 0),
+                               domHasTransform: el ? /matrix|rotate/.test(getComputedStyle(el).transform) : false };
+        } else { out.steps.rotate = 'no handle'; }
+
+        // 5 — text nodes: double-click enters text editing
+        const textNode = (hero.children || []).find((c) => c.type === 'text');
+        if (textNode) {
+          const tb = box(textNode.id);
+          const tx = tb.x + 20;
+          const ty = tb.y + tb.height / 2;
+          P('pointerdown', tx, ty, document.elementFromPoint(tx, ty));
+          P('pointerup', tx, ty);
+          document.elementFromPoint(tx, ty).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, clientX: tx, clientY: ty }));
+          await wait(400);
+          out.steps.textEdit = { selected: window.editor.selection()[0] === textNode.id,
+                                 editing: !!document.querySelector('.fmde-textedit-area') };
+        } else { out.steps.textEdit = 'no text node'; }
+      } catch (err) {
+        out.ok = false;
+        out.error = String(err && err.message || err);
+        out.stack = String(err && err.stack || '').split('\n').slice(0, 4).join(' | ');
+      }
+      window.__testResult = out;
+      document.getElementById('status').textContent = 'autotest done · ok=' + out.ok;
+      // Rendered into the DOM so results can be read without evaluating JS
+      // (the harness pane wedges on long-running evals).
+      const pre = document.createElement('pre');
+      pre.id = 'out';
+      pre.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:55%;overflow:auto;margin:0;padding:10px;background:#0b1220;color:#d1fae5;font:11px/1.45 ui-monospace,Consolas,monospace;z-index:99999;white-space:pre-wrap';
+      pre.textContent = 'RESULT ' + JSON.stringify(out, null, 1);
+      document.body.appendChild(pre);
+    })();
+  }
+
+  if (params.get('fixture') === 'fill') { mount(fillFixture(), 'fill fixture'); return; }
+  fetch(apiBase + '/public/site/' + encodeURIComponent(siteKey) + '/page/' + encodeURIComponent(pageSlug), { credentials: 'omit' })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('http ' + r.status))))
+    .then((payload) => {
+      if (!payload || !payload.definition) throw new Error('no definition');
+      mount(payload.definition, 'live page ' + siteKey + '/' + pageSlug);
+    })
+    .catch((err) => {
+      console.warn('[harness] falling back to fixture:', err && err.message);
+      mount(fixture(), 'built-in fixture');
+    });
+})();
+</script>
+</body>
+</html>

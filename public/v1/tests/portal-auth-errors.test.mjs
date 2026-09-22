@@ -50,3 +50,16 @@ test('all five auth forms use shared presentation and expand for visible error t
   assert.match(element.innerText, /phone number/);
   assert.equal(resized, true);
 });
+
+const core = readFileSync(new URL('../../portal/scripts/core.js', import.meta.url), 'utf8');
+const authCheck = core.slice(core.indexOf('  function isAuthFailure('), core.indexOf('  function redirectToLogin('));
+const checkContext = vm.createContext({});
+vm.runInContext(authCheck, checkContext);
+test('successful billing history cannot expire a valid session through historical error text', () => {
+  const history = { success: true, ledger: [{ metadata: { error: 'authentication_required', message: 'Authentication required.' } }] };
+  assert.equal(checkContext.isAuthFailure({ status: 200, ok: true }, history, JSON.stringify(history)), false);
+  assert.equal(checkContext.isAuthFailure({ status: 401 }, { error: 'authentication_required' }), true);
+  assert.equal(checkContext.isAuthFailure({ status: 200, ok: true }, { success: false, error: 'Authentication required.' }), true);
+  assert.equal(checkContext.isAuthFailure({ status: 403 }, { error: 'permission_denied' }), false);
+  assert.equal(checkContext.isAuthFailure({ status: 503 }, null, 'Service unavailable'), false);
+});

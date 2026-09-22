@@ -11,7 +11,11 @@
   const root = window;
   const MODULE_ID = 'project_configuration';
   const MODES = new Set(['on', 'small_only', 'off']);
+  const CONFIG_REFRESH_MS = 5 * 60 * 1000;
   let config = { mode: 'on', loaded: false };
+  let configLoadedAt = 0;
+  let configKey = '';
+  let configRequest = null;
   let styleInjected = false;
 
   function clean(value){ return String(value || '').trim(); }
@@ -28,16 +32,26 @@
     return { ...config };
   }
 
-  async function loadConfig(orgId, branchId = 'default'){
+  async function loadConfig(orgId, branchId = 'default', options = {}){
     if (!root.PlatformAPI?.branchModules?.get || !orgId) return { ...config };
-    try {
-      const doc = await root.PlatformAPI.branchModules.get(orgId, branchId || 'default', MODULE_ID);
-      configure(doc?.data || doc || {});
-      config.loaded = true;
-    } catch (error) {
-      config.loaded = true;
-    }
-    return { ...config };
+    const key = `${orgId}:${branchId || 'default'}`;
+    if (!options.force && configKey === key && Date.now() - configLoadedAt < CONFIG_REFRESH_MS) return { ...config };
+    if (configRequest) return configRequest;
+    configRequest = (async () => {
+      try {
+        const doc = await root.PlatformAPI.branchModules.get(orgId, branchId || 'default', MODULE_ID);
+        configure(doc?.data || doc || {});
+        config.loaded = true;
+      } catch (error) {
+        config.loaded = true;
+      } finally {
+        configKey = key;
+        configLoadedAt = Date.now();
+        configRequest = null;
+      }
+      return { ...config };
+    })();
+    return configRequest;
   }
 
   function ensureAudioContext(){

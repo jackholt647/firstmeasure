@@ -30,9 +30,9 @@
   const WEATHER_REPORT_ADDON = Number(cfg.weatherReportAddon ?? 5) || 5;
   const PDF_PREVIEW_QUERY_FLAGS = ['disablePdfPreview', 'mobileDebug', 'noPdfPreview'];
   const TYPE_META = {
-    residential: { label: 'Residential', icon: 'fa-house', price: PRICE_RESIDENTIAL },
-    commercial: { label: 'Commercial', icon: 'fa-building', price: PRICE_COMMERCIAL },
-    multifamily: { label: 'Multifamily', icon: 'fa-city', price: PRICE_MULTIFAMILY },
+    residential: { label: (globalThis.PlatformLanguage?.text("measurements","m_aaf397f737f7b1","Residential") ?? "Residential"), icon: 'fa-house', price: PRICE_RESIDENTIAL },
+    commercial: { label: (globalThis.PlatformLanguage?.text("measurements","m_84e41491611ca9","Commercial") ?? "Commercial"), icon: 'fa-building', price: PRICE_COMMERCIAL },
+    multifamily: { label: (globalThis.PlatformLanguage?.text("measurements","m_fcd3013fb39a97","Multifamily") ?? "Multifamily"), icon: 'fa-city', price: PRICE_MULTIFAMILY },
   };
 
   function queryFlagEnabled(names){
@@ -132,7 +132,7 @@
   function resolveRoot(context = {}){
     const root = context.panelRoot || context.roots?.main || state.panelRoot || document.querySelector('#rOverlay .r-preview-panel[data-panel="measurements"]');
     if (!root) return null;
-    if (!root.querySelector?.('#rMeasureTabs')) root.innerHTML = panelHtml();
+    if (!root.querySelector?.('.r-measure-body')) root.innerHTML = panelHtml();
     return root;
   }
 
@@ -237,7 +237,7 @@
     const end = Number(option?.endMinutes);
     if (!Number.isFinite(end)) return option?.label || '';
     const formatHours = (minutes) => {
-      const hours = Math.ceil(Math.max(1, Number(minutes) || 0) / 90) * 1.5;
+      const hours = Math.ceil(Math.max(1, Number(minutes) || 0) / 60);
       return Number.isInteger(hours) ? String(hours) : String(hours).replace(/0+$/, '').replace(/\.$/, '');
     };
     const hours = formatHours(end);
@@ -280,7 +280,7 @@
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
   }
-  async function ensureCreditsForPurchase(...args){ return callHost('ensureCreditsForPurchase', ...args) !== false; }
+  async function ensureCreditsForPurchase(...args){ return (await callHost('ensureCreditsForPurchase', ...args)) !== false; }
   function openCreditTopupForPurchase(...args){ return callHost('openCreditTopupForPurchase', ...args); }
   function creditErrorDetails(error){ return callHost('creditErrorDetails', error) || { isCreditError: false }; }
   function syncProjectViewerTabs(){ return callHost('syncProjectViewerTabs'); }
@@ -323,7 +323,7 @@
     if (inlineProjectMapWithReports()) {
       tabs.push({
         id: 'map',
-        label: 'Map',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_9afd0eccc8e530","Map") ?? "Map"),
         icon: 'fa-map-location-dot',
         active: activeMeasurementTab === 'map',
         disabled: false,
@@ -333,7 +333,7 @@
     if (measurementReportSummaryEnabled()) {
       tabs.push({
         id: 'summary',
-        label: 'Summary',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_9b03ccb29ba168","Summary") ?? "Summary"),
         icon: 'fa-clipboard-list',
         active: activeMeasurementTab === 'summary',
         disabled: false,
@@ -343,7 +343,7 @@
     if (reportOrderState?.includeInspection) {
       tabs.push({
         id: 'instant',
-        label: 'Instant',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_b347d50e8516d3","Instant") ?? "Instant"),
         icon: 'fa-bolt',
         active: activeMeasurementTab === 'instant',
         pending
@@ -351,7 +351,7 @@
     }
     tabs.push({
       id: 'standard',
-      label: 'Standard',
+      label: window.Portal?.terminology?.get?.('reports.standard_view', 'Standard') || 'Standard',
       icon: cancelled ? 'fa-ban' : (rejected ? 'fa-circle-exclamation' : (pending ? 'fa-circle-notch fa-spin' : 'fa-file-pdf')),
       active: activeMeasurementTab === 'standard',
       disabled: false,
@@ -359,7 +359,7 @@
     });
     tabs.push({
       id: 'customer',
-      label: 'Customer',
+      label: window.Portal?.terminology?.get?.('reports.customer_view', 'Customer') || 'Customer',
       icon: cancelled ? 'fa-ban' : (rejected ? 'fa-circle-exclamation' : (pending ? 'fa-circle-notch fa-spin' : 'fa-file-lines')),
       active: activeMeasurementTab === 'customer',
       disabled: cancelled || rejected,
@@ -368,7 +368,7 @@
     if (hasXml) {
       tabs.push({
         id: 'xml',
-        label: 'XML',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_8efb983a491620","XML") ?? "XML"),
         icon: 'fa-code',
         active: activeMeasurementTab === 'xml',
         disabled: cancelled || rejected || !ready,
@@ -379,7 +379,7 @@
       const weather = weatherReportInfo();
       tabs.push({
         id: 'weather',
-        label: 'Weather',
+        label: window.Portal?.terminology?.get?.('reports.weather_view', 'Weather') || 'Weather',
         icon: 'fa-cloud-bolt',
         active: activeMeasurementTab === 'weather',
         disabled: cancelled || rejected,
@@ -389,7 +389,9 @@
     if (reportFollowupEnabled()) {
       tabs.push({
         id: 'changes',
-        label: supportView ? 'Support' : 'Changes Pending',
+        label: supportView
+          ? (window.Portal?.terminology?.get?.('reports.support_view', 'Support') || 'Support')
+          : (window.Portal?.terminology?.get?.('reports.changes_pending_view', 'Changes Pending') || 'Changes Pending'),
         icon: supportView ? 'fa-headset' : 'fa-list-check',
         active: activeMeasurementTab === 'changes',
         disabled: false,
@@ -962,8 +964,8 @@
       <div class="r-report-refund-note">
         <i class="fas fa-circle-info"></i>
         <div>
-          <strong>Expedite refund applied</strong>
-          <span>${escapeHtml(amountText)} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${at}</span>
+          <strong>${(globalThis.PlatformLanguage?.text("measurements","m_3dca766d8d4a3f","Expedite refund applied") ?? "Expedite refund applied")}</strong>
+          <span>${((v0,v1) => globalThis.PlatformLanguage?.text("measurements","m_38f7ce984e43b2",`${v0} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${v1}`,{v0,v1}) ?? `${v0} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${v1}`)(escapeHtml(amountText),at)}</span>
         </div>
       </div>`;
   }
@@ -1081,7 +1083,7 @@
       clearCancellationCountdown();
       return;
     }
-    button.textContent = `Cancel report (${formatCancelRemaining(cancelState.remainingSeconds)} left)`;
+    button.textContent = ((v0) => globalThis.PlatformLanguage?.text("measurements","m_d1d17f20f6639c",`Cancel report (${v0} left)`,{v0}) ?? `Cancel report (${v0} left)`)(formatCancelRemaining(cancelState.remainingSeconds));
     scheduleCancellationCountdown(cancelState);
   }
 
@@ -1112,7 +1114,7 @@
   }
 
   function pendingExpeditePriceHtml(delta, loading = false){
-    if (loading) return '<span class="r-pending-action-price is-loading" aria-label="Loading current price"></span>';
+    if (loading) return ("<span class=\"r-pending-action-price is-loading\" aria-label=\"" + (globalThis.PlatformLanguage?.text("measurements","m_4345f5c42b261f","Loading current price") ?? "Loading current price") + "\"></span>");
     return `<span class="r-pending-action-price">+$${escapeHtml(fmtMoney(delta))}</span>`;
   }
 
@@ -1138,7 +1140,7 @@
     const due = reportOrderCustomerDeliveryText();
     const cancelState = reportOrderCancelState();
     const closed = reportOrderingClosed();
-    const showExpediteUpgrade = reportExpediteOptionsEnabled();
+    const showExpediteUpgrade = reportExpediteOptionsEnabled() && reportOrderManifest().measurement_scope !== 'full_house' && !reportOrderExpediteKey().startsWith('exteriors_');
     if (showExpediteUpgrade && !closed && !reportExpeditePricingReady() && !reportExpeditePricingLoading()) {
       loadReportExpediteOptions();
     }
@@ -1159,12 +1161,12 @@
       : 'Cancel report';
     return `
       <div class="r-report-pending">
-        <div class="r-report-pending-card${expedited ? ' is-expedited' : ''}">
-          ${expedited ? '<h3 class="r-pending-title is-expedited"><i class="fas fa-bolt"></i> Expedited</h3>' : `<i class="fas fa-circle-notch fa-spin"></i><h3>${title}</h3>`}
-          ${reportExpediteRefundNoticeHtml()}
-          <div class="r-pending-detail"><strong>Status</strong><span>${escapeHtml(statusLabel)}</span></div>
-          ${deliveryText ? `<div class="r-pending-detail"><strong>Estimated delivery</strong><span>${escapeHtml(deliveryText)}</span></div>` : ''}
-          ${expedited ? '<p>Expedited reports begin work immediately.</p>' : (showExpediteUpgrade ? `
+        <div class="r-report-pending-card${String(expedited ? ' is-expedited' : '')}">
+          ${String(expedited ? '<h3 class="r-pending-title is-expedited"><i class="fas fa-bolt"></i> Expedited</h3>' : `<i class="fas fa-circle-notch fa-spin"></i><h3>${title}</h3>`)}
+          ${String(reportExpediteRefundNoticeHtml())}
+          <div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.text("measurements","m_1352cafa75b8da","Status") ?? "Status")}</strong><span>${String(escapeHtml(statusLabel))}</span></div>
+          ${String(deliveryText ? `<div class="r-pending-detail"><strong>Estimated delivery</strong><span>${escapeHtml(deliveryText)}</span></div>` : '')}
+          ${String(expedited ? '<p>Expedited reports begin work immediately.</p>' : (showExpediteUpgrade ? `
             <div class="r-pending-actions">
               ${closed ? '<p>Expediting is unavailable while we are closed.</p>' : (!pricingReady && hasFasterOption ? '<p>Checking current expedite pricing...</p>' : (hasFasterOption ? '<p>Need it sooner? Expedite this order from now.</p>' : '<p>This project is already being worked on, so expediting is too late.</p>'))}
               <div class="r-pending-action-row">
@@ -1174,12 +1176,12 @@
                 }).join('')}
               </div>
               ${selectedUpgrade ? `<button type="button" class="r-pending-expedite-confirm" data-confirm-upgrade-expedite="${escapeHtml(selectedUpgrade.option.key)}">Expedite Report${selectedUpgradeLabel ? ` - ${escapeHtml(selectedUpgradeLabel)}` : ''}</button>` : ''}
-            </div>` : '')}
-          ${showCancellation ? `
+            </div>` : ''))}
+          ${String(showCancellation ? `
           <div class="r-pending-actions">
             <button type="button" class="r-pending-cancel" data-cancel-report-order ${cancelState.allowed ? '' : 'disabled'}>${escapeHtml(cancelLabel)}</button>
             <div class="r-pending-note">${escapeHtml(cancelState.allowed ? cancelState.message : (cancelState.expedited ? 'The 1-minute cancellation grace period for this expedited report has ended.' : 'The cancellation grace period for this project has ended.'))}</div>
-          </div>` : ''}
+          </div>` : '')}
         </div>
       </div>`;
   }
@@ -1190,8 +1192,8 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-circle-notch fa-spin"></i>
-          <h3>${escapeHtml(title)}</h3>
-          <p>We are checking for the report file. It will appear here as soon as it is available.</p>
+          <h3>${String(escapeHtml(title))}</h3>
+          <p>${(globalThis.PlatformLanguage?.text("measurements","m_1562c7e202c869","We are checking for the report file. It will appear here as soon as it is available.") ?? "We are checking for the report file. It will appear here as soon as it is available.")}</p>
         </div>
       </div>`;
   }
@@ -1202,12 +1204,12 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card is-cancelled">
           <i class="fas fa-ban"></i>
-          <h3>Report Canceled</h3>
-          <p>This report order was canceled and is no longer being processed.</p>
-          ${refunded > 0 ? `<div class="r-pending-detail"><strong>Refunded</strong><span>$${escapeHtml(fmtMoney(refunded))} returned to credits</span></div>` : ''}
+          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_54d5979c45b1b7","Report Canceled") ?? "Report Canceled")}</h3>
+          <p>${(globalThis.PlatformLanguage?.text("measurements","m_33644b43620c6e","This report order was canceled and is no longer being processed.") ?? "This report order was canceled and is no longer being processed.")}</p>
+          ${String(refunded > 0 ? `<div class="r-pending-detail"><strong>Refunded</strong><span>$${escapeHtml(fmtMoney(refunded))} returned to credits</span></div>` : '')}
           <div class="r-pending-actions">
-            <button type="button" class="r-pending-reorder" data-reorder-report-order>Order this report again</button>
-            <div class="r-pending-note">This starts a new report order for this same project and replaces the canceled order in this workflow.</div>
+            <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.text("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
+            <div class="r-pending-note">${(globalThis.PlatformLanguage?.text("measurements","m_8d314bb37e9478","This starts a new report order for this same project and replaces the canceled order in this workflow.") ?? "This starts a new report order for this same project and replaces the canceled order in this workflow.")}</div>
           </div>
         </div>
       </div>`;
@@ -1218,11 +1220,11 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card is-cancelled">
           <i class="fas fa-ban"></i>
-          <h3>Report Not Active</h3>
-          <p>This report stayed in submitted state and is no longer being processed.</p>
+          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_c0ac8e9dcbb76e","Report Not Active") ?? "Report Not Active")}</h3>
+          <p>${(globalThis.PlatformLanguage?.text("measurements","m_0b59c6485f1f46","This report stayed in submitted state and is no longer being processed.") ?? "This report stayed in submitted state and is no longer being processed.")}</p>
           <div class="r-pending-actions">
-            <button type="button" class="r-pending-reorder" data-reorder-report-order>Order this report again</button>
-            <div class="r-pending-note">This starts a new report order for this same project and replaces the stalled order in this workflow.</div>
+            <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.text("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
+            <div class="r-pending-note">${(globalThis.PlatformLanguage?.text("measurements","m_8f93537ac57dc8","This starts a new report order for this same project and replaces the stalled order in this workflow.") ?? "This starts a new report order for this same project and replaces the stalled order in this workflow.")}</div>
           </div>
         </div>
       </div>`;
@@ -1330,7 +1332,7 @@
     reportOrderState = null;
     reportSelection = 'roof';
     if (correctedType) selectedType = correctedType;
-    typePickerExpanded = false;
+    callHost('setTypePickerExpanded', false);
     includeGutterMeasurements = selectedType === 'residential' && !!(baseProject.include_gutter_measurements || measurement.include_gutters);
     includeWeatherReport = !!(baseProject.include_weather_report || baseProject.weather_report_id || measurement.include_weather_report || measurement.weather_report_id);
     const previousMode = String(baseProject.report_mode || measurement.report_mode || '').trim().toLowerCase();
@@ -1338,13 +1340,13 @@
     selectedReportExpedite = baseProject.report_expedite_option || measurement.report_expedite_option || selectedReportExpedite || null;
     activeMeasurementTab = 'standard';
     const pins = normalizeProjectPins(baseProject);
-    if (baseProject.address) addressSelected = true;
+    if (baseProject.address) callHost('setAddressSelected', true);
     if (pins.length) {
-      locationConfirmed = true;
+      callHost('setLocationConfirmed', true);
       if ($('#rCustom')) $('#rCustom').value = '1';
-      setCoords(pins[0].lat, pins[0].lng, true);
+      callHost('setCoords', pins[0].lat, pins[0].lng, true);
     }
-    mobileOrderPage = mobileOrderUsesFinalPage() ? 'final' : 'details';
+    callHost('setMobileOrderPage', callHost('mobileOrderUsesFinalPage') ? 'final' : 'details');
     setProjectionMode(false);
     setActivePreviewTab('map');
   }
@@ -1366,13 +1368,13 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card is-rejected">
           <i class="fas fa-circle-exclamation"></i>
-          <h3>Report rejected</h3>
-          <p>${escapeHtml(copy)}</p>
-          ${refundAmount > 0 ? `<div class="r-pending-detail"><strong>Reimbursed</strong><span>$${escapeHtml(fmtMoney(refundAmount))} returned to credits</span></div>` : ''}
-          ${reorderType ? `
+          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
+          <p>${String(escapeHtml(copy))}</p>
+          ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>Reimbursed</strong><span>$${escapeHtml(fmtMoney(refundAmount))} returned to credits</span></div>` : '')}
+          ${String(reorderType ? `
           <div class="r-pending-actions">
             <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(`Reorder as ${reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)}`)}</button>
-          </div>` : ''}
+          </div>` : '')}
         </div>
       </div>`;
   }
@@ -1396,7 +1398,8 @@
     renderRoofChoice();
     renderWorkflowState();
     syncProjectViewerTabs();
-    projectViewer?.setActiveTab?.('map');
+    setActivePreviewTab('map');
+    if (inlineProjectMapWithReports()) setActiveMeasurementTab('map');
   }
 
   function reorderCancelledReportOrder(){
@@ -1414,9 +1417,9 @@
         <div class="r-report-debug-disabled">
           <div class="r-report-debug-card">
             <i class="fas fa-file-pdf"></i>
-            <h3>PDF preview disabled</h3>
-            <p>The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.</p>
-            ${url ? `<a href="${safeUrl}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Open PDF</a>` : ''}
+            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_142f468bf7b0e6","PDF preview disabled") ?? "PDF preview disabled")}</h3>
+            <p>${(globalThis.PlatformLanguage?.text("measurements","m_2e4271049dbb8a","The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.") ?? "The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.")}</p>
+            ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Open PDF</a>` : '')}
           </div>
         </div>`;
     }
@@ -1868,15 +1871,15 @@
       : null;
     const rows = [];
     if (totalArea > 0) {
-      rows.push({ label: 'Roof squares', value: formatSummaryNumber(totalArea / 100, 1), unit: 'sq' });
-      rows.push({ label: 'Roof area', value: formatSummaryNumber(totalArea), unit: 'sq ft' });
+      rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_35205e970a2cdd","Roof squares") ?? "Roof squares"), value: formatSummaryNumber(totalArea / 100, 1), unit: 'sq' });
+      rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_b4a198f9d6044c","Roof area") ?? "Roof area"), value: formatSummaryNumber(totalArea), unit: 'sq ft' });
     }
     Object.entries(lineTotals).forEach(([type, total]) => {
       const label = reportLineMetricLabel(type);
       if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft' });
     });
-    if (faces.length) rows.push({ label: 'Facets', value: formatSummaryNumber(faces.length), unit: '' });
-    if (dominantPitch != null) rows.push({ label: 'Main pitch', value: formatSummaryNumber(dominantPitch, 1), unit: '/12' });
+    if (faces.length) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_23c27ba7741b73","Facets") ?? "Facets"), value: formatSummaryNumber(faces.length), unit: '' });
+    if (dominantPitch != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_fffeb2d8c3e57d","Main pitch") ?? "Main pitch"), value: formatSummaryNumber(dominantPitch, 1), unit: '/12' });
     return rows;
   }
 
@@ -1884,17 +1887,48 @@
     return String(projectId || xmlUrl || '').trim();
   }
 
+  function reportSummaryRowsFromRoofMeasurements(measurements = {}){
+    const rows = [];
+    const add = (label, value, unit, decimals = 0) => {
+      if (Number(value || 0) > 0) rows.push({ label, value: formatSummaryNumber(value, decimals), unit });
+    };
+    add('Roof squares', measurements.roofSquares, 'sq', 1);
+    add('Roof area', Number(measurements.roofSquares || 0) * 100, 'sq ft');
+    add('Ridges', measurements.ridgesLf, 'ft', 1);
+    add('Hips', measurements.hipsLf, 'ft', 1);
+    add('Valleys', measurements.valleyLf, 'ft', 1);
+    add('Rakes', measurements.rakesLf, 'ft', 1);
+    add('Eaves', measurements.eavesLf, 'ft', 1);
+    add('Sidewalls', measurements.sideWallLf, 'ft', 1);
+    add('Headwalls', measurements.headWallLf, 'ft', 1);
+    return rows;
+  }
+
   function loadReportSummaryMetricsFromXml(xmlUrl, projectId){
     const key = reportSummaryMetricCacheKey(projectId, xmlUrl);
     if (!xmlUrl || !key || measurementSummaryMetricCache.has(key) || measurementSummaryMetricLoads.has(key)) return;
     measurementSummaryMetricLoads.add(key);
-    fetch(xmlUrl, { credentials: 'include' })
+    const sharedMeasurements = window.FirstMeasureAPI?.roofMeasurements;
+    const sourceLoad = sharedMeasurements?.load
+      ? sharedMeasurements.load(activeBaseProject || {}, { reportOrderState: window.reportOrderState || {} })
+        .then((result) => {
+          const rows = reportSummaryRowsFromRoofMeasurements(result?.measurements || {});
+          if (rows.length) return rows;
+          return fetch(xmlUrl, { credentials: 'include' })
+            .then((response) => {
+              if (!response.ok) throw new Error(`Measurement XML unavailable (${response.status})`);
+              return response.text();
+            })
+            .then((text) => reportSummaryMetricsFromXml(text));
+        })
+      : fetch(xmlUrl, { credentials: 'include' })
       .then((response) => {
         if (!response.ok) throw new Error(`Measurement XML unavailable (${response.status})`);
         return response.text();
       })
-      .then((text) => {
-        measurementSummaryMetricCache.set(key, reportSummaryMetricsFromXml(text));
+      .then((text) => reportSummaryMetricsFromXml(text));
+    sourceLoad.then((rows) => {
+        measurementSummaryMetricCache.set(key, rows);
       })
       .catch(() => {
         measurementSummaryMetricCache.set(key, []);
@@ -2057,14 +2091,14 @@
     ]);
     const lineTotals = collectReportLineTotals();
     const rows = [];
-    if (squares != null) rows.push({ label: 'Roof squares', value: formatSummaryNumber(squares, 1), unit: 'sq' });
-    if (roofAreaSqFt != null) rows.push({ label: 'Roof area', value: formatSummaryNumber(roofAreaSqFt), unit: 'sq ft' });
+    if (squares != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_35205e970a2cdd","Roof squares") ?? "Roof squares"), value: formatSummaryNumber(squares, 1), unit: 'sq' });
+    if (roofAreaSqFt != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_b4a198f9d6044c","Roof area") ?? "Roof area"), value: formatSummaryNumber(roofAreaSqFt), unit: 'sq ft' });
     Object.entries(lineTotals).forEach(([type, total]) => {
       const label = reportLineMetricLabel(type);
       if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft' });
     });
-    if (facets != null) rows.push({ label: 'Facets', value: formatSummaryNumber(facets), unit: '' });
-    if (pitch != null) rows.push({ label: 'Main pitch', value: formatSummaryNumber(pitch, 1), unit: '/12' });
+    if (facets != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_23c27ba7741b73","Facets") ?? "Facets"), value: formatSummaryNumber(facets), unit: '' });
+    if (pitch != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_fffeb2d8c3e57d","Main pitch") ?? "Main pitch"), value: formatSummaryNumber(pitch, 1), unit: '/12' });
     if (Array.isArray(xmlRows) && xmlRows.length) {
       const labels = new Set(rows.map((row) => row.label));
       xmlRows.forEach((row) => {
@@ -2080,11 +2114,11 @@
     if (resolvedSquares != null) {
       const wastePct = reportSummaryWastePercent(sources, resolvedFacets, resolvedHips);
       if (!rows.some((row) => row.label === 'Suggested waste')) {
-        rows.push({ label: 'Suggested waste', value: formatSummaryNumber(wastePct), unit: '%' });
+        rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_f77370bf46dd5a","Suggested waste") ?? "Suggested waste"), value: formatSummaryNumber(wastePct), unit: '%' });
       }
       if (!rows.some((row) => row.label === 'Squares with waste')) {
         rows.push({
-          label: 'Squares with waste',
+          label: (globalThis.PlatformLanguage?.text("measurements","m_f6ea64a8f11eca","Squares with waste") ?? "Squares with waste"),
           value: formatSummaryNumber(Math.ceil(resolvedSquares * (1 + (wastePct / 100)))),
           unit: 'sq'
         });
@@ -2122,33 +2156,33 @@
     const summaryState = documentState(cachedAssets?.summaryUrl || '', pending && !cachedAssets?.summaryUrl);
     const rows = [
       {
-        label: 'Standard report',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_555c8c46294794","Standard report") ?? "Standard report"),
         detail: guttersOrdered ? 'Main roof measurement PDF with gutter measurements' : 'Main roof measurement PDF',
         ...standardState
       },
       {
-        label: 'Customer Report',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_d7e9bec617183b","Customer Report") ?? "Customer Report"),
         detail: 'Customer-facing summary PDF',
         ...summaryState
       }
     ];
     if (cachedAssets?.xmlUrl || documentsUnlocked) {
       rows.push({
-        label: 'XML model',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_2d7f82c5d48d2c","XML model") ?? "XML model"),
         detail: 'Model data export',
         ...documentState(cachedAssets?.xmlUrl || '')
       });
     }
     if (instantOrdered) {
       rows.push({
-        label: 'Instant report',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_8fb9df3711e29f","Instant report") ?? "Instant report"),
         detail: 'Instant measurement preview',
         ...documentState(cachedAssets?.instantPdfUrl || '')
       });
     }
     if (weatherReportsEnabled() || weather.ordered || weather.url) {
       rows.push({
-        label: 'Weather report',
+        label: (globalThis.PlatformLanguage?.text("measurements","m_6d0b5a0edba54b","Weather report") ?? "Weather report"),
         detail: 'Historical severe-weather PDF',
         ...documentState(weather.url || '', weather.ordered && !weather.url)
       });
@@ -2209,23 +2243,25 @@
     const xmlMetrics = reportComplete && metricKey ? measurementSummaryMetricCache.get(metricKey) : null;
     const metrics = reportComplete ? reportSummaryMetricRows(xmlMetrics || []) : [];
     const delivery = reportSummaryDeliveryInfo();
+    const orderedAt = reportOrderState?.submittedAt || reportOrderSubmittedAt()?.toISOString();
+    const orderParts = [reportOrderState?.includeInspection ? 'Instant + standard' : 'Standard'];
+    if (weatherReportInfo().ordered) orderParts.push('weather');
     const measurementsSection = reportComplete && metrics.length ? `
       <section class="r-report-summary-section" style="grid-column:1 / -1">
         <h4>
-          <span class="r-report-summary-heading"><i class="fas fa-ruler"></i>Measurements</span>
+          <span class="r-report-summary-heading"><i class="fas fa-ruler"></i>${(globalThis.PlatformLanguage?.text("measurements","m_ae873abaa56707","Measurements") ?? "Measurements")}</span>
           <span class="r-report-summary-heading-spacer"></span>
           <button type="button" class="r-report-summary-download" data-download-measurements-csv>
-            <i class="fas fa-download"></i> CSV
-          </button>
+            <i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("measurements","m_cbfd4ec6ae463e"," CSV\n          ") ?? " CSV\n          ")}</button>
         </h4>
         <div class="r-report-summary-metrics">
-          ${metrics.map((metric) => `
+          ${String(metrics.map((metric) => `
             <div class="r-report-summary-metric">
               <span>${escapeHtml(metric.label)}</span>
               <strong>${escapeHtml(metric.value)}</strong>
               ${metric.unit ? `<em>${escapeHtml(metric.unit)}</em>` : ''}
             </div>
-          `).join('')}
+          `).join(''))}
         </div>
       </section>
     ` : '';
@@ -2233,16 +2269,17 @@
       <div class="r-report-summary">
         <div class="r-report-summary-head">
           <div class="r-report-summary-title">
-            <h3>Roof Report Summary</h3>
-            ${address ? `<p>${escapeHtml(address)}</p>` : ''}
+            <h3>${String(reportOrderManifest().measurement_scope === 'full_house' ? 'Full House Report Summary' : 'Roof Report Summary')}</h3>
+            ${String(address ? `<p>${escapeHtml(address)}</p>` : '')}
+            <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · Ordered ${escapeHtml(formatDate(orderedAt))}` : '')}</p>
           </div>
-          <div class="r-report-summary-status"><i class="fas fa-ruler-combined"></i>${escapeHtml(status)}</div>
+          <div class="r-report-summary-status"><i class="fas fa-ruler-combined"></i>${String(escapeHtml(status))}</div>
         </div>
         <div class="r-report-summary-grid">
           <section class="r-report-summary-section">
-            <h4><i class="fas fa-file-lines"></i>Reports</h4>
+            <h4><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports")}</h4>
             <div class="r-report-summary-list">
-              ${reports.map((row) => `
+              ${String(reports.map((row) => `
                 <div class="r-report-summary-row">
                   <div>
                     <strong>${escapeHtml(row.label)}</strong>
@@ -2250,28 +2287,28 @@
                   </div>
                   <div class="r-report-summary-pill ${reportSummaryStatusClass(row)}">${escapeHtml(reportSummaryStatusLabel(row))}</div>
                 </div>
-              `).join('')}
+              `).join(''))}
             </div>
           </section>
           <section class="r-report-summary-section">
-            <h4><i class="fas fa-paper-plane"></i>Delivery</h4>
+            <h4><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("measurements","m_b73185deef6d79","Delivery") ?? "Delivery")}</h4>
             <div class="r-report-summary-delivery">
               <div class="r-report-summary-field">
-                <span>Email sent</span>
-                <strong>${escapeHtml(delivery.sentAtLabel)}</strong>
+                <span>${(globalThis.PlatformLanguage?.text("measurements","m_128a07d5f51b97","Email sent") ?? "Email sent")}</span>
+                <strong>${String(escapeHtml(delivery.sentAtLabel))}</strong>
               </div>
-              ${delivery.to ? `<div class="r-report-summary-field"><span>Recipient</span><strong>${escapeHtml(delivery.to)}</strong></div>` : ''}
+              ${String(delivery.to ? `<div class="r-report-summary-field"><span>Recipient</span><strong>${escapeHtml(delivery.to)}</strong></div>` : '')}
               <div class="r-report-summary-field">
-                <span>CC</span>
-                <div class="r-report-summary-cc">${delivery.cc.length ? delivery.cc.map((email) => `<b>${escapeHtml(email)}</b>`).join('') : '<strong>None</strong>'}</div>
+                <span>${(globalThis.PlatformLanguage?.text("measurements","m_75c322757c6a34","CC") ?? "CC")}</span>
+                <div class="r-report-summary-cc">${String(delivery.cc.length ? delivery.cc.map((email) => `<b>${escapeHtml(email)}</b>`).join('') : '<strong>None</strong>')}</div>
               </div>
               <div class="r-report-summary-field">
-                <span>Technician notes</span>
-                ${delivery.notes ? `<div class="r-report-summary-notes">${escapeHtml(delivery.notes)}</div>` : '<strong>None</strong>'}
+                <span>${(globalThis.PlatformLanguage?.text("measurements","m_b1c0b8eeaaa582","Technician notes") ?? "Technician notes")}</span>
+                ${String(delivery.notes ? `<div class="r-report-summary-notes">${escapeHtml(delivery.notes)}</div>` : '<strong>None</strong>')}
               </div>
             </div>
           </section>
-          ${measurementsSection}
+          ${String(measurementsSection)}
         </div>
       </div>
     `;
@@ -2283,7 +2320,7 @@
     const xmlMetrics = metricKey ? measurementSummaryMetricCache.get(metricKey) : null;
     const metrics = reportSummaryMetricRows(xmlMetrics || []);
     if (!metrics.length) {
-      showToast('No measurements to download', 'Measurements are not available for this report yet.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_d0a2188d5a805e","No measurements to download") ?? "No measurements to download"), (globalThis.PlatformLanguage?.text("measurements","m_4fb0c9f4ec8397","Measurements are not available for this report yet.") ?? "Measurements are not available for this report yet."), false);
       return;
     }
     downloadTextFile(
@@ -2303,10 +2340,8 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-code"></i>
-          <h3>XML Model</h3>
-          <button type="button" class="r-pending-action" data-download-xml${disabled}>
-            Download XML Model
-            <span>model_data.xml</span>
+          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_f6e3ea78764e00","XML Model") ?? "XML Model")}</h3>
+          <button type="button" class="r-pending-action" data-download-xml${String(disabled)}>${(globalThis.PlatformLanguage?.text("measurements","m_5dbea2cd894e65","\n            Download XML Model\n            ") ?? "\n            Download XML Model\n            ")}<span>${(globalThis.PlatformLanguage?.text("measurements","m_0d8b06fc130a00","model_data.xml") ?? "model_data.xml")}</span>
           </button>
         </div>
       </div>`;
@@ -2330,7 +2365,7 @@
         link.remove();
       }, 1000);
     } catch (error) {
-      showToast('Could not download XML', error?.message || 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_d8181a2f92614c","Could not download XML") ?? "Could not download XML"), error?.message || 'Please try again.', false);
     }
   }
 
@@ -2401,7 +2436,7 @@
 
   function weatherReportOrderButtonHtml(){
     const total = weatherReportTotalPrice();
-    return `Add for $${escapeHtml(fmtMoney(total))}<span>Delivered with this project</span>`;
+    return `Add for $${String(escapeHtml(fmtMoney(total)))}<span>${(globalThis.PlatformLanguage?.text("measurements","m_6a656f97b4af69","Delivered with this project") ?? "Delivered with this project")}</span>`;
   }
 
   function weatherReportPanelHtml(){
@@ -2415,10 +2450,10 @@
         <div class="r-report-pending">
           <div class="r-report-pending-card">
             <i class="fas fa-circle-exclamation"></i>
-            <h3>Weather Report Failed</h3>
-            <p>${escapeHtml(info.error || 'The weather report could not be generated. You can try again from here.')}</p>
+            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_acaf0ab348f166","Weather Report Failed") ?? "Weather Report Failed")}</h3>
+            <p>${String(escapeHtml(info.error || 'The weather report could not be generated. You can try again from here.'))}</p>
             <div class="r-pending-actions">
-              <button type="button" class="r-pending-action" data-order-weather-report>Try again<span>No additional charge</span></button>
+              <button type="button" class="r-pending-action" data-order-weather-report>${(globalThis.PlatformLanguage?.text("measurements","m_ef39ad5e614a24","Try again") ?? "Try again")}<span>${(globalThis.PlatformLanguage?.text("measurements","m_c9a1176cf5d932","No additional charge") ?? "No additional charge")}</span></button>
             </div>
           </div>
         </div>`;
@@ -2428,13 +2463,13 @@
       return `
         <div class="r-report-pending">
           <div class="r-report-pending-card">
-            <i class="fas ${waitingOnReport ? 'fa-clock' : 'fa-circle-notch fa-spin'}"></i>
-            <h3>Historical Weather Report</h3>
-            <p>${escapeHtml(waitingOnReport
+            <i class="fas ${String(waitingOnReport ? 'fa-clock' : 'fa-circle-notch fa-spin')}"></i>
+            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_e40941fb0d6e43","Historical Weather Report") ?? "Historical Weather Report")}</h3>
+            <p>${String(escapeHtml(waitingOnReport
               ? 'The weather report is ordered and will generate after the FirstMeasure report is complete.'
-              : 'The historical severe-weather report is generating. It will appear here when it is ready.')}</p>
+              : 'The historical severe-weather report is generating. It will appear here when it is ready.'))}</p>
             <div class="r-pending-actions">
-              <button type="button" class="r-pending-action" data-check-weather-report>Check status<span>Refresh this tab</span></button>
+              <button type="button" class="r-pending-action" data-check-weather-report>${(globalThis.PlatformLanguage?.text("measurements","m_104c237a5bdb0d","Check status") ?? "Check status")}<span>${(globalThis.PlatformLanguage?.text("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span></button>
             </div>
           </div>
         </div>`;
@@ -2443,10 +2478,10 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-cloud-bolt"></i>
-          <h3>Add Historical Weather</h3>
-          <p>Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.</p>
+          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_7a99290177feb6","Add Historical Weather") ?? "Add Historical Weather")}</h3>
+          <p>${(globalThis.PlatformLanguage?.text("measurements","m_369e85f31b0f37","Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.") ?? "Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.")}</p>
           <div class="r-pending-actions">
-            <button type="button" class="r-pending-action" data-order-weather-report>${weatherReportOrderButtonHtml()}</button>
+            <button type="button" class="r-pending-action" data-order-weather-report>${String(weatherReportOrderButtonHtml())}</button>
           </div>
         </div>
       </div>`;
@@ -2502,7 +2537,7 @@
   async function checkWeatherReportStatus(button){
     const projectId = activeMeasurementProjectId();
     if (!projectId) return;
-    const original = button?.innerHTML || 'Check status<span>Refresh this tab</span>';
+    const original = button?.innerHTML || `Check status<span>${(globalThis.PlatformLanguage?.text("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span>`;
     if (button) {
       button.disabled = true;
       button.innerHTML = 'Checking...';
@@ -2512,14 +2547,14 @@
       renderMeasurementsPanel();
       const info = weatherReportInfo();
       if (info.url) {
-        showToast('Weather report ready', 'The historical weather report is ready.', true);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_8c73d1f9c82e35","Weather report ready") ?? "Weather report ready"), (globalThis.PlatformLanguage?.text("measurements","m_19ee58efa9ebbf","The historical weather report is ready.") ?? "The historical weather report is ready."), true);
       } else if (info.status === 'failed') {
-        showToast('Weather report failed', info.error || 'The weather report could not be generated.', false);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_f8b2b8fd521cb3","Weather report failed") ?? "Weather report failed"), info.error || 'The weather report could not be generated.', false);
       } else {
         scheduleWeatherReportPoll(projectId, 3500);
       }
     } catch (error) {
-      showToast('Could not check weather', error?.message || 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_537a2a50588e36","Could not check weather") ?? "Could not check weather"), error?.message || 'Please try again.', false);
     } finally {
       if (button && document.body.contains(button)) {
         button.disabled = false;
@@ -2530,12 +2565,12 @@
 
   async function orderWeatherReport(button){
     if (!weatherReportsEnabled()) {
-      showToast('Weather reports unavailable', 'Historical weather reports are not enabled for this account.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_f7deca73b59841","Weather reports unavailable") ?? "Weather reports unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_ba03bb1516fb28","Historical weather reports are not enabled for this account.") ?? "Historical weather reports are not enabled for this account."), false);
       return;
     }
     const projectId = activeMeasurementProjectId();
     if (!projectId) {
-      showToast('Order the roof report first', 'Weather can be added after a report order exists.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_4ec4fbcc3865fa","Order the roof report first") ?? "Order the roof report first"), (globalThis.PlatformLanguage?.text("measurements","m_d2109fe406c492","Weather can be added after a report order exists.") ?? "Weather can be added after a report order exists."), false);
       return;
     }
     const weatherChargeAmount = weatherReportTotalPrice();
@@ -2561,7 +2596,7 @@
         mergeReportManifestIntoActiveProject(patch);
       }
       activeMeasurementTab = 'weather';
-      showToast('Weather report ordered', data.charged_amount ? `$${fmtMoney(data.charged_amount)} charged to credits.` : 'The weather report is ready.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_a54dfa11060c5d","Weather report ordered") ?? "Weather report ordered"), data.charged_amount ? `$${fmtMoney(data.charged_amount)} charged to credits.` : 'The weather report is ready.', true);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
       renderMeasurementsPanel();
@@ -2583,13 +2618,13 @@
       const credit = creditErrorDetails(error);
       if (credit.isCreditError) {
         openCreditTopupForPurchase({
-          label: 'the historical weather report',
+          label: (globalThis.PlatformLanguage?.text("measurements","m_e65ad2689b9b92","the historical weather report") ?? "the historical weather report"),
           required: credit.required || weatherChargeAmount,
           balance: credit.balance,
           context: 'weather_credit_reject'
         });
       } else {
-        showToast('Could not order weather', error?.message || 'Please try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_146113394151cf","Could not order weather") ?? "Could not order weather"), error?.message || 'Please try again.', false);
       }
       if (button && document.body.contains(button)) {
         button.disabled = false;
@@ -2659,9 +2694,9 @@
           <div class="r-report-support-empty">
             <div class="r-report-support-empty-card">
               <i class="fas fa-headset"></i>
-              <h3>Support</h3>
-              <p>Need help with this report? Send a support request and attach photos if they help explain the issue.</p>
-              <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i> Request Support</button>
+              <h3>${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</h3>
+              <p>${(globalThis.PlatformLanguage?.text("measurements","m_19c61a671d3e0c","Need help with this report? Send a support request and attach photos if they help explain the issue.") ?? "Need help with this report? Send a support request and attach photos if they help explain the issue.")}</p>
+              <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.text("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
             </div>
           </div>
         </div>`;
@@ -2670,13 +2705,13 @@
       <div class="r-report-changes">
         <div class="r-report-changes-head">
           <div>
-            <h3>${supportOnly ? 'Support' : 'Changes Pending'}</h3>
-            <p>${supportOnly ? 'Your support messages for this returned report are listed here.' : 'Your returned report stays available while these requests are reviewed.'}</p>
+            <h3>${String(supportOnly ? 'Support' : 'Changes Pending')}</h3>
+            <p>${String(supportOnly ? 'Your support messages for this returned report are listed here.' : 'Your returned report stays available while these requests are reviewed.')}</p>
           </div>
-          <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i> Request Support</button>
+          <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.text("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
         </div>
         <div class="r-report-change-list">
-          ${requests.map((request) => {
+          ${String(requests.map((request) => {
             const type = String(request.type || request.request_type || '').trim().toLowerCase();
             const isIssue = type === 'report_issue';
             const pins = Array.isArray(request.pins) ? request.pins.length : 0;
@@ -2702,7 +2737,7 @@
                   ${expedite ? '<span><i class="fas fa-bolt"></i>Rushed</span>' : ''}
                 </div>
               </div>`;
-          }).join('')}
+          }).join(''))}
         </div>
       </div>`;
   }
@@ -2780,7 +2815,7 @@
       button = document.createElement('button');
       button.type = 'button';
       button.className = 'r-report-followup-open';
-      button.innerHTML = '<i class="fas fa-headset"></i><span>Support</span>';
+      button.innerHTML = `<i class="fas fa-headset"></i><span>${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</span>`;
       body.appendChild(button);
     }
     const visible = !!activeMeasurementProjectId();
@@ -2898,7 +2933,7 @@
     if (clear) clear.disabled = !newPins.length;
     const note = overlay.querySelector('[data-followup-pin-note]');
     if (note) {
-      note.textContent = `Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${newPins.length ? ` ${newPins.length} new pin${newPins.length === 1 ? '' : 's'} will be attached.` : ''}${freeRush ? ` Free expedite applied. ${freeExpediteUses()} free expedite use${freeExpediteUses() === 1 ? '' : 's'} available.` : ''}`;
+      note.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("measurements","m_5be2af39e5e918",`Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${v0}${v1}`,{v0,v1}) ?? `Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${v0}${v1}`)(newPins.length ? ` ${newPins.length} new pin${newPins.length === 1 ? '' : 's'} will be attached.` : '',freeRush ? ` Free expedite applied. ${freeExpediteUses()} free expedite use${freeExpediteUses() === 1 ? '' : 's'} available.` : '');
     }
   }
 
@@ -2906,7 +2941,7 @@
     const mount = document.getElementById('rReportFollowupMap');
     if (!mount || !reportRequestModalState || reportRequestModalState.type !== 'additional_structure') return;
     if (!window.google?.maps?.Map || !window.google?.maps?.Marker) {
-      mount.innerHTML = '<div class="r-report-pending"><div class="r-report-pending-card"><i class="fas fa-location-dot"></i><h3>Map unavailable</h3><p>Google Maps is still loading. Close and reopen this request in a moment.</p></div></div>';
+      mount.innerHTML = `<div class="r-report-pending"><div class="r-report-pending-card"><i class="fas fa-location-dot"></i><h3>${(globalThis.PlatformLanguage?.text("measurements","m_16323505c5525a","Map unavailable") ?? "Map unavailable")}</h3><p>${(globalThis.PlatformLanguage?.text("measurements","m_5694e9fa5fef44","Google Maps is still loading. Close and reopen this request in a moment.") ?? "Google Maps is still loading. Close and reopen this request in a moment.")}</p></div></div>`;
       return;
     }
     const existingPins = reportRequestExistingPins();
@@ -2941,7 +2976,7 @@
         draggable: false,
         clickable: false,
         icon: oldIcon,
-        title: `Existing structure ${index + 1}`
+        title: ((v0) => globalThis.PlatformLanguage?.text("measurements","m_2d29795875e91d",`Existing structure ${v0}`,{v0}) ?? `Existing structure ${v0}`)(index + 1)
       });
     });
     const removeNewMarker = (index) => {
@@ -2961,7 +2996,7 @@
           position: pin,
           draggable: true,
           icon,
-          title: 'New requested structure. Drag to reposition. Click to remove.'
+          title: (globalThis.PlatformLanguage?.text("measurements","m_aa979be792ed2d","New requested structure. Drag to reposition. Click to remove.") ?? "New requested structure. Drag to reposition. Click to remove.")
         });
         marker.addListener('click', (event) => {
           event?.domEvent?.stopPropagation?.();
@@ -2987,7 +3022,7 @@
         position: event.latLng,
         draggable: true,
         icon: newIcon,
-        title: 'New requested structure. Drag to reposition. Click to remove.'
+        title: (globalThis.PlatformLanguage?.text("measurements","m_aa979be792ed2d","New requested structure. Drag to reposition. Click to remove.") ?? "New requested structure. Drag to reposition. Click to remove.")
       });
       marker.addListener('click', (markerEvent) => {
         markerEvent?.domEvent?.stopPropagation?.();
@@ -3017,9 +3052,9 @@
   }
 
   function reportRequestModalTypeMeta(type){
-    if (type === 'report_issue') return { title: 'Report an issue', icon: 'fa-circle-exclamation', note: 'This sends a support message to FirstMeasure.' };
-    if (type === 'additional_structure') return { title: 'Request an additional structure', icon: 'fa-location-dot', note: 'Place the additional structure on the map. Commercial and multifamily requests are billed per added structure.' };
-    return { title: 'Request a change or correction', icon: 'fa-pen-to-square', note: 'Add notes and photos for the correction team.' };
+    if (type === 'report_issue') return { title: (globalThis.PlatformLanguage?.text("measurements","m_5460def4910c65","Report an issue") ?? "Report an issue"), icon: 'fa-circle-exclamation', note: 'This sends a support message to FirstMeasure.' };
+    if (type === 'additional_structure') return { title: (globalThis.PlatformLanguage?.text("measurements","m_ca927d2b8006b8","Request an additional structure") ?? "Request an additional structure"), icon: 'fa-location-dot', note: 'Place the additional structure on the map. Commercial and multifamily requests are billed per added structure.' };
+    return { title: (globalThis.PlatformLanguage?.text("measurements","m_53eac7b6fa7c5c","Request a change or correction") ?? "Request a change or correction"), icon: 'fa-pen-to-square', note: 'Add notes and photos for the correction team.' };
   }
 
   function refreshReportRequestModal(){
@@ -3035,16 +3070,16 @@
     const newPins = reportRequestNewPins();
     const freeRush = showRush && normalizeReportExpediteKey(reportRequestModalState.expedite) !== 'standard_3_6' && freeExpediteUses() > 0;
     overlay.innerHTML = `
-      <div class="r-report-followup-card${isAdditional ? ' is-additional' : ''}" role="dialog" aria-modal="true" aria-label="Support">
+      <div class="r-report-followup-card${String(isAdditional ? ' is-additional' : '')}" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}">
         <div class="r-report-followup-top">
           <div>
-            <h3>Support</h3>
-            <p>${escapeHtml(meta.note)}</p>
+            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</h3>
+            <p>${String(escapeHtml(meta.note))}</p>
           </div>
-          <button type="button" class="r-report-followup-close" data-report-followup-close aria-label="Close"><i class="fas fa-times"></i></button>
+          <button type="button" class="r-report-followup-close" data-report-followup-close aria-label="${(globalThis.PlatformLanguage?.text("measurements","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
         <div class="r-report-followup-types">
-          ${['change_correction','additional_structure','report_issue'].map((key) => {
+          ${String(['change_correction','additional_structure','report_issue'].map((key) => {
             const item = reportRequestModalTypeMeta(key);
             return `
               <button type="button" class="r-report-followup-type${key === type ? ' active' : ''}" data-followup-type="${escapeHtml(key)}">
@@ -3052,18 +3087,18 @@
                 <strong>${escapeHtml(item.title)}</strong>
                 <span>${key === 'report_issue' ? 'Support message' : (key === 'additional_structure' ? 'Adds a rework request' : 'Free rework request')}</span>
               </button>`;
-          }).join('')}
+          }).join(''))}
         </div>
-        <form class="r-report-followup-form${isAdditional ? ' is-additional' : ''}" data-report-followup-form>
+        <form class="r-report-followup-form${String(isAdditional ? ' is-additional' : '')}" data-report-followup-form>
           <div class="r-report-followup-field">
-            <label for="rReportFollowupNotes">Details</label>
-            <textarea id="rReportFollowupNotes" rows="6" placeholder="${escapeHtml(meta.title)}">${escapeHtml(reportRequestModalState.notes || '')}</textarea>
+            <label for="rReportFollowupNotes">${(globalThis.PlatformLanguage?.text("measurements","m_b3ecc234f63212","Details") ?? "Details")}</label>
+            <textarea id="rReportFollowupNotes" rows="6" placeholder="${String(escapeHtml(meta.title))}">${String(escapeHtml(reportRequestModalState.notes || ''))}</textarea>
           </div>
           <div class="r-report-followup-field">
-            <label for="rReportFollowupPhotos">Photos</label>
+            <label for="rReportFollowupPhotos">${(globalThis.PlatformLanguage?.text("measurements","m_be4cfb58b9c4d7","Photos") ?? "Photos")}</label>
             <input id="rReportFollowupPhotos" type="file" accept="image/*" multiple>
           </div>
-          ${isAdditional ? `
+          ${String(isAdditional ? `
             <div class="r-report-followup-field r-report-followup-map-field">
               <label>Structures</label>
               <div class="r-report-followup-map-wrap">
@@ -3098,11 +3133,11 @@
                   }).join('')}
                 </div>
               </div>` : ''}
-            <div class="r-report-followup-note" data-followup-pin-note>Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${newPins.length ? ` ${newPins.length} new pin${newPins.length === 1 ? '' : 's'} will be attached.` : ''}${freeRush ? ` Free expedite applied. ${freeExpediteUses()} free expedite use${freeExpediteUses() === 1 ? '' : 's'} available.` : ''}</div>` : ''}
+            <div class="r-report-followup-note" data-followup-pin-note>Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${newPins.length ? ` ${newPins.length} new pin${newPins.length === 1 ? '' : 's'} will be attached.` : ''}${freeRush ? ` Free expedite applied. ${freeExpediteUses()} free expedite use${freeExpediteUses() === 1 ? '' : 's'} available.` : ''}</div>` : '')}
           <div class="r-report-followup-error" id="rReportFollowupError"></div>
           <div class="r-report-followup-actions">
-            <button type="button" class="r-report-followup-secondary" data-report-followup-close>Cancel</button>
-            <button type="submit" class="r-report-followup-submit" ${isAdditional && !newPins.length ? 'disabled' : ''}>${charge > 0 ? `Submit - $${escapeHtml(fmtMoney(charge))}` : 'Submit'}</button>
+            <button type="button" class="r-report-followup-secondary" data-report-followup-close>${(globalThis.PlatformLanguage?.text("measurements","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="submit" class="r-report-followup-submit" ${String(isAdditional && !newPins.length ? 'disabled' : '')}>${String(charge > 0 ? `Submit - $${escapeHtml(fmtMoney(charge))}` : 'Submit')}</button>
           </div>
         </form>
       </div>`;
@@ -3145,7 +3180,7 @@
 
   function openReportRequestModal(){
     if (!reportFollowupEnabled()) {
-      showToast('Report follow-up unavailable', 'Report follow-up requests are not enabled for this account.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_f715c66337644f","Report follow-up unavailable") ?? "Report follow-up unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_a0ecd9e4e6741e","Report follow-up requests are not enabled for this account.") ?? "Report follow-up requests are not enabled for this account."), false);
       return;
     }
     const projectType = reportRequestProjectType();
@@ -3236,7 +3271,7 @@
   async function submitReportRequestModal(event){
     event.preventDefault();
     if (!reportFollowupEnabled()) {
-      showToast('Report follow-up unavailable', 'Report follow-up requests are not enabled for this account.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_f715c66337644f","Report follow-up unavailable") ?? "Report follow-up unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_a0ecd9e4e6741e","Report follow-up requests are not enabled for this account.") ?? "Report follow-up requests are not enabled for this account."), false);
       return;
     }
     const state = reportRequestModalState;
@@ -3248,7 +3283,7 @@
     const additionalStructure = state.type === 'additional_structure';
     if (!notes && !additionalStructure) {
       if (errorEl) {
-        errorEl.textContent = 'Please describe what you need.';
+        errorEl.textContent = (globalThis.PlatformLanguage?.text("measurements","m_114d5c8e9e6b70","Please describe what you need.") ?? "Please describe what you need.");
         errorEl.classList.add('visible');
       }
       return;
@@ -3257,7 +3292,7 @@
     if (!projectId) return;
     if (additionalStructure && !reportRequestNewPins().length) {
       if (errorEl) {
-        errorEl.textContent = 'Place a pin for the additional structure on the map.';
+        errorEl.textContent = (globalThis.PlatformLanguage?.text("measurements","m_7ee2c9f6deaff1","Place a pin for the additional structure on the map.") ?? "Place a pin for the additional structure on the map.");
         errorEl.classList.add('visible');
       }
       return;
@@ -3268,11 +3303,11 @@
       const creditOk = await ensureCreditsForPurchase(chargeEstimate, 'the additional structure request', 'additional_structure_credit_gate');
       if (!creditOk) return;
     }
-    const original = submit?.textContent || 'Submit';
+    const original = submit?.textContent || (globalThis.PlatformLanguage?.text("measurements","m_5396f76ffb2c65","Submit") ?? "Submit");
     if (submit) {
       submit.disabled = true;
       submit.dataset.submitting = '1';
-      submit.textContent = 'Submitting...';
+      submit.textContent = (globalThis.PlatformLanguage?.text("measurements","m_d58f8dd1733500","Submitting...") ?? "Submitting...");
     }
     try {
       const photos = await readReportRequestPhotos(overlay.querySelector('#rReportFollowupPhotos'));
@@ -3293,7 +3328,7 @@
       if (!data?.success) throw new Error(data?.error || data?.message || 'Could not submit the request.');
       mergeReportReworkResponse(data);
       closeReportRequestModal();
-      showToast('Request submitted', data.charged_amount ? `Charged $${fmtMoney(data.charged_amount)} for the additional structure request.` : 'The report follow-up was saved.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_bd585f0df980a6","Request submitted") ?? "Request submitted"), data.charged_amount ? `Charged $${fmtMoney(data.charged_amount)} for the additional structure request.` : 'The report follow-up was saved.', true);
       if (data.charged_amount) window.Portal.credits.refreshCredits().catch(() => null);
       renderMeasurementsPanel();
       syncProjectViewerTabs();
@@ -3302,7 +3337,7 @@
       const credit = creditErrorDetails(error);
       if (credit.isCreditError) {
         openCreditTopupForPurchase({
-          label: 'the additional structure request',
+          label: (globalThis.PlatformLanguage?.text("measurements","m_8908e3675653d6","the additional structure request") ?? "the additional structure request"),
           required: credit.required || reportRequestChargeEstimate(),
           balance: credit.balance,
           context: 'additional_structure_credit_reject'
@@ -3437,10 +3472,11 @@
     }
   }
 
-  function setActiveMeasurementTab(tab){
+  function setActiveMeasurementTab(tab, options = {}){
     const available = measurementTabs();
     const next = available.find((entry) => entry.id === tab && !entry.disabled) || available.find((entry) => !entry.disabled) || available[0];
     activeMeasurementTab = next?.id || 'standard';
+    if (options.updateRoute !== false && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ reportView:activeMeasurementTab }, { source:'project-report-view', ownedKeys:['reportView'] });
     renderMeasurementsPanel();
   }
 
@@ -3615,13 +3651,13 @@
 
   async function upgradePendingReportExpedite(optionKey, button){
     if (!reportExpediteOptionsEnabled()) {
-      showToast('Expediting unavailable', 'Report expediting is not enabled for this account.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_f046ac228c08ff","Expediting unavailable") ?? "Expediting unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_c1d047a0b94b30","Report expediting is not enabled for this account.") ?? "Report expediting is not enabled for this account."), false);
       return;
     }
     if (reportOrderingClosed()) {
       pendingExpediteSelection = '';
       renderMeasurementsPanel();
-      showToast('Expediting unavailable', 'Expedited turnaround is unavailable while we are closed.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_f046ac228c08ff","Expediting unavailable") ?? "Expediting unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_4d2965584aa9c2","Expedited turnaround is unavailable while we are closed.") ?? "Expedited turnaround is unavailable while we are closed."), false);
       return;
     }
     const projectId = activeMeasurementProjectId();
@@ -3651,7 +3687,7 @@
       if (!data?.success) throw new Error(data?.error || data?.message || 'Could not expedite this report.');
       mergeReportManifestIntoActiveProject(data.manifest || {});
       pendingExpediteSelection = '';
-      showToast('Report expedited', data.charge_amount ? `Charged $${fmtMoney(data.charge_amount)} for the faster delivery option.` : 'Delivery has been updated.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_550e7313d4d175","Report expedited") ?? "Report expedited"), data.charge_amount ? `Charged $${fmtMoney(data.charge_amount)} for the faster delivery option.` : 'Delivery has been updated.', true);
       renderMeasurementsPanel();
       syncProjectViewerTabs();
       window.Portal.credits.refreshCredits().catch(() => null);
@@ -3663,13 +3699,13 @@
       const credit = creditErrorDetails(error);
       if (credit.isCreditError) {
         openCreditTopupForPurchase({
-          label: 'the expedited delivery upgrade',
+          label: (globalThis.PlatformLanguage?.text("measurements","m_3853953f71ccc7","the expedited delivery upgrade") ?? "the expedited delivery upgrade"),
           required: credit.required || chargeEstimate,
           balance: credit.balance,
           context: 'expedite_credit_reject'
         });
       } else {
-        showToast('Could not expedite', error?.message || 'Please try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_631b2250474eb4","Could not expedite") ?? "Could not expedite"), error?.message || 'Please try again.', false);
       }
       if (button) {
         button.disabled = false;
@@ -3680,12 +3716,12 @@
 
   async function cancelPendingReportOrder(button){
     if (!reportCancellationsEnabled()) {
-      showToast('Cancellation unavailable', 'Report cancellation is not enabled for this account.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_918d0bc7e29378","Cancellation unavailable") ?? "Cancellation unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_79b508eab3ff13","Report cancellation is not enabled for this account.") ?? "Report cancellation is not enabled for this account."), false);
       return;
     }
     const cancelState = reportOrderCancelState();
     if (!cancelState.allowed || cancelState.remainingSeconds <= 0) {
-      showToast('Cancellation unavailable', cancelState.expedited
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_918d0bc7e29378","Cancellation unavailable") ?? "Cancellation unavailable"), cancelState.expedited
         ? 'The 1-minute cancellation grace period for this expedited report has ended.'
         : 'The cancellation grace period for this project has ended.', false);
       renderMeasurementsPanel();
@@ -3693,10 +3729,10 @@
     }
     const projectId = activeMeasurementProjectId();
     if (!projectId) return;
-    const original = button?.textContent || 'Cancel report';
+    const original = button?.textContent || (globalThis.PlatformLanguage?.text("measurements","m_afb31b9209687b","Cancel report") ?? "Cancel report");
     if (button) {
       button.disabled = true;
-      button.textContent = 'Cancelling...';
+      button.textContent = (globalThis.PlatformLanguage?.text("measurements","m_229afc8d27d71f","Cancelling...") ?? "Cancelling...");
     }
     try {
       const { data } = await postAction('cancel_queued_report', { project_id: projectId });
@@ -3732,12 +3768,12 @@
           detail: { project: activeBaseProject, redraw: true }
         }));
       }
-      showToast('Report cancelled', data.refunded ? `$${fmtMoney(data.refunded)} was refunded to credits.` : 'The order was cancelled.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_d588b9b5f17ee7","Report cancelled") ?? "Report cancelled"), data.refunded ? `$${fmtMoney(data.refunded)} was refunded to credits.` : 'The order was cancelled.', true);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
       close();
     } catch (error) {
-      showToast('Could not cancel', error?.message || 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_e6b5d0f1dd87a5","Could not cancel") ?? "Could not cancel"), error?.message || 'Please try again.', false);
       if (button) {
         button.disabled = false;
         button.textContent = original;
@@ -3770,7 +3806,17 @@
   function renderMeasurementsPanel(){
     const root = currentPanelRoot();
     if (!root) return;
-    const tabsEl = $('#rMeasureTabs', root);
+    const overlay = root.closest('#rOverlay');
+    const header = overlay?.querySelector('.r-modal-header');
+    const tabsEl = root.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
+    // FirstMeasure has one app: use its report tabs as the modal navigation.
+    // Keep the same nodes so tab and window-control handlers survive rerenders.
+    const merged = !!header?.querySelector('#rProjectViewerTabs.single-tab');
+    if (tabsEl && header) {
+      if (merged) header.insertBefore(tabsEl, header.querySelector('.modal-shell-actions'));
+      else root.insertBefore(tabsEl, root.firstChild);
+    }
+    overlay?.classList.toggle('report-tabs-in-header', merged);
     ensureInlineProjectMapPane();
     ensureReportSummaryPane();
     ensureReportChangesPane();
@@ -3794,13 +3840,6 @@
       tabClass: 'r-measure-tab',
       onTabClick: (tab) => setActiveMeasurementTab(tab.id)
     });
-    if (tabsEl) {
-      const submitted = reportOrderState?.submittedAt ? formatDate(reportOrderState.submittedAt) : '';
-      const parts = [reportOrderState?.includeInspection ? 'Instant + standard' : 'Standard'];
-      if (weatherReportInfo().ordered) parts.push('weather');
-      const mode = parts.join(' + ');
-      tabsEl.insertAdjacentHTML('beforeend', `<div class="r-measure-meta">${escapeHtml(mode)}${submitted ? ` · Ordered ${escapeHtml(submitted)}` : ''}</div>`);
-    }
     root.querySelectorAll('.r-measure-pane').forEach((pane) => {
       pane.classList.toggle('active', pane.dataset.measurePane === activeMeasurementTab);
     });
@@ -3913,6 +3952,8 @@
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
+    const routedView = window.Portal?.navigation?.read?.().reportView;
+    if (routedView) activeMeasurementTab = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
@@ -3928,6 +3969,10 @@
   }
 
   function reset(){
+    const overlay = state.panelRoot?.closest('#rOverlay');
+    const headerTabs = overlay?.querySelector('.r-modal-header #rMeasureTabs');
+    if (headerTabs && state.panelRoot) state.panelRoot.prepend(headerTabs);
+    overlay?.classList.remove('report-tabs-in-header');
     clearCancellationCountdown();
     clearWeatherReportPoll();
     disposeInstantMeasurement();
@@ -4068,8 +4113,8 @@
   const definition = {
     id: 'project.measurements',
     kind: 'project_modal_app',
-    title: 'Reports',
-    label: 'Reports',
+    title: (globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports"),
+    label: (globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports"),
     icon: 'fa-ruler-combined',
     order: 60,
     visible: true,
@@ -4085,6 +4130,13 @@
   Portal.modules = Portal.modules || {};
   Portal.modules.projectMeasurements = api;
   Portal.ProjectMeasurementsApp = api;
+  window.Portal?.navigation?.registerHandler?.('project-report-view', {
+    priority:600,
+    apply:(route) => {
+      if (!route.project || route.projectTab !== 'measurements' || !state.mounted) return;
+      setActiveMeasurementTab(route.reportView || 'standard', { updateRoute:false });
+    }
+  });
 
   runtime?.registerApp?.(definition);
 })();

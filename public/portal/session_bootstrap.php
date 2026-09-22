@@ -67,7 +67,7 @@ function portalNodePlatformBaseUrl(): string
     $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
     $hostOnly = preg_replace('/:\d+$/', '', $host);
     if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost' || $hostOnly === '10.0.2.2') {
-        return 'http://127.0.0.1:3111/v1/platform';
+        return 'http://127.0.0.1:3101/v1/platform';
     }
     $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
     $scheme = $forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -143,12 +143,14 @@ function portalHydrateSessionFromNodeAuth(): void
     $_SESSION['user_name'] = (string)($identity['name'] ?? $user['name'] ?? $email);
     $_SESSION['user_company'] = (string)($organization['name'] ?? '');
     $_SESSION['user_org_id'] = (string)($membership['organization_id'] ?? $organization['id'] ?? '');
+    $_SESSION['platform_user_id'] = (string)($membership['user_id'] ?? $user['id'] ?? '');
     $_SESSION['org_id'] = $_SESSION['user_org_id'];
     $_SESSION['platform_branch_id'] = (string)($membership['branch_id'] ?? 'default');
     $_SESSION['branch_id'] = $_SESSION['platform_branch_id'];
     $_SESSION['user_role'] = (string)($membership['role'] ?? $user['role'] ?? 'member');
     $_SESSION['user_org_perm_level'] = $_SESSION['user_role'];
     $_SESSION['platform_node_auth'] = true;
+    $_SESSION['platform_expanded_access'] = ($data['platform_expanded_access'] ?? false) === true;
     if (!empty($impersonation['active'])) {
         $_SESSION['is_impersonating'] = true;
         $_SESSION['impersonating_from_email'] = (string)($impersonation['admin_email'] ?? '');
@@ -195,6 +197,7 @@ function portalClearNodeBackedSessionState(): void
         $_SESSION['user_role'],
         $_SESSION['user_org_perm_level'],
         $_SESSION['platform_node_auth'],
+        $_SESSION['platform_expanded_access'],
         $_SESSION['is_impersonating'],
         $_SESSION['impersonating_from_email'],
         $_SESSION['impersonation_started_at']

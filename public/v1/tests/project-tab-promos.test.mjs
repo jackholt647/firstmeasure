@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFile} from 'node:fs/promises';
+const src=await readFile(new URL('../../libraries/apps/tab-promos/project.js',import.meta.url),'utf8');
+function setup(values={}){const apps=[];const window={Portal:{capabilities:{value:(key,fallback)=>values[key]??fallback},util:{injectCSS(){}}},FirstMateEmbeddableApps:{registerApp:app=>apps.push(app)}};vm.runInNewContext(src,{window});return {window,app:apps[0],values};}
+test('promo is off by default, requires explicit boolean opt-in, and does not require expanded access',()=>{const {app,values}=setup();assert.equal(app.enabled({materialsEnabled:false}),false);values['firstmeasure.materials_promo']='true';assert.equal(app.enabled({}),false);values['firstmeasure.materials_promo']=true;assert.equal(app.enabled({materialsEnabled:false}),true);});
+test('real Materials wins even if both flags are set',()=>{const {app,values}=setup({'firstmeasure.materials_promo':true,'platform.materials':true});assert.equal(app.enabled({}),false);values['platform.materials']=false;assert.equal(app.enabled({materialsEnabled:true}),false);});
+test('mount is read-only and clears its content after eligibility is revoked',()=>{const {app,values}=setup({'firstmeasure.materials_promo':true});const root={innerHTML:''};const handle=app.mount({roots:{main:root},materialsEnabled:false});assert.match(root.innerHTML,/Your products/);assert.doesNotMatch(root.innerHTML,/<form|<input|<button/);values['firstmeasure.materials_promo']=false;handle.activate();assert.equal(root.innerHTML,'');});
+test('future promo definitions register independently and reject duplicate ids',()=>{const {window}=setup();const base=window.FirstMateTabPromos.definitions()[0];window.FirstMateTabPromos.register({...base,id:'next_promo',tabId:'next',flag:'firstmeasure.next_promo'});assert.equal(window.FirstMateTabPromos.definitions().length,2);assert.throws(()=>window.FirstMateTabPromos.register(base),/Duplicate/);});

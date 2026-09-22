@@ -4,10 +4,10 @@ ignore_user_abort(true);
 set_time_limit(60);
 
 function nodePlatformStripeWebhookUrl(): string {
-    $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8021';
+    $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8011';
     $hostOnly = explode(':', $host, 2)[0];
     if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
-        return 'http://' . $hostOnly . ':3111/v1/platform/stripe-webhook-proxy';
+        return 'http://' . $hostOnly . ':3101/v1/platform/stripe-webhook-proxy';
     }
     // TLS terminates at the trusted load balancer, before this PHP request.
     $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));

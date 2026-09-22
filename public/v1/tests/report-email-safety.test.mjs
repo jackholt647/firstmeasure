@@ -5,7 +5,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
 
-const root = path.resolve(process.argv[2] || '../../outputs/email-guard-build');
+const root = path.resolve(process.argv[2] || './dist');
 const api = await readFile(path.join(root, 'firstmeasure/api.js'), 'utf8');
 assert.match(api, /import \{ guardDevelopmentEmail \} from "..\/src\/environment_safety.js"/);
 const start = api.indexOf('async function sendPostmarkEmail(');

@@ -1,4 +1,6 @@
-import { createHash, createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
+import { reportPreferencesSchema, resolveOrderReportPreferences } from "../firstmeasure/report_preferences.js";
+import { exteriorQuote, requireExteriorAccess, validateExteriorOrder } from "../firstmeasure/exteriors.js";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -6,11 +8,12 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest 
 import { ZodError, z } from "zod";
 
 import { registerPricebookApi } from "../pricebook/api.js";
-import { createTelnyxVerifyClient, maskPhoneNumber, normalizeE164Phone, TelnyxVerifyError } from "../sms/telnyx_verify.js";
+import { generatePricebookFromSamples } from "../pricebook/generation.js";
+import { requirePublicRegistration } from "../signup-sandbox/admin.js";
 import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { runPostgresPlatformHeartbeat } from "./heartbeat_postgres.js";
-import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey } from "../firstmeasure/expedite.js";
+import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey, reportExpediteBaseUnitPrice } from "../firstmeasure/expedite.js";
 import { assertReportPricingRevision } from "../firstmeasure/pricing.js";
 import {
   firstMeasureReportAmount as sharedFirstMeasureReportAmount,
@@ -18,40 +21,106 @@ import {
 } from "../firstmeasure/pricing.js";
 import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
 import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals_service.js";
+import { clearMaterialListScheduleEvent, syncMaterialListFromScheduleEvent } from "../materials/storage.js";
+import {
+  appointmentAvailability,
+  cancelAppointmentRescheduleRequest,
+  commitAppointmentReschedule,
+  holdAppointmentSlot,
+  publicSchedulingPolicy
+} from "../appointments/availability.js";
+import { readSlotHold } from "../appointments/storage.js";
+import { applyProjectCustomFieldDefaults, mergeProjectCustomFieldsForSave, validateProjectCustomFieldValues } from "../custom_fields/service.js";
+import { normalizeProposalScope, proposalScopeTotalCents, publicScopeLineItems } from "../proposals/scope.js";
 import { publicProposalWorkflow } from "../proposals/storage.js";
-import { appFlagState, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppVariantInput } from "./app_flags.js";
+import { emitWorkEvent } from "../work/engine.js";
+import { createWorkPlan, listWorkTodos, patchWorkNode, transitionWorkNode } from "../work/service.js";
+import { ensurePipelinePlanForProject } from "../scopes/router.js";
+import { readScopeTemplate } from "../scopes/storage.js";
+import { readNodeRecord } from "../work/storage.js";
+import { appFlagState, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput } from "./app_flags.js";
+import {
+  applyCapabilityPreset,
+  capabilityState,
+  createCapabilityPreset,
+  deleteCapabilityPreset,
+  isCapabilityEnabled,
+  platformRolloutConfigurationKey,
+  readPlatformRollout,
+  rawCapabilityValues,
+  saveCapabilityValues,
+  setSignupCapabilityPreset,
+  updateCapabilityPreset,
+  validateValueSet
+} from "./capabilities.js";
 import {
   authContextFromRequest,
   buildAuthContext,
   hashPassword,
+  listRememberedPlatformAccounts,
   loginPlatformIdentity,
-  loginPlatformVerifiedIdentity,
+  logoutAllRememberedPlatformAccounts,
   logoutPlatformSession,
   platformAuthCookieNames,
   publicAuthContext,
+  rememberPlatformAccount,
+  removeRememberedPlatformAccount,
   requirePlatformAuth,
-  setPlatformAuthCookies
+  setPlatformAuthCookies,
+  switchRememberedPlatformAccount
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
-import { verifyGoogleCredential, type GoogleIdTokenVerifier } from "./google_auth.js";
-import { formatSignupPhone } from "./identity_phone.js";
+import { projectAudienceFacts } from "./portal_audience.js";
+import { customerPortalDocumentId as portalDocumentIdFor, normalizePortalSettings, publicPortalSettings, type PortalSettings } from "./portal_settings.js";
+// Side-effect import: registers the portal.* server widget resolvers into the
+// shared registry at boot (mirrors websites/service.ts's module-level call).
+import "./portal_widgets.js";
+import { syncPortalProjection } from "./portal_projection.js";
+import { projectTabRelevance, tabIsRelevant, type TabRelevance } from "./portal_tab_relevance.js";
+import { customerPresentationFromDocument, documentSignatureRequirement } from "../documents/presentation.js";
+import { documentCapabilityState, filterOutputDefinitionsByCapabilities, publicDocumentCapabilityState } from "../documents/capability_policy.js";
+import { readPortalPunchDefaults } from "./portal_punch.js";
+import {
+  assertCanAcceptPunchList,
+  assertCanCompletePunchWork,
+  assertCanSubmitPunchList,
+  assertCustomerMayAddPunchItem,
+  assertCustomerMayEditPunchItem,
+  isPunchList,
+  normalizePunchSignature,
+  publicPunchView,
+  punchConfigOf,
+  punchTransition,
+  resolvePunchLabels
+} from "../workforce/punch_lists.js";
+import {
+  assertCommentableMedia,
+  assertCommentBody,
+  assertUploadQuota,
+  consumePortalWriteToken,
+  normalizePortalComments,
+  normalizePortalUploads,
+  portalSettingsFor,
+  validatePortalUpload,
+  visiblePortalComments,
+  visiblePortalUploads
+} from "./portal_writes.js";
+import { registerContactImportRoutes } from "./contact_import/api.js";
+import { registerAttentionRoutes } from "./attention.js";
 import {
   addIdentityMembership,
   createOrganization,
   createIdentity,
   deleteAuthSession,
-  deleteIdentity,
-  deleteOrganization,
   deleteDocument,
   findIdentityByEmail,
-  findIdentityByIdentifier,
-  identityEmailExists,
   listBranchModules,
   listIdentityMemberships,
   listDocuments,
   listMedia,
   listOrganizations,
   mediaStorageUsage,
+  normalizeMediaTags,
   patchIdentity,
   patchOrganization,
   readMediaMarkupLayer,
@@ -68,12 +137,68 @@ import {
   saveGlobal,
   saveMediaMarkupLayer,
   storeMediaUpload,
-  upsertDocument,
-  withIdentityRegistrationLock
+  updateMediaTags,
+  renameMedia,
+  upsertDocument
 } from "./storage.js";
-import { badRequest, conflict, forbidden } from "./errors.js";
+import { badRequest, conflict, forbidden, notFound } from "./errors.js";
+import { attachRealtimeConnection, pollRealtimeEvents } from "./realtime.js";
+import { organizationUserProfileFields, organizationUserProfileView } from "./user_profile.js";
+import { runTerminologyAgent } from "./terminology_agent.js";
+import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../workforce/assignment_scope.js";
+import { assignmentPolicyForEventType } from "../workforce/assignability.js";
+import { resolveAssignableSubjects } from "../workforce/service.js";
+import { checklistAudioProcessor, reconcileChecklistAudioOperations } from "../audio-structure/checklist.js";
+import { processStructuredAudio } from "../audio-structure/processor.js";
+import {
+  addProjectChecklistItemAttachment,
+  createProjectChecklistItem,
+  deleteCrewChecklistItem,
+  listProjectChecklists,
+  normalizeChecklistCustomerAccess,
+  patchProjectChecklist,
+  patchProjectChecklistItem,
+  readProjectChecklist,
+  readProjectChecklistDetail,
+  readProjectChecklistItem
+} from "../workforce/crew_storage.js";
+import {
+  cancelRecurrenceSeries,
+  createRecurrenceSeries,
+  listRecurrenceOccurrences,
+  listRecurrenceSeries,
+  patchRecurrenceSeries,
+  setRecurrenceOccurrenceStatus
+} from "./recurrence.js";
+
+import { companyLocalization, localeSchema, localizationSchema } from "./localization/settings.js";
+import { resolveContext } from "./localization/core.js";
 
 const objectBodySchema = z.object({}).passthrough();
+const userPreferencesSchema = z.object({
+  interface_locale: localeSchema.nullable().optional(),
+  language: z.enum(["en", "es", "fr", "de", "pt", "it", "nl", "pl", "ru", "uk", "ar", "hi", "bn", "ur", "zh", "ja", "ko", "vi", "th", "id", "tl", "tr", "he"]).optional(),
+  auto_translate_messages: z.boolean().optional(),
+  sidebar_width: z.number().int().min(220).max(420).optional()
+}).strict();
+const pricebookGenerationSchema = z.object({
+  samples: z.array(z.object({
+    name: z.string().trim().min(1).max(240),
+    content_type: z.string().trim().max(200).optional(),
+    text: z.string().max(2_000_000).optional(),
+    data_base64: z.string().max(36_000_000).optional()
+  }).refine((sample) => Boolean(sample.text || sample.data_base64), "Each sample requires text or file data.")).min(1).max(20)
+});
+const terminologyAgentSchema = z.object({
+  branch_id: z.string().trim().max(160).optional(),
+  prompt: z.string().trim().min(1).max(2_000),
+  catalog: z.array(z.object({
+    key: z.string().trim().min(1).max(160),
+    label: z.string().trim().max(160),
+    section: z.string().trim().max(120),
+    value: z.string().max(160)
+  })).min(1).max(300)
+});
 const createOrganizationSchema = objectBodySchema.extend({
   id: z.string().optional(),
   name: z.string().optional(),
@@ -115,6 +240,153 @@ const loginSchema = objectBodySchema.extend({
   password: z.string(),
   organization_id: z.string().optional()
 });
+const rememberedAccountSchema = objectBodySchema.extend({
+  account_id: z.string().trim().min(1).max(120)
+});
+const PLATFORM_STANDARD_USER_ROLES = ["sales_appointments", "inside_sales"];
+const PLATFORM_VARIABLE_MAPPING_MODULE_ID = "variable_mappings";
+const PROJECT_WORK_EVENT_TYPE_ID = "project_work";
+const NOTIFICATION_COLLECTION = "notifications";
+const CUSTOMER_PORTAL_COLLECTION = "customer_portals";
+const PORTAL_GUEST_TOKEN_PREFIX = "psg_";
+const PORTAL_GUEST_PRESETS = {
+  full_view: ["summary", "home", "schedule", "photos", "checklists"],
+  project_updates: ["schedule", "photos"],
+  photos_only: ["photos"]
+} as const;
+type PortalGuestPreset = keyof typeof PORTAL_GUEST_PRESETS;
+type CustomerPortalResolution = {
+  orgId: string;
+  document: JsonObject;
+  data: JsonObject;
+  access_mode: "owner" | "guest";
+  guest?: JsonObject;
+};
+const GENERIC_PLATFORM_COLLECTIONS = new Set([
+  "projects",
+  "customers",
+  "users",
+  "branch",
+  NOTIFICATION_COLLECTION,
+  "activity",
+  CUSTOMER_PORTAL_COLLECTION,
+  "calendar_events"
+]);
+const MAX_PORTAL_RESIDENTIAL_PINS = 5;
+const MAX_PORTAL_STRUCTURE_PINS = 10;
+const HEARTBEAT_INTERVAL_MS = 10_000;
+const PLATFORM_SEARCH_CACHE_TTL_MS = 15_000;
+const PLATFORM_CONTACT_PROJECT_CACHE_TTL_MS = 60_000;
+let heartbeatStarted = false;
+
+type PlatformSearchType = "project" | "contact";
+type PlatformSearchIndexRow = {
+  type: PlatformSearchType;
+  id: string;
+  project_id: string;
+  title: string;
+  subtitle: string;
+  search_text: string;
+  compact_text: string;
+  phone_digits: string;
+  tokens: string[];
+  updated_at: string;
+  contact?: JsonObject;
+};
+type PlatformSearchCacheEntry = {
+  builtAt: number;
+  rows: PlatformSearchIndexRow[];
+};
+type ContactProjectSummaryCacheEntry = {
+  builtAt: number;
+  documents: JsonObject[];
+};
+const platformSearchCache = new Map<string, PlatformSearchCacheEntry>();
+const contactProjectSummaryCache = new Map<string, ContactProjectSummaryCacheEntry>();
+
+export type PlatformLeadInput = Record<string, unknown> & {
+  branch_id?: string;
+  branchId?: string;
+  source?: string;
+  source_kind?: string;
+  address?: string;
+  title?: string;
+  summary?: string;
+  contacts?: unknown[];
+  customer?: Record<string, unknown>;
+  lead_source?: Record<string, unknown>;
+  provider_fields?: Record<string, unknown>;
+  raw?: Record<string, unknown>;
+  notification?: Record<string, unknown>;
+};
+
+function isReceiptMedia(mediaValue: unknown) {
+  const media = asObject(mediaValue);
+  const owner = asObject(media.owner);
+  const metadata = asObject(media.metadata);
+  return cleanText(owner.slot).toLowerCase() === "receipts"
+    || cleanText(metadata.document_type).toLowerCase() === "receipt"
+    || cleanText(metadata.source).toLowerCase() === "expense_receipt_upload";
+}
+
+function canReadReceiptMedia(mediaValue: unknown, contextValue: unknown) {
+  if (!isReceiptMedia(mediaValue)) return true;
+  const media = asObject(mediaValue);
+  const owner = asObject(media.owner);
+  const metadata = asObject(media.metadata);
+  const context = asObject(contextValue);
+  const permissions = asObject(context.permissions);
+  const userId = cleanText(context.userId);
+  if (userId && cleanText(metadata.uploaded_by_user_id) === userId) return true;
+  if (permissions["*"] === true || permissions.manage_projects === true || permissions.manage_company_settings === true) return true;
+  const projectId = cleanText(metadata.project_id || (cleanText(owner.type) === "project" ? owner.id : ""));
+  return !!projectId && permissions.view_projects === true;
+}
+
+function canWriteReceiptMedia(mediaValue: unknown, contextValue: unknown) {
+  if (!isReceiptMedia(mediaValue)) return true;
+  const media = asObject(mediaValue);
+  const metadata = asObject(media.metadata);
+  const context = asObject(contextValue);
+  const permissions = asObject(context.permissions);
+  return (cleanText(context.userId) && cleanText(metadata.uploaded_by_user_id) === cleanText(context.userId))
+    || permissions["*"] === true
+    || permissions.manage_projects === true
+    || permissions.manage_company_settings === true;
+}
+
+function publicMediaMetadata(mediaValue: unknown) {
+  const media = asObject(mediaValue);
+  if (!isReceiptMedia(media)) return media;
+  const metadata = asObject(media.metadata);
+  return {
+    ...media,
+    metadata: {
+      title: cleanText(metadata.title),
+      document_type: "receipt",
+      field: cleanText(metadata.field),
+      document_collection: cleanText(metadata.document_collection),
+      document_id: cleanText(metadata.document_id),
+      source: "expense_receipt_upload",
+      receipt_id: cleanText(metadata.receipt_id),
+      project_id: cleanText(metadata.project_id),
+      uploaded_by_user_id: cleanText(metadata.uploaded_by_user_id),
+      uploaded_at: cleanText(metadata.uploaded_at),
+      tags: normalizeMediaTags(media.tags || metadata.tags)
+    }
+  };
+}
+
+import { deleteIdentity, deleteOrganization, findIdentityByIdentifier, identityEmailExists, withIdentityRegistrationLock } from "./storage.js";
+
+import { formatSignupPhone } from "./identity_phone.js";
+
+import { verifyGoogleCredential, type GoogleIdTokenVerifier } from "./google_auth.js";
+
+import { loginPlatformVerifiedIdentity } from "./auth.js";
+
+import { createTelnyxVerifyClient, maskPhoneNumber, normalizeE164Phone, TelnyxVerifyError } from "../sms/telnyx_verify.js";
+
 const googleAuthSchema = objectBodySchema.extend({
   credential: z.string(),
   name: z.string().optional(),
@@ -124,9 +396,6 @@ const googleAuthSchema = objectBodySchema.extend({
   identity_metadata: z.record(z.unknown()).optional(),
   global: z.record(z.unknown()).optional()
 });
-const PLATFORM_STANDARD_USER_ROLES = ["sales_appointments", "inside_sales"];
-const PLATFORM_STAGE_MODULE_ID = "stages";
-const PLATFORM_TRIGGER_MODULE_ID = "triggers";
 
 type RegistrationTransaction = {
   createdOrganization: (organization: JsonObject) => void;
@@ -159,213 +428,65 @@ async function withNewIdentityRegistration<T>(
     }
   });
 }
-const PLATFORM_VARIABLE_MAPPING_MODULE_ID = "variable_mappings";
-const NEW_LEAD_STAGE_ID = "new_lead";
-const DEFAULT_STAGE_ID = "contacting";
-const APPOINTMENT_SCHEDULED_STAGE_ID = "appointment_scheduled";
-const NEWLY_SOLD_STAGE_ID = "newly_sold";
-const PROJECT_STARTED_STAGE_ID = "project_started";
-const IN_PROGRESS_STAGE_ID = "in_progress";
-const COMPLETED_STAGE_ID = "completed";
-const PROJECT_WORK_EVENT_TYPE_ID = "project_work";
-const NOTIFICATION_COLLECTION = "notifications";
-const ACTION_ITEM_COLLECTION = "action_items";
-const CUSTOMER_PORTAL_COLLECTION = "customer_portals";
-const MAX_PORTAL_RESIDENTIAL_PINS = 5;
-const MAX_PORTAL_STRUCTURE_PINS = 10;
-const HEARTBEAT_INTERVAL_MS = 10_000;
-const PLATFORM_SEARCH_CACHE_TTL_MS = 15_000;
-const PLATFORM_CONTACT_PROJECT_CACHE_TTL_MS = 60_000;
-let heartbeatStarted = false;
 
-type PlatformSearchType = "project" | "contact";
-type PlatformSearchIndexRow = {
-  type: PlatformSearchType;
-  id: string;
-  project_id: string;
-  title: string;
-  subtitle: string;
-  search_text: string;
-  compact_text: string;
-  phone_digits: string;
-  tokens: string[];
-  updated_at: string;
-  contact?: JsonObject;
-};
-type PlatformSearchCacheEntry = {
-  builtAt: number;
-  rows: PlatformSearchIndexRow[];
-};
-type ContactProjectSummaryCacheEntry = {
-  builtAt: number;
-  documents: JsonObject[];
-};
-const platformSearchCache = new Map<string, PlatformSearchCacheEntry>();
-const contactProjectSummaryCache = new Map<string, ContactProjectSummaryCacheEntry>();
 const passwordResetSmsRequests = new Map<string, Promise<JsonObject>>();
-
-export type PlatformLeadInput = Record<string, unknown> & {
-  branch_id?: string;
-  branchId?: string;
-  source?: string;
-  source_kind?: string;
-  address?: string;
-  title?: string;
-  summary?: string;
-  contacts?: unknown[];
-  customer?: Record<string, unknown>;
-  lead_source?: Record<string, unknown>;
-  provider_fields?: Record<string, unknown>;
-  raw?: Record<string, unknown>;
-  notification?: Record<string, unknown>;
-};
 
 export type PlatformApiOptions = {
   googleIdTokenVerifier?: GoogleIdTokenVerifier;
 };
 
+function passwordRecoverySignature(value: string) {
+  return createHmac("sha256", env.platformSessionSecret).update(`password-recovery:${value}`).digest("base64url");
+}
+
+function createPasswordRecoveryToken(identityId: string, requestId: string) {
+  if (!identityId || !requestId) return "";
+  const payload = Buffer.from(JSON.stringify({ identity_id: identityId, request_id: requestId })).toString("base64url");
+  return `${payload}.${passwordRecoverySignature(payload)}`;
+}
+
+function parsePasswordRecoveryToken(tokenValue: unknown) {
+  const [payload, signature] = cleanText(tokenValue).split(".");
+  if (!payload || !signature) throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
+  const expected = passwordRecoverySignature(payload);
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !timingSafeEqual(left, right)) {
+    throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
+  }
+  try {
+    return asObject(JSON.parse(Buffer.from(payload, "base64url").toString("utf8")));
+  } catch {
+    throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
+  }
+}
+
+async function resolvePasswordRecoveryIdentity(body: JsonObject) {
+  const token = cleanText(body.recovery_token);
+  if (!token) return await findIdentityByIdentifier(cleanText(body.identifier || body.email || body.phone));
+  const payload = parsePasswordRecoveryToken(token);
+  const identity = await readIdentity(cleanText(payload.identity_id));
+  const reset = asObject(asObject(identity.metadata).password_reset);
+  if (!cleanText(payload.request_id) || cleanText(reset.request_id) !== cleanText(payload.request_id)) {
+    throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
+  }
+  return identity;
+}
+
+function maskEmailAddress(emailValue: string) {
+  const [local, domain] = String(emailValue || "").split("@");
+  if (!local || !domain) return "your email";
+  return `${local.slice(0, 1)}${"*".repeat(Math.min(4, Math.max(1, local.length - 1)))}@${domain}`;
+}
+
+function googleWorkspaceWebsite(hostedDomain: string) {
+  const domain = cleanText(hostedDomain).toLowerCase();
+  if (!domain || domain === "gmail.com" || domain.length > 253) return "";
+  if (!domain.includes(".") || !/^[a-z0-9.-]+$/.test(domain) || domain.includes("..")) return "";
+  return domain;
+}
 export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async (app, options) => {
-  app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof ZodError) {
-      reply.code(400);
-      return reply.send({ ok: false, error: "validation_error", issues: error.issues });
-    }
-
-    if (error instanceof PlatformError) {
-      reply.code(error.statusCode);
-      return reply.send({
-        ok: false,
-        error: error.code,
-        message: error.message,
-        details: error.details ?? null
-      });
-    }
-
-    if (typeof (error as { statusCode?: unknown }).statusCode === "number") {
-      reply.code(Number((error as { statusCode: number }).statusCode));
-      return reply.send({
-        ok: false,
-        error: String((error as { code?: unknown }).code ?? "request_error"),
-        message: String((error as { message?: unknown }).message ?? "The request could not be processed.")
-      });
-    }
-
-    app.log.error(error);
-    reply.code(500);
-    return reply.send({ ok: false, error: "internal_error", message: "An unexpected error occurred." });
-  });
-
-  app.get("/", async () => ({
-    ok: true,
-    api: "platform",
-    message: "platform API is mounted",
-    storage: {
-      namespace: "storage/platform",
-      globalIdentityShape: {
-        identities: "/identities/:identityId",
-        authResolve: "/auth/resolve",
-        authRegister: "/auth/register",
-        authLogin: "/auth/login",
-        authSession: "/auth/session",
-        authLogout: "/auth/logout"
-      },
-      organizationShape: {
-        users: "/organizations/:orgId/users",
-        projects: "/organizations/:orgId/projects",
-        notifications: "/organizations/:orgId/notifications",
-        branch: "/organizations/:orgId/branch",
-        branchModules: "/organizations/:orgId/branch/:branchId/modules/:moduleId",
-        global: "/organizations/:orgId/global",
-        media: "/organizations/:orgId/media"
-      }
-    },
-    subApis: {
-      pricebook: "/pricebook"
-    }
-  }));
-
-  app.get("/ping", async (request) => ({
-    ok: true,
-    api: "platform",
-    route: "/ping",
-    method: request.method,
-    receivedAt: new Date().toISOString()
-  }));
-
-  app.get("/organizations", async (request) => {
-    await requirePlatformAuth(request);
-    return {
-      ok: true,
-      organizations: await listOrganizations()
-    };
-  });
-
-  app.post("/organizations", async (request, reply) => {
-    await requirePlatformAuth(request, { csrf: true });
-    const body = createOrganizationSchema.parse(request.body ?? {});
-    const organization = await createOrganization(body);
-    reply.code(201);
-    return { ok: true, organization };
-  });
-
-  app.post("/identities", async (request, reply) => {
-    await requirePlatformAuth(request, { csrf: true });
-    const body = createIdentitySchema.parse(request.body ?? {});
-    const identity = await createIdentity(body);
-    reply.code(201);
-    return { ok: true, identity: publicIdentity(identity) };
-  });
-
-  app.get("/identities/:identityId", async (request) => {
-    const ctx = await requirePlatformAuth(request);
-    const identityId = getParam(request.params, "identityId");
-    if (identityId !== ctx.identityId) await requirePlatformAuth(request, { permission: "manage_company_users" });
-    return {
-      ok: true,
-      identity: publicIdentity(await readIdentity(identityId))
-    };
-  });
-
-  app.patch("/identities/:identityId", async (request) => {
-    const ctx = await requirePlatformAuth(request, { csrf: true });
-    const identityId = getParam(request.params, "identityId");
-    if (identityId !== ctx.identityId) await requirePlatformAuth(request, { csrf: true, permission: "manage_company_users" });
-    return {
-      ok: true,
-      identity: publicIdentity(await patchIdentity(identityId, objectBodySchema.parse(request.body ?? {})))
-    };
-  });
-
-  app.post("/auth/resolve", async (request) => {
-    await requirePlatformAuth(request, { csrf: true, permission: "manage_company_users" });
-    const body = authResolveSchema.parse(request.body ?? {});
-    const identity = await findIdentityByEmail(body.email);
-    const memberships = await listIdentityMemberships(String(identity.id ?? ""));
-    return { ok: true, identity: publicIdentity(identity), memberships };
-  });
-
-  app.post("/auth/login", async (request, reply) => {
-    const body = loginSchema.parse(request.body ?? {});
-    const ctx = await loginPlatformIdentity({
-      identifier: body.identifier || body.email,
-      password: body.password,
-      organizationId: body.organization_id,
-      metadata: {
-        user_agent: String(request.headers["user-agent"] || ""),
-        ip: request.ip
-      }
-    });
-    setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
-    return { ok: true, ...publicAuthContext(ctx) };
-  });
-
-  app.get("/auth/google/config", async () => ({
-    ok: true,
-    enabled: env.googleAuthClientId.trim() !== "",
-    client_id: env.googleAuthClientId.trim()
-  }));
-
-  app.post("/auth/google", async (request, reply) => {
+app.post("/auth/google", async (request, reply) => {
     const body = googleAuthSchema.parse(request.body ?? {});
     const google = await verifyGoogleCredential(body.credential, options.googleIdTokenVerifier);
     const now = new Date().toISOString();
@@ -423,6 +544,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
         }
       });
       setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
       return {
         ok: true,
         first_login: false,
@@ -444,6 +566,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     delete requestedGlobal.app_variants;
     delete requestedGlobal.feature_variants;
     const attribution = signupAttributionPayload(withAcquisitionRequestMetadata(body, request));
+    requirePublicRegistration();
     const registered = await withNewIdentityRegistration(google.email, async (transaction) => {
       const organization = await createOrganization({
         id: body.organization_id,
@@ -536,6 +659,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
       }
     });
     setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
     reply.code(201);
     return {
       ok: true,
@@ -543,6 +667,202 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
       linked_google: true,
       ...publicAuthContext(ctx)
     };
+  });
+
+app.get("/auth/google/config", async () => ({
+    ok: true,
+    enabled: env.googleAuthClientId.trim() !== "",
+    client_id: env.googleAuthClientId.trim()
+  }));
+
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof ZodError) {
+      reply.code(400);
+      return reply.send({ ok: false, error: "validation_error", issues: error.issues });
+    }
+
+    if (error instanceof PlatformError) {
+      reply.code(error.statusCode);
+      return reply.send({
+        ok: false,
+        error: error.code,
+        message: error.message,
+        details: error.details ?? null
+      });
+    }
+
+    if (typeof (error as { statusCode?: unknown }).statusCode === "number") {
+      reply.code(Number((error as { statusCode: number }).statusCode));
+      return reply.send({
+        ok: false,
+        error: String((error as { code?: unknown }).code ?? "request_error"),
+        message: String((error as { message?: unknown }).message ?? "The request could not be processed.")
+      });
+    }
+
+    app.log.error(error);
+    reply.code(500);
+    return reply.send({ ok: false, error: "internal_error", message: "An unexpected error occurred." });
+  });
+
+  await registerContactImportRoutes(app, { invalidateSearchCache: invalidatePlatformSearchCache });
+  await registerAttentionRoutes(app);
+
+  app.get("/", async () => ({
+    ok: true,
+    api: "platform",
+    message: "platform API is mounted",
+    storage: {
+      namespace: "storage/platform",
+      globalIdentityShape: {
+        identities: "/identities/:identityId",
+        authResolve: "/auth/resolve",
+        authRegister: "/auth/register",
+        authLogin: "/auth/login",
+        authSession: "/auth/session",
+        authLogout: "/auth/logout",
+        authAccounts: "/auth/accounts"
+      },
+      organizationShape: {
+        users: "/organizations/:orgId/users",
+        projects: "/organizations/:orgId/projects",
+        notifications: "/organizations/:orgId/notifications",
+        branch: "/organizations/:orgId/branch",
+        branchModules: "/organizations/:orgId/branch/:branchId/modules/:moduleId",
+        global: "/organizations/:orgId/global",
+        media: "/organizations/:orgId/media"
+      }
+    },
+    subApis: {
+      pricebook: "/pricebook"
+    }
+  }));
+
+  app.get("/ping", async (request) => ({
+    ok: true,
+    api: "platform",
+    route: "/ping",
+    method: request.method,
+    receivedAt: new Date().toISOString()
+  }));
+
+  app.get("/organizations", async (request) => {
+    await requirePlatformAuth(request);
+    return {
+      ok: true,
+      organizations: await listOrganizations()
+    };
+  });
+
+  app.post("/organizations", async (request, reply) => {
+    requirePublicRegistration();
+    await requirePlatformAuth(request, { csrf: true });
+    const body = createOrganizationSchema.parse(request.body ?? {});
+    const organization = await createOrganization(body);
+    reply.code(201);
+    return { ok: true, organization };
+  });
+
+  app.post("/identities", async (request, reply) => {
+    await requirePlatformAuth(request, { csrf: true });
+    const body = createIdentitySchema.parse(request.body ?? {});
+    const identity = await createIdentity(body);
+    reply.code(201);
+    return { ok: true, identity: publicIdentity(identity) };
+  });
+
+  app.get("/identities/:identityId", async (request) => {
+    const ctx = await requirePlatformAuth(request);
+    const identityId = getParam(request.params, "identityId");
+    if (identityId !== ctx.identityId) await requirePlatformAuth(request, { permission: "manage_company_users" });
+    return {
+      ok: true,
+      identity: publicIdentity(await readIdentity(identityId))
+    };
+  });
+
+  app.patch("/identities/:identityId", async (request) => {
+    const ctx = await requirePlatformAuth(request, { csrf: true });
+    const identityId = getParam(request.params, "identityId");
+    if (identityId !== ctx.identityId) await requirePlatformAuth(request, { csrf: true, permission: "manage_company_users" });
+    return {
+      ok: true,
+      identity: publicIdentity(await patchIdentity(identityId, objectBodySchema.parse(request.body ?? {})))
+    };
+  });
+
+  app.post("/auth/resolve", async (request) => {
+    await requirePlatformAuth(request, { csrf: true, permission: "manage_company_users" });
+    const body = authResolveSchema.parse(request.body ?? {});
+    const identity = await findIdentityByEmail(body.email);
+    const memberships = await listIdentityMemberships(String(identity.id ?? ""));
+    return { ok: true, identity: publicIdentity(identity), memberships };
+  });
+
+  app.post("/auth/login", async (request, reply) => {
+    const body = loginSchema.parse(request.body ?? {});
+    const ctx = await loginPlatformIdentity({
+      identifier: body.identifier || body.email,
+      password: body.password,
+      organizationId: body.organization_id,
+      metadata: {
+        user_agent: String(request.headers["user-agent"] || ""),
+        ip: request.ip
+      }
+    });
+    setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
+    return { ok: true, ...publicAuthContext(ctx) };
+  });
+
+  app.get("/auth/accounts", async (request) => {
+    const ctx = await requirePlatformAuth(request, { application: false });
+    return {
+      ok: true,
+      accounts: await listRememberedPlatformAccounts(request, ctx),
+      cookie_names: platformAuthCookieNames()
+    };
+  });
+
+  app.post("/auth/accounts/add", async (request, reply) => {
+    const activeCtx = await requirePlatformAuth(request, { csrf: true, application: false });
+    const body = loginSchema.parse(request.body ?? {});
+    const ctx = await loginPlatformIdentity({
+      email: body.email,
+      password: body.password,
+      organizationId: body.organization_id,
+      metadata: {
+        user_agent: String(request.headers["user-agent"] || ""),
+        ip: request.ip,
+        source: "account_switcher"
+      }
+    });
+    setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    // Re-establish the current account first in case this browser retained its
+    // active session but lost the opaque remembered-device cookie.
+    const remembered = await rememberPlatformAccount(request, reply, activeCtx);
+    await rememberPlatformAccount(request, reply, ctx, remembered.deviceId);
+    return { ok: true, ...publicAuthContext(ctx) };
+  });
+
+  app.post("/auth/accounts/switch", async (request, reply) => {
+    await requirePlatformAuth(request, { csrf: true, application: false });
+    const body = rememberedAccountSchema.parse(request.body ?? {});
+    const ctx = await switchRememberedPlatformAccount(request, reply, body.account_id);
+    return { ok: true, ...publicAuthContext(ctx) };
+  });
+
+  app.post("/auth/accounts/remove", async (request, reply) => {
+    await requirePlatformAuth(request, { csrf: true, application: false });
+    const body = rememberedAccountSchema.parse(request.body ?? {});
+    await removeRememberedPlatformAccount(request, reply, body.account_id);
+    return { ok: true };
+  });
+
+  app.post("/auth/accounts/logout-all", async (request, reply) => {
+    await requirePlatformAuth(request, { csrf: true, application: false });
+    await logoutAllRememberedPlatformAccounts(request, reply);
+    return { ok: true, authenticated: false };
   });
 
   app.post("/auth/legacy-action", async (request, reply) => {
@@ -578,7 +898,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     }
 
     const [flags, globalDoc] = await Promise.all([
-      effectiveAppFlags(ctx.orgId),
+      effectiveAppFlags(ctx.orgId, ctx.userId),
       readGlobal(ctx.orgId).catch(() => null)
     ]);
     const enabled = enabledOnlyAppFlags(flags);
@@ -639,7 +959,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   });
 
   app.get("/me", async (request) => {
-    const ctx = await requirePlatformAuth(request);
+    const ctx = await requirePlatformAuth(request, { application: false });
     const [global, branch] = await Promise.all([
       readGlobal(ctx.orgId),
       readDocument(ctx.orgId, "branch", ctx.branchId).catch(() => null)
@@ -652,7 +972,45 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     };
   });
 
+  app.get("/me/localization", async (request) => {
+    const ctx = await requirePlatformAuth(request, { application: false });
+    const settings = await companyLocalization(ctx.orgId, ctx.branchId);
+    const personal = { interface_locale: asObject(ctx.identity.preferences).interface_locale ?? null };
+    return { ok: true, ...settings, personal, context: resolveContext(settings.company, settings.enabled ? personal : {}) };
+  });
+
+  app.get("/me/preferences", async (request) => {
+    const ctx = await requirePlatformAuth(request, { application: false });
+    const preferences = asObject(ctx.identity.preferences);
+    return {
+      ok: true,
+      preferences: {
+        interface_locale: preferences.interface_locale ?? null,
+        language: cleanText(preferences.language || "en").toLowerCase(),
+        auto_translate_messages: preferences.auto_translate_messages === true,
+        sidebar_width: Number.isInteger(preferences.sidebar_width) ? preferences.sidebar_width : 250
+      }
+    };
+  });
+
+  app.patch("/me/preferences", async (request) => {
+    const ctx = await requirePlatformAuth(request, { application: false, csrf: true });
+    const patch = userPreferencesSchema.parse(request.body ?? {});
+    const current = asObject(ctx.identity.preferences);
+    if (patch.interface_locale !== undefined && patch.interface_locale !== (current.interface_locale ?? null) && !await isAppFlagEnabled(ctx.orgId, "firstmeasure", "report_localization")) throw forbidden("localization_disabled", "Language customization is not enabled for this organization.");
+    const preferences = {
+      ...current,
+      interface_locale: patch.interface_locale !== undefined ? patch.interface_locale : current.interface_locale ?? null,
+      language: cleanText(patch.language ?? current.language ?? "en").toLowerCase(),
+      auto_translate_messages: patch.auto_translate_messages ?? current.auto_translate_messages === true,
+      sidebar_width: patch.sidebar_width ?? (Number.isInteger(current.sidebar_width) ? current.sidebar_width : 250)
+    };
+    await patchIdentity(ctx.identityId, { preferences });
+    return { ok: true, preferences };
+  });
+
   app.post("/auth/register", async (request, reply) => {
+    requirePublicRegistration();
     const body = registerSchema.parse(request.body ?? {});
     const passwordHash = body.password_hash || (body.password ? await hashPassword(body.password) : "");
     if (!passwordHash) throw badRequest("password_required", "A password is required.");
@@ -754,13 +1112,14 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
         }
       });
       setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
     }
     reply.code(201);
     return { ok: true, identity: publicIdentity(nextIdentity), organization, user };
   });
 
   app.post("/auth/touch-login", async (request) => {
-    await requirePlatformAuth(request, { csrf: true });
+    await requirePlatformAuth(request, { application: false, csrf: true });
     const body = objectBodySchema.parse(request.body ?? {});
     const identityId = String(body.identity_id || "");
     const identity = await patchIdentity(identityId, { last_login_at: new Date().toISOString() });
@@ -988,30 +1347,41 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.get("/organizations/:orgId/app-flags", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId });
-    const state = await appFlagState(orgId);
+    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    const state = await appFlagState(orgId, ctx.userId);
     return {
       ok: true,
       ...state,
-      test_admin: canManageTestAppFlags(ctx)
+        test_admin: canManageTestAppFlags(ctx)
     };
   });
 
   app.put("/organizations/:orgId/app-flags", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
-    if (!canManageTestAppFlags(ctx)) {
-      throw forbidden("app_flags_test_admin_only", "Only configured test admins can edit app rollout flags from Platform.");
-    }
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const hasVariantInput = Object.prototype.hasOwnProperty.call(body, "app_variants") || Object.prototype.hasOwnProperty.call(body, "variants");
     const hasExplicitFlagInput = Object.prototype.hasOwnProperty.call(body, "app_flags") || Object.prototype.hasOwnProperty.call(body, "flags");
+    const hasPlacementInput = Object.prototype.hasOwnProperty.call(body, "app_placements");
     const patchData: JsonObject = {};
-    if (hasExplicitFlagInput || !hasVariantInput) patchData.app_flags = normalizeAppFlagInput(body);
+    if (hasExplicitFlagInput || (!hasVariantInput && !hasPlacementInput)) patchData.app_flags = normalizeAppFlagInput(body);
     if (hasVariantInput) {
       patchData.app_variants = normalizeAppVariantInput(body);
     }
-    await saveGlobal(orgId, { data: patchData }, { replace: false });
+    if (hasPlacementInput) patchData.app_placements = normalizeAppPlacementInput(body.app_placements);
+    await mutateGlobal(orgId, global => {
+      const patch = { ...patchData };
+      if (patch.app_flags) {
+        const data = asObject(global.data);
+        const flags = asObject(data.app_flags || data.feature_flags);
+        for (const [group, values] of Object.entries(asObject(patch.app_flags))) {
+          flags[group] = { ...asObject(flags[group]), ...asObject(values) };
+        }
+        patch.app_flags = flags;
+      }
+      return { data: patch };
+    });
     return {
       ok: true,
       ...(await appFlagState(orgId)),
@@ -1019,20 +1389,178 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     };
   });
 
-  app.get("/organizations/:orgId/media", async (request) => {
+  app.get("/organizations/:orgId/platform-rollout", async request => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    if (!canManageTestAppFlags(ctx)) throw forbidden("app_flags_operator_only", "Only an authorized operator can inspect platform rollout targeting.");
+    return { ok: true, ...(await readPlatformRollout(orgId)) };
+  });
+  app.put("/organizations/:orgId/platform-rollout", async request => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(ctx)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change platform rollout targeting.");
+    const body = z.object({ mode: z.enum(["all", "selected"]), user_ids: z.array(z.string().trim().min(1)).max(500) }).strict().parse(request.body);
+    const userIds = [...new Set(body.user_ids)];
+    for (const id of userIds) await readDocument(orgId, "users", id);
+    const { mutatePlatformConfiguration } = await import("./storage.js");
+    await mutatePlatformConfiguration(platformRolloutConfigurationKey(orgId), () => ({ mode: body.mode, user_ids: userIds,
+      updated_by: ctx.identityId, updated_at: new Date().toISOString() }));
+    return { ok: true, ...(await readPlatformRollout(orgId)) };
+  });
+
+  app.get("/organizations/:orgId/capabilities", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, application: false });
     return {
       ok: true,
-      media: await listMedia(orgId)
+      ...(await capabilityState(orgId, ctx.userId)),
+      test_admin: canManageTestAppFlags(ctx)
+    };
+  });
+
+  app.put("/organizations/:orgId/capabilities", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    const body = objectBodySchema.parse(request.body ?? {});
+    const { violations } = await saveCapabilityValues(orgId, asObject(body.values));
+    return {
+      ok: true,
+      violations,
+      ...(await capabilityState(orgId)),
+      test_admin: true
+    };
+  });
+
+  app.post("/organizations/:orgId/capabilities/validate", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    const body = objectBodySchema.parse(request.body ?? {});
+    const current = await rawCapabilityValues(orgId);
+    const candidate = { ...current, ...asObject(body.values) };
+    const { values, violations, resolution } = validateValueSet(candidate);
+    return {
+      ok: true,
+      values,
+      violations,
+      effective: resolution.values,
+      effective_by_key: resolution.effectiveByKey,
+      reasons: resolution.reasons
+    };
+  });
+
+  app.post("/organizations/:orgId/capabilities/presets", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    const body = objectBodySchema.parse(request.body ?? {});
+    const values = body.from_current === true
+      ? await rawCapabilityValues(orgId)
+      : asObject(body.values);
+    const { preset, violations } = await createCapabilityPreset({
+      name: String(body.name || ""),
+      description: String(body.description || ""),
+      values
+    });
+    reply.code(201);
+    return { ok: true, preset, violations };
+  });
+
+  app.patch("/organizations/:orgId/capabilities/presets/:presetId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    const body = objectBodySchema.parse(request.body ?? {});
+    const { preset, violations } = await updateCapabilityPreset(getParam(request.params, "presetId"), {
+      ...(Object.prototype.hasOwnProperty.call(body, "name") ? { name: String(body.name || "") } : {}),
+      ...(Object.prototype.hasOwnProperty.call(body, "description") ? { description: String(body.description || "") } : {}),
+      ...(Object.prototype.hasOwnProperty.call(body, "values") ? { values: asObject(body.values) } : {})
+    });
+    return { ok: true, preset, violations };
+  });
+
+  app.delete("/organizations/:orgId/capabilities/presets/:presetId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    await deleteCapabilityPreset(getParam(request.params, "presetId"));
+    return { ok: true, deleted: true };
+  });
+
+  app.post("/organizations/:orgId/capabilities/presets/:presetId/apply", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    const { preset, violations } = await applyCapabilityPreset(orgId, getParam(request.params, "presetId"));
+    return {
+      ok: true,
+      applied_preset: { id: preset.id, name: preset.name },
+      violations,
+      ...(await capabilityState(orgId)),
+      test_admin: true
+    };
+  });
+
+  app.put("/organizations/:orgId/capabilities/signup-preset", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    const body = objectBodySchema.parse(request.body ?? {});
+    const result = await setSignupCapabilityPreset(String(body.preset_id || ""));
+    return { ok: true, ...result };
+  });
+
+  app.get("/organizations/:orgId/media", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
+    const projectId = cleanText(query.project_id || query.projectId);
+    const tags = normalizeMediaTags(query.tags || query.tag);
+    const tagMode = cleanText(query.tag_mode || query.tagMode).toLowerCase() === "all" ? "all" : "any";
+    const media = (await listMedia(orgId))
+      .filter((item) => canReadReceiptMedia(item, ctx))
+      .filter((item) => {
+        if (!projectId) return true;
+        const owner = asObject(item.owner);
+        const metadata = asObject(item.metadata);
+        return cleanText(metadata.project_id || (cleanText(owner.type) === "project" ? owner.id : "")) === projectId;
+      })
+      .filter((item) => {
+        if (!tags.length) return true;
+        const itemTags = normalizeMediaTags(item.tags || asObject(item.metadata).tags);
+        return tagMode === "all"
+          ? tags.every((tag) => itemTags.includes(tag))
+          : tags.some((tag) => itemTags.includes(tag));
+      })
+      .map(publicMediaMetadata);
+    return {
+      ok: true,
+      media
     };
   });
 
   app.post("/organizations/:orgId/media", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const upload = await parseMediaUploadRequest(request);
     const media = await storeMediaUpload(orgId, upload);
+    const mediaOwner = asObject(media.owner);
+    const mediaProjectId = cleanText(mediaOwner.type) === "project" ? cleanText(mediaOwner.id) : "";
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: ctx.branchId || "default",
+      ...(mediaProjectId ? { project_id: mediaProjectId } : {}),
+      type: "media.uploaded",
+      idempotency_key: `media.uploaded:${cleanText(media.id)}`,
+      payload: {
+        media_id: cleanText(media.id),
+        ...(mediaProjectId ? { project_id: mediaProjectId } : {}),
+        content_type: cleanText(media.content_type),
+        file_name: cleanText(media.file_name),
+        kind: cleanText(media.kind)
+      },
+      context: { actor_user_id: ctx.userId }
+    });
     reply.code(201);
     return { ok: true, media };
   });
@@ -1053,11 +1581,58 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.get("/organizations/:orgId/media/:mediaId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const media = await readMediaMetadata(orgId, getParam(request.params, "mediaId"));
+    if (!canReadReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     return {
       ok: true,
-      media: await readMediaMetadata(orgId, getParam(request.params, "mediaId"))
+      media: publicMediaMetadata(media)
     };
+  });
+
+  app.patch("/organizations/:orgId/media/:mediaId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const mediaId = getParam(request.params, "mediaId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const existing = await readMediaMetadata(orgId, mediaId);
+    if (!canWriteReceiptMedia(existing, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media cannot be changed by this user.");
+    const body = objectBodySchema.parse(request.body ?? {});
+    const nameKey = ["name", "file_name", "label"].find((key) => Object.prototype.hasOwnProperty.call(body, key));
+    const hasTags = Object.prototype.hasOwnProperty.call(body, "tags");
+    if (!hasTags && !nameKey) throw badRequest("media_update_required", "A tags array or a name is required.");
+
+    if (nameKey) {
+      const previousName = cleanText(existing.file_name);
+      const renamed = await renameMedia(orgId, mediaId, body[nameKey]);
+      const renameOwner = asObject(existing.owner);
+      const renameProjectId = cleanText(asObject(renamed.metadata).project_id || (cleanText(renameOwner.type) === "project" ? renameOwner.id : ""));
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: ctx.branchId || "default",
+        ...(renameProjectId ? { project_id: renameProjectId } : {}),
+        type: "media.renamed",
+        idempotency_key: `media.renamed:${mediaId}:${cleanText(renamed.updated_at)}`,
+        payload: { media_id: mediaId, file_name: cleanText(renamed.file_name), previous_file_name: previousName },
+        context: { actor_user_id: ctx.userId }
+      });
+      if (!hasTags) return { ok: true, media: publicMediaMetadata(renamed) };
+    }
+
+    const previousTags = normalizeMediaTags(existing.tags || asObject(existing.metadata).tags);
+    const media = await updateMediaTags(orgId, mediaId, body.tags);
+    const tags = normalizeMediaTags(media.tags || asObject(media.metadata).tags);
+    const owner = asObject(existing.owner);
+    const projectId = cleanText(asObject(media.metadata).project_id || (cleanText(owner.type) === "project" ? owner.id : ""));
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: ctx.branchId || "default",
+      ...(projectId ? { project_id: projectId } : {}),
+      type: "media.tags_updated",
+      idempotency_key: `media.tags_updated:${mediaId}:${cleanText(media.updated_at)}`,
+      payload: { media_id: mediaId, tags, previous_tags: previousTags },
+      context: { actor_user_id: ctx.userId }
+    });
+    return { ok: true, media: publicMediaMetadata(media) };
   });
 
   app.get("/organizations/:orgId/media/:mediaId/logo", async (request, reply) => {
@@ -1086,8 +1661,9 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     const collection = String(metadata.collection || "").toLowerCase();
     const isOrganizationBrandingMedia = String(owner.type || "").toLowerCase() === "organization"
       && (slot === "logo" || scope === "branding" || collection === "branding" || slot.includes("brand") || slot.includes("logo"));
-    if (!isOrganizationBrandingMedia) {
-      await requirePlatformAuth(request, { orgId });
+    const ctx = !isOrganizationBrandingMedia ? await requirePlatformAuth(request, { orgId }) : null;
+    if (isReceiptMedia(metadata) && !canReadReceiptMedia(metadata, ctx)) {
+      throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     }
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const file = await readMediaFile(
@@ -1095,19 +1671,27 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
       mediaId,
       String(query.variant || "original")
     );
-    reply.header("Content-Type", file.contentType);
-    reply.header("Content-Disposition", `inline; filename="${String(file.fileName).replace(/"/g, "")}"`);
-    return reply.send(file.bytes);
+    if (isReceiptMedia(metadata)) {
+      reply.header("Content-Type", file.contentType || "application/octet-stream");
+      reply.header("Content-Disposition", `attachment; filename="${String(file.fileName).replace(/[\r\n"\\/]+/g, "_")}"`);
+      reply.header("X-Content-Type-Options", "nosniff");
+      reply.header("Cache-Control", "private, no-store");
+      return reply.send(file.bytes);
+    }
+    return sendInlineMediaFile(request, reply, file);
   });
 
   app.get("/organizations/:orgId/media/:mediaId/markup/:layerId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const mediaId = getParam(request.params, "mediaId");
+    const media = await readMediaMetadata(orgId, mediaId);
+    if (!canReadReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     return {
       ok: true,
       layer: await readMediaMarkupLayer(
         orgId,
-        getParam(request.params, "mediaId"),
+        mediaId,
         getParam(request.params, "layerId")
       )
     };
@@ -1115,13 +1699,16 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.put("/organizations/:orgId/media/:mediaId/markup/:layerId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const mediaId = getParam(request.params, "mediaId");
+    const media = await readMediaMetadata(orgId, mediaId);
+    if (!canWriteReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media cannot be edited by this user.");
     const body = objectBodySchema.parse(request.body ?? {});
     return {
       ok: true,
       ...(await saveMediaMarkupLayer(
         orgId,
-        getParam(request.params, "mediaId"),
+        mediaId,
         getParam(request.params, "layerId"),
         extractDataBody(body),
         extractMetadataBody(body)
@@ -1131,13 +1718,16 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.patch("/organizations/:orgId/media/:mediaId/markup/:layerId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const mediaId = getParam(request.params, "mediaId");
+    const media = await readMediaMetadata(orgId, mediaId);
+    if (!canWriteReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media cannot be edited by this user.");
     const body = objectBodySchema.parse(request.body ?? {});
     return {
       ok: true,
       ...(await saveMediaMarkupLayer(
         orgId,
-        getParam(request.params, "mediaId"),
+        mediaId,
         getParam(request.params, "layerId"),
         extractDataBody(body),
         extractMetadataBody(body)
@@ -1222,66 +1812,141 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     };
   });
 
-  app.get("/organizations/:orgId/branch/:branchId/triggers", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    const branchId = getParam(request.params, "branchId") || "default";
-    await requirePlatformAuth(request, { orgId });
-    const modules = await ensureWorkflowModules(orgId, branchId);
-    return { ok: true, triggers: modules.triggers, stages: modules.stages, mappings: modules.mappings };
-  });
-
-  app.put("/organizations/:orgId/branch/:branchId/triggers", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    const branchId = getParam(request.params, "branchId") || "default";
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
-    const body = objectBodySchema.parse(request.body ?? {});
-    const saved = await saveBranchModule(
-      orgId,
-      branchId,
-      PLATFORM_TRIGGER_MODULE_ID,
-      { data: extractDataBody(body), metadata: extractMetadataBody(body) },
-      { replace: true }
-    );
-    return { ok: true, triggers: saved };
-  });
-
-  app.post("/organizations/:orgId/branch/:branchId/triggers/emit", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    const branchId = getParam(request.params, "branchId") || "default";
-    await requirePlatformAuth(request, { orgId, csrf: true });
-    const body = objectBodySchema.parse(request.body ?? {});
-    return {
-      ok: true,
-      ...(await emitPlatformTrigger(orgId, branchId, String(body.event || body.event_name || ""), asObject(body.context)))
-    };
-  });
-
   app.post("/organizations/:orgId/projects/:projectId/events", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const projectId = getParam(request.params, "projectId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
     const body = objectBodySchema.parse(request.body ?? {});
     const branchId = String(body.branch_id || body.branchId || "default");
     const current = await readDocument(orgId, "projects", projectId);
     const currentData = asObject(current.data);
-    const event = normalizeProjectEvent(asObject(body.event || body.data || body), currentData);
     const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
-    const existingIndex = events.findIndex((item) => asObject(item).id === event.id);
+    const incoming = asObject(body.event || body.data || body);
+    const unlockConfirmed = incoming.unlock_confirmed === true || incoming.unlockConfirmed === true || body.unlock_confirmed === true || body.unlockConfirmed === true;
+    const eventInput = { ...incoming };
+    delete eventInput.unlock_confirmed;
+    delete eventInput.unlockConfirmed;
+    const requestedEventId = cleanText(eventInput.id);
+    const existingIndex = requestedEventId ? events.findIndex((item) => cleanText(asObject(item).id) === requestedEventId) : -1;
+    const existingEvent = existingIndex >= 0 ? asObject(events[existingIndex]) : {};
+    const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData);
+    const assignmentChanged = existingIndex < 0
+      || JSON.stringify(eventAssignmentKeys(existingEvent)) !== JSON.stringify(eventAssignmentKeys(event));
+    if (assignmentChanged) {
+      event.assignment_policy = await assertProjectEventAssignmentsAllowed(orgId, branchId, event);
+    }
+    // Equipment double-booking guard: conflict_mode 'block' rejects, 'warn'
+    // returns the conflicts for the UI to render, 'off' skips the check.
+    let equipmentConflicts: JsonObject[] = [];
+    let operatorWarnings: JsonObject[] = [];
+    const equipmentRefs = eventEquipmentResourceRefs(event);
+    const equipmentAppOn = await isCapabilityEnabled(orgId, "apps.equipment").catch(() => false);
+    if (equipmentRefs.length && cleanText(event.start_at) && cleanText(event.status).toLowerCase() !== "unscheduled"
+      && equipmentAppOn && await isCapabilityEnabled(orgId, "equipment.scheduling").catch(() => false)) {
+      const { assessEquipmentBooking, assessOperatorRequirements, readModuleSettings } = await import("../equipment/service.js");
+      const equipmentSettings = asObject((await readModuleSettings(orgId)).settings);
+      const conflictMode = cleanText(equipmentSettings.conflict_mode) || "warn";
+      if (conflictMode !== "off") {
+        const assessed = await Promise.all(equipmentRefs.map((ref) => assessEquipmentBooking(orgId, {
+          refs:[ref],
+          start:cleanText(ref.start_at || event.start_at),
+          end:cleanText(ref.end_at || event.end_at),
+          excludeEventId:cleanText(event.id)
+        })));
+        equipmentConflicts = assessed.flat() as unknown as JsonObject[];
+        if (conflictMode === "block" && equipmentConflicts.length) {
+          throw conflict("equipment_conflict", "One or more equipment assignments conflict with existing bookings.", {
+            conflicts: equipmentConflicts
+          });
+        }
+      }
+      // Operator certification check: advisory warning by default, hard block
+      // when the org's operator enforcement is set to block.
+      if (await isCapabilityEnabled(orgId, "equipment.operators").catch(() => false)) {
+        operatorWarnings = await assessOperatorRequirements(orgId, event) as unknown as JsonObject[];
+        if (operatorWarnings.length && cleanText(equipmentSettings.operator_enforcement) === "block") {
+          throw badRequest("equipment_operator_required", "One or more equipment assignments are missing a qualified operator.", {
+            issues: operatorWarnings
+          });
+        }
+      }
+    }
+    if (existingIndex < 0) {
+      const identity = asObject(actor.identity);
+      event.scheduled_by_user_id = cleanText(eventInput.scheduled_by_user_id || actor.userId);
+      event.scheduled_by_name = cleanText(eventInput.scheduled_by_name || identity.name || identity.display_name || identity.email);
+      event.scheduled_by_email = cleanText(eventInput.scheduled_by_email || identity.email);
+    }
+    const existingStartMs = Date.parse(cleanText(existingEvent.start_at || existingEvent.start));
+    const existingEndMs = Date.parse(cleanText(existingEvent.end_at || existingEvent.end));
+    const derivedExistingDuration = Number.isFinite(existingStartMs) && Number.isFinite(existingEndMs) && existingEndMs > existingStartMs
+      ? Math.max(1, Math.round((existingEndMs - existingStartMs) / 60000))
+      : 60;
+    const existingDuration = Math.max(1, Number(existingEvent.duration_minutes || existingEvent.duration || derivedExistingDuration));
+    const rangeChanged = existingIndex >= 0 && (
+      cleanText(existingEvent.start_at || existingEvent.start) !== cleanText(event.start_at)
+      || cleanText(existingEvent.end_at || existingEvent.end) !== cleanText(event.end_at)
+      || existingDuration !== Number(event.duration_minutes || 60)
+      || (cleanText(existingEvent.status).toLowerCase() === "unscheduled") !== (cleanText(event.status).toLowerCase() === "unscheduled")
+    );
+    const explicitUnlock = existingEvent.locked === true && eventInput.locked === false;
+    if (existingEvent.locked === true && (rangeChanged || explicitUnlock) && !unlockConfirmed) {
+      throw conflict("project_event_locked", "This item is locked. Confirm unlocking it before rescheduling.", {
+        event_id: requestedEventId,
+        locked_reason: cleanText(existingEvent.locked_reason),
+        unlock_confirmation_required: true
+      });
+    }
+    if (existingEvent.locked === true && unlockConfirmed) {
+      event.locked = false;
+      event.unlocked_at = new Date().toISOString();
+      event.unlocked_by_user_id = actor.userId;
+      event.unlock_reason = cleanText(incoming.unlock_reason || "confirmed_reschedule");
+      event.schedule_lock = {
+        ...asObject(existingEvent.schedule_lock),
+        locked: false,
+        unlocked_at: event.unlocked_at,
+        unlocked_by_user_id: actor.userId
+      };
+    }
+    if (eventInput.locked === true) {
+      event.locked = true;
+      event.locked_at = cleanText(existingEvent.locked_at || new Date().toISOString());
+      event.locked_by_user_id = actor.userId;
+      event.schedule_lock = {
+        ...asObject(existingEvent.schedule_lock),
+        ...asObject(eventInput.schedule_lock),
+        locked: true,
+        locked_at: event.locked_at,
+        locked_by_user_id: actor.userId,
+        unlocked_at: ""
+      };
+    }
+    // Appointment confirmations: reconcile the send queue with the event's
+    // current time and settings, and stamp the resulting status back onto the
+    // event so the schedule views can render it (dashed = awaiting the customer).
+    if (isAppointmentConfirmationCandidate(event)) {
+      try {
+        const { syncAppointmentConfirmation } = await import("../appointments/service.js");
+        event.confirmation = await syncAppointmentConfirmation(orgId, branchId, projectId, event, currentData);
+      } catch (error) {
+        request.log?.warn?.({ err: error }, "appointment confirmation sync failed");
+      }
+    }
     if (existingIndex >= 0) events[existingIndex] = event;
     else events.push(event);
-    const stageId = String(currentData.stage || currentData.stage_id || DEFAULT_STAGE_ID);
+    const projectWithDefaults = applyProjectCustomFieldDefaults({
+      ...currentData,
+      events,
+      updated_at: new Date().toISOString()
+    });
+    await validateProjectCustomFieldValues(orgId, branchId, projectWithDefaults, currentData);
     const document = await upsertDocument(
       orgId,
       "projects",
       {
         id: projectId,
-        data: {
-          ...currentData,
-          stage: stageId,
-          stage_id: stageId,
-          events,
-          updated_at: new Date().toISOString()
-        },
+        data: projectWithDefaults,
         metadata: {
           ...asObject(current.metadata),
           last_project_event_id: event.id
@@ -1289,21 +1954,146 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
       },
       { replace: true }
     );
-    const emitted = await emitPlatformTrigger(orgId, branchId, "project.event_scheduled", {
-      project_id: projectId,
-      project: document.data,
-      project_document: document,
-      event
-    });
-    const emittedDocument = asObject(emitted.project_document || document);
+    const materialList = cleanText(event.material_list_id)
+      ? await syncMaterialListFromScheduleEvent(orgId, event)
+      : null;
+    const isScheduled = cleanText(event.status).toLowerCase() !== "unscheduled" && !!cleanText(event.start_at);
+    const schedulingMutation = isScheduled && (existingIndex < 0 || rangeChanged);
+    if (schedulingMutation) {
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: branchId,
+        project_id: projectId,
+        type: "project.event_scheduled",
+        idempotency_key: `project.event_scheduled:${projectId}:${event.id}:${event.updated_at}`,
+        payload: {
+          event_id: event.id,
+          event_kind: asObject(event).kind || event.event_type_default_id,
+          event_type_default_id: event.event_type_default_id,
+          event
+        }
+      });
+    }
+    const latestDocument = schedulingMutation
+      ? await readDocument(orgId, "projects", projectId).catch(() => document)
+      : document;
     invalidatePlatformSearchCache(orgId);
     return {
       ok: true,
       event,
-      document: emitted.project_document || document,
-      project: asObject(emittedDocument.data),
-      triggers: emitted
+      document: latestDocument,
+      project: asObject(asObject(latestDocument).data),
+      material_list: materialList,
+      equipment_conflicts: equipmentConflicts,
+      equipment_operator_warnings: operatorWarnings
     };
+  });
+
+  app.post("/organizations/:orgId/terminology-agent", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    if (!(await isAppFlagEnabled(orgId, "platform", "terminology_agent"))) {
+      throw notFound("terminology_agent_unavailable", "Terminology assistant is unavailable.");
+    }
+    const body = terminologyAgentSchema.parse(request.body ?? {});
+    return { ok: true, result: await runTerminologyAgent(body.prompt, body.catalog) };
+  });
+
+  app.delete("/organizations/:orgId/projects/:projectId/events/:eventId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    const eventId = getParam(request.params, "eventId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const current = await readDocument(orgId, "projects", projectId);
+    const currentData = asObject(current.data);
+    const events = Array.isArray(currentData.events) ? currentData.events.map(asObject) : [];
+    const deletedEvent = events.find((event) => cleanText(event.id) === eventId) || null;
+    const remainingEvents = events.filter((event) => cleanText(event.id) !== eventId);
+    if (!deletedEvent) {
+      return { ok: true, deleted: false, event_id: eventId, document: current, project: { id: projectId, ...currentData } };
+    }
+    const document = await upsertDocument(orgId, "projects", {
+      id: projectId,
+      data: { ...currentData, events: remainingEvents, updated_at: new Date().toISOString() },
+      metadata: { ...asObject(current.metadata), last_deleted_project_event_id: eventId }
+    }, { replace: true });
+    await clearMaterialListScheduleEvent(orgId, deletedEvent);
+    try {
+      const { withdrawAppointmentConfirmation } = await import("../appointments/service.js");
+      (await withdrawAppointmentConfirmation(orgId, projectId, eventId));
+    } catch { /* the queue row is inert once the event is gone */ }
+    invalidatePlatformSearchCache(orgId);
+    return {
+      ok: true,
+      deleted: true,
+      event: deletedEvent,
+      event_id: eventId,
+      document,
+      project: { id: projectId, ...asObject(document.data) }
+    };
+  });
+
+  app.get("/organizations/:orgId/recurrence-series", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    return { ok: true, series: await listRecurrenceSeries(orgId, objectBodySchema.parse(request.query ?? {})) };
+  });
+
+  app.post("/organizations/:orgId/recurrence-series", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule" });
+    const input = objectBodySchema.parse(request.body ?? {});
+    await assertRecurrenceAssignmentAllowed(orgId, input);
+    const result = await createRecurrenceSeries(orgId, input, ctx.userId);
+    reply.code(201);
+    return { ok: true, ...result };
+  });
+
+  app.get("/organizations/:orgId/projects/:projectId/recurrence-series", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    return { ok: true, series: await listRecurrenceSeries(orgId, { ...objectBodySchema.parse(request.query ?? {}), project_id: getParam(request.params, "projectId") }) };
+  });
+
+  app.post("/organizations/:orgId/projects/:projectId/recurrence-series", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule" });
+    const input = { ...objectBodySchema.parse(request.body ?? {}), project_id: getParam(request.params, "projectId") };
+    await assertRecurrenceAssignmentAllowed(orgId, input);
+    const result = await createRecurrenceSeries(orgId, input, ctx.userId);
+    reply.code(201);
+    return { ok: true, ...result };
+  });
+
+  app.get("/organizations/:orgId/recurrence-series/:seriesId/occurrences", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const seriesId = getParam(request.params, "seriesId");
+    return { ok: true, occurrences: await listRecurrenceOccurrences(orgId, seriesId, objectBodySchema.parse(request.query ?? {})) };
+  });
+
+  app.patch("/organizations/:orgId/recurrence-series/:seriesId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule" });
+    const input = objectBodySchema.parse(request.body ?? {});
+    if (Object.prototype.hasOwnProperty.call(input, "event_template")) {
+      await assertRecurrenceAssignmentAllowed(orgId, input);
+    }
+    return { ok: true, ...(await patchRecurrenceSeries(orgId, getParam(request.params, "seriesId"), input, ctx.userId)) };
+  });
+
+  app.delete("/organizations/:orgId/recurrence-series/:seriesId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule" });
+    return { ok: true, series: await cancelRecurrenceSeries(orgId, getParam(request.params, "seriesId"), ctx.userId) };
+  });
+
+  app.post("/organizations/:orgId/recurrence-series/:seriesId/occurrences/:occurrenceId/:action", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule" });
+    const action = getParam(request.params, "action");
+    if (!(["completed", "skipped", "cancelled"] as string[]).includes(action)) throw badRequest("invalid_recurrence_occurrence_action", "Use completed, skipped, or cancelled.");
+    return { ok: true, occurrence: await setRecurrenceOccurrenceStatus(orgId, getParam(request.params, "seriesId"), getParam(request.params, "occurrenceId"), action as "completed" | "skipped" | "cancelled", ctx.userId) };
   });
 
   app.get("/organizations/:orgId/projects/:projectId/customer-portal", async (request) => {
@@ -1333,11 +2123,57 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     return { ok: true, ...portal };
   });
 
+  // Staff side of the punch-list lifecycle. The customer owns submit + accept;
+  // the company owns "we finished the work" and reopening.
+  app.post("/organizations/:orgId/projects/:projectId/punch-lists/:checklistId/complete-work", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const result = await completePunchListWork(orgId, projectId, getParam(request.params, "checklistId"), ctx.userId);
+    return { ok: true, ...result };
+  });
+
+  app.post("/organizations/:orgId/projects/:projectId/punch-lists/:checklistId/reopen", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const result = await reopenPunchList(orgId, projectId, getParam(request.params, "checklistId"));
+    return { ok: true, ...result };
+  });
+
   app.get("/organizations/:orgId/projects/:projectId/customer-portal/activity", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const projectId = getParam(request.params, "projectId");
     await requirePlatformAuth(request, { orgId, permission: "view_reports" });
     return { ok: true, events: await listCustomerPortalActivity(orgId, projectId) };
+  });
+
+  app.get("/organizations/:orgId/projects/:projectId/customer-portal/shares", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    await requirePlatformAuth(request, { orgId, permission: "view_reports" });
+    const ensured = await ensureCustomerPortalRecord(orgId, projectId, {}, publicRequestBaseUrl(request));
+    return { ok: true, shares: Array.isArray(ensured.portal.guest_links) ? ensured.portal.guest_links : [] };
+  });
+
+  app.post("/organizations/:orgId/projects/:projectId/customer-portal/shares", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const ensured = await ensureCustomerPortalRecord(orgId, projectId, {}, publicRequestBaseUrl(request));
+    const found = await findCustomerPortalByUuid(cleanText(ensured.portal.public_uuid), false);
+    const created = await createPortalGuestLink(found, objectBodySchema.parse(request.body ?? {}), publicRequestBaseUrl(request), `staff:${ctx.userId}`);
+    reply.code(201);
+    return { ok: true, ...created };
+  });
+
+  app.delete("/organizations/:orgId/projects/:projectId/customer-portal/shares/:shareId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const ensured = await ensureCustomerPortalRecord(orgId, projectId, {}, publicRequestBaseUrl(request));
+    const found = await findCustomerPortalByUuid(cleanText(ensured.portal.public_uuid), false);
+    return { ok: true, share: await revokePortalGuestLink(found, getParam(request.params, "shareId")) };
   });
 
   app.get("/customer-portals/preview/:portalUuid", async (request) => {
@@ -1351,11 +2187,184 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     return { ok: true, ...result };
   });
 
+  app.get("/customer-portals/:portalUuid/appointments/:eventId/availability", async (request) => {
+    const context = await customerSchedulingContext(getParam(request.params, "portalUuid"));
+    const query = asObject(request.query);
+    return await appointmentAvailability(context.orgId, context.branchId, {
+      ...query,
+      project_id: context.projectId,
+      event_id: getParam(request.params, "eventId")
+    } as never);
+  });
+
+  app.post("/customer-portals/:portalUuid/appointments/:eventId/holds", async (request) => {
+    const portalUuid = getParam(request.params, "portalUuid");
+    const context = await customerSchedulingContext(portalUuid, true);
+    const body = objectBodySchema.parse(request.body ?? {});
+    return await holdAppointmentSlot(context.orgId, context.branchId, {
+      ...body,
+      project_id: context.projectId,
+      event_id: getParam(request.params, "eventId"),
+      source: "customer_portal",
+      source_id: portalUuid
+    });
+  });
+
+  app.post("/customer-portals/:portalUuid/appointments/:eventId/holds/:holdId/commit", async (request) => {
+    const portalUuid = getParam(request.params, "portalUuid");
+    const context = await customerSchedulingContext(portalUuid, true);
+    const hold = (await readSlotHold(getParam(request.params, "holdId")));
+    if (!hold || cleanText(hold.project_id) !== context.projectId || cleanText(hold.event_id) !== getParam(request.params, "eventId")) {
+      throw forbidden("appointment_hold_not_owned", "This appointment hold does not belong to this portal.");
+    }
+    return await commitAppointmentReschedule(context.orgId, cleanText(hold.id), { source: "customer_portal", actor: "customer" });
+  });
+
+  app.post("/customer-portals/:portalUuid/appointments/:eventId/reschedule-request/cancel", async (request) => {
+    const context = await customerSchedulingContext(getParam(request.params, "portalUuid"), true);
+    return await cancelAppointmentRescheduleRequest(context.orgId, context.projectId, getParam(request.params, "eventId"), { source:"customer_portal", actor:"customer", branch_id:context.branchId });
+  });
+
+  app.get("/customer-portals/:portalUuid/shares", async (request) => {
+    const found = await ensureRecoverablePortalGuestLinks(requirePortalOwner(await findCustomerPortalByUuid(getParam(request.params, "portalUuid"), false)));
+    const defaults = await portalOrgDefaults(found.orgId);
+    const settings = portalSettingsFor(defaults, found.data);
+    if (!settings.sharing.enabled) throw forbidden("portal_sharing_disabled", "Portal sharing is not enabled for this project.");
+    return { ok: true, shares: publicPortalGuestLinks(found.data.guest_links, publicRequestBaseUrl(request)) };
+  });
+
+  app.post("/customer-portals/:portalUuid/shares", async (request, reply) => {
+    const found = requirePortalOwner(await findCustomerPortalByUuid(getParam(request.params, "portalUuid"), false));
+    const created = await createPortalGuestLink(found, objectBodySchema.parse(request.body ?? {}), publicRequestBaseUrl(request));
+    reply.code(201);
+    return { ok: true, ...created };
+  });
+
+  app.delete("/customer-portals/:portalUuid/shares/:shareId", async (request) => {
+    const found = requirePortalOwner(await findCustomerPortalByUuid(getParam(request.params, "portalUuid"), false));
+    return { ok: true, share: await revokePortalGuestLink(found, getParam(request.params, "shareId")) };
+  });
+
   app.post("/customer-portals/:portalUuid/events", async (request, reply) => {
     const body = objectBodySchema.parse(request.body ?? {});
     const event = await recordCustomerPortalEvent(getParam(request.params, "portalUuid"), body, request);
     reply.code(201);
     return { ok: true, event };
+  });
+
+  app.patch("/customer-portals/:portalUuid/checklists/:checklistId/items/:itemId", async (request) => {
+    const item = await updateCustomerChecklistItem(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId"),
+      getParam(request.params, "itemId"),
+      objectBodySchema.parse(request.body ?? {})
+    );
+    return { ok: true, item };
+  });
+
+  app.post("/customer-portals/:portalUuid/checklists/:checklistId/items", async (request, reply) => {
+    const item = await createCustomerChecklistItem(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId"),
+      objectBodySchema.parse(request.body ?? {})
+    );
+    reply.code(201);
+    return { ok: true, item };
+  });
+
+  app.delete("/customer-portals/:portalUuid/checklists/:checklistId/items/:itemId", async (request) => {
+    const result = await deleteCustomerChecklistItem(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId"),
+      getParam(request.params, "itemId")
+    );
+    return { ok: true, ...result };
+  });
+
+  // ── Customer-authored writes (docs/customer-portal-v2-spec.md §5.2) ───────
+  // Every handler runs the same five-step guard via customerWriteContext():
+  // resolve portal -> reject inactive -> reject preview -> check the resolved
+  // setting -> rate limit. The setting is read from the server-resolved
+  // settings object, never from anything the client sent.
+
+  app.post("/customer-portals/:portalUuid/uploads", async (request, reply) => {
+    const result = await createCustomerUpload(request, getParam(request.params, "portalUuid"));
+    reply.code(201);
+    return { ok: true, ...result };
+  });
+
+  app.delete("/customer-portals/:portalUuid/uploads/:mediaId", async (request) => {
+    const result = await withdrawCustomerUpload(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "mediaId")
+    );
+    return { ok: true, ...result };
+  });
+
+  app.get("/customer-portals/:portalUuid/media/:mediaId/comments", async (request) => {
+    const result = await listCustomerMediaComments(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "mediaId")
+    );
+    return { ok: true, ...result };
+  });
+
+  app.post("/customer-portals/:portalUuid/media/:mediaId/comments", async (request, reply) => {
+    const result = await createCustomerMediaComment(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "mediaId"),
+      objectBodySchema.parse(request.body ?? {})
+    );
+    reply.code(201);
+    return { ok: true, ...result };
+  });
+
+  app.delete("/customer-portals/:portalUuid/media/:mediaId/comments/:commentId", async (request) => {
+    const result = await withdrawCustomerMediaComment(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "mediaId"),
+      getParam(request.params, "commentId")
+    );
+    return { ok: true, ...result };
+  });
+
+  app.post("/customer-portals/:portalUuid/punch-lists/:checklistId/submit", async (request) => {
+    const result = await submitCustomerPunchList(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId"),
+      objectBodySchema.parse(request.body ?? {}),
+      request
+    );
+    return { ok: true, ...result };
+  });
+
+  app.post("/customer-portals/:portalUuid/punch-lists/:checklistId/accept", async (request) => {
+    const result = await acceptCustomerPunchList(
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId"),
+      objectBodySchema.parse(request.body ?? {}),
+      request
+    );
+    return { ok: true, ...result };
+  });
+
+  app.post("/customer-portals/:portalUuid/checklists/:checklistId/items/:itemId/attachments", async (request) => {
+    const result = await attachCustomerChecklistEvidence(
+      request,
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId"),
+      getParam(request.params, "itemId")
+    );
+    return { ok: true, ...result };
+  });
+
+  app.post("/customer-portals/:portalUuid/checklists/:checklistId/voice", async (request) => {
+    const result = await updateCustomerChecklistByVoice(
+      request,
+      getParam(request.params, "portalUuid"),
+      getParam(request.params, "checklistId")
+    );
+    return { ok: true, ...result };
   });
 
   app.get("/customer-portals/preview/:portalUuid/media/:mediaId/file", async (request, reply) => {
@@ -1380,7 +2389,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.post("/organizations/:orgId/notifications", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(NOTIFICATION_COLLECTION) });
     const notification = await createPlatformNotification(orgId, objectBodySchema.parse(request.body ?? {}));
     reply.code(201);
     return { ok: true, notification };
@@ -1390,10 +2399,11 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
-    const result = await listVisibleActionItems(orgId, ctx.userId, {
+    const result = await listCanonicalActionItems(orgId, ctx, {
       branchId: cleanText(query.branch_id || query.branchId || ctx.branchId || "default"),
       includeCompleted: parseBooleanField(query.include_completed),
       includeCanceled: parseBooleanField(query.include_canceled),
+      includeFuture: parseBooleanField(query.include_future),
       includeHidden: parseBooleanField(query.include_hidden),
       includeAll: parseBooleanField(query.include_all),
       projectId: cleanText(query.project_id || query.projectId),
@@ -1409,54 +2419,64 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.post("/organizations/:orgId/action-items", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    const actionItem = await createPlatformActionItem(orgId, objectBodySchema.parse(request.body ?? {}), ctx);
+    const actionItem = await createCanonicalActionItem(orgId, objectBodySchema.parse(request.body ?? {}), ctx);
     reply.code(201);
-    return { ok: true, action_item: actionItemData(actionItem), document: actionItem };
+    return { ok: true, action_item: actionItem, document: { id: actionItem.id, data: actionItem } };
   });
 
   app.get("/organizations/:orgId/action-items/:actionItemId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId });
-    const document = await readDocument(orgId, ACTION_ITEM_COLLECTION, getParam(request.params, "actionItemId"));
-    const item = await actionItemViewForUser(orgId, document, ctx.userId);
-    if (!item.visible_to_user && !actionItemIsManagedByUser(item, ctx)) {
-      throw forbidden("action_item_not_visible", "This action item is not assigned to the current user.");
-    }
-    return { ok: true, action_item: item, document };
+    const item = await canonicalActionItemForUser(orgId, getParam(request.params, "actionItemId"), ctx);
+    return { ok: true, action_item: item, document: { id: item.id, data: item } };
   });
 
   app.patch("/organizations/:orgId/action-items/:actionItemId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    const document = await patchPlatformActionItem(orgId, getParam(request.params, "actionItemId"), objectBodySchema.parse(request.body ?? {}), ctx);
-    return { ok: true, action_item: actionItemData(document), document };
+    const item = await patchCanonicalActionItem(orgId, getParam(request.params, "actionItemId"), objectBodySchema.parse(request.body ?? {}), ctx);
+    return { ok: true, action_item: item, document: { id: item.id, data: item } };
   });
 
   app.post("/organizations/:orgId/action-items/:actionItemId/claim", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    const document = await transitionPlatformActionItem(orgId, getParam(request.params, "actionItemId"), "claimed", objectBodySchema.parse(request.body ?? {}), ctx);
-    return { ok: true, action_item: actionItemData(document), document };
+    const nodeId = getParam(request.params, "actionItemId");
+    await canonicalActionItemForUser(orgId, nodeId, ctx);
+    const body = objectBodySchema.parse(request.body ?? {});
+    const node = await transitionWorkNode(orgId, nodeId, "active", { ...body, reason: cleanText(body.reason || "claimed"), actor_user_id: ctx.userId, actor_email: cleanText(ctx.identity.email) });
+    const item = canonicalActionItemData(node);
+    return { ok: true, action_item: item, document: { id: item.id, data: item } };
   });
 
   app.post("/organizations/:orgId/action-items/:actionItemId/complete", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    const document = await transitionPlatformActionItem(orgId, getParam(request.params, "actionItemId"), "completed", objectBodySchema.parse(request.body ?? {}), ctx);
-    return { ok: true, action_item: actionItemData(document), document };
+    const nodeId = getParam(request.params, "actionItemId");
+    await canonicalActionItemForUser(orgId, nodeId, ctx);
+    const body = objectBodySchema.parse(request.body ?? {});
+    const node = await transitionWorkNode(orgId, nodeId, "completed", { ...body, reason: cleanText(body.reason || "manual"), actor_user_id: ctx.userId, actor_email: cleanText(ctx.identity.email) });
+    const item = canonicalActionItemData(node);
+    return { ok: true, action_item: item, document: { id: item.id, data: item } };
   });
 
   app.post("/organizations/:orgId/action-items/:actionItemId/cancel", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    const document = await transitionPlatformActionItem(orgId, getParam(request.params, "actionItemId"), "canceled", objectBodySchema.parse(request.body ?? {}), ctx);
-    return { ok: true, action_item: actionItemData(document), document };
+    const nodeId = getParam(request.params, "actionItemId");
+    await canonicalActionItemForUser(orgId, nodeId, ctx);
+    const body = objectBodySchema.parse(request.body ?? {});
+    const node = await transitionWorkNode(orgId, nodeId, "canceled", { ...body, reason: cleanText(body.reason || "manual"), actor_user_id: ctx.userId, actor_email: cleanText(ctx.identity.email) });
+    const item = canonicalActionItemData(node);
+    return { ok: true, action_item: item, document: { id: item.id, data: item } };
   });
 
   app.patch("/organizations/:orgId/action-items/:actionItemId/user-state", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    const state = await setUserActionItemState(orgId, ctx.userId, getParam(request.params, "actionItemId"), objectBodySchema.parse(request.body ?? {}));
+    const nodeId = getParam(request.params, "actionItemId");
+    await canonicalActionItemForUser(orgId, nodeId, ctx);
+    const state = await setUserActionItemState(orgId, ctx.userId, nodeId, objectBodySchema.parse(request.body ?? {}));
     return { ok: true, state };
   });
 
@@ -1467,20 +2487,61 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     const mentionUsers = Array.isArray(body.mention_users || body.mentionUsers)
       ? (body.mention_users || body.mentionUsers) as unknown[]
       : [];
+    const normalizedMentionUsers = mentionUsers.map((item) => asObject(item));
+    const targetUserIds = [...new Set(normalizeStringArray([
+      ...normalizeStringArray(body.target_user_ids || body.targetUserIds || body.user_ids || body.userIds),
+      ...normalizedMentionUsers.map((user) => user.id || user.user_id || user.userId)
+    ]))];
     const event = {
       id: `mention_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
       type: "tagging.mentioned",
       source: String(body.source || "photo_comment"),
-      target_user_ids: normalizeStringArray(body.target_user_ids || body.targetUserIds || body.user_ids || body.userIds),
-      mention_users: mentionUsers.map((item) => asObject(item)),
+      target_user_ids: targetUserIds,
+      mention_users: normalizedMentionUsers,
       context: asObject(body.context),
       comment: asObject(body.comment),
       actor_user_id: ctx.userId,
       branch_id: ctx.branchId || "default",
       created_at: new Date().toISOString()
     };
+    const context = asObject(event.context);
+    const comment = asObject(event.comment);
+    const mentionSource = cleanText(event.source).toLowerCase();
+    const projectId = cleanText(context.project_id || context.projectId);
+    const photoId = cleanText(context.media_id || context.mediaId || context.photo_id || context.photoId);
+    const noteId = cleanText(context.note_id || context.noteId || comment.id);
+    const frontendAction = projectId ? (
+      mentionSource === "photo_comment" || cleanText(context.kind).toLowerCase() === "photo_comment"
+        ? { kind: "open_project_photo", project_id: projectId, project_tab: "photos", photo_id: photoId, comment_id: cleanText(comment.id) }
+        : mentionSource === "project_note" || cleanText(context.kind).toLowerCase() === "project_note"
+          ? { kind: "open_project_note", project_id: projectId, project_tab: cleanText(context.project_tab || context.projectTab || "materials"), note_id: noteId }
+          : { kind: "open_project", project_id: projectId }
+    ) : {};
+    const actorName = cleanText(ctx.identity.name || ctx.identity.display_name || ctx.identity.email || "A teammate");
+    const notification = targetUserIds.length ? await createPlatformNotification(orgId, {
+      id: `notification_${event.id}`,
+      title: `${actorName} mentioned you`,
+      body: cleanText(comment.text || comment.body || context.summary || context.project_title || "You were tagged in a message."),
+      status: "active",
+      channel: "passive",
+      kind: "mention",
+      push: true,
+      passive: true,
+      manual_dismissible: true,
+      target_user_ids: targetUserIds,
+      branch_id: event.branch_id,
+      source: event.source,
+      frontend_action: frontendAction,
+      context: {
+        ...context,
+        mention_event_id: event.id,
+        mention_source: event.source,
+        actor_user_id: event.actor_user_id,
+        comment
+      }
+    }) : null;
     reply.code(201);
-    return { ok: true, event };
+    return { ok: true, event, notification };
   });
 
   app.get("/organizations/:orgId/notifications/:notificationId", async (request) => {
@@ -1498,6 +2559,32 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     const body = objectBodySchema.parse(request.body ?? {});
     const state = await setUserNotificationState(orgId, ctx.userId, getParam(request.params, "notificationId"), body);
     return { ok: true, state };
+  });
+
+  // --- realtime (SSE + polling fallback) -------------------------------------
+  // EventSource cannot send custom headers, so this GET authenticates via the
+  // session cookie only (no CSRF; the endpoint only reads).
+
+  app.get("/organizations/:orgId/events/stream", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
+    const lastEventId = Number(request.headers["last-event-id"] ?? query.after ?? 0);
+    // Hand the socket over to the realtime hub; Fastify must not touch it again.
+    (await attachRealtimeConnection(request, reply, {
+      orgId,
+      userId: ctx.userId,
+      after: Number.isFinite(lastEventId) && lastEventId > 0 ? Math.floor(lastEventId) : 0
+    }));
+  });
+
+  app.get("/organizations/:orgId/events/poll", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
+    const after = Number(query.after ?? 0);
+    const result = (await pollRealtimeEvents(orgId, ctx.userId, Number.isFinite(after) && after > 0 ? Math.floor(after) : 0));
+    return { ok: true, ...result };
   });
 
   app.post("/organizations/:orgId/users/:documentId/invite", async (request) => {
@@ -1521,12 +2608,15 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.get("/organizations/:orgId/search", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
+    const managementEnabled = asObject(ctx.applicationAccess.management).enabled === true;
+    const assignedProjectIds = managementEnabled ? undefined : await assignedProjectIdsForUser(orgId, ctx.userId);
     const result = await searchPlatformProjectsAndContacts(orgId, {
       query: cleanText(query.q || query.query || query.search),
       types: cleanText(query.types || query.type),
-      limit: query.limit
+      limit: query.limit,
+      projectIds: assignedProjectIds
     });
     return { ok: true, ...result };
   });
@@ -1571,6 +2661,21 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
         uploaded_at: new Date().toISOString()
       }
     });
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: cleanText(asObject(project.data).branch_id) || "default",
+      project_id: projectId,
+      type: "media.uploaded",
+      idempotency_key: `media.uploaded:${cleanText(media.id)}`,
+      payload: {
+        media_id: cleanText(media.id),
+        project_id: projectId,
+        content_type: cleanText(media.content_type),
+        file_name: cleanText(media.file_name),
+        kind: cleanText(media.kind)
+      },
+      context: { actor_user_id: ctx.userId }
+    });
     const data = asObject(project.data);
     const nextDocument = normalizeProjectDocumentReference(documentReferenceFromMedia(media, {
       title: cleanText(bodyMeta.title || bodyMeta.label) || cleanText(media.file_name) || "Document",
@@ -1605,17 +2710,43 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     const body = objectBodySchema.parse(request.body ?? {});
     const data = asObject(project.data);
     const documentId = getParam(request.params, "documentId");
-    const updated = normalizeProjectUploadedDocuments(data.documents).map((item) => {
+    let matched = false;
+    let updated = normalizeProjectUploadedDocuments(data.documents).map((item) => {
       if (projectDocumentIdentity(item) !== documentId && cleanText(item.media_id) !== documentId) return item;
+      matched = true;
       return normalizeProjectDocumentReference({
         ...item,
         title: cleanText(body.title) || cleanText(body.label) || item.title,
         label: cleanText(body.label) || cleanText(body.title) || item.label,
         document_type: cleanText(body.document_type || body.type) || item.document_type,
         required: body.required === undefined ? item.required : Boolean(body.required),
+        markup: body.markup === undefined ? item.markup : asObject(body.markup),
         metadata: { ...asObject(item.metadata), ...asObject(body.metadata) }
       });
     });
+    if (!matched && body.markup !== undefined) {
+      const special = [
+        ...(await projectProposalDocuments(orgId, data)),
+        ...projectReportDocuments(data)
+      ].find((item) => projectDocumentIdentity(item) === documentId || cleanText(item.media_id) === documentId);
+      if (special) {
+        updated = [
+          ...updated,
+          normalizeProjectDocumentReference({
+            ...special,
+            title: cleanText(body.title) || cleanText(body.label) || special.title,
+            label: cleanText(body.label) || cleanText(body.title) || special.label,
+            markup: asObject(body.markup),
+            special: true,
+            metadata: {
+              ...asObject(special.metadata),
+              ...asObject(body.metadata),
+              source: docFirstText(asObject(special.metadata).source, special.source, "project_document_overlay")
+            }
+          })
+        ];
+      }
+    }
     const saved = await upsertDocument(orgId, "projects", {
       id: projectId,
       data: { ...data, documents: updated, updated_at: new Date().toISOString() },
@@ -1651,26 +2782,49 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.get("/organizations/:orgId/:collection", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(getParam(request.params, "collection")) });
+    const collection = getParam(request.params, "collection");
+    assertCanonicalPlatformCollection(collection);
+    await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection) });
     return {
       ok: true,
-      documents: await listDocuments(orgId, getParam(request.params, "collection"))
+      documents: await listDocuments(orgId, collection)
     };
   });
 
   app.post("/organizations/:orgId/:collection", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    assertCanonicalPlatformCollection(collection);
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "create") });
     const body = objectBodySchema.parse(request.body ?? {});
+    if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
     const document = collection === "users"
       ? await createPlatformOrgUser(orgId, body)
+      : collection === "projects"
+        ? await upsertProjectDocumentPreservingEvents(orgId, cleanText(body.id || asObject(body.data).id), body, true)
       : await upsertDocument(
         orgId,
         collection,
         body,
         { replace: true }
       );
+    if (collection === "projects") {
+      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: cleanText(asObject(document.data).branch_id) || "default",
+        project_id: cleanText(document.id),
+        type: "project.created",
+        idempotency_key: `project.created:${cleanText(document.id)}`,
+        payload: {
+          project_id: cleanText(document.id),
+          source_kind: cleanText(asObject(document.data).source) || "platform_api",
+          address: cleanText(asObject(document.data).address),
+          title: cleanText(asObject(document.data).title)
+        },
+        context: { actor_user_id: ctx.userId }
+      });
+    }
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
     const invite = collection === "users" && asObject(body.data && typeof body.data === "object" ? body.data : body).send_invite !== false
       ? await sendPlatformOrgUserInvite(orgId, document, request, "")
@@ -1690,12 +2844,14 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
 
   app.get("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(getParam(request.params, "collection")) });
+    const collection = getParam(request.params, "collection");
+    assertCanonicalPlatformCollection(collection);
+    await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection) });
     return {
       ok: true,
       document: await readDocument(
         orgId,
-        getParam(request.params, "collection"),
+        collection,
         getParam(request.params, "documentId")
       )
     };
@@ -1704,8 +2860,10 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.put("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    assertCanonicalPlatformCollection(collection);
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "replace") });
     const body = objectBodySchema.parse(request.body ?? {});
+    if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
     const documentId = getParam(request.params, "documentId");
     if (collection === "users") {
       await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_user_permissions" });
@@ -1715,12 +2873,45 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     }
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, true)
+      : collection === "projects"
+        ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, true)
       : await upsertDocument(
         orgId,
         collection,
         { ...body, id: documentId },
         { replace: true }
       );
+    if (collection === "projects") {
+      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
+      const projectData = asObject(document.data);
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: cleanText(projectData.branch_id) || "default",
+        project_id: cleanText(document.id),
+        type: "project.created",
+        idempotency_key: `project.created:${cleanText(document.id)}`,
+        payload: {
+          project_id: cleanText(document.id),
+          source_kind: cleanText(projectData.source) || "platform_api",
+          address: cleanText(projectData.address),
+          title: cleanText(projectData.title)
+        },
+        context: { actor_user_id: ctx.userId }
+      });
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: cleanText(projectData.branch_id) || "default",
+        project_id: cleanText(document.id),
+        type: "project.updated",
+        idempotency_key: `project.updated:${cleanText(document.id)}:${cleanText(projectData.updated_at || document.updated_at)}`,
+        payload: {
+          project_id: cleanText(document.id),
+          title: cleanText(projectData.title),
+          updated_at: cleanText(projectData.updated_at || document.updated_at)
+        },
+        context: { actor_user_id: ctx.userId }
+      });
+    }
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
     return { ok: true, document };
   });
@@ -1728,8 +2919,10 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.patch("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    assertCanonicalPlatformCollection(collection);
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "update") });
     const body = objectBodySchema.parse(request.body ?? {});
+    if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
     const documentId = getParam(request.params, "documentId");
     if (collection === "users" && platformOrgUserPermissionMutation(body)) {
       await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_user_permissions" });
@@ -1739,12 +2932,31 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     }
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, false)
+      : collection === "projects"
+        ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, false)
       : await upsertDocument(
         orgId,
         collection,
         { ...body, id: documentId },
         { replace: false }
       );
+    if (collection === "projects") {
+      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
+      const projectData = asObject(document.data);
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: cleanText(projectData.branch_id) || "default",
+        project_id: cleanText(document.id),
+        type: "project.updated",
+        idempotency_key: `project.updated:${cleanText(document.id)}:${cleanText(projectData.updated_at || document.updated_at)}`,
+        payload: {
+          project_id: cleanText(document.id),
+          title: cleanText(projectData.title),
+          updated_at: cleanText(projectData.updated_at || document.updated_at)
+        },
+        context: { actor_user_id: ctx.userId }
+      });
+    }
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
     return { ok: true, document };
   });
@@ -1752,8 +2964,12 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.delete("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection) });
+    assertCanonicalPlatformCollection(collection);
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "delete") });
     const documentId = getParam(request.params, "documentId");
+    const existingProject = collection === "projects"
+      ? await readDocument(orgId, "projects", documentId).catch(() => null)
+      : null;
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
     }
@@ -1762,6 +2978,22 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
       collection,
       documentId
     );
+    if (collection === "projects" && deleted) {
+      const projectData = asObject(existingProject?.data);
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: cleanText(projectData.branch_id) || "default",
+        project_id: documentId,
+        type: "project.deleted",
+        idempotency_key: `project.deleted:${documentId}`,
+        payload: {
+          project_id: documentId,
+          title: cleanText(projectData.title),
+          address: cleanText(projectData.address)
+        },
+        context: { actor_user_id: ctx.userId }
+      });
+    }
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
     return {
       ok: true,
@@ -1769,39 +3001,16 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     };
   });
 
+  app.post("/organizations/:orgId/branches/:branchId/pricebook/generate", { bodyLimit: 36 * 1024 * 1024 }, async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const body = pricebookGenerationSchema.parse(request.body ?? {});
+    return { ok: true, generation: await generatePricebookFromSamples(body.samples) };
+  });
+
   await app.register(registerPricebookApi, { prefix: "/pricebook" });
   startPlatformHeartbeat(app);
 };
-
-function defaultStagesData() {
-  return {
-    schema_version: 1,
-    order: [APPOINTMENT_SCHEDULED_STAGE_ID, NEWLY_SOLD_STAGE_ID, PROJECT_STARTED_STAGE_ID, IN_PROGRESS_STAGE_ID, COMPLETED_STAGE_ID],
-    stages: {
-      [NEW_LEAD_STAGE_ID]: { id: NEW_LEAD_STAGE_ID, status: "active", color: "#0f766e" },
-      [DEFAULT_STAGE_ID]: { id: DEFAULT_STAGE_ID, status: "active", color: "#64748b" },
-      [APPOINTMENT_SCHEDULED_STAGE_ID]: { id: APPOINTMENT_SCHEDULED_STAGE_ID, status: "active", color: "#2563eb" },
-      [NEWLY_SOLD_STAGE_ID]: { id: NEWLY_SOLD_STAGE_ID, status: "active", color: "#16a34a", locked: true },
-      [PROJECT_STARTED_STAGE_ID]: { id: PROJECT_STARTED_STAGE_ID, status: "active", color: "#0ea5e9" },
-      [IN_PROGRESS_STAGE_ID]: { id: IN_PROGRESS_STAGE_ID, status: "active", color: "#f59e0b" },
-      [COMPLETED_STAGE_ID]: { id: COMPLETED_STAGE_ID, status: "active", color: "#15803d" },
-      lost: { id: "lost", status: "active", color: "#b42318" }
-    }
-  };
-}
-
-function normalizeDefaultStageOrder(existingStageOrder: string[]) {
-  const nextDefault = defaultStagesData().order;
-  const legacyDefaults = [
-    [NEW_LEAD_STAGE_ID, DEFAULT_STAGE_ID, APPOINTMENT_SCHEDULED_STAGE_ID, NEWLY_SOLD_STAGE_ID, "lost"],
-    [DEFAULT_STAGE_ID, APPOINTMENT_SCHEDULED_STAGE_ID, NEWLY_SOLD_STAGE_ID, "lost"]
-  ];
-  if (!existingStageOrder.length) return nextDefault;
-  if (legacyDefaults.some((order) => order.length === existingStageOrder.length && order.every((stage, index) => stage === existingStageOrder[index]))) {
-    return nextDefault;
-  }
-  return [...existingStageOrder, ...nextDefault.filter((stage) => !existingStageOrder.includes(stage))];
-}
 
 function defaultVariableMappingsData(existing: Record<string, unknown> = {}) {
   const labels = asObject(existing.labels);
@@ -1812,6 +3021,7 @@ function defaultVariableMappingsData(existing: Record<string, unknown> = {}) {
       ...labels,
       event_types: {
         sales_appointment: "Sales Appointment",
+        sales_follow_up: "Sales Follow-up",
         [PROJECT_WORK_EVENT_TYPE_ID]: "Project Work",
         ...asObject(labels.event_types)
       },
@@ -1819,116 +3029,30 @@ function defaultVariableMappingsData(existing: Record<string, unknown> = {}) {
         new_lead: "New Lead",
         contacting: "Contacting",
         appointment_scheduled: "Appointment Scheduled",
+        proposal_sent: "Proposal Sent",
+        signed_pending_payment: "Pending Deposit",
         newly_sold: "Newly Sold",
         project_started: "Project Started",
         in_progress: "In Progress",
         completed: "Completed",
         lost: "Lost",
         ...asObject(labels.stages)
+      },
+      ui: {
+        routing_mode: "Routing",
+        ...asObject(labels.ui)
+      },
+      money: {
+        workspace: "Money", overview: "Overview", invoices: "Invoices", recurring: "Recurring", expense_lists: "Expense Lists", receipts: "Receipts", commissions: "Commissions",
+        ledger: "Ledger", payments: "Payments", expenses: "Expenses", activity: "Activity", transaction: "Transaction", transactions: "Transactions", receipt: "Receipt",
+        money_in: "Money In", money_out: "Money Out", balance: "Balance", revenue: "Revenue", collected: "Collected", remaining: "Remaining", cost_forecast: "Cost Forecast", forecast_profit: "Forecast Profit", profit_to_date: "Profit To Date", payment_schedule: "Payment Schedule",
+        collected_payment: "Collected Payment", collected_payments: "Collected Payments", scheduled_payment: "Scheduled Payment", scheduled_payments: "Scheduled Payments", add_collected_payment: "Add Collected Payment", save_collected_payment: "Save Collected Payment", take_collected_payment: "Take a Collected Payment",
+        expense: "Expense", add_expense: "Add Expense", expense_list: "Expense List", recipient: "Recipient", invoice: "Invoice", invoice_history: "Invoice History", generate_invoice: "Generate Invoice", invoice_items: "Invoice Items", invoice_total: "Invoice Total",
+        recurring_agreements: "Recurring Agreements", recurring_totals: "Recurring Totals", project_expenses: "Project Expenses", projected: "Projected", tracked_actual: "Tracked Actual", variance: "Variance", current_forecast: "Current Forecast",
+        commission_payment: "Commission Payment", commission_payments: "Commission Payments", commission_recipient: "Commission Recipient", commission_recipients: "Commission Recipients", upcoming: "Upcoming", accrued: "Accrued", timing: "Timing",
+        ...asObject(labels.money)
       }
     }
-  };
-}
-
-function defaultTriggersData(existing: Record<string, unknown> = {}) {
-  const existingTriggers = Array.isArray(existing.triggers) ? existing.triggers : [];
-  const defaultTrigger = {
-    id: "sales_appointment_scheduled_advances_contacting",
-    enabled: true,
-    event: "project.event_scheduled",
-    action: "project.stage.set",
-    conditions: {
-      event_type_default_id: "sales_appointment",
-      project_stage: DEFAULT_STAGE_ID
-    },
-    params: {
-      stage: APPOINTMENT_SCHEDULED_STAGE_ID
-    }
-  };
-  const completedAppointmentTrigger = {
-    id: "sales_appointment_completed_needs_followup",
-    enabled: true,
-    event: "project.event.completed",
-    action: "notification.create",
-    conditions: {
-      event_type_default_id: "sales_appointment"
-    },
-    params: {
-      id: "notification_appointment_completed_{{project.id}}_{{event.id}}",
-      title: "Appointment completed",
-      body: "How did the appointment go for {{project.address}}?",
-      source: "heartbeat.appointment_completed",
-      manual_dismissible: true,
-      push: false,
-      passive: true,
-      target_user_ids_from: "event.assigned_user_ids",
-      target_role_ids: ["sales_appointments"]
-    }
-  };
-  const newlySoldCelebrationTrigger = {
-    id: "newly_sold_large_celebration",
-    enabled: true,
-    event: `project.stage.entered.${NEWLY_SOLD_STAGE_ID}`,
-    action: "notification.create",
-    params: {
-      id: "celebration_newly_sold_{{project.id}}_{{project.stage_updated_at}}",
-      title: "Project sold",
-      body: "{{project.title}} was just sold.",
-      source: "trigger.newly_sold",
-      kind: "celebration",
-      channel: "celebration",
-      manual_dismissible: false,
-      push: false,
-      passive: true,
-      celebration: {
-        size: "large",
-        reason: "newly_sold",
-        text: "{{project.title}} was just sold."
-      },
-      context: {
-        celebration: {
-          size: "large",
-          reason: "newly_sold",
-          text: "{{project.title}} was just sold."
-        }
-      }
-    }
-  };
-  const newlySoldSchedulingActionItemTrigger = {
-    id: "newly_sold_needs_scheduling_action_item",
-    enabled: true,
-    event: `project.stage.entered.${NEWLY_SOLD_STAGE_ID}`,
-    action: "action_item.create",
-    params: {
-      id: "action_item_schedule_sold_project_{{project_id}}",
-      kind: "schedule_sold_project",
-      title: "Schedule sold project",
-      body: "Schedule {{project.title}}.",
-      source: "trigger.newly_sold",
-      assigned_role_ids: ["sales_appointments"],
-      project_ids_from: "project_id",
-      frontend_action: {
-        kind: "open_project_scheduling",
-        project_id_from: "project_id",
-        tab: "scheduling"
-      },
-      completion_events: [
-        {
-          event: "project.event_scheduled",
-          conditions: {
-            project_id_from: "project_id",
-            event_type_default_id: PROJECT_WORK_EVENT_TYPE_ID
-          }
-        }
-      ]
-    }
-  };
-  const defaults = [defaultTrigger, completedAppointmentTrigger, newlySoldCelebrationTrigger, newlySoldSchedulingActionItemTrigger];
-  const existingIds = new Set(existingTriggers.map((trigger) => String(asObject(trigger).id || "")));
-  return {
-    schema_version: 1,
-    ...existing,
-    triggers: [...existingTriggers, ...defaults.filter((trigger) => !existingIds.has(trigger.id))]
   };
 }
 
@@ -1943,28 +3067,12 @@ async function readBranchModuleDataOrNull(orgId: string, branchId: string, modul
 }
 
 async function ensureWorkflowModules(orgId: string, branchId: string) {
-  const [stagesRaw, mappingsRaw, triggersRaw] = await Promise.all([
-    readBranchModuleDataOrNull(orgId, branchId, PLATFORM_STAGE_MODULE_ID),
-    readBranchModuleDataOrNull(orgId, branchId, PLATFORM_VARIABLE_MAPPING_MODULE_ID),
-    readBranchModuleDataOrNull(orgId, branchId, PLATFORM_TRIGGER_MODULE_ID)
-  ]);
-  const stages: Record<string, unknown> = { ...defaultStagesData(), ...asObject(stagesRaw) };
-  stages.stages = { ...asObject(defaultStagesData().stages), ...asObject(asObject(stagesRaw).stages) };
-  const existingStageOrder = Array.isArray(stages.order) ? stages.order.map((stage) => String(stage || "").trim()).filter(Boolean) : [];
-  stages.order = normalizeDefaultStageOrder(existingStageOrder);
+  const mappingsRaw = await readBranchModuleDataOrNull(orgId, branchId, PLATFORM_VARIABLE_MAPPING_MODULE_ID);
   const mappings = defaultVariableMappingsData(asObject(mappingsRaw));
-  const triggers = defaultTriggersData(asObject(triggersRaw));
-
-  if (JSON.stringify(stagesRaw || {}) !== JSON.stringify(stages)) {
-    await saveBranchModule(orgId, branchId, PLATFORM_STAGE_MODULE_ID, { data: stages, metadata: { kind: "branch_stages" } }, { replace: true });
-  }
   if (JSON.stringify(mappingsRaw || {}) !== JSON.stringify(mappings)) {
     await saveBranchModule(orgId, branchId, PLATFORM_VARIABLE_MAPPING_MODULE_ID, { data: mappings, metadata: { kind: "branch_variable_mappings" } }, { replace: true });
   }
-  if (JSON.stringify(triggersRaw || {}) !== JSON.stringify(triggers)) {
-    await saveBranchModule(orgId, branchId, PLATFORM_TRIGGER_MODULE_ID, { data: triggers, metadata: { kind: "branch_triggers" } }, { replace: true });
-  }
-  return { stages, mappings, triggers };
+  return { mappings };
 }
 
 function normalizeStringArray(value: unknown) {
@@ -2027,19 +3135,16 @@ export async function createPlatformLead(orgId: string, input: PlatformLeadInput
     throw badRequest("lead_missing_contact_data", "A lead needs at least an address, contact, title, or summary.");
   }
 
-  const stageId = cleanText(input.stage_id || input.stage || NEW_LEAD_STAGE_ID) || NEW_LEAD_STAGE_ID;
   const projectId = cleanText(input.project_id || input.id);
   const projectData = asObject(input.project_data);
   delete projectData.customers;
   delete projectData.customer_ids;
   delete projectData.primary_customer_id;
   delete projectData.customer_id;
-  const project = await upsertDocument(orgId, "projects", {
+  let project = await upsertDocument(orgId, "projects", {
     ...(projectId ? { id: projectId } : {}),
     data: {
       branch_id: branchId,
-      stage: stageId,
-      stage_id: stageId,
       lead_status: cleanText(input.lead_status || "new") || "new",
       project_type: cleanText(input.project_type || "lead") || "lead",
       address,
@@ -2056,7 +3161,6 @@ export async function createPlatformLead(orgId: string, input: PlatformLeadInput
         raw: asObject(input.raw || leadSource.raw),
         ...leadSource
       },
-      stage_history: Array.isArray(input.stage_history) ? input.stage_history : [],
       created_at: cleanText(input.created_at) || now,
       updated_at: now,
       ...projectData
@@ -2068,6 +3172,23 @@ export async function createPlatformLead(orgId: string, input: PlatformLeadInput
       ...asObject(input.metadata)
     }
   });
+  await emitWorkEvent({
+    organization_id: orgId,
+    branch_id: branchId,
+    project_id: cleanText(project.id),
+    type: "project.created",
+    idempotency_key: `project.created:${cleanText(project.id)}`,
+    payload: {
+      project_id: cleanText(project.id),
+      source_kind: sourceKind,
+      address,
+      title: cleanText(asObject(project.data).title)
+    }
+  });
+  await ensurePipelinePlanForProject(orgId, { id: project.id, ...asObject(project.data) });
+  // The router just wrote work_projection/lifecycle onto the document —
+  // return the fresh copy so callers see the routed instance immediately.
+  project = await readDocument(orgId, "projects", cleanText(project.id)).catch(() => project);
 
   let notification = null;
   const rawNotification = input.notification as unknown;
@@ -2244,6 +3365,7 @@ function summarizedMeasurementProject(value: unknown) {
     report_due_window_label: cleanText(measurement.report_due_window_label)
   });
 }
+
 function summarizedProjectDocument(document: JsonObject) {
   const data = asObject(document.data);
   const id = cleanText(document.id || data.id || data.platform_project_id || data.base_project_id);
@@ -2292,6 +3414,7 @@ function summarizedProjectDocument(document: JsonObject) {
       thumbnail_source: cleanText(data.thumbnail_source || data.thumbnail_artifact_name),
       thumbnail_artifact_name: cleanText(data.thumbnail_artifact_name || data.thumbnail_source)
     }),
+    ...(Object.keys(asObject(data.signature_requirements)).length ? { signature_requirements: asObject(data.signature_requirements) } : {}),
     ...(pins.length ? { pins } : {}),
     contacts: summarizedProjectContacts(data.contacts),
     contact_ids: queryStringList(data.contact_id, data.primary_contact_id, data.contact_ids),
@@ -2709,7 +3832,7 @@ function rowSearchScore(row: PlatformSearchIndexRow, queryText: string, queryTok
   return score;
 }
 
-async function searchPlatformProjectsAndContacts(orgId: string, input: { query?: string; types?: string; limit?: unknown }) {
+export async function searchPlatformProjectsAndContacts(orgId: string, input: { query?: string; types?: string; limit?: unknown; projectIds?: ReadonlySet<string> }) {
   const queryText = normalizeSearchText(input.query);
   const queryTokens = searchTokens(queryText);
   const queryCompact = compactSearchText(queryText);
@@ -2717,7 +3840,10 @@ async function searchPlatformProjectsAndContacts(orgId: string, input: { query?:
   const types = platformSearchTypes(cleanText(input.types));
   const limit = platformSearchLimit(input.limit);
   const rows = await platformSearchRows(orgId);
-  const results = rows
+  const scopedRows = input.projectIds
+    ? rows.filter((row) => !!row.project_id && input.projectIds?.has(row.project_id))
+    : rows;
+  const results = scopedRows
     .filter((row) => types.has(row.type))
     .filter((row) => rowMatchesSearch(row, queryText, queryTokens, queryCompact, queryPhone))
     .map((row) => ({
@@ -2735,7 +3861,7 @@ async function searchPlatformProjectsAndContacts(orgId: string, input: { query?:
   return {
     query: cleanText(input.query),
     count: results.length,
-    index_count: rows.length,
+    index_count: scopedRows.length,
     results
   };
 }
@@ -2752,17 +3878,6 @@ function triggerToken(value: unknown) {
     .replace(/[^a-z0-9_:-]+/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "") || "unknown";
-}
-
-function stageChangeTriggerEvents(fromStage: string, toStage: string) {
-  const from = triggerToken(fromStage);
-  const to = triggerToken(toStage);
-  return [
-    "project.stage_changed",
-    `project.stage.entered.${to}`,
-    `project.stage.changed.to.${to}`,
-    `project.stage.changed.${from}.to.${to}`
-  ];
 }
 
 function notificationExpired(notification: Record<string, unknown>) {
@@ -2795,6 +3910,7 @@ function normalizeNotification(input: Record<string, unknown>) {
     celebration: asObject(input.celebration),
     celebration_size: String(input.celebration_size || input.celebrationSize || asObject(input.celebration).size || ""),
     context: asObject(input.context),
+    frontend_action: asObject(input.frontend_action || input.frontendAction),
     push_log: Array.isArray(input.push_log) ? input.push_log : [],
     created_at: String(input.created_at || now),
     updated_at: now
@@ -2820,7 +3936,7 @@ async function resolveNotificationRecipients(orgId: string, notification: Record
   });
 }
 
-async function createPlatformNotification(orgId: string, input: Record<string, unknown>) {
+export async function createPlatformNotification(orgId: string, input: Record<string, unknown>) {
   const notification = normalizeNotification(input);
   if (notification.push) {
     const recipients = await resolveNotificationRecipients(orgId, notification);
@@ -2844,11 +3960,20 @@ async function setUserNotificationState(orgId: string, userId: string, notificat
   const states = asObject(data.notification_state);
   const current = asObject(states[notificationId]);
   const now = new Date().toISOString();
+  const stateTimestamp = (flag: string, timestamp: string) => {
+    const hasFlag = Object.prototype.hasOwnProperty.call(patch, flag);
+    const hasTimestamp = Object.prototype.hasOwnProperty.call(patch, timestamp);
+    if ((hasFlag && patch[flag] === false) || (hasTimestamp && !cleanText(patch[timestamp]))) return undefined;
+    if ((hasFlag && patch[flag]) || (hasTimestamp && cleanText(patch[timestamp]))) {
+      return cleanText(patch[timestamp] || current[timestamp] || now);
+    }
+    return current[timestamp];
+  };
   const next = {
     ...current,
-    seen_at: patch.seen || patch.seen_at ? String(patch.seen_at || current.seen_at || now) : current.seen_at,
-    dismissed_at: patch.dismissed || patch.dismissed_at ? String(patch.dismissed_at || current.dismissed_at || now) : current.dismissed_at,
-    completed_at: patch.completed || patch.completed_at ? String(patch.completed_at || current.completed_at || now) : current.completed_at,
+    seen_at: stateTimestamp("seen", "seen_at"),
+    dismissed_at: stateTimestamp("dismissed", "dismissed_at"),
+    completed_at: stateTimestamp("completed", "completed_at"),
     updated_at: now
   };
   await upsertDocument(orgId, "users", {
@@ -2961,6 +4086,7 @@ function normalizeActionItem(input: Record<string, unknown>, ctx: Record<string,
   );
   const assignedUserIds = normalizeLooseStringArray(input.assigned_user_ids || input.assignedUserIds || input.assignee_user_ids || input.user_ids || input.userIds);
   const assignedRoleIds = normalizeLooseStringArray(input.assigned_role_ids || input.assignedRoleIds || input.assignee_role_ids || input.role_ids || input.roleIds);
+  const assignedResourceGroupIds = normalizeLooseStringArray(input.assigned_resource_group_ids || input.assignedResourceGroupIds || input.assignee_resource_group_ids || input.resource_group_ids || input.resourceGroupIds);
   const history = Array.isArray(input.history) ? input.history.map((entry) => asObject(entry)) : [];
   return {
     schema_version: 1,
@@ -2977,7 +4103,8 @@ function normalizeActionItem(input: Record<string, unknown>, ctx: Record<string,
     issued_by_email: cleanText(input.issued_by_email || input.issuedByEmail || asObject(ctx.identity).email),
     assigned_user_ids: assignedUserIds,
     assigned_role_ids: assignedRoleIds,
-    assignment_mode: cleanText(input.assignment_mode || input.assignmentMode || (assignedUserIds.length || assignedRoleIds.length ? "any_capable" : "org_wide")) || "org_wide",
+    assigned_resource_group_ids: assignedResourceGroupIds,
+    assignment_mode: cleanText(input.assignment_mode || input.assignmentMode || (assignedUserIds.length || assignedRoleIds.length || assignedResourceGroupIds.length ? "any_capable" : "org_wide")) || "org_wide",
     claimed_by_user_id: cleanText(input.claimed_by_user_id || input.claimedByUserId),
     claimed_at: cleanText(input.claimed_at || input.claimedAt),
     completed_at: cleanText(input.completed_at || input.completedAt),
@@ -3001,17 +4128,14 @@ function normalizeActionItem(input: Record<string, unknown>, ctx: Record<string,
   };
 }
 
-function actionItemData(document: Record<string, unknown>) {
-  const data = asObject(document.data);
-  return { ...data, id: cleanText(data.id || document.id), document_revision: document.revision };
-}
-
-function userCanSeeActionItem(item: Record<string, unknown>, userId: string, roles: Set<string>) {
+function userCanSeeActionItem(item: Record<string, unknown>, userId: string, roles: Set<string>, resourceGroupIds: ReadonlySet<string> = new Set()) {
   const assignedUserIds = normalizeLooseStringArray(item.assigned_user_ids);
   const assignedRoleIds = normalizeLooseStringArray(item.assigned_role_ids);
-  if (!assignedUserIds.length && !assignedRoleIds.length) return true;
+  const assignedResourceGroupIds = normalizeLooseStringArray(item.assigned_resource_group_ids);
+  if (!assignedUserIds.length && !assignedRoleIds.length && !assignedResourceGroupIds.length) return true;
   if (assignedUserIds.includes(userId)) return true;
-  return assignedRoleIds.some((roleId) => roles.has(roleId));
+  return assignedRoleIds.some((roleId) => roles.has(roleId))
+    || assignedResourceGroupIds.some((groupId) => resourceGroupIds.has(groupId));
 }
 
 function actionItemIsManagedByUser(_item: Record<string, unknown>, ctx: Record<string, unknown>) {
@@ -3020,13 +4144,6 @@ function actionItemIsManagedByUser(_item: Record<string, unknown>, ctx: Record<s
     || permissions.manage_projects === true
     || permissions.manage_company_settings === true
     || ["owner", "admin", "super_admin"].includes(cleanText(ctx.role).toLowerCase());
-}
-
-function actionItemHiddenByStatus(item: Record<string, unknown>, options: Record<string, unknown>) {
-  const status = normalizeActionItemStatus(item.status || "open");
-  if (status === "completed" && !options.includeCompleted) return true;
-  if (status === "canceled" && !options.includeCanceled) return true;
-  return false;
 }
 
 function dateMatchesFilter(value: unknown, dueAfter = "", dueBefore = "") {
@@ -3041,132 +4158,206 @@ function dateMatchesFilter(value: unknown, dueAfter = "", dueBefore = "") {
   return true;
 }
 
-async function actionItemViewForUser(orgId: string, document: Record<string, unknown>, userId: string) {
-  const [userDoc] = await Promise.all([readDocument(orgId, "users", userId)]);
-  const user = { id: userId, ...asObject(userDoc.data) };
-  const state = asObject(asObject(userDoc.data).action_item_state)[String(document.id || asObject(document.data).id || "")];
-  const roles = new Set(userRoleIds(user));
-  const item = { ...asObject(document.data), id: cleanText(asObject(document.data).id || document.id), document_revision: document.revision };
+function canonicalActionItemStatus(status: unknown) {
+  const value = cleanText(status);
+  if (value === "active") return "claimed";
+  if (["completed", "canceled"].includes(value)) return value;
+  return "open";
+}
+
+function canonicalWorkNodeStatus(status: unknown) {
+  const value = cleanText(status).toLowerCase();
+  if (value === "claimed" || value === "active") return "active";
+  if (value === "completed") return "completed";
+  if (value === "canceled" || value === "cancelled") return "canceled";
+  return "ready";
+}
+
+function canonicalActionItemExternalTriggers(value: unknown) {
+  return (Array.isArray(value) ? value : []).map(asObject)
+    .filter((entry) => cleanText(entry.event || entry.event_name))
+    .map((entry) => ({
+      event: cleanText(entry.event || entry.event_name),
+      transition: "completed",
+      conditions: Object.fromEntries(Object.entries(asObject(entry.conditions))
+        .filter(([key]) => !["project_id", "project_id_from"].includes(key))
+        .map(([key, expected]) => [key.startsWith("payload.") ? key : `payload.${key}`, expected]))
+    }));
+}
+
+function canonicalActionItemData(node: Record<string, unknown>, userState: Record<string, unknown> = {}): Record<string, unknown> {
+  const metadata = asObject(node.metadata);
+  const projectId = cleanText(node.project_id);
+  const workflowStatus = cleanText(node.status).toLowerCase();
+  const history = Array.isArray(asObject(node.metadata).history) ? (asObject(node.metadata).history as unknown[]).map(asObject) : [];
+  const latestTransition = history[history.length - 1] || {};
   return {
-    ...item,
-    user_state: asObject(state),
-    visible_to_user: userCanSeeActionItem(item, userId, roles)
+    ...node,
+    id: cleanText(node.id),
+    external_id: cleanText(metadata.external_action_item_id),
+    kind: cleanText(metadata.kind || "workflow_task"),
+    title: cleanText(node.title),
+    body: cleanText(node.description || metadata.body),
+    status: canonicalActionItemStatus(node.status),
+    workflow_status: workflowStatus,
+    is_future: workflowStatus === "blocked",
+    priority: cleanText(metadata.priority || "normal"),
+    issued_at: cleanText(node.created_at),
+    assigned_user_ids: normalizeLooseStringArray(node.assigned_user_ids),
+    assigned_role_ids: normalizeLooseStringArray(node.assigned_role_ids),
+    assigned_resource_group_ids: normalizeLooseStringArray(node.assigned_resource_group_ids),
+    project_ids: projectId ? [projectId] : [],
+    contact_refs: normalizeContactRefs(metadata.contact_refs),
+    payload: asObject(metadata.payload),
+    frontend_action: asObject(metadata.frontend_action),
+    completion_events: Array.isArray(metadata.completion_events) ? metadata.completion_events : [],
+    source: cleanText(metadata.source || "work"),
+    completion_reason: cleanText(latestTransition.reason),
+    user_state: asObject(userState),
+    visible_to_user: true
   };
 }
 
-async function listVisibleActionItems(orgId: string, userId: string, options: Record<string, unknown> = {}) {
-  const [userDoc, actionItemDocs] = await Promise.all([
-    readDocument(orgId, "users", userId),
-    listDocuments(orgId, ACTION_ITEM_COLLECTION)
-  ]);
-  const user = { id: userId, ...asObject(userDoc.data) };
-  const roles = new Set(userRoleIds(user));
+async function canonicalActionItemForUser(orgId: string, nodeId: string, ctx: Record<string, unknown>) {
+  const node = (await readNodeRecord(orgId, nodeId));
+  if (!node) throw notFound("action_item_not_found", "This to-do was not found.");
+  const userDoc = await readDocument(orgId, "users", cleanText(ctx.userId));
   const states = asObject(asObject(userDoc.data).action_item_state);
-  const projectId = cleanText(options.projectId);
-  const contact = cleanText(options.contact).toLowerCase();
+  const item = canonicalActionItemData(node, asObject(states[nodeId]));
+  const roles = new Set(userRoleIds({ id: ctx.userId, ...asObject(ctx.user) }));
+  const resourceGroupIds = await activeResourceGroupIdsForUser(orgId, cleanText(ctx.userId));
+  if (!userCanSeeActionItem(item, cleanText(ctx.userId), roles, resourceGroupIds) && !actionItemIsManagedByUser(item, ctx)) {
+    throw forbidden("action_item_not_visible", "This to-do is not assigned to the current user.");
+  }
+  return item;
+}
+
+export async function listCanonicalActionItems(orgId: string, ctx: Record<string, unknown>, options: Record<string, unknown> = {}) {
+  const userDoc = await readDocument(orgId, "users", cleanText(ctx.userId));
+  const states = asObject(asObject(userDoc.data).action_item_state);
+  const includeAll = options.includeAll === true;
+  const roles = includeAll ? [] : userRoleIds({ id: ctx.userId, ...asObject(ctx.user) });
+  const resourceGroupIds = includeAll ? [] : [...await activeResourceGroupIdsForUser(orgId, cleanText(ctx.userId))];
+  let items = (await listWorkTodos(orgId, {
+    project_id: cleanText(options.projectId),
+    user_id: includeAll ? "" : cleanText(ctx.userId),
+    role_ids: roles,
+    resource_group_ids: resourceGroupIds,
+    include_unassigned: true,
+    include_completed: options.includeCompleted === true || options.includeCanceled === true,
+    include_future: options.includeFuture === true
+  })).map((node) => canonicalActionItemData(node, asObject(states[cleanText(node.id)])));
+  const projectIds = [...new Set(items.flatMap((item) => normalizeLooseStringArray(item.project_ids)).filter(Boolean))];
+  const projectLabels = new Map<string, Record<string, string>>();
+  await Promise.all(projectIds.map(async (projectId) => {
+    const document = await readDocument(orgId, "projects", projectId).catch(() => null);
+    const project = asObject(document?.data);
+    if (!document) return;
+    projectLabels.set(projectId, {
+      title: cleanText(project.title || project.project_title || project.project_name || project.customer_name || project.address),
+      address: cleanText(project.address || project.project_address)
+    });
+  }));
+  items = items.map((item) => {
+    const projectId = normalizeLooseStringArray(item.project_ids)[0] || "";
+    const label = projectLabels.get(projectId);
+    return label ? { ...item, project_title: label.title, project_address: label.address } : item;
+  });
+  const branchId = cleanText(options.branchId);
   const kind = cleanText(options.kind);
   const status = cleanText(options.status);
-  const branchId = cleanText(options.branchId || "default") || "default";
-  const action_items = actionItemDocs
-    .map((doc) => {
-      const data: Record<string, unknown> = actionItemData(doc);
-      const userState = asObject(states[String(data.id || doc.id)]);
-      return { document: doc, data, user_state: userState };
-    })
-    .filter(({ data }) => options.includeAll || userCanSeeActionItem(data, userId, roles))
-    .filter(({ data }) => !actionItemHiddenByStatus(data, options))
-    .filter(({ data, user_state }) => options.includeHidden || !user_state.hidden_at && !user_state.dismissed_at)
-    .filter(({ data }) => !data.branch_id || cleanText(data.branch_id) === branchId)
-    .filter(({ data }) => !projectId || normalizeLooseStringArray(data.project_ids).includes(projectId))
-    .filter(({ data }) => !kind || cleanText(data.kind) === kind)
-    .filter(({ data }) => !status || cleanText(data.status) === status)
-    .filter(({ data }) => dateMatchesFilter(data.due_at, cleanText(options.dueAfter), cleanText(options.dueBefore)))
-    .filter(({ data }) => {
+  const contact = cleanText(options.contact).toLowerCase();
+  items = items
+    .filter((item) => !branchId || cleanText(item.branch_id) === branchId)
+    .filter((item) => options.includeCanceled === true || item.status !== "canceled")
+    .filter((item) => options.includeCompleted === true || item.status !== "completed")
+    .filter((item) => !kind || cleanText(item.kind) === kind)
+    .filter((item) => !status || cleanText(item.status) === status)
+    .filter((item) => dateMatchesFilter(item.due_at, cleanText(options.dueAfter), cleanText(options.dueBefore)))
+    .filter((item) => {
       if (!contact) return true;
-      return normalizeContactRefs(data.contact_refs).some((ref) => {
-        const values = [ref.contact_id, ref.name, ref.email, ref.phone].map((value) => cleanText(value).toLowerCase());
-        return values.some((value) => value.includes(contact));
-      });
+      return normalizeContactRefs(item.contact_refs).some((ref) => [ref.contact_id, ref.name, ref.email, ref.phone]
+        .map((entry) => cleanText(entry).toLowerCase()).some((entry) => entry.includes(contact)));
     })
-    .map(({ data, user_state }) => ({ ...data, user_state, visible_to_user: true } as Record<string, unknown>))
-    .sort((a, b) => {
-      const dueA = Date.parse(cleanText(a.due_at)) || Number.MAX_SAFE_INTEGER;
-      const dueB = Date.parse(cleanText(b.due_at)) || Number.MAX_SAFE_INTEGER;
-      if (dueA !== dueB) return dueA - dueB;
-      return cleanText(b.issued_at || b.created_at).localeCompare(cleanText(a.issued_at || a.created_at));
-    });
+    .filter((item) => options.includeHidden === true || !asObject(item.user_state).hidden_at && !asObject(item.user_state).dismissed_at);
   return {
-    action_items,
-    items: action_items,
-    active_count: action_items.length,
-    overdue_count: action_items.filter((item) => item.due_at && Date.parse(cleanText(item.due_at)) < Date.now()).length,
-    unread_count: action_items.filter((item) => !asObject(item.user_state).seen_at).length
+    action_items: items,
+    items,
+    active_count: items.filter((item) => !["completed", "canceled"].includes(cleanText(item.status))).length,
+    overdue_count: items.filter((item) => item.due_at && Date.parse(cleanText(item.due_at)) < Date.now()).length,
+    unread_count: items.filter((item) => !asObject(item.user_state).seen_at).length
   };
 }
 
-async function createPlatformActionItem(orgId: string, input: Record<string, unknown>, ctx: Record<string, unknown> = {}) {
+export async function createCanonicalActionItem(orgId: string, input: Record<string, unknown>, ctx: Record<string, unknown>) {
   const item = normalizeActionItem(input, ctx);
-  return await upsertDocument(orgId, ACTION_ITEM_COLLECTION, {
-    id: item.id,
-    data: item,
-    metadata: { kind: "platform_action_item", source: item.source, ...asObject(item.metadata) }
-  }, { replace: true });
+  const projectId = normalizeLooseStringArray(item.project_ids)[0] || "";
+  const result = await createWorkPlan({
+    organization_id: orgId,
+    branch_id: cleanText(item.branch_id || ctx.branchId || "default") || "default",
+    project_id: projectId,
+    source_type: "manual_todo",
+    source_id: cleanText(item.id),
+    source_key: `action_item:${cleanText(item.id)}`,
+    title: cleanText(item.title || "To-do"),
+    root_nodes: [{
+      id: "task",
+      title: cleanText(item.title || "To-do"),
+      description: cleanText(item.body),
+      terminology_key: "work.task",
+      actionable: true,
+      show_in_todo_list: true,
+      assigned_user_ids: normalizeLooseStringArray(item.assigned_user_ids),
+      assigned_role_ids: normalizeLooseStringArray(item.assigned_role_ids),
+      assigned_resource_group_ids: normalizeLooseStringArray(item.assigned_resource_group_ids),
+      external_triggers: canonicalActionItemExternalTriggers(item.completion_events),
+      metadata: {
+        external_action_item_id: item.id,
+        kind: item.kind,
+        priority: item.priority,
+        source: item.source,
+        contact_refs: item.contact_refs,
+        payload: item.payload,
+        frontend_action: item.frontend_action,
+        completion_events: item.completion_events,
+        body: item.body
+      }
+    }],
+    start_immediately: true
+  });
+  const roots = Array.isArray(asObject(result.tree).root_nodes) ? asObject(result.tree).root_nodes as unknown[] : [];
+  let node = asObject(roots[0]);
+  if (cleanText(item.due_at) && cleanText(node.id)) node = asObject(await patchWorkNode(orgId, cleanText(node.id), { due_at: item.due_at }));
+  return canonicalActionItemData(node);
 }
 
-async function patchPlatformActionItem(orgId: string, actionItemId: string, patch: Record<string, unknown>, ctx: Record<string, unknown> = {}) {
-  const currentDoc = await readDocument(orgId, ACTION_ITEM_COLLECTION, actionItemId);
-  const current = asObject(currentDoc.data);
-  const nextInput = {
-    ...current,
-    ...patch,
-    id: current.id || currentDoc.id,
-    history: [
-      ...(Array.isArray(current.history) ? current.history.map((entry) => asObject(entry)) : []),
-      actionItemHistoryEntry("updated", patch, ctx)
-    ],
-    updated_at: new Date().toISOString()
+async function patchCanonicalActionItem(orgId: string, nodeId: string, patch: Record<string, unknown>, ctx: Record<string, unknown>) {
+  const current = await canonicalActionItemForUser(orgId, nodeId, ctx);
+  const metadata = {
+    ...asObject(current.metadata),
+    ...asObject(patch.metadata),
+    ...(Object.prototype.hasOwnProperty.call(patch, "kind") ? { kind: cleanText(patch.kind) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "priority") ? { priority: cleanText(patch.priority) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "payload") ? { payload: asObject(patch.payload) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "frontend_action") ? { frontend_action: asObject(patch.frontend_action) } : {})
   };
-  const normalized = normalizeActionItem(nextInput, ctx);
-  return await upsertDocument(orgId, ACTION_ITEM_COLLECTION, {
-    id: actionItemId,
-    data: normalized,
-    metadata: { ...asObject(currentDoc.metadata), ...asObject(patch.metadata) }
-  }, { replace: true });
-}
-
-async function transitionPlatformActionItem(orgId: string, actionItemId: string, status: string, input: Record<string, unknown>, ctx: Record<string, unknown> = {}) {
-  const currentDoc = await readDocument(orgId, ACTION_ITEM_COLLECTION, actionItemId);
-  const current = asObject(currentDoc.data);
-  const now = new Date().toISOString();
-  const patch: Record<string, unknown> = {
-    ...input,
-    status,
-    updated_at: now,
-    history: [
-      ...(Array.isArray(current.history) ? current.history.map((entry) => asObject(entry)) : []),
-      actionItemHistoryEntry(status, input, ctx)
-    ]
-  };
-  if (status === "claimed") {
-    patch.claimed_by_user_id = cleanText(input.claimed_by_user_id || ctx.userId);
-    patch.claimed_at = cleanText(input.claimed_at) || now;
+  let node = await patchWorkNode(orgId, nodeId, {
+    ...(Object.prototype.hasOwnProperty.call(patch, "title") ? { title: cleanText(patch.title) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "body") || Object.prototype.hasOwnProperty.call(patch, "description") ? { description: cleanText(patch.body || patch.description) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "due_at") ? { due_at: cleanText(patch.due_at) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "assigned_user_ids") ? { assigned_user_ids: normalizeLooseStringArray(patch.assigned_user_ids) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "assigned_role_ids") ? { assigned_role_ids: normalizeLooseStringArray(patch.assigned_role_ids) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(patch, "assigned_resource_group_ids") ? { assigned_resource_group_ids: normalizeLooseStringArray(patch.assigned_resource_group_ids) } : {}),
+    metadata
+  });
+  if (Object.prototype.hasOwnProperty.call(patch, "status") && canonicalActionItemStatus(node?.status) !== cleanText(patch.status)) {
+    node = await transitionWorkNode(orgId, nodeId, canonicalWorkNodeStatus(patch.status), {
+      reason: cleanText(patch.reason || "legacy_action_item_patch"),
+      actor_user_id: cleanText(ctx.userId),
+      actor_email: cleanText(asObject(ctx.identity).email)
+    });
   }
-  if (status === "completed") {
-    patch.completed_by_user_id = cleanText(input.completed_by_user_id || ctx.userId);
-    patch.completed_at = cleanText(input.completed_at) || now;
-    patch.completion_reason = cleanText(input.reason || input.completion_reason || "manual");
-  }
-  if (status === "canceled") {
-    patch.canceled_by_user_id = cleanText(input.canceled_by_user_id || ctx.userId);
-    patch.canceled_at = cleanText(input.canceled_at) || now;
-    patch.cancel_reason = cleanText(input.reason || input.cancel_reason || "manual");
-  }
-  const normalized = normalizeActionItem({ ...current, ...patch, id: current.id || actionItemId }, ctx);
-  return await upsertDocument(orgId, ACTION_ITEM_COLLECTION, {
-    id: actionItemId,
-    data: normalized,
-    metadata: currentDoc.metadata
-  }, { replace: true });
+  return canonicalActionItemData(asObject(node));
 }
 
 async function setUserActionItemState(orgId: string, userId: string, actionItemId: string, patch: Record<string, unknown>) {
@@ -3200,8 +4391,213 @@ async function setUserActionItemState(orgId: string, userId: string, actionItemI
   return next;
 }
 
+function projectEventTimestamp(value: JsonObject) {
+  const parsed = Date.parse(cleanText(value.updated_at || value.updatedAt || value.created_at || value.createdAt));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mergeProjectEmbeddedEvents(currentValue: unknown, incomingValue: unknown) {
+  const current = (Array.isArray(currentValue) ? currentValue : []).map(asObject);
+  const incoming = (Array.isArray(incomingValue) ? incomingValue : []).map(asObject);
+  const merged = current.map((event) => ({ ...event }));
+  const indexById = new Map<string, number>();
+  merged.forEach((event, index) => {
+    const id = cleanText(event.id);
+    if (id) indexById.set(id, index);
+  });
+  for (const candidate of incoming) {
+    const id = cleanText(candidate.id);
+    if (!id || !indexById.has(id)) {
+      if (id) indexById.set(id, merged.length);
+      merged.push({ ...candidate });
+      continue;
+    }
+    const index = indexById.get(id) as number;
+    const existing = asObject(merged[index]);
+    merged[index] = projectEventTimestamp(candidate) > projectEventTimestamp(existing)
+      ? { ...existing, ...candidate }
+      : { ...candidate, ...existing };
+  }
+  return merged;
+}
+
+async function upsertProjectDocumentPreservingEvents(
+  orgId: string,
+  documentId: string,
+  input: JsonObject,
+  replace: boolean
+) {
+  const id = cleanText(documentId || input.id);
+  if (!id) return await upsertDocument(orgId, "projects", input, { replace });
+  const explicitExpectedRevision = Number(input.expected_revision || 0);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const current = await readDocument(orgId, "projects", id).catch(() => null);
+    if (!current) return await upsertDocument(orgId, "projects", { ...input, id }, { replace });
+    const currentData = asObject(current.data);
+    const incomingData = asObject(input.data);
+    const mergedProjectData = mergeProjectCustomFieldsForSave(currentData, {
+      ...incomingData,
+      events: mergeProjectEmbeddedEvents(currentData.events, incomingData.events)
+    });
+    await validateProjectCustomFieldValues(
+      orgId,
+      cleanText(mergedProjectData.branch_id || currentData.branch_id || "default") || "default",
+      mergedProjectData,
+      currentData
+    );
+    const nextInput = {
+      ...input,
+      id,
+      expected_revision: explicitExpectedRevision || Number(current.revision || 0),
+      data: mergedProjectData
+    };
+    try {
+      return await upsertDocument(orgId, "projects", nextInput, { replace });
+    } catch (error) {
+      if (explicitExpectedRevision || !(error instanceof PlatformError) || error.code !== "revision_conflict" || attempt === 2) throw error;
+    }
+  }
+  throw conflict("revision_conflict", "Project changed while it was being saved.");
+}
+
+const EVENT_RESOURCE_REF_KINDS = new Set([
+  "organization_user",
+  "resource_group",
+  "organization_connection",
+  "equipment_unit",
+  "equipment_type"
+]);
+
+const EQUIPMENT_REF_KINDS = new Set(["equipment_unit", "equipment_type"]);
+
+/**
+ * The plural assignment list on events. Each entry is
+ * { kind, id, name, role, quantity? } where role distinguishes the crew
+ * assignment from the equipment riding along ('crew' | 'equipment' |
+ * 'operator'). When an event carries no explicit resource_refs the list is
+ * derived from the singular work_resource_ref so legacy events read the same.
+ */
+function normalizeEventResourceRefs(eventValue: unknown) {
+  const event = asObject(eventValue);
+  const refs = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
+    .map(asObject)
+    .map((ref) => {
+      const kind = cleanText(ref.kind).toLowerCase();
+      const quantity = Math.max(1, Math.round(Number(ref.quantity || 1)) || 1);
+      const startAt = cleanText(ref.start_at || ref.start);
+      const endAt = cleanText(ref.end_at || ref.end);
+      return {
+        kind,
+        id: cleanText(ref.id),
+        name: cleanText(ref.name || ref.label),
+        role: cleanText(ref.role).toLowerCase() || (EQUIPMENT_REF_KINDS.has(kind) ? "equipment" : "crew"),
+        ...(kind === "equipment_type" || quantity > 1 ? { quantity } : {}),
+        ...(startAt ? { start_at: startAt } : {}),
+        ...(endAt ? { end_at: endAt } : {})
+      };
+    })
+    .filter((ref) => ref.id && EVENT_RESOURCE_REF_KINDS.has(ref.kind));
+  const seen = new Set<string>();
+  return refs.filter((ref) => {
+    const key = `${ref.kind}:${ref.id.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function eventEquipmentResourceRefs(eventValue: unknown) {
+  return normalizeEventResourceRefs(eventValue).filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind));
+}
+
+function normalizeEventResourceRequirements(value: unknown) {
+  const requirements = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  return requirements.map(asObject).map((requirement) => ({
+    kind: "equipment_type",
+    equipment_type_id: cleanText(requirement.equipment_type_id || requirement.equipmentTypeId || requirement.id),
+    label: cleanText(requirement.label || requirement.name),
+    quantity: Math.max(1, Math.round(Number(requirement.quantity || 1)) || 1)
+  })).filter((requirement) => {
+    if (!requirement.equipment_type_id || seen.has(requirement.equipment_type_id)) return false;
+    seen.add(requirement.equipment_type_id);
+    return true;
+  });
+}
+
+function eventAssignmentKeys(eventValue: unknown, options: { includeEquipment?: boolean } = {}) {
+  const event = asObject(eventValue);
+  const canonical = (value: unknown) => cleanText(value).toLowerCase();
+  const assignedUserIds = normalizeStringArray(event.assigned_user_ids || [event.assigned_user_id]).map(canonical);
+  const assignedUserIdSet = new Set(assignedUserIds);
+  const keys = assignedUserIds.map((id) => `organization_user:${id}`);
+  const reference = asObject(event.work_resource_ref);
+  const resourceId = canonical(reference.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id);
+  const resourceKind = canonical(reference.kind || event.assigned_resource_kind || (assignedUserIdSet.has(resourceId) ? "organization_user" : "resource_group"));
+  if (resourceId && !(resourceKind === "organization_user" && assignedUserIdSet.has(resourceId))) {
+    keys.push(`${resourceKind}:${resourceId}`);
+  }
+  for (const ref of normalizeEventResourceRefs(event)) {
+    if (EQUIPMENT_REF_KINDS.has(ref.kind) && options.includeEquipment !== true) continue;
+    keys.push(`${ref.kind}:${ref.id.toLowerCase()}`);
+  }
+  return [...new Set(keys)].sort();
+}
+
+async function assertProjectEventAssignmentsAllowed(
+  orgId: string,
+  branchId: string,
+  eventValue: JsonObject
+) {
+  const eventTypeId = cleanText(eventValue.event_type_default_id || eventValue.type_id || eventValue.event_type_id);
+  const schedulingModule = await readBranchModule(orgId, branchId || "default", "scheduling").catch(() => null);
+  const schedulingData = asObject(asObject(schedulingModule).data);
+  const eventType = asObject(asObject(schedulingData.event_types)[eventTypeId]);
+  const policy = assignmentPolicyForEventType(eventType, eventTypeId);
+  // Equipment refs only participate in policy enforcement when the event
+  // type's policy explicitly rules on equipment; otherwise they are validated
+  // by the equipment conflict/availability layer instead of rejected by
+  // crew-shaped default rules.
+  const policyCoversEquipment = policy.rules.some((rule) => (rule.subject_types as string[]).includes("equipment_unit"));
+  const assignmentKeys = eventAssignmentKeys(eventValue, { includeEquipment: policyCoversEquipment });
+  if (!assignmentKeys.length) {
+    if (!policy.allow_unassigned) {
+      throw badRequest("event_assignment_required", "This event type requires an assignment.", { event_type_id: eventTypeId, policy });
+    }
+    return policy;
+  }
+  const resolved = await resolveAssignableSubjects(orgId, branchId || "default", policy);
+  const allowed = new Set(resolved.subjects.map((subject) => `${cleanText(subject.subject_type).toLowerCase()}:${cleanText(subject.id).toLowerCase()}`));
+  const rejected = assignmentKeys.filter((key) => !allowed.has(key));
+  if (rejected.length) {
+    throw badRequest("event_assignment_not_allowed", "One or more assignees do not satisfy this event type's assignment policy.", {
+      event_type_id: eventTypeId,
+      rejected,
+      policy
+    });
+  }
+  return policy;
+}
+
+async function assertRecurrenceAssignmentAllowed(orgId: string, inputValue: JsonObject) {
+  const input = asObject(inputValue);
+  const eventTemplate = asObject(input.event_template || input.event);
+  const eventTypeId = cleanText(eventTemplate.event_type_default_id || eventTemplate.type_id || eventTemplate.event_type_id);
+  if (!eventTypeId) return;
+  const branchId = cleanText(input.branch_id || input.branchId || eventTemplate.branch_id || "default");
+  const schedulingModule = await readBranchModule(orgId, branchId, "scheduling").catch(() => null);
+  const configuredType = asObject(asObject(asObject(schedulingModule).data).event_types)[eventTypeId];
+  if (!Object.keys(asObject(configuredType)).length) return;
+  await assertProjectEventAssignmentsAllowed(
+    orgId,
+    branchId,
+    eventTemplate
+  );
+}
+
 function normalizeProjectEvent(input: Record<string, unknown>, project: Record<string, unknown>) {
   const now = new Date().toISOString();
+  const eventId = String(input.id || `event_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`);
   const eventTypeDefaultId = String(input.event_type_default_id || input.type_id || input.event_type_id || input.type || "custom");
   const requiredRoleIds = normalizeStringArray(input.required_role_ids || input.requiredRoleIds);
   const allowedRoleIds = normalizeStringArray(input.allowed_role_ids || input.allowedRoleIds);
@@ -3210,6 +4606,7 @@ function normalizeProjectEvent(input: Record<string, unknown>, project: Record<s
   const assignedUsers = Array.isArray(input.assigned_users || input.assignedUsers)
     ? (input.assigned_users || input.assignedUsers) as unknown[]
     : [];
+  const unscheduled = String(input.status || "").toLowerCase() === "unscheduled" && !input.start_at && !input.start;
   const startAt = new Date(String(input.start_at || input.start || now));
   const safeStartAt = Number.isFinite(startAt.getTime()) ? startAt : new Date();
   const explicitEndAt = input.end_at || input.end;
@@ -3217,16 +4614,66 @@ function normalizeProjectEvent(input: Record<string, unknown>, project: Record<s
   const safeEndAt = parsedEndAt && Number.isFinite(parsedEndAt.getTime()) && parsedEndAt > safeStartAt ? parsedEndAt : null;
   const derivedDurationMinutes = safeEndAt ? Math.max(1, Math.round((safeEndAt.getTime() - safeStartAt.getTime()) / 60000)) : 0;
   const durationMinutes = Math.max(1, Number(input.duration_minutes || input.durationMinutes || derivedDurationMinutes || 60));
+  const workResourceRef = asObject(input.work_resource_ref);
+  const assignmentIds = [workResourceRef.id, input.assigned_resource_id, input.resource_id, input.assigned_crew_id, input.crew_id, asObject(input.assigned_crew).id]
+    .map(cleanText)
+    .filter(Boolean);
+  const selfAssigned = assignmentIds.includes(eventId);
+  const sanitizedWorkAssignment = selfAssigned ? {
+    work_resource_ref: null,
+    assigned_resource_kind: "",
+    assigned_resource_id: "",
+    assigned_resource_name: "",
+    assigned_crew_id: "",
+    assigned_crew_name: "",
+    assigned_crew: null,
+    crew_id: "",
+    crew_name: "",
+    resource_id: "",
+    resource_name: "",
+    assignee_label: "",
+    resource_refs: [] as JsonObject[]
+  } : {};
+  // Mirror rule: the singular work_resource_ref stays authoritative for the
+  // crew-role entry (legacy writers update only it); equipment-role refs live
+  // exclusively on resource_refs.
+  const parsedRefs = selfAssigned ? [] : normalizeEventResourceRefs(input);
+  const equipmentRefs = parsedRefs.filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind));
+  const inputWorkRef = asObject(input.work_resource_ref);
+  const inputWorkId = selfAssigned ? "" : cleanText(inputWorkRef.id);
+  const crewRefs = inputWorkId
+    ? [{
+        kind: cleanText(inputWorkRef.kind).toLowerCase() || "resource_group",
+        id: inputWorkId,
+        name: cleanText(inputWorkRef.name),
+        role: "crew"
+      }]
+    : parsedRefs.filter((ref) => !EQUIPMENT_REF_KINDS.has(ref.kind));
+  const resourceRefs = [...crewRefs, ...equipmentRefs];
+  const primaryCrewRef = resourceRefs.find((ref) => ref.role === "crew");
+  // Mirror rule: the first crew-role ref back-fills the singular assignment
+  // fields so every legacy reader keeps working when a writer only sends
+  // resource_refs.
+  const crewMirrorBackfill = !selfAssigned && primaryCrewRef && !cleanText(asObject(input.work_resource_ref).id) ? {
+    work_resource_ref: { kind: primaryCrewRef.kind, id: primaryCrewRef.id, name: primaryCrewRef.name },
+    assigned_resource_kind: primaryCrewRef.kind,
+    assigned_resource_id: primaryCrewRef.id,
+    ...(primaryCrewRef.kind === "resource_group" ? {
+      assigned_crew_id: primaryCrewRef.id,
+      assigned_crew_name: primaryCrewRef.name,
+      crew_id: primaryCrewRef.id
+    } : {})
+  } : {};
   return {
     ...input,
-    id: String(input.id || `event_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`),
+    id: eventId,
     type_id: eventTypeDefaultId,
     event_type_id: eventTypeDefaultId,
     event_type_default_id: eventTypeDefaultId,
     title: String(input.title || eventTypeDefaultId.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())),
-    start_at: safeStartAt.toISOString(),
+    start_at: unscheduled ? "" : safeStartAt.toISOString(),
     duration_minutes: durationMinutes,
-    end_at: (safeEndAt || new Date(safeStartAt.getTime() + durationMinutes * 60000)).toISOString(),
+    end_at: unscheduled ? "" : (safeEndAt || new Date(safeStartAt.getTime() + durationMinutes * 60000)).toISOString(),
     required_role_ids: requiredRoleIds.length ? requiredRoleIds : roleIds,
     allowed_role_ids: allowedRoleIds.length ? allowedRoleIds : roleIds,
     role_ids: [...new Set([...roleIds, ...requiredRoleIds, ...allowedRoleIds])],
@@ -3235,277 +4682,56 @@ function normalizeProjectEvent(input: Record<string, unknown>, project: Record<s
     assigned_user_id: assignedUserIds[0] || "",
     project_id: String(project.id || input.project_id || ""),
     project_address: String(project.address || input.project_address || ""),
-    status: String(input.status || "scheduled"),
+    status: unscheduled ? "unscheduled" : (String(input.status || "scheduled").toLowerCase() === "unscheduled" ? "scheduled" : String(input.status || "scheduled")),
+    customer_visible: input.customer_visible === true,
+    customer_show_title: input.customer_show_title !== false,
+    customer_show_crew: input.customer_show_crew === true,
+    customer_description: cleanText(input.customer_description || input.customerDescription),
+    resource_refs: resourceRefs,
+    resource_requirements: normalizeEventResourceRequirements(input.resource_requirements || input.resourceRequirements),
+    ...crewMirrorBackfill,
+    ...sanitizedWorkAssignment,
     created_at: String(input.created_at || now),
     updated_at: now
   };
 }
 
-function triggerMatches(trigger: Record<string, unknown>, eventName: string, context: Record<string, unknown>) {
-  if (trigger.enabled === false) return false;
-  if (String(trigger.event || "") !== eventName) return false;
-  const conditions = asObject(trigger.conditions);
-  const event = asObject(context.event);
-  const project = asObject(context.project);
-  const eventType = String(event.event_type_default_id || event.type_id || event.event_type_id || "");
-  const projectStage = String(project.stage || project.stage_id || DEFAULT_STAGE_ID);
-  const fromStage = String(context.from_stage || "");
-  const toStage = String(context.to_stage || "");
-  if (conditions.event_type_default_id && String(conditions.event_type_default_id) !== eventType) return false;
-  if (conditions.event_type_id && String(conditions.event_type_id) !== eventType) return false;
-  if (conditions.project_stage && String(conditions.project_stage) !== projectStage) return false;
-  if (conditions.stage && String(conditions.stage) !== projectStage) return false;
-  if (conditions.from_stage && String(conditions.from_stage) !== fromStage) return false;
-  if (conditions.to_stage && String(conditions.to_stage) !== toStage) return false;
-  return true;
+// Confirmation requests only make sense for customer-facing appointments — a
+// material delivery or an internal work block has nobody to confirm it. An
+// event that already carries a confirmation block is always reconciled, so a
+// scope template can opt an unusual event type in.
+function isAppointmentConfirmationCandidate(event: Record<string, unknown>) {
+  if (asObject(event.confirmation).required !== undefined) return true;
+  if (isMaterialDeliveryProjectEvent(event)) return false;
+  const typeId = cleanText(event.event_type_default_id || event.type_id).toLowerCase();
+  return typeId.includes("appointment") || ["estimate", "consultation", "inspection", "service_call", "sales_follow_up"].includes(typeId);
 }
 
-function completionConditionContextValue(key: string, context: Record<string, unknown>) {
-  const event = asObject(context.event);
-  const project = asObject(context.project);
-  if (key === "project_id") return context.project_id || project.id;
-  if (key === "event_id") return context.event_id || event.id;
-  if (key === "event_type_default_id" || key === "event_type_id") return event.event_type_default_id || event.type_id || event.event_type_id;
-  if (key === "from_stage") return context.from_stage;
-  if (key === "to_stage" || key === "stage") return context.to_stage || project.stage || project.stage_id;
-  return contextPath(context, key) ?? event[key] ?? project[key] ?? context[key];
-}
-
-function completionConditionMatches(key: string, expected: unknown, context: Record<string, unknown>) {
-  if (expected === undefined || expected === null || expected === "") return true;
-  const actual = completionConditionContextValue(key, context);
-  if (Array.isArray(expected)) {
-    const expectedValues = normalizeLooseStringArray(expected);
-    return expectedValues.includes(cleanText(actual));
-  }
-  return cleanText(actual) === cleanText(expected);
-}
-
-function actionItemCompletionMatches(item: Record<string, unknown>, eventName: string, context: Record<string, unknown>) {
-  const status = normalizeActionItemStatus(item.status || "open");
-  if (status === "completed" || status === "canceled") return false;
-  const targetId = cleanText(context.action_item_id);
-  if (targetId && cleanText(item.id) !== targetId) return false;
-  const targetKind = cleanText(context.action_item_kind);
-  if (targetKind && cleanText(item.kind) !== targetKind) return false;
-  const completions = Array.isArray(item.completion_events) ? item.completion_events.map((entry) => asObject(entry)) : [];
-  return completions.some((completion) => {
-    if (cleanText(completion.event || completion.event_name) !== eventName) return false;
-    const conditions = asObject(completion.conditions);
-    return Object.entries(conditions).every(([key, expected]) => completionConditionMatches(key, expected, context));
-  });
-}
-
-async function completeMatchingActionItemsForEvent(orgId: string, eventName: string, context: Record<string, unknown>) {
-  if (!eventName) return { completed: [], completed_count: 0 };
-  const docs = await listDocuments(orgId, ACTION_ITEM_COLLECTION).catch(() => []);
-  const completed = [];
-  for (const doc of docs) {
-    const item = { ...asObject(doc.data), id: cleanText(asObject(doc.data).id || doc.id) };
-    if (!actionItemCompletionMatches(item, eventName, context)) continue;
-    const document = await transitionPlatformActionItem(orgId, cleanText(doc.id), "completed", {
-      reason: cleanText(context.completion_reason || "event_match"),
-      data: {
-        event: eventName,
-        project_id: context.project_id || asObject(context.project).id,
-        event_id: asObject(context.event).id
-      }
-    }, {
-      userId: cleanText(context.actor_user_id),
-      identity: { email: cleanText(context.actor_email) }
-    });
-    completed.push(actionItemData(document));
-  }
-  return { completed, completed_count: completed.length };
-}
-
-function contextPath(context: Record<string, unknown>, pathValue: unknown) {
-  const path = String(pathValue || "").trim();
-  if (!path) return undefined;
-  return path.split(".").reduce<unknown>((value, key) => {
-    if (value && typeof value === "object" && !Array.isArray(value)) return (value as Record<string, unknown>)[key];
-    return undefined;
-  }, context);
-}
-
-function renderTemplate(value: unknown, context: Record<string, unknown>) {
-  if (typeof value !== "string") return value;
-  return value.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_match, path) => String(contextPath(context, path) ?? ""));
-}
-
-function resolveTriggerParams(params: Record<string, unknown>, context: Record<string, unknown>) {
-  const resolved: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (key.endsWith("_from")) continue;
-    resolved[key] = Array.isArray(value)
-      ? value.map((entry) => entry && typeof entry === "object" && !Array.isArray(entry)
-        ? resolveTriggerParams(entry as Record<string, unknown>, context)
-        : renderTemplate(entry, context))
-      : value && typeof value === "object"
-        ? resolveTriggerParams(value as Record<string, unknown>, context)
-        : renderTemplate(value, context);
-  }
-  for (const [key, value] of Object.entries(params)) {
-    if (!key.endsWith("_from")) continue;
-    const targetKey = key.slice(0, -5);
-    resolved[targetKey] = contextPath(context, value);
-  }
-  return resolved;
-}
-
-async function applyTriggerAction(orgId: string, branchId: string, trigger: Record<string, unknown>, context: Record<string, unknown>) {
-  const action = String(trigger.action || "");
-  if (action === "action_item.create") {
-    const params = asObject(trigger.params);
-    const event = asObject(context.event);
-    const project = asObject(context.project);
-    const resolvedParams = resolveTriggerParams(params, { ...context, event, project });
-    const actionItem = await createPlatformActionItem(orgId, {
-      ...resolvedParams,
-      branch_id: resolvedParams.branch_id || branchId,
-      metadata: {
-        ...asObject(resolvedParams.metadata),
-        trigger_id: trigger.id,
-        trigger_event: trigger.event
-      },
-      payload: {
-        ...asObject(resolvedParams.payload),
-        trigger_id: trigger.id,
-        trigger_event: trigger.event,
-        project_id: context.project_id || project.id
-      }
-    }, {
-      branchId,
-      userId: cleanText(context.actor_user_id),
-      identity: { email: cleanText(context.actor_email) }
-    });
-    return { ok: true, action_item: actionItem };
-  }
-  if (action === "action_item.complete") {
-    const params = resolveTriggerParams(asObject(trigger.params), context);
-    const result = await completeMatchingActionItemsForEvent(orgId, String(trigger.event || ""), {
-      ...context,
-      action_item_id: params.action_item_id || params.id,
-      action_item_kind: params.kind,
-      completion_reason: params.reason || "trigger_action"
-    });
-    return { ok: true, ...result };
-  }
-  if (action === "notification.create") {
-    const params = asObject(trigger.params);
-    const event = asObject(context.event);
-    const project = asObject(context.project);
-    const resolvedParams = resolveTriggerParams(params, { ...context, event, project });
-    const celebration = asObject(resolvedParams.celebration);
-    const celebrationText = String(celebration.text || "");
-    if (String(resolvedParams.kind || "") === "celebration" && (!celebrationText.trim() || /^\s*was\s+just\s+sold/i.test(celebrationText))) {
-      const projectName = String(project.title || project.name || project.address || "Project").trim();
-      celebration.text = `${projectName} was just sold.`;
-      resolvedParams.celebration = celebration;
-      resolvedParams.body = celebration.text;
-      const contextParam = asObject(resolvedParams.context);
-      resolvedParams.context = {
-        ...contextParam,
-        celebration: {
-          ...asObject(contextParam.celebration),
-          text: celebration.text
-        }
-      };
-    }
-    const notification = await createPlatformNotification(orgId, {
-      ...resolvedParams,
-      id: resolvedParams.id || notificationIdFromParts(trigger.id, project.id, event.id),
-      branch_id: resolvedParams.branch_id || branchId,
-      context: {
-        ...asObject(resolvedParams.context),
-        trigger_id: trigger.id,
-        trigger_event: trigger.event,
-        project_id: project.id,
-        event_id: event.id
-      }
-    });
-    return { ok: true, notification };
-  }
-  if (action !== "project.stage.set") return { ok: false, skipped: true, reason: "unsupported_action" };
-  const params = asObject(trigger.params);
-  const projectId = String(context.project_id || asObject(context.project).id || "");
-  const nextStage = String(params.stage || params.stage_id || "");
-  if (!projectId || !nextStage) return { ok: false, skipped: true, reason: "missing_project_or_stage" };
-  const currentDoc = await readDocument(orgId, "projects", projectId);
-  const data = asObject(currentDoc.data);
-  const fromStage = String(data.stage || data.stage_id || DEFAULT_STAGE_ID);
-  if (fromStage === nextStage) return { ok: true, skipped: true, reason: "already_in_stage", project_document: currentDoc };
-  const history = Array.isArray(data.stage_history) ? data.stage_history : [];
-  const document = await upsertDocument(orgId, "projects", {
-    id: projectId,
-    data: {
-      ...data,
-      stage: nextStage,
-      stage_id: nextStage,
-      stage_updated_at: new Date().toISOString(),
-      stage_history: [
-        ...history,
-        {
-          from: fromStage,
-          to: nextStage,
-          trigger_id: String(trigger.id || ""),
-          event: String(trigger.event || ""),
-          at: new Date().toISOString()
-        }
-      ]
-    },
-    metadata: currentDoc.metadata
-  }, { replace: true });
-  for (const eventName of stageChangeTriggerEvents(fromStage, nextStage)) {
-    await emitPlatformTrigger(orgId, branchId, eventName, {
-      project_id: projectId,
-      project: document.data,
-      project_document: document,
-      from_stage: fromStage,
-      to_stage: nextStage,
-      trigger_id: String(trigger.id || ""),
-      stage_event_names: stageChangeTriggerEvents(fromStage, nextStage)
-    });
-  }
-  return { ok: true, project_document: document, from_stage: fromStage, to_stage: nextStage };
-}
-
-async function emitPlatformTrigger(orgId: string, branchId: string, eventName: string, context: Record<string, unknown>) {
-  if (!eventName) throw badRequest("missing_trigger_event", "A trigger event name is required.");
-  const modules = await ensureWorkflowModules(orgId, branchId || "default");
-  const triggers = Array.isArray(modules.triggers.triggers) ? modules.triggers.triggers.map((trigger) => asObject(trigger)) : [];
-  const fired = [];
-  let projectDocument = context.project_document;
-  const mutableContext = { ...context };
-  for (const trigger of triggers) {
-    if (!triggerMatches(trigger, eventName, mutableContext)) continue;
-    const result = await applyTriggerAction(orgId, branchId || "default", trigger, mutableContext);
-    fired.push({ id: trigger.id, action: trigger.action, result });
-    if (asObject(result).project_document) {
-      projectDocument = asObject(result).project_document;
-      mutableContext.project_document = projectDocument;
-      mutableContext.project = asObject(asObject(projectDocument).data);
-    }
-  }
-  const actionItems = await completeMatchingActionItemsForEvent(orgId, eventName, mutableContext);
-  return {
-    event: eventName,
-    branch_id: branchId || "default",
-    fired,
-    action_items: actionItems,
-    project_document: projectDocument
-  };
+function isMaterialDeliveryProjectEvent(event: Record<string, unknown>) {
+  return cleanText(event.kind).toLowerCase() === "material_delivery"
+    || cleanText(event.schedule_item_kind).toLowerCase() === "material_delivery"
+    || !!cleanText(event.material_list_id);
 }
 
 function eventHasCompleted(event: Record<string, unknown>, now = Date.now()) {
+  if (isMaterialDeliveryProjectEvent(event)) return false;
   if (event.completed_emitted_at || event.completed_at) return false;
+  if (["unscheduled", "canceled", "cancelled"].includes(cleanText(event.status).toLowerCase())) return false;
   const start = new Date(String(event.start_at || event.start || ""));
   if (!Number.isFinite(start.getTime())) return false;
   const durationMinutes = Math.max(1, Number(event.duration_minutes || event.duration || 60));
   return start.getTime() + durationMinutes * 60000 <= now;
 }
 
-async function processCompletedProjectEventsForOrg(orgId: string, candidates?: Record<string, unknown>[]) {
+function eventHasStarted(event: Record<string, unknown>, now = Date.now()) {
+  if (isMaterialDeliveryProjectEvent(event)) return false;
+  if (event.started_emitted_at || event.completed_emitted_at || event.completed_at) return false;
+  if (["unscheduled", "canceled", "cancelled"].includes(cleanText(event.status).toLowerCase())) return false;
+  const start = new Date(String(event.start_at || event.start || ""));
+  return Number.isFinite(start.getTime()) && start.getTime() <= now;
+}
+
+export async function processProjectEventLifecycleForOrg(orgId: string, candidates?: Record<string, unknown>[]) {
   const projects = candidates ?? await listDocuments(orgId, "projects");
   for (const document of projects) {
     const project = asObject(document.data);
@@ -3513,15 +4739,40 @@ async function processCompletedProjectEventsForOrg(orgId: string, candidates?: R
     let changed = false;
     const now = Date.now();
     for (const event of events) {
+      if (eventHasStarted(event, now)) {
+        event.started_emitted_at = new Date().toISOString();
+        event.status = "in_progress";
+        changed = true;
+        await emitWorkEvent({
+          organization_id: orgId,
+          branch_id: String(project.branch_id || "default"),
+          project_id: document.id,
+          type: "project.event.started",
+          idempotency_key: `project.event.started:${document.id}:${event.id}`,
+          payload: {
+            event_id: event.id,
+            event_kind: event.kind || event.event_type_default_id,
+            event_type_default_id: event.event_type_default_id,
+            event
+          }
+        });
+      }
       if (!eventHasCompleted(event, now)) continue;
       event.completed_emitted_at = new Date().toISOString();
-      event.status = String(event.status || "scheduled");
+      event.status = "completed";
       changed = true;
-      await emitPlatformTrigger(orgId, String(project.branch_id || "default"), "project.event.completed", {
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: String(project.branch_id || "default"),
         project_id: document.id,
-        project: { ...project, id: document.id },
-        project_document: document,
-        event
+        type: "project.event.completed",
+        idempotency_key: `project.event.completed:${document.id}:${event.id}`,
+        payload: {
+          event_id: event.id,
+          event_kind: event.kind || event.event_type_default_id,
+          event_type_default_id: event.event_type_default_id,
+          event
+        }
       });
     }
     if (changed) {
@@ -3548,7 +4799,7 @@ async function runPlatformHeartbeat(app: { log?: { warn: (value: unknown, messag
   try {
     if (isFirstMeasurePostgresEnabled()) {
       await runPostgresPlatformHeartbeat(
-        (orgId, project) => processCompletedProjectEventsForOrg(orgId, [project]),
+        (orgId, project) => processProjectEventLifecycleForOrg(orgId, [project]),
         (error, orgId) => app.log?.warn({ err: error, orgId }, "Platform heartbeat failed for organization.")
       );
       return;
@@ -3558,7 +4809,8 @@ async function runPlatformHeartbeat(app: { log?: { warn: (value: unknown, messag
       const orgId = String(asObject(org).id || "");
       if (!orgId) continue;
       try {
-        await processCompletedProjectEventsForOrg(orgId);
+        await listRecurrenceSeries(orgId, {});
+        await processProjectEventLifecycleForOrg(orgId);
       } catch (error) {
         app.log?.warn({ err: error, orgId }, "Platform heartbeat failed for organization.");
       }
@@ -3607,6 +4859,7 @@ function platformUserView(userDoc: unknown) {
   return {
     id: doc.id,
     ...data,
+    ...organizationUserProfileView(data),
     org_permissions: {
       level: String(data.role || "member"),
       items: asObject(data.permissions)
@@ -3822,8 +5075,16 @@ async function creditChargeForToken(orgId: string, chargeToken: string) {
   return null;
 }
 
+function withoutRemovedUserTypeFields(value: unknown) {
+  const result = asObject(value);
+  delete result.user_type_ids;
+  delete result.user_types;
+  delete result.classification_ids;
+  return result;
+}
+
 async function createPlatformOrgUser(orgId: string, body: Record<string, unknown>) {
-  const dataInput = asObject(body.data && typeof body.data === "object" ? body.data : body);
+  const dataInput = withoutRemovedUserTypeFields(body.data && typeof body.data === "object" ? body.data : body);
   const email = cleanEmail(dataInput.email);
   const userId = normalizeDocumentId(body.id || dataInput.id, `user_${stableHash(email).slice(0, 16)}`);
   let identityId = String(dataInput.identity_id || "");
@@ -3883,6 +5144,7 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
     team_id: String(dataInput.team_id || "default"),
     branch_id: String(dataInput.branch_id || "default"),
     queue_mode: String(dataInput.queue_mode || "disabled"),
+    ...organizationUserProfileFields(dataInput, { includeDefaults: true }),
     shift_schedule: asObject(dataInput.shift_schedule),
     profile: asObject(dataInput.profile),
     stats: asObject(dataInput.stats),
@@ -3908,12 +5170,13 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
 }
 
 async function upsertPlatformOrgUserDocument(orgId: string, documentId: string, body: JsonObject, replace: boolean) {
-  const dataInput = asObject(body.data && typeof body.data === "object" ? body.data : body);
+  const dataInput = withoutRemovedUserTypeFields(body.data && typeof body.data === "object" ? body.data : body);
   const metadata = asObject(body.metadata);
   const current = replace ? null : await readDocument(orgId, "users", documentId).catch(() => null);
   const data = {
-    ...(replace ? {} : asObject(current?.data)),
-    ...dataInput
+    ...(replace ? {} : withoutRemovedUserTypeFields(current?.data)),
+    ...dataInput,
+    ...organizationUserProfileFields(dataInput, { includeDefaults: replace })
   };
   const permissionState = platformOrgUserPermissionState(data);
   return await upsertDocument(
@@ -3962,9 +5225,10 @@ function platformOrgUserPermissionMutation(body: JsonObject) {
 }
 
 function customerPortalDocumentId(projectId: string) {
-  const id = cleanText(projectId).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  // Shared with portal_widgets.ts via portal_settings.ts — one definition only.
+  const id = portalDocumentIdFor(projectId);
   if (!id) throw badRequest("invalid_project_id", "Project id is required.");
-  return `customer_portal_${id}`;
+  return id;
 }
 
 async function readOptionalDocument(orgId: string, collection: string, documentId: string) {
@@ -4039,6 +5303,124 @@ function publicPortalUrl(uuid: string, baseUrl: string, preview: boolean) {
   return portalPublicUrl(baseUrl, preview ? `customer_portal/preview.php?id=${encodeURIComponent(uuid)}` : `customer_portal/?id=${encodeURIComponent(uuid)}`);
 }
 
+function portalGuestTokenHash(token: string) {
+  return createHash("sha256").update(cleanText(token)).digest("hex");
+}
+
+function portalGuestEncryptionKey() {
+  const secret = cleanText(env.platformSessionSecret);
+  return secret.length >= 32 ? createHash("sha256").update(`portal-guest-link:v1:${secret}`).digest() : null;
+}
+
+function encryptPortalGuestToken(token: string) {
+  const key = portalGuestEncryptionKey();
+  if (!key) throw conflict("portal_sharing_encryption_not_configured", "Secure portal sharing requires a platform session secret of at least 32 characters.");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(Buffer.from("firstmate:portal-guest-link:v1"));
+  const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  return `enc:v1:${iv.toString("base64url")}:${cipher.getAuthTag().toString("base64url")}:${ciphertext.toString("base64url")}`;
+}
+
+function decryptPortalGuestToken(value: unknown) {
+  const encoded = cleanText(value);
+  if (!encoded.startsWith("enc:v1:")) return "";
+  try {
+    const key = portalGuestEncryptionKey();
+    if (!key) return "";
+    const [, , ivValue, tagValue, dataValue] = encoded.split(":");
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivValue || "", "base64url"));
+    decipher.setAAD(Buffer.from("firstmate:portal-guest-link:v1"));
+    decipher.setAuthTag(Buffer.from(tagValue || "", "base64url"));
+    const token = Buffer.concat([decipher.update(Buffer.from(dataValue || "", "base64url")), decipher.final()]).toString("utf8");
+    return token.startsWith(PORTAL_GUEST_TOKEN_PREFIX) ? token : "";
+  } catch {
+    return "";
+  }
+}
+
+function normalizePortalGuestPreset(value: unknown): PortalGuestPreset {
+  const preset = cleanText(value).toLowerCase();
+  return Object.prototype.hasOwnProperty.call(PORTAL_GUEST_PRESETS, preset) ? preset as PortalGuestPreset : "full_view";
+}
+
+function normalizePortalGuestLinks(value: unknown) {
+  const seen = new Set<string>();
+  return (Array.isArray(value) ? value : [])
+    .map((item) => asObject(item))
+    .map((item) => {
+      const id = cleanText(item.id);
+      const preset = normalizePortalGuestPreset(item.preset);
+      const allowed = new Set<string>(PORTAL_GUEST_PRESETS[preset]);
+      const requestedTabs = normalizeStringArray(item.tabs);
+      return {
+        id,
+        token_hash: cleanText(item.token_hash),
+        token_hashes: normalizeStringArray(item.token_hashes).filter((hash) => /^[a-f0-9]{64}$/i.test(hash)).slice(0, 20),
+        token_ciphertext: cleanText(item.token_ciphertext),
+        label: cleanText(item.label).slice(0, 80) || "Shared access",
+        preset,
+        tabs: (requestedTabs.length ? requestedTabs : [...allowed]).filter((tab) => allowed.has(tab)),
+        project_ids: normalizeStringArray(item.project_ids || item.projectIds).slice(0, 50),
+        created_by: cleanText(item.created_by || "customer") || "customer",
+        created_at: cleanText(item.created_at),
+        expires_at: cleanText(item.expires_at),
+        revoked_at: cleanText(item.revoked_at),
+        last_viewed_at: cleanText(item.last_viewed_at)
+      };
+    })
+    .filter((item) => {
+      if (!item.id || !/^[a-f0-9]{64}$/i.test(item.token_hash) || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+}
+
+function recoverPortalGuestLinks(value: unknown) {
+  const links = normalizePortalGuestLinks(value);
+  let changed = false;
+  for (const link of links) {
+    if (link.revoked_at || portalGuestLinkIsExpired(link.expires_at) || decryptPortalGuestToken(link.token_ciphertext)) continue;
+    const token = `${PORTAL_GUEST_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
+    const tokenHash = portalGuestTokenHash(token);
+    link.token_ciphertext = encryptPortalGuestToken(token);
+    link.token_hashes = [...new Set([...normalizeStringArray(link.token_hashes), tokenHash])].slice(-20);
+    changed = true;
+  }
+  return { links, changed };
+}
+
+function portalGuestLinkIsExpired(value: unknown) {
+  const expiresAt = cleanText(value);
+  if (!expiresAt) return false;
+  const timestamp = Date.parse(expiresAt);
+  return !Number.isFinite(timestamp) || timestamp <= Date.now();
+}
+
+function publicPortalGuestLink(value: unknown, baseUrl = "") {
+  const link = asObject(value);
+  const expiresAt = cleanText(link.expires_at);
+  const token = decryptPortalGuestToken(link.token_ciphertext);
+  return {
+    id: cleanText(link.id),
+    label: cleanText(link.label),
+    preset: normalizePortalGuestPreset(link.preset),
+    tabs: normalizeStringArray(link.tabs),
+    project_ids: normalizeStringArray(link.project_ids),
+    created_by: cleanText(link.created_by),
+    created_at: cleanText(link.created_at),
+    expires_at: expiresAt,
+    revoked_at: cleanText(link.revoked_at),
+    last_viewed_at: cleanText(link.last_viewed_at),
+    status: cleanText(link.revoked_at) ? "revoked" : (portalGuestLinkIsExpired(expiresAt) ? "expired" : "active"),
+    url: baseUrl && token ? publicPortalUrl(token, baseUrl, false) : ""
+  };
+}
+
+function publicPortalGuestLinks(value: unknown, baseUrl = "") {
+  return normalizePortalGuestLinks(value).map((link) => publicPortalGuestLink(link, baseUrl));
+}
+
 function customerPortalView(document: JsonObject, baseUrl: string): JsonObject {
   const data = asObject(document.data);
   const publicUuid = cleanText(data.public_uuid);
@@ -4046,6 +5428,7 @@ function customerPortalView(document: JsonObject, baseUrl: string): JsonObject {
   return {
     id: document.id,
     ...data,
+    guest_links: publicPortalGuestLinks(data.guest_links, baseUrl),
     public_uuid: publicUuid,
     preview_uuid: previewUuid,
     live_url: publicPortalUrl(publicUuid, baseUrl, false),
@@ -4056,7 +5439,7 @@ function customerPortalView(document: JsonObject, baseUrl: string): JsonObject {
   };
 }
 
-function normalizeSharedItems(items: unknown): Array<{ type: string; item_id: string; shared_at: string; shared_by: string }> {
+function normalizeSharedItems(items: unknown): Array<{ type: string; item_id: string; shared_at: string; shared_by: string; include_markup: boolean }> {
   const seen = new Set<string>();
   const shared = Array.isArray(items) ? items : [];
   return shared
@@ -4065,7 +5448,11 @@ function normalizeSharedItems(items: unknown): Array<{ type: string; item_id: st
       type: cleanText(entry.type || "media") || "media",
       item_id: cleanText(entry.item_id || entry.itemId || entry.media_id || entry.mediaId || entry.id),
       shared_at: cleanText(entry.shared_at || entry.sharedAt),
-      shared_by: cleanText(entry.shared_by || entry.sharedBy || entry.actor_user_id || entry.actorUserId)
+      shared_by: cleanText(entry.shared_by || entry.sharedBy || entry.actor_user_id || entry.actorUserId),
+      // Existing shares predate this field and should receive the new customer-facing default.
+      include_markup: entry.include_markup === undefined && entry.includeMarkup === undefined
+        ? true
+        : parseBooleanField(entry.include_markup ?? entry.includeMarkup, true)
     }))
     .filter((entry) => {
       if (!entry.item_id) return false;
@@ -4076,7 +5463,7 @@ function normalizeSharedItems(items: unknown): Array<{ type: string; item_id: st
     });
 }
 
-async function ensureCustomerPortalRecord(orgId: string, projectId: string, input: JsonObject = {}, baseUrl = "") {
+export async function ensureCustomerPortalRecord(orgId: string, projectId: string, input: JsonObject = {}, baseUrl = "") {
   const projectDoc = await readDocument(orgId, "projects", projectId);
   const project = asObject(projectDoc.data);
   const documentId = customerPortalDocumentId(projectId);
@@ -4094,7 +5481,13 @@ async function ensureCustomerPortalRecord(orgId: string, projectId: string, inpu
     status: cleanText(currentData.status || input.status || "active") || "active",
     customer: { ...asObject(currentData.customer), ...customer, ...inputCustomer, ...(contactId ? { id: contactId, contact_id: contactId } : {}) },
     shared_items: normalizeSharedItems(currentData.shared_items),
+    guest_links: recoverPortalGuestLinks(currentData.guest_links).links,
     settings: { ...asObject(currentData.settings), ...asObject(input.settings) },
+    // Customer-authored content must survive every staff-side write. This
+    // builder rebuilds `data` from a whitelist, so anything omitted here is
+    // silently destroyed the next time staff touch the portal record.
+    customer_uploads: normalizePortalUploads(currentData.customer_uploads),
+    media_comments: normalizePortalComments(currentData.media_comments),
     created_at: cleanText(currentData.created_at) || now,
     updated_at: now
   };
@@ -4124,15 +5517,20 @@ async function ensureCustomerPortalRecord(orgId: string, projectId: string, inpu
 async function updateCustomerPortalRecord(orgId: string, projectId: string, input: JsonObject = {}, baseUrl = "") {
   const ensured = await ensureCustomerPortalRecord(orgId, projectId, input, baseUrl);
   const portal = ensured.portal;
+  const currentDocument = await readDocument(orgId, CUSTOMER_PORTAL_COLLECTION, cleanText(portal.id));
+  const currentData = asObject(currentDocument.data);
   const now = new Date().toISOString();
   let sharedItems = normalizeSharedItems(portal.shared_items);
   const actorUserId = cleanText(input.actor_user_id || input.actorUserId);
   const shareMedia = normalizeStringArray(input.share_media_ids || input.shareMediaIds || input.add_media_ids || input.addMediaIds);
+  const includeMarkup = input.include_markup === undefined && input.includeMarkup === undefined
+    ? true
+    : parseBooleanField(input.include_markup ?? input.includeMarkup, true);
   const unshareMedia = new Set(normalizeStringArray(input.unshare_media_ids || input.unshareMediaIds || input.remove_media_ids || input.removeMediaIds));
   for (const mediaId of shareMedia) {
-    if (!sharedItems.some((item) => item.type === "media" && item.item_id === mediaId)) {
-      sharedItems.push({ type: "media", item_id: mediaId, shared_at: now, shared_by: actorUserId });
-    }
+    const existing = sharedItems.find((item) => item.type === "media" && item.item_id === mediaId);
+    if (existing) existing.include_markup = includeMarkup;
+    else sharedItems.push({ type: "media", item_id: mediaId, shared_at: now, shared_by: actorUserId, include_markup: includeMarkup });
   }
   if (unshareMedia.size) {
     sharedItems = sharedItems.filter((item) => !(item.type === "media" && unshareMedia.has(item.item_id)));
@@ -4147,6 +5545,7 @@ async function updateCustomerPortalRecord(orgId: string, projectId: string, inpu
       id: cleanText(portal.id),
       data: {
         ...asObject(portal),
+        guest_links: normalizePortalGuestLinks(currentData.guest_links),
         shared_items: sharedItems,
         status: cleanText(input.status || portal.status || "active") || "active",
         settings: { ...asObject(portal.settings), ...asObject(input.settings) },
@@ -4168,9 +5567,11 @@ async function updateCustomerPortalRecord(orgId: string, projectId: string, inpu
   };
 }
 
-async function findCustomerPortalByUuid(uuid: string, preview: boolean) {
+async function findCustomerPortalByUuid(uuid: string, preview: boolean): Promise<CustomerPortalResolution> {
   const target = cleanText(uuid);
   if (!target) throw badRequest("invalid_portal", "A portal id is required.");
+  const guestHash = !preview && target.startsWith(PORTAL_GUEST_TOKEN_PREFIX) ? portalGuestTokenHash(target) : "";
+  let unavailableGuest = false;
   const orgs = await listOrganizations();
   for (const org of orgs) {
     const orgId = cleanText(asObject(org).id);
@@ -4179,10 +5580,109 @@ async function findCustomerPortalByUuid(uuid: string, preview: boolean) {
     for (const doc of portals) {
       const data = asObject(doc.data);
       const match = preview ? cleanText(data.preview_uuid) : cleanText(data.public_uuid);
-      if (match === target) return { orgId, document: doc, data };
+      if (match === target) return { orgId, document: doc, data, access_mode: "owner" };
+      if (guestHash) {
+        const guest = normalizePortalGuestLinks(data.guest_links).find((item) => {
+          return [item.token_hash, ...normalizeStringArray(item.token_hashes)].some((hash) => {
+            const left = Buffer.from(hash, "hex");
+            const right = Buffer.from(guestHash, "hex");
+            return left.length === right.length && timingSafeEqual(left, right);
+          });
+        });
+        if (guest) {
+          const expiresAt = cleanText(guest.expires_at);
+          if (cleanText(guest.revoked_at) || portalGuestLinkIsExpired(expiresAt)) {
+            unavailableGuest = true;
+            continue;
+          }
+          return { orgId, document: doc, data, access_mode: "guest", guest };
+        }
+      }
     }
   }
+  if (unavailableGuest) throw forbidden("portal_share_unavailable", "This shared portal link has expired or been revoked.");
   throw forbidden("portal_not_found", "The requested customer portal could not be found.");
+}
+
+function requirePortalOwner(found: CustomerPortalResolution) {
+  if (found.access_mode !== "owner") throw forbidden("portal_guest_readonly", "Shared portal links are read-only.");
+  return found;
+}
+
+async function savePortalGuestLinks(found: CustomerPortalResolution, guestLinks: unknown) {
+  const data = { ...asObject(found.document.data), guest_links: normalizePortalGuestLinks(guestLinks), updated_at: new Date().toISOString() };
+  const document = await upsertDocument(found.orgId, CUSTOMER_PORTAL_COLLECTION, {
+    id: cleanText(found.document.id),
+    data,
+    metadata: asObject(found.document.metadata)
+  }, { replace: true });
+  return { ...found, document, data: asObject(document.data) };
+}
+
+async function ensureRecoverablePortalGuestLinks(found: CustomerPortalResolution) {
+  const recovered = recoverPortalGuestLinks(found.data.guest_links);
+  return recovered.changed ? savePortalGuestLinks(found, recovered.links) : found;
+}
+
+async function createPortalGuestLink(foundInput: CustomerPortalResolution, input: JsonObject, baseUrl: string, createdBy = "customer") {
+  const found = requirePortalOwner(foundInput);
+  const defaults = await portalOrgDefaults(found.orgId);
+  const settings = portalSettingsFor(defaults, found.data);
+  if (!settings.sharing.enabled && createdBy === "customer") {
+    throw forbidden("portal_sharing_disabled", "Portal sharing is not enabled for this project.");
+  }
+  const links = normalizePortalGuestLinks(found.data.guest_links);
+  const preset = normalizePortalGuestPreset(input.preset);
+  const allowedTabs = new Set<string>(PORTAL_GUEST_PRESETS[preset]);
+  const requestedTabs = normalizeStringArray(input.tabs);
+  const tabs = (requestedTabs.length ? requestedTabs : [...allowedTabs]).filter((tab) => allowedTabs.has(tab));
+  const projectId = cleanText(found.data.project_id);
+  const contactId = customerPortalContactId(found.data);
+  const availableProjectIds = new Set<string>();
+  for (const portalDoc of await listDocuments(found.orgId, CUSTOMER_PORTAL_COLLECTION).catch(() => [])) {
+    const portalData = asObject(portalDoc.data);
+    if (contactId && customerPortalContactId(portalData) !== contactId) continue;
+    if (cleanText(portalData.status || "active") !== "active") continue;
+    const candidate = cleanText(portalData.project_id);
+    if (candidate) availableProjectIds.add(candidate);
+  }
+  if (projectId) availableProjectIds.add(projectId);
+  const requestedProjects = normalizeStringArray(input.project_ids || input.projectIds);
+  const projectIds = (requestedProjects.length ? requestedProjects : [projectId]).filter((id) => availableProjectIds.has(id));
+  if (projectId && !projectIds.includes(projectId)) projectIds.unshift(projectId);
+  const hasRequestedExpiry = Object.prototype.hasOwnProperty.call(input, "expires_days") || Object.prototype.hasOwnProperty.call(input, "expiresDays");
+  const rawExpiry = hasRequestedExpiry ? (input.expires_days ?? input.expiresDays) : settings.sharing.default_expires_days;
+  const requestedDays = Number(rawExpiry);
+  const neverExpires = hasRequestedExpiry && (rawExpiry === null || cleanText(rawExpiry).toLowerCase() === "never" || requestedDays === 0);
+  const expiresDays = Math.max(1, Math.min(365, Number.isFinite(requestedDays) ? Math.round(requestedDays) : settings.sharing.default_expires_days));
+  const now = new Date();
+  const token = `${PORTAL_GUEST_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
+  const link = {
+    id: `pgl_${randomUUID().replace(/-/g, "")}`,
+    token_hash: portalGuestTokenHash(token),
+    token_ciphertext: encryptPortalGuestToken(token),
+    label: cleanText(input.label).slice(0, 80) || "Shared access",
+    preset,
+    tabs,
+    project_ids: projectIds,
+    created_by: createdBy,
+    created_at: now.toISOString(),
+    expires_at: neverExpires ? "" : new Date(now.getTime() + expiresDays * 86_400_000).toISOString(),
+    revoked_at: "",
+    last_viewed_at: ""
+  };
+  await savePortalGuestLinks(found, [...links, link]);
+  return { share: publicPortalGuestLink(link, baseUrl), url: publicPortalUrl(token, baseUrl, false) };
+}
+
+async function revokePortalGuestLink(foundInput: CustomerPortalResolution, shareId: string) {
+  const found = requirePortalOwner(foundInput);
+  const links = normalizePortalGuestLinks(found.data.guest_links);
+  const target = links.find((item) => item.id === cleanText(shareId));
+  if (!target) throw notFound("portal_share_not_found", "The shared portal link was not found.");
+  if (!target.revoked_at) target.revoked_at = new Date().toISOString();
+  await savePortalGuestLinks(found, links);
+  return publicPortalGuestLink(target);
 }
 
 function publicProjectFirstMeasureId(project: JsonObject) {
@@ -4245,32 +5745,133 @@ function publicProjectView(project: JsonObject, apiBaseUrl = "") {
   };
 }
 
-function publicProjectAppointment(project: JsonObject) {
-  const events = Array.isArray(project.events) ? project.events.map((event) => asObject(event)) : [];
-  const appointment = events
-    .filter((event) => {
-      const type = cleanText(event.event_type_default_id || event.type_id || event.event_type_id || event.kind || event.type).toLowerCase();
-      return type === "sales_appointment" || type.includes("sales_appointment") || type.includes("appointment");
-    })
-    .sort((a, b) => {
-      const aTime = Date.parse(cleanText(a.start_at || a.start || a.starts_at)) || 0;
-      const bTime = Date.parse(cleanText(b.start_at || b.start || b.starts_at)) || 0;
-      return aTime - bTime;
-    })[0];
-  if (!appointment) return null;
-  const assignedUsers = Array.isArray(appointment.assigned_users) ? appointment.assigned_users.map((user) => asObject(user)) : [];
+function projectScheduleEventType(event: JsonObject) {
+  return cleanText(event.event_type_default_id || event.type_id || event.event_type_id || event.kind || event.type || "custom").toLowerCase() || "custom";
+}
+
+function projectScheduleEventCategory(event: JsonObject) {
+  const type = projectScheduleEventType(event);
+  const resourceType = cleanText(event.resource_type || event.assigned_resource_kind).toLowerCase();
+  const scheduleKind = cleanText(event.schedule_item_kind || event.kind).toLowerCase();
+  if (type.includes("delivery") || resourceType === "material" || scheduleKind.includes("delivery")) return "delivery";
+  if (type.includes("completion") || type.includes("complete") || type.includes("estimate")) return "completion";
+  if (type.includes("appointment") || type.includes("meeting") || type.includes("inspection") || type.includes("consult")) return "appointment";
+  if (type === "project_work" || type.includes("work") || resourceType === "labor" || scheduleKind === "labor") return "work";
+  if (type.includes("equipment") || resourceType === "equipment") return "equipment";
+  return "event";
+}
+
+function publicScheduleCategoryTitle(category: string) {
+  if (category === "delivery") return "Delivery";
+  if (category === "completion") return "Estimated completion";
+  if (category === "appointment") return "Appointment";
+  if (category === "work") return "Project work";
+  if (category === "equipment") return "Equipment";
+  return "Schedule item";
+}
+
+function publicScheduleCrewName(event: JsonObject) {
+  if (event.customer_show_crew !== true) return "";
+  const assignedCrew = asObject(event.assigned_crew);
+  const workResource = asObject(event.work_resource_ref);
+  const explicit = cleanText(
+    event.customer_crew_name
+    || event.assigned_crew_name
+    || event.crew_name
+    || event.assigned_resource_name
+    || event.resource_name
+    || assignedCrew.name
+    || workResource.name
+    || event.assigned_user_name
+  );
+  if (explicit) return explicit;
+  const assignedUsers = Array.isArray(event.assigned_users) ? event.assigned_users.map(asObject) : [];
+  return [...new Set(assignedUsers
+    .map((user) => cleanText(user.name || user.display_name || user.email))
+    .filter(Boolean))]
+    .slice(0, 4)
+    .join(", ");
+}
+
+function publicProjectScheduleEvent(eventValue: unknown, schedulingValue: unknown = {}, customerSchedulingEnabled = false): JsonObject | null {
+  const event = asObject(eventValue);
+  if (event.customer_visible !== true) return null;
+  const startAt = cleanText(event.start_at || event.start || event.starts_at || event.start_date);
+  const parsedStart = Date.parse(startAt);
+  if (!startAt || !Number.isFinite(parsedStart)) return null;
+  const category = projectScheduleEventCategory(event);
+  const type = projectScheduleEventType(event);
+  const endAt = cleanText(event.end_at || event.end || event.ends_at || event.end_date);
+  const parsedEnd = Date.parse(endAt);
+  const durationMinutes = Math.max(0, Math.round(numericValue(event.duration_minutes || event.duration || (Number.isFinite(parsedEnd) && parsedEnd > parsedStart ? (parsedEnd - parsedStart) / 60000 : 0))));
+  const isEstimate = event.is_estimate === true || event.estimated === true || category === "completion" || category === "work";
+  const showTitle = event.customer_show_title !== false;
+  const scheduling = asObject(schedulingValue);
+  const eventType = asObject(asObject(scheduling.event_types)[type]);
   return {
-    id: cleanText(appointment.id),
-    title: cleanText(appointment.title || appointment.label || "On-site Appointment"),
-    status: cleanText(appointment.status),
-    start_at: cleanText(appointment.start_at || appointment.start || appointment.starts_at),
-    end_at: cleanText(appointment.end_at || appointment.end),
-    duration_minutes: Math.max(0, Math.round(numericValue(appointment.duration_minutes || appointment.duration || 60))),
-    assigned_to: assignedUsers
-      .map((user) => cleanText(user.name || user.email || user.id))
-      .filter(Boolean)
-      .slice(0, 4)
+    id: cleanText(event.id) || `shared_event_${parsedStart}`,
+    title: showTitle
+      ? (cleanText(event.customer_title || event.title || event.label) || publicScheduleCategoryTitle(category))
+      : publicScheduleCategoryTitle(category),
+    category,
+    event_type: showTitle ? type : category,
+    status: cleanText(event.status || "scheduled").toLowerCase() || "scheduled",
+    start_at: new Date(parsedStart).toISOString(),
+    end_at: Number.isFinite(parsedEnd) && parsedEnd > parsedStart ? new Date(parsedEnd).toISOString() : "",
+    duration_minutes: durationMinutes,
+    all_day: event.all_day === true || cleanText(event.schedule_granularity).toLowerCase() === "date",
+    is_estimate: isEstimate,
+    crew_name: publicScheduleCrewName(event),
+    customer_description: cleanText(event.customer_description || event.customerDescription),
+    // The customer sees their own confirmation state so the portal can show a
+    // "please confirm" prompt alongside the appointment.
+    confirmation_status: cleanText(asObject(event.confirmation).status) || "not_required",
+    confirmation_required: asObject(event.confirmation).required === true,
+    reschedule_request: cleanText(asObject(event.reschedule_request).status)
+      ? {
+        id: cleanText(asObject(event.reschedule_request).id),
+        status: cleanText(asObject(event.reschedule_request).status),
+        requested_start_at: cleanText(asObject(event.reschedule_request).requested_start_at),
+        requested_end_at: cleanText(asObject(event.reschedule_request).requested_end_at),
+        requested_at: cleanText(asObject(event.reschedule_request).requested_at),
+        reviewed_at: cleanText(asObject(event.reschedule_request).reviewed_at)
+      }
+      : null,
+    customer_scheduling: customerSchedulingEnabled
+      ? publicSchedulingPolicy(event, eventType, scheduling)
+      : { enabled: false, actions: [] }
   };
+}
+
+async function publicProjectSchedule(project: JsonObject, linkedEvents: JsonObject[] = [], schedulingValue: unknown = {}, customerSchedulingEnabled = false, orgId = "") {
+  const embedded = Array.isArray(project.events) ? project.events : [];
+  const seen = new Set<string>();
+  const activeInstances = asObject(project.work_projection).active_instances;
+  const activeScope = (Array.isArray(activeInstances) ? activeInstances : []).map(asObject)[0] || {};
+  const scopeTemplateId = cleanText(project.scope_template_id || project.sales_scope_template_id || activeScope.template_id || activeScope.scope_template_id);
+  const scopeDefinition = orgId && scopeTemplateId
+    ? asObject((await (async () => { try { return (await readScopeTemplate(orgId, cleanText(project.branch_id || "default") || "default", scopeTemplateId)); } catch { return null; } })())?.definition)
+    : {};
+  const scopePolicy = asObject(scopeDefinition.customer_scheduling);
+  return [...embedded, ...linkedEvents]
+    .map((event) => publicProjectScheduleEvent({ ...asObject(event), customer_scheduling:{ ...scopePolicy, ...asObject(asObject(event).customer_scheduling) } }, schedulingValue, customerSchedulingEnabled))
+    .filter((event): event is JsonObject => event !== null)
+    .filter((event) => {
+      const id = cleanText(event.id);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .sort((a, b) => Date.parse(cleanText(a.start_at)) - Date.parse(cleanText(b.start_at)));
+}
+
+function publicProjectAppointment(scheduleEvents: JsonObject[]) {
+  const appointments = scheduleEvents.filter((event) => cleanText(event.category) === "appointment");
+  if (!appointments.length) return null;
+  const now = Date.now();
+  return appointments.find((event) => Date.parse(cleanText(event.end_at || event.start_at)) >= now)
+    || appointments[appointments.length - 1]
+    || null;
 }
 
 function proposalPlainText(value: unknown) {
@@ -4300,7 +5901,39 @@ function proposalCurrencyDisplay(value: unknown) {
   return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function publicProposalLineItems(page: JsonObject) {
+function publicProposalScopeView(page: JsonObject) {
+  return asObject(page.scope_view || page.scopeView || {
+    root_item_id: cleanText(page.scope_root_id || page.scopeRootId || "root") || "root",
+    render_depth: Number(page.render_depth ?? page.renderDepth ?? 1) || 1,
+    show_included_items: page.show_included_items !== false && page.showIncludedItems !== false,
+    show_unselected_options: page.show_unselected_options === true || page.showUnselectedOptions === true
+  });
+}
+
+function publicProposalLineItems(page: JsonObject, proposalValue: unknown = {}) {
+  const scope = normalizeProposalScope(asObject(proposalValue).scope);
+  if (Array.isArray(scope.root_items) && scope.root_items.length) {
+    const scoped = publicScopeLineItems(scope, publicProposalScopeView(page));
+    if (scoped.length) {
+      return scoped
+        .map((item) => asObject(item))
+        .map((item) => ({
+          id: cleanText(item.id),
+          label: proposalPlainText(item.label || item.name),
+          description: proposalPlainText(item.description),
+          depth: Number(item.depth || 0),
+          selected: item.selected !== false,
+          included: item.included === true,
+          quantity: cleanText(item.quantity || "1"),
+          unit: cleanText(item.unit),
+          unit_price: cleanText(item.unit_price) || proposalCurrencyDisplay(item.unitPrice || 0),
+          amount: cleanText(item.amount) || proposalCurrencyDisplay(0),
+          media_refs: Array.isArray(item.media_refs) ? item.media_refs.map(asObject) : [],
+          selected_variation_id: cleanText(item.selected_variation_id)
+        }))
+        .filter((item) => item.label || proposalNumber(item.amount));
+    }
+  }
   return (Array.isArray(page.lineItems) ? page.lineItems : Array.isArray(page.line_items) ? page.line_items : [])
     .map((item) => asObject(item))
     .map((item) => ({
@@ -4314,10 +5947,23 @@ function publicProposalLineItems(page: JsonObject) {
 }
 
 function publicProposalTotals(proposal: JsonObject) {
+  const scope = normalizeProposalScope(proposal.scope);
+  const scopeTotal = proposalScopeTotalCents(scope);
+  if (Array.isArray(scope.root_items) && scope.root_items.length) {
+    const signaturePage = (Array.isArray(proposal.pages) ? proposal.pages.map((page) => asObject(page)) : [])
+      .find((page) => cleanText(page.kind).toLowerCase() === "signature");
+    const tax = signaturePage && signaturePage.showTax !== false ? proposalNumber(signaturePage.taxAmount) : 0;
+    const subtotal = scopeTotal / 100;
+    return {
+      subtotal: proposalCurrencyDisplay(subtotal),
+      tax: proposalCurrencyDisplay(tax),
+      total: proposalCurrencyDisplay(subtotal + tax)
+    };
+  }
   const pages = Array.isArray(proposal.pages) ? proposal.pages.map((page) => asObject(page)) : [];
   const subtotal = pages
     .filter((page) => cleanText(page.kind).toLowerCase() === "pricing")
-    .reduce((sum, page) => sum + publicProposalLineItems(page).reduce((lineSum, item) => lineSum + proposalNumber(item.amount), 0), 0);
+    .reduce((sum, page) => sum + publicProposalLineItems(page, proposal).reduce((lineSum, item) => lineSum + proposalNumber(item.amount), 0), 0);
   const signaturePage = pages.find((page) => cleanText(page.kind).toLowerCase() === "signature");
   const tax = signaturePage && signaturePage.showTax !== false ? proposalNumber(signaturePage.taxAmount) : 0;
   return {
@@ -4338,7 +5984,7 @@ function publicProposalBlocks(page: JsonObject) {
     .filter((block) => block.text || block.image_ids.length);
 }
 
-function publicProposalPage(pageValue: unknown) {
+function publicProposalPage(pageValue: unknown, proposalValue: unknown = {}) {
   const page = asObject(pageValue);
   const kind = cleanText(page.kind || "scope").toLowerCase() || "scope";
   const base: JsonObject = {
@@ -4358,12 +6004,13 @@ function publicProposalPage(pageValue: unknown) {
     };
   }
   if (kind === "pricing") {
-    const lineItems = publicProposalLineItems(page);
+    const lineItems = publicProposalLineItems(page, proposalValue);
     return {
       ...base,
       notes: proposalPlainText(page.notes),
+      scope_view: publicProposalScopeView(page),
       line_items: lineItems,
-      total: proposalCurrencyDisplay(page.total || lineItems.reduce((sum, item) => sum + proposalNumber(item.amount), 0))
+      total: proposalCurrencyDisplay(lineItems.reduce((sum, item) => sum + proposalNumber(item.amount), 0) || page.total || 0)
     };
   }
   if (kind === "signature") {
@@ -4413,14 +6060,22 @@ function publicProposalView(proposalValue: unknown, index = 0) {
   const status = cleanText(proposal.status || "draft").toLowerCase() || "draft";
   const pages = (Array.isArray(proposal.pages) ? proposal.pages : [])
     .filter((page) => asObject(page).enabled !== false)
-    .map(publicProposalPage)
+    .map((page) => publicProposalPage(page, proposal))
     .filter((page) => asObject(page).kind);
   const totals = Object.keys(asObject(proposal.totals)).length ? asObject(proposal.totals) : publicProposalTotals(proposal);
   return {
     id: cleanText(proposal.id) || `proposal_${index + 1}`,
     proposal_id: cleanText(proposal.proposal_id || proposal.proposalId),
     snapshot_id: cleanText(proposal.snapshot_id || proposal.snapshotId || proposal.id),
-    public_token: cleanText(proposal.public_token || proposal.publicToken),
+    // The lean shared-proposal view carries the token at the top level, but
+    // legacy embedded-proposal saves (ProjectStore.saveRemote from the staff
+    // proposals workspace) replace the entry with the RAW proposal document,
+    // where the token lives under delivery. Without this fallback the portal
+    // loses its live-payment enrichment after any such save and re-presents
+    // already-collected deposits as due.
+    public_token: cleanText(proposal.public_token || proposal.publicToken
+      || asObject(proposal.delivery).current_public_token
+      || asObject(proposal.delivery).public_token),
     app_url: cleanText(proposal.app_url || proposal.appUrl),
     title: proposalPlainText(proposal.title) || `Proposal ${index + 1}`,
     status,
@@ -4446,7 +6101,17 @@ async function publicProjectProposals(project: JsonObject, preview = false) {
   return Promise.all(selected.map(async (proposal) => {
     const token = cleanText(asObject(proposal).public_token);
     if (!token) return proposal;
-    const workflow = await publicProposalWorkflow(token).catch(() => null);
+    // The workflow enrichment carries the LIVE payment state (obligations
+    // with allocations from staff-side charges). If it is missing the portal
+    // client degrades to snapshot-only deposit state, which knows nothing
+    // about payments taken outside the portal — so retry once before giving
+    // up on a transient failure.
+    const workflow = await publicProposalWorkflow(token)
+      .catch(() => publicProposalWorkflow(token))
+      .catch((error) => {
+        console.warn(`[portal] proposal workflow enrichment failed for token ${token.slice(0, 8)}…: ${String((error as Error)?.message || error)}`);
+        return null;
+      });
     const snapshotProposal = asObject(asObject(workflow?.workflow).proposal);
     if (!Object.keys(snapshotProposal).length) return proposal;
     return {
@@ -4541,9 +6206,10 @@ function publicPortalBrandColor(fallback: string, ...values: unknown[]) {
   return fallback;
 }
 
-function portalMediaUrl(baseUrl: string, uuid: string, mediaId: string, preview: boolean, variant = "original") {
+function portalMediaUrl(baseUrl: string, uuid: string, mediaId: string, preview: boolean, variant = "original", cacheKey = "") {
   const prefix = preview ? "customer-portals/preview" : "customer-portals";
-  return portalPublicUrl(baseUrl, `v1/platform/${prefix}/${encodeURIComponent(uuid)}/media/${encodeURIComponent(mediaId)}/file?variant=${encodeURIComponent(variant)}`);
+  const version = cleanText(cacheKey);
+  return portalPublicUrl(baseUrl, `v1/platform/${prefix}/${encodeURIComponent(uuid)}/media/${encodeURIComponent(mediaId)}/file?variant=${encodeURIComponent(variant)}${version ? `&v=${encodeURIComponent(version)}` : ""}`);
 }
 
 function customerPortalContactId(data: JsonObject, project: JsonObject = {}) {
@@ -4552,14 +6218,23 @@ function customerPortalContactId(data: JsonObject, project: JsonObject = {}) {
   return cleanText(data.contact_id || data.contactId || customer.id || customer.contact_id || projectContact.id || projectContact.contact_id);
 }
 
-function publicPortalMedia(projectData: JsonObject, portalData: JsonObject, portalUuid: string, preview: boolean, apiBaseUrl: string) {
-  const sharedMediaIds = new Set(normalizeSharedItems(portalData.shared_items).filter((item) => item.type === "media").map((item) => item.item_id));
+async function publicPortalMedia(orgId: string, projectData: JsonObject, portalData: JsonObject, portalUuid: string, preview: boolean, apiBaseUrl: string) {
+  const sharedMedia = new Map(normalizeSharedItems(portalData.shared_items)
+    .filter((item) => item.type === "media")
+    .map((item) => [item.item_id, item]));
   const photos: JsonObject[] = Array.isArray(projectData.photos) ? projectData.photos.map((item: unknown) => asObject(item)) : [];
-  return photos
-    .filter((item) => sharedMediaIds.has(mediaReferenceId(item)))
-    .map((item) => {
+  return await Promise.all(photos
+    .filter((item) => sharedMedia.has(mediaReferenceId(item)))
+    .map(async (item) => {
       const mediaId = mediaReferenceId(item);
+      const share = sharedMedia.get(mediaId);
       const kind = cleanText(item.media_type || item.kind || item.type || (cleanText(item.mime_type).startsWith("video/") ? "video" : "image")) || "image";
+      const includeMarkup = share?.include_markup !== false && kind !== "video";
+      const layer = includeMarkup
+        ? await readMediaMarkupLayer(orgId, mediaId, "markup_photo_markup")
+          .catch(() => readMediaMarkupLayer(orgId, mediaId, "photo_markup").catch(() => null))
+        : null;
+      const markupRevision = includeMarkup && layer ? String(asObject(layer).revision || asObject(layer).updated_at || "") : "";
       return {
         id: mediaId,
         media_id: mediaId,
@@ -4567,39 +6242,454 @@ function publicPortalMedia(projectData: JsonObject, portalData: JsonObject, port
         media_type: kind,
         label: cleanText(item.label || item.alt || item.file_name || (kind === "video" ? "Video" : "Photo")),
         uploaded_at: cleanText(item.uploaded_at || asObject(item.metadata).uploaded_at),
-        thumb: portalMediaUrl(apiBaseUrl, portalUuid, mediaId, preview, cleanText(item.thumbnail_variant || "thumb_320") || "thumb_320"),
+        include_markup: includeMarkup,
+        markup: layer ? asObject(asObject(layer).data) : {},
+        thumb: portalMediaUrl(
+          apiBaseUrl,
+          portalUuid,
+          mediaId,
+          preview,
+          includeMarkup ? "thumb_320_markup" : (cleanText(item.thumbnail_variant || "thumb_320") || "thumb_320"),
+          markupRevision
+        ),
         src: portalMediaUrl(apiBaseUrl, portalUuid, mediaId, preview, "original")
+      };
+    }));
+}
+
+function publicChecklistItem(itemValue: unknown) {
+  const item = asObject(itemValue);
+  const metadata = asObject(item.metadata);
+  const requirements = Array.isArray(metadata.required_attachments)
+    ? metadata.required_attachments.map((value) => {
+        const requirement = asObject(value);
+        return {
+          id: cleanText(requirement.id),
+          kind: cleanText(requirement.kind || "any") || "any",
+          label: cleanText(requirement.label),
+          min_count: Math.max(1, Math.round(Number(requirement.min_count) || 1)),
+          allowed_kinds: Array.isArray(requirement.allowed_kinds)
+            ? requirement.allowed_kinds.map(cleanText).filter(Boolean)
+            : []
+        };
+      })
+    : [];
+  const attachments = Array.isArray(metadata.attachments)
+    ? metadata.attachments.map((value) => {
+        const attachment = asObject(value);
+        return {
+          media_id: cleanText(attachment.media_id),
+          file_name: cleanText(attachment.file_name),
+          content_type: cleanText(attachment.content_type),
+          kind: cleanText(attachment.kind),
+          requirement_id: cleanText(attachment.requirement_id)
+        };
+      })
+    : [];
+  return {
+    id: cleanText(item.id),
+    checklist_id: cleanText(item.checklist_id),
+    title: cleanText(item.title),
+    description: cleanText(item.description),
+    item_type: cleanText(item.item_type || "todo") || "todo",
+    rating: cleanText(item.rating),
+    note: cleanText(item.note),
+    completed: item.completed === true,
+    status: item.completed === true ? "completed" : "pending",
+    completed_at: cleanText(item.completed_at),
+    completed_by_customer: cleanText(item.completed_by_user_id) === "customer_portal",
+    sort_order: Number(item.sort_order || 0),
+    requirements,
+    attachments,
+    revision: Number(item.revision || 1)
+  };
+}
+
+function publicChecklist(checklistValue: unknown) {
+  const checklist = asObject(checklistValue);
+  const customerAccess = normalizeChecklistCustomerAccess(checklist.customer_access || asObject(checklist.metadata).customer_access, isPunchList(checklist));
+  const items = Array.isArray(checklist.items) ? checklist.items.map(publicChecklistItem) : [];
+  return {
+    id: cleanText(checklist.id),
+    title: cleanText(checklist.title),
+    description: cleanText(checklist.description),
+    kind: cleanText(checklist.kind || "todo") || "todo",
+    icon: cleanText(checklist.icon),
+    customer_access: customerAccess,
+    items,
+    total_items: items.length,
+    completed_items: items.filter((item) => item.completed).length,
+    revision: Number(checklist.revision || 1)
+  };
+}
+
+async function publicProjectChecklists(orgId: string, projectId: string) {
+  if (!projectId) return [];
+  return (await listProjectChecklists(orgId, projectId))
+    .filter((checklist) => normalizeChecklistCustomerAccess(checklist.customer_access).visible)
+    // Punch lists ride their own payload key with their own lifecycle view, so
+    // they do not also appear as a plain checklist the customer can "complete".
+    .filter((checklist) => !isPunchList(checklist))
+    .map(publicChecklist);
+}
+
+/**
+ * Customer-visible punch lists, each with its resolved state, gates, and copy.
+ * Items come through the same publicChecklist projection so the portal renders
+ * one item shape everywhere.
+ */
+async function publicProjectPunchLists(orgId: string, projectId: string) {
+  if (!projectId) return [];
+  const punchDefaults = asObject((await portalOrgDefaults(orgId)).punch_list);
+  return (await listProjectChecklists(orgId, projectId))
+    .filter((checklist) => normalizeChecklistCustomerAccess(checklist.customer_access).visible)
+    .filter((checklist) => isPunchList(checklist))
+    .map((checklist) => {
+      const config = punchConfigOf(checklist, punchDefaults);
+      const labels = resolvePunchLabels(config as unknown as JsonObject, punchDefaults);
+      return {
+        ...publicPunchView(checklist as unknown as JsonObject, config, labels),
+        items: Array.isArray(asObject(checklist).items)
+          ? (asObject(checklist).items as unknown[]).map(publicChecklistItem)
+          : []
       };
     });
 }
 
-async function publicPortalResources(project: JsonObject, preview: boolean) {
+async function publicPortalResources(orgId: string, project: JsonObject, preview: boolean, portalCustomerSchedulingEnabled = false) {
+  const projectId = cleanText(project.id);
+  const branchId = cleanText(project.branch_id || "default") || "default";
+  const [schedulingModule, companyCustomerSchedulingEnabled] = await Promise.all([
+    readBranchModule(orgId, branchId, "scheduling").catch(() => null),
+    isCapabilityEnabled(orgId, "scheduling.customer_rescheduling").catch(() => false)
+  ]);
+  const scheduling = asObject(asObject(schedulingModule).data);
+  const calendarEvents = projectId
+    ? (await listDocuments(orgId, "calendar_events").catch(() => []))
+      .map((document): JsonObject => ({ ...asObject(document.data), id: cleanText(document.id) }))
+      .filter((event) => cleanText(event.project_id || event.projectId) === projectId)
+    : [];
+  const scheduleEvents = (await publicProjectSchedule(project, calendarEvents, scheduling, companyCustomerSchedulingEnabled && portalCustomerSchedulingEnabled, orgId));
   return {
     // Keep public serializers narrow: never expose raw project documents or private internal project fields.
     proposals: await publicProjectProposals(project, preview),
-    appointment: publicProjectAppointment(project),
-    documents: [],
+    schedule_events: scheduleEvents,
+    appointment: publicProjectAppointment(scheduleEvents),
+    documents: await publicProjectEngineDocuments(orgId, projectId, preview),
+    checklists: (await publicProjectChecklists(orgId, projectId)),
+    punch_lists: await publicProjectPunchLists(orgId, projectId),
     payments: [],
     signatures: []
   };
 }
 
-async function publicPortalProjectBundle(document: JsonObject, portalData: JsonObject, project: JsonObject, preview: boolean, baseUrl: string, apiBaseUrl: string) {
-  const portalUuid = cleanText(preview ? portalData.preview_uuid : portalData.public_uuid);
+const PUBLIC_DOCUMENT_STATUSES = new Set(["sent", "viewed", "in_progress", "signed", "completed"]);
+
+/**
+ * Document-engine documents delivered to the customer for this project.
+ * Only token references are exposed; the portal fetches snapshot content
+ * from /v1/documents/public/:token.
+ */
+async function publicProjectEngineDocuments(orgId: string, projectId: string, preview: boolean) {
+  if (!projectId) return [] as JsonObject[];
+  const documentCapabilities = publicDocumentCapabilityState(await documentCapabilityState(orgId));
+  const records = await listDocuments(orgId, "documents").catch(() => []);
+  const out: JsonObject[] = [];
+  for (const record of records) {
+    const storedData = asObject(record.data);
+    const data: JsonObject = {
+      ...storedData,
+      output_defs: filterOutputDefinitionsByCapabilities(asObject(storedData.output_defs), documentCapabilities)
+    };
+    if (cleanText(data.project_id) !== projectId) continue;
+    const status = cleanText(data.status);
+    const delivery = asObject(data.delivery);
+    // Canceled work stays visible (as canceled, token already revoked) unless
+    // the company chose to hide it from the customer at cancellation time.
+    if (status === "void") {
+      const cancellation = asObject(data.cancellation);
+      if (cleanText(cancellation.customer_visibility) === "hidden") continue;
+      if (!cleanText(delivery.sent_at)) continue;
+      out.push({
+        id: cleanText(record.id),
+        document_type: cleanText(data.document_type),
+        title: cleanText(data.title),
+        status: "canceled",
+        presentation: customerPresentationFromDocument(data),
+        signature_requirement: { required: false, required_count: 0, pending_count: 0, required_keys: [], pending_keys: [] },
+        has_workflow: false,
+        public_token: "",
+        payments: [],
+        canceled_at: cleanText(cancellation.canceled_at),
+        sent_at: cleanText(delivery.sent_at),
+        updated_at: cleanText(record.updated_at)
+      });
+      continue;
+    }
+    if (!preview && !PUBLIC_DOCUMENT_STATUSES.has(status)) continue;
+    if (preview && !PUBLIC_DOCUMENT_STATUSES.has(status) && status !== "issued") continue;
+    const publicToken = cleanText(delivery.public_token);
+    if (!publicToken) continue;
+    const outputDefs = asObject(data.output_defs);
+    const outputs = asObject(data.outputs);
+    const payments = Object.entries(outputDefs).flatMap(([outputKey, definitionValue]) => {
+      const definition = asObject(definitionValue);
+      if (cleanText(definition.type) !== "payment") return [];
+      const value = asObject(outputs[outputKey]);
+      const amountCents = Math.max(0, Math.round(Number(value.amount_cents) || 0));
+      const method = cleanText(value.payment_method || value.method || asObject(value.checkout).payment_method);
+      if (!amountCents || !method) return [];
+      return [{
+        id: `${cleanText(record.id)}:${outputKey}`,
+        output_key: outputKey,
+        label: cleanText(definition.label || definition.obligation) || "Payment",
+        amount_cents: amountCents,
+        method,
+        paid_at: cleanText(value.recorded_at || value.paid_at || value.created_at || record.updated_at),
+        status: "paid"
+      }];
+    });
+    out.push({
+      id: cleanText(record.id),
+      document_type: cleanText(data.document_type),
+      title: cleanText(data.title),
+      status,
+      presentation: customerPresentationFromDocument(data),
+      signature_requirement: documentSignatureRequirement(data),
+      has_workflow: !!cleanText(asObject(data.workflow_ref).workflow_id),
+      public_token: publicToken,
+      payments,
+      sent_at: cleanText(delivery.sent_at),
+      updated_at: cleanText(record.updated_at)
+    });
+  }
+  out.sort((a, b) => cleanText(b.updated_at).localeCompare(cleanText(a.updated_at)));
+  return out;
+}
+
+async function publicPortalProjectBundle(orgId: string, document: JsonObject, portalData: JsonObject, project: JsonObject, preview: boolean, baseUrl: string, apiBaseUrl: string, accessUuid = "") {
+  const portalUuid = cleanText(accessUuid || (preview ? portalData.preview_uuid : portalData.public_uuid));
+  const settings = portalSettingsFor(await portalOrgDefaults(orgId), portalData);
+  const customerSchedulingEnabled = settings.scheduling.enabled && settings.scheduling.reschedule;
   return {
     portal: {
       id: cleanText(document.id),
       project_id: cleanText(portalData.project_id),
       status: cleanText(portalData.status || "active"),
-      public_uuid: preview ? "" : cleanText(portalData.public_uuid),
+      public_uuid: preview ? "" : portalUuid,
       preview_uuid: preview ? cleanText(portalData.preview_uuid) : "",
-      live_url: publicPortalUrl(cleanText(portalData.public_uuid), baseUrl, false),
+      live_url: preview ? publicPortalUrl(cleanText(portalData.public_uuid), baseUrl, false) : publicPortalUrl(portalUuid, baseUrl, false),
       preview_url: publicPortalUrl(cleanText(portalData.preview_uuid), baseUrl, true)
     },
     project: publicProjectView(project, apiBaseUrl),
-    media: publicPortalMedia(project, portalData, portalUuid, preview, apiBaseUrl),
-    resources: await publicPortalResources(project, preview)
+    media: await publicPortalMedia(orgId, project, portalData, portalUuid, preview, apiBaseUrl),
+    resources: await publicPortalResources(orgId, project, preview, customerSchedulingEnabled),
+    settings: publicPortalSettings(settings),
+    // Customer-authored content, withdrawn entries already filtered out.
+    customer_uploads: visiblePortalUploads(portalData),
+    media_comments: visiblePortalComments(portalData)
   };
+}
+
+/**
+ * Live-chat handoff for the portal shell.
+ *
+ * The chat service already accepts and verifies a signed `portal_grant`
+ * (chat/service.ts verifyPortalGrant) — this mints one so portal conversations
+ * arrive pre-linked to the real contact instead of as an anonymous visitor.
+ *
+ * Returns null unless: the capability is on, chat is enabled, the org has
+ * portal chat switched on, and this is a live (non-preview) portal. Preview is
+ * a staff affordance — starting a real customer conversation from it would put
+ * a staff member into the customer's thread.
+ *
+ * Grants expire in 15 minutes; the client re-fetches the payload to refresh.
+ * The chat module is optional: any failure simply omits chat from the payload.
+ */
+async function portalChatHandoff(orgId: string, project: JsonObject, customer: JsonObject, preview: boolean) {
+  if (preview) return null;
+  try {
+    if (!(await isCapabilityEnabled(orgId, "apps.live_chat"))) return null;
+    const branchId = cleanText(project.branch_id || project.branchId || "default") || "default";
+    const chat: {
+      loadChatSettings?: (orgId: string, branchId?: string) => Promise<JsonObject>;
+      mintPortalGrant?: (orgId: string, customerId: string, contactId: string, name?: string, email?: string) => string;
+    } = await import(("../chat/service.js") as string);
+    const storage: { ensureWidgetKey?: (orgId: string, branchId?: string) => Promise<JsonObject> } = await import(("../chat/storage.js") as string);
+    if (typeof chat?.loadChatSettings !== "function" || typeof chat?.mintPortalGrant !== "function") return null;
+
+    const settings = asObject(await chat.loadChatSettings(orgId, branchId));
+    if (settings.enabled !== true) return null;
+    if (asObject(settings.portal).enabled === false) return null;
+
+    const widgetKey = cleanText(asObject(await storage.ensureWidgetKey?.(orgId, branchId)).widget_key);
+    if (!widgetKey) return null;
+
+    const contactId = cleanText(customer.id || customer.contact_id);
+    return {
+      widget_key: widgetKey,
+      portal_grant: chat.mintPortalGrant(orgId, contactId, contactId, cleanText(customer.name), cleanText(customer.email)),
+      appearance: asObject(settings.appearance),
+      copy: asObject(settings.copy)
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Blessed portal tabs, in the order the portal client has always produced them.
+ *
+ * The ordering below — including inserting Documents at index 4, which lands it
+ * BEFORE Proposals when checklists exist and AFTER Proposals when they do not —
+ * reproduces `customer_portal.js` `tabs()` exactly. That quirk is preserved
+ * deliberately: this change moves where the tab list is computed, not what it
+ * looks like. Orgs opt into a different order via `settings.portal_tabs`.
+ *
+ * Contract: docs/customer-portal-v2-spec.md §2.
+ */
+function blessedPortalTabs(resources: JsonObject, homePageId: string, relevance: TabRelevance | null) {
+  // Candidates in their historical order. Relevance decides which survive —
+  // a tab is kept when it has data now OR the project's scope says it will
+  // (portal_tab_relevance.ts). That is what stops an HVAC maintenance package
+  // from showing a Punch List tab it will never use, while still showing that
+  // tab on a roofing job whose scope requests one next week.
+  const documents = Array.isArray(resources.documents) ? resources.documents.map(asObject) : [];
+  const documentGroups = new Map<string, JsonObject>();
+  for (const document of documents) {
+    const presentation = asObject(document.presentation);
+    const tab = asObject(presentation.tab);
+    const id = cleanText(tab.id);
+    if (!id || documentGroups.has(id)) continue;
+    documentGroups.set(id, {
+      id,
+      kind: "system",
+      label: cleanText(tab.label) || "Documents",
+      icon: cleanText(tab.icon) || "fa-file-lines",
+      order: Number(tab.order) || 60,
+      source: { type: "document_group", group_id: id }
+    });
+  }
+  const dynamicDocumentTabs = [...documentGroups.values()];
+  const hasDynamicDocuments = dynamicDocumentTabs.length > 0;
+  const candidates: JsonObject[] = [
+    // Summary is permanent. Its Web Editor page is additive content rendered
+    // beneath the required project header, next steps, photos and proposals.
+    // A configured page must never replace (or rename) the required surface.
+    { id: "summary", kind: "system", label: "Summary", icon: "fa-house", ...(homePageId ? { extension_page_id: homePageId } : {}) },
+    { id: "schedule", kind: "system", label: "Schedule", icon: "fa-calendar-days" },
+    { id: "photos", kind: "system", label: "Photos", icon: "fa-images" },
+    { id: "checklists", kind: "system", label: "Checklists", icon: "fa-list-check" },
+    ...(!hasDynamicDocuments ? [{ id: "documents", kind: "system", label: "Documents", icon: "fa-file-lines" }] : []),
+    ...(!documentGroups.has("proposals") ? [{ id: "proposals", kind: "system", label: "Proposals", icon: "fa-file-signature" }] : []),
+    ...dynamicDocumentTabs,
+    { id: "payments", kind: "system", label: "Payments", icon: "fa-credit-card" }
+  ];
+  return candidates.filter((tab) => cleanText(asObject(tab.source).type) === "document_group" || tabIsRelevant(cleanText(tab.id), resources, relevance));
+}
+
+/**
+ * Tabs that exist only because a customer-write feature is on. Appended after
+ * the blessed band so enabling a feature never reorders the tabs an existing
+ * portal already shows.
+ */
+/** Title-case a configured noun for use as a tab label ("snag list" -> "Snag List"). */
+function titleCase(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function customerWriteTabs(settings: PortalSettings, resources: JsonObject, relevance: TabRelevance | null) {
+  const tabs: JsonObject[] = [];
+  // Punch lists get their own tab, labelled with the org's own term for them
+  // rather than a hardcoded "Punch list" — see punch_lists.ts resolvePunchLabels.
+  const punchLists = Array.isArray(resources.punch_lists) ? (resources.punch_lists as JsonObject[]) : [];
+  // Relevance, not just presence: a scope that binds punchlist.request.v1 gets
+  // the tab before the first list is actually requested, so the customer can
+  // see it is coming. A scope that never will, never gets it.
+  if (tabIsRelevant("punch_lists", resources, relevance)) {
+    const noun = cleanText(asObject(asObject(punchLists[0] || {}).labels).noun) || "punch list";
+    tabs.push({
+      id: "punch_lists",
+      kind: "system",
+      label: titleCase(noun),
+      icon: "fa-clipboard-check"
+    });
+  }
+  const hasCustomerDocs = Array.isArray(resources.customer_documents) && resources.customer_documents.length > 0;
+  // "My files" is where a customer sees their OWN uploads — distinct from the
+  // Documents tab, which is what the business shared with them.
+  if (settings.uploads.documents || hasCustomerDocs) {
+    tabs.push({ id: "my_documents", kind: "system", label: "My Files", icon: "fa-folder-open" });
+  }
+  return tabs;
+}
+
+/**
+ * Apply org tab config (label / icon / order / enabled overrides) from the
+ * customer_portal site record. Only those four keys are honored; anything else
+ * in the config object is ignored so a malformed record cannot inject tabs.
+ */
+function applyPortalTabConfig(tabs: JsonObject[], tabConfig: JsonObject) {
+  const resolved: JsonObject[] = [];
+  tabs.forEach((tab, index) => {
+    const override = asObject(tabConfig[cleanText(tab.id)]);
+    if (override.enabled === false) return;
+    const overrideOrder = Number(override.order);
+    resolved.push({
+      ...tab,
+      label: cleanText(override.label) || cleanText(tab.label),
+      icon: cleanText(override.icon) || cleanText(tab.icon),
+      // Default order preserves the historical index ordering.
+      order: cleanText(override.order) !== "" && Number.isFinite(overrideOrder)
+        ? overrideOrder
+        : (Number(tab.order) || (index + 1) * 10)
+    });
+  });
+  return resolved;
+}
+
+/**
+ * The full ordered tab list for one project: blessed tabs (config-adjusted)
+ * plus custom portal pages, which the websites module has already filtered by
+ * audience. Custom pages keep the `page:<slug>` id prefix — that prefix is a
+ * contract (docs/web-builder-spec.md §6).
+ */
+function portalTabDescriptors(
+  resources: JsonObject,
+  portalPages: JsonObject | null,
+  tabConfig: JsonObject,
+  homePageId: string,
+  settings: PortalSettings,
+  relevance: TabRelevance | null
+) {
+  const blessed = applyPortalTabConfig(
+    [...blessedPortalTabs(resources, homePageId, relevance), ...customerWriteTabs(settings, resources, relevance)],
+    tabConfig
+  );
+  const pages = Array.isArray(asObject(portalPages).pages) ? (asObject(portalPages).pages as JsonObject[]) : [];
+  // Custom pages sort after the blessed tabs by default: their nav.order values
+  // start at 0, so bias them past the blessed band rather than interleaving
+  // silently into positions the org never chose.
+  const blessedCeiling = blessed.reduce((max, tab) => Math.max(max, Number(tab.order) || 0), 0);
+  const custom = pages
+    .filter((page) => cleanText(page.slug) && cleanText(page.id))
+    .map((page) => ({
+      id: `page:${cleanText(page.slug)}`,
+      kind: "page",
+      label: cleanText(page.title) || "Page",
+      icon: "",
+      page_id: cleanText(page.id),
+      order: blessedCeiling + 10 + (Number(page.order) || 0)
+    }));
+  return [...blessed, ...custom].sort((a, b) => {
+    const delta = (Number(a.order) || 0) - (Number(b.order) || 0);
+    if (delta) return delta;
+    return cleanText(a.label).localeCompare(cleanText(b.label));
+  });
 }
 
 async function publicCustomerPortalBranding(orgId: string, project: JsonObject, org: JsonObject, apiBaseUrl: string) {
@@ -4650,6 +6740,56 @@ async function publicCustomerPortalBranding(orgId: string, project: JsonObject, 
   };
 }
 
+function guestPortalBundle(value: JsonObject, allowedTabs: Set<string>) {
+  const bundle = asObject(value);
+  const sourceResources = asObject(bundle.resources);
+  const resources: JsonObject = {};
+  if (allowedTabs.has("schedule")) {
+    resources.schedule_events = Array.isArray(sourceResources.schedule_events) ? sourceResources.schedule_events : [];
+    resources.appointment = sourceResources.appointment || null;
+  }
+  if (allowedTabs.has("checklists")) resources.checklists = Array.isArray(sourceResources.checklists) ? sourceResources.checklists : [];
+  if (allowedTabs.has("punch_lists")) resources.punch_lists = Array.isArray(sourceResources.punch_lists) ? sourceResources.punch_lists : [];
+  const portal = asObject(bundle.portal);
+  return {
+    portal: {
+      id: cleanText(portal.id),
+      project_id: cleanText(portal.project_id),
+      status: cleanText(portal.status),
+      public_uuid: cleanText(portal.public_uuid),
+      live_url: cleanText(portal.live_url)
+    },
+    project: asObject(bundle.project),
+    media: allowedTabs.has("photos") && Array.isArray(bundle.media) ? bundle.media : [],
+    resources,
+    settings: {
+      uploads: { photos: false, documents: false, max_files: 0, max_bytes: 0, require_caption: false },
+      comments: { photos: false, documents: false },
+      punch_list: { enabled: false, customer_can_add: false, max_items: 0, require_photo: false, require_comment: false, require_signoff: false },
+      upsells: { enabled: false, require_signature: false },
+      completion: { signature_required: false, release_docs_on_signoff: false },
+      messaging: { enabled: false, channel: "auto" },
+      sharing: { enabled: false, max_guests: 0, default_expires_days: 0 },
+      social: { consent_requested: false },
+      scheduling: { enabled: false, reschedule: false }
+    },
+    customer_uploads: [],
+    media_comments: allowedTabs.has("photos") && Array.isArray(bundle.media_comments) ? bundle.media_comments : []
+  };
+}
+
+async function touchPortalGuestView(found: CustomerPortalResolution) {
+  if (found.access_mode !== "guest" || !found.guest) return;
+  const now = new Date().toISOString();
+  const links = normalizePortalGuestLinks(found.data.guest_links);
+  const target = links.find((item) => item.id === cleanText(found.guest?.id));
+  if (!target) return;
+  const prior = Date.parse(target.last_viewed_at);
+  if (Number.isFinite(prior) && Date.now() - prior < 5 * 60_000) return;
+  target.last_viewed_at = now;
+  await savePortalGuestLinks(found, links);
+}
+
 async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseUrl: string, authOrgId = "", apiBaseUrl = baseUrl) {
   const found = await findCustomerPortalByUuid(uuid, preview);
   if (preview && authOrgId !== found.orgId) {
@@ -4665,7 +6805,11 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
   const org = await portalOrgView(found.orgId);
   const branding = await publicCustomerPortalBranding(found.orgId, project, org, apiBaseUrl);
   const customer = mergeCustomerContact(asObject(data.customer), projectPrimaryContact(project));
-  const activeBundle = await publicPortalProjectBundle(found.document, data, project, preview, baseUrl, apiBaseUrl);
+  const guestAllowedTabs = new Set<string>(found.access_mode === "guest" ? normalizeStringArray(found.guest?.tabs) : []);
+  const guestProjectIds = new Set<string>(found.access_mode === "guest" ? normalizeStringArray(found.guest?.project_ids) : []);
+  const accessUuid = found.access_mode === "guest" ? uuid : "";
+  const activeBundleRaw = await publicPortalProjectBundle(found.orgId, found.document, data, project, preview, baseUrl, apiBaseUrl, accessUuid);
+  const activeBundle = found.access_mode === "guest" ? guestPortalBundle(activeBundleRaw, guestAllowedTabs) : activeBundleRaw;
   const contactId = customerPortalContactId(data, project);
   const projectBundles: JsonObject[] = [];
   const seenProjectIds = new Set<string>();
@@ -4676,12 +6820,14 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
       if (customerPortalContactId(portalData) !== contactId) continue;
       if (!preview && cleanText(portalData.status || "active") !== "active") continue;
       const siblingProjectId = cleanText(portalData.project_id);
+      if (found.access_mode === "guest" && !guestProjectIds.has(siblingProjectId)) continue;
       if (!siblingProjectId || seenProjectIds.has(siblingProjectId)) continue;
       try {
         const siblingProjectDoc = await readDocument(found.orgId, "projects", siblingProjectId);
         const siblingProjectData = asObject(siblingProjectDoc.data);
         const siblingProject = { id: siblingProjectDoc.id, ...siblingProjectData };
-        projectBundles.push(await publicPortalProjectBundle(portalDoc, portalData, siblingProject, preview, baseUrl, apiBaseUrl));
+        const rawBundle = await publicPortalProjectBundle(found.orgId, portalDoc, portalData, siblingProject, preview, baseUrl, apiBaseUrl, accessUuid);
+        projectBundles.push(found.access_mode === "guest" ? guestPortalBundle(rawBundle, guestAllowedTabs) : rawBundle);
         seenProjectIds.add(siblingProjectId);
       } catch {
         // Ignore stale portal records that point at projects that no longer exist.
@@ -4697,34 +6843,855 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
     const bActive = cleanText(asObject(asObject(b).project).id) === project.id;
     return Number(bActive) - Number(aActive);
   });
+  const feedback = await customerPortalFeedbackLink(found.orgId, project, preview);
+  // Custom web-editor portal pages (refs only — the portal client fetches page
+  // content from the public /v1/websites routes). listPortalPages owns the
+  // web_editor.portal_pages capability gate internally and returns null when
+  // the feature is off or no published portal pages exist. The websites module
+  // is optional: any failure simply omits custom pages from the payload.
+  //
+  // Audience targeting narrows the page list to this project (§3); the facts are
+  // computed server-side and never shipped to the client.
+  const audienceFacts = (await projectAudienceFacts(found.orgId, project));
+  let portalPages: JsonObject | null = null;
+  let portalSiteSettings: { portal_defaults: JsonObject; portal_tabs: JsonObject; home_page_id: string } | null = null;
+  try {
+    const websites: {
+      listPortalPages?: (orgId: string, facts?: unknown) => Promise<unknown>;
+      portalSiteConfig?: (orgId: string) => Promise<unknown>;
+    } = await import(("../websites/service.js") as string);
+    const listed = typeof websites?.listPortalPages === "function" ? await websites.listPortalPages(found.orgId, audienceFacts) : null;
+    portalPages = listed && typeof listed === "object" ? (listed as JsonObject) : null;
+    const config = typeof websites?.portalSiteConfig === "function" ? await websites.portalSiteConfig(found.orgId) : null;
+    if (config && typeof config === "object") {
+      const configObject = asObject(config);
+      portalSiteSettings = {
+        portal_defaults: asObject(configObject.portal_defaults),
+        portal_tabs: asObject(configObject.portal_tabs),
+        home_page_id: cleanText(configObject.home_page_id)
+      };
+    }
+  } catch {
+    portalPages = null;
+    portalSiteSettings = null;
+  }
+  const portalSettings = normalizePortalSettings(portalSiteSettings?.portal_defaults, data.settings);
+  const servedTabs = portalTabDescriptors(
+    asObject(activeBundle.resources),
+    portalPages,
+    portalSiteSettings?.portal_tabs || {},
+    portalSiteSettings?.home_page_id || "",
+    portalSettings,
+    await projectTabRelevance(found.orgId, project.id).catch(() => null)
+  );
+  const tabs = found.access_mode === "guest"
+    ? servedTabs.flatMap((tab) => {
+        const tabId = cleanText(tab.id);
+        if (tabId === "summary" && guestAllowedTabs.has("summary")) {
+          // Additional Summary content may contain owner-only widgets or links.
+          // Read-only guest links receive the required Summary only.
+          return [{ id: "summary", kind: "system", label: "Summary", icon: cleanText(tab.icon) || "fa-house", order: Number(tab.order) || 10 }];
+        }
+        return guestAllowedTabs.has(tabId) ? [tab] : [];
+      })
+    : servedTabs;
+  const ownerShareSource = found.access_mode === "owner"
+    ? (await ensureRecoverablePortalGuestLinks(found)).data.guest_links
+    : [];
+  const ownerShares = found.access_mode === "owner" ? publicPortalGuestLinks(ownerShareSource, baseUrl) : [];
+  await touchPortalGuestView(found).catch(() => undefined);
   return {
     preview,
+    access: found.access_mode === "guest" ? {
+      mode: "guest",
+      read_only: true,
+      label: cleanText(found.guest?.label),
+      preset: normalizePortalGuestPreset(found.guest?.preset),
+      expires_at: cleanText(found.guest?.expires_at),
+      can_pay: false,
+      can_sign: false,
+      can_write: false,
+      can_share: false
+    } : {
+      mode: preview ? "staff_preview" : "owner",
+      read_only: preview,
+      can_pay: !preview,
+      can_sign: !preview,
+      can_write: !preview,
+      can_share: !preview && portalSettings.sharing.enabled
+    },
+    sharing: found.access_mode === "owner" ? {
+      enabled: portalSettings.sharing.enabled,
+      max_guests: portalSettings.sharing.max_guests,
+      default_expires_days: portalSettings.sharing.default_expires_days,
+      shares: ownerShares
+    } : null,
     portal: {
       id: found.document.id,
       status: cleanText(data.status || "active"),
-      public_uuid: preview ? "" : cleanText(data.public_uuid),
+      public_uuid: preview ? "" : (found.access_mode === "guest" ? uuid : cleanText(data.public_uuid)),
       preview_uuid: preview ? cleanText(data.preview_uuid) : "",
-      customer,
-      contact_id: contactId,
+      customer: found.access_mode === "guest" ? { name: cleanText(customer.name) } : customer,
+      contact_id: found.access_mode === "guest" ? "" : contactId,
       active_project_id: project.id
     },
+    feedback: found.access_mode === "guest" ? null : feedback,
+    portal_pages: found.access_mode === "guest" ? null : portalPages,
+    tabs,
+    chat: found.access_mode === "guest" ? null : await portalChatHandoff(found.orgId, project, customer, preview),
+    // Client-safe projection only — every write route re-checks the resolved
+    // settings server-side (docs/customer-portal-v2-spec.md §5.2).
+    settings: found.access_mode === "guest" ? {
+      uploads: { photos: false, documents: false, max_files: 0, max_bytes: 0, require_caption: false },
+      comments: { photos: false, documents: false },
+      punch_list: { enabled: false, customer_can_add: false, max_items: 0, require_photo: false, require_comment: false, require_signoff: false },
+      upsells: { enabled: false, require_signature: false },
+      completion: { signature_required: false, release_docs_on_signoff: false },
+      messaging: { enabled: false, channel: "auto" },
+      sharing: { enabled: false, max_guests: 0, default_expires_days: 0 },
+      social: { consent_requested: false },
+      scheduling: { enabled: false, reschedule: false }
+    } : publicPortalSettings(portalSettings),
     organization: {
       id: found.orgId,
       name: cleanText(org.name),
       branding,
-      contact: asObject(org.contact)
+      contact: found.access_mode === "guest" ? {} : asObject(org.contact)
     },
     project: activeBundle.project,
     media: activeBundle.media,
     resources: activeBundle.resources,
+    customer_uploads: activeBundle.customer_uploads,
+    media_comments: activeBundle.media_comments,
     projects: projectBundles,
     contact_portal: {
-      contact_id: contactId,
-      customer,
+      contact_id: found.access_mode === "guest" ? "" : contactId,
+      customer: found.access_mode === "guest" ? { name: cleanText(customer.name) } : customer,
       active_project_id: project.id,
       projects: projectBundles
     }
   };
+}
+
+// ── Customer-authored writes ───────────────────────────────────────────────
+// docs/customer-portal-v2-spec.md §5.2. One guard, used by every write route,
+// so a new route cannot accidentally skip a step.
+
+/**
+ * Steps 1-3 and 5 of the shared write guard: resolve the portal, reject
+ * inactive portals, reject preview mode, and spend a rate-limit token. Step 4
+ * (the per-feature setting check) is the caller's, because only the caller
+ * knows which setting applies.
+ */
+async function customerWriteContext(portalUuid: string) {
+  const found = requirePortalOwner(await findCustomerPortalByUuid(portalUuid, false));
+  const portalData = asObject(found.document.data);
+  if (cleanText(portalData.status || "active") !== "active") {
+    throw forbidden("portal_inactive", "This customer portal is not active.");
+  }
+  // Preview uuids are a staff affordance and are read-only by construction:
+  // findCustomerPortalByUuid(..., false) already refuses them, but assert it
+  // rather than rely on a parameter default staying put.
+  if (cleanText(portalData.public_uuid) !== cleanText(portalUuid)) {
+    throw forbidden("portal_preview_readonly", "Preview portals are read-only.");
+  }
+  if (!consumePortalWriteToken(portalUuid)) {
+    throw forbidden("portal_rate_limited", "Too many requests. Please slow down and try again shortly.");
+  }
+  const projectId = cleanText(portalData.project_id);
+  const orgDefaults = await portalOrgDefaults(found.orgId);
+  const settings = portalSettingsFor(orgDefaults, portalData);
+  return { orgId: found.orgId, document: found.document, portalData, projectId, settings };
+}
+
+async function customerSchedulingContext(portalUuid: string, spendWriteToken = false) {
+  const found = requirePortalOwner(await findCustomerPortalByUuid(portalUuid, false));
+  const portalData = asObject(found.document.data);
+  if (cleanText(portalData.status || "active") !== "active") throw forbidden("portal_inactive", "This customer portal is not active.");
+  if (cleanText(portalData.public_uuid) !== cleanText(portalUuid)) throw forbidden("portal_preview_readonly", "Preview portals are read-only.");
+  if (spendWriteToken && !consumePortalWriteToken(portalUuid)) throw forbidden("portal_rate_limited", "Too many requests. Please slow down and try again shortly.");
+  if (!(await isCapabilityEnabled(found.orgId, "scheduling.customer_rescheduling"))) {
+    throw forbidden("customer_rescheduling_feature_disabled", "Customer rescheduling is not enabled for this company.");
+  }
+  const projectId = cleanText(portalData.project_id);
+  const projectDocument = await readDocument(found.orgId, "projects", projectId);
+  const project = asObject(projectDocument.data);
+  const settings = portalSettingsFor(await portalOrgDefaults(found.orgId), portalData);
+  if (!settings.scheduling.enabled || !settings.scheduling.reschedule) {
+    throw forbidden("portal_rescheduling_disabled", "Online rescheduling is not enabled for this project portal.");
+  }
+  return {
+    orgId: found.orgId,
+    branchId: cleanText(project.branch_id || "default") || "default",
+    projectId,
+    project,
+    portalData,
+    settings
+  };
+}
+
+/** Org-level portal defaults from the customer_portal site; {} when unavailable. */
+async function portalOrgDefaults(orgId: string): Promise<JsonObject> {
+  try {
+    const websites: { portalSiteConfig?: (orgId: string) => Promise<unknown> } = await import(("../websites/service.js") as string);
+    const config = asObject(await websites?.portalSiteConfig?.(orgId));
+    return asObject(config.portal_defaults);
+  } catch {
+    return {};
+  }
+}
+
+/** Persist a customer-write mutation back onto the portal record. */
+async function saveCustomerPortalData(orgId: string, document: JsonObject, patch: JsonObject) {
+  const data = { ...asObject(document.data), ...patch, updated_at: new Date().toISOString() };
+  await upsertDocument(orgId, CUSTOMER_PORTAL_COLLECTION, {
+    id: cleanText(document.id),
+    data,
+    metadata: asObject(document.metadata)
+  }, { replace: true });
+  return data;
+}
+
+async function createCustomerUpload(request: FastifyRequest, portalUuid: string) {
+  const context = await customerWriteContext(portalUuid);
+  const typed = request as unknown as {
+    parts?: () => AsyncIterable<{
+      type: "file" | "field";
+      fieldname: string;
+      value?: unknown;
+      filename?: string;
+      toBuffer?: () => Promise<Buffer>;
+    }>;
+  };
+  const parts = typed.parts?.();
+  if (!parts) throw badRequest("multipart_required", "Uploads must be multipart/form-data.");
+
+  let bytes: Buffer | null = null;
+  let fileName = "customer-upload";
+  let caption = "";
+  for await (const part of parts) {
+    if (part.type === "file" && !bytes) {
+      bytes = await part.toBuffer?.() ?? null;
+      fileName = cleanText(part.filename || fileName);
+    } else if (part.type === "field" && part.fieldname === "caption") {
+      caption = cleanText(part.value).slice(0, 500);
+    }
+  }
+  if (!bytes) throw badRequest("portal_upload_empty", "Choose a file to upload.");
+
+  // Step 4 + content validation. validatePortalUpload owns the settings check
+  // for photos vs documents, the size ceiling, and MIME sniffing.
+  const validated = validatePortalUpload(bytes, context.settings);
+  if (context.settings.uploads.require_caption && !caption) {
+    throw badRequest("portal_upload_caption_required", "Please add a short description of this file.");
+  }
+  assertUploadQuota(context.portalData, context.settings);
+
+  const media = await storeMediaUpload(context.orgId, {
+    bytes,
+    fileName,
+    contentType: validated.contentType,
+    ownerType: "project",
+    ownerId: context.projectId,
+    slot: validated.kind === "document" ? "customer_documents" : "photos",
+    scope: "projects",
+    metadata: {
+      source: "customer_portal_upload",
+      field: validated.kind === "document" ? "customer_documents" : "photos",
+      document_collection: "projects",
+      document_id: context.projectId,
+      project_id: context.projectId,
+      media_type: validated.kind,
+      caption,
+      uploaded_by: "customer_portal"
+    }
+  });
+
+  const entry = {
+    media_id: cleanText(media.id),
+    kind: validated.kind,
+    caption,
+    file_name: cleanText(media.file_name),
+    content_type: validated.contentType,
+    size_bytes: Number(media.size_bytes) || bytes.length,
+    uploaded_at: new Date().toISOString(),
+    uploaded_by: "customer_portal",
+    withdrawn_at: ""
+  };
+  const uploads = [...normalizePortalUploads(context.portalData.customer_uploads), entry];
+  await saveCustomerPortalData(context.orgId, context.document, { customer_uploads: uploads });
+  await emitCustomerPortalWriteEvent(context.orgId, context.projectId, "customer.upload.added", {
+    media_id: entry.media_id,
+    media_kind: entry.kind
+  });
+  return { upload: entry };
+}
+
+async function withdrawCustomerUpload(portalUuid: string, mediaId: string) {
+  const context = await customerWriteContext(portalUuid);
+  const target = cleanText(mediaId);
+  const uploads = normalizePortalUploads(context.portalData.customer_uploads);
+  const entry = uploads.find((upload) => upload.media_id === target && !upload.withdrawn_at);
+  // Only the customer's own uploads, and only those — a link holder must not be
+  // able to withdraw business-shared media by guessing its id.
+  if (!entry) throw notFound("portal_upload_not_found", "That upload was not found.");
+  entry.withdrawn_at = new Date().toISOString();
+  await saveCustomerPortalData(context.orgId, context.document, { customer_uploads: uploads });
+  await emitCustomerPortalWriteEvent(context.orgId, context.projectId, "customer.upload.withdrawn", { media_id: target });
+  // Soft withdraw only: the media and the audit row survive so the business
+  // keeps what it was sent.
+  return { media_id: target, withdrawn: true };
+}
+
+async function listCustomerMediaComments(portalUuid: string, mediaId: string) {
+  const found = await findCustomerPortalByUuid(portalUuid, false);
+  if (found.access_mode === "guest" && !normalizeStringArray(found.guest?.tabs).includes("photos")) {
+    throw forbidden("portal_guest_scope", "This shared link does not include photos.");
+  }
+  const portalData = asObject(found.document.data);
+  if (cleanText(portalData.status || "active") !== "active") {
+    throw forbidden("portal_inactive", "This customer portal is not active.");
+  }
+  const target = assertCommentableMedia(portalData, mediaId);
+  return { media_id: target, comments: visiblePortalComments(portalData, target) };
+}
+
+async function createCustomerMediaComment(portalUuid: string, mediaId: string, input: JsonObject) {
+  const context = await customerWriteContext(portalUuid);
+  if (!context.settings.comments.photos) {
+    throw forbidden("portal_comments_disabled", "Comments are not enabled for this portal.");
+  }
+  const target = assertCommentableMedia(context.portalData, mediaId);
+  const body = assertCommentBody(input.body ?? input.comment);
+  const entry = {
+    id: `pc_${randomUUID().replace(/-/g, "").slice(0, 20)}`,
+    media_id: target,
+    body,
+    author: cleanText(asObject(context.portalData.customer).name),
+    created_at: new Date().toISOString(),
+    withdrawn_at: ""
+  };
+  const comments = [...normalizePortalComments(context.portalData.media_comments), entry];
+  await saveCustomerPortalData(context.orgId, context.document, { media_comments: comments });
+  await emitCustomerPortalWriteEvent(context.orgId, context.projectId, "customer.comment.added", { media_id: target });
+  return { comment: entry };
+}
+
+async function withdrawCustomerMediaComment(portalUuid: string, mediaId: string, commentId: string) {
+  const context = await customerWriteContext(portalUuid);
+  const comments = normalizePortalComments(context.portalData.media_comments);
+  const entry = comments.find((comment) => comment.id === cleanText(commentId) && comment.media_id === cleanText(mediaId) && !comment.withdrawn_at);
+  if (!entry) throw notFound("portal_comment_not_found", "That comment was not found.");
+  entry.withdrawn_at = new Date().toISOString();
+  await saveCustomerPortalData(context.orgId, context.document, { media_comments: comments });
+  return { comment_id: entry.id, withdrawn: true };
+}
+
+// ── Punch lists ────────────────────────────────────────────────────────────
+// docs/customer-portal-v2-spec.md §8.2. The customer authors the list and gates
+// it on both ends; the company works it in between.
+
+/** Resolve a punch list plus its layered config/copy, or 404 if it isn't one. */
+async function punchListContext(portalUuid: string, checklistId: string, options: { write?: boolean } = {}) {
+  const context = options.write === false
+    ? await (async () => {
+      const found = await findCustomerPortalByUuid(portalUuid, false);
+      const portalData = asObject(found.document.data);
+      if (cleanText(portalData.status || "active") !== "active") {
+        throw forbidden("portal_inactive", "This customer portal is not active.");
+      }
+      const orgDefaults = await portalOrgDefaults(found.orgId);
+      return {
+        orgId: found.orgId,
+        document: found.document,
+        portalData,
+        projectId: cleanText(portalData.project_id),
+        settings: portalSettingsFor(orgDefaults, portalData)
+      };
+    })()
+    : await customerWriteContext(portalUuid);
+
+  // Hydrated read: the punch gates reason about item state, and an unhydrated
+  // checklist would answer "nothing outstanding" for every list.
+  const checklist = (await readProjectChecklistDetail(context.orgId, context.projectId, checklistId));
+  if (!isPunchList(checklist)) throw notFound("punch_list_not_found", "That list was not found.");
+  const access = normalizeChecklistCustomerAccess(checklist.customer_access || asObject(checklist.metadata).customer_access, isPunchList(checklist));
+  if (!access.visible) throw forbidden("punch_list_hidden", "That list is not shared with you.");
+  const punchDefaults = asObject((await portalOrgDefaults(context.orgId)).punch_list);
+  const config = punchConfigOf(checklist, punchDefaults);
+  const labels = resolvePunchLabels(config as unknown as JsonObject, punchDefaults);
+  return { ...context, checklist, config, labels, punchDefaults };
+}
+
+/** Persist a changed punch block back onto the checklist's metadata. */
+async function savePunchConfig(orgId: string, projectId: string, checklistId: string, punch: JsonObject) {
+  return (await patchProjectChecklist(orgId, projectId, checklistId, { metadata: { punch } }));
+}
+
+async function submitCustomerPunchList(portalUuid: string, checklistId: string, input: JsonObject, request: FastifyRequest) {
+  const context = await punchListContext(portalUuid, checklistId);
+  assertCanSubmitPunchList(context.checklist, context.config, context.labels);
+  let signature: JsonObject | null = null;
+  if (context.config.require_submit_signature) {
+    signature = normalizePunchSignature(input.signature, portalSignatureEvidence(request));
+  }
+  const punch = punchTransition(context.config, "submitted", signature ? { submit_signature: signature } : {});
+  const updated = (await savePunchConfig(context.orgId, context.projectId, checklistId, punch));
+  // Refresh the project projection BEFORE emitting, so any scope node that
+  // reacts to this event already sees the new punch facts in its conditions.
+  await syncPortalProjection(context.orgId, context.projectId);
+  await emitCustomerPortalWriteEvent(context.orgId, context.projectId, "punch_list.submitted", {
+    checklist_id: checklistId,
+    item_count: Array.isArray(asObject(context.checklist).items) ? (asObject(context.checklist).items as unknown[]).length : 0,
+    signed: Boolean(signature)
+  });
+  const config = punchConfigOf(updated, context.punchDefaults);
+  return { punch_list: publicPunchView(updated, config, context.labels) };
+}
+
+async function acceptCustomerPunchList(portalUuid: string, checklistId: string, input: JsonObject, request: FastifyRequest) {
+  const context = await punchListContext(portalUuid, checklistId);
+  assertCanAcceptPunchList(context.config);
+  let signature: JsonObject | null = null;
+  if (context.config.require_accept_signature) {
+    signature = normalizePunchSignature(input.signature, portalSignatureEvidence(request));
+  }
+  const punch = punchTransition(context.config, "accepted", signature ? { accept_signature: signature } : {});
+  const updated = (await savePunchConfig(context.orgId, context.projectId, checklistId, punch));
+  await syncPortalProjection(context.orgId, context.projectId);
+  await emitCustomerPortalWriteEvent(context.orgId, context.projectId, "punch_list.accepted", {
+    checklist_id: checklistId,
+    signed: Boolean(signature)
+  });
+  const config = punchConfigOf(updated, context.punchDefaults);
+  return { punch_list: publicPunchView(updated, config, context.labels) };
+}
+
+/**
+ * Company marks the punch work finished, which hands the list back to the
+ * customer for acceptance. Requires every item complete — asking the customer
+ * to confirm unfinished work trains them to rubber-stamp it.
+ */
+async function completePunchListWork(orgId: string, projectId: string, checklistId: string, actorUserId: string) {
+  const checklist = (await readProjectChecklistDetail(orgId, projectId, checklistId));
+  if (!isPunchList(checklist)) throw notFound("punch_list_not_found", "That list was not found.");
+  const punchDefaults = asObject((await portalOrgDefaults(orgId)).punch_list);
+  const config = punchConfigOf(checklist, punchDefaults);
+  assertCanCompletePunchWork(checklist, config);
+  const punch = punchTransition(config, "work_complete", { work_completed_by_user_id: cleanText(actorUserId) });
+  const updated = (await patchProjectChecklist(orgId, projectId, checklistId, { metadata: { punch } }));
+  await syncPortalProjection(orgId, projectId);
+  await emitWorkEvent({
+    organization_id: orgId,
+    project_id: projectId,
+    type: "punch_list.work_completed",
+    payload: { checklist_id: checklistId },
+    actor_user_id: cleanText(actorUserId)
+  }).catch(() => null);
+  const labels = resolvePunchLabels(punch, punchDefaults);
+  return { punch_list: publicPunchView(updated as unknown as JsonObject, punchConfigOf(updated, punchDefaults), labels) };
+}
+
+/**
+ * Reopen a list so the customer can add more. Drops back to `requested` from
+ * any later state — this is the escape hatch for "they forgot something" and
+ * for un-completing an item after the team said it was done.
+ */
+async function reopenPunchList(orgId: string, projectId: string, checklistId: string) {
+  const checklist = (await readProjectChecklistDetail(orgId, projectId, checklistId));
+  if (!isPunchList(checklist)) throw notFound("punch_list_not_found", "That list was not found.");
+  const punchDefaults = asObject((await portalOrgDefaults(orgId)).punch_list);
+  const config = punchConfigOf(checklist, punchDefaults);
+  // Clear the prior sign-offs: a signature attests to a list state that no
+  // longer holds once the list is editable again.
+  const punch = punchTransition(config, "requested", {
+    submitted_at: "",
+    work_completed_at: "",
+    accepted_at: "",
+    submit_signature: null,
+    accept_signature: null
+  });
+  const updated = (await patchProjectChecklist(orgId, projectId, checklistId, { metadata: { punch } }));
+  await syncPortalProjection(orgId, projectId);
+  await emitWorkEvent({
+    organization_id: orgId,
+    project_id: projectId,
+    type: "punch_list.reopened",
+    payload: { checklist_id: checklistId }
+  }).catch(() => null);
+  const labels = resolvePunchLabels(punch, punchDefaults);
+  return { punch_list: publicPunchView(updated as unknown as JsonObject, punchConfigOf(updated, punchDefaults), labels) };
+}
+
+/**
+ * Signature evidence for a portal sign-off — the same fields the document
+ * engine records, so a punch sign-off and a document signature are the same
+ * kind of artifact.
+ */
+function portalSignatureEvidence(request: FastifyRequest): JsonObject {
+  return {
+    ip: cleanText((request as unknown as { ip?: string }).ip),
+    user_agent: cleanText(asObject((request as unknown as { headers?: JsonObject }).headers)["user-agent"]),
+    captured_at: new Date().toISOString(),
+    source: "customer_portal"
+  };
+}
+
+/** Audit trail for a customer-authored write. Never throws into the request. */
+async function emitCustomerPortalWriteEvent(orgId: string, projectId: string, type: string, payload: JsonObject = {}) {
+  if (!projectId) return;
+  try {
+    await emitWorkEvent({
+      organization_id: orgId,
+      project_id: projectId,
+      type,
+      payload,
+      context: { source: "customer_portal" },
+      actor_user_id: "customer_portal"
+    });
+  } catch {
+    // An audit failure must not fail the customer's write — the write itself is
+    // already persisted on the portal record.
+  }
+}
+
+async function customerChecklistContext(portalUuid: string, checklistId: string) {
+  const found = requirePortalOwner(await findCustomerPortalByUuid(portalUuid, false));
+  const portalData = asObject(found.document.data);
+  if (cleanText(portalData.status || "active") !== "active") throw forbidden("portal_inactive", "This customer portal is not active.");
+  const projectId = cleanText(portalData.project_id);
+  // Hydrated: requirePunchEditable checks max_items against the item count.
+  const checklist = (await readProjectChecklistDetail(found.orgId, projectId, checklistId));
+  const access = normalizeChecklistCustomerAccess(checklist.customer_access || asObject(checklist.metadata).customer_access, isPunchList(checklist));
+  if (!access.visible) throw forbidden("customer_checklist_hidden", "This checklist is not shared with the customer.");
+  return { ...found, portalData, projectId, checklist, access };
+}
+
+function requireCustomerChecklistCompletion(access: ReturnType<typeof normalizeChecklistCustomerAccess>) {
+  if (!access.can_complete) {
+    throw forbidden("customer_checklist_read_only", "This checklist is visible but can only be completed by the project team.");
+  }
+}
+
+function requireCustomerChecklistEditing(access: ReturnType<typeof normalizeChecklistCustomerAccess>) {
+  if (!access.can_edit_items) {
+    throw forbidden("customer_checklist_edit_forbidden", "The customer cannot add, rename, or remove items on this checklist.");
+  }
+}
+
+/**
+ * Extra gate for punch lists layered on top of the ordinary checklist
+ * permissions: once a list is submitted it is a commitment the company is
+ * pricing work against, so it stops being the customer's to edit until the
+ * company reopens it. Plain checklists are unaffected.
+ */
+async function requirePunchEditable(context: { orgId: string; checklist: JsonObject }, mode: "add" | "edit") {
+  if (!isPunchList(context.checklist)) return;
+  const punchDefaults = asObject((await portalOrgDefaults(context.orgId)).punch_list);
+  const config = punchConfigOf(context.checklist, punchDefaults);
+  if (mode === "add") assertCustomerMayAddPunchItem(context.checklist, config);
+  else assertCustomerMayEditPunchItem(config);
+}
+
+async function emitCustomerChecklistEvent(orgId: string, projectId: string, checklistId: string, itemId: string, type: string) {
+  await emitWorkEvent({
+    organization_id: orgId,
+    branch_id: "default",
+    project_id: projectId,
+    type,
+    idempotency_key: `${type}:${itemId}:${Date.now()}`,
+    payload: {
+      project_id: projectId,
+      checklist_id: checklistId,
+      checklist_item_id: itemId,
+      source: "customer_portal"
+    }
+  }).catch(() => undefined);
+}
+
+async function updateCustomerChecklistItem(portalUuid: string, checklistId: string, itemId: string, input: JsonObject) {
+  const context = await customerChecklistContext(portalUuid, checklistId);
+  // On punch lists a note is part of authoring the item (require_comment reads
+  // it), so it travels with the editing grant; completion-style writes
+  // (completed, rating) still fall through to the completion gate, which punch
+  // lists never grant to the customer.
+  const authorFields = isPunchList(context.checklist)
+    ? ["title", "description", "sort_order", "item_type", "note", "notes"]
+    : ["title", "description", "sort_order", "item_type"];
+  const has = (field: string) => Object.prototype.hasOwnProperty.call(input, field);
+  const completionFields = ["completed", "status", "rating"];
+  const allowedFields = new Set([...authorFields, ...completionFields, "note", "notes", "expected_revision"]);
+  if (Object.keys(input).some(field => !allowedFields.has(field))) throw badRequest("customer_checklist_field_forbidden", "This field cannot be changed through the customer portal.");
+  const editingFields = authorFields.some(has);
+  if (editingFields) requireCustomerChecklistEditing(context.access);
+  if (completionFields.some(has) || !editingFields) requireCustomerChecklistCompletion(context.access);
+  if (editingFields) await requirePunchEditable(context, "edit");
+  const item = (await readProjectChecklistItem(context.orgId, context.projectId, itemId));
+  if (cleanText(item.checklist_id) !== checklistId) throw notFound("checklist_item_not_found", "Checklist item was not found.");
+  const updated = (await patchProjectChecklistItem(
+    context.orgId,
+    context.projectId,
+    itemId,
+    input,
+    "customer_portal",
+    context.access.can_edit_items
+  ));
+  if (updated.completed !== item.completed) {
+    await emitCustomerChecklistEvent(
+      context.orgId,
+      context.projectId,
+      checklistId,
+      itemId,
+      updated.completed ? "customer.checklist.item_completed" : "customer.checklist.item_reopened"
+    );
+  }
+  return publicChecklistItem(updated);
+}
+
+async function createCustomerChecklistItem(portalUuid: string, checklistId: string, input: JsonObject) {
+  const context = await customerChecklistContext(portalUuid, checklistId);
+  requireCustomerChecklistEditing(context.access);
+  await requirePunchEditable(context, "add");
+  const allowedFields = new Set(["title", "label", "name", "description", "sort_order", "item_type", "type", "note", "notes", "completed", "status", "rating"]);
+  if (Object.keys(input).some(field => !allowedFields.has(field))) throw badRequest("customer_checklist_field_forbidden", "This field cannot be set through the customer portal.");
+  if (["completed", "status", "rating"].some(field => Object.prototype.hasOwnProperty.call(input, field))) requireCustomerChecklistCompletion(context.access);
+  const item = (await createProjectChecklistItem(context.orgId, context.projectId, checklistId, input, "customer_portal"));
+  await emitCustomerChecklistEvent(context.orgId, context.projectId, checklistId, cleanText(item.id), "customer.checklist.item_added");
+  return publicChecklistItem(item);
+}
+
+async function deleteCustomerChecklistItem(portalUuid: string, checklistId: string, itemId: string) {
+  const context = await customerChecklistContext(portalUuid, checklistId);
+  requireCustomerChecklistEditing(context.access);
+  await requirePunchEditable(context, "edit");
+  const item = (await readProjectChecklistItem(context.orgId, context.projectId, itemId));
+  if (cleanText(item.checklist_id) !== checklistId) throw notFound("checklist_item_not_found", "Checklist item was not found.");
+  const result = (await deleteCrewChecklistItem(context.orgId, context.projectId, itemId, "customer_portal"));
+  await emitCustomerChecklistEvent(context.orgId, context.projectId, checklistId, itemId, "customer.checklist.item_removed");
+  return result;
+}
+
+async function attachCustomerChecklistEvidence(request: FastifyRequest, portalUuid: string, checklistId: string, itemId: string) {
+  const context = await customerChecklistContext(portalUuid, checklistId);
+  // Punch lists invert the usual checklist roles: the customer AUTHORS items
+  // (can_edit_items) but never completes them (can_complete is always false),
+  // so evidence rides on the editing grant and the punch state gate. Gating on
+  // can_complete here would make customer photo uploads impossible on every
+  // punch list. Plain checklists keep the completion gate: evidence there is
+  // proof-of-completion.
+  if (isPunchList(context.checklist)) {
+    requireCustomerChecklistEditing(context.access);
+    await requirePunchEditable(context, "edit");
+  } else {
+    requireCustomerChecklistCompletion(context.access);
+  }
+  const item = (await readProjectChecklistItem(context.orgId, context.projectId, itemId));
+  if (cleanText(item.checklist_id) !== checklistId) throw notFound("checklist_item_not_found", "Checklist item was not found.");
+  const typed = request as unknown as {
+    parts?: () => AsyncIterable<{
+      type: "file" | "field";
+      fieldname: string;
+      value?: unknown;
+      filename?: string;
+      mimetype?: string;
+      toBuffer?: () => Promise<Buffer>;
+    }>;
+  };
+  const parts = typed.parts?.();
+  if (!parts) throw badRequest("multipart_required", "Checklist evidence must be multipart/form-data.");
+  let bytes: Buffer | null = null;
+  let fileName = "customer-checklist-evidence";
+  let contentType = "application/octet-stream";
+  let requirementId = "";
+  for await (const part of parts) {
+    if (part.type === "file" && !bytes) {
+      bytes = await part.toBuffer?.() ?? null;
+      fileName = cleanText(part.filename || fileName);
+      contentType = cleanText(part.mimetype || contentType).toLowerCase();
+    } else if (part.type === "field" && part.fieldname === "requirement_id") {
+      requirementId = cleanText(part.value);
+    }
+  }
+  if (!bytes) throw badRequest("checklist_attachment_missing", "Choose a file to attach.");
+  if (bytes.length > 128 * 1024 * 1024) throw badRequest("checklist_attachment_too_large", "Checklist evidence cannot exceed 128 MB.");
+  const kind = contentType.startsWith("image/") ? "photo"
+    : contentType.startsWith("video/") ? "video"
+      : contentType.startsWith("audio/") ? "audio"
+        : "document";
+  const media = await storeMediaUpload(context.orgId, {
+    bytes,
+    fileName,
+    contentType,
+    ownerType: "project",
+    ownerId: context.projectId,
+    slot: kind === "photo" || kind === "video" ? "photos" : "checklist_evidence",
+    scope: "projects",
+    metadata: {
+      source: "customer_portal_checklist_evidence",
+      field: kind === "photo" || kind === "video" ? "photos" : "checklist_evidence",
+      document_collection: "projects",
+      document_id: context.projectId,
+      project_id: context.projectId,
+      checklist_id: checklistId,
+      checklist_item_id: itemId,
+      requirement_id: requirementId,
+      media_type: kind,
+      uploaded_by: "customer_portal"
+    }
+  });
+  const attachment = {
+    media_id: media.id,
+    file_name: media.file_name,
+    content_type: media.content_type,
+    size_bytes: media.size_bytes,
+    kind,
+    requirement_id: requirementId
+  };
+  const updated = (await addProjectChecklistItemAttachment(context.orgId, context.projectId, itemId, attachment, "customer_portal"));
+  await emitCustomerChecklistEvent(context.orgId, context.projectId, checklistId, itemId, "customer.checklist.evidence_added");
+  return { attachment, item: publicChecklistItem(updated) };
+}
+
+async function updateCustomerChecklistByVoice(request: FastifyRequest, portalUuid: string, checklistId: string) {
+  const context = await customerChecklistContext(portalUuid, checklistId);
+  requireCustomerChecklistCompletion(context.access);
+  if (context.access.voice_mode === "off") {
+    throw forbidden("customer_checklist_voice_disabled", "Voice is disabled for this customer checklist.");
+  }
+  const typed = request as unknown as {
+    parts?: () => AsyncIterable<{
+      type: "file" | "field";
+      fieldname: string;
+      filename?: string;
+      mimetype?: string;
+      toBuffer?: () => Promise<Buffer>;
+    }>;
+  };
+  const parts = typed.parts?.();
+  if (!parts) throw badRequest("multipart_required", "Checklist voice updates must be multipart/form-data.");
+  let audio: Buffer | null = null;
+  let fileName = "customer-checklist.wav";
+  let contentType = "audio/wav";
+  for await (const part of parts) {
+    if (part.type !== "file" || audio) continue;
+    audio = await part.toBuffer?.() ?? null;
+    fileName = cleanText(part.filename || fileName);
+    contentType = cleanText(part.mimetype || contentType);
+  }
+  if (!audio) throw badRequest("missing_audio", "Record a checklist update first.");
+  const checklist = (await listProjectChecklists(context.orgId, context.projectId)).find((entry) => cleanText(entry.id) === checklistId);
+  if (!checklist) throw notFound("checklist_not_found", "Checklist was not found.");
+  const result = await processStructuredAudio(checklistAudioProcessor, {
+    audio,
+    fileName,
+    contentType,
+    context: {
+      mode: "update",
+      checklist: {
+        id: checklistId,
+        title: cleanText(checklist.title),
+        items: (Array.isArray(checklist.items) ? checklist.items : []).map((value) => {
+          const item = asObject(value);
+          return {
+            id: cleanText(item.id),
+            title: cleanText(item.title),
+            completed: item.completed === true,
+            item_type: cleanText(item.item_type || "todo")
+          };
+        })
+      }
+    }
+  });
+  const reconciled = reconcileChecklistAudioOperations(
+    result.operations.filter((entry) => entry.confidence >= 0.55),
+    (Array.isArray(checklist.items) ? checklist.items : []).map((value) => {
+      const item = asObject(value);
+      return {
+        id: cleanText(item.id),
+        title: cleanText(item.title),
+        completed: item.completed === true,
+        item_type: cleanText(item.item_type)
+      };
+    })
+  );
+  const applied: JsonObject[] = [];
+  const rejected: JsonObject[] = [];
+  for (const operation of reconciled.operations) {
+    try {
+      if (operation.action === "complete") {
+        const item = (await readProjectChecklistItem(context.orgId, context.projectId, operation.item_id));
+        if (cleanText(item.checklist_id) !== checklistId || item.completed === true) continue;
+        const updated = (await patchProjectChecklistItem(
+          context.orgId,
+          context.projectId,
+          item.id,
+          cleanText(item.item_type) === "rating" ? { rating: "good" } : { completed: true },
+          "customer_portal",
+          context.access.can_edit_items
+        ));
+        applied.push({ action: "complete", item: publicChecklistItem(updated) });
+        await emitCustomerChecklistEvent(context.orgId, context.projectId, checklistId, cleanText(item.id), "customer.checklist.item_completed");
+      } else if (context.access.voice_mode === "edit" && context.access.can_edit_items) {
+        const duplicate = (Array.isArray(checklist.items) ? checklist.items : []).some((value) =>
+          cleanText(asObject(value).title).toLowerCase() === operation.title.toLowerCase()
+        );
+        if (duplicate) continue;
+        const item = (await createProjectChecklistItem(context.orgId, context.projectId, checklistId, {
+          title: operation.title,
+          item_type: operation.item_type === "rating" ? "rating" : "todo"
+        }, "customer_portal"));
+        applied.push({ action: "add", item: publicChecklistItem(item) });
+        await emitCustomerChecklistEvent(context.orgId, context.projectId, checklistId, cleanText(item.id), "customer.checklist.item_added");
+      }
+    } catch (error) {
+      rejected.push({
+        action: operation.action,
+        item_id: operation.item_id,
+        title: operation.title,
+        message: error instanceof Error ? error.message : "This voice change could not be applied."
+      });
+    }
+  }
+  return {
+    result: { ...result, operations: reconciled.operations },
+    suppressed_operations: reconciled.suppressed,
+    applied,
+    rejected,
+    checklist: publicChecklist((await listProjectChecklists(context.orgId, context.projectId)).find((entry) => cleanText(entry.id) === checklistId))
+  };
+}
+
+// Surfaces the project's feedback / rating link inside the customer portal
+// when the Feedback System app is on and the org enabled the portal channel.
+// Preview sessions never create feedback request records.
+async function customerPortalFeedbackLink(orgId: string, project: JsonObject, preview: boolean) {
+  if (preview) return null;
+  try {
+    // Keep the portal entry point independently controllable from automated
+    // SMS/email review requests. The app-level flag alone is too broad here.
+    if (!(await isCapabilityEnabled(orgId, "feedback.portal_card"))) return null;
+    const branchId = cleanText(project.branch_id) || "default";
+    const feedbackService = await import("../feedback/service.js");
+    const { settings } = await feedbackService.readFeedbackSettings(orgId, branchId);
+    if (settings.enabled === false || asObject(settings.channels).portal !== true) return null;
+    const ensured = await feedbackService.ensureFeedbackRequest(orgId, {
+      project_id: cleanText(project.id),
+      branch_id: branchId,
+      source_key: `project:${cleanText(project.id)}`,
+      source: { type: "system", id: "customer_portal" }
+    });
+    const requestData = asObject(ensured.document.data);
+    const messages = { ...asObject(settings.messages), ...asObject(requestData.message_overrides) };
+    return {
+      url: feedbackService.feedbackPublicUrl(cleanText(requestData.public_token)),
+      rated: Number(requestData.rating) > 0,
+      title: cleanText(messages.portal_title) || "How did we do?",
+      body: cleanText(messages.portal_body) || "Tell us how everything went — it only takes a few seconds.",
+      cta: cleanText(messages.portal_cta) || "Leave feedback"
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function recordCustomerPortalEvent(uuid: string, body: JsonObject, request: FastifyRequest) {
@@ -4741,6 +7708,8 @@ async function recordCustomerPortalEvent(uuid: string, body: JsonObject, request
     project_id: cleanText(data.project_id),
     portal_id: found.document.id,
     portal_uuid: cleanText(data.public_uuid),
+    portal_access_mode: found.access_mode,
+    portal_guest_link_id: found.access_mode === "guest" ? cleanText(found.guest?.id) : "",
     preview: false,
     media_id: cleanText(body.media_id || body.mediaId),
     proposal_id: cleanText(body.proposal_id || body.proposalId),
@@ -4764,7 +7733,7 @@ async function recordCustomerPortalEvent(uuid: string, body: JsonObject, request
     metadata: { ...asObject(body.metadata), request: requestMetadata },
     created_at: now
   };
-  await upsertDocument(
+  const activityDocument = await upsertDocument(
     found.orgId,
     "activity",
     {
@@ -4779,7 +7748,84 @@ async function recordCustomerPortalEvent(uuid: string, body: JsonObject, request
     },
     { replace: true }
   );
+  const activityType = type.replace(/^customer_portal\./, "");
+  const portalWorkEventType = ["media_opened", "media_downloaded"].includes(activityType)
+    ? "portal.media_viewed"
+    : ["viewed", "visit", "visited", "session_started", "portal_opened"].includes(activityType)
+      ? "portal.visited"
+      : "";
+  if (portalWorkEventType) {
+    const portalProject = event.project_id
+      ? await readDocument(found.orgId, "projects", event.project_id).catch(() => null)
+      : null;
+    await emitWorkEvent({
+      organization_id: found.orgId,
+      branch_id: cleanText(asObject(portalProject?.data).branch_id) || "default",
+      ...(event.project_id ? { project_id: event.project_id } : {}),
+      type: portalWorkEventType,
+      idempotency_key: `${portalWorkEventType}:${cleanText(activityDocument.id)}`,
+      payload: {
+        portal_id: event.portal_id,
+        activity_type: activityType,
+        ...(event.project_id ? { project_id: event.project_id } : {}),
+        ...(event.media_id ? { media_id: event.media_id } : {})
+      }
+    });
+  }
   return event;
+}
+
+/* Serves stored media inline with HTTP range support.
+ *
+ * Without ranges a browser reports an empty `seekable` range for <video>, so
+ * scrubbing snaps back to zero and canvas-based tools (the video editor) read
+ * nothing. Always advertise Accept-Ranges and honour a single byte range. */
+function sendInlineMediaFile(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  file: { bytes: Buffer; contentType: string; fileName: unknown }
+) {
+  const bytes = file.bytes;
+  const total = bytes.length;
+  reply.header("Content-Type", file.contentType);
+  reply.header("Content-Disposition", `inline; filename="${String(file.fileName).replace(/"/g, "")}"`);
+  reply.header("Accept-Ranges", "bytes");
+
+  const rangeHeader = cleanText((request.headers as Record<string, unknown>)?.range);
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader);
+  if (!match || !total) {
+    reply.header("Content-Length", String(total));
+    return reply.send(bytes);
+  }
+
+  const startText = match[1] ?? "";
+  const endText = match[2] ?? "";
+  const hasStart = startText !== "";
+  const hasEnd = endText !== "";
+  if (!hasStart && !hasEnd) {
+    reply.header("Content-Length", String(total));
+    return reply.send(bytes);
+  }
+
+  // "bytes=-N" asks for the trailing N bytes.
+  let start = hasStart ? Number.parseInt(startText, 10) : total - Number.parseInt(endText, 10);
+  let end = hasStart ? (hasEnd ? Number.parseInt(endText, 10) : total - 1) : total - 1;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    reply.header("Content-Length", String(total));
+    return reply.send(bytes);
+  }
+  start = Math.max(0, start);
+  end = Math.min(total - 1, end);
+  if (start > end) {
+    reply.code(416);
+    reply.header("Content-Range", `bytes */${total}`);
+    return reply.send();
+  }
+
+  reply.code(206);
+  reply.header("Content-Range", `bytes ${start}-${end}/${total}`);
+  reply.header("Content-Length", String(end - start + 1));
+  return reply.send(bytes.subarray(start, end + 1));
 }
 
 async function listCustomerPortalActivity(orgId: string, projectId: string) {
@@ -4803,11 +7849,30 @@ async function sendCustomerPortalMedia(reply: FastifyReply, uuid: string, mediaI
   if (preview && authOrgId !== found.orgId) {
     throw forbidden("preview_requires_staff_session", "Preview links require a staff session for the same organization.");
   }
-  const data = asObject(found.document.data);
+  let data = asObject(found.document.data);
   if (!preview && cleanText(data.status || "active") !== "active") throw forbidden("portal_inactive", "This customer portal is not active.");
-  const shared = new Set(normalizeSharedItems(data.shared_items).filter((item) => item.type === "media").map((item) => item.item_id));
   const normalizedMediaId = cleanText(mediaId);
-  if (!shared.has(normalizedMediaId)) throw forbidden("media_not_shared", "This media item is not shared with the customer portal.");
+  if (found.access_mode === "guest") {
+    if (!normalizeStringArray(found.guest?.tabs).includes("photos")) throw forbidden("portal_guest_scope", "This shared link does not include photos.");
+    const allowedProjects = new Set(normalizeStringArray(found.guest?.project_ids));
+    const candidate = (await listDocuments(found.orgId, CUSTOMER_PORTAL_COLLECTION).catch(() => []))
+      .map((document) => asObject(document.data))
+      .find((portalData) => allowedProjects.has(cleanText(portalData.project_id))
+        && normalizeSharedItems(portalData.shared_items).some((item) => item.type === "media" && item.item_id === normalizedMediaId));
+    if (!candidate) throw forbidden("media_not_shared", "This media item is not available through the shared link.");
+    data = candidate;
+  }
+  const shared = new Set(normalizeSharedItems(data.shared_items).filter((item) => item.type === "media").map((item) => item.item_id));
+  if (!shared.has(normalizedMediaId) && !preview) {
+    if (found.access_mode === "guest") throw forbidden("media_not_shared", "This media item is not available through the shared link.");
+    const websites: { portalPublishedPageReferencesMedia?: (orgId: string, portal: JsonObject, mediaId: string) => Promise<boolean> } = await import(("../websites/service.js") as string);
+    const isPublishedPageAsset = await websites.portalPublishedPageReferencesMedia?.(found.orgId, data, normalizedMediaId).catch(() => false);
+    const metadata = !isPublishedPageAsset ? asObject(await readMediaMetadata(found.orgId, normalizedMediaId).catch(() => null)) : {};
+    const owner = asObject(metadata.owner);
+    const slot = cleanText(metadata.slot || owner.slot).toLowerCase();
+    const isUserProfileAsset = cleanText(owner.type).toLowerCase() === "user" && (slot.includes("avatar") || slot.includes("profile"));
+    if (!isPublishedPageAsset && !isUserProfileAsset) throw forbidden("media_not_shared", "This media item is not shared with the customer portal.");
+  }
   const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
   const variant = cleanText(query.variant || "original") || "original";
   let file;
@@ -4817,9 +7882,7 @@ async function sendCustomerPortalMedia(reply: FastifyReply, uuid: string, mediaI
     if (variant === "original") throw error;
     file = await readMediaFile(found.orgId, normalizedMediaId, "original");
   }
-  reply.header("Content-Type", file.contentType);
-  reply.header("Content-Disposition", `inline; filename="${String(file.fileName).replace(/"/g, "")}"`);
-  return reply.send(file.bytes);
+  return sendInlineMediaFile(request, reply, file);
 }
 
 function docFirstText(...values: unknown[]) {
@@ -4842,6 +7905,7 @@ function documentTypeMeta(typeValue: unknown) {
   if (type === "customer_report" || type === "summary") return { type: "customer_report", label: "Customer Report", icon: "fa-file-lines", color: "#0891b2" };
   if (type === "instant_report") return { type, label: "Instant Report", icon: "fa-bolt", color: "#ca8a04" };
   if (type === "weather_report") return { type, label: "Weather Report", icon: "fa-cloud-sun-rain", color: "#0d9488" };
+  if (type === "receipt") return { type, label: "Receipt", icon: "fa-receipt", color: "#0f766e" };
   if (type === "required") return { type, label: "Required", icon: "fa-clipboard-check", color: "#dc2626" };
   return { type: type || "document", label: "Document", icon: "fa-file-lines", color: "#64748b" };
 }
@@ -4894,6 +7958,7 @@ function normalizeProjectDocumentReference(input: unknown) {
     special: Boolean(doc.special),
     required: Boolean(doc.required),
     interactive: doc.interactive !== false,
+    markup: asObject(doc.markup),
     metadata
   } as JsonObject;
 }
@@ -5047,10 +8112,22 @@ async function projectProposalDocuments(orgId: string, projectData: JsonObject =
 async function projectDocumentsPayload(orgId: string, projectDocument: JsonObject) {
   const project = asObject(projectDocument.data);
   const uploaded = normalizeProjectUploadedDocuments(project.documents);
+  const uploadedById = new Map(uploaded.map((item) => [projectDocumentIdentity(item), item]));
   const special = [
     ...(await projectProposalDocuments(orgId, project)),
     ...projectReportDocuments(project)
-  ];
+  ].map((item) => {
+    const stored = uploadedById.get(projectDocumentIdentity(item));
+    if (!stored) return item;
+    return normalizeProjectDocumentReference({
+      ...item,
+      markup: asObject(stored.markup),
+      metadata: {
+        ...asObject(item.metadata),
+        stored_overlay_document: stored
+      }
+    });
+  });
   const seen = new Set<string>();
   const documents = [...special, ...uploaded].filter((item) => {
     const id = projectDocumentIdentity(item);
@@ -5067,14 +8144,28 @@ async function projectDocumentsPayload(orgId: string, projectDocument: JsonObjec
 }
 
 function collectionReadPermission(collection: string) {
-  if (collection === "users") return "manage_company_users|manage_users|manage_sales_users";
+  if (collection === "users") return "manage_company_users|manage_company_user_permissions|manage_users|manage_sales_users";
   if (collection === CUSTOMER_PORTAL_COLLECTION) return "view_reports";
   return undefined;
 }
 
-function collectionWritePermission(collection: string) {
+function assertCanonicalPlatformCollection(collection: string) {
+  if (collection === "action_items") {
+    throw badRequest("action_items_are_work_nodes", "Use the action-items or work API for to-do records.");
+  }
+  if (!GENERIC_PLATFORM_COLLECTIONS.has(collection)) {
+    throw badRequest("unsupported_platform_collection", `Platform collection '${collection}' is not available through the generic document API.`);
+  }
+}
+
+function collectionWritePermission(collection: string, operation: "create" | "replace" | "update" | "delete" | "domain" = "domain") {
+  if (collection === "projects") return "manage_projects";
+  if (collection === "customers") return "manage_projects";
   if (collection === "users") return "manage_company_users|manage_users|manage_sales_users";
   if (collection === "branch") return "manage_company_settings";
+  if (collection === NOTIFICATION_COLLECTION) return "manage_company_settings";
+  if (collection === "activity") return operation === "create" ? undefined : "manage_company_settings";
+  if (collection === "calendar_events") return "manage_schedule";
   if (collection === CUSTOMER_PORTAL_COLLECTION) return "manage_projects|order_reports|view_reports";
   return undefined;
 }
@@ -5282,24 +8373,36 @@ async function parsePortalActionRequest(request: unknown) {
 }
 
 async function handlePortalAction(app: FastifyInstance, action: string, body: JsonObject, request?: FastifyRequest, reply?: FastifyReply) {
-  if (action === "referral_public_lookup") return publicReferralLookup(cleanText(body.referral_code || body.code || body.ref), request ? publicRequestBaseUrl(request) : "");
-  if (action === "acquisition_public_track") return publicAcquisitionLookup(withAcquisitionRequestMetadata(body, request), request ? publicRequestBaseUrl(request) : "");
-  const session = request ? await authContextFromRequest(request) : null;
+  const suppliedActor = portalActor(body);
   if (action === "auth_status") {
+    const sessionContext = request ? await authContextFromRequest(request).catch(() => null) : null;
     return {
       success: true,
-      authenticated: Boolean(session),
-      user_email: session ? cleanText(session.identity.email).toLowerCase() : null
+      authenticated: Boolean(sessionContext),
+      user_email: sessionContext ? cleanText(sessionContext.identity.email) : null,
+      application_access: sessionContext?.applicationAccess || null
     };
   }
-  if (!session) return { success: false, status_code: 401, error: "Authentication required." };
+  if (action === "referral_public_lookup") return publicReferralLookup(cleanText(body.referral_code || body.code || body.ref), request ? publicRequestBaseUrl(request) : "");
+  if (action === "acquisition_public_track") return publicAcquisitionLookup(withAcquisitionRequestMetadata(body, request), request ? publicRequestBaseUrl(request) : "");
+  if (action === "admin_stop_impersonation") {
+    if (!request || !reply) return { success: false, status_code: 500, error: "missing_response_context" };
+    await requirePlatformAuth(request, { application: false });
+    return await stopPortalImpersonation(app, request, reply);
+  }
+  if (!request) return { success: false, status_code: 401, error: "Authentication required." };
+  if (!(await authContextFromRequest(request))) return { success: false, status_code: 401, error: "Authentication required." };
+  const authenticated = await requirePlatformAuth(request);
   const actor = {
-    email: cleanText(session.identity.email).toLowerCase(),
-    name: cleanText(session.identity.name || session.user.name),
-    organization_id: session.orgId,
-    team_id: session.branchId
+    email: cleanText(authenticated.identity.email).toLowerCase(),
+    name: cleanText(authenticated.identity.name || authenticated.user.name),
+    organization_id: authenticated.orgId,
+    team_id: authenticated.branchId
   };
-  const ctx = { orgId: session.orgId, userDoc: session.userDocument };
+  const ctx = { orgId: authenticated.orgId, userDoc: authenticated.userDocument };
+  if (suppliedActor.organization_id && suppliedActor.organization_id !== authenticated.orgId) {
+    throw forbidden("organization_forbidden", "This session cannot act on the requested organization.");
+  }
   switch (action) {
     case "org_get_my":
       return await portalGetOrg(ctx.orgId, ctx.userDoc);
@@ -5367,7 +8470,23 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
       return await portalStripeStartSetup(ctx.orgId, body);
     case "pj_search":
       return await portalFirstMeasure(app, "projects/list", { actor, page: 1, limit: Number(body.limit || 1), filter: "org" });
+    case "exteriors_quote":
+      await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
+      await requireExteriorAccess(ctx.orgId, cleanText(body.project_type)||"residential");
+      return {success:true,allow_incomplete_photo_review:!env.isProduction && await isCapabilityEnabled(ctx.orgId,"firstmeasure.exteriors_photo_review_test"),...exteriorQuote(Math.max(1,Math.min(10,Number(body.structure_count)||1)))};
+    case "exteriors_upload": {
+      await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
+      await requireExteriorAccess(ctx.orgId, cleanText(body.project_type)||"residential");
+      const file=asObject(body.__file);
+      const bytes=Buffer.from(cleanText(file.bytes_base64),"base64");
+      if(!bytes.length || bytes.length>8*1024*1024) throw badRequest("invalid_reference","Each reference must be an image up to 8 MB.");
+      const format=bytes[0]===255&&bytes[1]===216&&bytes[2]===255 ? "jpeg" : bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "png" : bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP" ? "webp" : "";
+      if(!format) throw badRequest("invalid_reference","Use JPG, PNG or WebP reference photos.");
+      const media=await storeMediaUpload(ctx.orgId,{bytes,fileName:cleanText(file.filename)||`reference.${format}`,contentType:`image/${format}`,ownerType:"user",ownerId:authenticated.userId,scope:"projects",slot:"exterior_references",metadata:{source:"exteriors_order_reference",uploaded_by:authenticated.userId}});
+      return {success:true,media_id:media.id};
+    }
     case "queue":
+      await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
       return await portalQueueProject(app, ctx.orgId, actor, body);
     case "expedite_queued_report":
       return await portalExpediteQueuedProject(app, ctx.orgId, actor, body);
@@ -5377,8 +8496,6 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
       return await portalSubmitReportReworkRequest(app, ctx.orgId, actor, body);
     case "refund_instant_rejection":
       return await portalRefundInstant(app, ctx.orgId, actor.email, body);
-    case "admin_stop_impersonation":
-      return await stopPortalImpersonation(app, request, reply);
     default:
       return { success: false, status_code: 404, error: `Unsupported portal action: ${action}` };
   }
@@ -5439,6 +8556,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
       }
     });
     setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
     return {
       success: true,
       ok: true,
@@ -5449,6 +8567,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
   }
 
   if (action === "register") {
+    requirePublicRegistration();
     const password = String(body.password || "");
     const company = cleanText(body.company || body.company_name || body.organization_name) || "Your Company";
     const phone = formatSignupPhone(body.phone);
@@ -5539,6 +8658,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
       }
     });
     setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
     return { success: true, ok: true, first_login: true, ...publicAuthContext(ctx) };
   }
 
@@ -5726,50 +8846,6 @@ function authResetCodeHash(identityId: string, code: string) {
   return createHash("sha256").update(`${identityId}:${code}`).digest("hex");
 }
 
-function passwordRecoverySignature(value: string) {
-  return createHmac("sha256", env.platformSessionSecret).update(`password-recovery:${value}`).digest("base64url");
-}
-
-function createPasswordRecoveryToken(identityId: string, requestId: string) {
-  if (!identityId || !requestId) return "";
-  const payload = Buffer.from(JSON.stringify({ identity_id: identityId, request_id: requestId })).toString("base64url");
-  return `${payload}.${passwordRecoverySignature(payload)}`;
-}
-
-function parsePasswordRecoveryToken(tokenValue: unknown) {
-  const [payload, signature] = cleanText(tokenValue).split(".");
-  if (!payload || !signature) throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
-  const expected = passwordRecoverySignature(payload);
-  const left = Buffer.from(signature);
-  const right = Buffer.from(expected);
-  if (left.length !== right.length || !timingSafeEqual(left, right)) {
-    throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
-  }
-  try {
-    return asObject(JSON.parse(Buffer.from(payload, "base64url").toString("utf8")));
-  } catch {
-    throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
-  }
-}
-
-async function resolvePasswordRecoveryIdentity(body: JsonObject) {
-  const token = cleanText(body.recovery_token);
-  if (!token) return await findIdentityByIdentifier(cleanText(body.identifier || body.email || body.phone));
-  const payload = parsePasswordRecoveryToken(token);
-  const identity = await readIdentity(cleanText(payload.identity_id));
-  const reset = asObject(asObject(identity.metadata).password_reset);
-  if (!cleanText(payload.request_id) || cleanText(reset.request_id) !== cleanText(payload.request_id)) {
-    throw badRequest("invalid_recovery_token", "Password recovery has expired. Start again.");
-  }
-  return identity;
-}
-
-function maskEmailAddress(emailValue: string) {
-  const [local, domain] = String(emailValue || "").split("@");
-  if (!local || !domain) return "your email";
-  return `${local.slice(0, 1)}${"*".repeat(Math.min(4, Math.max(1, local.length - 1)))}@${domain}`;
-}
-
 function authResetCodeValid(identity: JsonObject, reset: JsonObject, code: string) {
   const identityId = String(identity.id || "");
   const expected = cleanText(reset.code_hash);
@@ -5814,28 +8890,34 @@ async function sendPostmarkEmail(input: { to: string; subject: string; textBody:
 
   const textBody = `${input.textBody}${emailFooterText()}`;
   const htmlBody = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;line-height:1.45;color:#111;">${input.htmlBody || `<div style="white-space:normal;">${escapeHtml(input.textBody).replace(/\n/g, "<br>")}</div>`}${emailFooterHtml()}</div>`;
-  const response = await fetch("https://api.postmarkapp.com/email", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-Postmark-Server-Token": token
-    },
-    body: JSON.stringify({
-      From: env.postmarkFrom,
-      To: input.to,
-      Subject: input.subject,
-      TextBody: textBody,
-      HtmlBody: htmlBody,
-      ReplyTo: env.postmarkReplyTo,
-      ...(input.attachments?.length ? { Attachments: input.attachments } : {})
-    })
-  });
-  const body = await response.text();
-  if (!response.ok) {
-    return { ok: false, error: `Postmark HTTP ${response.status}`, postmark: body };
+  try {
+    const response = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Postmark-Server-Token": token
+      },
+      body: JSON.stringify({
+        From: env.postmarkFrom,
+        To: input.to,
+        Subject: input.subject,
+        TextBody: textBody,
+        HtmlBody: htmlBody,
+        ReplyTo: env.postmarkReplyTo,
+        ...(input.attachments?.length ? { Attachments: input.attachments } : {})
+      })
+    });
+    const body = await response.text();
+    if (!response.ok) {
+      return { ok: false, error: `Postmark HTTP ${response.status}`, postmark: body };
+    }
+    return { ok: true, status: response.status };
+  } catch (error) {
+    // Creating an organization user must not be rolled back by a transient
+    // email-provider failure. Callers record and surface the delivery error.
+    return { ok: false, error: cleanText(error instanceof Error ? error.message : error) || "Postmark delivery failed" };
   }
-  return { ok: true, status: response.status };
 }
 
 async function sendPasswordResetOtpEmail(email: string, code: string) {
@@ -5903,6 +8985,15 @@ async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, req
     },
     metadata: { invite_email_last_attempt_at: now }
   }, { replace: false }).catch(() => null);
+  await emitWorkEvent({
+    organization_id: orgId,
+    type: "organization.user.invited",
+    idempotency_key: `organization.user.invited:${cleanText(userDoc.id)}`,
+    payload: {
+      user_id: cleanText(userDoc.id),
+      email
+    }
+  });
   return {
     ok: sent.ok,
     emailed: sent.ok,
@@ -5957,50 +9048,12 @@ function portalUserView(userDoc: unknown) {
   return {
     id: doc.id,
     ...data,
+    ...organizationUserProfileView(data),
     disabled: String(data.status || "active") === "disabled",
     deleted: data.deleted === true,
     org_permissions: { level, items },
     effective_permissions: effectivePortalPermissions(level, items),
     profile_photo_url: profile.profile_photo || profile.profile_photo_url || ""
-  };
-}
-
-function googleWorkspaceWebsite(hostedDomain: string) {
-  const domain = cleanText(hostedDomain).toLowerCase();
-  if (!domain || domain === "gmail.com" || domain.length > 253) return "";
-  if (!domain.includes(".") || !/^[a-z0-9.-]+$/.test(domain) || domain.includes("..")) return "";
-  return domain;
-}
-
-async function portalGetOrg(orgId: string, userDoc: JsonObject | null) {
-  const org = await portalOrgView(orgId);
-  const user = portalUserView(userDoc);
-  const userData = asObject(userDoc?.data);
-  let workspaceWebsiteSuggestion = "";
-  const contact = asObject(org.contact);
-  const isUnfinishedOwnerAccount = org.onboarding_completed !== true
-    && cleanText(userData.role).toLowerCase() === "owner"
-    && !cleanText(contact.website);
-  if (isUnfinishedOwnerAccount && userDoc) {
-    try {
-      const identityId = cleanText(userData.identity_id);
-      const identity = identityId ? await readIdentity(identityId) : {};
-      const googleOnly = cleanText(identity.password_algo).toLowerCase() === "google"
-        && !cleanText(identity.password_hash);
-      if (googleOnly) {
-        const providers = asObject(asObject(identity.metadata).auth_providers);
-        const google = asObject(providers.google);
-        workspaceWebsiteSuggestion = googleWorkspaceWebsite(cleanText(google.hosted_domain));
-      }
-    } catch {
-      workspaceWebsiteSuggestion = "";
-    }
-  }
-  return {
-    success: true,
-    org,
-    user,
-    workspace_website_suggestion: workspaceWebsiteSuggestion
   };
 }
 
@@ -6183,7 +9236,7 @@ async function portalMonthlyStatement(orgId: string, body: JsonObject) {
     success: true,
     month,
     year,
-    month_label: new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric" }),
+    month_label: new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
     transactions,
     ledger: transactions,
     orders: transactions.filter((entry) => String(asObject(entry).reason || "") === "order_submitted"),
@@ -6223,6 +9276,9 @@ async function portalAddOrgUser(orgId: string, body: JsonObject, request?: Fasti
       role: level,
       org_permissions: { level, items },
       permissions: effectivePortalPermissions(level, items),
+      ...organizationUserProfileFields({
+        application_access: body.application_access || tryParseJsonField(body.application_access_json, {})
+      }, { includeDefaults: true }),
       account_type: "customer",
       branch_id: "default",
       profile: {}
@@ -6248,7 +9304,13 @@ async function portalUpdateOrgUser(orgId: string, body: JsonObject) {
   const data = asObject(current.data);
   const next = await upsertDocument(orgId, "users", {
     id: userId,
-    data: { ...data, email: cleanText(body.email) || data.email, name: cleanText(body.name) || data.name, updated_at: new Date().toISOString() }
+    data: {
+      ...data,
+      ...organizationUserProfileFields(body),
+      email: cleanText(body.email) || data.email,
+      name: cleanText(body.name) || data.name,
+      updated_at: new Date().toISOString()
+    }
   });
   return { success: true, user: portalUserView(next), session_updated: false };
 }
@@ -7125,8 +10187,17 @@ function stripeWebhookSecret() {
   return env.stripeWebhookSecret || (stripeIsTestMode() ? env.stripeTestWebhookSecret : env.stripeLiveWebhookSecret);
 }
 
+let stripeWebhookSecretWarned = false;
 function stripeWebhookSecrets() {
-  return Array.from(new Set([stripeWebhookSecret()].filter(Boolean)));
+  // Env-configured secrets only (Phase 0 gap fix — the hardcoded whsec_
+  // fallbacks are gone). With no secret configured, webhook verification
+  // fails closed and we log a clear warning once.
+  const secrets = Array.from(new Set([stripeWebhookSecret()].filter(Boolean)));
+  if (!secrets.length && !stripeWebhookSecretWarned) {
+    stripeWebhookSecretWarned = true;
+    console.warn("[stripe] No webhook signing secret configured (STRIPE_WEBHOOK_SECRET or STRIPE_TEST_WEBHOOK_SECRET/STRIPE_LIVE_WEBHOOK_SECRET). Incoming Stripe webhooks will be rejected until one is set.");
+  }
+  return secrets;
 }
 
 function stripePriceId(bonus = false) {
@@ -7811,6 +10882,10 @@ async function portalScrapeLogos(body: JsonObject) {
   };
 }
 
+function firstMeasureInstantAddon(projectType: string) {
+  return projectType === "commercial" || projectType === "multifamily" ? 4 : 2;
+}
+
 function isReportExpediteKey(value: unknown) {
   return isExpeditedReportExpediteKey(value);
 }
@@ -7831,12 +10906,17 @@ function moneyAmount(value: unknown) {
 }
 
 function firstMeasureReportAmount(body: JsonObject, projectType: string, reportMode: string, pins: unknown) {
-  return sharedFirstMeasureReportAmount({
-    ...body,
-    project_type: projectType,
-    report_mode: reportMode,
-    pins
-  });
+  const pinCount = Math.max(1, Array.isArray(pins) ? pins.length : 1);
+  const expediteKey = cleanText(body.report_expedite_option).toLowerCase();
+  const quote = buildReportExpediteOptions({ projectType, structureCount: pinCount });
+  const standardWait = numericValue(quote.options.find((option) => option.key === "standard_3_6")?.estimated_wait_minutes, 180);
+  const base = reportExpediteBaseUnitPrice(projectType, expediteKey, standardWait);
+  const instant = reportMode === "both" || reportMode === "instant" ? firstMeasureInstantAddon(projectType) : 0;
+  const unit = base + instant;
+  const report = projectType === "commercial" || projectType === "multifamily" ? unit * pinCount : unit;
+  const gutters = projectType === "residential" && parseBooleanField(body.include_gutter_measurements, false) ? 2 : 0;
+  const weather = parseBooleanField(body.include_weather_report, false) ? 5 * pinCount : 0;
+  return moneyAmount(report + gutters + weather);
 }
 
 function isPortalStructurePinLimitedType(projectType: string) {
@@ -7855,14 +10935,30 @@ function portalPinLimitMessage(maxPins: number) {
   return `Maximum of ${maxPins} pins per report. Remove a pin to place a new one.`;
 }
 
+function firstMeasureReportExpediteDiscount(body: JsonObject, projectType: string, pins: unknown) {
+  const expediteKey = cleanText(body.report_expedite_option).toLowerCase();
+  if (!isExpeditedReportExpediteKey(expediteKey)) return 0;
+  const pinCount = Math.max(1, Array.isArray(pins) ? pins.length : 1);
+  const normalizedKey = normalizeReportExpediteKey(expediteKey);
+  const quote = buildReportExpediteOptions({ projectType, structureCount: pinCount });
+  const standardWait = numericValue(quote.options.find((option) => option.key === "standard_3_6")?.estimated_wait_minutes, 180);
+  const standard = reportExpediteBaseUnitPrice(projectType, "standard_3_6", standardWait);
+  const rushed = reportExpediteBaseUnitPrice(projectType, normalizedKey, standardWait);
+  const unitDiscount = Math.max(0, moneyAmount(rushed - standard));
+  return moneyAmount((projectType === "commercial" || projectType === "multifamily") ? unitDiscount * pinCount : unitDiscount);
+}
+
 function firstMeasureReportCharge(body: JsonObject, projectType: string, reportMode: string, pins: unknown, freeExpediteUses: number) {
-  return sharedFirstMeasureReportCharge({
-    ...body,
-    project_type: projectType,
-    report_mode: reportMode,
-    pins,
-    free_expedite_uses: freeExpediteUses
-  });
+  const gross = firstMeasureReportAmount(body, projectType, reportMode, pins);
+  const expediteDiscount = freeExpediteUses > 0 ? firstMeasureReportExpediteDiscount(body, projectType, pins) : 0;
+  const finalAmount = moneyAmount(Math.max(0.01, gross - expediteDiscount));
+  return {
+    gross_amount: gross,
+    amount: finalAmount,
+    free_expedite_discount: expediteDiscount,
+    free_expedite_applied: expediteDiscount > 0,
+    free_expedite_uses_before: Math.max(0, Math.round(freeExpediteUses))
+  };
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -7904,6 +11000,7 @@ function firstMeasureManifestExpediteUpgradeBaseline(manifest: JsonObject) {
     include_weather_report: false
   }, projectType, cleanText(manifest.report_mode) || "full", pins);
 }
+
 function parseFirstMeasureTimestampMs(...values: unknown[]) {
   for (const value of values) {
     const text = cleanText(value);
@@ -7972,6 +11069,7 @@ async function portalExpediteQueuedProject(app: FastifyInstance, orgId: string, 
   }
   const { manifest } = await firstMeasureProjectDetail(app, projectId);
   assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  if (manifest.measurement_scope === "full_house") throw badRequest("exterior_delivery_locked", "Full House delivery is selected when ordering and cannot be changed here.");
   const status = cleanText(manifest.status).toLowerCase();
   if (["completed", "rejected", "rejected_no_coverage", "cancelled"].includes(status)) {
     throw badRequest("project_not_expeditable", "This report can no longer be expedited.");
@@ -8121,6 +11219,7 @@ async function portalCancelQueuedProject(app: FastifyInstance, orgId: string, ac
   if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
   const { manifest } = await firstMeasureProjectDetail(app, projectId);
   assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  if (manifest.measurement_scope === "full_house") throw badRequest("exterior_delivery_locked", "Full House delivery is selected when ordering and cannot be changed here.");
   const status = cleanText(manifest.status).toLowerCase();
   if (["completed", "rejected", "rejected_no_coverage", "cancelled"].includes(status)) {
     throw badRequest("project_not_cancelable", "This report can no longer be cancelled.");
@@ -8533,6 +11632,27 @@ async function sendReportIssueSupportEmail(input: {
   });
 }
 
+async function assertBranchReportPreferences(orgId: string, branchId: string, body: JsonObject) {
+  const payload = asObject(body.data ?? body);
+  if (payload.localization !== undefined) {
+    const requestedLocalization = localizationSchema.parse(payload.localization);
+    if (!await isAppFlagEnabled(orgId, "firstmeasure", "report_localization")) {
+      const previous = await readDocument(orgId, "branch", branchId).catch(() => null);
+      const existing = asObject(previous?.data?.localization);
+      if ([...new Set([...Object.keys(requestedLocalization), ...Object.keys(existing)])].some(key => (requestedLocalization as JsonObject)[key] !== existing[key])) throw forbidden("localization_disabled", "Language customization is not enabled for this organization.");
+    }
+  }
+  const preferences = payload.report_preferences;
+  if (preferences === undefined) return;
+  const requested = reportPreferencesSchema.parse(preferences);
+  if (await isAppFlagEnabled(orgId, "firstmeasure", "report_localization")) return;
+  const previous = await readDocument(orgId, "branch", branchId).catch(() => null);
+  const saved = asObject(previous?.data?.report_preferences);
+  if (requested.measurement_system !== saved.measurement_system || requested.report_language !== saved.report_language) {
+    throw forbidden("report_localization_disabled", "Report units and language customization is not enabled for this organization.");
+  }
+}
+
 function normalizedPortalQueuePayload(body: JsonObject, actor: ReturnType<typeof portalActor>, orgId: string, projectType: string, reportMode: string, charge: ReturnType<typeof firstMeasureReportCharge>) {
   const pins = tryParseJsonField(body.pins, []);
   const ccEmails = tryParseJsonField(body.cc_emails, []);
@@ -8592,14 +11712,16 @@ function normalizedPortalQueuePayload(body: JsonObject, actor: ReturnType<typeof
     name: cleanText(body.issuerName || body.issuer_name || actor.name),
     email: cleanText(body.issuerEmail || body.issuer_email || actor.email)
   };
-  delete payload.google_api_key;
-  delete payload.gemini_api_key;
   const components = tryParseJsonField(body.address_components, undefined);
   if (components && typeof components === "object" && !Array.isArray(components)) payload.components = components;
   return payload;
 }
 
 async function portalQueueProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+  const exterior = body.measurement_scope === "full_house";
+  if (body.measurement_scope && !exterior && body.measurement_scope !== "roof") throw badRequest("invalid_scope","Unknown report scope.");
+  const exteriorOrder = exterior ? await validateExteriorOrder(orgId, body, normalizeReportRequestPins(body.pins).length) : null;
+  if (exteriorOrder) body = {...body,report_mode:"full",include_gutter_measurements:true,include_weather_report:false,is_expedited:false};
   if (isReportExpediteKey(body.report_expedite_option) || parseBooleanField(body.is_expedited, false)) {
     await assertPortalFirstMeasureFlag(orgId, "report_expedite_options", "Report expediting is not enabled for this organization.");
   }
@@ -8621,9 +11743,10 @@ async function portalQueueProject(app: FastifyInstance, orgId: string, actor: Re
       pin_count: pins.length
     };
   }
+  body = { ...body, ...await resolveOrderReportPreferences({ ...body, organization_ref: { id: orgId } }) };
   const global = await readGlobal(orgId);
   const globalData = asObject(global.data);
-  const chargeQuote = firstMeasureReportCharge(body, projectType, reportMode, pins, numericValue(globalData.free_expedite_uses));
+  const chargeQuote = exteriorOrder ? {amount:exteriorOrder.option.amount,gross_amount:exteriorOrder.option.amount,free_expedite_discount:0,free_expedite_applied:false,free_expedite_uses_before:0} : firstMeasureReportCharge(body, projectType, reportMode, pins, numericValue(globalData.free_expedite_uses));
   const amount = chargeQuote.amount;
   const balance = numericValue(globalData.credits_balance);
   if (amount > balance) {
@@ -8658,7 +11781,14 @@ async function portalQueueProject(app: FastifyInstance, orgId: string, actor: Re
       "content-type": "application/json",
       ...(env.firstMeasureInternalApiSecret ? { "x-firstmeasure-internal": env.firstMeasureInternalApiSecret } : {})
     },
-    payload: normalizedPortalQueuePayload(body, actor, orgId, projectType, reportMode, chargeQuote)
+    payload: {...normalizedPortalQueuePayload(body, actor, orgId, projectType, reportMode, chargeQuote),...(exteriorOrder ? {
+      measurement_scope:"full_house",exterior_references:exteriorOrder.references,include_gutter_measurements:true,
+      exteriors_base_amount:Math.round(exteriorOrder.quote.base_price*pins.length*100)/100,
+      report_expedite_option:exteriorOrder.option.key,report_expedite_label:exteriorOrder.option.label,
+      report_due_window_label:exteriorOrder.option.label,report_due_window_start:new Date().toISOString(),report_due_window_end:exteriorOrder.option.deadline,
+      report_production_deadline_at:exteriorOrder.option.deadline,is_expedited:exteriorOrder.option.fee>0,
+      report_pricing_revision:exteriorOrder.quote.pricing_revision
+    }: {})}
   });
   const data = response.body ? JSON.parse(response.body) : {};
   if (response.statusCode >= 400 || data.ok === false || data.success === false) {
@@ -8801,5 +11931,37 @@ async function parseMediaUploadRequest(request: unknown) {
     compression: body.compression,
     markup: body.markup,
     metadata: asObject(body.metadata)
+  };
+}
+
+async function portalGetOrg(orgId: string, userDoc: JsonObject | null) {
+  const org = await portalOrgView(orgId);
+  const user = portalUserView(userDoc);
+  const userData = asObject(userDoc?.data);
+  let workspaceWebsiteSuggestion = "";
+  const contact = asObject(org.contact);
+  const isUnfinishedOwnerAccount = org.onboarding_completed !== true
+    && cleanText(userData.role).toLowerCase() === "owner"
+    && !cleanText(contact.website);
+  if (isUnfinishedOwnerAccount && userDoc) {
+    try {
+      const identityId = cleanText(userData.identity_id);
+      const identity = identityId ? await readIdentity(identityId) : {};
+      const googleOnly = cleanText(identity.password_algo).toLowerCase() === "google"
+        && !cleanText(identity.password_hash);
+      if (googleOnly) {
+        const providers = asObject(asObject(identity.metadata).auth_providers);
+        const google = asObject(providers.google);
+        workspaceWebsiteSuggestion = googleWorkspaceWebsite(cleanText(google.hosted_domain));
+      }
+    } catch {
+      workspaceWebsiteSuggestion = "";
+    }
+  }
+  return {
+    success: true,
+    org,
+    user,
+    workspace_website_suggestion: workspaceWebsiteSuggestion
   };
 }

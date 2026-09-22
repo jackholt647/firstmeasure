@@ -249,7 +249,7 @@
   function platformApiBaseUrl() {
     const host = String(location.hostname || '').toLowerCase();
     if (host === '127.0.0.1' || host === 'localhost') {
-      return `${location.protocol}//${location.hostname}:3111/v1/platform`;
+      return `${location.origin}/v1/platform`;
     }
     return `${location.origin}/v1/platform`;
   }
@@ -343,7 +343,7 @@
     return value;
   }
 
-  function buildWidget(host) {
+  function buildWidget(host, options = {}) {
     if (host.__firstMateSignupMounted) return;
     host.__firstMateSignupMounted = true;
 
@@ -1212,10 +1212,10 @@
       fd.append('action', 'login');
       setBusy(form, true);
       try {
-        const data = await authLegacyRequest(fd);
+        const data = typeof options.loginRequest === 'function' ? await options.loginRequest(fd) : await authLegacyRequest(fd);
         if (data.success) {
           trackSignupInteraction('login_success', { first_login: !!data.first_login });
-          await syncPlatformBrowserSession(fd);
+          if (typeof options.loginRequest !== 'function') await syncPlatformBrowserSession(fd);
           redirectAfterAuth(data);
         } else if (data.require_otp) {
           trackSignupInteraction('login_requires_otp', { email_domain: String(data.email || '').split('@').pop() || '' });

@@ -17,6 +17,8 @@ Frontend browser client lives at:
 - Notifications docs: `public/libraries/platform-notifications/README.md`
 - Action items client: `public/libraries/platform-action-items/platform-action-items.js`
 - Action items docs: `public/libraries/platform-action-items/README.md`
+- Canonical work engine/docs: `public/v1/work/` and `public/v1/work/README.md`
+- Scope template engine/docs: `public/v1/scopes/` and `public/v1/scopes/README.md`
 - Celebrations client: `public/libraries/platform-celebrations/platform-celebrations.js`
 - Celebrations docs: `public/libraries/platform-celebrations/README.md`
 - Email API client: `public/libraries/email-api/email-api.js`
@@ -56,7 +58,7 @@ The account should authenticate against `POST /v1/platform/auth/login`, then `GE
 If the local storage copy is missing, recreate it through the API while the V1 node service is running:
 
 ```bash
-curl -X POST http://127.0.0.1:3111/v1/platform/auth/register \
+curl -X POST http://127.0.0.1:3101/v1/platform/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "codex-dev@firstmate.local",
@@ -112,7 +114,7 @@ curl -X POST http://127.0.0.1:3111/v1/platform/auth/register \
 After registering, log in once and create the default branch with the returned session cookie and CSRF token:
 
 ```bash
-curl -X PUT http://127.0.0.1:3111/v1/platform/organizations/codex-dev/branch/default \
+curl -X PUT http://127.0.0.1:3101/v1/platform/organizations/codex-dev/branch/default \
   -H "Content-Type: application/json" \
   -H "X-Platform-CSRF: <csrf token>" \
   -b "<cookie jar with fm_platform_session>" \
@@ -191,7 +193,8 @@ The core primitives are intentionally fungible during development:
 - `projects`
 - `users`
 - `branch`
-- `action_items`
+
+Project work is stored by the Work API, not as a schema-light Platform document collection.
 
 Each record has a stable envelope plus open-ended `data` and `metadata` objects:
 
@@ -262,7 +265,7 @@ Scheduling is stored with schema-light fields and branch modules:
 - `users/{userId}.json` stores `data.roles`, an array of stable role ids. The first owner/super-admin user is seeded with all standard roles. Older owner/admin users without `roles` are treated as having all standard roles by the scheduling library.
 - `projects/{projectId}.json` stores `data.events`, an array, and `data.stage` / `data.stage_id`. New manually created projects usually start with `events: []` and stage `appointment_scheduled`; inbound email leads can still start at `new_lead`.
 - `branch_data/{branchId}/scheduling.json` stores event type defaults and branch availability defaults.
-- `branch_data/{branchId}/variable_mappings.json` stores branch terminology mappings for roles, event types, and future variable labels.
+- `branch_data/{branchId}/variable_mappings.json` stores branch terminology mappings for interface labels, roles, event types, and stages. Company Settings exposes these in the Terminology tab.
 - `branch_data/{branchId}/stages.json` stores possible project stages and their display ordering.
 - `branch_data/{branchId}/triggers.json` stores branch trigger pair definitions.
 - `branch_data/{branchId}/project_configuration.json` stores project UI rules such as title mode and celebration mode.
@@ -270,7 +273,7 @@ Scheduling is stored with schema-light fields and branch modules:
 - `branch_data/{branchId}/lead_intake.json` stores embeddable website forms. Access this through `/v1/lead-intake/organizations/:orgId/branch/:branchId/settings`.
 - `notifications/{notificationId}.json` stores passive/push notification records.
 - `users/{userId}.json` stores per-user notification state under `data.notification_state`.
-- `action_items/{actionItemId}.json` stores org-scoped to-do/action item records.
+- Work plans and recursively nested work nodes are stored by `public/v1/work/storage.ts`.
 - `users/{userId}.json` stores per-user action item UI state under `data.action_item_state`.
 
 Event records use singular scheduling facts and plural staffing facts:
@@ -316,6 +319,10 @@ Current trigger routes:
 - `PUT /organizations/:orgId/branch/:branchId/triggers`: replaces branch trigger definitions.
 - `POST /organizations/:orgId/branch/:branchId/triggers/emit`: manually emits a named trigger event.
 - `POST /organizations/:orgId/projects/:projectId/events`: schedules/saves a project event and emits `project.event_scheduled`.
+
+Project events may set `locked: true`. A locked range change is rejected with `project_event_locked` until the request includes `unlock_confirmed: true`; a confirmed change leaves the event unlocked so it can be deliberately relocked. Only a newly scheduled event or a real range/status scheduling mutation emits `project.event_scheduled`. Material-delivery events are excluded from wall-clock start/completion because delivery fulfillment is recorded by the Materials API.
+
+Generic project collection POST/PUT/PATCH writes treat embedded `data.events` as a mergeable projection, not an authoritative replacement. Current events omitted by a stale client are retained; matching ids are merged with the newer `updated_at` version winning. Writes use the current project revision and retry the merge on a concurrent server update.
 
 Trigger config shape:
 
@@ -402,7 +409,7 @@ Per-user state is stored as `user.notification_state.{notificationId}` with `see
 
 ## Action Items API
 
-Action items are org-scoped workflow records. They are not owned by a user unless claimed. Lookup for the logged-in user is computed from assignment:
+Action items are compatibility views over canonical, org-scoped work nodes. They are not owned by a user unless claimed. Lookup for the logged-in user is computed from assignment:
 
 - blank assignment means any user in the organization can fulfill the item
 - `assigned_user_ids` targets specific org users
@@ -421,13 +428,16 @@ Routes:
 
 Frontend behavior is keyed by `kind` or `frontend_action.kind`; the backend stores those keys and payloads but does not run frontend code.
 
+These routes do not write the old `action_items` document collection. Generic access to that collection is rejected; use the Work API for new integrations.
+
 ## Email Lead Import
 
 Inbound lead routing lives in the Email API, not the Platform API:
 
 - `GET /v1/email/organizations/:orgId/branch/:branchId/lead-import`: returns or creates the branch inbound lead email.
 - `PATCH /v1/email/organizations/:orgId/branch/:branchId/lead-import`: updates settings or regenerates the email with `{ "regenerate": true }`.
-- `POST /v1/email/inbound/postmark`: public Postmark webhook for unmatched `@1m8.ai` inbound mail.
+- Dedicated lead inboxes use `leads-...@firstmatemail.com` and are consumed by the shared Cloudflare Email Routing/R2/Queues pipeline before normal conversation routing.
+- `POST /v1/email/inbound/postmark` remains a compatibility webhook for legacy `@1m8.ai` lead inbox aliases during migration.
 
 When the webhook matches a recipient to `lead_import.inbound_email`, it extracts provider lead data and then calls the generic Platform lead creator. OpenAI extraction is server-only: configure `OPENAI_API_KEY`, optionally override `OPENAI_LEAD_MODEL`, and use `EMAIL_LEAD_AI_DISABLED=1` for deterministic tests.
 
@@ -512,8 +522,11 @@ Storage shape:
 
 Read routes:
 
-- `GET /organizations/:orgId/media`
+- `GET /organizations/:orgId/media?project_id=<id>&tags=before_photos,featured&tag_mode=any|all`
 - `GET /organizations/:orgId/media/:mediaId`
+- `PATCH /organizations/:orgId/media/:mediaId` with `{ "tags": ["before_photos", "featured"] }`
 - `GET /organizations/:orgId/media/:mediaId/file?variant=original|thumb_320|display_2400`
 - `GET /organizations/:orgId/media/:mediaId/markup/:layerId`
 - `PUT /organizations/:orgId/media/:mediaId/markup/:layerId`
+
+Media tags are canonical lowercase keys (spaces become underscores), are stored on the media record, and can be referenced by project workflows through `{{media.by_tag.<tag>...}}`.

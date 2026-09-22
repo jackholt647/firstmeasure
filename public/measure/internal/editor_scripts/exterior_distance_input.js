@@ -6,7 +6,7 @@ function render(owner){
  const anchor=document.getElementById('btnTogglePitch');
  if(anchor&&!badge){badge=document.createElement('span');badge.id='exterior-distance';badge.setAttribute('aria-live','polite');Object.assign(badge.style,{color:'#fff',fontSize:'13px',padding:'5px 9px',whiteSpace:'nowrap',fontVariantNumeric:'tabular-nums',pointerEvents:'none'});anchor.after(badge);}
  if(anchor&&badge&&badge.parentElement!==anchor.parentElement)anchor.after(badge);
- if(badge){const angle=owner?.unit==='degrees',scale=owner?.unitsPerInput??.3048;badge.hidden=!owner;badge.textContent=owner?((owner.label?owner.label+' ': '')+(buffer||((owner.amount||0)/scale).toFixed(2))+(angle?'\u00b0':owner.unit==='inches'?' in':' ft')+(buffer?'':angle?' · type angle':' · type '+(owner.label?.toLowerCase()||'distance'))):'';}
+ if(badge){const angle=owner?.unit==='degrees',scale=root.ReportUnits?.current().inputScale(owner)??owner?.unitsPerInput??.3048;badge.hidden=!owner;badge.textContent=owner?((owner.label?owner.label+' ': '')+(buffer||((owner.amount||0)/scale).toFixed(2))+(angle?'\u00b0':root.ReportUnits?.current().metric?(owner.unit==='inches'?' mm':' m'):owner.unit==='inches'?' in':' ft')+(buffer?'':angle?' · type angle':' · type '+(owner.label?.toLowerCase()||'distance'))):'';}
 }
 function key(e,owner){
  render(owner);if(!owner||e.ctrlKey||e.metaKey||e.altKey)return false;
@@ -18,7 +18,7 @@ function key(e,owner){
  else if(k==='Escape'&&buffer)next='';
  else return false;
  e.preventDefault();e.stopImmediatePropagation();buffer=next;
- const n=Number(buffer);owner.set(buffer.trim()!==''&&Number.isFinite(n)&&(n!==0||owner.allowZero)?n*(owner.unitsPerInput??.3048):null);render(owner);return true;
+ const n=Number(buffer);owner.set(buffer.trim()!==''&&Number.isFinite(n)&&(n!==0||owner.allowZero)?n*(root.ReportUnits?.current().inputScale(owner)??owner.unitsPerInput??.3048):null);render(owner);return true;
 }
 root.ExteriorDistanceInput={key,render};
 })(window);

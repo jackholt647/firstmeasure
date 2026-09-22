@@ -1,3 +1,28 @@
+import { registerWorkforceApi } from "../workforce/api.js";
+import { registerWorkApi } from "../work/api.js";
+import { registerWebsitesApi } from "../websites/api.js";
+import { registerTrainingApi } from "../training/api.js";
+import { registerStatsApi } from "../stats/api.js";
+import { registerSignupSandboxApi } from "../signup-sandbox/api.js";
+import { registerScopesApi } from "../scopes/api.js";
+import { registerRoutingApi } from "../routing/api.js";
+import { registerPublicLinksApi } from "../public-links/api.js";
+import { registerPayrollApi } from "../payroll/api.js";
+import { registerMessagingApi } from "../messaging/api.js";
+import { registerFinancialsApi } from "../financials/api.js";
+import { registerFeedbackApi } from "../feedback/api.js";
+import { registerEquipmentApi } from "../equipment/api.js";
+import { registerDomainsApi } from "../domains/api.js";
+import { registerDocumentsApi } from "../documents/api.js";
+import { registerConnectionsApi } from "../connections/api.js";
+import { registerCommsApi } from "../comms/api.js";
+import { registerChatApi } from "../chat/api.js";
+import { registerChannelsApi } from "../channels/api.js";
+import { registerCallsApi } from "../calls/api.js";
+import { registerAssistantApi } from "../assistant/api.js";
+import { registerAppointmentsApi } from "../appointments/api.js";
+import { registerAgentsApi } from "../agents/api.js";
+import { registerAudioNotesApi } from "../audio-notes/api.js";
 import { installFullHouseAccess } from '../firstmeasure/full_house.js';
 import cors from "@fastify/cors";
 import { installStaffTracking } from "../staff_tracking/api.js";
@@ -10,6 +35,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { registerCanvassingApi } from "../canvassing/api.js";
 import { registerCommunicationsApi } from "../communications/api.js";
 import { registerCodeReportsApi } from "../code-reports/api.js";
+import { registerPlatformCallListApi } from "../internal/crm/platform_call_list_api.js";
 import { registerCrmApi } from "../internal/crm/api.js";
 import { referralServiceRoutes } from "../internal/crm/referrals_service.js";
 import { registerFirstMeasureApi } from "../firstmeasure/api.js";
@@ -117,6 +143,7 @@ export async function buildApp() {
   void app.register(rootRoutes);
   void app.register(registerCanvassingApi, { prefix: "/v1/canvassing" });
   void app.register(registerCodeReportsApi, { prefix: "/v1/code-reports" });
+  void app.register(registerPlatformCallListApi, { prefix: "/v1/internal/crm" });
   const proxyLegacyState = env.deploymentTopology === "cluster" && env.clusterNodeRole === "web" && Boolean(env.legacyServiceUrl);
   if (proxyLegacyState) {
     const { default: httpProxy } = await import("@fastify/http-proxy");
@@ -161,6 +188,34 @@ export async function buildApp() {
   void app.register(registerProposalsApi, { prefix: "/v1/proposals" });
   void app.register(registerPublicFirstMeasureApi, { prefix: "/v1/public/firstmeasure" });
   void app.register(registerWeatherApi, { prefix: "/v1/weather" });
+
+
+  // Platform APIs use the same host, auth context and runtime boundaries.
+  void app.register(registerPublicLinksApi);
+  void app.register(registerAudioNotesApi, { prefix: "/v1/audio-notes" });
+  void app.register(registerAgentsApi, { prefix: "/v1/agents" });
+  void app.register(registerAppointmentsApi, { prefix: "/v1/appointments" });
+  void app.register(registerAssistantApi, { prefix: "/v1/assistant" });
+  void app.register(registerCallsApi, { prefix: "/v1/calls" });
+  void app.register(registerChannelsApi, { prefix: "/v1/channels" });
+  void app.register(registerChatApi, { prefix: "/v1/chat" });
+  void app.register(registerCommsApi, { prefix: "/v1/comms" });
+  void app.register(registerConnectionsApi, { prefix: "/v1/connections" });
+  void app.register(registerDocumentsApi, { prefix: "/v1/documents" });
+  void app.register(registerDomainsApi, { prefix: "/v1/domains" });
+  void app.register(registerEquipmentApi, { prefix: "/v1/equipment" });
+  void app.register(registerFeedbackApi, { prefix: "/v1/feedback" });
+  void app.register(registerFinancialsApi, { prefix: "/v1/financials" });
+  void app.register(registerMessagingApi, { prefix: "/v1/messaging" });
+  void app.register(registerPayrollApi, { prefix: "/v1/payroll" });
+  void app.register(registerRoutingApi, { prefix: "/v1/platform" });
+  void app.register(registerScopesApi, { prefix: "/v1/scopes" });
+  void app.register(registerSignupSandboxApi, { prefix: "/v1/signup-sandbox" });
+  void app.register(registerStatsApi, { prefix: "/v1/stats" });
+  void app.register(registerTrainingApi, { prefix: "/v1/training" });
+  void app.register(registerWebsitesApi, { prefix: "/v1/websites" });
+  void app.register(registerWorkApi, { prefix: "/v1/work" });
+  void app.register(registerWorkforceApi, { prefix: "/v1/workforce" });
 
   return app;
 }

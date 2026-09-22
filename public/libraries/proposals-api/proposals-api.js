@@ -17,7 +17,7 @@
     if (APP.proposalsApiBase) return cleanText(APP.proposalsApiBase).replace(/\/+$/, '');
     if (APP.platformApiBase) return cleanText(APP.platformApiBase).replace(/\/v1\/platform\/?$/i, '/v1/proposals').replace(/\/+$/, '');
     const host = cleanText(location.hostname).toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost') return `${location.protocol}//${location.hostname}:3111/v1/proposals`;
+    if (host === '127.0.0.1' || host === 'localhost') return `${location.origin}/v1/proposals`;
     return `${location.origin}/v1/proposals`;
   }
 
@@ -140,12 +140,25 @@
     get(token){ return request(`/public/${enc(token)}`, { credentials: 'same-origin' }); },
     appUrl(token){ return url(`/public/${enc(token)}/app`); },
     pdfUrl(token){ return url(`/public/${enc(token)}/pdf`); },
+    receiptUrl(token, options = {}){
+      const paymentId = cleanText(options.payment_id || options.paymentId);
+      return url(`/public/${enc(token)}/payments/receipt.pdf${paymentId ? `?payment_id=${enc(paymentId)}` : ''}`);
+    },
     view(token, event = {}){ return request(`/public/${enc(token)}/view`, { method: 'POST', credentials: 'same-origin', body: event || {} }); },
+    selectChoice(token, payload = {}){ return request(`/public/${enc(token)}/choices`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     adopt(token, payload = {}){ return request(`/public/${enc(token)}/esign/adopt`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     signSlot(token, payload = {}){ return request(`/public/${enc(token)}/esign/slot`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     complete(token, payload = {}){ return request(`/public/${enc(token)}/esign/complete`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     payLater(token, payload = {}){ return request(`/public/${enc(token)}/pay-later`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     mockDeposit(token, payload = {}){ return request(`/public/${enc(token)}/payments/mock-deposit`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
+    paymentIntakeConfig(token){ return request(`/public/${enc(token)}/payments/intake-config`, { credentials: 'same-origin' }); },
+    createPaymentMethodIntent(token, payload = {}){ return request(`/public/${enc(token)}/payments/payment-method-intent`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
+    surchargeQuote(token, options = {}){
+      const params = new URLSearchParams();
+      params.set('amount_cents', String(Math.max(0, Math.round(Number(options.amount_cents ?? options.amountCents) || 0))));
+      if (options.method) params.set('method', cleanText(options.method));
+      return request(`/public/${enc(token)}/payments/surcharge-quote?${params.toString()}`, { credentials: 'same-origin' });
+    },
     sign(token, payload = {}){ return request(`/public/${enc(token)}/sign`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); }
   };
 

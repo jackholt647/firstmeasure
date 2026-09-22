@@ -149,7 +149,7 @@
    // The index makes the completed file visible only after all parts are stored.
    return request(id,name,JSON.stringify({format:'firstmeasure-resource-chunks-v1',id:resourceId,size:file.size,chunkSize,parts,sha256,original_name:file.name||label(name),content_type:file.type||'application/octet-stream'}));
   }
-  async function request(id,name='',body,headers={}){const response=await fetch(url(id,name),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
+  async function request(id,name='',body,headers={}){if(/^exteriors_[a-f0-9]{32}$/.test(id)&&!name&&body===undefined)return new Response(JSON.stringify({files:[]}),{headers:{'Content-Type':'application/json'}});const response=await fetch(url(id,name),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
   function message(text, error = false) {
    status.textContent = text; status.classList.toggle('error', error); status.classList.add('visible'); clearTimeout(messageTimer);
    if (!error) messageTimer = setTimeout(() => { if (!busy) status.classList.remove('visible'); }, 3500);
@@ -157,6 +157,7 @@
   function dimensions() { return image ? { w: image.width, h: image.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
   function controls() {
    for (const action of ['upload', 'refresh']) $(`[data-action="${action}"]`).disabled = busy || !project;
+   if(/^exteriors_[a-f0-9]{32}$/.test(project||'')) $('[data-action="upload"]').disabled=true;
    const saveButton = $('[data-action="save"]'); saveButton.hidden = !dirty; saveButton.disabled = busy || !current || !dirty; saveButton.textContent = busy && dirty ? 'Saving…' : 'Save';
    $('.resource-description').disabled = !current || !!current.reference;
    $('[data-action="favorite"]').disabled = busy || !media?.videoWidth || !!favoriteDraft;
@@ -579,8 +580,37 @@
   $('.resource-color').addEventListener('change', () => { if (selected >= 0) { snapshot(); marks[selected].color = $('.resource-color').value; draw(); } });
   $('.resource-width').addEventListener('click', event => {const button=event.target.closest('[data-width]');if(!button)return;strokeWidth=Number(button.dataset.width);panel.querySelectorAll('[data-width]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));if(selected>=0){snapshot();marks[selected].width=strokeWidth/scale;draw();}});
   $('.resource-files').onchange = event => upload([...event.target.files]).catch(error => message(error.message, true));
-  panel.addEventListener('dragover', event => { event.preventDefault(); panel.classList.add('drop-target'); }); panel.addEventListener('dragleave', () => panel.classList.remove('drop-target'));
-  panel.addEventListener('drop', event => { event.preventDefault(); panel.classList.remove('drop-target'); upload([...event.dataTransfer.files]).catch(error => message(error.message, true)); });
+  // Capture external files before model import handlers or browser navigation.
+  // Internal image/link drags keep their existing behavior.
+  const dropHint = document.createElement('div'); dropHint.hidden = true;
+  dropHint.setAttribute('role', 'status'); dropHint.className = 'resource-page-drop';
+  dropHint.style.cssText = 'position:fixed;inset:12px;z-index:2147483647;pointer-events:none;border:3px dashed #2386ab;border-radius:12px;background:#e4f3faee;padding:32px;color:#163c50;font:600 22px system-ui';
+  document.body.append(dropHint);
+  let fileDragDepth = 0, dropPending = false;
+  const isFileDrag = event => Array.from(event.dataTransfer?.types || []).includes('Files');
+  const clearFileDrag = () => { fileDragDepth = 0; dropHint.hidden = true; };
+  function showFileDrag(event) {
+   event.preventDefault(); event.stopImmediatePropagation();
+   event.dataTransfer.dropEffect = busy || dropPending || !window.currentProjectId ? 'none' : 'copy';
+   dropHint.textContent = busy || dropPending ? 'Please wait for the current upload to finish.' : !window.currentProjectId ? 'Open a saved project before uploading.' : 'Drop photos or files to upload to this project';
+   dropHint.hidden = false;
+  }
+  document.addEventListener('dragenter', event => { if(isFileDrag(event)){fileDragDepth++;showFileDrag(event);} }, true);
+  document.addEventListener('dragover', event => { if(isFileDrag(event))showFileDrag(event); }, true);
+  document.addEventListener('dragleave', event => { if(fileDragDepth && (--fileDragDepth <= 0 || !event.relatedTarget))clearFileDrag(); }, true);
+  document.addEventListener('drop', async event => {
+   if(!isFileDrag(event))return;
+   event.preventDefault(); event.stopImmediatePropagation(); clearFileDrag();
+   const incoming = Array.from(event.dataTransfer.files);
+   if(!incoming.length)return;
+   if(busy || dropPending){message('Please wait for the current upload to finish, then drop these files again.',true);return;}
+   dropPending = true;
+   try { await syncProject(); window.switchMapLayer('resources'); await upload(incoming); }
+   catch(error){message(error.message,true);}
+   finally { dropPending = false; }
+  }, true);
+  window.addEventListener('dragend', clearFileDrag);
+  window.addEventListener('blur', clearFileDrag);
   const previous = window.switchMapLayer; let mapTabClick = false;
   for(const event of ['pointerdown','focusin'])window.addEventListener(event,e=>{keyboardOwner=panel.contains(e.target)||tab.contains(e.target);},true);
   function handleKey(event){

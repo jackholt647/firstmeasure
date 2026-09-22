@@ -81,6 +81,8 @@ export function isExpeditedReportExpediteKey(key: unknown) {
 
 export function reportExpeditePriorityLevel(key: unknown, expeditedFallback = false) {
   const normalized = normalizeReportExpediteKey(key);
+  if (normalized === "exteriors_priority") return 1;
+  if (normalized === "exteriors_same_day") return 2;
   if (normalized === REPORT_EXPEDITE_UNDER_1_KEY) return 1;
   if (normalized === REPORT_EXPEDITE_1_3_KEY) return 2;
   return expeditedFallback ? 2 : 3;

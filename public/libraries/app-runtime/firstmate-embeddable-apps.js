@@ -29,6 +29,190 @@
     "'": '&#39;'
   }[match]));
 
+  const objectValue = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const arrayValue = (value) => Array.isArray(value) ? value : (value == null || value === '' ? [] : [value]);
+  const uniqueText = (value) => [...new Set(arrayValue(value).map((item) => cleanText(item?.id || item)).filter(Boolean))];
+  const mergeObjects = (...values) => values.reduce((result, value) => ({ ...result, ...objectValue(value) }), {});
+
+  function normalizedDevice(value = {}){
+    const explicit = objectValue(value);
+    const width = Number(explicit.width || root.innerWidth || root.document?.documentElement?.clientWidth || 0) || 0;
+    const mobile = explicit.mobile == null
+      ? !!root.matchMedia?.('(max-width: 820px)')?.matches
+      : explicit.mobile === true;
+    const coarse = explicit.coarse == null
+      ? !!root.matchMedia?.('(pointer: coarse)')?.matches
+      : explicit.coarse === true;
+    const standalone = explicit.standalone == null
+      ? !!root.matchMedia?.('(display-mode: standalone)')?.matches
+      : explicit.standalone === true;
+    const type = cleanText(explicit.type || explicit.class || explicit.deviceClass) || (mobile ? 'mobile' : 'desktop');
+    return {
+      ...explicit,
+      type,
+      class: type,
+      width,
+      mobile,
+      desktop: !mobile,
+      coarse,
+      standalone
+    };
+  }
+
+  function normalizedApplicationAccess(value = {}){
+    const source = objectValue(value);
+    const entry = (input, fallback = false) => {
+      if (typeof input === 'boolean') return { enabled: input, role_id: '', permissions: {} };
+      const record = objectValue(input);
+      return {
+        ...record,
+        enabled: record.enabled == null ? fallback : record.enabled === true,
+        role_id: cleanText(record.role_id || record.role),
+        permissions: objectValue(record.permissions || record.items)
+      };
+    };
+    return {
+      ...source,
+      management: entry(source.management ?? source.main ?? source.portal, true),
+      field: entry(source.field ?? source.crew ?? source.workforce, false)
+    };
+  }
+
+  function canonicalApplicationId(value){
+    const id = cleanText(value).toLowerCase();
+    if (['main', 'portal'].includes(id)) return 'management';
+    if (['crew', 'workforce'].includes(id)) return 'field';
+    return id;
+  }
+
+  function entitlementContainers(value = {}){
+    const source = objectValue(value);
+    const tabs = objectValue(source.tabs);
+    return [
+      source,
+      objectValue(source.apps),
+      objectValue(source.items),
+      objectValue(source.app_access),
+      objectValue(source.app_entitlements),
+      tabs,
+      objectValue(source.portal),
+      objectValue(source.project),
+      objectValue(tabs.global),
+      objectValue(tabs.portal),
+      objectValue(tabs.project)
+    ];
+  }
+
+  function entitlementFor(definition = {}, context = {}, access = {}){
+    const source = context.entitlements;
+    if (!source) return { found: false, key: '', value: null };
+    const keys = uniqueText([
+      access.entitlementKey,
+      access.entitlement_key,
+      access.appKey,
+      access.app_key,
+      definition.entitlementKey,
+      definition.appKey,
+      definition.id,
+      definition.portalTabId,
+      definition.tabId
+    ]);
+    for (const container of entitlementContainers(source)) {
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(container, key)) return { found: true, key, value: container[key] };
+      }
+    }
+    const entries = Array.isArray(source)
+      ? source
+      : (Array.isArray(source?.entries) ? source.entries : (Array.isArray(source?.apps) ? source.apps : []));
+    for (const entry of entries) {
+      const id = cleanText(entry?.id || entry?.app_id || entry?.appId || entry?.key);
+      if (id && keys.includes(id)) return { found: true, key: id, value: entry };
+    }
+    return { found: false, key: keys[0] || definition.id || '', value: null };
+  }
+
+  function permissionEnabled(permissions, key){
+    const items = objectValue(permissions);
+    return cleanText(key).split('|').map((item) => item.trim()).filter(Boolean).some((item) => (
+      items[item] === true || (items[item] !== false && items['*'] === true)
+    ));
+  }
+
+  function flagValue(context, requirement){
+    if (typeof requirement === 'string') {
+      const [group, flag] = requirement.includes('.') ? requirement.split('.', 2) : ['', requirement];
+      requirement = { group, flag };
+    }
+    const rule = objectValue(requirement);
+    const group = cleanText(rule.group);
+    const flag = cleanText(rule.flag || rule.key);
+    if (!flag) return true;
+    const flags = context.flags || root.Portal?.appFlags || root.PlatformAPI?.appFlags;
+    if (flags?.current?.()) {
+      if (flags.has?.(group, flag)) return true;
+      const value = flags.value?.(group, flag, undefined);
+      if (value !== undefined) return value !== false && value !== 0 && value !== '0' && value !== 'false';
+    }
+    const featureFlags = objectValue(context.featureFlags);
+    const value = group ? objectValue(featureFlags[group])[flag] : featureFlags[flag];
+    if (value === undefined) return rule.default === true || rule.fallback === true;
+    return value !== false && value !== 0 && value !== '0' && value !== 'false';
+  }
+
+  function resolvePresentation(definition = {}, context = {}, entitlement = null){
+    const source = typeof definition.presentation === 'function'
+      ? definition.presentation(context)
+      : definition.presentation;
+    const base = objectValue(source);
+    const deviceType = context.device?.mobile ? 'mobile' : 'desktop';
+    const deviceOverrides = objectValue(base.byDevice || base.devices);
+    const resolved = mergeObjects(
+      objectValue(base.default),
+      base,
+      objectValue(deviceOverrides[deviceType]),
+      objectValue(base[deviceType])
+    );
+    delete resolved.default;
+    delete resolved.byDevice;
+    delete resolved.devices;
+    const entitlementRecord = objectValue(entitlement);
+    const entitlementPresentation = objectValue(entitlementRecord.presentation);
+    const merged = mergeObjects(resolved, entitlementPresentation);
+    const projectModal = mergeObjects(
+      resolved.projectModal || resolved.project_modal,
+      entitlementPresentation.projectModal || entitlementPresentation.project_modal
+    );
+    if (Object.keys(projectModal).length) merged.projectModal = projectModal;
+    return merged;
+  }
+
+  function defaultHomeValue(definition = {}, presentation = {}, entitlement = null, context = {}){
+    const entitlementRecord = objectValue(entitlement);
+    let value = entitlementRecord.defaultHome ?? entitlementRecord.default_home ?? entitlementRecord.home;
+    if (value == null) value = presentation.defaultHome ?? presentation.default_home;
+    if (value == null) value = definition.defaultHome ?? definition.default_home;
+    if (typeof value === 'function') value = value(context);
+    if (typeof value === 'boolean') return value;
+    const candidates = uniqueText(value);
+    if (!candidates.length) {
+      const defaults = uniqueText(presentation.defaultFor || presentation.default_for);
+      if (!defaults.length) return false;
+      return defaults.some((item) => {
+        const appId = canonicalApplicationId(item);
+        return context.applicationAccess?.[appId]?.enabled === true
+          || context.device?.type === item
+          || context.roleIds?.includes(item);
+      });
+    }
+    return candidates.some((item) => {
+      const appId = canonicalApplicationId(item);
+      return context.applicationAccess?.[appId]?.enabled === true
+        || context.device?.type === item
+        || context.roleIds?.includes(item);
+    });
+  }
+
   function stableSort(items = []){
     return [...items].sort((a, b) => {
       const order = (Number(a.order) || 1000) - (Number(b.order) || 1000);
@@ -166,6 +350,44 @@
     const host = options.host || createHostBridge(options);
     const project = options.project || (entityType === 'project' ? entity : null);
     const customer = options.customer || (entityType === 'customer' ? entity : null);
+    const portalCurrentUser = objectValue(root.Portal?.currentUser);
+    const currentUser = mergeObjects(portalCurrentUser, options.currentUser);
+    const user = options.user || currentUser.user || currentUser;
+    const accessProfile = options.accessProfile || options.access_profile || currentUser.accessProfile || currentUser.access_profile || user?.access_profile || {};
+    const applicationAccess = normalizedApplicationAccess(
+      options.applicationAccess
+      ?? options.application_access
+      ?? currentUser.applicationAccess
+      ?? currentUser.application_access
+      ?? user?.application_access
+    );
+    const permissions = options.permissions
+      ?? currentUser.permissions
+      ?? user?.permissions
+      ?? user?.org_permissions?.items
+      ?? root.Portal?.permissions
+      ?? {};
+    const roleIds = uniqueText([
+      ...arrayValue(options.roleIds || options.role_ids),
+      ...arrayValue(currentUser.roleIds || currentUser.role_ids),
+      ...arrayValue(accessProfile.access_role_ids || accessProfile.role_ids),
+      ...arrayValue(user?.roles || user?.role_ids),
+      currentUser.role,
+      user?.role,
+      user?.org_permissions?.level
+    ]);
+    const entitlements = options.entitlements
+      ?? options.appEntitlements
+      ?? currentUser.entitlements
+      ?? currentUser.appEntitlements
+      ?? currentUser.app_entitlements
+      ?? accessProfile.app_entitlements
+      ?? accessProfile.entitlements
+      ?? user?.entitlements
+      ?? user?.app_entitlements
+      ?? user?.app_access
+      ?? {};
+    const device = normalizedDevice(options.device || {});
     const context = {
       ...options,
       app,
@@ -202,9 +424,24 @@
       mode: options.mode || '',
       vertical: options.vertical || '',
       capabilities: options.capabilities || root.Portal?.capabilities || {},
+      language: options.language || root.PlatformLanguage?.forApp?.(app?.package || app?.id?.split(".")[1] || "platform"),
       featureFlags: options.featureFlags || root.Portal?.appFlags?.current?.() || {},
       flags: options.flags || root.Portal?.appFlags || null,
-      permissions: options.permissions || root.Portal?.permissions || {},
+      currentUser,
+      user,
+      accessProfile,
+      actor: options.actor || currentUser.actor || user,
+      userId: cleanText(options.userId || currentUser.id || currentUser.user_id || user?.id),
+      roleIds,
+      roles: roleIds,
+      applicationAccess,
+      entitlements,
+      appEntitlements: entitlements,
+      permissions,
+      device,
+      deviceClass: device.type,
+      isMobile: device.mobile,
+      isDesktop: device.desktop,
       host,
       projectWorkspace: options.projectWorkspace || host?.projectWorkspace || host,
       store: options.store || createStore({ ...options, appId: app?.id || options.appId || '' }),
@@ -240,7 +477,16 @@
     return {
       surface: options.surface || '',
       setActiveApp(appId, params){ options.onSetActiveApp?.(appId, params); },
-      setRoute(routePatch){ options.onSetRoute?.(routePatch); root.Portal?.routeState?.set?.(routePatch); },
+      setRoute(routePatch, routeOptions = {}){
+        if (typeof options.onSetRoute === 'function') return options.onSetRoute(routePatch, routeOptions);
+        return root.Portal?.navigation?.write?.(routePatch, routeOptions) || root.Portal?.routeState?.set?.(routePatch, routeOptions);
+      },
+      pushRoute(routePatch, routeOptions = {}){
+        return root.Portal?.navigation?.push?.(routePatch, routeOptions) || root.Portal?.routeState?.set?.(routePatch, { ...routeOptions, push:true });
+      },
+      replaceRoute(routePatch, routeOptions = {}){
+        return root.Portal?.navigation?.replace?.(routePatch, routeOptions) || root.Portal?.routeState?.set?.(routePatch, routeOptions);
+      },
       close(reason){ options.onClose?.(reason); },
       requestSave(reason){ return options.onRequestSave?.(reason); },
       autosaveSoon(reason){ return options.onAutosaveSoon?.(reason); },
@@ -287,12 +533,23 @@
     const previous = apps.get(app.id) || {};
     const manifest = manifests.get(app.id) || {};
     const merged = {
+      ...manifest,
       ...previous,
       ...app,
+      order: Number.isFinite(definition.order)
+        ? app.order
+        : (Number.isFinite(previous.order) ? previous.order : (Number.isFinite(manifest.order) ? manifest.order : app.order)),
+      surfaces: Array.isArray(definition.surfaces)
+        ? app.surfaces
+        : (Array.isArray(previous.surfaces) ? previous.surfaces : (Array.isArray(manifest.surfaces) ? manifest.surfaces : app.surfaces)),
+      regions: Array.isArray(definition.regions)
+        ? app.regions
+        : (Array.isArray(previous.regions) ? previous.regions : (Array.isArray(manifest.regions) ? manifest.regions : app.regions)),
       dependencies: app.dependencies.length ? app.dependencies : normalizeDependencyList(previous.dependencies || manifest.dependencies),
       optionalDependencies: app.optionalDependencies.length ? app.optionalDependencies : normalizeDependencyList(previous.optionalDependencies || manifest.optionalDependencies)
     };
     apps.set(app.id, merged);
+    root.Portal?.navigation?.registerApp?.(merged);
     dispatch('fm:embeddable-apps:app-registered', { appId: app.id, app: merged });
     return merged;
   }
@@ -315,10 +572,12 @@
     manifests.set(id, {
       ...manifest,
       id,
+      languageNamespaces: manifest.languageNamespaces || [manifest.package || id.split(".")[1] || "platform"],
       bundles: normalizeBundleList(manifest),
       dependencies: normalizeDependencyList(manifest.dependencies),
       optionalDependencies: normalizeDependencyList(manifest.optionalDependencies)
     });
+    root.Portal?.navigation?.registerApp?.(manifest);
     return manifests.get(id);
   }
 
@@ -338,27 +597,156 @@
     return extension;
   }
 
-  function contextAllowed(definition = {}, context = {}){
-    if (!definition) return false;
-    const surface = context.surface || '';
-    if (Array.isArray(definition.surfaces) && definition.surfaces.length && surface && !definition.surfaces.includes(surface)) return false;
+  let capabilityAppIndex = null;
+  let capabilityAppIndexStamp = '';
+  /**
+   * Org-level capability gate for embeddable apps. Registry-driven: any
+   * capability node whose runtime_app_id matches this app id gates it; apps
+   * may also name a capability key explicitly via access.capability. Apps
+   * with no matching capability node are unaffected.
+   */
+  function capabilityAllowsApp(definition = {}, access = {}){
+    const capabilitiesApi = root.Portal?.capabilities || root.PlatformAPI?.capabilities;
+    const state = capabilitiesApi?.current?.();
+    // App bundles re-register their definitions and may drop the manifest's
+    // access object, so the manifest registry is checked too — it keeps the
+    // capability tag assigned at manifest load.
+    const manifestAccess = objectValue(manifests.get(cleanText(definition.id))?.access);
+    const explicit = cleanText(access.capability || access.capability_key || definition.capability || manifestAccess.capability);
+    // Capability-gated apps fail closed during startup. Until the org's
+    // capability state resolves, rendering or mounting one would briefly show
+    // disabled products and may run lifecycle work that should never start.
+    // Ungated shell apps remain available while capability state is loading.
+    if (!state?.definitions_by_key) return !explicit;
+    if (explicit) return state.effective_by_key?.[explicit] === true;
+    const stamp = cleanText(state.loaded_at) + ':' + cleanText(state.org_id);
+    if (!capabilityAppIndex || capabilityAppIndexStamp !== stamp) {
+      capabilityAppIndex = {};
+      (state.definitions || []).forEach((node) => {
+        const runtimeId = cleanText(node?.runtime_app_id);
+        if (runtimeId) capabilityAppIndex[runtimeId] = node.key;
+      });
+      capabilityAppIndexStamp = stamp;
+    }
+    const key = capabilityAppIndex[cleanText(definition.id)];
+    if (!key) return true;
+    return state.effective_by_key?.[key] === true;
+  }
+
+  function evaluateDefinition(definition = {}, context = {}){
+    const reasons = [];
+    const rawAccess = typeof definition.access === 'function' ? definition.access(context) : definition.access;
+    if (rawAccess === false) reasons.push('access_policy');
+    const access = objectValue(rawAccess);
+    const entitlement = entitlementFor(definition, context, access);
+    const entitlementValue = entitlement.value;
+    const entitlementRecord = objectValue(entitlementValue);
+    const entitlementState = cleanText(entitlementRecord.state || entitlementRecord.access || entitlementRecord.visibility).toLowerCase();
+
+    const surface = cleanText(context.surface);
+    if (Array.isArray(definition.surfaces) && definition.surfaces.length && surface && !definition.surfaces.includes(surface)) reasons.push('surface');
+
     const required = Array.isArray(definition.requiresContext) ? definition.requiresContext : [];
-    const hasRequired = required.every((item) => {
+    const missingContext = required.filter((item) => {
       const key = cleanText(item);
-      if (key === 'project') return !!(context.project || context.projectId || context.entityType === 'project');
-      if (key === 'customer') return !!(context.customer || context.customerId || context.entityType === 'customer');
-      if (key === 'org') return !!context.orgId;
-      if (key === 'branch') return !!context.branchId;
-      return !!context[key];
+      if (key === 'project') return !(context.project || context.projectId || context.entityType === 'project');
+      if (key === 'customer') return !(context.customer || context.customerId || context.entityType === 'customer');
+      if (key === 'org') return !context.orgId;
+      if (key === 'branch') return !context.branchId;
+      return !context[key];
     });
-    if (!hasRequired) return false;
-    if (typeof definition.enabled === 'function' && !definition.enabled(context)) return false;
-    if (definition.enabled === false) return false;
-    return true;
+    if (missingContext.length) reasons.push(`context:${missingContext.join(',')}`);
+
+    if (entitlement.found) {
+      if (entitlementValue === false) reasons.push('entitlement');
+      if (typeof entitlementValue === 'string' && ['deny', 'denied', 'hide', 'hidden', 'disabled', 'off', 'none'].includes(entitlementValue.toLowerCase())) reasons.push('entitlement');
+      if (
+        entitlementRecord.enabled === false
+        || entitlementRecord.allowed === false
+        || entitlementRecord.visible === false
+        || entitlementRecord.injected === false
+        || ['deny', 'denied', 'hide', 'hidden', 'disabled', 'off', 'none'].includes(entitlementState)
+      ) reasons.push('entitlement');
+    } else if (access.default === false || access.defaultVisible === false || access.default_visible === false || access.requireEntitlement === true || access.require_entitlement === true) {
+      reasons.push('entitlement_missing');
+    }
+
+    const applicationsAny = uniqueText(access.applicationsAny || access.applications_any || access.applications || access.application);
+    const applicationsAll = uniqueText(access.applicationsAll || access.applications_all);
+    const applicationEnabled = (id) => context.applicationAccess?.[canonicalApplicationId(id)]?.enabled === true;
+    if (applicationsAny.length && !applicationsAny.some(applicationEnabled)) reasons.push('application');
+    if (applicationsAll.length && !applicationsAll.every(applicationEnabled)) reasons.push('application');
+
+    const permissionsAny = uniqueText(access.permissionsAny || access.permissions_any);
+    const permissionsAll = uniqueText(access.permissionsAll || access.permissions_all || access.permissions || access.permission);
+    const hasPermission = (key) => permissionEnabled(context.permissions, key)
+      || Object.values(objectValue(context.applicationAccess)).some((entry) => entry?.enabled === true && permissionEnabled(entry.permissions, key));
+    if (permissionsAny.length && !permissionsAny.some(hasPermission)) reasons.push('permission');
+    if (permissionsAll.length && !permissionsAll.every(hasPermission)) reasons.push('permission');
+
+    const rolesAny = uniqueText(access.rolesAny || access.roles_any || access.roles || access.role);
+    const rolesAll = uniqueText(access.rolesAll || access.roles_all);
+    if (rolesAny.length && !rolesAny.some((id) => context.roleIds?.includes(id))) reasons.push('role');
+    if (rolesAll.length && !rolesAll.every((id) => context.roleIds?.includes(id))) reasons.push('role');
+
+    const devices = uniqueText(access.devices || access.device);
+    if (devices.length && !devices.includes(context.device?.type)) reasons.push('device');
+
+    const featureFlags = arrayValue(access.featureFlags || access.feature_flags || access.flags);
+    const featureFlagsAny = arrayValue(access.featureFlagsAny || access.feature_flags_any || access.flagsAny);
+    if (featureFlags.length && !featureFlags.every((rule) => flagValue(context, rule))) reasons.push('feature_flag');
+    if (featureFlagsAny.length && !featureFlagsAny.some((rule) => flagValue(context, rule))) reasons.push('feature_flag');
+
+    if (!capabilityAllowsApp(definition, access)) reasons.push('capability');
+
+    if (typeof access.when === 'function' && !access.when(context)) reasons.push('access_condition');
+    if (typeof definition.enabled === 'function' && !definition.enabled(context)) reasons.push('enabled');
+    if (definition.enabled === false) reasons.push('enabled');
+
+    const presentation = resolvePresentation(definition, context, entitlementValue);
+    const definitionParams = typeof definition.params === 'function' ? definition.params(context) : definition.params;
+    const params = mergeObjects(definitionParams, presentation.params, entitlementRecord.params);
+    const definitionLayout = objectValue(definition.layout);
+    const presentationLayout = objectValue(presentation.layout);
+    const entitlementLayout = objectValue(entitlementRecord.layout);
+    const layout = mergeObjects(definitionLayout, presentationLayout, entitlementLayout);
+    const projectModalPresentation = presentation.projectModal || presentation.project_modal;
+    const entitlementProjectModal = entitlementRecord.projectModal || entitlementRecord.project_modal;
+    const projectModalLayout = mergeObjects(
+      definitionLayout.projectModal || definitionLayout.project_modal,
+      presentationLayout.projectModal || presentationLayout.project_modal,
+      entitlementLayout.projectModal || entitlementLayout.project_modal,
+      projectModalPresentation,
+      entitlementProjectModal
+    );
+    if (Object.keys(projectModalLayout).length) {
+      layout.projectModal = projectModalLayout;
+    }
+    const defaultHome = defaultHomeValue(definition, presentation, entitlementValue, context);
+    return {
+      allowed: reasons.length === 0,
+      reasons: [...new Set(reasons)],
+      access,
+      entitlementKey: entitlement.key,
+      entitlement: entitlementValue,
+      presentation,
+      params,
+      layout,
+      defaultHome
+    };
+  }
+
+  function contextAllowed(definition = {}, context = {}){
+    return evaluateDefinition(definition, context).allowed;
   }
 
   function metadataFor(app, context){
-    const visible = typeof app.visible === 'function' ? app.visible(context) : app.visible !== false;
+    const policy = evaluateDefinition(app, context);
+    const resolvedParams = mergeObjects(context.params, policy.params);
+    const resolvedLayout = mergeObjects(context.layout, policy.layout);
+    const resolvedPresentation = mergeObjects(context.presentation, policy.presentation);
+    const policyContext = { ...context, params: resolvedParams, layout: resolvedLayout, presentation: resolvedPresentation, entitlement: policy.entitlement };
+    const visible = typeof app.visible === 'function' ? app.visible(policyContext) : app.visible !== false;
     const disabled = typeof app.disabled === 'function' ? app.disabled(context) : !!app.disabled;
     const pending = typeof app.pending === 'function' ? app.pending(context) : !!app.pending;
     const badge = typeof app.badge === 'function' ? app.badge(context) : app.badge;
@@ -368,11 +756,20 @@
       label: app.label || app.title || app.id,
       icon: app.icon || '',
       order: app.order,
-      enabled: contextAllowed(app, context),
+      enabled: policy.allowed,
+      eligible: policy.allowed,
       visible,
       disabled,
       pending,
       badge,
+      reasons: policy.reasons,
+      access: policy.access,
+      entitlementKey: policy.entitlementKey,
+      entitlement: policy.entitlement,
+      params: resolvedParams,
+      layout: resolvedLayout,
+      presentation: resolvedPresentation,
+      defaultHome: policy.defaultHome,
       regions: app.regions || ['main'],
       surfaces: app.surfaces || ['embedded'],
       app
@@ -456,6 +853,8 @@
 
   async function ensureBundles(definition = {}){
     const bundles = normalizeBundleList(definition);
+    const namespaces = bundles.map(bundle => String(bundle).match(/\/libraries\/apps\/([^/]+)/)?.[1]).filter(Boolean);
+    await root.PlatformLanguage?.ensure?.(namespaces);
     for (const bundle of bundles) await ensureBundle(bundle);
     return true;
   }
@@ -465,6 +864,7 @@
     if (!id || seen.has(id)) return apps.get(id) || null;
     seen.add(id);
     const manifest = manifests.get(id);
+    await root.PlatformLanguage?.ensure?.(manifest?.languageNamespaces || [manifest?.package || id.split(".")[1] || "platform"]);
     let app = apps.get(id) || null;
     const dependencies = [
       ...normalizeDependencyList(manifest?.dependencies),
@@ -490,12 +890,36 @@
     const manifest = manifests.get(id);
     const app = await ensureAppReady(id) || apps.get(id);
     if (!app) {
-      rootEl.innerHTML = `<div class="fm-app-unavailable">App "${escapeHtml(id)}" is unavailable.</div>`;
+      rootEl.innerHTML = `<div class="fm-app-unavailable">${((v0) => globalThis.PlatformLanguage?.text("app-runtime","m_51b27800c625b8",`App "${v0}" is unavailable.`,{v0}) ?? `App "${v0}" is unavailable.`)(escapeHtml(id))}</div>`;
       const missing = { appId: id, destroy(){ rootEl.innerHTML = ''; } };
       mounted.set(rootEl, missing);
       return missing;
     }
     const context = createContext({ ...options, appId: id, roots: { ...roots, ...(options.roots || {}) } }, app, roots);
+    const policy = evaluateDefinition(app, context);
+    context.params = mergeObjects(context.params, policy.params);
+    context.layout = mergeObjects(context.layout, policy.layout);
+    context.presentation = mergeObjects(context.presentation, policy.presentation);
+    context.entitlement = policy.entitlement;
+    context.entitlementKey = policy.entitlementKey;
+    context.defaultHome = policy.defaultHome;
+    context.accessDecision = policy;
+    if (!policy.allowed) {
+      rootEl.innerHTML = '';
+      const denied = {
+        appId: id,
+        denied: true,
+        reasons: policy.reasons,
+        context,
+        setActive: noop,
+        update: noop,
+        beforeLeave: noop,
+        destroy(){ if (mounted.get(rootEl) === denied) mounted.delete(rootEl); }
+      };
+      mounted.set(rootEl, denied);
+      dispatch('fm:embeddable-apps:app-denied', { appId: id, context, reasons: policy.reasons });
+      return denied;
+    }
     const handle = (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};
@@ -581,6 +1005,13 @@
     };
   }
 
+  function evaluateAccess(appOrId, options = {}){
+    const app = typeof appOrId === 'string' ? apps.get(cleanText(appOrId)) : appOrId;
+    if (!app) return { allowed: false, reasons: ['missing_app'], params: {}, layout: {}, presentation: {}, defaultHome: false };
+    const context = createContext(options, app);
+    return evaluateDefinition(app, context);
+  }
+
   root.FirstMateEmbeddableApps = {
     registerApp,
     unregisterApp,
@@ -597,8 +1028,18 @@
     createStore,
     createHostBridge,
     createAppInstance,
+    evaluateAccess,
     diagnostics,
     escapeHtml,
     clone
   };
+
+  const mobileQuery = root.matchMedia?.('(max-width: 820px)');
+  const notifyDeviceChange = () => {
+    const device = normalizedDevice();
+    dispatch('fm:device:updated', { device });
+    dispatch('fm:app-entitlements:updated', { source: 'device', device });
+  };
+  mobileQuery?.addEventListener?.('change', notifyDeviceChange);
+  if (!mobileQuery?.addEventListener) mobileQuery?.addListener?.(notifyDeviceChange);
 })();

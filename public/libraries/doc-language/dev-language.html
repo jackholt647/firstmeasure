@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FMDocLanguage dev harness</title>
+  <style>
+    body{font:14px/1.5 system-ui,sans-serif;margin:24px;max-width:840px}
+    textarea{width:100%;min-height:120px;font:inherit;padding:8px;box-sizing:border-box}
+    pre{background:#f5f5f7;border:1px solid #ddd;border-radius:8px;padding:12px;white-space:pre-wrap}
+    button{margin-right:8px}
+  </style>
+</head>
+<body>
+  <h1>FMDocLanguage dev harness</h1>
+  <p id="status">Loading engine…</p>
+  <textarea id="input">I will recieve teh package tommorow. It it was a honest mistake.</textarea>
+  <p>
+    <button id="btnSpell">Check spelling</button>
+    <button id="btnGrammar">Check grammar</button>
+    <button id="btnAuto">Autocorrect last word</button>
+  </p>
+  <pre id="out">(results appear here)</pre>
+
+  <script src="firstmate-doc-language.js"></script>
+  <script>
+    const added = [];
+    window.__addedWords = added;
+    window.__langReady = FMDocLanguage.init({
+      customWords: ["FirstMate"],
+      onAddWord: (w) => added.push(w),
+    }).then((status) => {
+      document.getElementById("status").textContent =
+        "Engine status: " + JSON.stringify(status);
+      return status;
+    });
+
+    const out = document.getElementById("out");
+    const input = document.getElementById("input");
+    const show = (v) => { out.textContent = JSON.stringify(v, null, 2); };
+    document.getElementById("btnSpell").onclick = () => show(FMDocLanguage.checkSpelling(input.value));
+    document.getElementById("btnGrammar").onclick = () => show(FMDocLanguage.checkGrammar(input.value));
+    document.getElementById("btnAuto").onclick = () => {
+      const words = input.value.trim().split(/\s+/);
+      const last = (words[words.length - 1] || "").replace(/[^A-Za-z']/g, "");
+      show({ word: last, autocorrect: FMDocLanguage.autocorrect(last, input.value) });
+    };
+  </script>
+</body>
+</html>

@@ -117,12 +117,18 @@ function printHumanReport(report: CutoverSimulationReport) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const report = await runPlatformCutoverSimulation({
+  const log = console.log, info = console.info;
+  // Keep --json stdout machine-readable while allowing startup diagnostics.
+  if (options.json) console.log = console.info = (...args) => console.error(...args);
+  let report: CutoverSimulationReport;
+  try {
+    report = await runPlatformCutoverSimulation({
     sourceRoot: options.source,
     targetRoot: options.target,
     confirmFresh: options.confirmFresh,
     runtimeSmoke: options.runtimeSmoke
   });
+  } finally { console.log = log; console.info = info; }
   if (options.json) console.log(JSON.stringify(report, null, 2));
   else printHumanReport(report);
   process.exit(report.ok ? 0 : 1);

@@ -61,11 +61,7 @@
       this.svg = null;
       this.path = null;
 
-      const url = new URL(window.location.href);
-      if (url.searchParams.has('tutorial')){
-        url.searchParams.delete('tutorial');
-        window.history.replaceState({}, document.title, url.toString());
-      }
+      if (window.Portal?.navigation?.read?.().tutorial) window.Portal.navigation.replace({ tutorial:null }, { source:'tutorial-end' });
     },
     highlight(targets){
       this.init();
@@ -172,7 +168,7 @@
     // highlight New Request button
     Tutorial.highlight([{
       selector: '#btnNewReq',
-      title: 'Welcome!',
+      title: (globalThis.PlatformLanguage?.text("tutorial","m_ebaa6f2e6577fa","Welcome!") ?? "Welcome!"),
       text: 'Click here to submit your first measurement request.',
       pos: 'right'
     }]);
@@ -186,7 +182,7 @@
       setTimeout(()=>{
         Tutorial.highlight([{
           selector: '#rAddress',
-          title: 'Step 1: Address',
+          title: (globalThis.PlatformLanguage?.text("tutorial","m_c4e0a116f64d8a","Step 1: Address") ?? "Step 1: Address"),
           text: 'Start typing the property address here.',
           pos: 'bottom'
         }]);

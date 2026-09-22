@@ -21,6 +21,14 @@ The runtime, dependencies, and build scripts live at:
 
 That means this module is mounted into the shared host and does not run as its own separate Node application.
 
+## Ownership Model
+
+- The **global market price book** is the API-owned `global_market` catalog. It is shared across organizations and contains general market items and values.
+- Every organization gets exactly one deterministic **organization price book**. Its durable `organization-overlay.json` stores global item references, `live` or `snapshot` inheritance, and sparse field overrides. Organization-only items are stored locally in that overlay.
+- Documents, estimates, contracts, and workflows receive **artifact line snapshots**. A line stores the selected variants, SKU key, quoted values, and its own `pricing_update_rule`. The default is `fixed`; live and conditional behavior must be explicit per line.
+
+Product dimensions may affect the SKU. The blessed `pricing_policy` dimension never affects it. Combination-specific changes are sparse overrides keyed by the selected dimension tuple; the system does not persist the full Cartesian product.
+
 ## Implemented Endpoint Groups
 
 - `GET /v1/platform/pricebook`
@@ -28,6 +36,10 @@ That means this module is mounted into the shared host and does not run as its o
 - `POST /v1/platform/pricebook/echo`
 - `GET /v1/platform/pricebook/templates`
 - `GET /v1/platform/pricebook/templates/:key`
+- `GET /v1/platform/pricebook/global`
+- `PUT /v1/platform/pricebook/global/catalog`
+- `GET /v1/platform/pricebook/organizations/:organizationId`
+- `PUT /v1/platform/pricebook/organizations/:organizationId/catalog`
 - `GET /v1/platform/pricebook/pricebooks`
 - `POST /v1/platform/pricebook/pricebooks`
 - `POST /v1/platform/pricebook/pricebooks/query`
@@ -48,6 +60,7 @@ That means this module is mounted into the shared host and does not run as its o
 
 - Storage is file-backed under `public/v1/storage/pricebook/pricebooks`.
 - Every new price book is cloned from the bundled default template in this module.
+- The portal uses the organization singleton endpoints; the older generic price-book CRUD remains available for compatibility and administrative tooling.
 - Images and other attachments are stored as API-owned assets inside the price book folder.
 - The API supports item options, including informational options and price-affecting option values.
-- The API is intentionally not wired into the portal yet. That integration can happen later by storing a `pricebook_id` on the org payload in the existing organization system.
+- The pricebook editor is wired to the organization singleton endpoint and falls back to the legacy branch module only when the API is unavailable.

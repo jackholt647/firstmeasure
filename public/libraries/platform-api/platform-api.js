@@ -21,7 +21,7 @@
     if (APP.platformApiBase) return cleanText(APP.platformApiBase).replace(/\/+$/, '');
     const host = cleanText(location.hostname).toLowerCase();
     if (host === '127.0.0.1' || host === 'localhost') return '';
-    if (host === '10.0.2.2') return `${location.protocol}//${location.hostname}:3111/v1/platform`;
+    if (host === '10.0.2.2') return `${location.origin}/v1/platform`;
     return `${location.origin}/v1/platform`;
   }
 
@@ -101,7 +101,8 @@
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch(e) {}
     if (!res.ok || data?.ok === false) {
-      const error = new Error(cleanText(data?.message || data?.error) || `Platform API request failed (${res.status})`);
+      const fallback = cleanText(data?.message || data?.error) || `Platform API request failed (${res.status})`;
+      const error = new Error(window.PlatformLanguage?.error?.(data?.code || data?.error, fallback) || fallback);
       error.status = res.status;
       error.data = data;
       error.responseText = text;
@@ -134,7 +135,9 @@
     activities: 'activity',
     user_activity: 'activity',
     customer_portal: 'customer_portals',
-    customer_portals: 'customer_portals'
+    customer_portals: 'customer_portals',
+    calendar_event: 'calendar_events',
+    calendar_events: 'calendar_events'
   };
 
   function normalizeCollection(collection){
@@ -151,6 +154,7 @@
     if (normalized === 'notifications') return 'notification';
     if (normalized === 'action_items') return 'action_item';
     if (normalized === 'activity') return 'activity';
+    if (normalized === 'calendar_events') return 'calendar_event';
     return normalized.replace(/s$/, '') || 'document';
   }
 
@@ -311,6 +315,12 @@
     patch(identityId, data = {}){ return request(`/identities/${enc(identityId)}`, { method: 'PATCH', body: { data } }); }
   };
 
+  const localization = { get: () => request("/me/localization") };
+  const preferences = {
+    get(){ return request('/me/preferences'); },
+    patch(data = {}){ return request('/me/preferences', { method: 'PATCH', body: data }); }
+  };
+
   const auth = {
     login(payload = {}){ return request('/auth/login', { method: 'POST', body: payload }); },
     logout(){ return request('/auth/logout', { method: 'POST' }); },
@@ -354,12 +364,35 @@
 
   function normalizeUserDocument(doc = {}){
     const data = doc?.data && typeof doc.data === 'object' ? doc.data : doc;
+    const userData = { ...data };
+    delete userData.user_type_ids;
+    delete userData.user_types;
+    delete userData.classification_ids;
+    const workforceProfile = data?.workforce_profile && typeof data.workforce_profile === 'object' ? data.workforce_profile : {};
     const orgPermissions = data?.org_permissions && typeof data.org_permissions === 'object' ? data.org_permissions : {};
     const level = orgPermissions.level || data?.org_permission_level || data?.permission_level || data?.role || 'viewer';
     const items = orgPermissions.items || data?.permissions || {};
+    const rawAccessSource = data?.application_access ?? workforceProfile.application_access;
+    const rawAccess = rawAccessSource && typeof rawAccessSource === 'object' ? rawAccessSource : {};
+    const normalizeAccess = (value, fallback) => {
+      if (typeof value === 'boolean') return { enabled:value, role_id:'', permissions:{} };
+      const entry = value && typeof value === 'object' ? value : {};
+      return { ...entry, enabled:entry.enabled == null ? fallback : entry.enabled === true, role_id:cleanText(entry.role_id || entry.role), permissions:objectValue(entry.permissions || entry.items) };
+    };
+    const ids = (value) => [...new Set((Array.isArray(value) ? value : []).map((item) => cleanText(item?.id || item)).filter(Boolean))];
+    const permissionOverrides = objectValue(data?.permission_overrides || workforceProfile.permission_overrides);
+    const appAccessOverrides = objectValue(data?.app_access_overrides || workforceProfile.app_access_overrides);
     return {
       id: doc?.id || data?.id || '',
-      ...data,
+      ...userData,
+      access_role_ids: ids(data?.access_role_ids || workforceProfile.access_role_ids),
+      permission_overrides: permissionOverrides,
+      app_access_overrides: appAccessOverrides,
+      application_access: {
+        ...rawAccess,
+        management: normalizeAccess(rawAccess.management ?? rawAccess.main ?? rawAccess.portal, true),
+        field: normalizeAccess(rawAccess.field ?? rawAccess.crew ?? rawAccess.workforce, false)
+      },
       org_permissions: { level, items },
       org_permission_level: level,
       permissions: data?.permissions || {},
@@ -443,7 +476,36 @@
     },
     markSeen(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { seen: true }); },
     dismiss(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { dismissed: true }); },
+    restore(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { dismissed: false }); },
     complete(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { completed: true }); },
+  };
+
+  const attention = {
+    list(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.branchId || options.branch_id) params.set('branch_id', options.branchId || options.branch_id);
+      if (options.includeDismissed) params.set('include_dismissed', '1');
+      if (options.demo) params.set('demo', '1');
+      const qs = params.toString();
+      return request(orgPath(orgId, `/attention${qs ? `?${qs}` : ''}`)).catch((error) => {
+        if (isMissingRecord(error)) return { ok: true, entries: [], active_count: 0, unseen_count: 0, missing: true };
+        throw error;
+      });
+    },
+    setUserState(orgId, entryId, state = {}){
+      return request(orgPath(orgId, `/attention/${enc(entryId)}/user-state`), { method: 'PATCH', body: state || {} });
+    },
+    markSeen(orgId, entryId){ return attention.setUserState(orgId, entryId, { seen: true }); },
+    dismiss(orgId, entryId){ return attention.setUserState(orgId, entryId, { dismissed: true }); },
+    create(orgId, entry = {}){
+      return request(orgPath(orgId, '/attention-banners'), { method: 'POST', body: entry || {} });
+    },
+    update(orgId, bannerId, patch = {}){
+      return request(orgPath(orgId, `/attention-banners/${enc(bannerId)}`), { method: 'PATCH', body: patch || {} });
+    },
+    remove(orgId, bannerId){
+      return request(orgPath(orgId, `/attention-banners/${enc(bannerId)}`), { method: 'DELETE' });
+    },
   };
 
   const search = {
@@ -465,52 +527,316 @@
     }
   };
 
-  const actionItems = {
+  function siblingApiBase(apiName){
+    const platformBase = baseUrl();
+    if (platformBase) return platformBase.replace(/\/v1\/platform\/?$/i, `/v1/${apiName}`).replace(/\/+$/, '');
+    const host = cleanText(location.hostname).toLowerCase();
+    if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') return `${location.origin}/v1/${apiName}`;
+    return `${location.origin}/v1/${apiName}`;
+  }
+
+  function siblingPath(apiName, path = ''){
+    return `${siblingApiBase(apiName)}/${cleanText(path).replace(/^\/+/, '')}`;
+  }
+
+  function compatibleTodo(node = {}){
+    const metadata = node?.metadata && typeof node.metadata === 'object' ? node.metadata : {};
+    const projectId = cleanText(node.project_id);
+    return {
+      ...node,
+      kind: cleanText(metadata.kind || node.kind || 'workflow_task'),
+      type_tags: Array.isArray(metadata.type_tags) ? metadata.type_tags : [],
+      body: cleanText(node.description || metadata.body),
+      project_ids: projectId ? [projectId] : [],
+      payload: { project_id: projectId, ...(metadata.payload || {}) },
+      frontend_action: metadata.frontend_action || (projectId ? { kind:'open_project', project_id:projectId } : { kind:'manual' }),
+      project_title: cleanText(node.project_title || metadata.project_title),
+      project_address: cleanText(node.project_address || metadata.project_address),
+      contact_refs: Array.isArray(metadata.contact_refs) ? metadata.contact_refs : [],
+      workflow_status: cleanText(node.workflow_status || node.status),
+      is_future: node.is_future === true || cleanText(node.status).toLowerCase() === 'blocked',
+      issued_at: cleanText(node.created_at),
+      user_state: node.user_state || {}
+    };
+  }
+
+  const work = {
+    plans(orgId, projectId, options = {}){
+      const params = new URLSearchParams();
+      if (options.includeTree || options.include_tree) params.set('include_tree', '1');
+      const qs = params.toString();
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/plans${qs ? `?${qs}` : ''}`));
+    },
+    plan(orgId, planId){ return request(siblingPath('work', `/organizations/${enc(orgId)}/plans/${enc(planId)}`)); },
+    setManualStage(orgId, planId, stageId){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/plans/${enc(planId)}/manual-stage`), {
+        method:'PUT',
+        body:{ stage_id:stageId }
+      });
+    },
+    projection(orgId, projectId){ return request(siblingPath('work', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/projection`)); },
+    markProjectLost(orgId, projectId, options = {}){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/lost`), {
+        method: 'POST',
+        body: { reason: options.reason || 'lost' }
+      });
+    },
+    boards(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.includeCompleted || options.include_completed) params.set('include_completed', '1');
+      const qs = params.toString();
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/boards${qs ? `?${qs}` : ''}`));
+    },
+    todos(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.projectId || options.project_id) params.set('project_id', options.projectId || options.project_id);
+      const projectIdList = options.projectIds || options.project_ids;
+      const projectIdsValue = Array.isArray(projectIdList) ? projectIdList.map(cleanText).filter(Boolean).join(',') : cleanText(projectIdList);
+      if (projectIdsValue) params.set('project_ids', projectIdsValue);
+      if (options.contactId || options.contact_id) params.set('contact_id', options.contactId || options.contact_id);
+      if (options.contactEmail || options.contact_email) params.set('contact_email', options.contactEmail || options.contact_email);
+      if (options.contactPhone || options.contact_phone) params.set('contact_phone', options.contactPhone || options.contact_phone);
+      if (options.branchId || options.branch_id) params.set('branch_id', options.branchId || options.branch_id);
+      if (options.dueBefore || options.due_before) params.set('due_before', options.dueBefore || options.due_before);
+      if (options.dueAfter || options.due_after) params.set('due_after', options.dueAfter || options.due_after);
+      if (options.includeCompleted || options.include_completed) params.set('include_completed', '1');
+      if (options.includeFuture || options.include_future) params.set('include_future', '1');
+      if (options.includeUnassigned || options.include_unassigned || options.projectId || options.project_id) params.set('include_unassigned', '1');
+      if (options.includeAll || options.all_users) params.set('all_users', '1');
+      const qs = params.toString();
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/todos${qs ? `?${qs}` : ''}`)).then((result) => {
+        const todos = (Array.isArray(result?.todos) ? result.todos : []).map(compatibleTodo);
+        return { ...result, todos, action_items:todos, items:todos, active_count:todos.length, unread_count:0, overdue_count:todos.filter((item) => item.due_at && Date.parse(item.due_at) < Date.now()).length };
+      });
+    },
+    createTodo(orgId, item = {}){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/todos`), { method:'POST', body:item || {} }).then((result) => ({ ...result, todo:compatibleTodo(result?.todo || {}) }));
+    },
+    patchNode(orgId, nodeId, patch = {}){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/nodes/${enc(nodeId)}`), { method:'PATCH', body:patch || {} });
+    },
+    transition(orgId, nodeId, status, payload = {}){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/nodes/${enc(nodeId)}/transition`), { method:'POST', body:{ status, ...(payload || {}) } });
+    },
+    followUpOutcome(orgId, nodeId, outcome = {}){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/follow-ups/${enc(nodeId)}/outcome`), { method:'POST', body:outcome || {} });
+    },
+    emit(orgId, event = {}){ return request(siblingPath('work', `/organizations/${enc(orgId)}/events/emit`), { method:'POST', body:event || {} }); },
+    activity(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.limit) params.set('limit', String(options.limit));
+      if (options.before) params.set('before', options.before);
+      if (options.type) params.set('type', options.type);
+      if (options.typePrefix || options.type_prefix) params.set('type_prefix', options.typePrefix || options.type_prefix);
+      const qs = params.toString();
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/activity${qs ? `?${qs}` : ''}`));
+    },
+    configuration(orgId, branchId = 'default'){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/config`));
+    },
+    saveConfiguration(orgId, branchId = 'default', configuration = {}){
+      return request(siblingPath('work', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/config`), { method:'PUT', body:configuration || {} });
+    }
+  };
+
+  const scopes = {
+    artifacts(orgId, branchId, templateId){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/artifacts`)); },
+    saveArtifact(orgId, branchId, templateId, payload){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/artifacts`), { method:'PATCH', body:payload }); },
+    eventMap(orgId, branchId, templateId){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/event-map`)); },
+    list(orgId, branchId = 'default', options = {}){
+      const params = new URLSearchParams();
+      if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
+      if (options.includeDisabled || options.include_disabled) params.set('include_disabled', '1');
+      const qs = params.toString();
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates${qs ? `?${qs}` : ''}`));
+    },
+    library(orgId, branchId = 'default'){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/library`));
+    },
+    get(orgId, branchId, templateId){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}`)); },
+    versions(orgId, branchId, templateId){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/versions`)); },
+    save(orgId, branchId, templateId, definition = {}){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}`), { method:'PUT', body:definition || {} }); },
+    archive(orgId, branchId, templateId){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}`), { method:'DELETE' }); },
+    setState(orgId, branchId, templateId, state = {}){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/state`), { method:'PATCH', body:state || {} }); },
+    resetDefaults(orgId, branchId = 'default', options = {}){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/reset-defaults`), { method:'POST', body:{ force:options.force === true } }); },
+    flags(orgId, branchId = 'default'){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-flags?branch_id=${enc(branchId || 'default')}`));
+    },
+    saveFlags(orgId, branchId = 'default', payload = {}){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-flags?branch_id=${enc(branchId || 'default')}`), { method:'PATCH', body:payload || {} });
+    },
+    routing(orgId, branchId = 'default'){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/intake-routing`));
+    },
+    saveRouting(orgId, branchId = 'default', payload = {}){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/intake-routing`), { method:'PUT', body:payload || {} });
+    }
+  };
+
+  /* Appointment confirmations: the customer-confirms-their-appointment flow.
+   * Settings live on a branch module; the per-event calls back the schedule
+   * popup's "mark confirmed" / "send now" controls. */
+  const appointments = {
+    availability(orgId, options = {}){
+      const params = new URLSearchParams();
+      Object.entries(options || {}).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return;
+        params.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+      });
+      const query = params.toString();
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/availability${query ? `?${query}` : ''}`));
+    },
+    settings(orgId, branchId = 'default'){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/confirmation-settings`));
+    },
+    saveSettings(orgId, branchId = 'default', settings = {}){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/confirmation-settings`), { method:'PUT', body:settings || {} });
+    },
+    list(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.status) params.set('status', Array.isArray(options.status) ? options.status.join(',') : String(options.status));
+      const qs = params.toString();
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/confirmations${qs ? `?${qs}` : ''}`));
+    },
+    forProject(orgId, projectId){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/confirmations`));
+    },
+    setConfirmation(orgId, projectId, eventId, outcome = 'confirmed'){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/events/${enc(eventId)}/confirmation`), { method:'POST', body:{ outcome } });
+    },
+    sendConfirmation(orgId, projectId, eventId){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/events/${enc(eventId)}/confirmation/send`), { method:'POST', body:{} });
+    },
+    reviewReschedule(orgId, projectId, eventId, decision, note = ''){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/events/${enc(eventId)}/reschedule-review`), { method:'POST', body:{ decision, note } });
+    }
+  };
+
+  const workforce = {
+    configuration(orgId, branchId = 'default'){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/configuration`));
+    },
+    saveConfiguration(orgId, branchId = 'default', configuration = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/configuration`), { method:'PUT', body:configuration || {} });
+    },
+    users(orgId, branchId = 'default', options = {}){
+      const params = new URLSearchParams();
+      if (options.filterBranch === true || options.filter_branch === true) params.set('branch_id', branchId || 'default');
+      if (options.includeDisabled !== false && options.include_disabled !== false) params.set('include_disabled', '1');
+      const qs = params.toString();
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/users${qs ? `?${qs}` : ''}`));
+    },
+    resourceGroups(orgId, branchId = 'default', options = {}){
+      const params = new URLSearchParams();
+      if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
+      const qs = params.toString();
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/resource-groups${qs ? `?${qs}` : ''}`));
+    },
+    createResourceGroup(orgId, branchId = 'default', group = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/resource-groups`), { method:'POST', body:group || {} });
+    },
+    updateResourceGroup(orgId, branchId = 'default', groupId, patch = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/resource-groups/${enc(groupId)}`), { method:'PATCH', body:patch || {} });
+    },
+    archiveResourceGroup(orgId, branchId = 'default', groupId, expectedRevision = 0){
+      const query = Number(expectedRevision) > 0 ? `?expected_revision=${enc(expectedRevision)}` : '';
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/resource-groups/${enc(groupId)}${query}`), { method:'DELETE' });
+    },
+    assignableResources(orgId, branchId = 'default', options = {}){
+      const params = new URLSearchParams();
+      if (options.scopeTemplateId || options.scope_template_id) params.set('scope_template_id', options.scopeTemplateId || options.scope_template_id);
+      const qs = params.toString();
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/assignable-resources${qs ? `?${qs}` : ''}`));
+    },
+    resolveAssignableSubjects(orgId, branchId = 'default', policy = {}, options = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/assignable-subjects/resolve`), {
+        method:'POST',
+        body:{ policy:policy || {}, options:options || {} }
+      });
+    },
+    userProfile(orgId, userId){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/users/${enc(userId)}/profile`));
+    },
+    saveUserProfile(orgId, userId, profile = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/users/${enc(userId)}/profile`), { method:'PATCH', body:profile || {} });
+    },
+    accessCatalog(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.surface) params.set('surface', options.surface);
+      if (options.device) params.set('device', options.device);
+      const qs = params.toString();
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/catalog${qs ? `?${qs}` : ''}`));
+    },
+    accessMe(orgId){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/me`));
+    },
+    userAccess(orgId, userId){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/users/${enc(userId)}`));
+    },
+    accessRoles(orgId, options = {}){
+      const params = new URLSearchParams();
+      if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
+      if (options.applicationId || options.application_id) params.set('application_id', options.applicationId || options.application_id);
+      const qs = params.toString();
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/roles${qs ? `?${qs}` : ''}`));
+    },
+    accessRole(orgId, roleId){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/roles/${enc(roleId)}`));
+    },
+    createAccessRole(orgId, role = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/roles`), { method:'POST', body:role || {} });
+    },
+    updateAccessRole(orgId, roleId, patch = {}){
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/roles/${enc(roleId)}`), { method:'PATCH', body:patch || {} });
+    },
+    archiveAccessRole(orgId, roleId, expectedRevision = 0){
+      const query = Number(expectedRevision) > 0 ? `?expected_revision=${enc(expectedRevision)}` : '';
+      return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/roles/${enc(roleId)}${query}`), { method:'DELETE' });
+    }
+  };
+
+  const connections = {
     list(orgId, options = {}){
       const params = new URLSearchParams();
       if (options.branchId || options.branch_id) params.set('branch_id', options.branchId || options.branch_id);
-      if (options.projectId || options.project_id) params.set('project_id', options.projectId || options.project_id);
-      if (options.contact) params.set('contact', options.contact);
-      if (options.kind) params.set('kind', options.kind);
-      if (options.status) params.set('status', options.status);
-      if (options.dueBefore || options.due_before) params.set('due_before', options.dueBefore || options.due_before);
-      if (options.dueAfter || options.due_after) params.set('due_after', options.dueAfter || options.due_after);
-      if (options.includeCompleted) params.set('include_completed', '1');
-      if (options.includeCanceled) params.set('include_canceled', '1');
-      if (options.includeHidden) params.set('include_hidden', '1');
-      if (options.includeAll) params.set('include_all', '1');
+      if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
       const qs = params.toString();
-      return request(orgPath(orgId, `/action-items${qs ? `?${qs}` : ''}`)).catch((error) => {
-        if (isMissingActionItemsEndpoint(error)) return { ok: true, action_items: [], items: [], active_count: 0, unread_count: 0, missing: true };
-        throw error;
-      });
+      return request(siblingPath('connections', `/organizations/${enc(orgId)}/organization-connections${qs ? `?${qs}` : ''}`));
     },
-    create(orgId, item = {}){
-      return request(orgPath(orgId, '/action-items'), { method: 'POST', body: item || {} });
+    create(orgId, connection = {}, options = {}){
+      const params = new URLSearchParams();
+      if (options.branchId || options.branch_id) params.set('branch_id', options.branchId || options.branch_id);
+      const qs = params.toString();
+      return request(siblingPath('connections', `/organizations/${enc(orgId)}/organization-connections${qs ? `?${qs}` : ''}`), { method:'POST', body:connection || {} });
     },
-    get(orgId, actionItemId){
-      return request(orgPath(orgId, `/action-items/${enc(actionItemId)}`));
+    get(orgId, connectionId){
+      return request(siblingPath('connections', `/organizations/${enc(orgId)}/organization-connections/${enc(connectionId)}`));
     },
-    patch(orgId, actionItemId, patch = {}){
-      return request(orgPath(orgId, `/action-items/${enc(actionItemId)}`), { method: 'PATCH', body: patch || {} });
+    update(orgId, connectionId, patch = {}){
+      return request(siblingPath('connections', `/organizations/${enc(orgId)}/organization-connections/${enc(connectionId)}`), { method:'PATCH', body:patch || {} });
     },
-    claim(orgId, actionItemId, payload = {}){
-      return request(orgPath(orgId, `/action-items/${enc(actionItemId)}/claim`), { method: 'POST', body: payload || {} });
-    },
-    complete(orgId, actionItemId, payload = {}){
-      return request(orgPath(orgId, `/action-items/${enc(actionItemId)}/complete`), { method: 'POST', body: payload || {} });
-    },
-    cancel(orgId, actionItemId, payload = {}){
-      return request(orgPath(orgId, `/action-items/${enc(actionItemId)}/cancel`), { method: 'POST', body: payload || {} });
-    },
-    setUserState(orgId, actionItemId, state = {}){
-      return request(orgPath(orgId, `/action-items/${enc(actionItemId)}/user-state`), { method: 'PATCH', body: state || {} });
-    },
-    markSeen(orgId, actionItemId){ return actionItems.setUserState(orgId, actionItemId, { seen: true }); },
-    hide(orgId, actionItemId){ return actionItems.setUserState(orgId, actionItemId, { hidden: true }); },
-    dismiss(orgId, actionItemId){ return actionItems.setUserState(orgId, actionItemId, { dismissed: true }); },
-    pin(orgId, actionItemId, pinned = true){ return actionItems.setUserState(orgId, actionItemId, { pinned }); },
-    snooze(orgId, actionItemId, snoozedUntil){ return actionItems.setUserState(orgId, actionItemId, { snoozed_until: snoozedUntil || '' }); },
+    archive(orgId, connectionId, expectedRevision = 0){
+      const query = Number(expectedRevision) > 0 ? `?expected_revision=${enc(expectedRevision)}` : '';
+      return request(siblingPath('connections', `/organizations/${enc(orgId)}/organization-connections/${enc(connectionId)}${query}`), { method:'DELETE' });
+    }
+  };
+
+  const actionItems = {
+    list(orgId, options = {}){ return work.todos(orgId, options); },
+    create(orgId, item = {}){ return work.createTodo(orgId, item).then((result) => ({ ...result, action_item:result.todo })); },
+    get(orgId, nodeId){ return request(siblingPath('work', `/organizations/${enc(orgId)}/nodes/${enc(nodeId)}`)).then((result) => ({ ...result, action_item:compatibleTodo(result?.node || {}) })); },
+    patch(orgId, nodeId, patch = {}){ return work.patchNode(orgId, nodeId, patch).then((result) => ({ ...result, action_item:compatibleTodo(result?.node || {}) })); },
+    claim(orgId, nodeId, payload = {}){ return work.transition(orgId, nodeId, 'active', payload).then((result) => ({ ...result, action_item:compatibleTodo(result?.node || {}) })); },
+    complete(orgId, nodeId, payload = {}){ return work.transition(orgId, nodeId, 'completed', payload).then((result) => ({ ...result, action_item:compatibleTodo(result?.node || {}) })); },
+    reopen(orgId, nodeId, status = 'ready', payload = {}){ return work.transition(orgId, nodeId, status || 'ready', { ...(payload || {}), allow_reopen:true }).then((result) => ({ ...result, action_item:compatibleTodo(result?.node || {}) })); },
+    cancel(orgId, nodeId, payload = {}){ return work.transition(orgId, nodeId, 'canceled', payload).then((result) => ({ ...result, action_item:compatibleTodo(result?.node || {}) })); },
+    followUpOutcome(orgId, nodeId, outcome = {}){ return work.followUpOutcome(orgId, nodeId, outcome); },
+    setUserState(_orgId, _nodeId, state = {}){ return Promise.resolve({ ok:true, state }); },
+    markSeen(orgId, nodeId){ return actionItems.setUserState(orgId, nodeId, { seen:true }); },
+    hide(orgId, nodeId){ return actionItems.setUserState(orgId, nodeId, { hidden:true }); },
+    dismiss(orgId, nodeId){ return actionItems.setUserState(orgId, nodeId, { dismissed:true }); },
+    pin(orgId, nodeId, pinned = true){ return actionItems.setUserState(orgId, nodeId, { pinned }); },
+    snooze(orgId, nodeId, snoozedUntil){ return work.patchNode(orgId, nodeId, { due_at:snoozedUntil || '' }); }
   };
 
   const userActivity = (() => {
@@ -723,6 +1049,38 @@
           throw error;
         });
       },
+      removeEvent(orgId, id, eventId) {
+        if (normalizedCollection !== 'projects') throw new Error('removeEvent is only available for projects.');
+        return request(orgPath(orgId, `/projects/${enc(id)}/events/${enc(eventId)}`), { method: 'DELETE' });
+      },
+      recurrenceSeries(orgId, options = {}) {
+        const params = new URLSearchParams();
+        if (options.project_id || options.projectId) params.set('project_id', cleanText(options.project_id || options.projectId));
+        if (options.include_cancelled || options.includeCancelled) params.set('include_cancelled', '1');
+        const query = params.toString();
+        return request(orgPath(orgId, `/recurrence-series${query ? `?${query}` : ''}`));
+      },
+      createRecurrenceSeries(orgId, payload = {}) {
+        const projectId = cleanText(payload.project_id || payload.projectId);
+        const path = projectId ? `/projects/${enc(projectId)}/recurrence-series` : '/recurrence-series';
+        return request(orgPath(orgId, path), { method: 'POST', body: payload || {} });
+      },
+      updateRecurrenceSeries(orgId, seriesId, payload = {}) {
+        return request(orgPath(orgId, `/recurrence-series/${enc(seriesId)}`), { method: 'PATCH', body: payload || {} });
+      },
+      cancelRecurrenceSeries(orgId, seriesId) {
+        return request(orgPath(orgId, `/recurrence-series/${enc(seriesId)}`), { method: 'DELETE' });
+      },
+      recurrenceOccurrences(orgId, seriesId, options = {}) {
+        const params = new URLSearchParams();
+        if (options.from) params.set('from', cleanText(options.from));
+        if (options.to) params.set('to', cleanText(options.to));
+        const query = params.toString();
+        return request(orgPath(orgId, `/recurrence-series/${enc(seriesId)}/occurrences${query ? `?${query}` : ''}`));
+      },
+      updateRecurrenceOccurrence(orgId, seriesId, occurrenceId, action) {
+        return request(orgPath(orgId, `/recurrence-series/${enc(seriesId)}/occurrences/${enc(occurrenceId)}/${enc(action)}`), { method: 'POST', body: {} });
+      },
       async getData(orgId, id){
         return (await request(collectionPath(orgId, normalizedCollection, id)))?.document?.data || null;
       },
@@ -772,23 +1130,6 @@
         throw error;
       });
     },
-    triggers: {
-      get(orgId, branchId){
-        return request(orgPath(orgId, `/branch/${enc(branchId || 'default')}/triggers`));
-      },
-      save(orgId, branchId, data, metadata = {}){
-        return request(orgPath(orgId, `/branch/${enc(branchId || 'default')}/triggers`), {
-          method: 'PUT',
-          body: { data: data || {}, metadata: metadata || {} }
-        });
-      },
-      emit(orgId, branchId, event, context = {}){
-        return request(orgPath(orgId, `/branch/${enc(branchId || 'default')}/triggers/emit`), {
-          method: 'POST',
-          body: { event, context }
-        });
-      }
-    },
     modules: {
       get(orgId, branchId, moduleId){
         return request(orgPath(orgId, `/branch/${enc(branchId)}/modules/${enc(moduleId)}`)).catch((error) => {
@@ -812,13 +1153,39 @@
           if (isMissingRecord(error)) return { ok: true, module: localModule(moduleId, data || {}, metadata || {}) };
           throw error;
         });
+      },
+      // Shallow-merges the given data keys into the module (server PATCH),
+      // leaving every other key untouched.
+      patch(orgId, branchId, moduleId, data, metadata = {}) {
+        return request(orgPath(orgId, `/branch/${enc(branchId)}/modules/${enc(moduleId)}`), {
+          method: 'PATCH',
+          body: { data: data || {}, metadata: metadata || {} }
+        }).catch((error) => {
+          if (isMissingRecord(error)) return { ok: true, module: localModule(moduleId, data || {}, metadata || {}) };
+          throw error;
+        });
       }
     }
   };
 
   const media = {
-    list(orgId){ return request(orgPath(orgId, '/media')); },
+    list(orgId, options = {}){
+      const params = new URLSearchParams();
+      const projectId = options.projectId || options.project_id;
+      const tags = Array.isArray(options.tags) ? options.tags.join(',') : options.tags;
+      if (projectId) params.set('project_id', projectId);
+      if (tags) params.set('tags', tags);
+      if (options.tagMode || options.tag_mode) params.set('tag_mode', options.tagMode || options.tag_mode);
+      const query = params.toString();
+      return request(orgPath(orgId, `/media${query ? `?${query}` : ''}`));
+    },
     get(orgId, mediaId){ return request(orgPath(orgId, `/media/${enc(mediaId)}`)); },
+    updateTags(orgId, mediaId, tags){
+      return request(orgPath(orgId, `/media/${enc(mediaId)}`), { method:'PATCH', body:{ tags:Array.isArray(tags) ? tags : [] } });
+    },
+    rename(orgId, mediaId, name){
+      return request(orgPath(orgId, `/media/${enc(mediaId)}`), { method:'PATCH', body:{ name: cleanText(name) } });
+    },
     upload(orgId, file, options = {}){
       const fd = new FormData();
       fd.append(options.fileField || 'file', file);
@@ -878,6 +1245,7 @@
         field: extra.field || item.owner?.slot || '',
         uploaded_at: item.created_at || nowIso(),
         updated_at: item.updated_at || nowIso(),
+        tags: Array.isArray(item.tags) ? item.tags : (Array.isArray(item.metadata?.tags) ? item.metadata.tags : []),
         metadata: { ...(item.metadata || {}), ...(extra.metadata || {}) },
         ...extra
       });
@@ -900,6 +1268,10 @@
     variantUrl(orgId, mediaId, variant){ return media.fileUrl(orgId, mediaId, variant); },
     thumbnailUrl(orgId, mediaId, size = 320){
       return media.fileUrl(orgId, mediaId, `thumb_${parseInt(size, 10) || 320}`);
+    },
+    markupThumbnailUrl(orgId, mediaId, size = 320, revision = ''){
+      const src = media.fileUrl(orgId, mediaId, `thumb_${parseInt(size, 10) || 320}_markup`);
+      return cleanText(revision) ? `${src}&v=${enc(revision)}` : src;
     },
     markupLayerId(slot = 'default'){
       return `markup_${cleanText(slot || 'default').toLowerCase().replace(/[^a-z0-9_-]+/g, '_') || 'default'}`;
@@ -1107,6 +1479,29 @@
     function hasIn(enabled, group, flag){
       return (enabled?.[group] || []).includes(flag);
     }
+    function normalizePlacements(value){
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const allowed = new Set(['sidebar', 'more', 'settings', 'hidden']);
+      return Object.fromEntries(Object.entries(source).map(([id, placement]) => [cleanText(id).toLowerCase(), cleanText(placement).toLowerCase()]).filter(([id, placement]) => id && allowed.has(placement)));
+    }
+    function stateFromResult(orgId, result = {}){
+      return {
+        org_id: orgId,
+        enabled: normalizeEnabled(result?.enabled),
+        raw: result?.raw && typeof result.raw === 'object' ? result.raw : {},
+        raw_variants: result?.raw_variants && typeof result.raw_variants === 'object' ? result.raw_variants : {},
+        effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
+        effective_variants: result?.effective_variants && typeof result.effective_variants === 'object' ? result.effective_variants : {},
+        app_placements: normalizePlacements(result?.app_placements),
+        definitions: Array.isArray(result?.definitions) ? result.definitions : [],
+        variant_definitions: Array.isArray(result?.variant_definitions) ? result.variant_definitions : [],
+        disabled_reasons: result?.disabled_reasons && typeof result.disabled_reasons === 'object' ? result.disabled_reasons : {},
+        variant_disabled_reasons: result?.variant_disabled_reasons && typeof result.variant_disabled_reasons === 'object' ? result.variant_disabled_reasons : {},
+        missing: result?.missing === true,
+        test_admin: result?.test_admin === true,
+        loaded_at: new Date().toISOString()
+      };
+    }
     function assertSubmittedFlagsAccepted(result = {}, submitted = {}) {
       const raw = result?.raw && typeof result.raw === 'object' ? result.raw : {};
       const effective = result?.effective && typeof result.effective === 'object' ? result.effective : {};
@@ -1172,21 +1567,7 @@
           throw error;
         }).then((result) => {
           cacheOrgId = normalizedOrgId;
-          cache = {
-            org_id: normalizedOrgId,
-            enabled: normalizeEnabled(result?.enabled),
-            raw: result?.raw && typeof result.raw === 'object' ? result.raw : {},
-            raw_variants: result?.raw_variants && typeof result.raw_variants === 'object' ? result.raw_variants : {},
-            effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
-            effective_variants: result?.effective_variants && typeof result.effective_variants === 'object' ? result.effective_variants : {},
-            definitions: Array.isArray(result?.definitions) ? result.definitions : [],
-            variant_definitions: Array.isArray(result?.variant_definitions) ? result.variant_definitions : [],
-            disabled_reasons: result?.disabled_reasons && typeof result.disabled_reasons === 'object' ? result.disabled_reasons : {},
-            variant_disabled_reasons: result?.variant_disabled_reasons && typeof result.variant_disabled_reasons === 'object' ? result.variant_disabled_reasons : {},
-            missing: result?.missing === true,
-            test_admin: result?.test_admin === true,
-            loaded_at: new Date().toISOString()
-          };
+          cache = stateFromResult(normalizedOrgId, result);
           return cache;
         }).finally(() => {
           pending = null;
@@ -1203,22 +1584,22 @@
         });
         assertSubmittedFlagsAccepted(result, flags);
         cacheOrgId = normalizedOrgId;
-        cache = {
-          org_id: normalizedOrgId,
-          enabled: normalizeEnabled(result?.enabled),
-          raw: result?.raw && typeof result.raw === 'object' ? result.raw : {},
-          raw_variants: result?.raw_variants && typeof result.raw_variants === 'object' ? result.raw_variants : {},
-          effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
-          effective_variants: result?.effective_variants && typeof result.effective_variants === 'object' ? result.effective_variants : {},
-          definitions: Array.isArray(result?.definitions) ? result.definitions : [],
-          variant_definitions: Array.isArray(result?.variant_definitions) ? result.variant_definitions : [],
-          disabled_reasons: result?.disabled_reasons && typeof result.disabled_reasons === 'object' ? result.disabled_reasons : {},
-          variant_disabled_reasons: result?.variant_disabled_reasons && typeof result.variant_disabled_reasons === 'object' ? result.variant_disabled_reasons : {},
-          missing: result?.missing === true,
-          test_admin: result?.test_admin === true,
-          loaded_at: new Date().toISOString()
-        };
+        cache = stateFromResult(normalizedOrgId, result);
         return cache;
+      },
+      async updatePlacements(orgId, placements = {}){
+        const normalizedOrgId = cleanText(orgId);
+        if (!normalizedOrgId) return null;
+        const result = await request(orgPath(normalizedOrgId, '/app-flags'), {
+          method: 'PUT',
+          body: { app_placements: normalizePlacements(placements) }
+        });
+        cacheOrgId = normalizedOrgId;
+        cache = stateFromResult(normalizedOrgId, result);
+        return cache;
+      },
+      placement(appId, fallback = 'sidebar'){
+        return cache?.app_placements?.[cleanText(appId).toLowerCase()] || fallback;
       },
       has(group, flag){
         const groupKey = cleanText(group);
@@ -1253,6 +1634,145 @@
       },
       any(pairs = []){
         return pairs.some((pair) => Array.isArray(pair) && hasIn(cache?.enabled, cleanText(pair[0]), cleanText(pair[1])));
+      }
+    };
+  })();
+
+  const capabilities = (() => {
+    let cache = null;
+    let cacheOrgId = '';
+    let pending = null;
+    let pendingOrgId = '';
+    function normalizeState(orgId, result){
+      const definitions = Array.isArray(result?.definitions) ? result.definitions : [];
+      const byKey = {};
+      definitions.forEach((definition) => { if (definition?.key) byKey[definition.key] = definition; });
+      return {
+        org_id: orgId,
+        definitions,
+        definitions_by_key: byKey,
+        raw: result?.raw && typeof result.raw === 'object' ? result.raw : {},
+        effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
+        effective_by_key: result?.effective_by_key && typeof result.effective_by_key === 'object' ? result.effective_by_key : {},
+        reasons: result?.reasons && typeof result.reasons === 'object' ? result.reasons : {},
+        presets: Array.isArray(result?.presets) ? result.presets : [],
+        signup_preset_id: cleanText(result?.signup_preset_id),
+        violations: Array.isArray(result?.violations) ? result.violations : [],
+        test_admin: result?.test_admin === true,
+        loaded_at: nowIso()
+      };
+    }
+    /**
+     * Client-side mirror of the server capability solver so the settings UI
+     * can preview a draft value set without a round trip. Semantics match
+     * resolveCapabilities() in public/v1/platform/capabilities.ts.
+     */
+    function resolveDraft(definitions, rawValues){
+      const byKey = {};
+      (definitions || []).forEach((definition) => { if (definition?.key) byKey[definition.key] = definition; });
+      const effective = {};
+      const reasons = {};
+      const resolve = (key, stack) => {
+        if (Object.prototype.hasOwnProperty.call(effective, key)) return effective[key] === true;
+        const node = byKey[key];
+        if (!node) { effective[key] = false; reasons[key] = 'unknown_flag'; return false; }
+        if (stack.includes(key)) { effective[key] = false; reasons[key] = 'dependency_cycle'; return false; }
+        const dependencies = [...(node.parent ? [node.parent] : []), ...(Array.isArray(node.requires) ? node.requires : [])];
+        for (const dependency of dependencies) {
+          if (!resolve(dependency, [...stack, key])) {
+            effective[key] = false;
+            reasons[key] = `requires ${dependency}`;
+            return false;
+          }
+        }
+        if (node.stores_value !== false && (node.type || 'boolean') === 'boolean') {
+          const raw = Object.prototype.hasOwnProperty.call(rawValues || {}, key) ? rawValues[key] : node.default;
+          if (raw === false) { effective[key] = false; reasons[key] = 'flag_disabled'; return false; }
+        }
+        effective[key] = true;
+        reasons[key] = null;
+        return true;
+      };
+      Object.keys(byKey).forEach((key) => resolve(key, []));
+      return { effective_by_key: effective, reasons };
+    }
+    return {
+      current(){ return cache; },
+      resolveDraft,
+      async load(orgId, options = {}){
+        const normalizedOrgId = cleanText(orgId);
+        if (!normalizedOrgId) return null;
+        if (cache && cacheOrgId === normalizedOrgId && !options.refresh) return cache;
+        if (pending && pendingOrgId === normalizedOrgId && !options.refresh) return pending;
+        pendingOrgId = normalizedOrgId;
+        pending = request(orgPath(normalizedOrgId, '/capabilities')).then((result) => {
+          cacheOrgId = normalizedOrgId;
+          cache = normalizeState(normalizedOrgId, result);
+          return cache;
+        }).finally(() => {
+          pending = null;
+          pendingOrgId = '';
+        });
+        return pending;
+      },
+      async update(orgId, values = {}){
+        const normalizedOrgId = cleanText(orgId);
+        if (!normalizedOrgId) return null;
+        const result = await request(orgPath(normalizedOrgId, '/capabilities'), { method: 'PUT', body: { values } });
+        cacheOrgId = normalizedOrgId;
+        cache = normalizeState(normalizedOrgId, result);
+        return cache;
+      },
+      async validate(orgId, values = {}){
+        return request(orgPath(cleanText(orgId), '/capabilities/validate'), { method: 'POST', body: { values } });
+      },
+      async createPreset(orgId, payload = {}){
+        return request(orgPath(cleanText(orgId), '/capabilities/presets'), { method: 'POST', body: payload });
+      },
+      async updatePreset(orgId, presetId, payload = {}){
+        return request(orgPath(cleanText(orgId), `/capabilities/presets/${encodeURIComponent(cleanText(presetId))}`), { method: 'PATCH', body: payload });
+      },
+      async deletePreset(orgId, presetId){
+        return request(orgPath(cleanText(orgId), `/capabilities/presets/${encodeURIComponent(cleanText(presetId))}`), { method: 'DELETE' });
+      },
+      async applyPreset(orgId, presetId){
+        const normalizedOrgId = cleanText(orgId);
+        const result = await request(orgPath(normalizedOrgId, `/capabilities/presets/${encodeURIComponent(cleanText(presetId))}/apply`), { method: 'POST', body: {} });
+        cacheOrgId = normalizedOrgId;
+        cache = normalizeState(normalizedOrgId, result);
+        return cache;
+      },
+      async setSignupPreset(orgId, presetId){
+        return request(orgPath(cleanText(orgId), '/capabilities/signup-preset'), { method: 'PUT', body: { preset_id: cleanText(presetId) } });
+      },
+      definition(key){
+        return cache?.definitions_by_key?.[cleanText(key)] || null;
+      },
+      /**
+       * Unified client gate. Org-level for app/feature/setting nodes; for
+       * permission nodes it also checks the current user's effective
+       * permissions (Portal.currentUser.permissions when available).
+       */
+      can(key, userPermissions = null){
+        const node = cache?.definitions_by_key?.[cleanText(key)];
+        if (!node) return false;
+        if (cache?.effective_by_key?.[node.key] !== true) return false;
+        if (node.kind !== 'permission') return true;
+        const permissions = userPermissions
+          || window.Portal?.currentUser?.permissions
+          || {};
+        if (permissions['*'] === true && permissions[node.permission_key] !== false) return true;
+        return permissions[node.permission_key] === true;
+      },
+      value(key, fallback = null){
+        const normalizedKey = cleanText(key);
+        const effective = cache?.effective?.[normalizedKey];
+        if (effective !== undefined) return effective;
+        const raw = cache?.raw?.[normalizedKey];
+        return raw !== undefined ? raw : fallback;
+      },
+      reason(key){
+        return cache?.reasons?.[cleanText(key)] || null;
       }
     };
   })();
@@ -1635,7 +2155,7 @@
           src: photo,
           thumb: photo,
           alt: `Photo ${index + 1}`,
-          label: `Photo ${index + 1}`,
+          label: ((v0) => globalThis.PlatformLanguage?.text("platform-api","m_7b2459374254fa",`Photo ${v0}`,{v0}) ?? `Photo ${v0}`)(index + 1),
           metadata: {}
         };
       }
@@ -1699,7 +2219,7 @@
         src: src || thumb,
         thumb: src || thumb,
         alt: 'Top-down satellite image',
-        label: 'Top-down satellite',
+        label: (globalThis.PlatformLanguage?.text("platform-api","m_ea408ba0d2f930","Top-down satellite") ?? "Top-down satellite"),
         metadata: {
           source: 'firstmeasure',
           designator: projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR,
@@ -1727,7 +2247,7 @@
         src,
         thumb: src,
         alt: 'Property satellite image',
-        label: 'Property satellite',
+        label: (globalThis.PlatformLanguage?.text("platform-api","m_a98cf65ef489f0","Property satellite") ?? "Property satellite"),
         metadata: {
           source: 'google_static_map',
           designator: projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR,
@@ -1912,14 +2432,14 @@
   const dashboard = (() => {
     const MODULE_ID = 'dashboard';
     const DEFAULT_STATS = [
-      { id: 'sales_made', label: 'Sales', icon: 'fa-handshake' },
-      { id: 'revenue', label: 'Revenue', icon: 'fa-dollar-sign' },
-      { id: 'appointments', label: 'Appointments', icon: 'fa-calendar-check' },
-      { id: 'close_percentage', label: 'Close', icon: 'fa-chart-line' },
+      { id: 'sales_made', label: (globalThis.PlatformLanguage?.text("platform-api","m_2680c31facb03d","Sales") ?? "Sales"), icon: 'fa-handshake' },
+      { id: 'revenue', label: (globalThis.PlatformLanguage?.text("platform-api","m_86ad4a76e7e7ca","Revenue") ?? "Revenue"), icon: 'fa-dollar-sign' },
+      { id: 'appointments', label: (globalThis.PlatformLanguage?.text("platform-api","m_17bb11ec04c41f","Appointments") ?? "Appointments"), icon: 'fa-calendar-check' },
+      { id: 'close_percentage', label: (globalThis.PlatformLanguage?.text("platform-api","m_3742924668fb10","Close") ?? "Close"), icon: 'fa-chart-line' },
     ];
     const DEFAULT_GROUPS = [
-      { id: 'tomorrow', label: "Tomorrow's Appointments", preset: 'tomorrow', collapsed_by_default: false },
-      { id: 'today', label: "Today's Appointments", preset: 'today', collapsed_by_default: false },
+      { id: 'tomorrow', label: (globalThis.PlatformLanguage?.text("platform-api","m_222d26f8c0e181","Tomorrow's Appointments") ?? "Tomorrow's Appointments"), preset: 'tomorrow', collapsed_by_default: false },
+      { id: 'today', label: (globalThis.PlatformLanguage?.text("platform-api","m_3bf910f0c97215","Today's Appointments") ?? "Today's Appointments"), preset: 'today', collapsed_by_default: false },
     ];
     function toDate(value){
       const date = value instanceof Date ? value : new Date(value);
@@ -1970,9 +2490,18 @@
       if (!start) return null;
       return toDate(event?.end_at || event?.end) || new Date(start.getTime() + (Number(event?.duration_minutes || event?.duration || 60) * 60000));
     }
+    function projectionInstance(project){
+      const instances = Array.isArray(project?.work_projection?.instances) ? project.work_projection.instances : [];
+      return instances.find((instance) => instance && instance.kind === 'pipeline') || instances[0] || null;
+    }
     function projectStage(project, config){
-      const id = cleanText(project?.stage || project?.stage_id || 'new_lead') || 'new_lead';
-      return { id, label: project?.mapped_stage?.label || labelFromConfig(config, 'stages', id) };
+      const instance = projectionInstance(project);
+      const id = cleanText(instance?.stage_id)
+        || cleanText(project?.stage || project?.stage_id)
+        || cleanText(project?.lifecycle?.status)
+        || 'open';
+      const label = cleanText(instance?.stage_title) || project?.mapped_stage?.label || labelFromConfig(config, 'stages', id);
+      return { id, label };
     }
     function assignedLabel(event){
       const assigned = Array.isArray(event?.assigned_users) ? event.assigned_users : [];
@@ -1984,14 +2513,11 @@
       return money(project.revenue || project.sold_amount || project.contract_value || project.project_value || project.total || project.amount);
     }
     function soldDate(project = {}){
-      return toDate(project.sold_at || project.closed_at || project.sale_date || project.completed_sale_at)
-        || (Array.isArray(project.stage_history)
-          ? toDate((project.stage_history || []).find((item) => /sold|closed|won/i.test(String(item?.to || item?.stage || '')))?.at)
-          : null);
+      return toDate(project.lifecycle?.sold_at || project.sold_at || project.closed_at || project.sale_date || project.completed_sale_at);
     }
     function isSold(project = {}){
-      const stage = cleanText(project.stage || project.stage_id || project.status || '').toLowerCase();
-      return /sold|closed_won|won|job_sold/.test(stage) || !!soldDate(project);
+      const status = cleanText(project.status || '').toLowerCase();
+      return !!soldDate(project) || /sold|closed_won|won|job_sold/.test(status);
     }
     function appointmentRan(event, now = new Date()){
       const end = eventEnd(event);
@@ -2102,7 +2628,7 @@
       };
     }
     function formatStatValue(statId, value){
-      if (statId === 'revenue') return `$${Math.round(Number(value || 0)).toLocaleString()}`;
+      if (statId === 'revenue') return `$${Math.round(Number(value || 0)).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())}`;
       if (statId === 'appointments') return `${Number(value?.ran || 0)}/${Number(value?.total || 0)}`;
       if (statId === 'close_percentage') return `${Number(value || 0)}%`;
       return String(value ?? 0);
@@ -2137,8 +2663,12 @@
         body: data || {}
       });
     },
-    shareMedia(orgId, projectId, mediaIds = []){
-      return customerPortals.update(orgId, projectId, { share_media_ids: Array.isArray(mediaIds) ? mediaIds : [mediaIds] });
+    shareMedia(orgId, projectId, mediaIds = [], options = {}){
+      return customerPortals.update(orgId, projectId, {
+        share_media_ids: Array.isArray(mediaIds) ? mediaIds : [mediaIds],
+        // This is intentionally an API-only control. Portal UI callers omit it and share markup.
+        include_markup: options.includeMarkup ?? options.include_markup ?? true
+      });
     },
     unshareMedia(orgId, projectId, mediaIds = []){
       return customerPortals.update(orgId, projectId, { unshare_media_ids: Array.isArray(mediaIds) ? mediaIds : [mediaIds] });
@@ -2146,10 +2676,45 @@
     activity(orgId, projectId){
       return request(orgPath(orgId, `/projects/${enc(projectId)}/customer-portal/activity`));
     },
+    shares(orgId, projectId){
+      return request(orgPath(orgId, `/projects/${enc(projectId)}/customer-portal/shares`));
+    },
+    createShare(orgId, projectId, data = {}){
+      return request(orgPath(orgId, `/projects/${enc(projectId)}/customer-portal/shares`), { method:'POST', body:data || {} });
+    },
+    revokeShare(orgId, projectId, shareId){
+      return request(orgPath(orgId, `/projects/${enc(projectId)}/customer-portal/shares/${enc(shareId)}`), { method:'DELETE' });
+    },
     publicGet(portalUuid, options = {}){
       const preview = options.preview === true;
       const path = preview ? `/customer-portals/preview/${enc(portalUuid)}` : `/customer-portals/${enc(portalUuid)}`;
       return request(path, { credentials: preview ? 'include' : 'same-origin' });
+    },
+    publicAppointmentAvailability(portalUuid, eventId, options = {}){
+      const params = new URLSearchParams();
+      if (options.startDate || options.start_date) params.set('start_date', options.startDate || options.start_date);
+      if (options.endDate || options.end_date) params.set('end_date', options.endDate || options.end_date);
+      if (options.days) params.set('days', String(options.days));
+      const query = params.toString();
+      return request(`/customer-portals/${enc(portalUuid)}/appointments/${enc(eventId)}/availability${query ? `?${query}` : ''}`, { credentials:'same-origin' });
+    },
+    publicHoldAppointment(portalUuid, eventId, slot = {}){
+      return request(`/customer-portals/${enc(portalUuid)}/appointments/${enc(eventId)}/holds`, { method:'POST', credentials:'same-origin', body:slot || {} });
+    },
+    publicCommitAppointment(portalUuid, eventId, holdId){
+      return request(`/customer-portals/${enc(portalUuid)}/appointments/${enc(eventId)}/holds/${enc(holdId)}/commit`, { method:'POST', credentials:'same-origin', body:{} });
+    },
+    publicCancelAppointmentRequest(portalUuid, eventId){
+      return request(`/customer-portals/${enc(portalUuid)}/appointments/${enc(eventId)}/reschedule-request/cancel`, { method:'POST', credentials:'same-origin', body:{} });
+    },
+    publicShares(portalUuid){
+      return request(`/customer-portals/${enc(portalUuid)}/shares`, { credentials:'same-origin' });
+    },
+    publicCreateShare(portalUuid, data = {}){
+      return request(`/customer-portals/${enc(portalUuid)}/shares`, { method:'POST', credentials:'same-origin', body:data || {} });
+    },
+    publicRevokeShare(portalUuid, shareId){
+      return request(`/customer-portals/${enc(portalUuid)}/shares/${enc(shareId)}`, { method:'DELETE', credentials:'same-origin' });
     },
     publicTrack(portalUuid, event = {}){
       return request(`/customer-portals/${enc(portalUuid)}/events`, {
@@ -2158,11 +2723,103 @@
         body: event || {}
       });
     },
+    publicUpdateChecklistItem(portalUuid, checklistId, itemId, patch = {}){
+      return request(`/customer-portals/${enc(portalUuid)}/checklists/${enc(checklistId)}/items/${enc(itemId)}`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        body: patch || {}
+      });
+    },
+    publicAddChecklistItem(portalUuid, checklistId, input = {}){
+      return request(`/customer-portals/${enc(portalUuid)}/checklists/${enc(checklistId)}/items`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: input || {}
+      });
+    },
+    publicRemoveChecklistItem(portalUuid, checklistId, itemId){
+      return request(`/customer-portals/${enc(portalUuid)}/checklists/${enc(checklistId)}/items/${enc(itemId)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
+    },
+    publicAttachChecklistEvidence(portalUuid, checklistId, itemId, file, requirementId = ''){
+      const form = new FormData();
+      form.append('file', file, file?.name || 'customer-checklist-evidence');
+      if (requirementId) form.append('requirement_id', requirementId);
+      return request(`/customer-portals/${enc(portalUuid)}/checklists/${enc(checklistId)}/items/${enc(itemId)}/attachments`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: form
+      });
+    },
+    // ── Punch list sign-offs (customer-portal-v2 spec §8.2) ────────────────
+    // `signature` is null when the list does not require one; the server
+    // decides whether that is acceptable, not the client.
+    publicSubmitPunchList(portalUuid, checklistId, signature = null){
+      return request(`/customer-portals/${enc(portalUuid)}/punch-lists/${enc(checklistId)}/submit`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: signature ? { signature } : {}
+      });
+    },
+    publicAcceptPunchList(portalUuid, checklistId, signature = null){
+      return request(`/customer-portals/${enc(portalUuid)}/punch-lists/${enc(checklistId)}/accept`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: signature ? { signature } : {}
+      });
+    },
+    publicChecklistVoiceUrl(portalUuid, checklistId){
+      return url(`/customer-portals/${enc(portalUuid)}/checklists/${enc(checklistId)}/voice`);
+    },
     publicMediaUrl(portalUuid, mediaId, options = {}){
       const preview = options.preview === true;
       const variant = cleanText(options.variant || 'original') || 'original';
       const prefix = preview ? '/customer-portals/preview' : '/customer-portals';
       return url(`${prefix}/${enc(portalUuid)}/media/${enc(mediaId)}/file?variant=${enc(variant)}`);
+    },
+    // ── Customer-authored writes (customer-portal-v2 spec §5.2) ────────────
+    // Multipart goes through fetch directly: request() JSON-encodes bodies and
+    // would stringify the FormData into "[object FormData]".
+    async publicUpload(portalUuid, file, options = {}){
+      const form = new FormData();
+      form.append('file', file);
+      if (cleanText(options.caption)) form.append('caption', cleanText(options.caption));
+      const response = await fetch(url(`/customer-portals/${enc(portalUuid)}/uploads`), {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: form
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(payload?.message || 'That file could not be uploaded.');
+        error.code = payload?.error || 'portal_upload_failed';
+        throw error;
+      }
+      return payload;
+    },
+    publicWithdrawUpload(portalUuid, mediaId){
+      return request(`/customer-portals/${enc(portalUuid)}/uploads/${enc(mediaId)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
+    },
+    publicMediaComments(portalUuid, mediaId){
+      return request(`/customer-portals/${enc(portalUuid)}/media/${enc(mediaId)}/comments`, { credentials: 'same-origin' });
+    },
+    publicAddMediaComment(portalUuid, mediaId, body){
+      return request(`/customer-portals/${enc(portalUuid)}/media/${enc(mediaId)}/comments`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: { body }
+      });
+    },
+    publicWithdrawMediaComment(portalUuid, mediaId, commentId){
+      return request(`/customer-portals/${enc(portalUuid)}/media/${enc(mediaId)}/comments/${enc(commentId)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
     }
   };
   function branchModuleListKey(orgId, branchId){
@@ -2176,7 +2833,7 @@
     const platformBase = baseUrl();
     if (platformBase) return platformBase.replace(/\/v1\/platform\/?$/i, '/v1/labor').replace(/\/+$/, '');
     const host = cleanText(location.hostname).toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') return `${location.protocol}//${location.hostname}:3111/v1/labor`;
+    if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') return `${location.origin}/v1/labor`;
     return `${location.origin}/v1/labor`;
   }
 
@@ -2186,26 +2843,83 @@
 
   const labor = {
     async crews(orgId, branchId = 'default'){
-      return request(laborPath(`/organizations/${enc(orgId)}/branch/${enc(branchId || 'default')}/crews`));
+      const [assignableResult, configurationResult, groupsResult] = await Promise.all([
+        workforce.assignableResources(orgId, branchId),
+        workforce.configuration(orgId, branchId).catch(() => ({ configuration:{} })),
+        workforce.resourceGroups(orgId, branchId).catch(() => ({ resource_groups:[] }))
+      ]);
+      const crews = Array.isArray(assignableResult?.assignable_resources)
+        ? assignableResult.assignable_resources
+        : (Array.isArray(assignableResult?.resources) ? assignableResult.resources : []);
+      const resourceGroups = Array.isArray(groupsResult?.resource_groups) ? groupsResult.resource_groups : (Array.isArray(groupsResult?.groups) ? groupsResult.groups : []);
+      const configuration = configurationResult?.configuration || configurationResult?.settings || {};
+      return {
+        ok:true,
+        ...assignableResult,
+        settings:{ ...configuration, crews, resource_groups:resourceGroups },
+        crews,
+        resource_groups:resourceGroups
+      };
     },
     async saveCrews(orgId, branchId = 'default', settings = {}){
-      return request(laborPath(`/organizations/${enc(orgId)}/branch/${enc(branchId || 'default')}/crews`), {
-        method: 'PUT',
-        body: { settings }
+      await workforce.saveConfiguration(orgId, branchId, {
+        expected_revision: settings.expected_revision,
+        terminology: settings.terminology || {},
+        role_definitions: settings.role_definitions || settings.role_defaults || []
       });
+      return labor.crews(orgId, branchId);
     },
     async upsertCrew(orgId, branchId = 'default', crew = {}){
       const id = cleanText(crew?.id);
-      return request(laborPath(`/organizations/${enc(orgId)}/branch/${enc(branchId || 'default')}/crews${id ? `/${enc(id)}` : ''}`), {
-        method: id ? 'PATCH' : 'POST',
-        body: { crew }
-      });
+      const group = {
+        ...crew,
+        members: (Array.isArray(crew?.members) ? crew.members : []).map((member) => ({
+          user_id:cleanText(member?.user_id || member?.id),
+          role_id:cleanText(member?.role_id || member?.role),
+          is_lead:member?.is_lead === true || member?.is_foreman === true
+        })).filter((member) => member.user_id),
+        primary_member_user_id:cleanText(crew?.primary_member_user_id || crew?.foreman_user_id || crew?.foreman_member_id),
+        capability_scope_ids:Array.isArray(crew?.capability_scope_ids) ? crew.capability_scope_ids : (Array.isArray(crew?.supported_scope_ids) ? crew.supported_scope_ids : (Array.isArray(crew?.project_types) ? crew.project_types : [])),
+        compensation_profile:crew?.compensation_profile || crew?.compensation_plan || null
+      };
+      if (id) await workforce.updateResourceGroup(orgId, branchId, id, group);
+      else await workforce.createResourceGroup(orgId, branchId, group);
+      return labor.crews(orgId, branchId);
     },
     async archiveCrew(orgId, branchId = 'default', crewId){
-      return request(laborPath(`/organizations/${enc(orgId)}/branch/${enc(branchId || 'default')}/crews/${enc(crewId)}`), {
-        method: 'DELETE'
-      });
+      await workforce.archiveResourceGroup(orgId, branchId, crewId);
+      return labor.crews(orgId, branchId);
     }
+  };
+
+  const contactImports = {
+    // file: a File/Blob from an <input type=file>; options.mapping overrides
+    // CSV column mapping ({ columnIndexOrHeader: field }).
+    preview(orgId, file, options = {}){
+      const form = new FormData();
+      form.append('file', file, (file && file.name) || 'contacts');
+      if (file && file.name) form.append('filename', file.name);
+      if (options.mapping && typeof options.mapping === 'object') form.append('mapping', JSON.stringify(options.mapping));
+      if (options.sourceLabel || options.source_label) form.append('source_label', options.sourceLabel || options.source_label);
+      return request(orgPath(orgId, '/contact-imports/preview'), { method:'POST', body:form });
+    },
+    previewContent(orgId, payload = {}){
+      return request(orgPath(orgId, '/contact-imports/preview'), { method:'POST', body:payload || {} });
+    },
+    commit(orgId, importId, options = {}){
+      return request(orgPath(orgId, `/contact-imports/${enc(importId)}/commit`), {
+        method:'POST',
+        body:{
+          tags: Array.isArray(options.tags) ? options.tags : [],
+          duplicate_action: options.duplicateAction || options.duplicate_action || 'skip',
+          decisions: options.decisions && typeof options.decisions === 'object' ? options.decisions : {}
+        }
+      });
+    },
+    list(orgId){ return request(orgPath(orgId, '/contact-imports')); },
+    get(orgId, importId){ return request(orgPath(orgId, `/contact-imports/${enc(importId)}`)); },
+    discard(orgId, importId){ return request(orgPath(orgId, `/contact-imports/${enc(importId)}`), { method:'DELETE' }); },
+    undo(orgId, importId){ return request(orgPath(orgId, `/contact-imports/${enc(importId)}/undo`), { method:'POST', body:{} }); }
   };
 
   const api = {
@@ -2215,19 +2929,27 @@
     request,
     auth,
     identities,
+    preferences,
+    localization,
     orgs,
     credits,
     leads,
     tagging,
     search,
     notifications,
+    attention,
     actionItems,
+    work,
+    scopes,
+    workforce,
+    connections,
     userActivity,
     customerPortals,
     branches,
     documents,
     projects: collectionMethods('projects', 'platform_project'),
     customers: collectionMethods('customers', 'customer'),
+    contactImports,
     users: {
       ...collectionMethods('users', 'organization_user'),
       ...orgUsers
@@ -2236,11 +2958,25 @@
     actionItemDocuments: collectionMethods('action_items', 'platform_action_item'),
     activityDocuments: collectionMethods('activity', 'user_activity'),
     customerPortalDocuments: collectionMethods('customer_portals', 'customer_portal_access'),
+    appointments,
+    routing: {
+      optimize(orgId, payload = {}){
+        return request(orgPath(orgId, '/routing/optimize'), { method:'POST', body:payload });
+      }
+    },
+    calendarEvents: collectionMethods('calendar_events', 'calendar_event'),
     collection: collectionMethods,
     media,
     brandingMedia,
     mediaStorage,
     appFlags,
+    capabilities,
+    terminologyAgent: {
+      async ask(orgId, payload = {}){
+        const result = await request(orgPath(orgId, '/terminology-agent'), { method:'POST', body:payload });
+        return result?.result || result;
+      }
+    },
     mediaFields,
     labor,
     dashboard,
@@ -2277,6 +3013,19 @@
       },
       async save(orgId, branchId, moduleId, data, metadata = {}){
         const result = await branches.modules.save(orgId, branchId, moduleId, data, metadata);
+        const module = result?.module || null;
+        const key = branchModuleListKey(orgId, branchId);
+        if (module && branchModuleListCache.has(key)) {
+          const modules = branchModuleListCache.get(key).filter((item) => cleanText(item?.module || item?.id) !== cleanText(moduleId));
+          modules.push(module);
+          branchModuleListCache.set(key, modules);
+        } else {
+          branchModuleListCache.delete(key);
+        }
+        return module;
+      },
+      async patch(orgId, branchId, moduleId, data, metadata = {}){
+        const result = await branches.modules.patch(orgId, branchId, moduleId, data, metadata);
         const module = result?.module || null;
         const key = branchModuleListKey(orgId, branchId);
         if (module && branchModuleListCache.has(key)) {

@@ -4,10 +4,10 @@ portalStartSession();
 header('Content-Type: application/json');
 
 function nodePlatformPortalActionUrl(): string {
-    $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8021';
+    $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8011';
     $hostOnly = explode(':', $host, 2)[0];
     if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
-        return 'http://' . $hostOnly . ':3111/v1/platform/portal-action';
+        return 'http://' . $hostOnly . ':3101/v1/platform/portal-action';
     }
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     return $scheme . '://' . $host . '/v1/platform/portal-action';

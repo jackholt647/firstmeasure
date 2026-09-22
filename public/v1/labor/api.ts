@@ -21,7 +21,9 @@ function getParam(params: unknown, key: string) {
 }
 
 async function requireCrewManagementEnabled(orgId: string) {
-  if (!(await isAppFlagEnabled(orgId, "platform", "crew_management"))) {
+  // "platform.crew_management" never existed in the registry, which left these
+  // routes permanently forbidden; the crew app node is the real gate.
+  if (!(await isAppFlagEnabled(orgId, "apps", "crew"))) {
     throw forbidden("app_flag_disabled", "Crew management is not enabled for this organization.");
   }
 }
@@ -46,7 +48,7 @@ export const registerLaborApi: FastifyPluginAsync = async (app) => {
     api: "labor",
     message: "labor API is mounted",
     terminology: {
-      compensation_plan: "A labor rate set covering hourly, piece-rate, salary, or hybrid pay rules."
+      compensation_plan: "A labor rate set with independent hourly, salary, and piece-rate defaults."
     }
   }));
 

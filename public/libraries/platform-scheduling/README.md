@@ -4,7 +4,9 @@
 
 ## Storage
 
-- User scheduling roles live on each user document as `user.roles`, an array of stable ids such as `sales_appointments`.
+- User scheduling/access roles and assignment tags live on the canonical
+  organization user. Resource-group kinds and tags live in workforce
+  configuration and resource-group records.
 - Project events live on each project document as `project.events`, an array. New projects should start with `events: []`.
 - Branch event defaults live in the branch module `scheduling`.
 - Branch variable labels live in the branch module `variable_mappings`.
@@ -24,7 +26,8 @@ Standard roles:
 
 Default event type:
 
-- `sales_appointment`: 60 minutes, role `sales_appointments`, assignable later.
+- `sales_appointment`: 60 minutes, assignment policy allowing the
+  `sales_appointments` user role, assignable later.
 
 ## Event Shape
 
@@ -38,8 +41,34 @@ Events deliberately separate singular scheduling facts from plural staffing fact
 - `role_ids`: compatibility/read shortcut containing the union of required and allowed roles.
 - `assigned_user_ids`: array of assigned user ids.
 - `assigned_users`: optional denormalized array with `{ id, name, role_ids }` for fast rendering.
+- `work_resource_ref`: typed assignment for a `resource_group` or
+  `organization_connection`.
+- `assignment_policy`: the normalized snapshot used to validate the event
+  assignment.
 
 Older singular fields like `assigned_user_id` are normalized into the arrays for compatibility, but new code should write the plural fields.
+
+## Assignment policies
+
+Every data-defined event type may include an `assignment_policy`. Its rules are
+alternatives; constraints within one rule are cumulative. Rules may allow
+specific subjects, person roles, resource-group kinds, assignment tags, and
+scope capabilities. This supports, for example, either a tagged salesperson or
+a `sales_team` group, and a production type that accepts only `crew` groups
+tagged `drywall`.
+
+Use `PlatformScheduling.filterAssignableSubjects()` to render candidates.
+Project event writes enforce the same policy on the server. Availability is
+still evaluated for individual users; group selection is assignment
+eligibility, not a claim that every member is available.
+
+Gantt structure fields (all optional):
+
+- `is_schedule_group`: marks an event as a group row (`kind: schedule_group` also works). With `schedule_rollup: 'auto'` (default) the group's range is derived from its children via `applyGroupRollups()`; `'manual'` keeps its own range.
+- `parent_event_id`: nests an event under a group.
+- `depends_on`: array of `{ id, event_id, type: finish_to_start|start_to_start|finish_to_finish, lag_minutes }` links. `cascadeDependentDrafts(events, movedEventId, nextRange)` walks the graph (cycle-safe, skips locked/unscheduled items) and returns reschedule drafts for driven items. `scheduleGraph()` exposes the edges; `createScheduleGroupEvent()` builds a group event.
+
+Scope sets emit this structure from each resource list's `schedule` block (`group_id`, `group_title`, `depends_on: [{ list_id, type, lag_minutes }]`) — the materials store resolves list refs to deterministic event ids at instantiation. `PlatformScheduleView.renderGanttScheduler()` renders it with zoomable hour→month scales, dependency connectors, drag move/resize, and drag-to-link.
 
 Use `availabilityForEventType()` when deciding whether an appointment can be booked. It checks every required role independently and returns `eligibleUsers` from the allowed-role pool.
 

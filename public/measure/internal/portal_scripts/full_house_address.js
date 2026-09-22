@@ -54,7 +54,7 @@
             status.textContent = 'Select a property address from the Google suggestions.';
             return;
         }
-        const payload = { ...selected, measurement_scope: 'full_house' };
+        const payload = { ...selected, measurement_scope: 'full_house', measurement_system: document.getElementById('measurement-system')?.value || 'imperial', report_language: document.getElementById('report-language')?.value || 'en-US' };
         busy = true;
         window.FullHouseReferences?.lock(true);
         input.disabled = true;

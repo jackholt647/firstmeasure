@@ -1,0 +1,67 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+test("communications, chat and customer calls share atomic records, search and recoverable claims", async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "platform-communications-store-"));
+  const url = process.env.TEST_POSTGRES_URL;
+  Object.assign(process.env, { FIRSTMATE_ENV: "test", MESSAGING_STORAGE_ROOT: root, PLATFORM_STORAGE_ROOT: root,
+    FIRSTMEASURE_DATABASE_MODE: url ? "postgres" : "local", DATABASE_URL: url || "", POSTGRES_POOL_MAX: "1", POSTGRES_AUTO_MIGRATE: "false" });
+  const store = await import("../messaging/communications_storage.js");
+  const chat = await import("../chat/storage.js");
+  const comms = await import("../comms/storage.js");
+  const calls = await import("../comms/calls/storage.js");
+  const postgres = await import("../src/database/postgres.js");
+  t.after(async () => { await store.closeCommunicationsDatabase(); await postgres.closePostgresPools(); await rm(root, { recursive: true, force: true }); });
+  const org = `comms_${randomUUID()}`;
+  const conversation = await store.createConversationRecord({ organization_id: org, participants: [{ address: "+12025550100" }] });
+  assert.equal((await store.findSmsConversationRecord(org, "+12025550100"))!.id, conversation.id);
+  assert.equal(await store.findSmsConversationRecord("another_org", "+12025550100"), null);
+  const writes = await Promise.all(Array.from({ length: 12 }, async () => (await store.createMessageRecord({ organization_id: org,
+    conversation_id: conversation.id, channel: "sms", text_body: "Roof measurement confirmation", idempotency_key: "order-confirmation" }))));
+  assert.equal(writes.filter(result => result.created).length, 1);
+  assert.equal(new Set(writes.map(result => result.message.id)).size, 1);
+  const messageId = String(writes[0]!.message.id);
+  await assert.rejects(store.createMessageRecord({ organization_id: "another_org", conversation_id: conversation.id, channel: "sms" }));
+  assert.equal((await comms.searchCommunicationMessages(org, "measur")).length, 1);
+  assert.equal((await comms.searchCommunicationMessages("another_org", "roof")).length, 0);
+  await store.getCommunicationsDatabase().prepare("UPDATE communication_messages SET text_body=? WHERE organization_id=? AND id=?").run("Siding confirmation", org, messageId);
+  assert.equal((await comms.searchCommunicationMessages(org, "roof")).length, 0);
+  assert.equal((await comms.searchCommunicationMessages(org, "siding")).length, 1);
+  await Promise.all(Array.from({ length: 10 }, () => comms.seedCommsTemplates(org)));
+  const templates = await comms.listCommsTemplates(org, "default");
+  assert.ok(templates.length > 0);
+  assert.equal(new Set(templates.map(row => row.seed_key)).size, templates.length);
+  const keys = await Promise.all(Array.from({ length: 10 }, () => chat.ensureWidgetKey(org)));
+  assert.equal(new Set(keys.map(row => row.widget_key)).size, 1);
+  await Promise.all(["2026-09-10", "2026-09-01", "2026-09-04"].map(date => chat.upsertReadState(org, "alice", String(conversation.id), date)));
+  assert.equal((await chat.getChatDatabase().prepare("SELECT last_read_message_at FROM chat_read_state WHERE organization_id=?").get(org))!.last_read_message_at, "2026-09-10");
+  const delivery = await store.createDeliveryRecord({ organization_id: org, message_id: messageId, channel: "sms", transport_mode: "live", provider: "test", recipient_address: "+12025550100" });
+  const claims = await Promise.all(Array.from({ length: 10 }, async (_, i) => (await store.claimNextSmsDelivery(`sms_${i}`, 5))));
+  assert.equal(claims.filter(Boolean).length, 1);
+  await store.getCommunicationsDatabase().prepare("UPDATE communication_deliveries SET lease_until=? WHERE id=?").run("2000-01-01", String(delivery.id));
+  await store.recoverExpiredSmsDeliveryLeases();
+  assert.equal((await store.readDeliveryRecord(org, String(delivery.id))).status, "submission_unknown");
+  assert.equal(await store.claimNextSmsDelivery("retry", 5), null);
+  const call = await calls.insertCall({ id: `call_${randomUUID()}`, organization_id: org, branch_id: "default", mode: "external", direction: "outbound" });
+  const revisions = await Promise.allSettled(Array.from({ length: 10 }, (_, i) => calls.patchCall(org, call.id, { notes: `draft ${i}` }, 1)));
+  assert.equal(revisions.filter(result => result.status === "fulfilled").length, 1);
+  const resourceClaims = await Promise.allSettled(Array.from({ length: 10 }, (_, i) => calls.claimResource(org, "phone:fixture", `caller_${i}`, call.id)));
+  assert.equal(resourceClaims.filter(result => result.status === "fulfilled").length, 1);
+  const jobId = await calls.enqueue(org, call.id, "provider", { path: "send_dtmf", payload: { digits: "123" } }, "dtmf");
+  const jobs = await Promise.all(Array.from({ length: 10 }, (_, i) => calls.claimJob(`calls_${i}`, "voice", call.id)));
+  assert.equal(jobs.filter(Boolean).length, 1);
+  await calls.database().prepare("UPDATE customer_call_jobs SET lease_until=? WHERE id=?").run("2000-01-01", jobId);
+  assert.equal(await calls.claimJob("recovery", "voice", call.id), null);
+  assert.equal((await calls.jobs(org, call.id))[0]!.state, "uncertain");
+  await assert.rejects(store.withCommunicationsTransaction(async () => {
+    await store.createMessageRecord({ organization_id: org, channel: "email", text_body: "Rollback marker", idempotency_key: "rollback" });
+    await chat.rotateWidgetKey(org);
+    throw new Error("rollback fixture");
+  }), /rollback fixture/);
+  assert.equal((await comms.searchCommunicationMessages(org, "rollback")).length, 0);
+  assert.equal((await chat.ensureWidgetKey(org)).widget_key, keys[0]!.widget_key);
+});

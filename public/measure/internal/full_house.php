@@ -70,7 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         || abs((float)$body['lat']) > 90 || abs((float)$body['lng']) > 180) {
         http_response_code(400); exit('{"error":"Select a property address from the Google suggestions."}');
     }
-    $body = ['address' => trim($body['address']), 'lat' => (float)$body['lat'], 'lng' => (float)$body['lng'], 'measurement_scope' => 'full_house'];
+    $preferences = ['measurement_system' => $body['measurement_system'] ?? 'imperial', 'report_language' => $body['report_language'] ?? 'en-US'];
+    if (!in_array($preferences['measurement_system'], ['imperial', 'metric'], true) || !in_array($preferences['report_language'], ['en-US', 'en-GB'], true)) { http_response_code(400); exit('{"error":"Unsupported report preferences"}'); }
+    $body = $preferences + ['address' => trim($body['address']), 'lat' => (float)$body['lat'], 'lng' => (float)$body['lng'], 'measurement_scope' => 'full_house'];
     set_time_limit(240);
     $result = fm_api_request('POST', 'internal-exteriors/projects', ['json' => $body, 'timeout' => 230]);
     http_response_code($result['status'] ?: 502); echo $result['body']; exit;
@@ -85,6 +87,8 @@ $googleKey = fm_google_provider_key('browser_internal');
 <a href="./">FirstMeasure</a><h1>Full-house measurements</h1><p>Internal measurement drafts for roof, walls and exterior resources.</p>
 <form id="submit" data-csrf="<?=htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8')?>"><label for="address">Property address</label><input id="address" type="text" required autocomplete="off" disabled aria-describedby="address-help" placeholder="Start typing a street address">
 <small id="address-help">Choose a Google suggestion to use its address and map location.</small>
+<p><label for="measurement-system">Measurements</label> <select id="measurement-system"><option value="imperial">Imperial</option><option value="metric">Metric</option></select>
+<label for="report-language">Report language</label> <select id="report-language"><option value="en-US">English (United States)</option><option value="en-GB">English (United Kingdom)</option></select></p>
 <div id="order-references"></div>
 <button id="create" type="submit" disabled>Create measurement</button><p id="status" role="status">Loading address search…</p></form>
 <article><h2>Measurements</h2><ul><?php foreach ($projects as $project): ?>

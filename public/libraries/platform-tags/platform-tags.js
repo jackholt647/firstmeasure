@@ -39,6 +39,29 @@
     cache.set(oid, users);
     return users;
   }
+  // AI agents that participate in team messaging (mentionable like teammates).
+  const agentCache = new Map();
+  function listAgentParticipants(selectedOrgId = orgId()){
+    const oid = cleanText(selectedOrgId);
+    if (!oid || !root.AgentsAPI?.participants) return Promise.resolve([]);
+    if (agentCache.has(oid)) return agentCache.get(oid);
+    const promise = root.AgentsAPI.participants(oid)
+      .then((result) => (Array.isArray(result?.participants) ? result.participants : [])
+        .map((participant) => ({
+          id: cleanText(participant.id),
+          email: '',
+          name: cleanText(participant.name),
+          avatar: '',
+          label: cleanText(participant.name),
+          search: `${cleanText(participant.name)} ai agent assistant`.toLowerCase(),
+          raw: { kind: 'agent' },
+          agent: true
+        }))
+        .filter((participant) => participant.id))
+      .catch(() => []);
+    agentCache.set(oid, promise);
+    return promise;
+  }
   function extractMentions(text = '', users = []){
     const value = cleanText(text);
     if (!value) return [];
@@ -61,7 +84,17 @@
   }
   async function triggerMentionEvent(selectedOrgId, payload = {}){
     if (!root.PlatformAPI?.tagging?.mentionEvent) return { ok: false, missing: true };
-    return root.PlatformAPI.tagging.mentionEvent(selectedOrgId || orgId(), payload);
+    const oid = selectedOrgId || orgId();
+    const result = await root.PlatformAPI.tagging.mentionEvent(oid, payload);
+    const currentUserId = cleanText(root.__APP?.userId || root.Portal?.currentUser?.id || root.Portal?.cfg?.userId);
+    const targetUserIds = [
+      ...(Array.isArray(payload.target_user_ids) ? payload.target_user_ids : []),
+      ...(Array.isArray(payload.mention_users) ? payload.mention_users.map((user) => user?.id) : [])
+    ].map(cleanText).filter(Boolean);
+    if (currentUserId && targetUserIds.includes(currentUserId)) {
+      await root.PlatformNotifications?.load?.(oid).catch?.(() => null);
+    }
+    return result;
   }
 
   function caretQuery(textarea){
@@ -90,9 +123,133 @@
       .fm-mention-option{width:100%;border:0;background:transparent;border-radius:9px;padding:8px 10px;display:flex;align-items:center;gap:9px;text-align:left;cursor:pointer;color:#101828}
       .fm-mention-option:hover,.fm-mention-option.active{background:rgba(var(--primary-rgb,217,48,37),.1)}
       .fm-mention-avatar{width:28px;height:28px;border-radius:999px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;flex:0 0 auto}
-      .fm-mention-name{font-weight:800;font-size:13px;line-height:1.15}
-      .fm-mention-email{font-size:11px;color:#667085;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-mention-details{min-width:0;display:flex;flex-direction:column;gap:3px}
+      .fm-mention-name{display:block;font-weight:800;font-size:13px;line-height:1.15}
+      .fm-mention-email{display:block;font-size:11px;color:#667085;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-mention-mirror{position:absolute;pointer-events:none;overflow:hidden;color:transparent;white-space:pre-wrap;overflow-wrap:break-word}
+      .fm-mention-avatar--agent{background:var(--primary-readable,var(--primary,#d93025));-webkit-mask:url('/images/logo_square.png') center / 82% no-repeat;mask:url('/images/logo_square.png') center / 82% no-repeat;border-radius:0;color:transparent}
+      .fm-mention-hl{background:rgba(var(--primary-rgb,217,48,37),.14);border-radius:5px;box-shadow:0 0 0 1px rgba(var(--primary-rgb,217,48,37),.16)}
     `);
+  }
+
+  // --- composer mention highlighting ---------------------------------------
+  // A textarea cannot style its own text, so a mirror div sits BEHIND the
+  // (transparent-backgrounded) textarea and paints a tinted pill under every
+  // token the controller will actually send as a tag. The textarea's own
+  // text renders on top, so typing behavior is untouched.
+  function attachMentionHighlight(textarea, getMentionLabels){
+    const parent = textarea.parentElement;
+    if (!parent) return { refresh(){}, destroy(){} };
+    if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
+    const mirror = document.createElement('div');
+    mirror.className = 'fm-mention-mirror';
+    mirror.setAttribute('aria-hidden', 'true');
+    parent.insertBefore(mirror, textarea);
+    const originalBackground = textarea.style.background;
+    const originalPosition = textarea.style.position;
+    if (getComputedStyle(textarea).position === 'static') textarea.style.position = 'relative';
+    textarea.style.background = 'transparent';
+
+    function highlightHtml(){
+      const value = textarea.value || '';
+      const labels = (getMentionLabels() || [])
+        .map((label) => cleanText(label))
+        .filter((label) => label.length > 1)
+        .sort((a, b) => b.length - a.length);
+      if (!labels.length || !value) return escapeHtml(value);
+      // Collect non-overlapping @label ranges, longest labels first.
+      const lower = value.toLowerCase();
+      const ranges = [];
+      for (const label of labels) {
+        const token = `@${label.toLowerCase()}`;
+        let from = 0;
+        for (;;) {
+          const at = lower.indexOf(token, from);
+          if (at < 0) break;
+          from = at + token.length;
+          if (!ranges.some((range) => at < range.end && at + token.length > range.start)) {
+            ranges.push({ start: at, end: at + token.length });
+          }
+        }
+      }
+      if (!ranges.length) return escapeHtml(value);
+      ranges.sort((a, b) => a.start - b.start);
+      let html = '';
+      let cursor = 0;
+      for (const range of ranges) {
+        html += escapeHtml(value.slice(cursor, range.start));
+        html += `<span class="fm-mention-hl">${escapeHtml(value.slice(range.start, range.end))}</span>`;
+        cursor = range.end;
+      }
+      html += escapeHtml(value.slice(cursor));
+      return html;
+    }
+
+    function refresh(){
+      if (!textarea.isConnected) return;
+      const style = getComputedStyle(textarea);
+      Object.assign(mirror.style, {
+        left: `${textarea.offsetLeft}px`,
+        top: `${textarea.offsetTop}px`,
+        width: `${textarea.offsetWidth}px`,
+        height: `${textarea.offsetHeight}px`,
+        boxSizing: style.boxSizing,
+        padding: style.padding,
+        border: style.border,
+        borderColor: 'transparent',
+        borderRadius: style.borderRadius,
+        font: style.font,
+        letterSpacing: style.letterSpacing,
+        lineHeight: style.lineHeight,
+        textTransform: style.textTransform,
+        textIndent: style.textIndent,
+        wordBreak: style.wordBreak,
+        // The textarea is transparent so the pills show through; the mirror
+        // carries the visual background (incl. mode tints like amber notes).
+        background: style.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#fff' : style.backgroundColor
+      });
+      mirror.innerHTML = `${highlightHtml()}\n`;
+      mirror.scrollTop = textarea.scrollTop;
+      mirror.scrollLeft = textarea.scrollLeft;
+    }
+
+    const onScroll = () => { mirror.scrollTop = textarea.scrollTop; mirror.scrollLeft = textarea.scrollLeft; };
+    textarea.addEventListener('scroll', onScroll);
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => refresh()) : null;
+    observer?.observe(textarea);
+    refresh();
+    return {
+      refresh,
+      destroy(){
+        textarea.removeEventListener('scroll', onScroll);
+        observer?.disconnect();
+        mirror.remove();
+        textarea.style.background = originalBackground;
+        textarea.style.position = originalPosition;
+      }
+    };
+  }
+  function caretAnchor(textarea, index){
+    const rect = textarea.getBoundingClientRect();
+    const style = getComputedStyle(textarea);
+    const mirror = document.createElement('div');
+    const marker = document.createElement('span');
+    mirror.setAttribute('aria-hidden', 'true');
+    Object.assign(mirror.style, {
+      position:'fixed', visibility:'hidden', pointerEvents:'none', overflow:'hidden',
+      left:`${rect.left}px`, top:`${rect.top - textarea.scrollTop}px`, width:`${rect.width}px`,
+      boxSizing:style.boxSizing, padding:style.padding, border:style.border,
+      font:style.font, letterSpacing:style.letterSpacing, lineHeight:style.lineHeight,
+      textTransform:style.textTransform, textIndent:style.textIndent,
+      whiteSpace:'pre-wrap', overflowWrap:'break-word', wordBreak:style.wordBreak
+    });
+    mirror.textContent = (textarea.value || '').slice(0, index);
+    marker.textContent = '@';
+    mirror.appendChild(marker);
+    document.body.appendChild(mirror);
+    const anchor = marker.getBoundingClientRect();
+    mirror.remove();
+    return anchor.width || anchor.height ? anchor : rect;
   }
   function attachMentionTextarea(textarea, options = {}){
     if (!textarea) return { destroy(){} };
@@ -104,7 +261,22 @@
     const menu = ensureMenu();
     const selected = new Map();
     const oid = cleanText(options.orgId || orgId());
-    listUsers(oid).then((list) => { users = list; }).catch(() => {});
+    // Team-messaging surfaces also offer the AI agent(s) as mention targets.
+    const includeAgents = options.includeAgents === true || options.source === 'channels';
+    Promise.all([
+      listUsers(oid).catch(() => []),
+      includeAgents ? listAgentParticipants(oid) : Promise.resolve([])
+    ]).then(([list, agents]) => { users = [...list, ...agents]; }).catch(() => {});
+
+    // Pills under every token that will actually send as a tag (picked from
+    // the menu, seeded via setSelectedMentions, or an exact typed name).
+    const highlighter = attachMentionHighlight(textarea, () => {
+      const value = textarea.value || '';
+      const labels = new Set();
+      extractMentions(value, users).forEach((user) => labels.add(user.name || user.email || user.id));
+      selected.forEach((user) => labels.add(user.name || user.email || user.id));
+      return [...labels];
+    });
 
     function hide(){
       menu.classList.remove('visible');
@@ -129,19 +301,19 @@
     }
     function render(){
       if (!matches.length || !query) return hide();
-      const rect = textarea.getBoundingClientRect();
+      const anchor = caretAnchor(textarea, query.at);
       const menuWidth = 280;
       const menuHeight = Math.min(240, 48 + (matches.slice(0, 8).length * 45));
-      const left = Math.max(8, Math.min(rect.left + 12, window.innerWidth - menuWidth - 8));
-      const below = rect.bottom + 6;
-      const above = rect.top - menuHeight - 6;
-      const top = below + menuHeight <= window.innerHeight - 8 ? below : Math.max(8, above);
+      const left = Math.max(8, Math.min(anchor.left, window.innerWidth - menuWidth - 8));
+      const below = anchor.bottom + 6;
+      const above = anchor.top - menuHeight - 6;
+      const top = above >= 8 ? above : Math.min(window.innerHeight - menuHeight - 8, below);
       menu.style.left = `${left}px`;
       menu.style.top = `${top}px`;
       menu.innerHTML = matches.slice(0, 8).map((user, index) => `
         <button type="button" class="fm-mention-option${index === activeIndex ? ' active' : ''}" data-mention-user="${escapeHtml(user.id)}">
-          <span class="fm-mention-avatar">${escapeHtml((user.name || user.email || '?').slice(0, 1).toUpperCase())}</span>
-          <span style="min-width:0"><span class="fm-mention-name">${escapeHtml(user.name || user.email || user.id)}</span><span class="fm-mention-email">${escapeHtml(user.email || user.id)}</span></span>
+          <span class="fm-mention-avatar${user.agent ? ' fm-mention-avatar--agent' : ''}">${user.agent ? '' : escapeHtml((user.name || user.email || '?').slice(0, 1).toUpperCase())}</span>
+          <span class="fm-mention-details"><span class="fm-mention-name">${escapeHtml(user.name || user.email || user.id)}</span><span class="fm-mention-email">${escapeHtml(user.email || user.id)}</span></span>
         </button>
       `).join('');
       menu.querySelectorAll('[data-mention-user]').forEach((btn) => {
@@ -153,6 +325,7 @@
       menu.classList.add('visible');
     }
     function update(){
+      highlighter.refresh();
       query = caretQuery(textarea);
       if (!query) return hide();
       const needle = query.fragment.toLowerCase();
@@ -191,11 +364,22 @@
         found.forEach((user) => selected.set(user.id, user));
         return [...selected.values()].filter((user) => (textarea.value || '').toLowerCase().includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
       },
+      confirmedMentions(){
+        const value = (textarea.value || '').toLowerCase();
+        return [...selected.values()].filter((user) => value.includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
+      },
+      setSelectedMentions(mentions = []){
+        selected.clear();
+        mentions.forEach((user) => { if (user?.id) selected.set(user.id, normalizeUser(user)); });
+        highlighter.refresh();
+      },
+      refreshHighlight(){ highlighter.refresh(); },
       destroy(){
         textarea.removeEventListener('input', update);
         textarea.removeEventListener('keyup', update);
         textarea.removeEventListener('click', update);
         textarea.removeEventListener('keydown', onKeydown);
+        highlighter.destroy();
         hide();
       }
     };
@@ -203,6 +387,7 @@
 
   root.FirstMateTags = {
     listUsers,
+    listAgentParticipants,
     normalizeUser,
     extractMentions,
     mentionEventPayload,

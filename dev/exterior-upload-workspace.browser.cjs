@@ -1,0 +1,47 @@
+const {chromium}=require('../public/v1/node_modules/playwright-core');
+const assert=require('node:assert/strict'),fs=require('node:fs');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+ try{
+  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});
+  let uploads=0;let releaseUploads;const uploadGate=new Promise(resolve=>releaseUploads=resolve);
+  let png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6QmcAAAAASUVORK5CYII=','base64');
+  await page.route('https://workspace.test/**',async r=>r.request().method()==='POST'?(await uploadGate,r.fulfill({json:{success:true,media_id:'media_'+(++uploads)}})):r.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial}.r-win{display:flex;height:95vh}.r-left{box-sizing:border-box;width:min(460px,46%);flex:0 0 min(460px,46%);padding:20px;overflow:auto}.r-right{position:relative;flex:1}.map{height:100%;background:#dbe6ec}.r-preview-stage{position:relative;flex:1;min-height:0}.r-right{display:flex;flex-direction:column}.r-preview-panel{display:none;height:100%}.r-preview-panel.active{display:block}</style><div id="rOverlay" class="r-overlay"><div class="r-win"><div class="r-left"><div class="r-scroll"><div id="rStepType"></div></div></div><div class="r-right"><header id="tabs"><button data-tab="map">Map</button><button data-tab="photos">Photos</button><button data-tab="materials">Materials</button></header><div class="r-preview-stage"><div class="r-preview-panel active" data-panel="map"><div class="map">Map</div></div><div class="r-preview-panel" data-panel="photos"></div><div class="r-preview-panel" data-panel="materials">Materials</div></div></div></div></div>'}));
+  await page.goto('https://workspace.test/');png=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1000;c.height=750;const x=c.getContext('2d');x.fillStyle='#cedce8';x.fillRect(0,0,1000,750);x.fillStyle='#6b8794';x.fillRect(200,250,600,400);x.fillStyle='#334155';x.beginPath();x.moveTo(140,250);x.lineTo(500,60);x.lineTo(860,250);x.fill();return c.toDataURL('image/png').split(',')[1];}),'base64');
+  await page.evaluate(()=>{window.Portal={ui:{showToast(){}},cfg:{serverEndpoint:'/upload'},capabilities:{value:()=>true},util:{escapeHtml:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),injectCSS:(id,css)=>{const s=document.createElement('style');s.textContent=css;document.head.append(s)},postAction:async()=>({data:{success:true,allow_incomplete_photo_review:true,options:[{key:'exteriors_standard',amount:20,unit_price:20,fee:0}],base_price:20}})}};});
+  await page.addScriptTag({path:'public/libraries/markup/firstmate-markup.js'});await page.addScriptTag({path:'public/libraries/apps/photos/feed.js'});
+  await page.evaluate(()=>{Portal.cfg.orgId='fixture';window.savedMarkup={};window.PlatformAPI={media:{getMarkup:async(org,id,layer)=>({data:window.savedMarkup[id+layer]||{items:[]}}),saveMarkup:async(org,id,layer,data)=>{window.savedMarkup[id+layer]=data;return {layer:{revision:1}};}}};});
+  await page.addScriptTag({path:'public/libraries/apps/firstmeasure/order/exteriors.js'});
+  await page.evaluate(()=>{window.selectTab=tab=>{Portal.ExteriorOrder?.previewTabChanged(tab);document.querySelectorAll('[data-panel]').forEach(p=>p.classList.toggle('active',p.dataset.panel===tab));};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));window.testContext={type:'residential',count:2,orderWorkflow:true,locationConfirmed:true,showMap(){window.mapRestored=true;window.selectTab('map')},showPhotos(){window.selectTab('photos')},syncPhotoTabs(){},refresh(){}};Portal.ExteriorOrder.sync(testContext);Portal.ExteriorOrder.restore({measurement_scope:'full_house',report_expedite_option:'exteriors_standard'});});
+  const orderWidth=await page.locator('.r-left').evaluate(el=>el.getBoundingClientRect().width);
+  await page.locator('[data-page="1"]').click();assert.equal(await page.locator('.r-left').evaluate(el=>el.getBoundingClientRect().width),orderWidth);assert.ok(await page.locator('.ext-workspace').isVisible());assert.ok(await page.locator('#tabs').isVisible());
+  await page.locator('[data-workspace-picker]').setInputFiles([{name:'front.png',mimeType:'image/png',buffer:png},{name:'back.png',mimeType:'image/png',buffer:png}]);
+  await page.waitForFunction(()=>document.querySelector('[data-upload-summary]')?.textContent==='Uploading 2 photos');
+  assert.equal(await page.locator('.ext-upload-status').count(),0);
+  assert.ok(await page.locator('.pf-toolbar').isVisible());
+  releaseUploads();
+  await page.waitForFunction(()=>document.querySelector('[data-upload-summary]').hidden);
+  assert.ok(await page.locator('[data-panel="photos"]').isVisible());
+  await page.waitForFunction(()=>document.querySelectorAll('[data-photo-feed-id]').length===2);
+  await page.locator('[data-photo-feed-id="exterior-order::media_1"]').click();await page.locator('[data-view="0:front"]').click();
+  assert.equal(await page.locator('[data-view="0:front"] img').count(),1);
+  await page.locator('[data-photo-close]').click();await page.locator('[data-photo-feed-id="exterior-order::media_2"]').dragTo(page.locator('[data-view="0:back"]'));
+  assert.equal(await page.locator('[data-view="0:back"] img').count(),1);
+  assert.equal(JSON.parse(await page.evaluate(()=>Portal.ExteriorOrder.payload().exterior_references)).length,2);
+  await page.locator('[data-photo-feed-id="exterior-order::media_1"]').click();await page.locator('.fm-photo-modal').waitFor({state:'visible'});
+  assert.equal(await page.locator('[data-reference-assignment]').count(),0);
+  await page.locator('[data-markup-toggle]').click();await page.locator('[data-markup-tool="arrow"]').click();
+  const stage=await page.locator('[data-photo-stage]').boundingBox();await page.mouse.move(stage.x+stage.width*.35,stage.y+stage.height*.4);await page.mouse.down();await page.mouse.move(stage.x+stage.width*.65,stage.y+stage.height*.6,{steps:8});await page.mouse.up();
+  fs.mkdirSync('public/v1/.tmp/exterior-workspace',{recursive:true});await page.screenshot({path:'public/v1/.tmp/exterior-workspace/markup-debug.png'});await page.waitForFunction(()=>Object.values(window.savedMarkup).some(layer=>layer.items?.length),{},{timeout:4000});
+  fs.mkdirSync('public/v1/.tmp/exterior-workspace',{recursive:true});await page.screenshot({path:'public/v1/.tmp/exterior-workspace/viewer.png'});
+  await page.locator('[data-structure]').selectOption({value:'1'});await page.locator('[data-view="1:right"]').click();
+  assert.equal(await page.locator('[data-view="1:right"] img').count(),1);
+  await page.locator('[data-photo-close]').click();
+  await page.locator('[data-page="2"]').click();assert.ok(await page.locator('.ext-workspace').isVisible());assert.equal(await page.locator('[data-view]').count(),0);assert.ok(await page.locator('.ext-summary').isVisible());assert.equal(await page.locator('.r-left').evaluate(el=>el.getBoundingClientRect().width),orderWidth);
+  fs.mkdirSync('public/v1/.tmp/exterior-workspace',{recursive:true});await page.screenshot({path:'public/v1/.tmp/exterior-workspace/desktop.png'});
+  await page.locator('[data-tab="materials"]').click();assert.equal(await page.locator('.ext-workspace').isVisible(),false);assert.ok(await page.locator('#tabs').isVisible());await page.locator('[data-tab="photos"]').click();assert.ok(await page.locator('.pf-toolbar').isVisible());await page.locator('[data-page="0"]').click();assert.equal(await page.locator('.ext-workspace').count(),0);assert.equal(await page.evaluate(()=>window.mapRestored),true);assert.ok(await page.locator('.map').isVisible());
+  await page.locator('[data-page="1"]').click();assert.equal(await page.locator('[data-photo-feed-id]').count(),2);
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'public/v1/.tmp/exterior-workspace/mobile.png',fullPage:true});
+  await page.evaluate(()=>Portal.ExteriorOrder.reset());assert.equal(await page.locator('.ext-workspace').count(),0);assert.deepEqual(errors,[]);console.log('Workspace upload, assignment, viewer, review, map restoration, mobile width and reset passed.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1)});

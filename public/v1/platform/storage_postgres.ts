@@ -10,13 +10,7 @@ import { formatIdentityPhone, identifierLooksLikeEmail, normalizeIdentityPhone }
 export type JsonObject = Record<string, unknown>;
 
 const SCHEMA_VERSION = 1;
-const COLLECTIONS = [
-  "users", "projects", "customers", "branch", "notifications", "action_items", "activity",
-  "customer_portals", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events",
-  "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events",
-  "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents",
-  "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events"
-] as const;
+const COLLECTIONS = ["users", "projects", "customers", "branch", "notifications", "attention_banners", "action_items", "activity", "customer_portals", "public_links", "calendar_events", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "recurrence_series", "recurrence_occurrences", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events", "payment_expense_items", "payment_expense_overrides", "payment_receipts", "payment_invoices", "payment_merchant_config", "payment_provider_events", "payment_provider_mock", "payment_payouts", "payment_disputes", "payment_saved_methods", "payment_autopay", "feedback_requests", "document_templates", "document_template_versions", "documents", "document_snapshots", "document_events", "document_themes", "document_theme_versions", "document_workflows", "document_workflow_versions", "document_folders", "document_folder_items", "document_folder_item_versions", "contact_imports", "websites", "website_pages", "website_page_versions", "website_events", "domain_quotes", "domain_registrations", "domain_events"] as const;
 
 type PlatformCollection = typeof COLLECTIONS[number];
 type DbExecutor = Pick<PoolClient, "query">;
@@ -100,6 +94,13 @@ export async function ensurePostgresPlatformStorage() {
         DROP INDEX IF EXISTS platform_identities_phone_unique;
         CREATE INDEX IF NOT EXISTS platform_identities_phone_idx
           ON platform_identities(phone_normalized) WHERE phone_normalized <> '';
+        CREATE TABLE IF NOT EXISTS platform_control_documents (
+          namespace TEXT NOT NULL,
+          id TEXT NOT NULL,
+          document JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (namespace, id)
+        );
         CREATE TABLE IF NOT EXISTS platform_sessions (
           id_hash TEXT PRIMARY KEY,
           identity_id TEXT NOT NULL,
@@ -668,3 +669,66 @@ export async function saveMediaMarkupLayer(orgId:string,mediaId:string,layerId:s
 export async function listMedia(orgId:string) { await ensurePostgresPlatformStorage(); const organizationId=await ensureOrg({query:queryPostgres} as DbExecutor,orgId); const result=await queryPostgres<DocumentRow>("SELECT document FROM platform_media WHERE organization_id=$1 ORDER BY updated_at DESC",[organizationId]); return result.rows.map((row)=>asObject(row.document)); }
 export async function mediaStorageUsage(orgId:string) { const media=await listMedia(orgId); const used=media.reduce<number>((total,item)=>{const values=Object.values(asObject(item.variants)); const variants=values.reduce<number>((sum,value)=>sum+Math.max(0,Number(asObject(value).size_bytes||0)),0); return total+(variants||Math.max(0,Number(item.size_bytes||0)));},0); return {organization_id:sanitizeId(orgId,"organization_id"),used_bytes:used,media_count:media.length,updated_at:nowIso()}; }
 export async function readMediaFile(orgId:string,mediaId:string,variantValue="original") { const metadata=await readMediaMetadata(orgId,mediaId); const variant=sanitizeId(variantValue||"original","variant"); const entry=asObject(asObject(metadata.variants)[variant]); const relative=String(entry.path||""); if(!relative||relative.includes("..")||relative.startsWith("/")) throw notFound("media_variant_not_found","The requested media variant was not found."); const bytes=await getSharedObject(objectKey(orgId,mediaId,relative)); if(!bytes) throw notFound("media_variant_not_found","The requested media variant was not found."); return {metadata,variant,contentType:String(entry.content_type||metadata.content_type||"application/octet-stream"),fileName:String(entry.file_name||metadata.file_name||mediaId),bytes}; }
+
+/** Control state is shared across replicas; mutation also locks absent keys. */
+export async function readControlDocument(namespace: string, id: string) {
+  await ensurePostgresPlatformStorage();
+  const result = await queryPostgres<DocumentRow>("SELECT document FROM platform_control_documents WHERE namespace = $1 AND id = $2", [namespace, id]);
+  return result.rows[0] ? asObject(result.rows[0].document) : null;
+}
+export async function mutateControlDocument(namespace: string, id: string, mutate: (current: JsonObject | null) => JsonObject | null) {
+  await ensurePostgresPlatformStorage();
+  return withPostgresTransaction(async client => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [JSON.stringify(["platform-control", namespace, id])]);
+    const result = await client.query<DocumentRow>("SELECT document FROM platform_control_documents WHERE namespace = $1 AND id = $2 FOR UPDATE", [namespace, id]);
+    const next = mutate(result.rows[0] ? asObject(result.rows[0].document) : null);
+    if (next === null) await client.query("DELETE FROM platform_control_documents WHERE namespace = $1 AND id = $2", [namespace, id]);
+    else await client.query("INSERT INTO platform_control_documents(namespace, id, document) VALUES ($1, $2, $3::jsonb) ON CONFLICT (namespace, id) DO UPDATE SET document = EXCLUDED.document, updated_at = now()", [namespace, id, JSON.stringify(next)]);
+    return next;
+  });
+}
+export async function rotateAuthSessionCsrf(sessionId: string) {
+  await ensurePostgresPlatformStorage();
+  return withPostgresTransaction(async client => {
+    const idHash = hashId(sessionId);
+    const current = await documentByQuery(client, "SELECT document FROM platform_sessions WHERE id_hash = $1 FOR UPDATE", [idHash]);
+    if (current.revoked_at) throw notFound("session_revoked", "The platform session has been revoked.");
+    const expiry = Date.parse(String(current.expires_at || ""));
+    if (!Number.isFinite(expiry) || expiry <= Date.now()) throw notFound("session_expired", "The platform session has expired.");
+    const next = { ...current, csrf_token: randomBytes(24).toString("base64url"), updated_at: nowIso(), last_seen_at: nowIso() };
+    await client.query("UPDATE platform_sessions SET document = $2::jsonb, updated_at = now() WHERE id_hash = $1", [idHash, JSON.stringify(next)]);
+    return next;
+  });
+}
+export async function createAccountDevice(input: JsonObject = {}) {
+  const now = nowIso();
+  const deviceId = randomBytes(32).toString("base64url");
+  const record = { schema_version: SCHEMA_VERSION, id_hash: hashId(deviceId), created_at: now, updated_at: now, last_seen_at: now, accounts: Array.isArray(input.accounts) ? input.accounts : [], metadata: asObject(input.metadata) };
+  await mutateControlDocument("account-devices", record.id_hash, () => record);
+  return { deviceId, record };
+}
+export async function readAccountDevice(deviceId: string) {
+  const record = await readControlDocument("account-devices", hashId(deviceId));
+  if (!record) throw notFound("account_device_not_found", "The remembered account device was not found.");
+  return record;
+}
+export async function saveAccountDevice(deviceId: string, input: JsonObject) {
+  return (await mutateControlDocument("account-devices", hashId(deviceId), current => {
+    if (!current) throw notFound("account_device_not_found", "The remembered account device was not found.");
+    const now = nowIso();
+    return { ...current, ...input, id_hash: hashId(deviceId), created_at: current.created_at, updated_at: now, last_seen_at: now, accounts: Array.isArray(input.accounts) ? input.accounts : current.accounts, metadata: { ...asObject(current.metadata), ...asObject(input.metadata) } };
+  }))!;
+}
+export async function deleteAccountDevice(deviceId: string) {
+  await mutateControlDocument("account-devices", hashId(deviceId), () => null);
+}
+export async function mutateMediaMetadata(orgId: string, mediaId: string, mutate: (current: JsonObject) => JsonObject) {
+  await ensurePostgresPlatformStorage();
+  return withPostgresTransaction(async client => {
+    const keys = [sanitizeId(orgId, "organization_id"), sanitizeId(mediaId, "media_id")];
+    const current = await documentByQuery(client, "SELECT document FROM platform_media WHERE organization_id = $1 AND id = $2 FOR UPDATE", keys);
+    const next: JsonObject = { ...mutate(current), id: current.id, organization_id: current.organization_id, updated_at: nowIso() };
+    await client.query("UPDATE platform_media SET document = $3::jsonb, updated_at = now() WHERE organization_id = $1 AND id = $2", [...keys, JSON.stringify(next)]);
+    return next;
+  });
+}

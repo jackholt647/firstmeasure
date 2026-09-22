@@ -1,3 +1,15 @@
+// Unit conversion is presentation-only; the US branch returns the original text verbatim.
+function pdfMeasure(value, kind, legacy, withUnit = true) {
+    const units = window.ReportUnits?.current();
+    return units?.metric ? (withUnit ? units.quantity(value, kind) : units.number(value, kind)) : legacy;
+}
+function pdfAreaHeading(legacy) { return window.ReportUnits?.current().metric ? legacy.replace(/Total Squares|Squares/gi, "Area (m²)") : legacy; }
+function pdfUnit(kind, legacy) { return window.ReportUnits?.current().metric ? window.ReportUnits.current().unit(kind) : legacy; }
+function pdfMaterialKind(unit) { return ({SQ:'sq',SF:'sf',LF:'ft',FT:'ft',GAL:'gallon'})[String(unit).toUpperCase()]; }
+function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ? pdfUnit(kind,unit) : unit; }
+function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
+function pdfLabel(text) { return window.ReportUnits?.current().label(text) ?? text; }
+
 /* pdf.js - Complete PDF Generation Logic & Helpers (DROP-IN REPLACEMENT)
    - Uses a single "Roof Diagram (Labels & Pitch)" page.
    - Supports editable label positions + leader lines via state.customLabels.
@@ -923,7 +935,7 @@ function createStandalonePdfSnapshot(sourceState) {
         snapshotVersion: PDF_SNAPSHOT_VERSION,
         savedAt: new Date().toISOString(),
         pdfSyncRevision: sourceState.pdfSyncRevision || sourceState.pdf_sync_revision || null,
-        pdfRenderDateLabel: sourceState.pdfRenderDateLabel || sourceState.pdf_render_date_label || new Date().toLocaleDateString('en-US'),
+        pdfRenderDateLabel: sourceState.pdfRenderDateLabel || sourceState.pdf_render_date_label || new Date().toLocaleDateString(window.ReportUnits?.current().language || 'en-US'),
         folderId: sourceState.folderId || window.currentProjectId || null,
         address: sourceState.address || (document.getElementById('addressInput')?.value || 'Project'),
         center: cloneJsonSafe(sourceState.center, null),
@@ -1157,9 +1169,9 @@ function blockUnrealisticPdfGeometryIfNeeded(report, facesData) {
         .map((issue) => {
             const value = Math.round(Number(issue.value)).toLocaleString();
             const limit = Math.round(Number(issue.limit)).toLocaleString();
-            if (issue.type === 'line') return `Line ${issue.index}: ${value} ft (limit ${limit} ft)`;
-            if (issue.type === 'face_edge') return `Face ${issue.index} edge: ${value} ft (limit ${limit} ft)`;
-            if (issue.type === 'face_area') return `Face ${issue.index} area: ${value} sq ft (limit ${limit} sq ft)`;
+            if (issue.type === 'line') return `Line ${issue.index}: ${pdfMeasure(issue.value, 'ft', `${value} ft`)} (limit ${pdfMeasure(issue.limit, 'ft', `${limit} ft`)})`;
+            if (issue.type === 'face_edge') return `Face ${issue.index} edge: ${pdfMeasure(issue.value, 'ft', `${value} ft`)} (limit ${pdfMeasure(issue.limit, 'ft', `${limit} ft`)})`;
+            if (issue.type === 'face_area') return `Face ${issue.index} area: ${pdfMeasure(issue.value, 'sf', `${value} sq ft`)} (limit ${pdfMeasure(issue.limit, 'sf', `${limit} sq ft`)})`;
             return `Issue ${issue.index || ''}: ${value} (limit ${limit})`;
         })
         .join('\n');
@@ -1913,7 +1925,7 @@ function buildPdfGutterMetrics(state) {
 
 function formatPdfGutterRunLabel(value) {
     const num = Number(value) || 0;
-    return Math.round(num).toLocaleString();
+    return pdfMeasure(num, "ft", Math.round(num).toLocaleString());
 }
 
 console.log("RUNNING UPDATED VERSION")
@@ -2223,7 +2235,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.setFont('Montserrat', 'bold');
         doc.setFontSize(14);
         doc.setTextColor(44, 51, 60);
-        doc.text('Property Measurement Report', marginLeft, 32);
+        doc.text(pdfLabel('Property Measurement Report'), marginLeft, 32);
     }
 
     const mapTopY = 40;
@@ -2294,8 +2306,8 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
         const coverFacetText = `Total Facets: ${state.manualTotalFacets}`;
         const coverPitchText = `Predominant Pitch: ${domPitch}`;
-        const coverNetSquaresText = `Total Squares (Net): ${Math.round(netSquares * 100) / 100}`;
-        const coverWasteSquaresText = `Total Squares (${wastePct}% Waste): ${Math.round(wasteSquares * 100) / 100}`;
+        const coverNetSquaresText = `${pdfAreaHeading("Total Squares")} (Net): ${pdfMeasure(netSquares, "sq", Math.round(netSquares * 100) / 100, false)}`;
+        const coverWasteSquaresText = `${pdfAreaHeading("Total Squares")} (${wastePct}% Waste): ${pdfMeasure(wasteSquares, "sq", Math.round(wasteSquares * 100) / 100, false)}`;
         emitPdfDebug('page:cover:text', {
             mode,
             page: pageCount,
@@ -2325,11 +2337,11 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         if (hasExterior) {
             const exterior = state.exteriorReport;
             const rows = [
-                ['Net wall area', `${Math.round(exterior.totals.net)} sq ft`],
-                ['Gross wall area', `${Math.round(exterior.totals.gross)} sq ft`],
+                ['Net wall area', `${pdfMeasure(exterior.totals.net, 'sf', `${Math.round(exterior.totals.net)} sq ft`)}`],
+                ['Gross wall area', `${pdfMeasure(exterior.totals.gross, 'sf', `${Math.round(exterior.totals.gross)} sq ft`)}`],
                 ['Wall regions', String(exterior.walls.length)],
                 ['Openings', String(exterior.openings.length)],
-                ['Opening area', `${Math.round(exterior.totals.openingArea)} sq ft`]
+                ['Opening area', `${pdfMeasure(exterior.totals.openingArea, 'sf', `${Math.round(exterior.totals.openingArea)} sq ft`)}`]
             ];
             rows.forEach(([label, value]) => {
                 doc.text(label + ':', box2X + pad, yCursor);
@@ -2343,7 +2355,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const val = Math.round(state.report.materials.linear[key]);
 
             doc.text(`${label}:`, box2X + pad, yCursor);
-            doc.text(`${val}'`, box2X + boxWidth - pad, yCursor, { align: 'right' });
+            doc.text(`${pdfMeasure(state.report.materials.linear[key], 'ft', `${val}'`)}`, box2X + boxWidth - pad, yCursor, { align: 'right' });
 
             yCursor += 5;
         });
@@ -2357,13 +2369,13 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
     // Imagery precedes the roof and exterior measurement sections.
     if (hasExterior && s.page_top_view) {
-        beginReportPage('Top-Down Roof View');
+        beginReportPage(pdfLabel('Top-Down Roof View'));
         placeImageCentered(doc, outlineImg, imgRatio, marginLeft, 35, pageHeight - 30, availableW);
         drawPDFCompass(doc, marginLeft + 10, 47, 3);
     }
     // Top View
     if (state.solarImg && s.page_top_view) {
-        beginReportPage("Roof Imagery");
+        beginReportPage(pdfLabel("Roof Imagery"));
         const tvTopY = 35;
         const tvSize = Math.min(availableW, pageHeight - tvTopY - 30);
         const tvX = marginLeft + (availableW - tvSize) / 2;
@@ -2415,7 +2427,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     const hasQuadImage = !firstMeasurePdfQuadViewsDisabled() && typeof state.quadImage === 'string' && state.quadImage.trim() !== '';
     const includeElev = hasQuadImage && !(state.elevationSettings && state.elevationSettings.include === false);
     if (s.page_elevations && includeElev && !hasExterior) {
-        beginReportPage("Roof Elevations");
+        beginReportPage(pdfLabel("Roof Elevations"));
         const qImg = new Image(); qImg.src = state.quadImage;
         await new Promise(r => qImg.onload = r);
         const qRatio = qImg.width / qImg.height;
@@ -2484,7 +2496,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     // Summary
     if (s.page_summary) {
         if (updateStatusCallback) updateStatusCallback("Generating Summary Page...");
-        beginReportPage("Roof Summary");
+        beginReportPage(pdfLabel("Roof Summary"));
         emitPdfDebug('page:summary', {
             mode,
             page: pageCount,
@@ -2537,7 +2549,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     if (s.page_ventilation) {
         const includeVent = !(state.ventSettings && state.ventSettings.include === false);
         if (includeVent) {
-            beginReportPage("Roof Ventilation");
+            beginReportPage(pdfLabel("Roof Ventilation"));
             const matEst = estimateMaterials(state.report);
             emitPdfDebug('page:ventilation', {
                 mode,
@@ -2557,7 +2569,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     // Pitch Diagram
     if (s.page_pitch) {
         if (updateStatusCallback) updateStatusCallback(`Generating Labels (${mode})...`);
-        beginReportPage("Roof Pitch Diagram");
+        beginReportPage(pdfLabel("Roof Pitch Diagram"));
         const pitchCanvas = await createFacetCanvasFromState(state, 'PITCH');
         const pitchImg = pitchCanvas.toDataURL('image/jpeg', 0.40);
         const topY = 35;
@@ -2577,7 +2589,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
     // Area Diagram
     if (s.page_area) {
-        beginReportPage("Roof Area Diagram");
+        beginReportPage(pdfLabel("Roof Area Diagram"));
         emitPdfDebug('page:area-diagram', {
             mode,
             page: pageCount,
@@ -2688,8 +2700,8 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const c3 = innerLeft + 90;            
 
             doc.text(`Facets: ${layerFacetCount}`, c1, lyCursor);
-            doc.text(`Squares Without Waste: ${Math.round(layerAreaSq * 10) / 10}`, c2, lyCursor);
-            doc.text(`Squares With Waste: ${Math.round(layerAreaSq * wasteFactor * 10) / 10}`, c3, lyCursor);
+            doc.text(`${pdfAreaHeading("Squares Without Waste")}: ${pdfMeasure(layerAreaSq, "sq", Math.round(layerAreaSq * 10) / 10, false)}`, c2, lyCursor);
+            doc.text(`${pdfAreaHeading("Squares With Waste")}: ${pdfMeasure(layerAreaSq * wasteFactor, "sq", Math.round(layerAreaSq * wasteFactor * 10) / 10, false)}`, c3, lyCursor);
 
             doc.setFont("Montserrat", "normal");
             lyCursor += 8;
@@ -2703,7 +2715,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             Object.keys(layerTotals).forEach((type) => {
                 if (type === 'unknown' || type === 'skylight' || type === 'chimney_edge' || type === 'chimney_back' || type === 'chimney_front') return;
                 const val = Math.round(layerTotals[type]);
-                const label = `${formatLineType(type)}: ${val}'`;
+                const label = `${formatLineType(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${val}'`)}`;
                 const textW = doc.getTextWidth(label);
 
                 if (flowX + textW > innerRight && flowX > innerLeft) {
@@ -2746,7 +2758,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         const gutterMetrics = buildPdfGutterMetrics(state);
         if (gutterMetrics.eaveLines.length > 0) {
             if (updateStatusCallback) updateStatusCallback("Generating Gutter Page...");
-            beginReportPage("Gutters");
+            beginReportPage(pdfLabel("Gutters"));
             await drawGutterPage(doc, state, gutterMetrics, marginLeft, 35, availableW, pageHeight - 60, brandingColors);
         }
     }
@@ -2761,7 +2773,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     // ==========================================
     if (s.page_notes) {
         if (updateStatusCallback) updateStatusCallback("Generating Notes Page...");
-        beginReportPage("Roof Notes");
+        beginReportPage(pdfLabel("Roof Notes"));
 
         if (!outlineImg) {
             const outlineCanvas = await createFacetCanvasFromState(state, 'OUTLINE');
@@ -3002,8 +3014,8 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h) {
                 doc.setFont("Montserrat", "bold");
                 doc.text(
                     settings.cover_show_waste
-                        ? `Total Squares (+${wastePct}% Waste)`
-                        : "Total Squares",
+                        ? `${pdfAreaHeading("Total Squares")} (+${wastePct}% Waste)`
+                        : pdfAreaHeading("Total Squares"),
                     leftColX,
                     cy
                 );
@@ -3011,7 +3023,7 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h) {
                 cy += 9;
                 doc.setFontSize(28); 
                 doc.setTextColor(pColor.r, pColor.g, pColor.b);
-                doc.text(`${Math.round(val * 100) / 100}`, leftColX, cy);
+                doc.text(`${pdfMeasure(val, "sq", Math.round(val * 100) / 100, false)}`, leftColX, cy);
                 
                 cy += 7;
             }
@@ -3068,7 +3080,7 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h) {
 
                     doc.setTextColor(0);
                     doc.setFont("Montserrat", "bold");
-                    doc.text(`${val}'`, rightX + rightW - boxPad, cy, { align: 'right' });
+                    doc.text(`${pdfMeasure(lin[matchKey], 'ft', `${val}'`)}`, rightX + rightW - boxPad, cy, { align: 'right' });
 
                     cy += lineH;
                 }
@@ -3376,20 +3388,20 @@ async function drawStructuresBatch(doc, structs, state, x, y, w, h) {
       statsY += 4.5;
     };
     
-    drawRow("Facets:", String(structureMetrics.activeFaceCount || 0));
-    drawRow("Pitch:", structureMetrics.predominantPitch || "N/A");
-    drawRow("Square Feet:", sSqFt.toLocaleString());
-    drawRow(`Squares with Waste (${wastePct}%):`, sSquaresWaste.toLocaleString(), true, "#d93025");
+    drawRow(pdfLabel("Facets:"), String(structureMetrics.activeFaceCount || 0));
+    drawRow(pdfLabel("Pitch:"), structureMetrics.predominantPitch || "N/A");
+    drawRow(window.ReportUnits?.current().metric ? "Square metres:" : "Square Feet:", pdfMeasure(structureMetrics.netSqFt, "sf", sSqFt.toLocaleString(), false));
+    drawRow(`${pdfAreaHeading("Squares with Waste")} (${wastePct}%):`, pdfMeasure((structureMetrics.netSquares || 0) * (1 + wastePct/100), "sq", sSquaresWaste.toLocaleString(), false), true, "#d93025");
     statsY += 2;
-    if (Math.round(stats.Eaves) > 0)   drawRow("Eaves:", Math.round(stats.Eaves)+"'");
-    if (Math.round(stats.Rakes) > 0)   drawRow("Rakes:", Math.round(stats.Rakes)+"'");
-    if (Math.round(stats.Ridges) > 0)  drawRow("Ridges:", Math.round(stats.Ridges)+"'");
-    if (Math.round(stats.Hips) > 0)    drawRow("Hips:", Math.round(stats.Hips)+"'");
-    if (Math.round(stats.Valleys) > 0) drawRow("Valleys:", Math.round(stats.Valleys)+"'");
-    if (Math.round(stats.Trans) > 0)   drawRow("Transitions:", Math.round(stats.Trans)+"'");
+    if (Math.round(stats.Eaves) > 0)   drawRow(pdfLabel("Eaves:"), pdfMeasure(stats.Eaves, 'ft', Math.round(stats.Eaves)+"'"));
+    if (Math.round(stats.Rakes) > 0)   drawRow(pdfLabel("Rakes:"), pdfMeasure(stats.Rakes, 'ft', Math.round(stats.Rakes)+"'"));
+    if (Math.round(stats.Ridges) > 0)  drawRow(pdfLabel("Ridges:"), pdfMeasure(stats.Ridges, 'ft', Math.round(stats.Ridges)+"'"));
+    if (Math.round(stats.Hips) > 0)    drawRow(pdfLabel("Hips:"), pdfMeasure(stats.Hips, 'ft', Math.round(stats.Hips)+"'"));
+    if (Math.round(stats.Valleys) > 0) drawRow(pdfLabel("Valleys:"), pdfMeasure(stats.Valleys, 'ft', Math.round(stats.Valleys)+"'"));
+    if (Math.round(stats.Trans) > 0)   drawRow(pdfLabel("Transitions:"), pdfMeasure(stats.Trans, 'ft', Math.round(stats.Trans)+"'"));
     statsY += 2;
-    if (Math.round(skylights) > 0) drawRow("Skylights:", Math.round(skylights).toString());
-    if (Math.round(chimneys) > 0)  drawRow("Chimneys:", Math.round(chimneys).toString());
+    if (Math.round(skylights) > 0) drawRow(pdfLabel("Skylights:"), Math.round(skylights).toString());
+    if (Math.round(chimneys) > 0)  drawRow(pdfLabel("Chimneys:"), Math.round(chimneys).toString());
     
     currX += colW + colGap;
   }
@@ -3547,8 +3559,8 @@ function summarizeObstacleDims(layerLines) {
       const lengths = c.map(l => Math.round(l.length || 0)).filter(n => n > 0);
       const unique = [...new Set(lengths)].sort((a,b)=>a-b);
       let dimStr = fallbackLabel;
-      if (unique.length === 1) dimStr = `${unique[0]}'`;
-      if (unique.length >= 2) dimStr = `${unique[0]}'x${unique[unique.length-1]}'`;
+      if (unique.length === 1) dimStr = `${pdfMeasure(unique[0], 'ft', `${unique[0]}'`)}`;
+      if (unique.length >= 2) dimStr = `${pdfMeasure(unique[0], 'ft', `${unique[0]}'`)}x${pdfMeasure(unique[unique.length-1], 'ft', `${unique[unique.length-1]}'`)}`;
       return dimStr;
     });
   };
@@ -3966,7 +3978,7 @@ async function createFacetCanvasFromState(state, mode, layerFilter = null) {
             }
 
             const text = (mode === 'AREA')
-                ? String(lbl.areaText ?? '')
+                ? pdfMeasure(lbl.areaSqFt ?? Number(lbl.areaText), 'sf', String(lbl.areaText ?? ''))
                 : String(lbl.pitchText ?? lbl.text ?? '');
 
             if (!text) return;
@@ -4181,6 +4193,7 @@ window.recalculateReportMaterials = function(state) {
     const pitchBucket12 = Math.round(Math.abs(rise12));
 
     if (lbl && typeof lbl === 'object') {
+      lbl.areaSqFt = areaSqFt;
       lbl.areaText = `${Math.round(areaSqFt)}`;
     }
 
@@ -4297,7 +4310,7 @@ async function createLayerCanvasFromState(state, layerNum, drawLabels, monochrom
                 const unique = [...new Set(lengths)].sort((a, b) => a - b);
 
                 let dimStr = prefix;
-                if (unique.length > 0) dimStr = `${unique[0]}'x${unique[unique.length - 1]}'`;
+                if (unique.length > 0) dimStr = `${pdfMeasure(unique[0], 'ft', `${unique[0]}'`)}x${pdfMeasure(unique[unique.length - 1], 'ft', `${unique[unique.length - 1]}'`)}`;
                 if (prefix === "CHIM" && unique.length === 0) dimStr = "CHIM";
 
                 drawLabelBox(ctx, dimStr, center.x, center.y, FONT_SIZE_STD, 0, LABEL_BG_COLOR);
@@ -5803,20 +5816,20 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     drawPdfCard(doc, pitchTableX, cursorY - 2, pitchTableW, pitchTableH, 3);
 
     doc.setFontSize(9); doc.setTextColor(0);
-    doc.setFont("Montserrat", "bold"); doc.text("Pitch", pitchTableX+4, cursorY+5);
+    doc.setFont("Montserrat", "bold"); doc.text(pdfLabel("Pitch"), pitchTableX+4, cursorY+5);
     pitches.forEach((p,i)=>doc.text(p, pitchTableX+((i+1)*colW)+(colW/2), cursorY+5, {align:'center'}));
     cursorY += 8;
     
-    doc.text("Area (sq ft)", pitchTableX+4, cursorY+5); doc.setFont("Montserrat", "normal");
+    doc.text(window.ReportUnits?.current().metric ? "Area (m²)" : "Area (sq ft)", pitchTableX+4, cursorY+5); doc.setFont("Montserrat", "normal");
     pitches.forEach((p,i)=>{
         if(p===domPitch) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
         const val = squaresData[p];
-        const disp = (typeof val === 'number') ? Math.round(val*100).toLocaleString() : "0";
+        const disp = (typeof val === 'number') ? pdfMeasure(val * 100, "sf", Math.round(val*100).toLocaleString(), false) : "0";
         doc.text(disp, pitchTableX+((i+1)*colW)+(colW/2), cursorY+5, {align:'center'});
     });
     cursorY += 8;
 
-    doc.setFont("Montserrat","bold"); doc.text("Percent", pitchTableX+4, cursorY+5); doc.setFont("Montserrat","normal");
+    doc.setFont("Montserrat","bold"); doc.text(pdfLabel("Percent"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat","normal");
     pitches.forEach((p,i)=>{
         if(p===domPitch) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
         const val = squaresData[p];
@@ -5835,7 +5848,8 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     const wasteColW = wasteInnerW / (wastes.length + 1);
     const wasteContentX = x + wastePad; // Content starts with padding
     const highlightX = wasteContentX + ((suggestedIdx+1)*wasteColW);
-    const wasteTableH = 28;
+    const metricUnits = !!window.ReportUnits?.current().metric;
+    const wasteTableH = metricUnits ? 20 : 28;
     
     // Draw card behind waste table
     drawPdfCard(doc, x, cursorY - 2, w, wasteTableH, 3);
@@ -5846,7 +5860,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     for(let i=1; i <= wastes.length; i++) {
         const lineX = wasteContentX + (i * wasteColW);
-        doc.line(lineX, cursorY, lineX, cursorY + 24);
+        doc.line(lineX, cursorY, lineX, cursorY + (metricUnits ? 16 : 24));
     }
 
     doc.line(wasteContentX, cursorY + 8, wasteContentX + wasteInnerW, cursorY + 8); 
@@ -5856,26 +5870,28 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     if (suggestedIdx !== -1) {
         doc.setDrawColor(200,40,40); 
         doc.setLineWidth(0.7);
-        doc.roundedRect(highlightX, cursorY - 1, wasteColW, 26, 1, 1, 'S');
+        doc.roundedRect(highlightX, cursorY - 1, wasteColW, metricUnits ? 18 : 26, 1, 1, 'S');
     }
 
-    doc.setFont("Montserrat","bold"); doc.setTextColor(0); doc.text("Waste", wasteContentX+2, cursorY+5);
+    doc.setFont("Montserrat","bold"); doc.setTextColor(0); doc.text(pdfLabel("Waste"), wasteContentX+2, cursorY+5);
     wastes.forEach((v,i)=>doc.text(v+"%", wasteContentX+((i+1)*wasteColW)+(wasteColW/2), cursorY+5, {align:'center'}));
     cursorY+=8;
     
-    doc.text("Area (sq ft)", wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
+    doc.text(window.ReportUnits?.current().metric ? "Area (m²)" : "Area (sq ft)", wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
     wastes.forEach((v,i)=>{
         if(i===suggestedIdx) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        doc.text(Math.round(totalSq*100*(1+v/100)).toLocaleString(), wasteContentX+((i+1)*wasteColW)+(wasteColW/2), cursorY+5, {align:'center'});
+        doc.text(pdfMeasure(totalSq*100*(1+v/100), "sf", Math.round(totalSq*100*(1+v/100)).toLocaleString(), false), wasteContentX+((i+1)*wasteColW)+(wasteColW/2), cursorY+5, {align:'center'});
     });
     cursorY+=8;
 
-    doc.setFont("Montserrat","bold"); doc.text("Squares", wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
+    if (!metricUnits) {
+    doc.setFont("Montserrat","bold"); doc.text(pdfUnit("sq", "Squares"), wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
     wastes.forEach((v,i)=>{
         if(i===suggestedIdx) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        doc.text(Math.ceil(totalSq*(1+v/100)).toString(), wasteContentX+((i+1)*wasteColW)+(wasteColW/2), cursorY+5, {align:'center'});
+        doc.text(pdfMeasure(totalSq*(1+v/100), "sq", Math.ceil(totalSq*(1+v/100)).toString(), false), wasteContentX+((i+1)*wasteColW)+(wasteColW/2), cursorY+5, {align:'center'});
     });
-    cursorY+=16;
+    }
+    cursorY += metricUnits ? 8 : 16;
 
     const statsW = 40;
     const imgAvail = w - statsW - 15;
@@ -5913,7 +5929,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     const statRows = [];
 
     // Always show these
-    statRows.push(["Roof Area", Math.round(totalSq * 100) + " sq ft"]);
+    statRows.push(["Roof Area", pdfMeasure(totalSq * 100, 'sf', Math.round(totalSq * 100) + " sq ft")]);
     statRows.push(["Facets", facetCount.toString()]);
     statRows.push(["Pitch", domPitch ? domPitch.replace(/\//g, " / ") : "N/A"]);
 
@@ -5940,11 +5956,11 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     lineStatTypes.forEach(t => {
         const val = Math.round(lin[t.id] || 0);
-        if (val > 0) statRows.push([t.label, val + " ft"]);
+        if (val > 0) statRows.push([t.label, pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
     });
 
     // Counter Flashing — only if non-zero
-    if (counterFlashing > 0) statRows.push(["Counter Flashing", counterFlashing + " ft"]);
+    if (counterFlashing > 0) statRows.push(["Counter Flashing", pdfMeasure((lin.chimney_edge || 0) + (lin.chimney_back || 0) + (lin.chimney_front || 0), 'ft', counterFlashing + " ft")]);
 
     // --- Size the card dynamically to fit rows ---
     const rowHeight = 8;
@@ -5995,7 +6011,7 @@ async function drawGutterPage(doc, state, metrics, x, y, w, h, brandingColors) {
         doc.text(`${value}${suffix}`, bx + (metricW / 2), y + 20, { align: 'center' });
     };
 
-    drawMetricCard(x, "Active Gutter", Math.round(metrics.totalLengthFt).toLocaleString(), ' ft');
+    drawMetricCard(x, "Active Gutter", pdfMeasure(metrics.totalLengthFt,"ft",Math.round(metrics.totalLengthFt).toLocaleString(),false), ' '+pdfUnit("ft","ft"));
     drawMetricCard(metric2X, "Downspouts", String(metrics.estimatedDownspouts));
 
     drawSummaryBox(doc, summaryRightX, y, summaryRightW, summaryH, "Miter Counts");
@@ -6156,25 +6172,25 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         drawSummaryBox(doc, x, y, w, atticBoxH, "Ventilation Summary");
 
         doc.setFontSize(8); doc.setFont("Montserrat", "normal"); doc.setTextColor(100);
-        doc.text("Estimated Attic Area", x + pad, y + 13);
+        doc.text(pdfLabel("Estimated Attic Area"), x + pad, y + 13);
         doc.setFontSize(15); doc.setFont("Montserrat", "bold"); doc.setTextColor(217, 48, 37);
-        doc.text(`${Math.round(atticArea).toLocaleString()} sq ft`, x + pad, y + 20);
+        doc.text(`${pdfMeasure(atticArea, 'sf', `${Math.round(atticArea).toLocaleString()} sq ft`)}`, x + pad, y + 20);
 
         doc.setFontSize(6.5); doc.setFont("Montserrat", "normal"); doc.setTextColor(140);
-        doc.text(`Footprint: ${Math.round(footprintSqFt).toLocaleString()} sq ft  |  Surface: ${Math.round(roofSurfaceSqFt).toLocaleString()} sq ft`, x + pad + 50, y + 20);
+        doc.text(`Footprint: ${pdfMeasure(footprintSqFt, 'sf', `${Math.round(footprintSqFt).toLocaleString()} sq ft`)}  |  Surface: ${pdfMeasure(roofSurfaceSqFt, 'sf', `${Math.round(roofSurfaceSqFt).toLocaleString()} sq ft`)}`, x + pad + 50, y + 20);
 
         // Right side: Exhaust + Intake stacked
         const rightSide = x + w - pad;
 
         doc.setFontSize(7); doc.setFont("Montserrat", "normal"); doc.setTextColor(100);
-        doc.text("Recommended Exhaust", rightSide, y + 5, { align: 'right' });
+        doc.text(pdfLabel("Recommended Exhaust"), rightSide, y + 5, { align: 'right' });
         doc.setFontSize(12); doc.setFont("Montserrat", "bold"); doc.setTextColor(217, 48, 37);
-        doc.text(`${Math.round(selected.reqExhaust)} sq in`, rightSide, y + 10, { align: 'right' });
+        doc.text(`${pdfMeasure(selected.reqExhaust, 'si', `${Math.round(selected.reqExhaust)} sq in`)}`, rightSide, y + 10, { align: 'right' });
 
         doc.setFontSize(7); doc.setFont("Montserrat", "normal"); doc.setTextColor(100);
-        doc.text("Recommended Intake", rightSide, y + 15, { align: 'right' });
+        doc.text(pdfLabel("Recommended Intake"), rightSide, y + 15, { align: 'right' });
         doc.setFontSize(12); doc.setFont("Montserrat", "bold"); doc.setTextColor(217, 48, 37);
-        doc.text(`${Math.round(selected.reqIntake)} sq in`, rightSide, y + 20, { align: 'right' });
+        doc.text(`${pdfMeasure(selected.reqIntake, 'si', `${Math.round(selected.reqIntake)} sq in`)}`, rightSide, y + 20, { align: 'right' });
 
         doc.setTextColor(0);
 
@@ -6255,15 +6271,15 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
 
             // Data
             doc.setFontSize(8); doc.setFont("Montserrat", "normal"); doc.setTextColor(60);
-            doc.text(`NFVA: ${Math.round(d.totalNfvaSqIn)} sq in`, cx + 3, dy); dy += 3.5;
-            doc.text(`Exhaust: ${Math.round(d.reqExhaust)} sq in`, cx + 3, dy); dy += 3.5;
-            doc.text(`Intake: ${Math.round(d.reqIntake)} sq in`, cx + 3, dy);
+            doc.text(`NFVA: ${pdfMeasure(d.totalNfvaSqIn, 'si', `${Math.round(d.totalNfvaSqIn)} sq in`)}`, cx + 3, dy); dy += 3.5;
+            doc.text(`Exhaust: ${pdfMeasure(d.reqExhaust, 'si', `${Math.round(d.reqExhaust)} sq in`)}`, cx + 3, dy); dy += 3.5;
+            doc.text(`Intake: ${pdfMeasure(d.reqIntake, 'si', `${Math.round(d.reqIntake)} sq in`)}`, cx + 3, dy);
 
             // "Recommended" at bottom, left-aligned
             if (isRec) {
                 const recY = ry + rowH - 2.5;
                 doc.setFontSize(7); doc.setFont("Montserrat", "bold"); doc.setTextColor(26, 115, 232);
-                doc.text("Recommended", cx + 3, recY);
+                doc.text(pdfLabel("Recommended"), cx + 3, recY);
             }
         };
 
@@ -6295,25 +6311,25 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
             if (isRec) {
                 const recY = ry + rowH - 2.5;
                 doc.setFontSize(7); doc.setFont("Montserrat", "bold"); doc.setTextColor(52, 168, 83);
-                doc.text("Recommended", cx + 3, recY);
+                doc.text(pdfLabel("Recommended"), cx + 3, recY);
             }
         };
 
         const ridgeLines = [];
-        ridgeLines.push(`Needed: ${Math.round(selected.ridgeNeededFt)}' (@ 18"/lf)`);
-        ridgeLines.push(`Available: ${Math.round(totalRidgeFt)}'`);
+        ridgeLines.push(`Needed: ${pdfMeasure(selected.ridgeNeededFt, 'ft', `${Math.round(selected.ridgeNeededFt)}'`)} (@ 18"/lf)`);
+        ridgeLines.push(`Available: ${pdfMeasure(totalRidgeFt, 'ft', `${Math.round(totalRidgeFt)}'`)}`);
         if (selected.recommendRidge) {
             ridgeLines.push(`Capacity sufficient`);
         } else if (totalRidgeFt < 4) {
             ridgeLines.push(`Insufficient ridge`);
         } else {
-            ridgeLines.push(`Deficit: ${Math.round(selected.ridgeDeficit)} sq in`);
+            ridgeLines.push(`Deficit: ${pdfMeasure(selected.ridgeDeficit, 'si', `${Math.round(selected.ridgeDeficit)} sq in`)}`);
         }
 
         const boxLines = [];
         boxLines.push(`Needed: ${selected.boxOnlyCount} vents`);
-        boxLines.push(`${BOX_VENT_RATING} sq in NFA each`);
-        boxLines.push(`Total: ${selected.boxOnlyCount * BOX_VENT_RATING} sq in`);
+        boxLines.push(`${pdfMeasure(BOX_VENT_RATING, 'si', `${BOX_VENT_RATING} sq in`)} NFA each`);
+        boxLines.push(`Total: ${pdfMeasure(selected.boxOnlyCount * BOX_VENT_RATING, 'si', `${selected.boxOnlyCount * BOX_VENT_RATING} sq in`)}`);
 
         drawVentCol("Ridge Vent", selected.recommendRidge, vCol1X, ridgeLines);
         drawVentCol("Box Vents", !selected.recommendRidge, vCol2X, boxLines);
@@ -6330,9 +6346,9 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         // Header row
         doc.setFillColor(245, 245, 245); doc.rect(x + 2, iy - 2, w - 4, 6, 'F');
         doc.setFontSize(8); doc.setFont("Montserrat", "bold"); doc.setTextColor(80);
-        doc.text("Product", x + pad, iy + 2);
-        doc.text("Rating", x + pad + 65, iy + 2);
-        doc.text("Qty Needed", x + pad + 110, iy + 2);
+        doc.text(pdfLabel("Product"), x + pad, iy + 2);
+        doc.text(pdfLabel("Rating"), x + pad + 65, iy + 2);
+        doc.text(pdfLabel("Qty Needed"), x + pad + 110, iy + 2);
         iy += 10;
 
         const drawIRow = (n, r, q) => {
@@ -6344,9 +6360,9 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
             iy += 5.5;
         };
         const halfIn = Math.round(selected.reqIntake);
-        drawIRow("Vented Drip Edge", "9 sq in/ft", `${Math.ceil(halfIn / 9)} ft`);
-        drawIRow("Soffit Vent", "9 sq in/ft", `${Math.ceil(halfIn / 9)} ft`);
-        drawIRow("Bird Blocks", "~3.5 sq in", `${Math.ceil(halfIn / 3.5)} ea`);
+        drawIRow(pdfLabel("Vented Drip Edge"), (window.ReportUnits?.current().metric ? "190.5 cm²/m" : "9 sq in/ft"), `${pdfMeasure(halfIn / 9, 'ft', `${Math.ceil(halfIn / 9)} ft`)}`);
+        drawIRow(pdfLabel("Soffit Vent"), (window.ReportUnits?.current().metric ? "190.5 cm²/m" : "9 sq in/ft"), `${pdfMeasure(halfIn / 9, 'ft', `${Math.ceil(halfIn / 9)} ft`)}`);
+        drawIRow(pdfLabel("Bird Blocks"), ("~" + pdfMeasure(3.5,"si","3.5 sq in")), `${Math.ceil(halfIn / 3.5)} ea`);
 
         // ════════════════════════════════════════════════════
         // ROW 4: Vent Canvas Image + Legend
@@ -6445,29 +6461,29 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         const keyTop = imgY + (imgH - keyTotalH) / 2;
 
         doc.setFontSize(8); doc.setFont("Montserrat", "bold"); doc.setTextColor(0);
-        doc.text("Key", keyLeftX, keyTop);
+        doc.text(pdfLabel("Key"), keyLeftX, keyTop);
 
         // Ridge Vent
         let keyY = keyTop + 7;
         doc.setDrawColor(255, 0, 0); doc.setLineWidth(1.5);
         doc.line(keyLeftX, keyY, keyLeftX + 10, keyY);
         doc.setTextColor(60); doc.setFont("Montserrat", "normal"); doc.setFontSize(7);
-        doc.text("Ridge Vent", keyLeftX + 13, keyY + 1);
+        doc.text(pdfLabel("Ridge Vent"), keyLeftX + 13, keyY + 1);
 
         // Box Vent
         keyY += keyItemH;
         doc.setFillColor(255, 152, 0);
         doc.rect(keyLeftX, keyY - 2.5, 5, 5, 'F');
         doc.setTextColor(60); doc.setFont("Montserrat", "normal"); doc.setFontSize(7);
-        doc.text("Box Vent", keyLeftX + 13, keyY + 1);
+        doc.text(pdfLabel("Box Vent"), keyLeftX + 13, keyY + 1);
 
         // ════════════════════════════════════════════════════
         // ROW 5: Disclaimer
         // ════════════════════════════════════════════════════
-        const note = `Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.`;
+        const note = pdfLabel(`Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.`);
 
         doc.setFont("Montserrat", "normal"); doc.setFontSize(6); doc.setTextColor(90);
-        const noteLines = doc.splitTextToSize(note, w);
+        const noteLines = doc.splitTextToSize(window.ReportUnits?.current().metric ? note.replace("1 square foot", "1 square metre").replace("square feet", "square metres").replace("square footage", "area") : note, w);
         let noteY = pageH - 20 - (noteLines.length - 1) * 3.5;
         noteY = Math.max(noteY, pageH - 40);
         doc.text(noteLines, x, noteY);
@@ -6543,7 +6559,7 @@ async function drawNotesPage(doc, state, outlineImg, imgRatio, x, startY, availW
         if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
     });
 
-    const pillText = `${withWaste} sq  ·  ${domPitch}  ·  ${state.manualTotalFacets} facets`;
+    const pillText = `${pdfMeasure(withWaste, 'sq', `${withWaste} sq`)}  ·  ${domPitch}  ·  ${state.manualTotalFacets} facets`;
     doc.setFont("Montserrat", "bold");
     doc.setFontSize(7.5);
 
@@ -6599,7 +6615,7 @@ async function drawNotesPage(doc, state, outlineImg, imgRatio, x, startY, availW
     doc.setFontSize(9);
     doc.setTextColor(150);
     doc.setFont("Montserrat", "bold");
-    doc.text("NOTES", x + SIDE_PAD, notesCardY + 8);
+    doc.text(pdfLabel("NOTES"), x + SIDE_PAD, notesCardY + 8);
     doc.setTextColor(0);
 
     // Thin separator under header
@@ -6647,7 +6663,7 @@ function drawReportTemplate(doc, pageNum, logoData, isFirstPage, titleText, addr
     doc.setFillColor(s.r, s.g, s.b);
     doc.rect(8, 0, 2, height, 'F');
 
-    const date = dateLabel || new Date().toLocaleDateString('en-US');
+    const date = dateLabel || new Date().toLocaleDateString(window.ReportUnits?.current().language || 'en-US');
 
     // LOGO: Register once with alias, reuse on every page
     const drawLogo = () => {
@@ -6824,9 +6840,9 @@ function drawPitchTable(doc, squaresData, x, y, w, highlightDominant = false) {
     doc.setFontSize(9);
     
     // Headers (Adjusted X positions)
-    doc.text("Pitch", x + pad + 10, cy, {align:'center'});
-    doc.text("Area", x + w/2, cy, {align:'center'});
-    doc.text("Percent", x + w - pad - 10, cy, {align:'center'});
+    doc.text(pdfLabel("Pitch"), x + pad + 10, cy, {align:'center'});
+    doc.text(pdfUnit("sf", "Area"), x + w/2, cy, {align:'center'});
+    doc.text(pdfLabel("Percent"), x + w - pad - 10, cy, {align:'center'});
 
     // Divider Line (Adjusted start/end)
     doc.line(x + pad, cy+2, x + w - pad, cy+2);
@@ -6842,7 +6858,7 @@ function drawPitchTable(doc, squaresData, x, y, w, highlightDominant = false) {
 
         // Row Data (Adjusted X positions)
         doc.text(r.pitch, x + pad + 10, cy, {align:'center'}); // Centered under header
-        doc.text(r.sq.toFixed(2), x + w/2, cy, {align:'center'});
+        doc.text(pdfMeasure(r.sq, "sq", r.sq.toFixed(2), false), x + w/2, cy, {align:'center'});
         doc.text(Math.round(r.pct) + "%", x + w - pad - 10, cy, {align:'right'}); // Right-align to padding
         cy += 5;
     });
@@ -7026,7 +7042,7 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
     doc.setFontSize(9);
     doc.setTextColor(0);
     doc.text(
-        "Flat Roof Area: " + flatEst.flatSqFt.toLocaleString() + " sq ft  (" + flatEst.flatSquares.toFixed(2) + " sq)  |  Waste: " + manualWastePct + "%",
+        (window.ReportUnits?.current().metric ? "Flat Roof Area: " + pdfMeasure(flatEst.flatSqFt,"sf","") + "  |  Waste: " + manualWastePct + "%" : "Flat Roof Area: " + flatEst.flatSqFt.toLocaleString() + " sq ft  (" + flatEst.flatSquares.toFixed(2) + " sq)  |  Waste: " + manualWastePct + "%"),
         contentLeft, cursorY
     );
     cursorY += 8;
@@ -7036,8 +7052,8 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
     doc.setFontSize(HEADER_FONT);
     doc.setTextColor(80);
 
-    doc.text("Material", contentLeft, cursorY);
-    doc.text("Unit", contentLeft + labelColW + 2, cursorY);
+    doc.text(pdfLabel("Material"), contentLeft, cursorY);
+    doc.text(pdfLabel("Unit"), contentLeft + labelColW + 2, cursorY);
 
     systems.forEach(function(sys, i) {
         var cx = dataStart + (i * sysColW) + (sysColW / 2);
@@ -7058,7 +7074,7 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
             doc.setFont("Montserrat", "bold");
             doc.setFontSize(SECTION_FONT);
             doc.setTextColor(0);
-            doc.text(row.section, contentLeft, cursorY);
+            doc.text(pdfLabel(row.section), contentLeft, cursorY);
 
             doc.setDrawColor(210);
             doc.line(contentLeft, cursorY + 1.5, contentRight, cursorY + 1.5);
@@ -7077,9 +7093,9 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
         doc.setFontSize(ROW_FONT);
         doc.setTextColor(40);
 
-        doc.text(row.label, contentLeft, cursorY);
+        doc.text(pdfLabel(row.label), contentLeft, cursorY);
         doc.setTextColor(120);
-        doc.text(row.unit || '', contentLeft + labelColW + 2, cursorY);
+        doc.text(pdfMaterialUnit(row.unit || ''), contentLeft + labelColW + 2, cursorY);
 
         systems.forEach(function(sys, i) {
             var cx = dataStart + (i * sysColW) + (sysColW / 2);
@@ -7093,7 +7109,7 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
                 var adjusted = row.noWaste ? Math.ceil(val) : Math.ceil(val * wasteFactor);
                 doc.setFont("Montserrat", "bold");
                 doc.setTextColor(0);
-                doc.text(adjusted.toString(), cx, cursorY, { align: 'center' });
+                doc.text(pdfMaterialAmount(val * (row.noWaste ? 1 : wasteFactor), row.unit, adjusted.toString()), cx, cursorY, { align: 'center' });
             }
         });
 
@@ -7110,14 +7126,14 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
         doc.setFont("Montserrat", "bold");
         doc.setFontSize(9);
         doc.setTextColor(0);
-        doc.text("Parapet Wall Heights", contentLeft, cursorY);
+        doc.text(pdfLabel("Parapet Wall Heights"), contentLeft, cursorY);
         cursorY += 5;
 
         doc.setFont("Montserrat", "normal");
         doc.setFontSize(8);
         doc.setTextColor(80);
         doc.text(
-            "Parapet Perimeter: " + flatEst.parapetLen + "'  |  Waste: " + manualWastePct + "%  |  Measure wall height on-site.",
+            "Parapet Perimeter: " + pdfMeasure(flatEst.parapetLen,"ft",flatEst.parapetLen+"'") + "  |  Waste: " + manualWastePct + "%  |  Measure wall height on-site.",
             contentLeft, cursorY
         );
         cursorY += 6;
@@ -7174,19 +7190,19 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
             doc.setFont("Montserrat", "bold");
             doc.setFontSize(8);
             doc.setTextColor(0);
-            doc.text(row.heightLabel, colX + pColW / 2, rowY + 3, { align: 'center' });
+            doc.text(pdfMeasure(row.heightIn,"inch",row.heightLabel), colX + pColW / 2, rowY + 3, { align: 'center' });
             colX += pColW;
 
             // Wall Area
             doc.setFont("Montserrat", "normal");
             doc.setFontSize(8);
             doc.setTextColor(0);
-            doc.text(Math.round(row.upturnSqFt * wasteFactor).toLocaleString() + " sf", colX + pColW / 2, rowY + 3, { align: 'center' });
+            doc.text(pdfMeasure(row.upturnSqFt * wasteFactor, 'sf', Math.round(row.upturnSqFt * wasteFactor).toLocaleString() + " sf"), colX + pColW / 2, rowY + 3, { align: 'center' });
             colX += pColW;
 
             // Total Area
             doc.setFont("Montserrat", "bold");
-            doc.text(Math.round(row.totalSqFt * wasteFactor).toLocaleString() + " sf", colX + pColW / 2, rowY + 3, { align: 'center' });
+            doc.text(pdfMeasure(row.totalSqFt * wasteFactor, 'sf', Math.round(row.totalSqFt * wasteFactor).toLocaleString() + " sf"), colX + pColW / 2, rowY + 3, { align: 'center' });
             colX += pColW;
 
             // Membrane rolls
@@ -7197,7 +7213,7 @@ function drawFlatMaterialTable(doc, flatEst, x, y, w, manualWastePct, pageContex
 
             // Additional adhesive
             var adjAdhesive = Math.ceil((row.upturnSqFt * wasteFactor) / flatEst.adhesive.sqFtPerGal);
-            doc.text(adjAdhesive + " gal", colX + pColW / 2, rowY + 3, { align: 'center' });
+            doc.text(pdfMeasure(adjAdhesive, 'gallon', adjAdhesive + " gal"), colX + pColW / 2, rowY + 3, { align: 'center' });
 
             cursorY += rowH;
             lastRowBottomY = cursorY;
@@ -7597,6 +7613,7 @@ function estimateFlatMaterials(flatSquares, report) {
         const totalWithWalls = sqFt + upturnSqFt;
         return {
             heightIn: heightIn,
+            heightIn,
             heightLabel: heightIn + '"',
             upturnSqFt: Math.round(upturnSqFt),
             totalSqFt: Math.round(totalWithWalls),
@@ -7658,7 +7675,7 @@ function drawMaterialTable(doc, est, x, y, w, titleSuffix, facetCount, manualWas
         doc.setFontSize(10);
         doc.setFont("Montserrat", "bold");
         doc.setTextColor(0);
-        doc.text("Waste", colStart - 15, startY);
+        doc.text(pdfLabel("Waste"), colStart - 15, startY);
 
         let cx = colStart + (colW / 2);
         wastes.forEach(waste => {
@@ -7679,7 +7696,7 @@ function drawMaterialTable(doc, est, x, y, w, titleSuffix, facetCount, manualWas
         doc.setFontSize(ROW_FONT);
         doc.setTextColor(0);
         doc.text(label, x + pad, cursorY);
-        doc.text(unit, colStart - 10, cursorY, { align: 'right' });
+        doc.text(pdfMaterialUnit(unit), colStart - 10, cursorY, { align: 'right' });
 
         let cx = colStart + (colW / 2);
         wastes.forEach(waste => {
@@ -7687,7 +7704,7 @@ function drawMaterialTable(doc, est, x, y, w, titleSuffix, facetCount, manualWas
             const val = Math.ceil(baseVal * factor);
             if (waste === suggestedWaste) doc.setFont("Montserrat", "bold");
             else doc.setFont("Montserrat", "normal");
-            doc.text(val.toString(), cx, cursorY, { align: 'center' });
+            doc.text(pdfMaterialAmount(baseVal * factor, unit, val.toString()), cx, cursorY, { align: 'center' });
             cx += colW;
         });
         cursorY += ROW_H;
@@ -7708,28 +7725,28 @@ function drawMaterialTable(doc, est, x, y, w, titleSuffix, facetCount, manualWas
     const page1TopY = y;
     cursorY = drawWasteHeader(page1TopY);
 
-    drawSection("Shingle Products");
+    drawSection(pdfLabel("Shingle Products"));
     est.shingles.forEach(s => drawRow(s.label, "bundle", s.bundles));
     cursorY += SECTION_GAP;
 
-    drawSection("Starter Strip");
+    drawSection(pdfLabel("Starter Strip"));
     est.starter.forEach(s => drawRow(s.label, "bundle", s.bundles));
     cursorY += SECTION_GAP;
 
-    drawSection("Hip & Ridge Cap");
+    drawSection(pdfLabel("Hip & Ridge Cap"));
     est.hipRidge.forEach(s => drawRow(s.label, "bundle", s.bundles));
     cursorY += SECTION_GAP;
 
-    drawSection("Synthetic Underlayment");
+    drawSection(pdfLabel("Synthetic Underlayment"));
     est.underlayment.forEach(s => drawRow(s.label, "roll", s.rolls));
     cursorY += SECTION_GAP;
 
-    drawSection("Ice & Water Shield");
+    drawSection(pdfLabel("Ice & Water Shield"));
 
     doc.setFont("Montserrat", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100);
-    doc.text(`36\u201D perimeter application (${est.iwBreakdown.total36} sq ft)`, x + pad + 2, cursorY);
+    doc.text(`${pdfLabel("36\u201D")} perimeter application (${pdfMeasure(est.iwBreakdown.total36, 'sf', `${est.iwBreakdown.total36} sq ft`)})`, x + pad + 2, cursorY);
     cursorY += 5;
     doc.setTextColor(0);
     est.iceWater.forEach(s => drawRow(s.label, "roll", s.rolls36));
@@ -7738,7 +7755,7 @@ function drawMaterialTable(doc, est, x, y, w, titleSuffix, facetCount, manualWas
     doc.setFont("Montserrat", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100);
-    doc.text(`18\u201D perimeter application (${est.iwBreakdown.total18} sq ft)`, x + pad + 2, cursorY);
+    doc.text(`${pdfLabel("18\u201D")} perimeter application (${pdfMeasure(est.iwBreakdown.total18, 'sf', `${est.iwBreakdown.total18} sq ft`)})`, x + pad + 2, cursorY);
     cursorY += 5;
     doc.setTextColor(0);
     est.iceWater.forEach(s => drawRow(s.label, "roll", s.rolls18));
@@ -7769,31 +7786,31 @@ function drawMaterialTable(doc, est, x, y, w, titleSuffix, facetCount, manualWas
         const page2TopY = y;
         cursorY = drawWasteHeader(page2TopY);
 
-        drawSection("Metals & Flashing");
-        if (est.dripEdgeEave > 0)   drawRow("Eave Drip Edge (10 ft)", "piece", est.dripEdgeEave);
-        if (est.dripEdgeRake > 0)   drawRow("Rake Drip Edge (10 ft)", "piece", est.dripEdgeRake);
-        if (est.valleyMetal10 > 0)  drawRow("Valley Metal W (10 ft)", "piece", est.valleyMetal10);
-        if (est.stepPieces > 0)     drawRow("Step Flashing (5x7)", "piece", est.stepPieces);
-        if (est.counterPieces > 0)  drawRow("Counter Flashing (10 ft)", "piece", est.counterPieces);
-        if (est.headwallPieces > 0) drawRow("Headwall Flashing (10 ft)", "piece", est.headwallPieces);
+        drawSection(pdfLabel("Metals & Flashing"));
+        if (est.dripEdgeEave > 0)   drawRow(pdfLabel("Eave Drip Edge (10 ft)"), "piece", est.dripEdgeEave);
+        if (est.dripEdgeRake > 0)   drawRow(pdfLabel("Rake Drip Edge (10 ft)"), "piece", est.dripEdgeRake);
+        if (est.valleyMetal10 > 0)  drawRow(pdfLabel("Valley Metal W (10 ft)"), "piece", est.valleyMetal10);
+        if (est.stepPieces > 0)     drawRow(pdfLabel("Step Flashing (5x7)"), "piece", est.stepPieces);
+        if (est.counterPieces > 0)  drawRow(pdfLabel("Counter Flashing (10 ft)"), "piece", est.counterPieces);
+        if (est.headwallPieces > 0) drawRow(pdfLabel("Headwall Flashing (10 ft)"), "piece", est.headwallPieces);
 
         if (est.chimneyCount > 0) {
-            drawRow("Chimney Apron (front)", "ea", est.chimneyAprons);
-            drawRow("Chimney Back Pan / Cricket", "ea", est.chimneyCrickets);
-            if (est.chimneyStepPcs > 0)    drawRow("Chimney Step Flashing", "piece", est.chimneyStepPcs);
-            if (est.chimneyCounterPcs > 0) drawRow("Chimney Counter Flash (10 ft)", "piece", est.chimneyCounterPcs);
+            drawRow(pdfLabel("Chimney Apron (front)"), "ea", est.chimneyAprons);
+            drawRow(pdfLabel("Chimney Back Pan / Cricket"), "ea", est.chimneyCrickets);
+            if (est.chimneyStepPcs > 0)    drawRow(pdfLabel("Chimney Step Flashing"), "piece", est.chimneyStepPcs);
+            if (est.chimneyCounterPcs > 0) drawRow(pdfLabel("Chimney Counter Flash (10 ft)"), "piece", est.chimneyCounterPcs);
         }
-        if (est.skylightCount > 0) drawRow("Skylight Flashing Kit", "kit", est.skylightCount);
+        if (est.skylightCount > 0) drawRow(pdfLabel("Skylight Flashing Kit"), "kit", est.skylightCount);
         cursorY += SECTION_GAP;
 
-        drawSection("Ventilation");
-        if (est.ridgeVent4ft > 0) drawRow("Ridge Vent (4 ft sections)", "piece", est.ridgeVent4ft);
+        drawSection(pdfLabel("Ventilation"));
+        if (est.ridgeVent4ft > 0) drawRow(pdfLabel("Ridge Vent (4 ft sections)"), "piece", est.ridgeVent4ft);
         cursorY += SECTION_GAP;
 
-        drawSection("Accessories");
-        drawRow("Coil Nails (1.25 in, 50 lb)", "box", est.nailBoxes);
-        drawRow("Plastic Cap Nails", "box", est.capNailBoxes);
-        drawRow("Roofing Caulk (Tube)", "tube", est.caulkTubes);
+        drawSection(pdfLabel("Accessories"));
+        drawRow(pdfLabel("Coil Nails (1.25 in, 50 lb)"), "box", est.nailBoxes);
+        drawRow(pdfLabel("Plastic Cap Nails"), "box", est.capNailBoxes);
+        drawRow(pdfLabel("Roofing Caulk (Tube)"), "tube", est.caulkTubes);
 
         // ── Page 2 highlight box ──
         doc.setDrawColor(200, 40, 40);
@@ -8261,7 +8278,7 @@ function solveLabels(ctx, lines, fixedObstacles, fontSize) {
     if (a < -Math.PI / 2) a += Math.PI;
 
     return {
-      text: Math.round(line.length).toString(),
+      text: pdfMeasure(line.length, "ft", Math.round(line.length).toString()),
       x: mx,
       y: my,
       angle: a,

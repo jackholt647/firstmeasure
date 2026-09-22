@@ -10,10 +10,6 @@ $variants = [
     'manufacturer-referral' => __DIR__ . '/variants/representative-referral/index.php',
     'meta-619a' => __DIR__ . '/variants/meta-619a/index.php',
     'smoke-metadata-20260615211729-page' => __DIR__ . '/variants/smoke-metadata-20260615211729-page/index.php',
-    'sample' => __DIR__ . '/variants/sample/index.php',
-    'email' => __DIR__ . '/variants/email/index.php',
-    'instantly-signup' => __DIR__ . '/variants/instantly-signup/index.php',
-    'main-site-page' => __DIR__ . '/variants/main-site-page/index.php',
 ];
 
 $variant = strtolower(trim((string)($_GET['variant'] ?? 'measurements')));
@@ -27,3 +23,8 @@ if (!isset($variants[$variant])) {
 }
 
 require $variants[$variant];
+
+// Signup Sandbox dev bar: appended after the variant document so testers
+// walking a sandbox workflow keep the stage navigator on real landing pages.
+// It no-ops for normal visitors (and in production the API is dead).
+echo "\n<script src=\"/portal/signup-sandbox/devbar.js\" defer></script>\n";

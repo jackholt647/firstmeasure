@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "id": "geo",
+  "title": "FirstMate GEO",
+  "icon": "fa-globe",
+  "order": 85,
+  "entry": "app.js"
+}

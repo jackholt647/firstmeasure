@@ -1,3 +1,4 @@
+import { isCustomerExteriorId } from "./exteriors.js";
 import { isFullHouseId } from './full_house.js';
 import path from "node:path";
 import { access } from "node:fs/promises";
@@ -69,6 +70,7 @@ export type SharedPdfBatchRenderResponse = {
 };
 
 export type SharedPdfClientAssetName =
+  | "report-units"
   | "jspdf"
   | "pdf"
   | "pdf-standalone"
@@ -177,8 +179,9 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
       window.__pdfAssetBaseUrl = assetBaseUrl;
     }, { assetBaseUrl: request.assetBaseUrl });
     await page.addScriptTag({ path: scripts.jsPdfPath });
+    await page.addScriptTag({ path: path.resolve(path.dirname(scripts.pdfJsPath), "../../../libraries/report-units.js") });
     await page.addScriptTag({ path: scripts.pdfJsPath });
-    if (isFullHouseId(request.manifest.id) && request.manifest.measurement_scope === 'full_house') {
+    if ((isFullHouseId(request.manifest.id) || isCustomerExteriorId(request.manifest.id)) && request.manifest.measurement_scope === 'full_house') {
       for (const file of ['vendor/clipper-lib-6.4.2-clipper.js', 'vendor/earcut-3.2.3-earcut.dev.js', 'exterior_geometry.js', 'exterior_pdf.js']) {
         await page.addScriptTag({ path: path.join(path.dirname(scripts.pdfJsPath), file) });
       }
@@ -277,6 +280,8 @@ export async function getSharedPdfRuntimeAsset(name: SharedPdfClientAssetName): 
         contentType: "application/javascript; charset=utf-8",
         fileName: "pdf.js"
       };
+    case "report-units":
+      return { name, filePath: path.resolve(path.dirname(scripts.pdfJsPath), "../../../libraries/report-units.js"), contentType: "application/javascript; charset=utf-8", fileName: "report-units.js" };
     case "pdf-standalone":
       return {
         name,

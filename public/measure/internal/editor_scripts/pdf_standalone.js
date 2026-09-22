@@ -58,6 +58,7 @@
                         throw new Error('The shared PDF runtime script URLs could not be resolved.');
                     }
                     await loadRuntimeScript(runtimeDocument, jsPdfUrl);
+                    await loadRuntimeScript(runtimeDocument, findLoadedScriptUrl("/libraries/report-units.js") || "/v1/firstmeasure/pdf-runtime/assets/report-units");
                     await loadRuntimeScript(runtimeDocument, pdfUrl);
                     if (findLoadedScriptUrl('/editor_scripts/exterior_pdf.js')) {
                         for (const file of ['vendor/clipper-lib-6.4.2-clipper.js', 'vendor/earcut-3.2.3-earcut.dev.js', 'exterior_geometry.js', 'exterior_pdf.js']) {
@@ -95,7 +96,7 @@
     function preparePdfSyncSnapshot(snapshot, options = {}) {
         const prepared = cloneJson(snapshot || {});
         prepared.pdfSyncRevision = options.revision || createPdfSyncRevision();
-        prepared.pdfRenderDateLabel = options.dateLabel || new Date().toLocaleDateString('en-US');
+        prepared.pdfRenderDateLabel = options.dateLabel || new Date().toLocaleDateString(options.runtimeContext?.manifest?.report_language || 'en-US');
         prepared.savedAt = options.savedAt || new Date().toISOString();
         prepared.pdfGeneratedAt = options.generatedAt || prepared.savedAt;
         const runtimeContext = (options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -106,6 +107,9 @@
             : {};
         prepared.pdfRenderContext = {
             manifest: {
+                measurement_system: manifest.measurement_system || "imperial",
+                report_language: manifest.report_language || "en-US",
+                language_snapshot: manifest.language_snapshot,
                 project_type: manifest.project_type || null,
                 radius_meters: manifest.radius_meters ?? null,
                 include_gutter_measurements: manifest.include_gutter_measurements ?? null,
@@ -295,7 +299,7 @@
         const frozenContext = (state.pdfRenderContext && typeof state.pdfRenderContext === 'object')
             ? state.pdfRenderContext
             : {};
-        const manifestSource = frozenContext.manifest || runtimeContext.manifest;
+        const manifestSource = { ...runtimeContext.manifest, ...frozenContext.manifest };
         const organizationSource = frozenContext.organization || runtimeContext.organization;
         const manifest = manifestSource ? cloneJson(manifestSource) : null;
         let organization = organizationSource ? cloneJson(organizationSource) : null;
@@ -338,6 +342,7 @@
             options.mode || 'full'
         );
 
+        state.reportPreferences = { measurement_system: manifest?.measurement_system || "imperial", report_language: manifest?.report_language || "en-US", language_snapshot: manifest?.language_snapshot };
         window.currentProjectId = folderId;
         window.currentProjectManifest = manifest;
         window.projectOrganization = finalOrganization;

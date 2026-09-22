@@ -6,6 +6,7 @@ export const MATERIAL_ORDER_SCHEMA_VERSION = 1;
 export const MATERIAL_DELIVERY_SCHEMA_VERSION = 1;
 
 export const jsonObjectSchema = z.object({}).passthrough();
+export const scopeResourceTypeSchema = z.enum(["material", "labor", "equipment"]);
 
 const idSchema = z.string().trim().min(1).max(160);
 const optionalIdSchema = z.string().trim().max(160).optional();
@@ -46,8 +47,10 @@ export const materialPricebookRefSchema = jsonObjectSchema.extend({
   item_type_id: z.string().trim().optional(),
   variant_id: z.string().trim().optional(),
   variant_group_id: z.string().trim().optional(),
-  catalog_revision: z.number().int().positive().optional(),
-  item_revision: z.number().int().positive().optional(),
+  // Zero is the legacy sentinel for an unversioned price book. New snapshots omit it,
+  // but updates must remain compatible with already-signed scopes that still carry it.
+  catalog_revision: z.number().int().nonnegative().optional(),
+  item_revision: z.number().int().nonnegative().optional(),
   selected_options: jsonObjectSchema.optional(),
   source: z.string().trim().optional()
 }).passthrough();
@@ -97,6 +100,8 @@ export const materialLineItemSchema = jsonObjectSchema.extend({
   unit: z.string().trim().optional(),
   order_quantity: z.number().optional(),
   order_unit: z.string().trim().optional(),
+  order_packaging: jsonObjectSchema.nullable().optional(),
+  order_covered_quantity: z.number().optional(),
   projected_unit_price: z.number().optional(),
   projected_total: z.number().optional(),
   quoted_unit_price: z.number().optional(),
@@ -132,10 +137,25 @@ export const materialListResourcesSchema = jsonObjectSchema.extend({
 
 export const createMaterialListSchema = jsonObjectSchema.extend({
   id: optionalIdSchema,
+  resource_type: scopeResourceTypeSchema.optional(),
+  resource_subtype: z.string().trim().max(160).optional(),
+  terminology: jsonObjectSchema.optional(),
+  controls: jsonObjectSchema.optional(),
+  compensation: jsonObjectSchema.optional(),
+  assignment: jsonObjectSchema.optional(),
   branch_id: z.string().trim().optional(),
   title: z.string().trim().optional(),
+  color: z.string().trim().max(80).optional(),
+  sort_order: z.number().int().optional(),
   status: materialListStatusSchema.optional(),
   delivery_status: materialDeliveryStatusSchema.optional(),
+  scope_template_id: z.string().trim().optional(),
+  scope_template_version: z.number().int().positive().optional(),
+  scope_piece_id: z.string().trim().optional(),
+  schedule: jsonObjectSchema.optional(),
+  schedule_event_id: z.string().trim().optional(),
+  order_sources: z.array(jsonObjectSchema).optional(),
+  measurements: jsonObjectSchema.optional(),
   sections: z.array(materialSectionSchema).optional(),
   items: z.array(materialLineItemSchema).optional(),
   resources: materialListResourcesSchema.optional(),
@@ -144,9 +164,25 @@ export const createMaterialListSchema = jsonObjectSchema.extend({
 
 export const patchMaterialListSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional(),
+  resource_type: scopeResourceTypeSchema.optional(),
+  resource_subtype: z.string().trim().max(160).optional(),
+  terminology: jsonObjectSchema.optional(),
+  controls: jsonObjectSchema.optional(),
+  compensation: jsonObjectSchema.optional(),
+  assignment: jsonObjectSchema.optional(),
   title: z.string().trim().optional(),
+  color: z.string().trim().max(80).optional(),
+  sort_order: z.number().int().optional(),
   status: materialListStatusSchema.optional(),
   delivery_status: materialDeliveryStatusSchema.optional(),
+  scope_template_id: z.string().trim().optional(),
+  scope_template_version: z.number().int().positive().optional(),
+  scope_piece_id: z.string().trim().optional(),
+  schedule: jsonObjectSchema.optional(),
+  schedule_event_id: z.string().trim().optional(),
+  order_sources: z.array(jsonObjectSchema).optional(),
+  measurements: jsonObjectSchema.optional(),
+  replace_measurements: z.boolean().optional(),
   sections: z.array(materialSectionSchema).optional(),
   resources: materialListResourcesSchema.optional(),
   metadata: jsonObjectSchema.optional()
@@ -174,6 +210,8 @@ export const createMaterialOrderSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional(),
   id: optionalIdSchema,
   title: z.string().trim().optional(),
+  order_source_id: z.string().trim().optional(),
+  schedule_event_id: z.string().trim().optional(),
   vendor: jsonObjectSchema.optional(),
   ordered_at: z.string().trim().optional(),
   scheduled_window: materialScheduleWindowSchema.optional(),
@@ -189,6 +227,8 @@ export const createMaterialOrderSchema = jsonObjectSchema.extend({
 export const patchMaterialOrderSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional(),
   title: z.string().trim().optional(),
+  order_source_id: z.string().trim().optional(),
+  schedule_event_id: z.string().trim().optional(),
   vendor: jsonObjectSchema.optional(),
   scheduled_window: materialScheduleWindowSchema.optional(),
   delivery_status: materialDeliveryStatusSchema.optional(),
@@ -226,6 +266,29 @@ export const patchMaterialDeliverySchema = recordMaterialDeliverySchema.extend({
 export const archiveMaterialListSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional(),
   reason: z.string().trim().optional()
+}).passthrough();
+
+export const initializeMaterialListsFromScopeSchema = jsonObjectSchema.extend({
+  proposal_id: z.string().trim().optional(),
+  snapshot_id: z.string().trim().optional(),
+  scope_piece_id: z.string().trim().optional(),
+  resource_type: scopeResourceTypeSchema.optional(),
+  resource_overrides: jsonObjectSchema.optional(),
+  scope_template_id: z.string().trim().optional(),
+  scope_template_version: z.number().int().positive().optional(),
+  work_plan_id: z.string().trim().optional(),
+  scope: jsonObjectSchema.optional(),
+  scope_piece: jsonObjectSchema.optional(),
+  materials: jsonObjectSchema.optional(),
+  source_nodes: jsonObjectSchema.optional(),
+  force_regenerate: z.boolean().optional()
+}).passthrough();
+
+export const ensureMaterialScheduleEventSchema = jsonObjectSchema.extend({
+  event: jsonObjectSchema.optional(),
+  work_plan_id: z.string().trim().optional(),
+  source_node_id: z.string().trim().optional(),
+  source_node_template_id: z.string().trim().optional()
 }).passthrough();
 
 export type MaterialListStatus = z.infer<typeof materialListStatusSchema>;

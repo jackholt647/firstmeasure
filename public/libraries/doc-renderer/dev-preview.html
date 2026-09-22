@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FMDocRenderer dev preview</title>
+<!-- Renderer CSS is embedded in firstmate-doc-renderer.js and injected on first render. -->
+<style>
+  body { margin: 0; background: #f4f6f8; font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .dev-bar {
+    position: sticky; top: 0; z-index: 100; display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; background: #111827; color: #fff; font-size: 13px;
+  }
+  .dev-bar a { color: #93c5fd; text-decoration: none; font-weight: 600; }
+  .dev-bar a.active { color: #fff; border-bottom: 2px solid #60a5fa; }
+  #status { margin-left: auto; color: #9ca3af; }
+  #stage { padding: 24px 8px; }
+  @media print { .dev-bar { display: none; } #stage { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="dev-bar">
+  <strong>FMDocRenderer preview</strong>
+  <a href="?mode=interactive" id="link-interactive">interactive</a>
+  <a href="?mode=static" id="link-static">static</a>
+  <a href="?mode=static&scale=0.6" id="link-scaled">static @0.6</a>
+  <span id="status">rendering…</span>
+</div>
+<div id="stage"></div>
+
+<script src="../doc-model/firstmate-doc-model.js"></script>
+<script src="../doc-widgets/firstmate-doc-widgets.js"></script>
+<script src="firstmate-doc-renderer.js"></script>
+<script>
+(function () {
+  "use strict";
+  const M = window.FMDocModel;
+  const params = new URLSearchParams(location.search);
+  const mode = params.get("mode") === "static" ? "static" : "interactive";
+  const scale = Number(params.get("scale")) || 1;
+  document.getElementById("link-" + (scale !== 1 ? "scaled" : mode)).classList.add("active");
+
+  // ------------------------------------------------------------- demo media
+  // Inline SVG data URIs — the preview has zero network dependencies.
+  function svgDataUri(svg) {
+    return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  }
+  const heroImage = svgDataUri(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1224" height="900">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="#0f2c5c"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#7fb2ff"/></linearGradient></defs>' +
+    '<rect width="1224" height="900" fill="url(#g)"/>' +
+    '<polygon points="0,900 460,520 760,760 1224,420 1224,900" fill="#0b1f42" opacity=".8"/>' +
+    '<polygon points="0,900 380,640 700,830 1224,560 1224,900" fill="#081733"/>' +
+    '<circle cx="980" cy="180" r="70" fill="#ffd166" opacity=".9"/></svg>'
+  );
+  const roofPhoto = svgDataUri(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480">' +
+    '<rect width="640" height="480" fill="#c9d6e5"/>' +
+    '<polygon points="60,300 320,110 580,300" fill="#8494ad"/>' +
+    '<rect x="120" y="300" width="400" height="130" fill="#e8eef6"/>' +
+    '<rect x="290" y="340" width="70" height="90" fill="#5a6c88"/></svg>'
+  );
+
+  // ------------------------------------------------------------- demo theme
+  const theme = {
+    id: "thm_demo_margin",
+    name: "Margin (demo)",
+    tokens: {
+      colors: {
+        primary: { from: "org.branding.colors.primary", fallback: "#2563eb" },
+        accent: "#ffd166",
+        text: "#111827",
+        muted: "#6b7280"
+      },
+      fonts: { display: "Montserrat", body: "Inter" },
+      spacing: { page_margin_pt: 40, gap_pt: 12 }
+    },
+    type_styles: {
+      h1: { family: "Montserrat", size_pt: 30, weight: 800, color: "var(--fm-text)", line_height: 1.12 },
+      h2: { family: "Montserrat", size_pt: 15, weight: 700, color: "var(--fm-primary)", transform: "uppercase", letter_spacing: 0.8 },
+      body: { family: "Inter", size_pt: 10, weight: 400, color: "var(--fm-text)", line_height: 1.45 },
+      caption: { family: "Inter", size_pt: 7.5, weight: 500, color: "var(--fm-color-muted)" }
+    },
+    page_masters: [
+      {
+        id: "m_cover",
+        match: { role: "cover" },
+        chrome: [
+          { id: "chr_cover_tri", type: "shape", frame: { x: 0, y: 632, w: 612, h: 160, z: 0, layout: "absolute" }, visible: true, props: { shape: "polygon", points: [{ x: 0, y: 1 }, { x: 1, y: 0.15 }, { x: 1, y: 1 }] }, style: { fill: { type: "solid", color: "var(--fm-primary)" }, opacity: 0.92 } },
+          { id: "chr_cover_tri2", type: "shape", frame: { x: 0, y: 692, w: 612, h: 100, z: 1, layout: "absolute" }, visible: true, props: { shape: "polygon", points: [{ x: 0, y: 1 }, { x: 1, y: 0.3 }, { x: 1, y: 1 }] }, style: { fill: { type: "solid", color: "var(--fm-accent)" }, opacity: 0.9 } }
+        ]
+      },
+      {
+        id: "m_body",
+        match: { role: "*" },
+        chrome: [
+          { id: "chr_rail", type: "shape", frame: { x: 0, y: 0, w: 22, h: 792, z: 0, layout: "absolute" }, visible: true, props: { shape: "rect" }, style: { fill: { type: "solid", color: "var(--fm-primary)" } } },
+          { id: "chr_footer", type: "text", frame: { x: 40, y: 762, w: 300, h: 18, z: 1, layout: "absolute" }, visible: true, props: { blocks: [{ id: "b_f", type: "paragraph", align: "left", runs: [{ text: "Acme Roofing • (555) 010-2233 • acmeroofing.example" }] }], valign: "top", line_height: 1.2 }, style: { font: { size_pt: 7, color: "var(--fm-color-muted)" } } }
+        ],
+        content_inset: { left: 22 }
+      },
+      {
+        // v2: master header/footer slots (rendered on every fine_print page,
+        // including chain-appended auto pages). doc.page_number works inside.
+        id: "m_letter",
+        match: { role: "fine_print" },
+        header: {
+          frame_h_pt: 40,
+          chrome: [
+            { id: "hf_h_text", type: "text", frame: { x: 56, y: 10, w: 380, h: 16, z: 1, layout: "absolute" }, visible: true, props: { blocks: [{ id: "hf_hb", type: "paragraph", runs: [{ text: "SERVICE AGREEMENT — ACME ROOFING", weight: 700, size_pt: 8 }] }], valign: "top" }, style: { font: { color: "var(--fm-color-muted)" } } },
+            { id: "hf_h_rule", type: "shape", frame: { x: 56, y: 30, w: 500, h: 1.5, z: 0, layout: "absolute" }, visible: true, props: { shape: "rect" }, style: { fill: { type: "solid", color: "var(--fm-primary)" } } }
+          ]
+        },
+        footer: {
+          frame_h_pt: 34,
+          chrome: [
+            { id: "hf_f_text", type: "text", frame: { x: 56, y: 12, w: 260, h: 14, z: 1, layout: "absolute" }, visible: true, props: { blocks: [{ id: "hf_fb", type: "paragraph", runs: [{ text: "Confidential — Whitfield residence", size_pt: 7 }] }], valign: "top" }, style: { font: { color: "var(--fm-color-muted)" } } },
+            { id: "hf_f_pageno", type: "widget", frame: { x: 456, y: 10, w: 100, h: 16, z: 1, layout: "absolute" }, visible: true, props: { widget: "doc.page_number@1", config: { format: "Page {page} of {pages}" } } }
+          ]
+        }
+      }
+    ],
+    widget_skins: { "doc.line_items": { header_fill: "rgba(37, 99, 235, .06)" } }
+  };
+
+  // ---------------------------------------------------------- demo document
+  const N = (type, overrides) => M.createNode(type, overrides);
+  const doc = M.createDocument({ paper: "letter", metadata: { document_type: "proposal" } });
+  doc.computed = { grand_total_cents: "sum(params.scope_items[].amount_cents)" };
+  doc.pages = [];
+
+  // ------------------------------------------------- v2: styles / chains / components
+  doc.styles = {
+    legal: { family: "Georgia", size_pt: 9.5, weight: 400, color: "#1f2937", line_height: 1.55, space_after_pt: 7 },
+    clause_h: { family: "Montserrat", size_pt: 11.5, weight: 800, color: "var(--fm-primary)", transform: "uppercase", letter_spacing: 0.6, space_before_pt: 10, space_after_pt: 5 }
+  };
+  doc.chains = {
+    letter: { auto_pages: true, page_defaults: { role: "fine_print", margins_pt: { top: 54, right: 56, bottom: 48, left: 56 }, columns: 1, column_gap_pt: 24 }, keep_rules: { widow_lines: 2, orphan_lines: 2 } },
+    duo: { auto_pages: true, page_defaults: { role: "body", margins_pt: { top: 48, right: 44, bottom: 52, left: 44 }, columns: 2, column_gap_pt: 20 }, keep_rules: { widow_lines: 2, orphan_lines: 2 } },
+    scope40: { auto_pages: true, page_defaults: { role: "body", margins_pt: { top: 48, right: 40, bottom: 52, left: 40 }, columns: 1, column_gap_pt: 24 }, keep_rules: {} },
+    anchors: { auto_pages: false, keep_rules: { widow_lines: 2, orphan_lines: 2 } }
+  };
+  doc.components = {
+    li_row40: {
+      params: { row: { type: "object" } },
+      root: {
+        id: "c_li_root", type: "frame", name: "", visible: true,
+        frame: { x: 0, y: 0, w: 0, h: "auto", z: 0, layout: "flow" },
+        props: { flow: { direction: "row", gap: 8, padding: [3, 4, 3, 4], align: "start" }, background: { type: "solid", color: "rgba(17,24,39,.025)" } },
+        children: [
+          { id: "c_li_name", type: "text", visible: true, frame: { x: 0, y: 0, w: 330, h: "auto", z: 0 }, props: { blocks: [
+            { id: "c_b1", type: "paragraph", runs: [{ bind: "row.name", weight: 600 }] },
+            { id: "c_b2", type: "paragraph", runs: [{ bind: "row.desc", color: "#6b7280", size_pt: 8 }] }
+          ], valign: "top", line_height: 1.3 } },
+          { id: "c_li_qty", type: "text", visible: true, frame: { x: 0, y: 0, w: 70, h: "auto", z: 0 }, props: { blocks: [{ id: "c_b3", type: "paragraph", align: "right", runs: [{ bind: "row.qty" }] }], valign: "top" } },
+          { id: "c_li_amt", type: "text", visible: true, frame: { x: 0, y: 0, w: 100, h: "auto", z: 0 }, props: { blocks: [{ id: "c_b4", type: "paragraph", align: "right", runs: [{ bind: "row.amount", weight: 600 }] }], valign: "top" } }
+        ]
+      }
+    }
+  };
+
+  const sentence = (s, n) => new Array(n).fill(s).join("");
+  const LEGAL_SENT = "The contractor shall furnish all labor, materials, equipment, and services necessary for the complete and workmanlike execution of the roofing scope described herein, subject to the exclusions and allowances set out in the schedules. ";
+  const DUO_SENT = "Crews protect landscaping, magnet-sweep the grounds for fasteners daily, and haul all tear-off debris to a licensed facility. ";
+
+  // --- Page 1: cover (rotated hero text over image, shapes) ---
+  const cover = M.createPage("cover");
+  cover.id = "pg_cover";
+  cover.children = [
+    N("image", { id: "nd_hero_img", frame: { x: 0, y: 0, w: 612, h: 430, z: 0 }, props: { media: { url: heroImage }, fit: "cover", focal: { x: 0.5, y: 0.35 }, alt: "Hero" }, style: { filters: { brightness: 1.02, saturate: 1.05, tint: { color: "#0b1f42", amount: 0.14 } } } }),
+    N("shape", { id: "nd_hero_scrim", frame: { x: 0, y: 300, w: 612, h: 130, z: 1 }, props: { shape: "rect" }, style: { fill: { type: "linear", angle_deg: 180, stops: [{ color: "rgba(8,23,51,0)", at: 0 }, { color: "rgba(8,23,51,.75)", at: 1 }] } } }),
+    N("text", {
+      id: "nd_hero_title",
+      frame: { x: 46, y: 96, w: 430, h: 150, z: 3, rotation: -4 },
+      props: {
+        blocks: [
+          { id: "b1", type: "heading", level: 1, align: "left", runs: [{ text: "Roof Replacement", color: "#ffffff" }] },
+          { id: "b2", type: "heading", level: 1, align: "left", runs: [{ text: "Proposal", color: "var(--fm-accent)" }] }
+        ],
+        valign: "top", line_height: 1.05
+      }
+    }),
+    N("text", {
+      id: "nd_hero_sub",
+      frame: { x: 48, y: 372, w: 400, h: 40, z: 3 },
+      props: { blocks: [{ id: "b3", type: "paragraph", align: "left", runs: [{ text: "Prepared for {{params.customer_name}} — {{params.project_address}}", color: "#ffffff" }] }], valign: "top" },
+      style: { font: { size_pt: 11, weight: 600 } }
+    }),
+    N("shape", { id: "nd_cover_dot", frame: { x: 520, y: 60, w: 44, h: 44, z: 2 }, props: { shape: "ellipse" }, style: { fill: { type: "solid", color: "var(--fm-accent)" }, opacity: 0.9 } }),
+    N("image", {
+      id: "nd_cover_photo",
+      frame: { x: 380, y: 470, w: 190, h: 138, z: 4, rotation: 2.5 },
+      props: { media: { url: roofPhoto }, fit: "cover", alt: "Current roof", markup: { items: [
+        { type: "arrow", x1: 0.18, y1: 0.2, x2: 0.5, y2: 0.42, color: "#d93025", size: 2.6 },
+        { type: "text", x: 0.05, y: 0.05, width: 0.4, text: "Hail damage", color: "#d93025", size: 1.6 }
+      ] } },
+      style: { radius: 6, shadow: { x: 0, y: 4, blur: 10, color: "rgba(17,24,39,.3)" }, stroke: { color: "#ffffff", width_pt: 3 } }
+    }),
+    N("text", {
+      id: "nd_cover_meta",
+      frame: { x: 46, y: 500, w: 280, h: 90, z: 4 },
+      props: {
+        blocks: [
+          { id: "b4", type: "heading", level: 2, runs: [{ text: "Project total" }] },
+          { id: "b5", type: "paragraph", runs: [{ text: "{{computed.grand_total_cents | money}}", weight: 800, size_pt: 22 }] },
+          { id: "b6", type: "paragraph", runs: [{ text: "Valid through {{params.valid_until | date}}" }] }
+        ],
+        valign: "top", line_height: 1.35
+      }
+    })
+  ];
+  doc.pages.push(cover);
+
+  // --- Page 2: pricing (line_items + qr + static signature + extras) ---
+  const pricingRows = [
+    { id: "r1", depth: 0, name: "Tear-off & disposal", description: "Remove existing shingles, haul away debris", quantity: 24, unit: "sq", unit_price_cents: 9500, amount_cents: 228000, included: false, optional: false, selected: true, group_id: null, media: [] },
+    { id: "r2", depth: 0, name: "Architectural shingles", description: "Landmark Pro, Max Def Weathered Wood", quantity: 24, unit: "sq", unit_price_cents: 32500, amount_cents: 780000, included: false, optional: false, selected: true, group_id: null, media: [{ url: roofPhoto }] },
+    { id: "r3", depth: 1, name: "Ice & water shield", description: "Eaves and valleys, 2 courses", quantity: 6, unit: "roll", unit_price_cents: 11000, amount_cents: 66000, included: false, optional: false, selected: true, group_id: null, media: [] },
+    { id: "r4", depth: 1, name: "Synthetic underlayment", description: "", quantity: 8, unit: "roll", unit_price_cents: 0, amount_cents: 0, included: true, optional: false, selected: true, group_id: null, media: [] },
+    { id: "r5", depth: 0, name: "Ridge vent upgrade", description: "ShingleVent II with external baffle", quantity: 60, unit: "lf", unit_price_cents: 850, amount_cents: 51000, included: false, optional: true, selected: true, group_id: null, media: [] },
+    { id: "r6", depth: 0, name: "Gutter guards", description: "Micro-mesh, front elevation only", quantity: 80, unit: "lf", unit_price_cents: 1200, amount_cents: 96000, included: false, optional: true, selected: false, group_id: null, media: [] }
+  ];
+  const pricingTotals = { subtotal_cents: 1125000, tax_cents: 0, tax_percent: 0, total_cents: 1125000, currency: "USD" };
+
+  const pricing = M.createPage("pricing");
+  pricing.id = "pg_pricing";
+  pricing.children = [
+    N("text", { id: "nd_pricing_h", frame: { x: 40, y: 40, w: 400, h: 26, z: 1 }, props: { blocks: [{ id: "b7", type: "heading", level: 2, runs: [{ text: "Investment" }] }], valign: "top" } }),
+    N("widget", { id: "nd_line_items", frame: { x: 40, y: 74, w: 532, h: 300, z: 1 }, props: { widget: "doc.line_items@1", config: { show_prices: true, show_included: true, show_media: false, selectable: true } } }),
+    N("widget", { id: "nd_schedule", frame: { x: 40, y: 400, w: 330, h: 120, z: 1 }, props: { widget: "doc.payment_schedule@1", config: { title: "Payment schedule" } } }),
+    N("widget", { id: "nd_pay_now", frame: { x: 396, y: 400, w: 176, h: 120, z: 1 }, props: { widget: "doc.pay_now@1", config: { label: "Pay deposit", note: "Deposit due at signing." } } }),
+    N("widget", { id: "nd_field_color", frame: { x: 40, y: 546, w: 200, h: 52, z: 1 }, props: { widget: "doc.form_field@1", config: { kind: "select", label: "Shingle color", key: "shingle_color", options: ["Weathered Wood", "Charcoal", "Driftwood"] } } }),
+    N("widget", { id: "nd_qr", frame: { x: 476, y: 546, w: 96, h: 116, z: 1 }, props: { widget: "doc.qr@1", config: { url: "https://portal.firstmate.app/d/demo123", caption: "View & sign online" } } }),
+    N("widget", { id: "nd_sig_customer", frame: { x: 40, y: 640, w: 240, h: 84, z: 1 }, props: { widget: "doc.signature@1", config: { label: "Customer signature", output_key: "sig_customer", signer: "customer" } } }),
+    N("widget", { id: "nd_sig_company", frame: { x: 310, y: 640, w: 150, h: 84, z: 1 }, props: { widget: "doc.signature@1", config: { label: "Acme Roofing", output_key: "sig_company", signer: "internal" } } }),
+    N("widget", { id: "nd_pageno", frame: { x: 472, y: 736, w: 100, h: 16, z: 1 }, props: { widget: "doc.page_number@1", config: { format: "Page {page} of {pages}" } } }),
+    N("widget", { id: "nd_unknown", frame: { x: 476, y: 680, w: 96, h: 44, z: 1 }, props: { widget: "doc.not_a_widget@3", config: {} } })
+  ];
+  doc.pages.push(pricing);
+
+  // --- Page 3: paginating flow with a 60-row widget + text ---
+  const bigRows = [];
+  for (let i = 1; i <= 60; i += 1) {
+    bigRows.push({
+      id: "big_" + i, depth: i % 7 === 0 ? 1 : 0,
+      name: "Work item " + i, description: "Detailed scope entry number " + i + " with installation notes.",
+      quantity: (i % 5) + 1, unit: "ea", unit_price_cents: 4500 + i * 100, amount_cents: ((i % 5) + 1) * (4500 + i * 100),
+      included: i % 11 === 0, optional: false, selected: true, group_id: null, media: []
+    });
+  }
+  const bigTotals = { subtotal_cents: bigRows.reduce((a, r) => a + (r.included ? 0 : r.amount_cents), 0), tax_cents: 0, tax_percent: 0, total_cents: 0, currency: "USD" };
+  bigTotals.total_cents = bigTotals.subtotal_cents;
+
+  const flowPage = M.createPage("body");
+  flowPage.id = "pg_scope";
+  flowPage.children = [
+    N("frame", {
+      id: "nd_scope_flow",
+      frame: { x: 40, y: 40, w: 532, h: 712, z: 1, layout: "flow" },
+      props: { flow: { direction: "column", gap: 10, padding: [0, 0, 0, 0], align: "stretch" }, overflow: "paginate", background: null, clip: false },
+      children: [
+        N("text", { id: "nd_scope_h", frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 }, props: { blocks: [{ id: "b8", type: "heading", level: 2, runs: [{ text: "Full scope of work" }] }, { id: "b9", type: "paragraph", runs: [{ text: "Sixty line items follow; this flow frame paginates across continuation pages, splitting the widget at row boundaries." }] }], valign: "top" } }),
+        N("widget", { id: "nd_big_table", frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 }, props: { widget: "doc.line_items@1", config: { show_prices: true, show_included: true } } }),
+        N("text", { id: "nd_scope_tail", frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 }, props: { blocks: [{ id: "b10", type: "paragraph", runs: [{ text: "All work performed to manufacturer specification. This closing paragraph should land after the final table segment." }] }], valign: "top" } })
+      ]
+    })
+  ];
+  doc.pages.push(flowPage);
+
+  // --- Pages 4+5: flow chain "letter" (line-level splits, page_break, auto pages, master header/footer) ---
+  const chainFrame = (id, chainId, index, frame) => N("frame", {
+    id,
+    frame: Object.assign({ z: 1, layout: "flow" }, frame),
+    props: { chain: { id: chainId, index }, flow: { direction: "column", gap: 0, padding: [0, 0, 0, 0], align: "stretch" } }
+  });
+  const chainText = (id, blocks) => N("text", { id, anchor: "flow", frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 }, props: { blocks, valign: "top" } });
+
+  const letter1 = M.createPage("fine_print");
+  letter1.id = "pg_letter1";
+  const letterFrame0 = chainFrame("nd_letter_f0", "letter", 0, { x: 56, y: 54, w: 500, h: 680 });
+  letterFrame0.children = [
+    chainText("nd_let_h", [{ id: "lb_h1", type: "heading", level: 2, style_ref: "clause_h", runs: [{ text: "1. General conditions" }] }]),
+    chainText("nd_let_p1", [{ id: "lb_p1", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 44) }] }]),
+    chainText("nd_let_p2", [
+      { id: "lb_p2a", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 8) }] },
+      { id: "lb_p2b", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 8) }] },
+      { id: "lb_p2c", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 8) }] }
+    ]),
+    N("page_break", { id: "nd_let_break", anchor: "flow", frame: { x: 0, y: 0, w: 0, h: 0, z: 0 } }),
+    chainText("nd_let_h2", [{ id: "lb_h2", type: "heading", level: 2, style_ref: "clause_h", runs: [{ text: "2. Warranty and remedies" }] }]),
+    chainText("nd_let_p3", [
+      { id: "lb_p3a", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 10) }] },
+      { id: "lb_p3b", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 10) }] },
+      { id: "lb_p3c", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 10) }] },
+      { id: "lb_p3d", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 10) }] }
+    ])
+  ];
+  letter1.children = [letterFrame0];
+  doc.pages.push(letter1);
+
+  const letter2 = M.createPage("fine_print");
+  letter2.id = "pg_letter2";
+  letter2.children = [chainFrame("nd_letter_f1", "letter", 1, { x: 56, y: 54, w: 500, h: 680 })];
+  doc.pages.push(letter2);
+
+  // --- Page 6: two-column chain "duo" (2 chained frames on one page; auto pages keep 2 columns) ---
+  const duoPage = M.createPage("body");
+  duoPage.id = "pg_duo";
+  const duoBlocks = [{ id: "db_h", type: "heading", level: 2, runs: [{ text: "Site logistics" }] }];
+  for (let i = 1; i <= 22; i += 1) {
+    duoBlocks.push({ id: "db_" + i, type: "paragraph", runs: [{ text: "Clause " + i + ". " + sentence(DUO_SENT, 3) }] });
+  }
+  const duoFrame0 = chainFrame("nd_duo_f0", "duo", 0, { x: 44, y: 48, w: 252, h: 640 });
+  duoFrame0.children = [chainText("nd_duo_txt", duoBlocks)];
+  duoPage.children = [duoFrame0, chainFrame("nd_duo_f1", "duo", 1, { x: 316, y: 48, w: 252, h: 640 })];
+  doc.pages.push(duoPage);
+
+  // --- Page 7: chain "scope40" — repeater over 40 rows + header component, repeat_header + keep rules ---
+  const scope40Page = M.createPage("body");
+  scope40Page.id = "pg_scope40";
+  const scope40Frame = chainFrame("nd_scope40_f0", "scope40", 0, { x: 40, y: 46, w: 532, h: 700 });
+  scope40Frame.children = [
+    chainText("nd_scope40_h", [{ id: "sb_h", type: "heading", level: 2, runs: [{ text: "Detailed scope (repeater)" }] }]),
+    N("repeater", {
+      id: "nd_rep40",
+      anchor: "flow",
+      frame: { x: 0, y: 0, w: 0, h: "auto", z: 0 },
+      props: {
+        source: "{{params.forty_rows}}",
+        component: "li_row40",
+        as: "row",
+        layout: { direction: "column", columns: 1, gap_pt: 4 },
+        break_rules: { repeat_header: true, header_component: "li_row40", min_rows_per_segment: 3, keep_with_next: ["li_group_header"] },
+        empty_text: "No scope items."
+      }
+    })
+  ];
+  scope40Page.children = [scope40Frame];
+  doc.pages.push(scope40Page);
+
+  // --- Page 8: anchors — inline checkbox in the run stream + floated images with text wrap ---
+  const anchorPage = M.createPage("body");
+  anchorPage.id = "pg_anchor";
+  const anchorFrame = chainFrame("nd_anchor_f0", "anchors", 0, { x: 40, y: 46, w: 532, h: 700 });
+  anchorFrame.children = [
+    chainText("nd_anchor_txt", [
+      { id: "ab1", type: "heading", level: 2, runs: [{ text: "Anchored objects" }] },
+      { id: "ab2", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 9) }] },
+      { id: "ab3", type: "paragraph", runs: [{ text: "I agree to the project terms and HOA guidelines " }, { text: " (initial to the left of this note before returning)." }] },
+      { id: "ab4", type: "paragraph", style_ref: "legal", runs: [{ text: sentence(LEGAL_SENT, 7) }] },
+      { id: "ab5", type: "paragraph", runs: [{ text: "Photos float beside their anchor blocks; the checkbox above renders inline in the run stream.", color: "#6b7280", size_pt: 8 }] }
+    ]),
+    N("image", {
+      id: "nd_float_right",
+      anchor: { to_block: "ab2", offset: 0, wrap: "right" },
+      frame: { x: 0, y: 0, w: 130, h: 95, z: 0 },
+      props: { media: { url: roofPhoto }, fit: "cover", alt: "Float right" },
+      style: { radius: 4 }
+    }),
+    N("image", {
+      id: "nd_float_left",
+      anchor: { to_block: "ab4", offset: 0, wrap: "left" },
+      frame: { x: 0, y: 0, w: 110, h: 80, z: 0 },
+      props: { media: { url: heroImage }, fit: "cover", alt: "Float left" },
+      style: { radius: 4 }
+    }),
+    N("shape", {
+      id: "nd_inline_check",
+      anchor: "inline",
+      frame: { x: 0, y: 0, w: 9, h: 9, z: 0 },
+      props: { shape: "rect", corner_radius: 1.5, after_block: "ab3", inline_offset: 1 },
+      style: { stroke: { color: "#111827", width_pt: 1 } }
+    })
+  ];
+  anchorPage.children = [anchorFrame];
+  doc.pages.push(anchorPage);
+
+  // --- Page 9: absolute repeater with overflow:"paginate" (legacy cloned-page path) + missing component + empty repeater ---
+  const repAbsPage = M.createPage("body");
+  repAbsPage.id = "pg_repabs";
+  repAbsPage.children = [
+    N("text", { id: "nd_repabs_h", frame: { x: 40, y: 40, w: 320, h: 24, z: 1 }, props: { blocks: [{ id: "rb_h", type: "heading", level: 2, runs: [{ text: "Absolute repeater (paginates)" }] }], valign: "top" } }),
+    N("component_ref", { id: "nd_missing", frame: { x: 402, y: 40, w: 170, h: 28, z: 1 }, props: { component: "not_a_component" } }),
+    N("repeater", {
+      id: "nd_repabs",
+      frame: { x: 40, y: 78, w: 532, h: 640, z: 1 },
+      props: {
+        source: "{{params.abs_rows}}",
+        component: "li_row40",
+        as: "row",
+        overflow: "paginate",
+        layout: { direction: "column", columns: 1, gap_pt: 4 },
+        break_rules: { repeat_header: true, header_component: "li_row40", min_rows_per_segment: 2, keep_with_next: [] },
+        empty_text: "No rows."
+      }
+    }),
+    N("repeater", {
+      id: "nd_rep_empty",
+      frame: { x: 40, y: 736, w: 300, h: 22, z: 1 },
+      props: { source: "{{params.empty_list}}", component: "li_row40", layout: { direction: "column", columns: 1, gap_pt: 4 }, empty_text: "No change orders yet." }
+    })
+  ];
+  doc.pages.push(repAbsPage);
+
+  // -------------------------------------------------------------- resolve + render
+  const fortyRows = [{ name: "Item", desc: "Scope details", qty: "Qty", amount: "Amount" }];
+  for (let i = 1; i <= 40; i += 1) {
+    fortyRows.push({ name: "Work item " + i, desc: "Includes flashing, underlayment, fastening and cleanup for area " + i + ".", qty: ((i % 4) + 1) + " ea", amount: "$" + (450 + i * 7) + ".00" });
+  }
+  const paramsData = {
+    customer_name: "Dana & Chris Whitfield",
+    project_address: "418 Larkspur Lane, Fort Collins CO",
+    valid_until: "2026-08-15",
+    scope_items: pricingRows.map((r) => ({ amount_cents: r.included || (r.optional && !r.selected) ? 0 : r.amount_cents })),
+    forty_rows: fortyRows,
+    abs_rows: fortyRows.slice(0, 29),
+    empty_list: []
+  };
+  const resolved = M.resolveBindings(doc, { params: paramsData });
+
+  const widgetData = {
+    nd_line_items: { rows: pricingRows, totals: pricingTotals, columns: ["name", "description", "qty", "unit_price", "amount"] },
+    nd_big_table: { rows: bigRows, totals: bigTotals, columns: ["name", "description", "qty", "amount"] },
+    nd_schedule: { obligations: [
+      { id: "ob1", label: "Deposit", amount_cents: 337500, due_label: "At signing", status: "due" },
+      { id: "ob2", label: "Material delivery", amount_cents: 450000, due: "2026-08-02", status: "pending" },
+      { id: "ob3", label: "Final payment", amount_cents: 337500, due_label: "On completion", status: "pending" }
+    ], currency: "USD" },
+    nd_pay_now: { amount_due_cents: 337500, currency: "USD" }
+  };
+
+  const container = document.getElementById("stage");
+  const status = document.getElementById("status");
+
+  // --------------------------------------------------------- v2 check harness
+  // Geometry assertions over the live render; results in window.__checks.
+  function lineBoxes(blockEl) {
+    const rects = [];
+    (function walk(n) {
+      for (let c = n.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 3) {
+          if (c.nodeValue) {
+            const r = document.createRange();
+            r.selectNodeContents(c);
+            for (const x of Array.from(r.getClientRects())) if (x.width > 0.01 && x.height > 0.01) rects.push(x);
+          }
+        } else if (c.nodeType === 1) {
+          if (c.hasAttribute("data-fmdoc-float")) continue;
+          if (c.tagName === "IMG" || c.tagName === "SVG" || c.hasAttribute("data-fmdoc-inline")) {
+            const r = c.getBoundingClientRect();
+            if (r.height > 0.01) rects.push(r);
+          } else walk(c);
+        }
+      }
+    })(blockEl);
+    rects.sort((a, b) => a.top - b.top || a.left - b.left);
+    const lines = [];
+    for (const r of rects) {
+      const L = lines[lines.length - 1];
+      const cy = (r.top + r.bottom) / 2;
+      if (L && cy <= L.bottom + 0.5) {
+        L.top = Math.min(L.top, r.top); L.bottom = Math.max(L.bottom, r.bottom);
+        L.left = Math.min(L.left, r.left); L.right = Math.max(L.right, r.right);
+      } else lines.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
+    }
+    return lines;
+  }
+
+  function runChecks() {
+    const out = {};
+    const check = (name, fn) => {
+      try { out[name] = fn(); } catch (e) { out[name] = { pass: false, error: String(e && e.message || e) }; }
+    };
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    check("pages", () => {
+      const pages = handle.pageElements();
+      return { pass: pages.length >= 12, count: pages.length, ids: pages.map((p) => p.getAttribute("data-page-id")) };
+    });
+
+    check("letterChain", () => {
+      const mm = handle.chainMetrics("letter");
+      const autos = mm.filter((f) => String(f.frame_node_id).indexOf("pg_auto_letter") === 0);
+      const overfilled = mm.filter((f) => f.used_pt > f.capacity_pt + 1);
+      return { pass: mm.length >= 3 && autos.length >= 1 && overfilled.length === 0, frames: mm.length, autoFrames: autos.length, metrics: mm.map((f) => ({ id: f.frame_node_id, page: f.page_id, used: f.used_pt, cap: f.capacity_pt, blocks: f.block_ids.length })) };
+    });
+
+    check("lineSplit", () => {
+      const pairs = [];
+      for (const head of $$('[data-fmdoc-split="head"][data-node-type="text"]')) {
+        const id = head.getAttribute("data-node-id");
+        const tail = $$('[data-fmdoc-split="tail"][data-node-id="' + id + '"]')[0];
+        if (!tail) continue;
+        const headLast = head.querySelector(".fmdoc-block:last-child");
+        const tailFirst = tail.querySelector(".fmdoc-block");
+        if (!headLast || !tailFirst) continue;
+        if (headLast.getAttribute("data-block-id") !== tailFirst.getAttribute("data-block-id")) continue; // block-boundary split, not line split
+        pairs.push({ id, headLines: lineBoxes(headLast).length, tailLines: lineBoxes(tailFirst).length });
+      }
+      const bad = pairs.filter((p) => p.headLines < 2 || p.tailLines < 2);
+      return { pass: pairs.length >= 1 && bad.length === 0, pairs };
+    });
+
+    check("pageBreak", () => {
+      const marker = document.querySelector('[data-node-id="nd_let_break"]');
+      const h2 = document.querySelector('[data-node-id="nd_let_h2"]');
+      if (!marker || !h2) return { pass: false, reason: "missing nodes" };
+      const markerFrame = marker.closest("[data-chain]");
+      const h2Frame = h2.closest("[data-chain]");
+      const afterMarker = Array.from(markerFrame.children).slice(Array.from(markerFrame.children).indexOf(marker) + 1).filter((c) => c.hasAttribute("data-fmdoc-flow"));
+      return { pass: markerFrame !== h2Frame && afterMarker.length === 0, sameFrame: markerFrame === h2Frame, flowAfterMarker: afterMarker.length };
+    });
+
+    check("twoColumns", () => {
+      const mm = handle.chainMetrics("duo");
+      const authored = $$('#stage [data-page-id="pg_duo"] [data-chain="duo"]');
+      const autoPages = $$('[data-fmdoc-auto-page] [data-chain="duo"]');
+      const autoPageEl = autoPages[0] ? autoPages[0].closest(".fmdoc-page") : null;
+      const colsOnAuto = autoPageEl ? autoPageEl.querySelectorAll('[data-chain="duo"]').length : 0;
+      let sideBySide = false;
+      if (colsOnAuto >= 2) {
+        const [a, b] = Array.from(autoPageEl.querySelectorAll('[data-chain="duo"]'));
+        const ra = a.getBoundingClientRect(); const rb = b.getBoundingClientRect();
+        sideBySide = Math.abs(ra.top - rb.top) < 2 && rb.left > ra.right;
+      }
+      const filled = mm.filter((f) => f.block_ids.length > 0);
+      return { pass: authored.length === 2 && colsOnAuto === 2 && sideBySide && filled.length >= 3, authored: authored.length, colsOnAuto, sideBySide, framesWithContent: filled.length };
+    });
+
+    check("repeaterChain", () => {
+      const parts = $$('[data-node-id="nd_rep40"]');
+      const segs = parts.map((p) => {
+        const rows = Array.from(p.children).filter((c) => c.hasAttribute("data-fmdoc-row") && !c.hasAttribute("data-fmdoc-repeat-clone"));
+        const first = p.firstElementChild;
+        return { split: p.getAttribute("data-fmdoc-split"), rows: rows.length, headerClone: first ? first.hasAttribute("data-fmdoc-repeat-clone") : false, headerIdx0: first ? first.getAttribute("data-repeater-index") === "0" : false };
+      });
+      const conts = segs.filter((s) => s.split === "tail");
+      const minOk = segs.every((s) => s.rows >= 3 || (s.split !== "tail" && s.rows >= 3));
+      const headersOk = conts.every((s) => s.headerClone && s.headerIdx0);
+      const totalRows = segs.reduce((a, s) => a + s.rows, 0);
+      return { pass: parts.length >= 2 && conts.length >= 1 && minOk && headersOk && totalRows === 41, segments: segs, totalRows };
+    });
+
+    check("floatWrap", () => {
+      const fl = document.querySelector('[data-node-id="nd_float_right"]');
+      const block = document.querySelector('[data-block-id="ab2"]');
+      if (!fl || !block) return { pass: false, reason: "missing" };
+      const fr = fl.getBoundingClientRect();
+      const lines = lineBoxes(block);
+      const beside = lines.filter((l) => l.bottom > fr.top + 1 && l.top < fr.bottom - 1);
+      const clipped = beside.every((l) => l.right <= fr.left + 2);
+      const below = lines.filter((l) => l.top >= fr.bottom - 1);
+      const fullWidth = below.some((l) => l.right > fr.left + 10);
+      return { pass: fl.parentElement === block && beside.length >= 2 && clipped && fullWidth, besideLines: beside.length, clipped, belowLines: below.length, fullWidth, floatRect: { l: fr.left, r: fr.right, t: fr.top, b: fr.bottom } };
+    });
+
+    check("inlineAnchor", () => {
+      const box = document.querySelector('[data-node-id="nd_inline_check"]');
+      const block = document.querySelector('[data-block-id="ab3"]');
+      if (!box || !block) return { pass: false, reason: "missing" };
+      const br = box.getBoundingClientRect();
+      const runs = Array.from(block.querySelectorAll(".fmdoc-run"));
+      const firstRun = runs[0] ? runs[0].getBoundingClientRect() : null;
+      const inBlock = block.contains(box);
+      const display = getComputedStyle(box).display;
+      const sameBand = firstRun ? br.top < firstRun.bottom + 14 && br.bottom > firstRun.top - 14 : false;
+      return { pass: inBlock && display === "inline-block" && sameBand, inBlock, display, sameBand };
+    });
+
+    check("masterSlots", () => {
+      const finePages = $$('.fmdoc-page[data-role="fine_print"]');
+      const missing = finePages.filter((p) => !p.querySelector(":scope > .fmdoc-master-header") || !p.querySelector(":scope > .fmdoc-master-footer"));
+      const total = handle.pageElements().length;
+      const badNumbers = [];
+      for (const p of finePages) {
+        const ph = p.querySelector(".fmdoc-master-footer [data-fmdoc-page-number]");
+        const expected = "Page " + p.getAttribute("data-page-number") + " of " + total;
+        if (!ph || ph.textContent !== expected) badNumbers.push({ page: p.getAttribute("data-page-id"), got: ph ? ph.textContent : null, expected });
+      }
+      return { pass: finePages.length >= 3 && missing.length === 0 && badNumbers.length === 0, finePages: finePages.length, missing: missing.length, badNumbers };
+    });
+
+    check("legacyStillPaginates", () => {
+      const conts = $$('[data-page-id^="pg_scope__cont"]');
+      const headMark = document.querySelector('[data-node-id="nd_big_table"][data-fmdoc-split="head"]');
+      const unknown = document.querySelector(".fmdoc-widget-unknown");
+      return { pass: conts.length >= 1 && Boolean(headMark) && Boolean(unknown), contPages: conts.length, widgetSplitHead: Boolean(headMark), unknownPlaceholder: Boolean(unknown) };
+    });
+
+    check("absoluteRepeater", () => {
+      const conts = $$('[data-page-id^="pg_repabs__cont"]');
+      const parts = $$('[data-node-id="nd_repabs"]');
+      const segs = parts.map((p) => {
+        const rows = Array.from(p.children).filter((c) => c.hasAttribute("data-fmdoc-row") && !c.hasAttribute("data-fmdoc-repeat-clone"));
+        const first = p.firstElementChild;
+        return { rows: rows.length, headerClone: first ? first.hasAttribute("data-fmdoc-repeat-clone") : false };
+      });
+      const totalRows = segs.reduce((a, s) => a + s.rows, 0);
+      const minOk = segs.every((s) => s.rows >= 2);
+      const contHeaders = segs.slice(1).every((s) => s.headerClone);
+      return { pass: conts.length >= 1 && parts.length >= 2 && totalRows === 29 && minOk && contHeaders, contPages: conts.length, segments: segs, totalRows };
+    });
+
+    check("placeholders", () => {
+      const missing = document.querySelector('[data-node-id="nd_missing"] .fmdoc-component-missing');
+      const empty = document.querySelector('[data-node-id="nd_rep_empty"] .fmdoc-repeater-empty');
+      return { pass: Boolean(missing) && missing.textContent === "not_a_component" && Boolean(empty) && empty.textContent === "No change orders yet.", missingText: missing ? missing.textContent : null, emptyText: empty ? empty.textContent : null };
+    });
+
+    check("styleRef", () => {
+      // Sample a block that was not the head of a line split (the split
+      // legitimately drops space_after at the frame boundary).
+      const legalBlock = $$('[data-style-ref="legal"]').find((b) => b.style.marginBottom !== "0px" && b.style.marginBottom !== "0");
+      if (!legalBlock) return { pass: false, reason: "no legal block" };
+      const cs = getComputedStyle(legalBlock);
+      const sizeOk = Math.abs(parseFloat(cs.fontSize) - 9.5 * (96 / 72)) < 0.35;
+      const famOk = /georgia/i.test(cs.fontFamily);
+      const spacingOk = Math.abs(parseFloat(cs.marginBottom) - 7 * (96 / 72)) < 0.35;
+      return { pass: sizeOk && famOk && spacingOk, fontSize: cs.fontSize, fontFamily: cs.fontFamily, marginBottom: cs.marginBottom };
+    });
+
+    check("measureSplitNodes", () => {
+      const m1 = handle.measureNode("nd_let_p1"); // split text: head part box
+      const m2 = handle.measureNode("nd_rep40"); // split repeater
+      const inst = document.querySelector('[data-component="li_row40"][data-repeater-index="3"]');
+      const m3 = inst ? handle.measureNode(inst.getAttribute("data-node-id")) : null;
+      return { pass: Boolean(m1 && m1.h > 0 && m2 && m2.h > 0 && m3 && m3.h > 0), text: m1, repeater: m2, instance: m3 };
+    });
+
+    const failed = Object.keys(out).filter((k) => out[k] && out[k].pass === false);
+    out.__summary = { total: Object.keys(out).length, failed };
+    return out;
+  }
+
+  container.addEventListener("fmdoc:ready", () => {
+    const pages = handle.pageElements();
+    window.__checks = runChecks();
+    const failed = window.__checks.__summary.failed;
+    status.textContent = "ready — " + pages.length + " page(s), mode=" + mode + ", scale=" + handle.scale.toFixed(3) + " (px/pt)" + (failed.length ? " — CHECKS FAILED: " + failed.join(", ") : " — all checks pass");
+    console.log("[dev-preview] fmdoc:ready", { pages: pages.length, checks: window.__checks });
+  });
+
+  const outputs = {
+    sig_company: { type: "typed", text: "M. Alvarez", signer_name: "M. Alvarez", style: "script", signed_at: "2026-07-20T16:03:00Z" }
+  };
+
+  const handle = window.FMDocRenderer.render(container, {
+    document: resolved,
+    theme,
+    themeContext: { branding: { colors: { primary: "#1d4ed8" } } },
+    mode,
+    scale,
+    widgetData,
+    widgetContext: {
+      outputs,
+      params: paramsData,
+      submitOutput: (key, value) => console.log("[dev-preview] submitOutput", key, value),
+      api: { portalUrl: "https://portal.firstmate.app/d/demo123", documentId: "doc_demo", orgId: "org_demo" }
+    }
+  });
+  window.__devHandle = handle;
+})();
+</script>
+</body>
+</html>

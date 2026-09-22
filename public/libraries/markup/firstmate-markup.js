@@ -1,5 +1,5 @@
 /* libraries/markup/firstmate-markup.js
- * Shared markup and photo viewer primitives for FirstMate surfaces.
+ * Shared markup and media viewer primitives for FirstMate surfaces.
  */
 (function(){
   const root = window;
@@ -50,6 +50,31 @@
     };
     walk(template.content);
     return template.innerHTML;
+  }
+  function editablePlainText(el){
+    if (!el) return '';
+    const blocks = new Set(['div', 'p', 'li']);
+    const readChildren = (parent) => {
+      let value = '';
+      [...parent.childNodes].forEach((node, index, siblings) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          value += node.nodeValue || '';
+          return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = node.tagName.toLowerCase();
+        if (tag === 'br') {
+          value += '\n';
+          return;
+        }
+        const block = blocks.has(tag);
+        if (block && value && !value.endsWith('\n')) value += '\n';
+        value += readChildren(node);
+        if (block && index < siblings.length - 1 && !value.endsWith('\n')) value += '\n';
+      });
+      return value;
+    };
+    return readChildren(el).replace(/\n$/, '').replace(/\u00a0/g, ' ');
   }
   function clamp(value, min, max){ return Math.max(min, Math.min(max, value)); }
   function normalizeColor(color){
@@ -153,13 +178,22 @@
     const explicit = cleanText(item.media_type || item.mediaType || item.type || meta.media_type || meta.mediaType || meta.type).toLowerCase();
     if (explicit.startsWith('video')) return 'video';
     if (explicit.startsWith('image')) return 'image';
+    if (explicit === 'pdf' || explicit === 'application/pdf') return 'pdf';
+    if (explicit.startsWith('audio')) return 'audio';
     const mime = cleanText(item.mime_type || item.mimeType || item.content_type || item.contentType || meta.mime_type || meta.mimeType || meta.content_type || meta.contentType).toLowerCase();
     if (mime.startsWith('video/')) return 'video';
     if (mime.startsWith('image/')) return 'image';
+    if (mime === 'application/pdf') return 'pdf';
+    if (mime.startsWith('audio/')) return 'audio';
     const url = cleanText(item.src || item.url || item.thumb || item.label || item.name).toLowerCase();
-    return /\.(mp4|mov|m4v|webm|avi|mkv|ogv)(?:[?#].*)?$/.test(url) ? 'video' : 'image';
+    if (/\.(mp4|mov|m4v|webm|avi|mkv|ogv)(?:[?#].*)?$/.test(url)) return 'video';
+    if (/\.pdf(?:[?#].*)?$/.test(url)) return 'pdf';
+    if (/\.(mp3|m4a|wav|aac|flac|oga|ogg)(?:[?#].*)?$/.test(url)) return 'audio';
+    if (/\.(png|jpe?g|gif|webp|bmp|avif|heic)(?:[?#].*)?$/.test(url)) return 'image';
+    return 'image';
   }
   function isVideoMedia(item = {}){ return mediaKind(item) === 'video'; }
+  function isImageMedia(item = {}){ return mediaKind(item) === 'image'; }
   function photoUrl(photo = {}, variant = 'original'){
     const oid = orgId();
     if (photo.media_id && root.PlatformAPI?.media?.fileUrl) return root.PlatformAPI.media.fileUrl(oid, photo.media_id, variant);
@@ -173,9 +207,12 @@
   function photoFileName(photo = {}, project = {}, suffix = ''){
     const source = cleanText(photo.label || photo.name || project.title || project.address || photoId(photo) || 'photo');
     const url = photoUrl(photo, 'original');
-    const match = url.split('?')[0].match(/\.([a-z0-9]{2,5})$/i);
+    const kind = mediaKind(photo);
+    const sourceName = cleanText(photo.file_name || photo.fileName || photo.name || photo.label);
+    const match = (kind === 'image' || kind === 'video' ? url : sourceName || url).split('?')[0].match(/\.([a-z0-9]{2,8})$/i);
     const ext = match?.[1] || 'jpg';
-    return safeFileName(`${source}${suffix ? `-${suffix}` : ''}`, suffix ? 'png' : ext);
+    const base = kind === 'image' || kind === 'video' ? source : source.replace(new RegExp(`\\.${escapeRegex(ext)}$`, 'i'), '');
+    return safeFileName(`${base}${suffix ? `-${suffix}` : ''}`, suffix ? 'png' : ext);
   }
   function downloadBlob(blob, filename){
     const url = URL.createObjectURL(blob);
@@ -341,14 +378,25 @@
   }
   async function saveMarkup(selectedOrgId, mediaId, items){
     if (!selectedOrgId || !mediaId || !root.PlatformAPI?.media?.saveMarkup) return null;
-    return root.PlatformAPI.media.saveMarkup(selectedOrgId, mediaId, PHOTO_MARKUP_LAYER, { schema: 1, items: items || [] }, {
-      source: 'photo_markup',
-      updated_by_name: userName(),
-      updated_by_email: userEmail()
-    }).catch((error) => {
+    try {
+      const result = await root.PlatformAPI.media.saveMarkup(selectedOrgId, mediaId, PHOTO_MARKUP_LAYER, { schema: 1, items: items || [] }, {
+        source: 'photo_markup',
+        updated_by_name: userName(),
+        updated_by_email: userEmail()
+      });
+      root.dispatchEvent?.(new CustomEvent('fm:media-markup-saved', {
+        detail: {
+          orgId: selectedOrgId,
+          mediaId,
+          revision: result?.layer?.revision || result?.media?.markup_thumbnail?.revision || '',
+          updatedAt: result?.layer?.updated_at || result?.media?.markup_thumbnail?.updated_at || ''
+        }
+      }));
+      return result;
+    } catch (error) {
       console.warn('Could not save photo markup', error);
       return null;
-    });
+    }
   }
   async function loadComments(selectedOrgId, mediaId){
     if (!selectedOrgId || !mediaId || !root.PlatformAPI?.media?.getMarkup) return [];
@@ -371,6 +419,12 @@
       .fm-photo-modal-shell{width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1fr) 360px;background:#0b111b}
       .fm-photo-stage{position:relative;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#070b12}
       .fm-photo-stage img,.fm-photo-stage video{max-width:100%;max-height:100%;object-fit:contain;display:block}
+      .fm-photo-stage iframe{width:100%;height:100%;border:0;background:#fff;display:block}
+      .fm-photo-stage audio{width:min(620px,calc(100% - 96px));position:relative;z-index:2}
+      .fm-media-file-fallback{max-width:460px;margin:28px;padding:34px;border:1px solid rgba(255,255,255,.14);border-radius:18px;background:rgba(15,23,42,.72);color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+      .fm-media-file-fallback i{font-size:44px;color:rgba(255,255,255,.72)}
+      .fm-media-file-fallback strong{font-size:16px}.fm-media-file-fallback span{font-size:12px;line-height:1.5;color:rgba(255,255,255,.72)}
+      .fm-media-file-fallback a{border-radius:10px;background:#fff;color:#101828;padding:10px 13px;text-decoration:none;font-size:12px;font-weight:900}
       .fm-photo-stage [hidden]{display:none!important}
       .fm-photo-top{position:absolute;top:18px;left:18px;right:18px;z-index:20;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;pointer-events:none}
       .fm-photo-title{min-width:0;text-shadow:0 2px 16px rgba(0,0,0,.5)}
@@ -385,6 +439,7 @@
       .fm-photo-actions-menu button{width:100%;border:0;border-radius:10px;background:transparent;color:#fff;padding:10px 11px;text-align:left;font-size:12px;font-weight:900;cursor:pointer;display:flex;align-items:center;gap:9px}
       .fm-photo-actions-menu button:hover{background:rgba(255,255,255,.12)}
       .fm-photo-actions-menu button.danger{color:#fecaca}
+      .fm-photo-actions-menu button[hidden]{display:none!important}
       .fm-photo-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:18;width:44px;height:58px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(15,23,42,.54);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(12px)}
       .fm-photo-nav.prev{left:18px}.fm-photo-nav.next{right:18px}
       .fm-photo-side{background:#fff;color:#101828;border-left:1px solid rgba(15,23,42,.08);display:flex;flex-direction:column;min-height:0}
@@ -398,8 +453,21 @@
       .fm-photo-user-row{width:100%;margin-top:10px;border:0;background:transparent;padding:0;display:flex;align-items:center;gap:8px;color:#475467;font:inherit;font-size:12px;line-height:1.35;text-align:left;cursor:pointer}
       .fm-photo-user-row:hover strong{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}
       .fm-photo-avatar{width:30px;height:30px;border-radius:999px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex:0 0 auto}
-      .fm-photo-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
-      .fm-photo-tag{border-radius:999px;background:#f2f4f7;color:#344054;padding:4px 8px;font-size:11px;font-weight:800}
+      .fm-photo-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
+      .fm-photo-tag{border:0;border-radius:999px;background:#f2f4f7;color:#344054;padding:4px 8px;font-size:11px;font-weight:800}
+      button.fm-photo-tag{cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+      button.fm-photo-tag:hover{background:#fee4e2;color:#b42318}
+      .fm-photo-tag-editor{display:inline-flex;align-items:center;gap:4px}
+      .fm-photo-tag-input{width:104px;border:1px solid #d0d5dd;border-radius:999px;padding:4px 9px;font-size:11px;outline:none}
+      .fm-photo-tag-input:focus{border-color:#1570ef;box-shadow:0 0 0 2px rgba(21,112,239,.12)}
+      .fm-photo-tag-add{width:24px;height:24px;border:0;border-radius:50%;background:#eaf2ff;color:#175cd3;cursor:pointer}
+      .fm-photo-indicators{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+      .fm-photo-indicator{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:10px;padding:10px 11px;border:1px solid #d0d5dd;border-radius:13px;background:#f8fafc;color:#344054;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+      .fm-photo-indicator-icon{width:30px;height:30px;border-radius:999px;background:#e4e7ec;color:#475467;display:flex;align-items:center;justify-content:center;font-size:12px}
+      .fm-photo-indicator strong{display:block;font-size:12px;line-height:1.25;color:#101828}.fm-photo-indicator span{display:block;margin-top:2px;font-size:11px;line-height:1.3;color:#667085}
+      .fm-photo-indicator.success{border-color:#abefc6;background:linear-gradient(135deg,#ecfdf3 0%,#f6fef9 100%)}.fm-photo-indicator.success .fm-photo-indicator-icon{background:#d1fadf;color:#067647}
+      .fm-photo-indicator.pulse{animation:fm-photo-indicator-pulse .7s ease-out}
+      @keyframes fm-photo-indicator-pulse{0%{transform:scale(.97);box-shadow:0 0 0 0 rgba(18,183,106,.32)}55%{transform:scale(1);box-shadow:0 0 0 7px rgba(18,183,106,0)}100%{box-shadow:0 1px 2px rgba(16,24,40,.04)}}
       .fm-photo-comments{padding:14px 18px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:12px}
       .fm-photo-comment{display:grid;grid-template-columns:30px minmax(0,1fr);gap:9px}
       .fm-photo-comment-body{background:#f8fafc;border:1px solid #eaecf0;border-radius:12px;padding:9px 10px;color:#101828}
@@ -422,7 +490,7 @@
       .fm-photo-composer-actions button{border:0;border-radius:10px;background:var(--primary,#d93025);color:#fff;font-weight:900;padding:9px 13px;cursor:pointer}
       .fm-photo-markup-layer{position:absolute;inset:0;z-index:10;pointer-events:none}
       .fm-photo-modal.markup-active .fm-photo-markup-layer{pointer-events:auto}
-      .fm-photo-modal.video-active .fm-photo-markup-layer{pointer-events:none}
+      .fm-photo-modal.video-active .fm-photo-markup-layer,.fm-photo-modal.non-image-active .fm-photo-markup-layer{pointer-events:none}
       .fm-photo-markup-layer svg{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
       .fm-photo-markup-text{position:absolute;min-width:40px;min-height:20px;box-sizing:border-box;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.72);color:#111;font-size:13px;line-height:1.2;white-space:pre-wrap;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.08)}
       .fm-photo-markup-text[contenteditable="true"]{outline:0;cursor:text;overflow-wrap:anywhere;word-break:normal}
@@ -434,7 +502,10 @@
       .fm-photo-markup-path{fill:none;stroke:#111;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
       .fm-photo-markup-arrow{fill:none;stroke-linecap:round}
       .fm-photo-modal .r-proposal-markupdock{display:block;top:72px;right:18px}
-      .fm-photo-modal.video-active .r-proposal-markupdock,.fm-photo-modal.video-active [data-photo-download-markup]{display:none}
+      .fm-photo-modal.video-active .r-proposal-markupdock,.fm-photo-modal.video-active [data-photo-download-markup],.fm-photo-modal.non-image-active .r-proposal-markupdock,.fm-photo-modal.non-image-active [data-photo-download-markup]{display:none}
+      .fm-photo-modal .fm-video-editdock{position:absolute;right:18px;bottom:18px;z-index:61;display:none}
+      .fm-photo-modal.video-active .fm-video-editdock{display:block}
+      .fm-photo-modal .fm-video-editdock[hidden]{display:none!important}
       .fm-photo-modal .r-proposal-markupdock{position:absolute;z-index:61;width:42px}
       .fm-photo-modal .r-proposal-markupdock.dock-bottom-right{top:auto;right:18px;bottom:18px}
       .fm-photo-modal .r-proposal-markupdock.expanded{width:42px}
@@ -612,6 +683,7 @@
     }
     setActive(active){
       this.active = !!active;
+      this.root.classList.toggle('markup-active', this.active);
       this.root.closest('.fm-photo-modal')?.classList.toggle('markup-active', this.active);
       this.dock?.classList.toggle('expanded', this.active);
       this.toggleBtn?.classList.toggle('active', this.active);
@@ -676,17 +748,20 @@
       const lines = raw.split('\n');
       return lines.length ? lines : [''];
     }
-    textMeasureContext(fontSize = 12){
+    textMeasureContext(fontSize = 12, element = null){
       if (!this.textMeasureCanvas) this.textMeasureCanvas = document.createElement('canvas');
       const ctx = this.textMeasureCanvas.getContext('2d');
-      ctx.font = `700 ${Math.max(1, Number(fontSize || 12))}px Arial, sans-serif`;
+      const style = element ? root.getComputedStyle?.(element) : null;
+      const weight = cleanText(style?.fontWeight) || '700';
+      const family = cleanText(style?.fontFamily) || 'Arial, sans-serif';
+      ctx.font = `${weight} ${Math.max(1, Number(fontSize || 12))}px ${family}`;
       return ctx;
     }
     textVisualMetrics(item = {}, options = {}){
       const lines = this.textLines(item.text);
       const fontSize = Math.max(1, Number(options.fontSize || 12));
       const maxContentWidth = Number(options.maxContentWidth || 0);
-      const ctx = this.textMeasureContext(fontSize);
+      const ctx = this.textMeasureContext(fontSize, options.element);
       let longest = 1;
       let lineCount = 0;
       lines.forEach((line) => {
@@ -724,7 +799,7 @@
       };
     }
     textMetrics(item = {}, options = {}){
-      if (options.fontSize || options.maxContentWidth) return this.textVisualMetrics(item, options);
+      if (options.fontSize || options.maxContentWidth || options.element) return this.textVisualMetrics(item, options);
       const lines = this.textLines(item.text);
       const longest = Math.max(1, ...lines.map((line) => line.length || 1));
       const lineCount = Math.max(1, lines.length);
@@ -754,15 +829,19 @@
       const padY = padding.totalY;
       const rectWidth = Math.max(1, rect.width || 900);
       const rectHeight = Math.max(1, rect.height || 600);
-      const unwrappedMetrics = this.textVisualMetrics(item, { fontSize });
+      const unwrappedMetrics = this.textVisualMetrics(item, { fontSize, element: options.element });
       const unwrappedHeightPx = Math.max(20, unwrappedMetrics.lineCount * fontSize * 1.2 + padY);
-      const desiredWidthPx = Math.max(40, unwrappedMetrics.widthPx + padX, unwrappedHeightPx * 2);
+      // Canvas and contenteditable glyph measurements can differ by a fraction
+      // of a pixel. Leave enough room that the final glyph cannot oscillate
+      // across a wrapping boundary while the image is being resized.
+      const wrapGuardPx = Math.max(3, fontSize * 0.14);
+      const desiredWidthPx = Math.max(40, unwrappedMetrics.widthPx + padX + wrapGuardPx, unwrappedHeightPx * 2);
       const naturalWidth = clamp(desiredWidthPx / rectWidth, minWidth, Math.max(minWidth, 0.995));
       const naturalHeight = clamp(unwrappedHeightPx / rectHeight, minHeight, maxHeight);
       const width = clamp(Math.min(naturalWidth, maxWidth), minWidth, maxWidth);
       const isEdgeWrapped = width < naturalWidth - 0.0005;
       const fittedMetrics = isEdgeWrapped
-        ? this.textVisualMetrics(item, { fontSize, maxContentWidth: Math.max(1, width * rectWidth - padX) })
+        ? this.textVisualMetrics(item, { fontSize, maxContentWidth: Math.max(1, width * rectWidth - padX), element: options.element })
         : unwrappedMetrics;
       const desiredHeightPx = Math.max(20, fittedMetrics.lineCount * fontSize * 1.2 + padY);
       const height = isEdgeWrapped
@@ -772,6 +851,9 @@
       item.height = height;
       item.naturalWidth = naturalWidth;
       item.naturalHeight = naturalHeight;
+      item.naturalWidthPx = desiredWidthPx;
+      item.naturalHeightPx = unwrappedHeightPx;
+      item.autoFit = true;
       item.fontPx = fontSize;
       delete item.edgeNaturalWidth;
       item.aspect = Math.max(0.1, (width * rectWidth) / Math.max(1, height * rectHeight));
@@ -792,14 +874,14 @@
       const { width, height } = this.textBoxRenderBox(item);
       const fontSize = Number(item.fontPx) || this.textFontPx(item.size || 1.5, height, metrics.lineCount);
       const padding = this.textPadding(fontSize);
-      target.style.width = `${(width * 100).toFixed(3)}%`;
-      target.style.height = height != null ? `${(height * 100).toFixed(3)}%` : '';
+      target.style.width = `${(width * 100).toFixed(4)}%`;
+      target.style.height = height != null ? `${(height * 100).toFixed(4)}%` : '';
       target.style.maxWidth = `${(Math.max(0.12, 0.98 - Number(item.x || 0)) * 100).toFixed(3)}%`;
       target.style.fontSize = `${fontSize.toFixed(1)}px`;
       target.style.padding = `${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px`;
       if (handle && height != null) {
-        handle.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px)`;
-        handle.style.top = `calc(${((Number(item.y || 0) + height) * 100).toFixed(3)}% - 10.5px)`;
+        handle.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(4)}% - 10.5px)`;
+        handle.style.top = `calc(${((Number(item.y || 0) + height) * 100).toFixed(4)}% - 10.5px)`;
       }
     }
     textBoxFromDiagonal(item = {}, point = {}) {
@@ -873,8 +955,14 @@
       const padY = padding.totalY;
       const rectWidth = Math.max(1, rect.width || 900);
       const rectHeight = Math.max(1, rect.height || 600);
-      const naturalWidth = clamp(Number(item.naturalWidth || item.edgeNaturalWidth || item.width || minWidth), minWidth, Math.max(minWidth, 0.995));
-      const naturalHeight = clamp(Number(item.naturalHeight || item.height || minHeight), minHeight, maxHeight);
+      const measuredWidth = item.autoFit === true && Number(item.naturalWidthPx) > 0
+        ? Number(item.naturalWidthPx) / rectWidth
+        : Number(item.naturalWidth || item.edgeNaturalWidth || item.width || minWidth);
+      const measuredHeight = item.autoFit === true && Number(item.naturalHeightPx) > 0
+        ? Number(item.naturalHeightPx) / rectHeight
+        : Number(item.naturalHeight || item.height || minHeight);
+      const naturalWidth = clamp(measuredWidth, minWidth, Math.max(minWidth, 0.995));
+      const naturalHeight = clamp(measuredHeight, minHeight, maxHeight);
       const nextWidth = clamp(Math.min(naturalWidth, maxWidth), minWidth, maxWidth);
       const isEdgeWrapped = nextWidth < naturalWidth - 0.0005;
       const nextMetrics = isEdgeWrapped
@@ -892,6 +980,17 @@
       item.fontPx = baseFont;
       item.aspect = Math.max(0.1, (nextWidth * rectWidth) / Math.max(1, nextHeight * rectHeight));
       return { width: item.width, height: item.height };
+    }
+    refreshTextBoxLayout(){
+      if (!this.layer) return;
+      this.items.filter((item) => item.type === 'text').forEach((item) => {
+        const el = this.layer.querySelector(`.fm-photo-markup-text[data-markup-id="${item.id}"]`);
+        const metrics = this.textMetrics(item);
+        const fontSize = Number(item.fontPx) || this.textFontPx(item.size || 1.5, item.height ?? null, metrics.lineCount);
+        if (item.autoFit === true) this.fitTextBoxToContent(item, { fontSize, element: el });
+        else this.fitTextBoxIntoAvailableWidth(item, fontSize);
+        this.applyTextBoxElement(item, el);
+      });
     }
     closePops(except = null){
       this.dock?.querySelectorAll('.r-proposal-markup-pop.visible').forEach((pop) => {
@@ -942,11 +1041,11 @@
       this.dock.querySelector('[data-markup-undo]')?.addEventListener('click', () => this.undo());
       this.dock.querySelector('[data-markup-redo]')?.addEventListener('click', () => this.redo());
       this.dock.querySelector('[data-markup-clear]')?.addEventListener('click', async () => {
-        const confirmed = !this.items.length || await (root.PlatformUI?.confirm?.('Clear markup from this photo?', {
-          title: 'Clear markup',
+        const confirmed = !this.items.length || await (root.PlatformUI?.confirm?.((globalThis.PlatformLanguage?.text("markup","m_0b10d3bd82b959","Clear markup from this photo?") ?? "Clear markup from this photo?"), {
+          title: (globalThis.PlatformLanguage?.text("markup","m_c382d65e7987e6","Clear markup") ?? "Clear markup"),
           okLabel: 'Clear',
           danger: true
-        }) || root.confirm('Clear markup from this photo?'));
+        }) || root.confirm((globalThis.PlatformLanguage?.text("markup","m_0b10d3bd82b959","Clear markup from this photo?") ?? "Clear markup from this photo?")));
         if (confirmed) {
           this.items = [];
           this.renderLayer();
@@ -1052,7 +1151,7 @@
       document.execCommand?.('foreColor', false, color);
       const item = this.items.find((entry) => entry.id === el.dataset.markupId);
       if (item) {
-        item.text = String(el.innerText || '').replace(/\u00a0/g, ' ');
+        item.text = editablePlainText(el);
         item.html = sanitizeMarkupHtml(el.innerHTML);
         this.emitChange();
       }
@@ -1114,6 +1213,7 @@
           height: startHeight,
           naturalWidth: startWidth,
           naturalHeight: startHeight,
+          autoFit: true,
           aspect: 2.4
         };
         this.items.push(item);
@@ -1151,6 +1251,9 @@
             item.height = box.height;
             item.naturalWidth = box.width;
             item.naturalHeight = box.height;
+            item.autoFit = false;
+            delete item.naturalWidthPx;
+            delete item.naturalHeightPx;
             delete item.edgeNaturalWidth;
           } else if (this.dragging.kind === 'text-move') {
             const bounds = this.textBoxBounds(item);
@@ -1252,14 +1355,22 @@
           if (!item) return;
           const previousMetrics = this.textMetrics(item);
           const previousFontSize = Number(item.fontPx) || this.textFontPx(item.size || 1.5, item.height ?? null, previousMetrics.lineCount);
-          item.text = String(el.innerText || '').replace(/\u00a0/g, ' ');
+          item.text = editablePlainText(el);
           item.html = sanitizeMarkupHtml(el.innerHTML);
           item.aspect = this.textAspect(item);
-          this.fitTextBoxToContent(item, { fontSize: previousFontSize });
+          item.autoFit = true;
+          this.fitTextBoxToContent(item, { fontSize: previousFontSize, element: el });
           this.applyTextBoxElement(item, el);
           this.emitChange();
         });
         el.addEventListener('keydown', (event) => {
+          const shortcut = (event.ctrlKey || event.metaKey) && cleanText(event.key).toLowerCase();
+          const item = this.items.find((entry) => entry.id === el.dataset.markupId);
+          if (shortcut === 'z' && item && !cleanText(item.text)) {
+            event.preventDefault();
+            this.undo();
+            return;
+          }
           if ((event.ctrlKey || event.metaKey) && cleanText(event.key).toLowerCase() === 'a') {
             event.preventDefault();
             const range = document.createRange();
@@ -1278,7 +1389,7 @@
     }
   }
 
-  class PhotoViewer {
+  class MediaViewer {
     constructor(options = {}){
       this.photos = Array.isArray(options.photos) ? options.photos : [];
       this.index = clamp(Number(options.index || 0), 0, Math.max(0, this.photos.length - 1));
@@ -1287,11 +1398,24 @@
       this.onChange = options.onChange;
       this.onOpenProject = options.onOpenProject;
       this.onDeletePhoto = options.onDeletePhoto;
+      this.onTagsChange = options.onTagsChange;
+      this.onVideoEdit = options.onVideoEdit;
+      this.onVideoSaved = options.onVideoSaved;
+      this.onRename = options.onRename;
+      this.canDelete = options.canDelete;
+      this.actions = Array.isArray(options.actions) ? options.actions : [];
+      this.indicators = Array.isArray(options.indicators) ? options.indicators : [];
       this.boundsTarget = options.boundsTarget || null;
+      this.embedded = options.embedded === true;
       this.projectLinkEnabled = options.projectLinkEnabled !== false;
+      this.itemNoun = cleanText(options.itemNoun || 'photo');
+      this.collectionNoun = cleanText(options.collectionNoun || (this.itemNoun === 'photo' ? 'photos' : `${this.itemNoun}s`));
       this.comments = [];
       this.mentions = null;
       this.modalHandle = null;
+      this.markupSaveTimer = 0;
+      this.pendingMarkupSave = null;
+      this.markupSavePromise = Promise.resolve();
       injectStyles();
       this.renderShell();
       this.show(this.index);
@@ -1302,16 +1426,154 @@
       return (photo.__project && typeof photo.__project === 'object') ? photo.__project : (this.project || {});
     }
     close(){
+      this.flushMarkupSave();
       this.modalHandle?.unregister?.();
       this.modalHandle = null;
       this.markup?.destroy?.();
       this.mentions?.destroy?.();
+      this.layoutObserver?.disconnect?.();
+      this.layoutObserver = null;
+      if (this.layoutFrame) cancelAnimationFrame(this.layoutFrame);
+      if (this.layoutSettleTimer) clearTimeout(this.layoutSettleTimer);
       this.el?.remove();
       window.removeEventListener('keydown', this.keyHandler);
       window.removeEventListener('resize', this.boundResize);
+      root.visualViewport?.removeEventListener?.('resize', this.boundResize);
+      document.removeEventListener('fullscreenchange', this.boundResize);
+      document.removeEventListener('transitionend', this.boundTransitionEnd, true);
       window.removeEventListener('mousedown', this.boundOutsideDown, true);
       window.removeEventListener('mouseup', this.boundOutsideUp, true);
       if (typeof this.onClose === 'function') this.onClose();
+    }
+    scheduleMarkupSave(photo = {}, items = []){
+      const mediaId = cleanText(photo.media_id);
+      if (!mediaId || isVideoMedia(photo)) return;
+      this.pendingMarkupSave = {
+        orgId: orgId(),
+        mediaId,
+        items: JSON.parse(JSON.stringify(Array.isArray(items) ? items : []))
+      };
+      clearTimeout(this.markupSaveTimer);
+      this.markupSaveTimer = setTimeout(() => this.flushMarkupSave(), 260);
+    }
+    flushMarkupSave(){
+      clearTimeout(this.markupSaveTimer);
+      this.markupSaveTimer = 0;
+      const pending = this.pendingMarkupSave;
+      this.pendingMarkupSave = null;
+      if (!pending?.orgId || !pending?.mediaId) return this.markupSavePromise;
+      this.markupSavePromise = this.markupSavePromise
+        .catch(() => null)
+        .then(() => saveMarkup(pending.orgId, pending.mediaId, pending.items));
+      return this.markupSavePromise;
+    }
+    mediaDisplayName(photo = this.current()){
+      return cleanText(photo.label || photo.name || photo.alt || photo.file_name || photo.fileName);
+    }
+    async renameCurrent(){
+      const photo = this.current();
+      const project = this.currentProject();
+      if (typeof this.onRename === 'function') return this.onRename({ photo, project, viewer: this });
+      const mediaId = cleanText(photo.media_id || photo.mediaId || photo.id);
+      if (!mediaId || typeof root.PlatformAPI?.media?.rename !== 'function') {
+        await (root.PlatformUI?.alert?.((globalThis.PlatformLanguage?.text("markup","m_30eddb404541fc","This item cannot be renamed.") ?? "This item cannot be renamed."), { title: (globalThis.PlatformLanguage?.text("markup","m_abcfa0ca6c43d1","Rename unavailable") ?? "Rename unavailable") }) || Promise.resolve());
+        return;
+      }
+      const current = this.mediaDisplayName(photo);
+      const entered = await (root.PlatformUI?.prompt?.(((v0) => globalThis.PlatformLanguage?.text("markup","m_7df4ce03bd425a",`Rename this ${v0}`,{v0}) ?? `Rename this ${v0}`)(this.itemNoun), current, {
+        title: (globalThis.PlatformLanguage?.text("markup","m_e32e6dab52dcf9","Rename") ?? "Rename"),
+        okLabel: 'Save'
+      }) ?? Promise.resolve(root.prompt(((v0) => globalThis.PlatformLanguage?.text("markup","m_7df4ce03bd425a",`Rename this ${v0}`,{v0}) ?? `Rename this ${v0}`)(this.itemNoun), current)));
+      const name = cleanText(entered);
+      if (!name || name === current) return;
+      try {
+        const result = await root.PlatformAPI.media.rename(orgId(), mediaId, name);
+        const saved = result?.media && typeof result.media === 'object' ? result.media : {};
+        const savedName = cleanText(saved.label || name);
+        photo.label = savedName;
+        photo.name = savedName;
+        photo.alt = savedName;
+        photo.file_name = cleanText(saved.file_name) || photo.file_name;
+        const title = this.el?.querySelector?.('[data-photo-title]');
+        if (title) title.textContent = savedName;
+        root.dispatchEvent(new CustomEvent('fm:media-renamed', {
+          detail: { mediaId, name: savedName, fileName: cleanText(photo.file_name), projectId: this.currentProjectId(project) }
+        }));
+        root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("markup","m_3f6db6da5ea0aa","Renamed") ?? "Renamed"), ((v0) => globalThis.PlatformLanguage?.text("markup","m_d3b2c48f2159dd",`Now called "${v0}".`,{v0}) ?? `Now called "${v0}".`)(savedName), true);
+      } catch (error) {
+        await (root.PlatformUI?.alert?.(error?.message || 'Could not rename this item.', { title: (globalThis.PlatformLanguage?.text("markup","m_a9069725fd09b3","Rename failed") ?? "Rename failed") }) || Promise.resolve());
+      }
+    }
+    currentProjectId(project = this.currentProject()){
+      return cleanText(
+        root.Portal?.routeState?.projectId?.(project)
+        || project?.platform_project_id
+        || project?.base_project_id
+        || project?.project_id
+        || project?.id
+      );
+    }
+    openVideoEditor(){
+      const photo = this.current();
+      const project = this.currentProject();
+      if (!isVideoMedia(photo)) return;
+      if (typeof this.onVideoEdit === 'function') return this.onVideoEdit({ photo, project, viewer: this });
+      const editor = root.FirstMateVideoEditor;
+      const src = photoUrl(photo, 'original');
+      if (!editor?.open || !src) return;
+      this.el?.querySelector?.('[data-photo-video]')?.pause?.();
+      editor.open({
+        src,
+        title: photo.label || photo.name || project.title || (globalThis.PlatformLanguage?.text("markup","m_542847040350bb","Edit Video") ?? "Edit Video"),
+        fileName: photo.file_name || photo.fileName || photo.label || photo.name || 'video',
+        onSave: (file, meta) => this.saveEditedVideo(file, meta)
+      });
+    }
+    async saveEditedVideo(file, meta = {}){
+      const photo = this.current();
+      const project = this.currentProject();
+      if (typeof this.onVideoSaved === 'function') {
+        return this.onVideoSaved({ file, meta, photo, project, viewer: this });
+      }
+      const oid = orgId();
+      const api = root.PlatformAPI;
+      if (!oid || !api) throw new Error('Saving edited videos is not available here.');
+      const projectId = this.currentProjectId(project);
+      let saved = null;
+      if (projectId && api.projectMedia?.uploadMedia) {
+        const result = await api.projectMedia.uploadMedia(oid, projectId, project, file, {
+          source: 'video_editor_save',
+          label: file.name,
+          mediaMetadata: { edited_from_media_id: cleanText(photo.media_id), video_edits: meta.edits || {} }
+        });
+        saved = result?.photo || null;
+      } else if (api.media?.upload) {
+        const upload = await api.media.upload(oid, file, {
+          thumbnails: true,
+          metadata: {
+            media_type: 'video',
+            mime_type: file.type || '',
+            source: 'video_editor_save',
+            edited_from_media_id: cleanText(photo.media_id)
+          }
+        });
+        const reference = api.media.referenceFromUpload?.(upload) || {};
+        saved = { ...reference, media_type: 'video', mime_type: file.type || '', label: file.name };
+      }
+      if (!saved) throw new Error('Could not save the edited video.');
+      if (photo.__project && typeof photo.__project === 'object') saved.__project = photo.__project;
+      this.photos.splice(this.index + 1, 0, saved);
+      root.dispatchEvent(new CustomEvent('fm:media-video-saved', {
+        detail: {
+          projectId,
+          mediaId: cleanText(saved.media_id || saved.id),
+          sourceMediaId: cleanText(photo.media_id),
+          photo: saved
+        }
+      }));
+      root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("markup","m_676e32fd36c9d4","Video saved") ?? "Video saved"), (globalThis.PlatformLanguage?.text("markup","m_7e15a23a685ec9","Your edited clip was added to this project.") ?? "Your edited clip was added to this project."), true);
+      await this.show(this.index + 1);
+      return saved;
     }
     async show(index){
       this.index = (index + this.photos.length) % this.photos.length;
@@ -1320,16 +1582,22 @@
       const up = uploader(photo);
       const img = this.el.querySelector('[data-photo-img]');
       const video = this.el.querySelector('[data-photo-video]');
-      const isVideo = isVideoMedia(photo);
+      const frame = this.el.querySelector('[data-media-frame]');
+      const audio = this.el.querySelector('[data-media-audio]');
+      const fallback = this.el.querySelector('[data-media-fallback]');
+      const kind = mediaKind(photo);
+      const isVideo = kind === 'video';
+      const isImage = kind === 'image';
+      const url = photoUrl(photo, 'original');
       if (img) {
-        img.hidden = isVideo;
-        if (!isVideo) img.src = photoUrl(photo, 'original');
+        img.hidden = !isImage;
+        if (isImage) img.src = url;
         else img.removeAttribute('src');
       }
       if (video) {
         video.hidden = !isVideo;
         if (isVideo) {
-          video.src = photoUrl(photo, 'original');
+          video.src = url;
           video.autoplay = true;
           video.load?.();
           const playVideo = () => video.play?.().catch(() => null);
@@ -1342,12 +1610,46 @@
           video.load?.();
         }
       }
+      if (frame) {
+        const useFrame = kind === 'pdf' || kind === 'document';
+        frame.hidden = !useFrame;
+        if (useFrame) frame.src = `${url}${kind === 'pdf' && !url.includes('#') ? '#view=FitH' : ''}`;
+        else frame.removeAttribute('src');
+      }
+      if (audio) {
+        audio.hidden = kind !== 'audio';
+        if (kind === 'audio') {
+          audio.src = url;
+          audio.load?.();
+        } else {
+          audio.pause?.();
+          audio.removeAttribute('src');
+          audio.load?.();
+        }
+      }
+      if (fallback) {
+        fallback.hidden = !!url || ['image', 'video', 'audio'].includes(kind);
+        fallback.querySelector('[data-media-fallback-title]').textContent = photo.label || photo.name || `This ${this.itemNoun}`;
+        const link = fallback.querySelector('[data-media-fallback-open]');
+        if (link) {
+          link.hidden = !url;
+          link.href = url || '#';
+        }
+      }
       const plainDownload = this.el.querySelector('[data-photo-download-plain]');
-      if (plainDownload) plainDownload.innerHTML = isVideo ? '<i class="fas fa-download"></i> Download' : '<i class="far fa-image"></i> Download without Markup';
+      if (plainDownload) plainDownload.innerHTML = isImage ? '<i class="far fa-image"></i> Download without Markup' : '<i class="fas fa-download"></i> Download';
+      const deleteButton = this.el.querySelector('[data-photo-delete]');
+      if (deleteButton && this.canDelete !== undefined) {
+        deleteButton.hidden = typeof this.canDelete === 'function'
+          ? this.canDelete({ photo, project, viewer:this }) === false
+          : this.canDelete === false;
+      }
+      this.refreshActions();
+      this.refreshIndicators();
       requestAnimationFrame(() => this.updateMarkupLayerBounds());
-      this.el.querySelector('[data-photo-title]').textContent = photo.label || project.title || project.address || (isVideo ? 'Video' : 'Photo');
-      this.el.querySelector('[data-photo-sub]').textContent = `${up.name || 'Unknown uploader'}${up.at ? ` • ${formatDateTime(up.at)}` : ''}`;
-      this.el.querySelector('[data-photo-project]').textContent = project.title || project.address || 'Project photo';
+      this.el.querySelector('[data-photo-title]').textContent = photo.label || project.title || project.address || (isVideo ? 'Video' : (isImage ? 'Photo' : this.itemNoun));
+      this.el.querySelector('[data-photo-sub]').textContent = `${up.name || 'Unknown uploader'}${up.at ? ` \u2022 ${formatDateTime(up.at)}` : ''}`;
+      this.el.querySelector('[data-photo-project]').textContent = project.title || project.address || `Project ${this.itemNoun}`;
       this.el.querySelector('[data-photo-uploader]').textContent = up.name || 'Unknown uploader';
       this.el.querySelector('[data-photo-uploaded]').textContent = up.at ? formatDateTime(up.at) : 'Unknown time';
       this.el.querySelector('[data-photo-counter]').textContent = `${this.index + 1} / ${this.photos.length}`;
@@ -1359,12 +1661,17 @@
         userBtn.dataset.photoUserEmail = up.email || '';
         userBtn.dataset.photoUserAvatar = up.avatar || '';
       }
-      this.el.querySelector('[data-photo-tags]').innerHTML = this.photoTags(photo).map((tag) => `<span class="fm-photo-tag">#${escapeHtml(tag)}</span>`).join('');
+      this.renderTags(photo);
+      const renameButton = this.el.querySelector('[data-photo-rename]');
+      if (renameButton) renameButton.hidden = !cleanText(photo.media_id) || typeof root.PlatformAPI?.media?.rename !== 'function';
+      const videoEditDock = this.el.querySelector('[data-video-editdock]');
+      if (videoEditDock) videoEditDock.hidden = !isVideo || !root.FirstMateVideoEditor?.isSupported?.() || !url;
       this.markup?.setItems([]);
       this.el.classList.toggle('video-active', isVideo);
-      if (isVideo) this.markup?.setActive(false);
+      this.el.classList.toggle('non-image-active', !isImage);
+      if (!isImage) this.markup?.setActive(false);
       if (photo.media_id) {
-        const [items, comments] = await Promise.all([isVideo ? Promise.resolve([]) : loadMarkup(orgId(), photo.media_id), loadComments(orgId(), photo.media_id)]);
+        const [items, comments] = await Promise.all([isImage ? loadMarkup(orgId(), photo.media_id) : Promise.resolve([]), loadComments(orgId(), photo.media_id)]);
         if (this.current() !== photo) return;
         this.markup?.setItems(items);
         this.comments = comments;
@@ -1372,11 +1679,57 @@
         this.comments = [];
       }
       this.renderComments();
-      if (typeof this.onChange === 'function') this.onChange({ photo, index: this.index, project, isVideo });
+      if (typeof this.onChange === 'function') this.onChange({ photo, index: this.index, project, isVideo, mediaKind:kind });
     }
     photoTags(photo = {}){
       const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
       return [...new Set([...(Array.isArray(photo.tags) ? photo.tags : []), ...(Array.isArray(meta.tags) ? meta.tags : [])].map(cleanText).filter(Boolean))];
+    }
+    normalizeTags(value){
+      const values = Array.isArray(value) ? value : String(value || '').split(',');
+      return [...new Set(values.map((tag) => cleanText(tag)
+        .replace(/^#+/, '')
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_-]/g, '')
+        .replace(/^[_-]+|[_-]+$/g, '')
+        .slice(0, 64)).filter(Boolean))].slice(0, 50);
+    }
+    renderTags(photo = this.current()){
+      const host = this.el?.querySelector?.('[data-photo-tags]');
+      if (!host) return;
+      const tags = this.photoTags(photo);
+      const editable = typeof this.onTagsChange === 'function' && !!cleanText(photo.media_id || photo.mediaId || photo.id);
+      host.innerHTML = `
+        ${tags.map((tag) => editable
+          ? `<button type="button" class="fm-photo-tag" data-photo-tag-remove="${String(escapeHtml(tag))}" title="${(globalThis.PlatformLanguage?.text("markup","m_cc0fe15c22053c","Remove tag") ?? "Remove tag")}">#${String(escapeHtml(tag))} <i class="fas fa-xmark"></i></button>`
+          : `<span class="fm-photo-tag">#${escapeHtml(tag)}</span>`).join('')}
+        ${editable ? `<span class="fm-photo-tag-editor"><input class="fm-photo-tag-input" data-photo-tag-input placeholder="${(globalThis.PlatformLanguage?.text("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}" maxlength="64" aria-label="${(globalThis.PlatformLanguage?.text("markup","m_a5ea54eaae7cc4","Add media tag") ?? "Add media tag")}"><button type="button" class="fm-photo-tag-add" data-photo-tag-add aria-label="${(globalThis.PlatformLanguage?.text("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}"><i class="fas fa-plus"></i></button></span>` : ''}`;
+    }
+    async setPhotoTags(tagsValue){
+      if (typeof this.onTagsChange !== 'function' || this.tagsSaving) return;
+      const photo = this.current();
+      const previous = this.photoTags(photo);
+      const tags = this.normalizeTags(tagsValue);
+      photo.tags = tags;
+      photo.metadata = { ...(photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {}), tags };
+      this.renderTags(photo);
+      this.tagsSaving = true;
+      try {
+        const result = await this.onTagsChange({ photo, tags, viewer:this });
+        const saved = result?.media || result;
+        if (saved && typeof saved === 'object') {
+          photo.tags = this.normalizeTags(saved.tags || saved.metadata?.tags || tags);
+          photo.metadata = { ...photo.metadata, ...(saved.metadata || {}), tags:photo.tags };
+        }
+      } catch (error) {
+        photo.tags = previous;
+        photo.metadata = { ...(photo.metadata || {}), tags:previous };
+        await (root.PlatformUI?.alert?.(error?.message || 'Could not save media tags.') || Promise.resolve());
+      } finally {
+        this.tagsSaving = false;
+        this.renderTags(photo);
+      }
     }
     renderShell(){
       this.el = document.createElement('div');
@@ -1386,34 +1739,43 @@
           <div class="fm-photo-stage" data-photo-stage>
             <img data-photo-img alt="">
             <video data-photo-video hidden controls autoplay playsinline preload="metadata"></video>
+            <iframe data-media-frame hidden title="${(globalThis.PlatformLanguage?.text("markup","m_95d2aa503390fe","File preview") ?? "File preview")}"></iframe>
+            <audio data-media-audio hidden controls preload="metadata"></audio>
+            <div class="fm-media-file-fallback" data-media-fallback hidden><i class="fas fa-file-lines"></i><strong data-media-fallback-title>${(globalThis.PlatformLanguage?.text("markup","m_22899574eaa007","File preview unavailable") ?? "File preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("markup","m_b68fe0cee2110f","This file cannot be previewed in the browser.") ?? "This file cannot be previewed in the browser.")}</span><a data-media-fallback-open target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.text("markup","m_237716bb3d8498","Open Original") ?? "Open Original")}</a></div>
             <div class="fm-photo-top">
               <div class="fm-photo-title"><strong data-photo-title></strong><span data-photo-sub></span></div>
               <div class="fm-photo-actions">
                 <div class="fm-photo-actions-wrap">
-                  <button type="button" class="fm-photo-iconbtn" data-photo-actions aria-label="Photo actions"><i class="fas fa-ellipsis"></i></button>
+                  <button type="button" class="fm-photo-iconbtn" data-photo-actions aria-label="${(globalThis.PlatformLanguage?.text("markup","m_fd0f574164b88e","Item actions") ?? "Item actions")}"><i class="fas fa-ellipsis"></i></button>
                   <div class="fm-photo-actions-menu" data-photo-actions-menu>
-                    <button type="button" data-photo-download-markup><i class="fas fa-download"></i> Download</button>
-                    <button type="button" data-photo-download-plain><i class="far fa-image"></i> Download without Markup</button>
-                    <button type="button" class="danger" data-photo-delete><i class="fas fa-trash"></i> Delete</button>
+                    <div data-photo-custom-actions></div>
+                    <button type="button" data-photo-rename><i class="fas fa-i-cursor"></i>${(globalThis.PlatformLanguage?.text("markup","m_7f5b6c585dabfc"," Rename") ?? " Rename")}</button>
+                    <button type="button" data-photo-download-markup><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
+                    <button type="button" data-photo-download-plain><i class="far fa-image"></i>${(globalThis.PlatformLanguage?.text("markup","m_42f3ea50e49555"," Download without Markup") ?? " Download without Markup")}</button>
+                    <button type="button" class="danger" data-photo-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("markup","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
                   </div>
                 </div>
-                <button type="button" class="fm-photo-iconbtn" data-photo-close aria-label="Close photo"><i class="fas fa-times"></i></button>
+                <button type="button" class="fm-photo-iconbtn" data-photo-close aria-label="${(globalThis.PlatformLanguage?.text("markup","m_53279632ecc960","Close viewer") ?? "Close viewer")}"><i class="fas fa-times"></i></button>
               </div>
             </div>
-            <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="Previous photo"><i class="fas fa-chevron-left"></i></button>
-            <button type="button" class="fm-photo-nav next" data-photo-next aria-label="Next photo"><i class="fas fa-chevron-right"></i></button>
+            <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="${(globalThis.PlatformLanguage?.text("markup","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
+            <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.text("markup","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
+            <div class="fm-video-editdock" data-video-editdock>
+              <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.text("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
+            </div>
           </div>
           <aside class="fm-photo-side">
             <div class="fm-photo-meta">
-              ${this.projectLinkEnabled ? `<button type="button" class="fm-photo-project-link" data-photo-project>${escapeHtml(this.project.title || this.project.address || 'Project photo')}</button>` : `<div class="fm-photo-project-link is-static" data-photo-project>${escapeHtml(this.project.title || this.project.address || 'Project photo')}</div>`}
+              ${String(this.projectLinkEnabled ? `<button type="button" class="fm-photo-project-link" data-photo-project>${escapeHtml(this.project.title || this.project.address || `Project ${this.itemNoun}`)}</button>` : `<div class="fm-photo-project-link is-static" data-photo-project>${escapeHtml(this.project.title || this.project.address || `Project ${this.itemNoun}`)}</div>`)}
               <button type="button" class="fm-photo-user-row" data-photo-user-open><span class="fm-photo-avatar" data-photo-avatar>?</span><span><strong data-photo-uploader></strong><br><span data-photo-uploaded></span></span></button>
-              <div class="fm-photo-meta-row"><i class="fas fa-images"></i><span data-photo-counter></span></div>
+              <div class="fm-photo-meta-row"><i class="fas ${String(this.itemNoun === 'photo' ? 'fa-images' : 'fa-file-lines')}"></i><span data-photo-counter></span></div>
               <div class="fm-photo-tags" data-photo-tags></div>
+              <div class="fm-photo-indicators" data-photo-indicators></div>
             </div>
             <div class="fm-photo-comments" data-photo-comments></div>
             <div class="fm-photo-composer">
-              <textarea data-photo-comment-input placeholder="Leave a comment. Type @ to tag someone."></textarea>
-              <div class="fm-photo-composer-actions"><button type="button" data-photo-comment-post>Post Comment</button></div>
+              <textarea data-photo-comment-input placeholder="${(globalThis.PlatformLanguage?.text("markup","m_b9ca172c33964b","Leave a comment. Type @ to tag someone.") ?? "Leave a comment. Type @ to tag someone.")}"></textarea>
+              <div class="fm-photo-composer-actions"><button type="button" data-photo-comment-post>${(globalThis.PlatformLanguage?.text("markup","m_7ff4b7a245b282","Post Comment") ?? "Post Comment")}</button></div>
             </div>
           </aside>
         </div>`;
@@ -1424,14 +1786,15 @@
         closeOnBackdrop: false,
         onClose: () => this.close()
       }) || null;
-      this.boundResize = () => {
-        this.updateBounds();
-        this.updateMarkupLayerBounds();
-      };
+      this.boundResize = () => this.scheduleLayoutRefresh();
+      this.boundTransitionEnd = () => this.scheduleLayoutRefresh();
       this.boundOutsideDown = (event) => this.handleOutsidePointer(event, 'down');
       this.boundOutsideUp = (event) => this.handleOutsidePointer(event, 'up');
       this.updateBounds();
       window.addEventListener('resize', this.boundResize);
+      root.visualViewport?.addEventListener?.('resize', this.boundResize);
+      document.addEventListener('fullscreenchange', this.boundResize);
+      document.addEventListener('transitionend', this.boundTransitionEnd, true);
       window.addEventListener('mousedown', this.boundOutsideDown, true);
       window.addEventListener('mouseup', this.boundOutsideUp, true);
       this.markup = new PhotoMarkup(this.el.querySelector('[data-photo-stage]'), {
@@ -1439,14 +1802,20 @@
         size: 1.5,
         onChange: (items) => {
           const photo = this.current();
-          if (photo.media_id && !isVideoMedia(photo)) saveMarkup(orgId(), photo.media_id, items);
+          this.scheduleMarkupSave(photo, items);
         }
       });
-      this.el.querySelector('[data-photo-img]')?.addEventListener('load', () => this.updateMarkupLayerBounds());
+      this.bindLayoutObserver();
+      this.scheduleLayoutRefresh();
+      this.el.querySelector('[data-photo-img]')?.addEventListener('load', () => this.scheduleLayoutRefresh());
       this.el.querySelector('[data-photo-close]').addEventListener('click', () => this.close());
       const actionMenu = () => this.el.querySelector('[data-photo-actions-menu]');
       this.el.querySelector('[data-photo-actions]')?.addEventListener('click', () => {
         actionMenu()?.classList.toggle('visible');
+      });
+      this.el.querySelector('[data-photo-rename]')?.addEventListener('click', async () => {
+        actionMenu()?.classList.remove('visible');
+        await this.renameCurrent();
       });
       this.el.querySelector('[data-photo-download-plain]')?.addEventListener('click', async () => {
         actionMenu()?.classList.remove('visible');
@@ -1459,12 +1828,13 @@
       this.el.querySelector('[data-photo-delete]')?.addEventListener('click', async () => {
         actionMenu()?.classList.remove('visible');
         if (typeof this.onDeletePhoto !== 'function') {
-          await (root.PlatformUI?.alert?.('This photo cannot be deleted from here.', { title: 'Delete unavailable' }) || Promise.resolve(alert('This photo cannot be deleted from here.')));
+          await (root.PlatformUI?.alert?.((globalThis.PlatformLanguage?.text("markup","m_9d84df54ce758c","This photo cannot be deleted from here.") ?? "This photo cannot be deleted from here."), { title: (globalThis.PlatformLanguage?.text("markup","m_fe99e3347c6980","Delete unavailable") ?? "Delete unavailable") }) || Promise.resolve(alert((globalThis.PlatformLanguage?.text("markup","m_9d84df54ce758c","This photo cannot be deleted from here.") ?? "This photo cannot be deleted from here."))));
           return;
         }
         const result = await this.onDeletePhoto(this.current(), this.currentProject());
         if (result?.count !== 0) this.close();
       });
+      this.el.querySelector('[data-video-edit]')?.addEventListener('click', () => this.openVideoEditor());
       this.el.querySelector('[data-photo-prev]').addEventListener('click', () => this.show(this.index - 1));
       this.el.querySelector('[data-photo-next]').addEventListener('click', () => this.show(this.index + 1));
       if (this.projectLinkEnabled) {
@@ -1498,7 +1868,69 @@
       };
       window.addEventListener('keydown', this.keyHandler);
     }
+    refreshActions(){
+      const host = this.el?.querySelector?.('[data-photo-custom-actions]');
+      if (!host) return;
+      const photo = this.current();
+      const project = this.currentProject();
+      const visible = this.actions.filter((action) => action && (typeof action.visible !== 'function' || action.visible({ photo, project, viewer: this }) !== false));
+      host.innerHTML = visible.map((action, index) => {
+        const label = typeof action.label === 'function' ? action.label({ photo, project, viewer: this }) : action.label;
+        const icon = typeof action.icon === 'function' ? action.icon({ photo, project, viewer: this }) : action.icon;
+        const className = typeof action.className === 'function' ? action.className({ photo, project, viewer: this }) : action.className;
+        return `<button type="button" class="${escapeHtml(className || '')}" data-photo-custom-action="${index}">${icon ? `<i class="fas fa-${escapeHtml(icon)}"></i>` : ''} ${escapeHtml(label || 'Action')}</button>`;
+      }).join('');
+      host.querySelectorAll('[data-photo-custom-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const action = visible[Number(button.dataset.photoCustomAction || 0)];
+          if (typeof action?.onClick !== 'function' || button.disabled) return;
+          button.disabled = true;
+          const pendingLabel = typeof action.pendingLabel === 'function' ? action.pendingLabel({ photo: this.current(), project: this.currentProject(), viewer: this }) : action.pendingLabel;
+          if (pendingLabel) button.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${escapeHtml(pendingLabel)}`;
+          try {
+            await action.onClick({ photo: this.current(), project: this.currentProject(), viewer: this });
+          } finally {
+            button.disabled = false;
+            this.el?.querySelector?.('[data-photo-actions-menu]')?.classList.remove('visible');
+            this.refreshActions();
+          }
+        });
+      });
+      this.el.querySelector('[data-photo-tags]')?.addEventListener('click', (event) => {
+        const remove = event.target?.closest?.('[data-photo-tag-remove]');
+        if (remove) {
+          this.setPhotoTags(this.photoTags(this.current()).filter((tag) => tag !== remove.dataset.photoTagRemove));
+          return;
+        }
+        if (event.target?.closest?.('[data-photo-tag-add]')) {
+          const input = this.el.querySelector('[data-photo-tag-input]');
+          this.setPhotoTags([...this.photoTags(this.current()), input?.value || '']);
+        }
+      });
+      this.el.querySelector('[data-photo-tags]')?.addEventListener('keydown', (event) => {
+        if (!event.target?.matches?.('[data-photo-tag-input]') || !['Enter', ','].includes(event.key)) return;
+        event.preventDefault();
+        this.setPhotoTags([...this.photoTags(this.current()), event.target.value || '']);
+      });
+    }
+    refreshIndicators(options = {}){
+      const host = this.el?.querySelector?.('[data-photo-indicators]');
+      if (!host) return;
+      const photo = this.current();
+      const project = this.currentProject();
+      const context = { photo, project, viewer: this };
+      const visible = this.indicators.filter((indicator) => indicator && (typeof indicator.visible !== 'function' || indicator.visible(context) !== false));
+      host.innerHTML = visible.map((indicator) => {
+        const label = typeof indicator.label === 'function' ? indicator.label(context) : indicator.label;
+        const detail = typeof indicator.detail === 'function' ? indicator.detail(context) : indicator.detail;
+        const icon = typeof indicator.icon === 'function' ? indicator.icon(context) : indicator.icon;
+        const tone = typeof indicator.tone === 'function' ? indicator.tone(context) : indicator.tone;
+        const pulse = cleanText(options.pulseId) && cleanText(options.pulseId) === cleanText(indicator.id);
+        return `<div class="fm-photo-indicator ${escapeHtml(tone || '')}${pulse ? ' pulse' : ''}" data-photo-indicator="${escapeHtml(indicator.id || '')}"><div class="fm-photo-indicator-icon"><i class="fas fa-${escapeHtml(icon || 'circle-info')}"></i></div><div><strong>${escapeHtml(label || 'Status')}</strong>${detail ? `<span>${escapeHtml(detail)}</span>` : ''}</div></div>`;
+      }).join('');
+    }
     handleOutsidePointer(event, phase){
+      if (this.embedded) return;
       if (this.modalHandle && !this.modalHandle.isTop?.()) return;
       if (!this.el || this.el.contains(event.target)) return;
       const rect = this.el.getBoundingClientRect();
@@ -1514,13 +1946,41 @@
       if (this.outsidePointerDown) this.close();
       this.outsidePointerDown = false;
     }
-    updateBounds(){
-      if (!this.el) return;
-      const target = this.boundsTarget
+    layoutTarget(){
+      return this.boundsTarget
         || document.getElementById('mainPanels')
         || document.querySelector('.main-panels')
         || document.querySelector('.main')
         || document.body;
+    }
+    bindLayoutObserver(){
+      this.layoutObserver?.disconnect?.();
+      if (typeof root.ResizeObserver !== 'function') return;
+      this.layoutObserver = new root.ResizeObserver(() => this.scheduleLayoutRefresh());
+      const target = this.layoutTarget();
+      if (target) this.layoutObserver.observe(target);
+      const stage = this.el?.querySelector?.('[data-photo-stage]');
+      if (stage && stage !== target) this.layoutObserver.observe(stage);
+    }
+    scheduleLayoutRefresh(){
+      if (!this.el?.isConnected) return;
+      if (this.layoutFrame) cancelAnimationFrame(this.layoutFrame);
+      this.layoutFrame = requestAnimationFrame(() => {
+        this.layoutFrame = 0;
+        this.updateBounds();
+        requestAnimationFrame(() => this.updateMarkupLayerBounds());
+      });
+      if (this.layoutSettleTimer) clearTimeout(this.layoutSettleTimer);
+      this.layoutSettleTimer = setTimeout(() => {
+        this.layoutSettleTimer = 0;
+        if (!this.el?.isConnected) return;
+        this.updateBounds();
+        requestAnimationFrame(() => this.updateMarkupLayerBounds());
+      }, 180);
+    }
+    updateBounds(){
+      if (!this.el) return;
+      const target = this.layoutTarget();
       const rect = target.getBoundingClientRect();
       const top = Math.max(0, rect.top);
       const left = Math.max(0, rect.left);
@@ -1548,13 +2008,13 @@
         width: `${Math.max(1, imgRect.width)}px`,
         height: `${Math.max(1, imgRect.height)}px`
       });
-      this.markup.renderLayer?.();
+      this.markup.refreshTextBoxLayout?.();
     }
     renderComments(){
       const rootEl = this.el.querySelector('[data-photo-comments]');
       if (!rootEl) return;
       if (!this.comments.length) {
-        rootEl.innerHTML = '<div class="fm-photo-comment-empty">No comments yet.</div>';
+        rootEl.innerHTML = `<div class="fm-photo-comment-empty">${(globalThis.PlatformLanguage?.text("markup","m_6daba3159863bd","No comments yet.") ?? "No comments yet.")}</div>`;
         return;
       }
       rootEl.innerHTML = this.comments.map((comment) => `
@@ -1678,8 +2138,13 @@
     }
   }
 
+  function openMediaViewer(options = {}){
+    return new MediaViewer(options);
+  }
+
+  // Backward-compatible photo entry point. Photo callers retain the same defaults.
   function openPhotoViewer(options = {}){
-    return new PhotoViewer(options);
+    return openMediaViewer(options);
   }
 
   function proposalDockHtml(){
@@ -1712,7 +2177,9 @@
 
   root.FirstMateMarkup = {
     PhotoMarkup,
-    PhotoViewer,
+    MediaViewer,
+    PhotoViewer: MediaViewer,
+    openMediaViewer,
     openPhotoViewer,
     loadMarkup,
     saveMarkup,

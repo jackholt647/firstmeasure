@@ -28,7 +28,7 @@
 
   function debug(stage, data = {}){
     const configuredBase = cleanText(w.__APP?.platformApiBase).replace(/\/+$/, '');
-    const localBase = `${location.protocol}//${location.hostname || '127.0.0.1'}:3111/v1/platform`;
+    const localBase = `${location.protocol}//${location.hostname || '127.0.0.1'}:3101/v1/platform`;
     const base = configuredBase || ((location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? localBase : `${location.origin}/v1/platform`);
     fetch(`${base}/statsig/debug`, {
       method: 'POST',
@@ -72,7 +72,7 @@
 
   async function fetchBootstrap(){
     const configuredBase = cleanText(w.__APP?.platformApiBase).replace(/\/+$/, '');
-    const localBase = `${location.protocol}//${location.hostname || '127.0.0.1'}:3111/v1/platform`;
+    const localBase = `${location.protocol}//${location.hostname || '127.0.0.1'}:3101/v1/platform`;
     const base = configuredBase || ((location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? localBase : `${location.origin}/v1/platform`);
     const response = await fetch(`${base}/statsig/bootstrap`, {
       credentials: 'include',

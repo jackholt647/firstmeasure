@@ -1997,19 +1997,19 @@ function buildGutterMetrics(state) {
 
 function formatGutterFeet(value) {
     const num = Number(value) || 0;
-    return `${num.toLocaleString(undefined, {
+    return `${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(num, 'ft') : `${num.toLocaleString(undefined, {
         minimumFractionDigits: Number.isInteger(num) ? 0 : 1,
         maximumFractionDigits: 1
-    })} ft`;
+    })} ft`)}`;
 }
 
 function formatGutterRunLabel(value) {
     const num = Number(value) || 0;
     const rounded = Math.abs(num - Math.round(num)) < 0.05 ? Math.round(num) : Math.round(num * 10) / 10;
-    return `${rounded.toLocaleString(undefined, {
+    return `${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(rounded, 'ft') : `${rounded.toLocaleString(undefined, {
         minimumFractionDigits: Number.isInteger(rounded) ? 0 : 1,
         maximumFractionDigits: 1
-    })}'`;
+    })}'`)}`;
 }
 
 function ensureGutterViewerState(settings) {
@@ -3972,7 +3972,7 @@ async function renderLabelsPitchPage(container) {
       font-weight:800;
       box-shadow:0 2px 6px rgba(0,0,0,0.25);
     ">
-      Total Area: ${initialArea} sq ft
+      Total Area: ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(initialCalc.totalSquares * 100, 'sf') : `${initialArea} sq ft`)}
     </div>
 
     <div class="bottom-toggle" style="margin-top:12px;">
@@ -4019,7 +4019,7 @@ async function renderLabelsPitchPage(container) {
   const updateRealTimeStats = () => {
     if (!areaDisplay) return;
     const res = window.recalculateReportMaterials(state);
-    areaDisplay.innerHTML = `Total Area: ${Math.round(res.totalSquares * 100).toLocaleString()} sq ft`;
+    areaDisplay.innerHTML = `Total Area: ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(res.totalSquares * 100, 'sf') : `${Math.round(res.totalSquares * 100).toLocaleString()} sq ft`)}`;
   };
 
   // Shared zoom state for the editor
@@ -5542,11 +5542,11 @@ async function renderVentPage(container) {
         atticBox.innerHTML = `
             <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:4px;">
                 <span style="font-size:13px; font-weight:bold; color:#333;">Estimated Attic Area:</span>
-                <span style="font-size:18px; font-weight:900; color:#1a73e8;">${Math.round(atticArea).toLocaleString()} sq ft</span>
+                <span style="font-size:18px; font-weight:900; color:#1a73e8;">${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(atticArea, 'sf') : `${Math.round(atticArea).toLocaleString()} sq ft`)}</span>
             </div>
             <div style="font-size:10px; color:#888; display:flex; gap:12px; flex-wrap:wrap;">
-                <span>Roof Surface: ${Math.round(roofSurfaceSqFt).toLocaleString()} sq ft</span>
-                <span>Footprint: ${Math.round(footprintSqFt).toLocaleString()} sq ft</span>
+                <span>Roof Surface: ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(roofSurfaceSqFt, 'sf') : `${Math.round(roofSurfaceSqFt).toLocaleString()} sq ft`)}</span>
+                <span>Footprint: ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(footprintSqFt, 'sf') : `${Math.round(footprintSqFt).toLocaleString()} sq ft`)}</span>
                 <span>Soffit Reduction: 2%</span>
             </div>
         `;
@@ -5562,9 +5562,9 @@ async function renderVentPage(container) {
                         1 / ${d.ratio} Ratio ${badge}
                     </div>
                     <div style="font-size:11px; color:#555; display:flex; flex-direction:column; gap:3px;">
-                        <div>Total NFVA: <b>${Math.round(d.totalNfvaSqIn)} sq in</b></div>
-                        <div>Req. Exhaust: <b>${Math.round(d.reqExhaust)} sq in</b></div>
-                        <div>Req. Intake: <b>${Math.round(d.reqIntake)} sq in</b></div>
+                        <div>Total NFVA: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(d.totalNfvaSqIn, 'si') : `${Math.round(d.totalNfvaSqIn)} sq in`)}</b></div>
+                        <div>Req. Exhaust: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(d.reqExhaust, 'si') : `${Math.round(d.reqExhaust)} sq in`)}</b></div>
+                        <div>Req. Intake: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(d.reqIntake, 'si') : `${Math.round(d.reqIntake)} sq in`)}</b></div>
                     </div>
                 </div>
             `;
@@ -5586,7 +5586,7 @@ async function renderVentPage(container) {
             ridgeDetailHtml = `<div style="color:#d93025;">Insufficient ridge length</div>`;
         } else {
             ridgeDetailHtml = `
-                <div style="color:#d93025;">Deficit: ${Math.round(selected.ridgeDeficit)} sq in</div>
+                <div style="color:#d93025;">Deficit: ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(selected.ridgeDeficit, 'si') : `${Math.round(selected.ridgeDeficit)} sq in`)}</div>
                 <div>Supplement needed: <b>${selected.supplementBoxVents} box vent${selected.supplementBoxVents > 1 ? 's' : ''}</b></div>
             `;
         }
@@ -5597,9 +5597,9 @@ async function renderVentPage(container) {
                     Ridge Vent ${ridgeBadge}
                 </div>
                 <div style="font-size:11px; color:#555; display:flex; flex-direction:column; gap:3px;">
-                    <div>Ridge Needed: <b>${Math.round(selected.ridgeNeededFt)}'</b></div>
-                    <div>Available: <b>${Math.round(totalRidgeFt)}'</b></div>
-                    <div>Capacity: <b>${Math.round(selected.ridgeCapacity)} sq in</b></div>
+                    <div>Ridge Needed: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(selected.ridgeNeededFt, 'ft') : `${Math.round(selected.ridgeNeededFt)}'`)}</b></div>
+                    <div>Available: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(totalRidgeFt, 'ft') : `${Math.round(totalRidgeFt)}'`)}</b></div>
+                    <div>Capacity: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(selected.ridgeCapacity, 'si') : `${Math.round(selected.ridgeCapacity)} sq in`)}</b></div>
                     ${ridgeDetailHtml}
                 </div>
             </div>
@@ -5609,8 +5609,8 @@ async function renderVentPage(container) {
                 </div>
                 <div style="font-size:11px; color:#555; display:flex; flex-direction:column; gap:3px;">
                     <div>Total Needed: <b>${selected.boxOnlyCount} vent${selected.boxOnlyCount > 1 ? 's' : ''}</b></div>
-                    <div>Rating: ${BOX_VENT_RATING} sq in NFA each</div>
-                    <div>Total Capacity: <b>${selected.boxOnlyCount * BOX_VENT_RATING} sq in</b></div>
+                    <div>Rating: ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(BOX_VENT_RATING, 'si') : `${BOX_VENT_RATING} sq in`)} NFA each</div>
+                    <div>Total Capacity: <b>${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(selected.boxOnlyCount * BOX_VENT_RATING, 'si') : `${selected.boxOnlyCount * BOX_VENT_RATING} sq in`)}</b></div>
                 </div>
             </div>
         `;
@@ -5664,7 +5664,7 @@ async function renderVentPage(container) {
             div.innerHTML = `
                 <label style="flex:1; cursor:pointer; display:flex; align-items:center;">
                     <input type="checkbox" ${!isExcluded ? 'checked' : ''} style="margin-right:8px;">
-                    Ridge ${Math.round(line.length)}'
+                    Ridge ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(line.length, 'ft') : `${Math.round(line.length)}'`)}
                 </label>
             `;
             const chk = div.querySelector('input');

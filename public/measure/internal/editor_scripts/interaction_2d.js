@@ -1546,7 +1546,7 @@ function renderMeasurementLabel(conn, container, invScale) {
   } else {
     finalLenFeet = (dist2d * metersPerPx) * 3.28084;
   }
-  const labelText = finalLenFeet.toFixed(1) + "'";
+  const labelText = window.ReportUnits?.current().length(finalLenFeet, finalLenFeet.toFixed(1) + "'") ?? finalLenFeet.toFixed(1) + "'";
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
   const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");

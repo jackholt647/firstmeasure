@@ -45,6 +45,7 @@
     failedGeocodeAddressKey: '',
     syncingPins: false,
     markerSignature: '',
+    hydratedPinsKey: '',
     focusedPinSignature: '',
     focusedLocation: null,
     focusedZoom: null,
@@ -191,8 +192,8 @@
       toggle.disabled = forceExpanded;
       toggle.setAttribute('aria-label', expanded ? 'Shrink map' : 'Expand map');
       toggle.innerHTML = expanded
-        ? '<i class="fas fa-compress"></i><span>Shrink</span>'
-        : '<i class="fas fa-expand"></i><span>Expand</span>';
+        ? `<i class="fas fa-compress"></i><span>${(globalThis.PlatformLanguage?.text("project-map","m_85092cc71d4661","Shrink") ?? "Shrink")}</span>`
+        : `<i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.text("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span>`;
     }
     scheduleMapResize();
   }
@@ -375,25 +376,25 @@
           <section class="r-overview-map-section">
             <div class="r-overview-map-head">
               <div class="r-overview-map-copy">
-                <span class="r-overview-kicker">Property</span>
-                <strong class="r-overview-title">Map</strong>
+                <span class="r-overview-kicker">${(globalThis.PlatformLanguage?.text("project-map","m_f27fa22720bb9a","Property") ?? "Property")}</span>
+                <strong class="r-overview-title">${(globalThis.PlatformLanguage?.text("project-map","m_9afd0eccc8e530","Map") ?? "Map")}</strong>
                 <div class="r-overview-sub" data-overview-address></div>
               </div>
               <div class="r-overview-map-actions">
-                <button type="button" class="r-overview-map-toggle" data-overview-map-toggle aria-label="Expand map"><i class="fas fa-expand"></i><span>Expand</span></button>
+                <button type="button" class="r-overview-map-toggle" data-overview-map-toggle aria-label="${(globalThis.PlatformLanguage?.text("project-map","m_0d13856d411172","Expand map") ?? "Expand map")}"><i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.text("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span></button>
               </div>
             </div>
             <div class="r-overview-map-frame">
-              <div class="r-map-hint${shouldShowPinPlacementHint() ? ' visible' : ''}" id="rMapHint" data-kind="pin-placement"><i class="fas fa-crosshairs"></i> Click the map to place a pin. Click a pin to remove it.</div>
+              <div class="r-map-hint${String(shouldShowPinPlacementHint() ? ' visible' : '')}" id="rMapHint" data-kind="pin-placement"><i class="fas fa-crosshairs"></i>${(globalThis.PlatformLanguage?.text("project-map","m_35718aec7d181d"," Click the map to place a pin. Click a pin to remove it.") ?? " Click the map to place a pin. Click a pin to remove it.")}</div>
               <div id="rMap"></div>
             </div>
           </section>
           <section class="r-overview-panel">
             <div class="r-overview-panel-head">
               <div>
-                <span class="r-overview-kicker">Project</span>
-                <strong class="r-overview-title">Overview</strong>
-                <div class="r-overview-sub">Current work, orders, documents, reports, and scheduling.</div>
+                <span class="r-overview-kicker">${(globalThis.PlatformLanguage?.text("project-map","m_aaebd7ccba0b30","Project") ?? "Project")}</span>
+                <strong class="r-overview-title">${(globalThis.PlatformLanguage?.text("project-map","m_b69161f38dacdf","Overview") ?? "Overview")}</strong>
+                <div class="r-overview-sub">${(globalThis.PlatformLanguage?.text("project-map","m_d093f4e330398e","Current work, orders, documents, reports, and scheduling.") ?? "Current work, orders, documents, reports, and scheduling.")}</div>
               </div>
             </div>
             <div class="r-overview-grid" data-overview-summary></div>
@@ -442,8 +443,8 @@
 
   function statusClass(status){
     const value = cleanText(status).toLowerCase();
-    if (['complete', 'completed', 'ready', 'delivered', 'signed', 'viewed', 'sent'].includes(value)) return 'good';
-    if (['pending', 'queued', 'processing', 'review', 'draft', 'scheduled', 'ordered', 'planning'].includes(value)) return value === 'draft' || value === 'planning' ? 'warn' : 'info';
+    if (['complete', 'completed', 'ready', 'delivered', 'signed', 'viewed', 'sent', 'confirmed'].includes(value)) return 'good';
+    if (['pending', 'queued', 'processing', 'review', 'draft', 'scheduled', 'ordered', 'planning', 'undefined'].includes(value)) return value === 'draft' || value === 'planning' || value === 'undefined' ? 'warn' : 'info';
     if (['cancelled', 'rejected', 'failed', 'void', 'discarded'].includes(value)) return 'warn';
     return '';
   }
@@ -454,6 +455,52 @@
 
   function proposalStatus(proposal = {}){
     return humanize(firstText(proposal.status, proposal.delivery_status, proposal.deliveryStatus), 'Draft');
+  }
+
+  function proposalIsSigned(proposal = {}){
+    const status = cleanText(firstText(proposal.status, proposal.delivery_status, proposal.deliveryStatus)).toLowerCase();
+    return ['signed', 'accepted', 'approved', 'complete', 'completed'].includes(status) || !!(proposal.signed_at || proposal.accepted_at || proposal.signature?.signed_at);
+  }
+
+  function proposalScopePieces(proposal = {}){
+    const scope = proposal?.scope && typeof proposal.scope === 'object' ? proposal.scope : null;
+    const pieces = Array.isArray(scope?.pieces) ? scope.pieces : [];
+    if (pieces.length) return pieces.map((piece) => ({
+      title: firstText(piece.name, piece.template_name, piece.templateId, 'Project piece'),
+      color: firstText(piece.color, piece.scope_color)
+    })).filter((piece) => piece.title);
+    const roots = Array.isArray(scope?.root_items) ? scope.root_items : [];
+    return roots.map((root) => ({
+      title: firstText(root.scope_template_name, root.display_name, root.name, scope?.template?.name, 'Project piece'),
+      color: firstText(root.scope_color)
+    })).filter((piece) => piece.title);
+  }
+
+  function projectScopeTypeSummary(inputProject = project()){
+    const proposals = projectProposals(inputProject);
+    const signed = proposals.filter(proposalIsSigned);
+    const source = signed.length ? signed : proposals;
+    const confirmed = signed.length > 0;
+    const pieces = [];
+    source.forEach((proposal) => {
+      proposalScopePieces(proposal).forEach((piece) => pieces.push({ ...piece, confirmed }));
+    });
+    if (!pieces.length) {
+      const fallback = cleanText(inputProject?.appointment_scheduled || inputProject?.appointment_at || inputProject?.scheduled_at) ? 'Appointment Scheduled' : 'New Lead';
+      return {
+        count: 0,
+        status: fallback,
+        rows: [{ title: fallback, status: 'Lead' }],
+        empty: fallback
+      };
+    }
+    const uniqueTitles = [...new Set(pieces.map((piece) => piece.title))];
+    return {
+      count: pieces.length,
+      status: confirmed ? 'Project type confirmed' : 'Project type undefined',
+      rows: pieces.slice(0, 3).map((piece) => ({ title: piece.title, status: confirmed ? 'Confirmed' : 'Undefined' })),
+      empty: uniqueTitles.join(', ')
+    };
   }
 
   function reportSummary(inputProject = project()){
@@ -556,7 +603,7 @@
       const orders = orderGroups.flatMap((group) => Array.isArray(group?.orders) ? group.orders : []);
       state.materialSummary = { loadedFor: key, loading: false, lists, orders, error: '' };
     } catch (error) {
-      state.materialSummary = { loadedFor: key, loading: false, lists: [], orders: [], error: error?.message || 'Could not load materials.' };
+      state.materialSummary = { loadedFor: key, loading: false, lists: [], orders: [], error: error?.message || 'Could not load scope.' };
     }
     renderOverview();
   }
@@ -573,7 +620,7 @@
     }));
     if (!rows.length && lists.length) {
       rows.push(...lists.slice(0, 2).map((list) => ({
-        title: firstText(list.title, 'Material list'),
+        title: firstText(list.title, 'Scope list'),
         status: humanize(firstText(list.status, list.delivery_status), 'Planning')
       })));
     }
@@ -581,8 +628,8 @@
       count: orders.length || lists.length,
       loading: useLoaded && state.materialSummary.loading,
       status: useLoaded && state.materialSummary.loading
-        ? 'Checking material orders'
-        : (orders.length ? `${orders.length} material order${orders.length === 1 ? '' : 's'}` : (lists.length ? 'Materials started' : 'No material orders')),
+        ? 'Checking scope'
+        : (orders.length ? `${orders.length} material order${orders.length === 1 ? '' : 's'}` : (lists.length ? `${lists.length} scope list${lists.length === 1 ? '' : 's'}` : 'No scope lists')),
       rows
     };
   }
@@ -614,22 +661,33 @@
     const materials = materialSummary(current);
     const appointments = scheduleRows('appointment', current);
     const work = scheduleRows('work', current);
+    const scopeTypes = projectScopeTypeSummary(current);
     return [
+      {
+        feature: 'proposals',
+        tab: 'proposal',
+        icon: 'fa-diagram-project',
+        title: (globalThis.PlatformLanguage?.text("project-map","m_29f3cc51016963","Project Type") ?? "Project Type"),
+        count: scopeTypes.count,
+        status: scopeTypes.status,
+        rows: scopeTypes.rows,
+        empty: scopeTypes.empty
+      },
       {
         feature: 'materials',
         tab: 'materials',
-        icon: 'fa-truck-ramp-box',
-        title: 'Materials',
+        icon: 'fa-clipboard-list',
+        title: (globalThis.PlatformLanguage?.text("project-map","m_9d3e82ecfd10ec","Scope") ?? "Scope"),
         count: materials.count,
         status: materials.status,
         rows: materials.rows,
-        empty: 'No material orders'
+        empty: 'No scope lists'
       },
       {
         feature: 'proposals',
         tab: 'proposal',
         icon: 'fa-file-signature',
-        title: 'Proposals',
+        title: (globalThis.PlatformLanguage?.text("project-map","m_3129f3f0e39249","Proposals") ?? "Proposals"),
         count: proposals.length,
         status: proposals.length ? `${proposals.length} proposal${proposals.length === 1 ? '' : 's'} saved` : 'No proposals',
         rows: proposals.slice(0, 3).map((proposal, index) => ({ title: proposalTitle(proposal, index), status: proposalStatus(proposal) })),
@@ -639,7 +697,7 @@
         feature: 'reports',
         tab: 'measurements',
         icon: 'fa-ruler-combined',
-        title: 'Reports',
+        title: (globalThis.PlatformLanguage?.text("project-map","m_fc81637c875032","Reports") ?? "Reports"),
         count: reports.count,
         status: reports.status,
         rows: reports.rows,
@@ -649,7 +707,7 @@
         feature: 'scheduling',
         tab: 'schedule',
         icon: 'fa-calendar-check',
-        title: 'Appointments',
+        title: (globalThis.PlatformLanguage?.text("project-map","m_17bb11ec04c41f","Appointments") ?? "Appointments"),
         count: appointments.length,
         status: appointments.length ? `${appointments.length} scheduled appointment${appointments.length === 1 ? '' : 's'}` : 'No appointments scheduled',
         rows: appointments,
@@ -659,7 +717,7 @@
         feature: 'scheduling',
         tab: 'schedule',
         icon: 'fa-helmet-safety',
-        title: 'Scheduled Work',
+        title: (globalThis.PlatformLanguage?.text("project-map","m_b4201113d8076c","Scheduled Work") ?? "Scheduled Work"),
         count: work.length,
         status: work.length ? `${work.length} work event${work.length === 1 ? '' : 's'} scheduled` : 'No work scheduled',
         rows: work,
@@ -754,7 +812,7 @@
     const type = normalizedProjectType(selectedType());
     const maxPins = maxPinsForType(type);
     if (!options.silent && maxPins && state.markers.length >= maxPins) {
-      callHost('showStructurePinLimitNotice', maxPins) || showToast('Pin limit', pinLimitMessage(maxPins), false);
+      callHost('showStructurePinLimitNotice', maxPins) || showToast((globalThis.PlatformLanguage?.text("project-map","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins), false);
       return null;
     }
     const marker = new google.maps.Marker({
@@ -762,7 +820,7 @@
       position: latLng,
       draggable,
       icon: { url: buildPinIcon(), scaledSize: new google.maps.Size(42, 56), anchor: new google.maps.Point(21, 54) },
-      title: 'Click to remove. Drag to reposition.',
+      title: (globalThis.PlatformLanguage?.text("project-map","m_0b0b3f02f03802","Click to remove. Drag to reposition.") ?? "Click to remove. Drag to reposition."),
     });
     marker.addListener('click', () => removePin(marker));
     marker.addListener('dragend', () => {
@@ -953,7 +1011,7 @@
         const best = results[0];
         loadPlaceResult(best.geometry.location, best.address_components, best.formatted_address);
       } else {
-        showToast('Address not found', 'Could not locate that address. Try being more specific.', false);
+        showToast((globalThis.PlatformLanguage?.text("project-map","m_1985f4d07c9a94","Address not found") ?? "Address not found"), (globalThis.PlatformLanguage?.text("project-map","m_89fe52ba06fda7","Could not locate that address. Try being more specific.") ?? "Could not locate that address. Try being more specific."), false);
       }
     });
   }
@@ -1097,6 +1155,14 @@
     const pins = normalizeProjectPins(current);
     if (pins.length) {
       const signature = pinsSignature(pins);
+      const hydrationKey = `${projectId(current) || current.address || ''}::${signature}`;
+      // Repeated activation/recovery must not restore a stale saved selection
+      // over pins the customer just added, moved, or removed.
+      if (state.hydratedPinsKey === hydrationKey && state.markerSignature !== signature) {
+        callHost('updateSubmitLabel');
+        return true;
+      }
+      state.hydratedPinsKey = hydrationKey;
       const changed = syncProjectPins(pins);
       setCoords(pins[0].lat, pins[0].lng, pins.length > 0);
       if (changed || state.focusedPinSignature !== signature) {
@@ -1104,9 +1170,9 @@
         state.focusedPinSignature = signature;
       }
       if (current.address) setAddressSelected(true);
-      if (viewingExistingProject() || reorderMeasurementProjectId()) setLocationConfirmed(true);
       callHost('renderPinInfo');
       callHost('renderConfirm');
+      callHost('updateSubmitLabel');
       return true;
     }
 
@@ -1150,7 +1216,7 @@
           state.map.setHeading(0);
         } catch (e) {}
       }
-      setLocationConfirmed(true);
+      // Centering/recovering the map cannot confirm the customer's structure selection.
       callHost('renderConfirm');
       callHost('renderWorkflowState');
     });
@@ -1353,6 +1419,7 @@
     state.mapExpandedManual = null;
     state.lastDefaultExpandedMap = false;
     state.focusedPinSignature = '';
+    state.hydratedPinsKey = '';
     state.focusedLocation = null;
     state.focusedZoom = null;
   }
@@ -1403,8 +1470,8 @@
   const definition = {
     id: 'project.map',
     kind: 'project_modal_app',
-    title: 'Project Overview',
-    label: 'Overview',
+    title: (globalThis.PlatformLanguage?.text("project-map","m_bf3a14677530dc","Project Overview") ?? "Project Overview"),
+    label: (globalThis.PlatformLanguage?.text("project-map","m_b69161f38dacdf","Overview") ?? "Overview"),
     icon: 'fa-table-columns',
     order: 10,
     visible: true,

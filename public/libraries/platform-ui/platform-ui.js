@@ -8,6 +8,10 @@
   const state = {
     tooltip: null,
     tooltipTarget: null,
+    tooltipShowTimer: null,
+    tooltipHideTimer: null,
+    tooltipSuppressedTarget: null,
+    tooltipObserver: null,
     toastTimer: null,
     listenersBound: false,
   };
@@ -40,19 +44,25 @@
       }
       .fm-toast.show{display:flex;gap:10px;align-items:center;animation:fmUiFade .16s ease-out}
       .fm-toast .ic{width:36px;height:36px;border-radius:14px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,.06);flex-shrink:0}
-      .fm-toast .tx{display:flex;flex-direction:column;min-width:0}
+      .fm-toast .tx{display:flex;flex:1;flex-direction:column;min-width:0}
       .fm-toast .t1{font-weight:1000;font-size:13px;color:#111}
-      .fm-toast .t2{font-weight:800;font-size:12px;color:#666;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .fm-toast .x{margin-left:auto;width:36px;height:36px;border-radius:14px;border:1px solid rgba(0,0,0,.08);background:#fff;cursor:pointer;transition:.16s ease}
+      .fm-toast .t2{font-weight:800;font-size:12px;color:#666;margin-top:2px;line-height:1.35;overflow:hidden;overflow-wrap:anywhere;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+      .fm-toast .x{flex-shrink:0;margin-left:auto;width:36px;height:36px;border-radius:14px;border:1px solid rgba(0,0,0,.08);background:#fff;cursor:pointer;transition:.16s ease}
       .fm-toast .x:hover{transform:translateY(-1px)}
       .fm-tooltip{
         position:fixed;z-index:2147483600;max-width:min(360px,calc(100vw - 24px));
-        background:rgba(15,23,42,.94);color:#fff;border-radius:9px;padding:8px 10px;
-        font-size:11px;font-weight:850;line-height:1.35;box-shadow:0 12px 28px rgba(15,23,42,.22);
-        pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s ease,transform .12s ease;
-        white-space:normal
+        background:rgba(15,23,42,.96);color:#fff;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px 10px;
+        font-family:Montserrat,Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+        font-size:11px;font-weight:650;line-height:1.38;letter-spacing:.005em;box-shadow:0 12px 30px rgba(15,23,42,.26);
+        backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+        pointer-events:none;opacity:0;transform:translateY(-4px) scale(.985);transform-origin:var(--fm-tooltip-origin,50% 0);
+        transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1);white-space:normal
       }
-      .fm-tooltip.visible{opacity:1;transform:translateY(0)}
+      .fm-tooltip[data-side="above"]{transform:translateY(4px) scale(.985);--fm-tooltip-origin:50% 100%}
+      .fm-tooltip.visible{opacity:1;transform:translateY(0) scale(1)}
+      .fm-tooltip::after{content:"";position:absolute;left:var(--fm-tooltip-arrow-x,50%);width:0;height:0;transform:translateX(-50%);border:6px solid transparent;filter:drop-shadow(0 1px 0 rgba(255,255,255,.08))}
+      .fm-tooltip[data-side="below"]::after{top:-12px;border-bottom-color:rgba(15,23,42,.96)}
+      .fm-tooltip[data-side="above"]::after{bottom:-12px;border-top-color:rgba(15,23,42,.96)}
       .fm-tooltip-title,.fm-tip-title{font-size:11px;font-weight:1000;margin-bottom:6px;color:#fff}
       .fm-tooltip-row,.fm-tip-row{display:grid;grid-template-columns:minmax(86px,1fr) auto;gap:12px;padding:3px 0;border-top:1px solid rgba(255,255,255,.12)}
       .fm-tooltip-row:first-of-type,.fm-tip-row:first-of-type{border-top:0}
@@ -76,6 +86,7 @@
       .fm-dialog-btn.primary{background:var(--primary-readable,var(--primary,#d93025));border-color:var(--primary-readable,var(--primary,#d93025));color:#fff}
       .fm-dialog-btn.danger{background:#b42318;border-color:#b42318;color:#fff}
       @keyframes fmUiFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      @media (prefers-reduced-motion:reduce){.fm-tooltip{transition:none}}
     `;
     document.head.appendChild(style);
   }
@@ -90,7 +101,7 @@
     el.innerHTML = `
       <div class="ic" id="fmToastIc"><i class="fas fa-check"></i></div>
       <div class="tx">
-        <div class="t1" id="fmToastT1">Done</div>
+        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.text("platform-ui","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
         <div class="t2" id="fmToastT2"></div>
       </div>
       <button class="x" id="fmToastX" type="button" data-fm-tooltip="Dismiss"><i class="fas fa-times"></i></button>
@@ -101,6 +112,7 @@
   }
 
   function showToast(t1, t2, ok = true){
+    if (window.FirstMateSettingsPages?.consumeAutosaveToast?.(t1, t2, ok)) return;
     ensureToast();
     document.getElementById('fmToastT1').textContent = t1 || 'Done';
     document.getElementById('fmToastT2').textContent = t2 || '';
@@ -142,63 +154,149 @@
     return text ? { text } : null;
   }
 
+  function adoptNativeTooltip(target){
+    if (!target?.getAttribute || !target.hasAttribute('title')) return target;
+    const nativeTitle = String(target.getAttribute('title') || '').trim();
+    const previouslyAdopted = target.hasAttribute('data-fm-native-title');
+    if (nativeTitle && !target.hasAttribute('data-fm-tooltip-html') && (previouslyAdopted || !target.hasAttribute('data-fm-tooltip'))) {
+      target.setAttribute('data-fm-tooltip', nativeTitle);
+    }
+    if (nativeTitle) target.setAttribute('data-fm-native-title', nativeTitle);
+    target.removeAttribute('title');
+    return target;
+  }
+
+  function adoptNativeTooltipsWithin(node){
+    if (!node || node.nodeType !== 1) return;
+    if (node.matches?.('[title]')) adoptNativeTooltip(node);
+    node.querySelectorAll?.('[title]').forEach(adoptNativeTooltip);
+  }
+
+  function tooltipTargetFrom(start){
+    const target = start?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html],[title]') || null;
+    return target ? adoptNativeTooltip(target) : null;
+  }
+
   function positionTooltip(target){
     const tip = ensureTooltip();
     const rect = target.getBoundingClientRect();
     const tipRect = tip.getBoundingClientRect();
     const pad = 10;
     let left = rect.left + rect.width / 2 - tipRect.width / 2;
-    let top = rect.top - tipRect.height - 8;
-    if (top < pad) top = rect.bottom + 8;
+    let side = 'below';
+    let top = rect.bottom + 10;
+    if (top + tipRect.height > window.innerHeight - pad && rect.top - tipRect.height - 10 >= pad) {
+      side = 'above';
+      top = rect.top - tipRect.height - 10;
+    }
     left = Math.max(pad, Math.min(left, window.innerWidth - tipRect.width - pad));
     top = Math.max(pad, Math.min(top, window.innerHeight - tipRect.height - pad));
+    const arrowX = Math.max(10, Math.min(tipRect.width - 10, rect.left + rect.width / 2 - left));
+    tip.dataset.side = side;
+    tip.style.setProperty('--fm-tooltip-arrow-x', `${Math.round(arrowX)}px`);
     tip.style.left = `${Math.round(left)}px`;
     tip.style.top = `${Math.round(top)}px`;
   }
 
   function showTooltip(target, options = {}){
-    if (!target) return;
+    if (!target || state.tooltipSuppressedTarget === target) return;
     const content = options.html || options.text ? options : tooltipContentFromTarget(target);
     if (!content) return;
     const tip = ensureTooltip();
+    clearTimeout(state.tooltipShowTimer);
+    clearTimeout(state.tooltipHideTimer);
+    state.tooltipShowTimer = null;
+    state.tooltipHideTimer = null;
     if (content.html) tip.innerHTML = content.html;
     else tip.textContent = content.text || '';
     state.tooltipTarget = target;
-    tip.classList.add('visible');
+    tip.classList.remove('visible');
     tip.style.left = '0px';
     tip.style.top = '0px';
     positionTooltip(target);
+    const reveal = () => {
+      if (state.tooltipTarget !== target || !target.isConnected) return;
+      positionTooltip(target);
+      requestAnimationFrame(() => {
+        if (state.tooltipTarget === target) tip.classList.add('visible');
+      });
+    };
+    const delay = Math.max(0, Number(options.delay) || 0);
+    if (delay) state.tooltipShowTimer = setTimeout(reveal, delay);
+    else reveal();
   }
 
   function hideTooltip(target = null){
     if (target && state.tooltipTarget && target !== state.tooltipTarget) return;
-    state.tooltip?.classList.remove('visible');
+    clearTimeout(state.tooltipShowTimer);
+    clearTimeout(state.tooltipHideTimer);
+    state.tooltipShowTimer = null;
+    state.tooltipHideTimer = null;
+    const tip = state.tooltip;
+    tip?.classList.remove('visible');
     state.tooltipTarget = null;
+    if (tip) state.tooltipHideTimer = setTimeout(() => {
+      if (!tip.classList.contains('visible')) {
+        tip.textContent = '';
+        tip.removeAttribute('data-side');
+      }
+    }, 190);
   }
 
   function initTooltips(){
     injectCSS();
     if (state.listenersBound) return;
     state.listenersBound = true;
+    document.querySelectorAll('[title]').forEach(adoptNativeTooltip);
+    if (root.MutationObserver) {
+      state.tooltipObserver = new root.MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === 'attributes') adoptNativeTooltip(record.target);
+          else for (const node of record.addedNodes || []) adoptNativeTooltipsWithin(node);
+        }
+      });
+      if (document.documentElement) state.tooltipObserver.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['title'] });
+    }
     document.addEventListener('mouseover', (event) => {
-      const target = event.target?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html]');
-      if (target) showTooltip(target);
+      const target = tooltipTargetFrom(event.target);
+      if (target && !target.contains(event.relatedTarget)) showTooltip(target, { delay: 280 });
     });
     document.addEventListener('mousemove', (event) => {
-      const target = event.target?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html]');
+      const target = tooltipTargetFrom(event.target);
       if (target && state.tooltipTarget === target) positionTooltip(target);
     });
     document.addEventListener('mouseout', (event) => {
-      const target = event.target?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html]');
-      if (target && !target.contains(event.relatedTarget)) hideTooltip(target);
+      const target = tooltipTargetFrom(event.target);
+      if (target && !target.contains(event.relatedTarget)) {
+        if (state.tooltipSuppressedTarget === target) state.tooltipSuppressedTarget = null;
+        hideTooltip(target);
+      }
     });
     document.addEventListener('focusin', (event) => {
-      const target = event.target?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html]');
-      if (target) showTooltip(target);
+      const target = tooltipTargetFrom(event.target);
+      if (target) showTooltip(target, { delay: 120 });
     });
     document.addEventListener('focusout', (event) => {
-      const target = event.target?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html]');
-      if (target) hideTooltip(target);
+      const target = tooltipTargetFrom(event.target);
+      if (target) {
+        if (state.tooltipSuppressedTarget === target) state.tooltipSuppressedTarget = null;
+        hideTooltip(target);
+      }
+    });
+    // Activating a control often opens a native select or a custom popover.
+    // Pointer-down precedes focus-in, so remember the target as suppressed;
+    // otherwise focus-in immediately schedules the tooltip over the open UI.
+    // It becomes eligible again only after the pointer leaves or focus moves.
+    document.addEventListener('pointerdown', (event) => {
+      state.tooltipSuppressedTarget = tooltipTargetFrom(event.target);
+      hideTooltip();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (!['Enter', ' ', 'ArrowDown', 'ArrowUp', 'F4'].includes(event.key)) return;
+      const target = tooltipTargetFrom(event.target);
+      if (!target || !target.matches?.('select,button,[role="button"],[aria-haspopup]')) return;
+      state.tooltipSuppressedTarget = target;
+      hideTooltip();
     });
     window.addEventListener('scroll', () => {
       if (state.tooltipTarget) positionTooltip(state.tooltipTarget);
@@ -211,6 +309,7 @@
   function dialog(options = {}){
     injectCSS();
     const isPrompt = options.prompt === true;
+    const choices = Array.isArray(options.choices) ? options.choices.filter((choice) => choice && choice.label) : [];
     const title = options.title || (isPrompt ? 'Input' : (options.confirm ? 'Confirm' : 'Notice'));
     const message = options.message || '';
     const okLabel = options.okLabel || (isPrompt ? 'Submit' : (options.confirm ? 'Confirm' : 'OK'));
@@ -226,8 +325,9 @@
             ${isPrompt ? `<input class="fm-dialog-input" data-dialog-input value="${escapeHtml(options.defaultValue || '')}" autocomplete="${escapeHtml(options.autocomplete || 'off')}">` : ''}
           </div>
           <div class="fm-dialog-actions">
-            ${(options.confirm || isPrompt) ? `<button type="button" class="fm-dialog-btn" data-dialog-cancel>${escapeHtml(cancelLabel)}</button>` : ''}
-            <button type="button" class="fm-dialog-btn primary${options.danger ? ' danger' : ''}" data-dialog-ok>${escapeHtml(okLabel)}</button>
+            ${choices.length
+              ? choices.map((choice, index) => `<button type="button" class="fm-dialog-btn${choice.primary ? ' primary' : ''}${choice.danger ? ' danger' : ''}" data-dialog-choice="${index}">${escapeHtml(choice.label)}</button>`).join('')
+              : `${(options.confirm || isPrompt) ? `<button type="button" class="fm-dialog-btn" data-dialog-cancel>${escapeHtml(cancelLabel)}</button>` : ''}<button type="button" class="fm-dialog-btn primary${options.danger ? ' danger' : ''}" data-dialog-ok>${escapeHtml(okLabel)}</button>`}
           </div>
         </div>
       `;
@@ -251,6 +351,9 @@
       backdrop.querySelector('[data-dialog-ok]')?.addEventListener('click', () => {
         finish(isPrompt ? (backdrop.querySelector('[data-dialog-input]')?.value ?? '') : true);
       });
+      backdrop.querySelectorAll('[data-dialog-choice]').forEach((button) => button.addEventListener('click', () => {
+        finish(choices[Number(button.dataset.dialogChoice)]?.value ?? null);
+      }));
       document.body.appendChild(backdrop);
       if (modalManager) {
         modalHandle = modalManager.register(backdrop, {
@@ -262,7 +365,7 @@
       } else {
         document.addEventListener('keydown', onKeydown);
       }
-      setTimeout(() => (backdrop.querySelector('[data-dialog-input]') || backdrop.querySelector('[data-dialog-ok]'))?.focus(), 0);
+      setTimeout(() => (backdrop.querySelector('[data-dialog-input]') || backdrop.querySelector('[data-dialog-choice].primary') || backdrop.querySelector('[data-dialog-choice]') || backdrop.querySelector('[data-dialog-ok]'))?.focus(), 0);
     });
   }
 
@@ -272,6 +375,10 @@
 
   function confirmUi(message, options = {}){
     return dialog({ ...options, message, confirm: true });
+  }
+
+  function chooseUi(message, choices = [], options = {}){
+    return dialog({ ...options, message, choices });
   }
 
   function promptUi(message, defaultValue = '', options = {}){
@@ -298,6 +405,7 @@
     hideToast,
     alert: alertUi,
     confirm: confirmUi,
+    choose: chooseUi,
     prompt: promptUi,
     installBrowserDialogOverrides,
     native: nativeDialogs,

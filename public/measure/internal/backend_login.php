@@ -446,7 +446,7 @@ $clientLoginUrl = $platformLoginPath . '?redirect=' . urlencode($redirect);
     function platformApiBaseUrl(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost') {
-            return `${location.protocol}//${location.hostname}:3111/v1/platform`;
+            return `${location.origin}/v1/platform`;
         }
         return `${location.origin}/v1/platform`;
     }

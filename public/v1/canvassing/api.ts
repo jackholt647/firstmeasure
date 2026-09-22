@@ -22,6 +22,7 @@ import {
 import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { listSharedDocuments, mutateSharedDocument, readSharedDocument } from "../src/database/shared_documents.js";
+import { emitWorkEvent } from "../work/engine.js";
 
 const objectBodySchema = z.object({}).passthrough();
 const CANVASSING_MODULE_ID = "canvassing";
@@ -509,6 +510,19 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     await ensureCanvassingEnabled(orgId, branchId);
     const pin = await savePin(orgId, branchId, objectBodySchema.parse(request.body ?? {}), actorFromContext(ctx as unknown as JsonObject));
+    // Org-scoped: pins are lightweight canvassing records, not projects.
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: branchId,
+      type: "canvassing.pin.created",
+      idempotency_key: `canvassing.pin.created:${cleanText(pin.id)}`,
+      payload: {
+        pin_id: cleanText(pin.id),
+        address: cleanText(pin.address),
+        status_id: cleanText(pin.status_id)
+      },
+      context: { actor_user_id: cleanText(ctx.userId) }
+    });
     reply.code(201);
     return { ok: true, pin };
   });
@@ -583,6 +597,20 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
       platform_project_id: asObject(lead.project).id,
       lead_created_at: nowIso()
     }, actorFromContext(ctx as unknown as JsonObject));
+    const promotedProjectId = cleanText(asObject(lead.project).id);
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: branchId,
+      ...(promotedProjectId ? { project_id: promotedProjectId } : {}),
+      type: "canvassing.pin.promoted",
+      idempotency_key: `canvassing.pin.promoted:${cleanText(pin.id)}`,
+      payload: {
+        pin_id: cleanText(pin.id),
+        project_id: promotedProjectId,
+        address: cleanText(updatedPin.address || pin.address)
+      },
+      context: { actor_user_id: cleanText(ctx.userId) }
+    });
     return { ok: true, pin: updatedPin, ...lead };
   });
 

@@ -47,38 +47,25 @@
   };
 
   const TYPE_META = {
-    residential: { label: 'Residential', icon: 'fa-house', price: PRICE_RESIDENTIAL },
-    commercial: { label: 'Commercial', icon: 'fa-building', price: PRICE_COMMERCIAL },
-    multifamily: { label: 'Multifamily', icon: 'fa-city', price: PRICE_MULTIFAMILY },
+    residential: { label: (globalThis.PlatformLanguage?.text("project-request","m_aaf397f737f7b1","Residential") ?? "Residential"), icon: 'fa-house', price: PRICE_RESIDENTIAL },
+    commercial: { label: (globalThis.PlatformLanguage?.text("project-request","m_84e41491611ca9","Commercial") ?? "Commercial"), icon: 'fa-building', price: PRICE_COMMERCIAL },
+    multifamily: { label: (globalThis.PlatformLanguage?.text("project-request","m_bb037b99df2dbb","Multi-Family") ?? "Multi-Family"), icon: 'fa-city', price: PRICE_MULTIFAMILY },
   };
   const REPORT_MODE_META = {
-    full: { label: 'Standard' },
-    both: { label: 'Standard + Instant Report' },
+    full: { label: (globalThis.PlatformLanguage?.text("project-request","m_00f3e8b60aebc9","Standard") ?? "Standard") },
+    both: { label: (globalThis.PlatformLanguage?.text("project-request","m_b8c0c33704d4aa","Standard + Instant Report") ?? "Standard + Instant Report") },
   };
   const FALLBACK_REPORT_EXPEDITE_OPTIONS = [
-    { key: 'standard_3_6', label: 'Less than 7 hrs', startMinutes: 240, endMinutes: 420, productionDeadlineMinutes: 240, estimatedWaitMinutes: 240, busyLabel: "We aren't very busy", residentialPrice: 7, rushDelta: 0, expedited: false },
-    { key: 'rush_1_3', label: 'Less than 3 hrs rush', startMinutes: 60, endMinutes: 180, productionDeadlineMinutes: 120, residentialPrice: 8.15, rushDelta: 1.15, expedited: true },
-    { key: 'rush_under_1', label: 'Less than 1 hr rush', startMinutes: 50, endMinutes: 60, productionDeadlineMinutes: 50, residentialPrice: 10.45, rushDelta: 3.45, expedited: true },
+    { key: 'standard_3_6', label: (globalThis.PlatformLanguage?.text("project-request","m_d733253e76c414","Less than 7 hrs") ?? "Less than 7 hrs"), startMinutes: 240, endMinutes: 420, productionDeadlineMinutes: 240, estimatedWaitMinutes: 240, busyLabel: "We aren't very busy", residentialPrice: 7, rushDelta: 0, expedited: false },
+    { key: 'rush_1_3', label: (globalThis.PlatformLanguage?.text("project-request","m_0bb29e9472d757","Less than 3 hrs rush") ?? "Less than 3 hrs rush"), startMinutes: 60, endMinutes: 180, productionDeadlineMinutes: 120, residentialPrice: 8.15, rushDelta: 1.15, expedited: true },
+    { key: 'rush_under_1', label: (globalThis.PlatformLanguage?.text("project-request","m_ce0c416274915b","Less than 1 hr rush") ?? "Less than 1 hr rush"), startMinutes: 50, endMinutes: 60, productionDeadlineMinutes: 50, residentialPrice: 10.45, rushDelta: 3.45, expedited: true },
   ];
   const PROJECT_CONFIG_MODULE_ID = 'project_configuration';
-  const FALLBACK_PROJECT_STAGES = [
-    { id: 'new_lead', label: 'New Lead' },
-    { id: 'appointment_scheduled', label: 'Appointment Scheduled' },
-    { id: 'drafting_proposal', label: 'Drafting Proposal' },
-    { id: 'proposal_sent', label: 'Proposal Sent' },
-    { id: 'newly_sold', label: 'Sold' },
-    { id: 'project_started', label: 'Project Started' },
-    { id: 'in_progress', label: 'In Progress' },
-    { id: 'completed', label: 'Completed' },
-    { id: 'cancelled', label: 'Cancelled' },
-    { id: 'lost', label: 'Lost' }
-  ];
-  const INITIAL_PROJECT_STAGE_ID = 'new_lead';
   const PROPOSAL_COVER_DEFAULT_SIZE = 380;
   const PROPOSAL_THEMES = {
-    margin: { label: 'Margin' },
-    triangles: { label: 'Triangles' },
-    clean: { label: 'Clean' },
+    margin: { label: (globalThis.PlatformLanguage?.text("project-request","m_190ca7354b9101","Margin") ?? "Margin") },
+    triangles: { label: (globalThis.PlatformLanguage?.text("project-request","m_a7933e949ff793","Triangles") ?? "Triangles") },
+    clean: { label: (globalThis.PlatformLanguage?.text("project-request","m_bf7af1d2354e74","Clean") ?? "Clean") },
   };
   const PRESENTATION_STYLE_MODULE_ID = 'presentation_style';
   const PROPOSAL_TEMPLATES_MODULE_ID = 'proposal_templates';
@@ -86,7 +73,7 @@
     {
       id: 'preset_roofing_standard',
       name: 'Standard Roof Proposal',
-      description: 'A clean contract-ready proposal with scope, pricing, signature, and terms.',
+      description: (globalThis.PlatformLanguage?.text("project-request","m_ed4d92fc9f4e08","A clean contract-ready proposal with scope, pricing, signature, and terms.") ?? "A clean contract-ready proposal with scope, pricing, signature, and terms."),
       theme: 'margin',
       createdBy: 'FirstMate',
       preset: true,
@@ -96,7 +83,7 @@
     {
       id: 'preset_visual_estimate',
       name: 'Visual Estimate',
-      description: 'A photo-forward proposal for jobs where visuals and simple pricing matter most.',
+      description: (globalThis.PlatformLanguage?.text("project-request","m_f6a55be56295ec","A photo-forward proposal for jobs where visuals and simple pricing matter most.") ?? "A photo-forward proposal for jobs where visuals and simple pricing matter most."),
       theme: 'clean',
       createdBy: 'FirstMate',
       preset: true,
@@ -106,7 +93,7 @@
     {
       id: 'preset_premium_contract',
       name: 'Premium Contract',
-      description: 'A polished presentation with added details and full terms.',
+      description: (globalThis.PlatformLanguage?.text("project-request","m_dc8bbc832598bf","A polished presentation with added details and full terms.") ?? "A polished presentation with added details and full terms."),
       theme: 'triangles',
       createdBy: 'FirstMate',
       preset: true,
@@ -118,10 +105,16 @@
   let addressSelected = false;
   let locationConfirmed = false;
   let selectedType = null;
+  let headerPropertyTypeMenu = null;
+  let headerPropertyTypeGlobalEventsBound = false;
   let structurePinLimitNoticeActive = false;
   let typePickerExpanded = false;
   let reportSelection = null;
   let mobileOrderPage = 'location';
+  let mobileLeftTrayOpen = false;
+  let mobileDefaultInfoTrayOpen = false;
+  let mobileDefaultInfoTrayLeaveTimer = 0;
+  let mobileProjectNotesOpen = false;
   let mobileOrderAnimTimer = null;
   let mobileSwipeStart = null;
   let selectedReportExpedite = null;
@@ -183,6 +176,13 @@
   let proposalActionExpanded = false;
   let proposalMeasurementsExpanded = false;
   let proposalInternalNotesCollapsed = true;
+  let projectNoteVisibility = ['office', 'crew', 'sales'];
+  let editingProjectNoteId = '';
+  let pendingProjectAudio = null;
+  let projectNoteMentionController = null;
+  let projectNoteMentionDirectory = [];
+  let projectNoteHistoryClosing = false;
+  let projectNoteHistoryCloseTimer = 0;
   let proposalAgentCollapsed = true;
   let proposalAgentPrompt = '';
   let proposalAgentProgress = 0;
@@ -208,9 +208,24 @@
   let activeBaseProject = null;
   let pendingRoutePhotoId = '';
   let routeRestoreInFlight = false;
+  let routeRestorePromise = null;
+  let routeRestoreProjectId = '';
+  let projectRouteClosePendingId = '';
+  let projectOpenGeneration = 0;
+  let projectShellLoading = false;
+  let projectRouteBatching = false;
   let viewingExistingProject = false;
+  let newProjectCreationSession = false;
   let reportOrderState = null;
   let requestedWorkflow = 'project';
+  // Doc-first workflows ("New Proposal"/"New Invoice"/…): the document type to
+  // preselect in the create wizard, and whether the left-column project picker
+  // was dismissed in favor of building a brand-new project.
+  let requestedDocumentType = '';
+  let requestedDocumentResume = null;
+  let docPickerDismissed = false;
+  let docPickerChoiceMade = false;
+  let docCreateLaunched = false;
   let activeContactContext = null;
   let projectTodoController = null;
   let projectTodoLoadedFor = '';
@@ -220,10 +235,12 @@
   let contactPickerOptions = [];
   let contactPickerLoadPromise = null;
   let branchProjectConfig = { title_mode: 'customer_name' };
-  let branchStageConfig = null;
-  let branchStageConfigPromise = null;
+  let projectWorkPlanState = { projectId: '', plans: [], loaded: false };
+  let projectWorkPlanPromise = null;
   let modalInitialProjectIds = new Set();
   let requestModalHandle = null;
+  let projectModalFullscreen = false;
+  let projectModalFullscreenTimer = null;
   let addonInfoModalHandle = null;
   const proposalMeasurementCache = new Map();
   const proposalMeasurementLoads = new Set();
@@ -237,9 +254,13 @@
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Lato:wght@400;700;900&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;700;800&family=Poppins:wght@400;600;700;800;900&family=Roboto:wght@400;700;900&family=Source+Sans+3:wght@400;700;900&display=swap');
-    .r-overlay{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.58);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .22s ease;width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100vh);overflow:hidden}
+    .r-overlay{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.78);backdrop-filter:none;display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .22s ease,background .24s ease;width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100vh);overflow:hidden}
     .r-overlay.active{display:flex;opacity:1}
-    .r-win{width:min(1720px,96vw);height:min(1180px,calc(var(--fm-visual-vh,100vh) * .92));background:#ffffff;border-radius:28px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;position:relative;animation:rUp .26s cubic-bezier(.22,1,.36,1)}
+    .r-win{width:min(1720px,96vw);height:min(1180px,calc(var(--fm-visual-vh,100vh) * .92));background:#ffffff;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;position:relative;animation:rUp .26s cubic-bezier(.22,1,.36,1);transition:width .28s cubic-bezier(.22,1,.36,1),height .28s cubic-bezier(.22,1,.36,1),border-radius .24s ease,box-shadow .24s ease}
+    .r-overlay.route-initial-open .r-win{animation:none}
+    .r-overlay.fullscreen{background:rgba(11,16,24,.28);backdrop-filter:none}
+    .r-overlay.fullscreen .r-win{width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100vh);border-radius:0;box-shadow:none;animation:none}
+    .r-overlay.fullscreen-transitioning .r-win{animation:none!important}
     .r-win.contact-mode{padding-top:58px;box-sizing:border-box}
     .r-contact-contextbar{display:none;position:absolute;inset:0 0 auto 0;height:58px;z-index:70;border-bottom:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.96);backdrop-filter:blur(14px);align-items:center;gap:12px;padding:0 62px 0 18px;box-sizing:border-box}
     .r-win.contact-mode .r-contact-contextbar{display:flex}
@@ -256,13 +277,18 @@
     @keyframes rUp{from{transform:translateY(20px) scale(.985);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
     .r-left{width:min(460px,46%);max-width:none;box-sizing:border-box;border-right:1px solid rgba(15,23,42,.08);padding:18px;overflow:hidden;display:flex;flex-direction:column;gap:10px;background:#ffffff;flex:0 0 min(460px,46%);transition:transform .5s cubic-bezier(.22,1,.36,1),margin-left .5s cubic-bezier(.22,1,.36,1),box-shadow .5s ease}
     .r-right{flex:1;position:relative;background:#eef2f6;display:flex;flex-direction:column;min-width:0;transition:flex-basis .5s cubic-bezier(.22,1,.36,1)}
+    .r-project-shell-status{display:none;position:absolute;inset:58px 0 0;z-index:64;align-items:center;justify-content:center;padding:24px;background:rgba(238,242,246,.72);backdrop-filter:blur(3px);pointer-events:none}
+    .r-project-shell-status-card{display:flex;align-items:center;gap:11px;padding:13px 16px;border:1px solid rgba(15,23,42,.09);border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 16px 44px rgba(15,23,42,.10);color:#475467;font-size:13px;font-weight:900}
+    .r-project-shell-status-card i{color:var(--primary-readable,var(--primary,#d93025))}
+    .r-overlay.project-shell-loading .r-project-shell-status{display:flex}
+    .r-overlay.project-shell-loading .r-left{pointer-events:none}
+    .r-overlay.project-shell-loading .r-left>*{opacity:.42;transition:opacity .16s ease}
+    .r-overlay.entitlement-left-none .r-left{display:none!important}
+    .r-overlay.entitlement-left-none .r-right{flex:1 1 100%;min-width:0;min-height:0}
     .r-win.photo-focus .r-left{margin-left:max(-460px,-46%);transform:translateX(0);box-shadow:28px 0 60px rgba(15,23,42,.08)}
     .r-win.photo-focus .r-right{flex-basis:100%}
     .r-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0;padding:0 0 4px;background:#ffffff}
-    .r-scroll{flex:1;overflow:auto;padding-right:2px;min-height:0}
-    .r-scroll-cue{position:absolute;left:calc(min(460px,46%) / 2);bottom:16px;transform:translateX(-50%);z-index:40;display:none;align-items:center;gap:7px;padding:8px 11px;border:1px solid rgba(15,23,42,.10);border-radius:999px;background:rgba(17,24,39,.86);color:#fff;font-size:11px;font-weight:1000;box-shadow:0 12px 28px rgba(15,23,42,.18);cursor:pointer;animation:rCueFloat 1.4s ease-in-out infinite}
-    .r-scroll-cue.visible{display:flex}
-    @keyframes rCueFloat{0%,100%{translate:0 0}50%{translate:0 4px}}
+    .r-scroll{flex:1;overflow:auto;padding-right:var(--fm-scrollbar-content-gap,10px);scrollbar-gutter:stable;min-height:0}
     .r-left-bottom{flex-shrink:0;border-top:1px solid rgba(15,23,42,.08);padding-top:12px;background:#fff;display:flex;flex-direction:column;gap:10px}
     .r-left-bottom:empty{display:none}
     .r-overlay.left-override #rProjectStageBar,
@@ -279,6 +305,7 @@
     .r-overlay.left-override #rStepRoof{display:none!important}
     .r-mobile-pager{display:none}
     .r-mobile-close{display:none}
+    @media(max-width:420px){.r-overlay #rStepType.is-condensed .r-type-icon{display:none}.r-overlay #rStepType.is-condensed .r-type-btn{padding:8px 4px;min-width:0;gap:0}.r-overlay #rStepType.is-condensed .r-type-label{font-size:10px;white-space:normal;overflow-wrap:normal}}
     .r-title-wrap{width:100%;min-width:0}
     .r-title{margin:0;font-size:22px;font-weight:1000;letter-spacing:-.4px;color:#101828}
     .r-title-input{width:100%;border:1px solid rgba(15,23,42,.12);border-radius:14px;padding:10px 12px;font:inherit;font-size:20px;font-weight:1000;letter-spacing:-.4px;color:#101828;outline:none}
@@ -287,9 +314,36 @@
     .r-sub:empty{display:none}
     .r-stagebar{flex-shrink:0;margin:-2px 0 2px;position:relative}
     .r-stagebar[hidden]{display:none!important}
+    .r-project-tags{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;padding:2px 1px 4px;scrollbar-width:none}
+    .r-project-tags::-webkit-scrollbar{display:none}
+    .r-project-tag{display:inline-flex;align-items:center;gap:5px;min-height:25px;max-width:180px;padding:4px 9px;border:1px solid rgba(15,23,42,.09);border-radius:999px;background:#f2f4f7;color:#344054;font-size:10.5px;font-weight:1000;line-height:1;white-space:nowrap}
+    .r-project-tag span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+    .r-project-tag i{font-size:9.5px;flex:0 0 auto}
+    .r-project-tag.scope{--tag-color:#4f7cac;border-color:color-mix(in srgb,var(--tag-color) 30%,#dce2e8);background:color-mix(in srgb,var(--tag-color) 10%,#fff);color:color-mix(in srgb,var(--tag-color) 78%,#17212b)}
+    .r-project-tag.total{border-color:#a6dfbd;background:#ecfdf3;color:#15803d}
+    button.r-project-tag{font-family:inherit;cursor:pointer}.r-project-tag.stage-editable{border-color:#c9d9eb;background:#f2f7fc;color:#28577f;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}.r-project-tag.stage-editable:hover{border-color:#7aa6cf;background:#eaf3fb;box-shadow:0 2px 8px rgba(23,105,170,.12)}.r-project-tag.stage-editable .fa-chevron-down{font-size:8px;opacity:.7}
+    .r-manual-stage-backdrop{position:absolute;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.48);backdrop-filter:blur(3px)}
+    .r-manual-stage-dialog{width:min(690px,100%);max-height:min(680px,calc(100vh - 48px));display:flex;flex-direction:column;border:1px solid rgba(15,23,42,.1);border-radius:20px;background:#fff;box-shadow:0 30px 90px rgba(15,23,42,.28);overflow:hidden}
+    .r-manual-stage-head{display:flex;align-items:flex-start;gap:12px;padding:20px 20px 16px;border-bottom:1px solid #eaecf0}.r-manual-stage-head>i{width:38px;height:38px;border-radius:12px;background:#eaf3fb;color:#1769aa;display:grid;place-items:center}.r-manual-stage-head-copy{min-width:0;flex:1}.r-manual-stage-head h3{margin:0;color:#101828;font-size:18px}.r-manual-stage-head p{margin:5px 0 0;color:#667085;font-size:11px;line-height:1.45}.r-manual-stage-close{width:34px;height:34px;border:0;border-radius:9px;background:#f2f4f7;color:#667085;cursor:pointer}
+    .r-manual-stage-body{min-height:0;overflow:auto;padding:16px 20px 20px}.r-manual-stage-board-label{display:block;margin-bottom:6px;color:#475467;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}.r-manual-stage-board-select{width:100%;height:40px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 11px;color:#344054;font:inherit;font-size:12px;font-weight:900;outline:none}.r-manual-stage-list{display:grid;gap:7px;margin-top:14px}.r-manual-stage-option{width:100%;min-height:48px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;padding:8px 10px;display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left;color:#344054;font:inherit;cursor:pointer}.r-manual-stage-option:hover{border-color:var(--stage-color,#1769aa);background:color-mix(in srgb,var(--stage-color,#1769aa) 5%,#fff)}.r-manual-stage-option.current{border-color:color-mix(in srgb,var(--stage-color,#1769aa) 45%,#d0d5dd);background:color-mix(in srgb,var(--stage-color,#1769aa) 8%,#fff)}.r-manual-stage-option:disabled{opacity:.6;cursor:wait}.r-manual-stage-dot{width:11px;height:11px;border-radius:999px;background:var(--stage-color,#1769aa);box-shadow:0 0 0 3px color-mix(in srgb,var(--stage-color,#1769aa) 14%,transparent)}.r-manual-stage-option strong{display:block;font-size:12px}.r-manual-stage-option small{display:block;margin-top:3px;color:#98a2b3;font-size:9px;font-weight:850}.r-manual-stage-current{color:var(--stage-color,#1769aa);font-size:9px;font-weight:1000;text-transform:uppercase}.r-manual-stage-note{margin-top:14px;border:1px solid #dbe7f4;border-radius:11px;background:#f5f9fd;color:#46627d;padding:10px 11px;display:flex;align-items:flex-start;gap:8px;font-size:10px;line-height:1.45}.r-manual-stage-note i{margin-top:1px;color:#1769aa}
+    .r-project-tag.property-type{max-width:150px;padding:0;gap:0;overflow:hidden;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}
+    .r-project-tag.property-type:hover,.r-project-tag.property-type.menu-open{border-color:#b9c9db;background:#f8fafc;box-shadow:0 2px 8px rgba(23,105,170,.10)}
+    .r-property-type-trigger{display:flex;align-items:center;gap:6px;width:100%;min-width:0;height:25px;border:0;background:transparent;color:inherit;padding:4px 8px;font:inherit;font-weight:1000;line-height:1;cursor:pointer;text-align:left}
+    .r-property-type-trigger span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.r-property-type-trigger>i{flex:0 0 auto}.r-property-type-trigger .property-type-chevron{font-size:8px;opacity:.65;transition:transform .16s ease}.r-property-type-trigger[aria-expanded="true"] .property-type-chevron{transform:rotate(180deg)}
+    .r-property-type-trigger:focus-visible{outline:2px solid rgba(var(--primary-rgb,217,48,37),.38);outline-offset:-2px;border-radius:999px}
+    .r-property-type-menu{position:fixed;z-index:2147483400;width:260px;padding:7px;border:1px solid rgba(15,23,42,.10);border-radius:16px;background:rgba(255,255,255,.98);box-shadow:0 18px 50px rgba(15,23,42,.18),0 3px 10px rgba(15,23,42,.08);backdrop-filter:blur(14px);transform-origin:top right;animation:rPropertyMenuIn .14s ease-out}
+    @keyframes rPropertyMenuIn{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .r-property-type-option{display:grid;grid-template-columns:34px minmax(0,1fr) 18px;align-items:center;gap:10px;width:100%;min-height:48px;padding:7px 8px;border:0;border-radius:11px;background:transparent;color:#344054;font:inherit;text-align:left;cursor:pointer;transition:background .14s ease,color .14s ease}
+    .r-property-type-option:hover,.r-property-type-option:focus-visible{background:#f2f6fa;outline:none}.r-property-type-option[aria-selected="true"]{background:#edf5fc;color:#194f78}
+    .r-property-type-option-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#eef2f6;color:#526274}.r-property-type-option[data-property-type="residential"] .r-property-type-option-icon{background:#eaf3fb;color:#1769aa}.r-property-type-option[data-property-type="commercial"] .r-property-type-option-icon{background:#fff3e8;color:#b45309}.r-property-type-option[data-property-type="multifamily"] .r-property-type-option-icon{background:#f1edff;color:#6941c6}
+    .r-property-type-option-copy{min-width:0}.r-property-type-option-copy strong{display:block;font-size:11.5px;line-height:1.2}.r-property-type-option-copy small{display:block;margin-top:3px;color:#8491a3;font-size:9.5px;font-weight:750;line-height:1.2}.r-property-type-option-check{font-size:11px;color:#1769aa;opacity:0}.r-property-type-option[aria-selected="true"] .r-property-type-option-check{opacity:1}
     .r-stage-track{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:2px 1px 4px;scroll-behavior:smooth}
     .r-stage-track::-webkit-scrollbar{display:none}
     .r-stage-list{display:flex;align-items:center;gap:6px;min-width:max-content}
+    .r-work-phase-list{display:flex;align-items:center;gap:12px;min-width:max-content}
+    .r-work-phase{display:flex;align-items:center;gap:7px;padding-right:12px;border-right:1px solid rgba(15,23,42,.08)}
+    .r-work-phase:last-child{border-right:0;padding-right:0}
+    .r-work-phase-name{font-size:10px;font-weight:1000;color:#344054;white-space:nowrap}
     .r-stage-pill{display:inline-flex;align-items:center;gap:5px;max-width:142px;min-height:25px;padding:4px 8px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:#f8fafc;color:#98a2b3;font-size:10.5px;font-weight:900;line-height:1;white-space:nowrap;letter-spacing:0}
     .r-stage-pill span{min-width:0;overflow:hidden;text-overflow:ellipsis}
     .r-stage-pill i{font-size:9.5px;flex-shrink:0}
@@ -297,11 +351,11 @@
     .r-stage-pill.current{background:#fffbeb;border-color:#fde68a;color:#92400e;font-weight:1000;box-shadow:inset 0 0 0 1px rgba(245,158,11,.12)}
     .r-stage-pill.upcoming{background:#f8fafc;border-color:rgba(15,23,42,.07);color:#9aa4b2}
     .r-stage-arrow{color:#cbd5e1;font-size:9px;flex:0 0 auto}
-    .r-stagebar::before,.r-stagebar::after{content:'';position:absolute;top:0;bottom:0;width:18px;pointer-events:none;z-index:2}
-    .r-stagebar::before{left:0;background:linear-gradient(90deg,#fff,rgba(255,255,255,0))}
-    .r-stagebar::after{right:0;background:linear-gradient(270deg,#fff,rgba(255,255,255,0))}
-    .modal-close-x{position:absolute;top:14px;right:14px;width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:60;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054;transition:.18s ease}
-    .modal-close-x:hover{background:#fff;color:#101828;transform:translateY(-1px)}
+    .modal-shell-actions{flex:0 0 auto;display:flex;align-items:center;border-left:1px solid rgba(15,23,42,.10);margin-left:auto}
+    .modal-shell-action{align-self:center;min-height:34px;margin:0 8px;padding:0 12px;border:1px solid rgba(var(--primary-rgb,217,48,37),.24);border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:1000;white-space:nowrap;cursor:pointer}
+    .modal-shell-action[hidden]{display:none!important}
+    .modal-shell-btn{width:42px;min-height:47px;border:0;border-left:1px solid rgba(15,23,42,.08);border-radius:0;background:#fff;color:#667085;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:background .16s ease,color .16s ease}
+    .modal-shell-btn:hover{background:#f8fafc;color:#101828}
     .r-form{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}
     .r-after-hours{display:none;align-items:center;gap:9px;margin:0 0 6px;padding:12px 14px;border-radius:18px;background:#fff7e6;border:1px solid rgba(245,158,11,.24);font-size:12.5px;font-weight:800;color:#9a6700;line-height:1.45}
     .r-after-hours.visible{display:flex}
@@ -412,11 +466,22 @@
     .r-type-pill-row .r-viewer-type-tag[data-type-pill]:hover{border-color:rgba(var(--primary-rgb,217,48,37),.22);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.05)}
     .r-type-pill-row .r-viewer-type-tag:not([data-type-pill]){cursor:default}
     .r-type-pill-row .r-viewer-type-tag .fa-chevron-down{font-size:9px;opacity:.72}
-    .r-step.is-condensed #rTypeGroup{display:none}
-    .r-step.is-condensed #rTypePill{display:flex}
+    .r-overlay #rStepType.is-condensed #rTypeGroup{display:none!important}
+    .r-overlay #rStepType.is-condensed #rTypePill{display:flex!important;gap:8px;align-items:center;flex-wrap:wrap}
     .r-overlay.report-ordered #rTypeGroup{display:none}
     .r-overlay.report-ordered #rTypePill{display:flex}
-    #rStepAddress{padding-top:8px}
+    .r-order-select{position:relative;display:inline-flex;align-items:center;min-width:0;color:#344054;background:#f2f4f7;border:1px solid #dfe3e8;border-radius:999px;height:28px}
+    .r-order-select>i{position:absolute;left:9px;font-size:11px;pointer-events:none}
+    .r-order-select>i:last-child{left:auto;right:9px;font-size:9px}
+    .r-order-select select{appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;font-weight:700;padding:4px 25px 4px 27px;border-radius:inherit;cursor:pointer;max-width:100%;height:100%}
+    .r-order-select:focus-within{border-color:var(--primary-readable,var(--primary,#d93025));outline:none;box-shadow:none}
+    .r-order-select select:focus,.r-order-select select:focus-visible{outline:none;box-shadow:none}
+    .r-order-select select option{background:#fff;color:#344054;font-weight:500;text-align:left}
+    #rStepAddress{padding-top:0}
+    .r-project-address-step{margin:0;padding:0;border:0;background:transparent}
+    .r-project-address-row{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-items:center}
+    .r-project-address-row .r-inp{width:100%;min-width:0;height:26px;min-height:26px;box-sizing:border-box;border:1px solid rgba(15,23,42,.10);border-radius:7px;background:#fff;color:#101828;padding:3px 6px;font-size:12px;font-weight:900;outline:none;box-shadow:none}
+    .r-project-address-row .r-inp:focus{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:#fff;box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.08);transform:none}
     .r-contact-list{display:flex;flex-direction:column;gap:5px}
     .r-contact-card{position:relative;border:1px solid rgba(15,23,42,.08);border-radius:10px;background:#fff;padding:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 7px;align-items:center;box-shadow:0 1px 0 rgba(15,23,42,.03)}
     .r-overlay.contacts-disabled .r-contact-card{grid-template-columns:minmax(0,1fr)}
@@ -490,7 +555,13 @@
     .r-workflow-dock.visible{display:block}
     .r-workflow-empty{display:flex;flex-direction:column;gap:8px}
     .r-workflow-empty-title{font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
-    .r-workflow-todos{min-height:92px}
+    .r-workflow-todos{min-height:92px;max-height:clamp(180px,calc(var(--fm-visual-vh,100vh) - 430px),420px)}
+    .r-workflow-todos .pai-today-list{max-height:inherit;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+    .r-workflow-todos .pai-composer{position:sticky;top:0;z-index:1;background:#fff;box-shadow:0 5px 8px -8px rgba(15,23,42,.45)}
+    .r-overlay.project-todos-visible:not(.left-override) .r-scroll{overflow:hidden;display:flex;flex-direction:column}
+    .r-overlay.project-todos-visible:not(.left-override) .r-workflow-dock.visible,.r-overlay.project-todos-visible:not(.left-override) .r-workflow-empty{display:flex;flex:1 1 auto;flex-direction:column;min-height:0}
+    .r-overlay.project-todos-visible:not(.left-override) .r-workflow-todos{flex:1 1 auto;min-height:0;max-height:none}
+    .r-overlay.project-todos-visible:not(.left-override) .r-workflow-todos .pai-today-list{height:100%;max-height:none}
     .r-workflow-todos .pai-today-list{gap:6px}
     .r-workflow-todos .pai-composer{margin-bottom:4px}
     .r-workflow-todos .pai-state{font-size:12px;padding:12px}
@@ -566,19 +637,36 @@
     .r-btn.primary:disabled{color:#667085;background:#e5e7eb;border-color:#d1d5db;box-shadow:none}
     .r-btn.primary:disabled:hover{background:#e5e7eb;border-color:#d1d5db;transform:none;box-shadow:none}
     .r-btn.choice{display:none;align-items:center;justify-content:center}
-    .r-bottom-notes{transition:padding .18s ease}
-    .r-bottom-notes-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-    .r-bottom-notes-head label{min-width:0}
-    .r-bottom-notes-toggle{border:1px solid rgba(15,23,42,.1);background:#fff;color:#667085;border-radius:10px;width:32px;height:32px;display:none;align-items:center;justify-content:center;cursor:pointer;transition:.16s ease;flex-shrink:0}
-    .r-bottom-notes-toggle:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.22)}
-    .r-bottom-notes-toggle i{transition:transform .18s ease}
-    .r-bottom-notes textarea{min-height:82px}
-    .r-overlay.proposal-workspace .r-bottom-notes{gap:8px}
-    .r-overlay.proposal-workspace .r-bottom-notes-toggle{display:flex}
-    .r-overlay.proposal-workspace .r-bottom-notes.collapsed textarea{display:none}
-    .r-overlay.proposal-workspace .r-bottom-notes.collapsed .r-bottom-notes-toggle i{transform:rotate(180deg)}
+    .r-left-bottom{transition:none}.r-bottom-notes{position:relative;min-height:0}.r-note-composer-shell{position:relative;z-index:2;display:flex;flex-direction:column;gap:6px;min-height:0;flex:0 0 auto;background:#fff}#rProjectAudioPending:empty{display:none}
+    .r-bottom-notes-head{min-height:18px;display:flex;align-items:center;justify-content:space-between;gap:8px}.r-bottom-notes-head label{min-width:0;font-size:10px;line-height:1.15}.r-note-visibility-control{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0;white-space:nowrap}.r-note-visibility-disclaimer{font-size:8px;font-weight:800;color:#98a2b3}.r-note-visibility-choice{min-width:0;display:inline-flex;align-items:center;justify-content:flex-end;gap:2px;color:#667085;cursor:pointer;transition:color .16s ease,transform .16s ease}.r-note-visibility-choice strong{max-width:112px;overflow:hidden;text-overflow:ellipsis;font-size:9px;font-weight:950;color:currentColor}.r-note-visibility-choice i{width:14px;height:18px;display:grid;place-items:center;font-size:10px;flex:0 0 auto}.r-note-visibility-choice:hover,.r-note-visibility-choice[aria-expanded="true"]{color:var(--primary-readable,var(--primary,#d93025));transform:translateY(-1px)}
+    .r-note-input-wrap{position:relative;min-height:56px}.r-note-input-wrap textarea{display:block;width:100%}.r-bottom-notes textarea{position:relative;z-index:2;box-sizing:border-box;min-height:56px;max-height:180px;resize:none!important;overflow-y:hidden;font-family:inherit;font-size:12px;line-height:1.42;transition:height .16s ease,border-color .16s ease,box-shadow .16s ease}.r-note-input-wrap.has-mentions textarea{background:transparent;color:transparent;caret-color:#101828}.r-note-input-wrap.has-mentions textarea::selection{color:transparent;background:rgba(59,130,246,.3)}.r-note-input-highlights{position:absolute;z-index:1;inset:0;box-sizing:border-box;overflow:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;padding:10px 12px;border:1px solid transparent;border-radius:inherit;background:#fff;font-family:inherit;font-size:12px;line-height:1.42;color:#101828}.r-note-input-highlights .r-note-compose-mention{display:inline;border-radius:4px;background:rgba(var(--primary-rgb,217,48,37),.1);box-shadow:0 0 0 1px rgba(var(--primary-rgb,217,48,37),.22);color:var(--primary-readable,var(--primary,#d93025));box-decoration-break:clone;-webkit-box-decoration-break:clone}
+    /* FirstMeasure's saved note stays independent of the Channels history layout. */
+    .r-left.notes-panel-ready:has(.r-firstmeasure-notes){padding-bottom:18px}
+    .r-firstmeasure-notes{display:flex;flex-direction:column;gap:6px}
+    .r-firstmeasure-notes .r-bottom-notes-head{min-height:26px}
+    .r-firstmeasure-notes .r-bottom-notes-head label{margin:0;color:#667085;font-size:10px;letter-spacing:.04em}
+    .r-firstmeasure-notes .r-bottom-notes-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:#667085;font:inherit;font-size:11px;cursor:pointer}
+    .r-firstmeasure-notes .r-bottom-notes-toggle:hover{background:#f2f4f7;color:#344054}
+    .r-firstmeasure-notes .r-bottom-notes-toggle:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
+    .r-firstmeasure-notes .r-bottom-notes-toggle i{transition:transform .16s ease}
+    .r-firstmeasure-notes.notes-expanded .r-bottom-notes-toggle i{transform:rotate(180deg)}
+    .r-firstmeasure-notes textarea.r-inp{display:block;width:100%;height:72px!important;min-height:72px;max-height:160px;overflow-y:auto!important;padding:10px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fafbfc;font-family:inherit;font-size:12px;line-height:1.45}
+    .r-firstmeasure-notes.notes-expanded textarea.r-inp{height:160px!important}
+    .r-firstmeasure-notes textarea.r-inp:focus{background:#fff}
+    .r-note-visibility-menu{position:fixed;right:auto;top:0;left:0;z-index:2147483647;width:max-content;min-width:190px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);min-height:36px;padding:6px;display:grid;grid-auto-rows:minmax(32px,auto);gap:2px;overflow-x:hidden;overflow-y:auto;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;color:#344054;box-shadow:0 18px 44px rgba(15,23,42,.24);isolation:isolate;animation:rNoteMenuIn .16s cubic-bezier(.22,1,.36,1)}.r-note-visibility-menu[hidden]{display:none!important}@keyframes rNoteMenuIn{from{opacity:0;transform:translateX(-6px) scale(.98)}to{opacity:1;transform:none}}
+    .r-note-visibility-menu button{width:100%;min-height:32px;border:0;border-radius:7px;background:#fff;padding:7px 9px;display:flex;align-items:center;gap:8px;color:#344054;font:inherit;font-size:11px;line-height:1.2;font-weight:900;text-align:left;white-space:nowrap;cursor:pointer}.r-note-visibility-menu button:hover{background:#f2f4f7}.r-note-visibility-menu i{width:13px;color:#98a2b3}.r-note-visibility-menu button.active i{color:var(--primary-readable,var(--primary,#d93025))}
+    .r-note-compose-actions{min-height:29px;display:flex;align-items:center;justify-content:space-between;gap:8px}.r-note-history-toggle{display:inline-flex;align-items:center;gap:5px;color:#667085;font-size:9px;font-weight:900;cursor:pointer;user-select:none;transform:translateY(-2px);transition:color .16s ease}.r-note-history-toggle:hover{color:#111827}.r-note-history-chevron{font-size:8px;transition:transform .28s cubic-bezier(.22,1,.36,1)}.r-bottom-notes.expanded .r-note-history-chevron{transform:rotate(180deg)}.r-note-compose-actions .r-note-audio{width:29px;height:29px;padding:0;border:1px solid #d0d5dd;background:#fff;color:#475467}.r-note-compose-actions .r-note-audio:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.34)}
+    .r-note-compose-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}.r-note-compose-right>span{font-size:9px;font-weight:900;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.r-note-compose-actions button{box-sizing:border-box;height:29px;border:0;border-radius:8px;background:#111827;color:#fff;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:950;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.r-note-compose-actions button:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(15,23,42,.16)}.r-note-compose-actions button:disabled{opacity:.45;cursor:default}
+    .r-note-history-deck{position:relative;isolation:isolate;box-sizing:border-box;min-height:0;height:0;margin-bottom:-6px;padding:0 0 0;border-bottom:1px solid transparent;visibility:hidden;overflow:visible;display:flex;flex-direction:column;gap:7px;transition:visibility 0s linear .5s}.r-bottom-notes.expanded .r-note-history-deck{height:auto;margin-bottom:0;padding:10px 0 9px;border-bottom-color:rgba(15,23,42,.14);visibility:visible;transition:visibility 0s}.r-note-history-deck::before{content:'';position:absolute;z-index:-1;inset:0 -18px -9px;background:#fff;border-top:1px solid rgba(15,23,42,.18);box-shadow:none;clip-path:inset(-40px 0 0);transform:scaleY(0);transform-origin:center bottom;transition:transform .5s cubic-bezier(.45,0,.55,1);will-change:transform}.r-bottom-notes.expanded .r-note-history-deck::before{transform:scaleY(1)}.r-bottom-notes.opening .r-note-history-deck::before,.r-bottom-notes.closing .r-note-history-deck::before{transform:scaleY(0)}.r-note-history-tools,.r-note-history{position:relative;z-index:1;opacity:0;transition:opacity .14s ease}.r-bottom-notes.expanded:not(.opening):not(.closing) .r-note-history-tools,.r-bottom-notes.expanded:not(.opening):not(.closing) .r-note-history{opacity:1;transition:opacity .2s ease .28s}
+    .r-note-history-tools{flex:0 0 auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.r-note-history-tools input,.r-note-history-tools select{min-width:0;height:28px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;padding:0 7px;font:inherit;font-size:10px;color:#344054}.r-note-history{flex:1 1 auto;min-height:52px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px}.r-note-card{border:1px solid rgba(15,23,42,.08);border-radius:9px;background:#f8fafc;padding:8px;display:flex;flex-direction:column;gap:5px}.r-note-card p{margin:0;white-space:pre-wrap;font-size:11px;line-height:1.55;color:#344054}.r-note-mention{position:relative;display:inline-flex;align-items:center;vertical-align:baseline;margin:0 1px;padding:1px 5px;border:1px solid rgba(var(--primary-rgb,217,48,37),.2);border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025));font-weight:750;line-height:1.25;white-space:nowrap;cursor:pointer}.r-note-mention::before{content:'@';font-weight:800;opacity:.82}.r-note-mention-card{position:fixed;left:0;top:0;z-index:2147483646;width:max-content;min-width:220px;max-width:280px;padding:10px;border:1px solid rgba(15,23,42,.1);border-radius:14px;background:#fff;color:#101828;box-shadow:0 18px 38px rgba(15,23,42,.18);display:none;grid-template-columns:34px minmax(0,1fr);gap:9px;white-space:normal;pointer-events:none}.r-note-mention-card.visible{display:grid}.r-note-mention-avatar{width:34px;height:34px;border-radius:999px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:13px;font-weight:1000}.r-note-mention-avatar img{width:100%;height:100%;object-fit:cover}.r-note-mention-name{display:block;font-size:13px;font-weight:1000;line-height:1.15;color:#101828}.r-note-mention-email{display:block;margin-top:3px;font-size:11px;font-weight:700;color:#667085}.r-note-card-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;font-weight:850;color:#667085}.r-note-card-meta span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-note-card-actions{display:flex;gap:2px}.r-note-card-actions button{border:0;background:transparent;color:#98a2b3;width:22px;height:22px;padding:0;cursor:pointer}.r-note-card-actions button:hover{color:#344054}.r-note-empty{flex:1 1 auto;width:100%;min-height:180px;box-sizing:border-box;border:1px dashed rgba(15,23,42,.1);border-radius:9px;background:#fafbfc;padding:24px 14px;display:grid;place-items:center;text-align:center;color:#98a2b3;font-size:12px;font-weight:900}
+    .r-left.notes-panel-ready{position:relative;padding-bottom:5px}.r-overlay.proposal-workspace .r-bottom-notes{gap:6px}.r-left.notes-history-expanded .r-left-bottom,.r-left:has(.r-bottom-notes.expanded) .r-left-bottom{position:absolute;z-index:45;left:0;right:0;bottom:0;box-sizing:border-box;height:80%;min-height:0;margin:0;padding:12px 18px 5px;border-top-color:transparent;background:transparent;box-shadow:none}.r-left.notes-history-expanded .r-left-bottom::before,.r-left:has(.r-bottom-notes.expanded) .r-left-bottom::before{display:none}.r-left.notes-history-expanded .r-left-bottom>:not(.r-bottom-notes),.r-left:has(.r-bottom-notes.expanded) .r-left-bottom>:not(.r-bottom-notes){display:none!important}.r-bottom-notes.expanded{height:100%;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:6px}
+    .r-note-card{scroll-margin:14px;transition:border-color .22s ease,box-shadow .22s ease,background .22s ease}.r-note-card.notification-target{border-color:rgba(var(--primary-rgb,217,48,37),.55);background:rgba(var(--primary-rgb,217,48,37),.07);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
+    .r-overlay.proposal-workspace.proposal-edit-mode .r-proposal-agent{border-bottom:1px solid rgba(15,23,42,.1);border-radius:0;background:transparent;padding:0 0 14px;box-shadow:none}
+    .r-overlay.proposal-workspace.proposal-edit-mode .r-bottom-notes:not(.expanded){display:flex;flex-direction:column}
+    .r-overlay.proposal-workspace.proposal-edit-mode .r-bottom-notes-head label{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
+    .r-overlay.proposal-workspace.proposal-edit-mode .r-bottom-notes-head .customer-report-tip{letter-spacing:0;text-transform:none}
     .r-proposal-agent{display:none;border-bottom:1px solid rgba(15,23,42,.08);padding-bottom:10px;gap:8px}
-    .r-overlay.proposal-workspace .r-proposal-agent{display:flex}
+    .r-overlay.proposal-workspace.proposal-edit-mode .r-proposal-agent{display:flex}
     .r-proposal-agent-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
     .r-proposal-agent-title{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
     .r-proposal-agent-title i{color:var(--primary-readable,var(--primary,#d93025));font-size:12px}
@@ -628,6 +716,12 @@
     .r-cp-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px}
     .r-cp-section-title strong{font-size:15px}
     .r-cp-section-title span{color:#6b7280;font-size:12px;font-weight:800}
+    .r-cp-sharing-admin{display:grid;gap:10px;padding:13px;background:#fff;border:1px solid rgba(17,24,39,.10);border-radius:8px}
+    .r-cp-sharing-admin>p{margin:0;color:#6b7280;font-size:12px;line-height:1.55}
+    .r-cp-share-list{display:grid;gap:8px}
+    .r-cp-share-list>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px;border:1px solid rgba(17,24,39,.09);border-radius:7px;background:#f8fafc}
+    .r-cp-share-list span{display:grid;gap:2px;min-width:0}.r-cp-share-list strong{font-size:12px;color:#111827}.r-cp-share-list small{font-size:10px;color:#6b7280;text-transform:capitalize}
+    .r-cp-share-list button{border:1px solid #fecaca;border-radius:6px;background:#fff;color:#b91c1c;padding:6px 9px;font-size:11px;font-weight:900;cursor:pointer}
     .r-cp-media-board{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
     .r-cp-media-box{min-height:360px;padding:12px;display:flex;flex-direction:column;gap:12px}
     .r-cp-media-box-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -676,10 +770,14 @@
     @media(max-width:980px){.r-cp-media-box{min-height:280px}}
     @media(max-width:980px){.r-cp-activity-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.r-cp-activity-grid{grid-template-columns:1fr}}
     @media(max-width:820px){.r-cp-links{grid-template-columns:1fr}.r-cp-panel{padding:14px}.r-cp-media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.r-cp-media-box-head{flex-direction:column}.r-cp-media-box-actions{justify-content:flex-start}.r-cp-activity-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.r-cp-visitor-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .r-tabbar{display:flex;gap:8px;padding:16px 18px 10px}
+    .r-modal-header{min-height:48px;display:flex;align-items:stretch;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
+    .r-mobile-project-title,.r-mobile-left-tray-toggle,.r-mobile-left-tray-scrim,.r-mobile-default-info-tray-scrim,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
+    .r-tabbar{display:flex;align-items:stretch;gap:0;padding:0;min-width:0;flex:1 1 auto;overflow-x:auto;scrollbar-width:none}
+    .r-tabbar::-webkit-scrollbar{display:none}
     .r-tabbar.single-tab{display:none}
-    .r-tab{border:1px solid rgba(15,23,42,.1);background:rgba(255,255,255,.7);backdrop-filter:blur(10px);border-radius:14px;padding:10px 14px;font-size:12px;font-weight:1000;color:#344054;display:inline-flex;align-items:center;gap:8px;cursor:pointer;transition:.18s ease}
-    .r-tab.active{background:#fff;border-color:rgba(var(--primary-rgb,217,48,37),.24);color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 16px 32px rgba(15,23,42,.08)}
+    .r-tab{min-width:0;min-height:47px;border:0;border-right:1px solid rgba(15,23,42,.10);border-radius:0;background:#fff;padding:10px 14px;font-size:11px;font-weight:1000;color:#475467;display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;line-height:1;white-space:nowrap;transition:background .16s ease,color .16s ease,box-shadow .16s ease}
+    .r-tab:hover{background:#f8fafc;color:#101828}
+    .r-tab.active{background:#fff;color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -3px 0 var(--primary,#d93025)}
     .r-tab.pending{border-style:dashed;color:#8a5a00;background:#fff8e1}
     .r-tab.pending i{animation:fa-spin 1.3s linear infinite}
     .r-overlay.report-ordered #rStepRoof{display:none}
@@ -706,6 +804,10 @@
     .r-preview-panel.active .r-measure-tabs{display:flex}
     .r-measure-meta{margin-left:auto;font-size:11px;font-weight:900;color:#667085;white-space:nowrap}
     .r-measure-tabs::-webkit-scrollbar{display:none}
+    .r-overlay.report-tabs-in-header .r-modal-header .r-measure-tabs{position:static;display:flex;flex:1 1 auto;min-width:0;height:auto;box-sizing:border-box;border-bottom:0}
+    .r-overlay.report-tabs-in-header .r-measure-body{inset:0}
+    .r-overlay.report-tabs-in-header:not(:has(.r-preview-panel[data-panel="measurements"].active)) .r-modal-header .r-measure-tabs{display:none}
+
     .r-measure-tab{appearance:none;border:1px solid transparent;display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;background:transparent;color:#526071;font-size:11px;font-weight:950;white-space:nowrap;cursor:pointer;transition:.18s ease}
     .r-measure-tab:hover:not(:disabled):not(.active){background:#fff;border-color:rgba(15,23,42,.08);color:#344054}
     .r-measure-tab.active{background:#fff;border-color:rgba(15,23,42,.10);color:#1f2937;box-shadow:0 8px 18px rgba(15,23,42,.08)}
@@ -931,7 +1033,7 @@
       .r-report-followup-card.is-additional .r-report-followup-map-field{grid-column:auto;grid-row:auto;position:static}
       .r-report-followup-card.is-additional .r-report-followup-map{height:320px}
     }
-    .r-preview{flex:1;position:relative;padding:16px 18px 18px}
+    .r-preview{flex:1;position:relative;padding:0}
     .r-preview-stage{position:relative;height:100%;border-radius:24px;overflow:visible;border:1px solid rgba(255,255,255,.34);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 30px 70px rgba(15,23,42,.12);background:rgba(255,255,255,.22)}
     .r-preview-panel{position:absolute;inset:0;opacity:0;pointer-events:none;transform:translateY(14px) scale(.985);transition:opacity .28s ease,transform .28s cubic-bezier(.22,1,.36,1)}
     .r-preview-panel.active{opacity:1;pointer-events:auto;transform:translateY(0) scale(1)}
@@ -995,10 +1097,10 @@
     #rMap{position:absolute;inset:0}
     .r-map-hint{position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.92);border:1px solid rgba(15,23,42,.1);padding:9px 13px;border-radius:999px;font-weight:1000;font-size:12px;box-shadow:0 12px 28px rgba(15,23,42,.14);z-index:5;display:none;pointer-events:none}
     .r-map-hint.visible{display:block}
-    .r-photo-wrap{height:100%;padding:18px;background:#f8fafc;border-radius:24px;overflow:hidden}
+    .r-photo-wrap{height:100%;padding:18px;background:#f8fafc;border-radius:0;overflow:hidden}
     .r-photo-upload{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px dashed rgba(15,23,42,.18);background:#fff;color:#475467;font-size:12px;font-weight:1000;cursor:pointer;transition:.14s ease}
     .r-photo-upload:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.35);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),0.03)}
-    .r-photo-empty{height:100%;border:2px dashed rgba(15,23,42,.14);border-radius:24px;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#667085;text-align:center;padding:28px;transition:.16s ease}
+    .r-photo-empty{height:100%;border:2px dashed rgba(15,23,42,.14);border-radius:0;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#667085;text-align:center;padding:28px;transition:.16s ease}
     .r-photo-empty.dragover,.r-photo-stage.dragover,.r-photo-strip.dragover{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),0.04)}
     .r-photo-empty i{width:54px;height:54px;border-radius:18px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px}
     .r-photo-empty strong{font-size:16px;color:#111827}
@@ -1007,26 +1109,28 @@
     .r-photo-empty-plus{font-size:38px;line-height:1;color:#98a2b3;font-weight:300}
     .r-photo-gallery{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;min-height:0}
     .r-photo-gallery.is-grid{display:flex;flex-direction:column}
+    .r-preview-panel[data-panel="photos"] .pf-group{border-radius:0}
     .r-photo-grid-only{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;overflow:auto;padding-right:4px}
     .r-photo-gallery-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
     .r-photo-gallery-head strong{font-size:13px;font-weight:1000;color:#111827}
     .r-photo-gallery.viewer{display:flex;flex-direction:column;gap:12px}
     .r-photo-viewer-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .r-photo-viewer-title{flex:1;text-align:center;font-size:13px;font-weight:1000;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .r-photo-stage{position:relative;border-radius:24px;background:#ffffff;border:1px solid rgba(15,23,42,.08);overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:0;transition:.16s ease;flex:1}
+    .r-photo-stage{position:relative;border-radius:0;background:#ffffff;border:1px solid rgba(15,23,42,.08);overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:0;transition:.16s ease;flex:1}
     .r-photo-stage img,.r-photo-stage video{width:100%;height:100%;object-fit:contain;background:#101828}
     .r-photo-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:999px;border:1px solid rgba(15,23,42,.12);background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#344054;box-shadow:0 12px 24px rgba(15,23,42,.12)}
     .r-photo-nav:hover{background:#fff}
     .r-photo-nav.prev{left:14px}
     .r-photo-nav.next{right:14px}
     .r-photo-count{position:absolute;left:16px;bottom:16px;padding:8px 12px;border-radius:999px;background:rgba(17,24,39,.78);color:#fff;font-size:11px;font-weight:1000}
-    .r-photo-strip{border-radius:20px;background:#ffffff;border:1px solid rgba(15,23,42,.08);padding:10px;display:flex;gap:10px;overflow:auto;transition:.16s ease}
+    .r-photo-strip{border-radius:0;background:#ffffff;border:1px solid rgba(15,23,42,.08);padding:10px;display:flex;gap:10px;overflow:auto;transition:.16s ease}
     .r-photo-thumb{border:1px solid rgba(15,23,42,.08);border-radius:16px;background:#fff;padding:0;cursor:pointer;transition:.16s ease;display:block;overflow:hidden}
     .r-photo-strip .r-photo-thumb{min-width:104px;max-width:104px}
     .r-photo-thumb:hover{transform:translateY(-1px);box-shadow:0 12px 20px rgba(15,23,42,.08)}
     .r-photo-thumb.active{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),0.12)}
     .r-photo-thumb img,.r-photo-thumb video{width:100%;aspect-ratio:1/1;object-fit:cover;background:#eef2f6;display:block}
     .r-photo-thumb{position:relative}.r-photo-video-placeholder{width:100%;aspect-ratio:1/1;background:#101828;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px}.r-photo-video-badge{position:absolute;right:8px;bottom:8px;width:28px;height:28px;border-radius:999px;background:rgba(15,23,42,.76);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 8px 16px rgba(15,23,42,.16);pointer-events:none}
+    #rProposalPreview{position:relative;overflow:hidden}
     .r-proposal-wrap{height:100%;overflow:auto;background:#d6d8dc;padding:22px;overflow-x:visible}
     .r-proposal-wrap.markup-active .r-proposal-editable{border-color:transparent!important;background:transparent!important;box-shadow:none!important}
     .r-proposal-wrap.markup-active .r-proposal-editable[contenteditable="true"]{pointer-events:none!important}
@@ -1070,15 +1174,15 @@
     .r-proposal-mode{display:inline-flex;gap:6px;padding:6px;border-radius:16px;background:rgba(255,255,255,.9);border:1px solid rgba(15,23,42,.08);box-shadow:0 18px 34px rgba(15,23,42,.12)}
     .r-proposal-mode-btn{border:0;background:transparent;color:#475467;font-size:12px;font-weight:1000;padding:10px 14px;border-radius:12px;cursor:pointer;transition:.16s ease}
     .r-proposal-mode-btn.active{background:var(--primary,#d93025);color:#fff}
-    .r-proposal-pages{display:flex;flex-direction:column;gap:18px;align-items:center}
+    .r-proposal-pages{--proposal-page-base-width:820px;--proposal-page-base-height:calc(820px * 11 / 8.5);--proposal-page-scale:1;display:flex;flex-direction:column;gap:18px;align-items:center}
     .r-proposal-empty{width:min(560px,100%);margin:auto;border:1px dashed rgba(15,23,42,.16);border-radius:18px;background:#fff;padding:34px;text-align:center;color:#667085;font-size:13px;font-weight:850}
     .r-proposal-empty i{display:block;font-size:24px;margin-bottom:10px;color:#98a2b3}
-    .r-proposal-page-stack{position:relative;flex:0 0 auto;width:min(820px,100%);aspect-ratio:8.5/11;transition:transform .34s cubic-bezier(.22,1,.36,1)}
+    .r-proposal-page-stack{position:relative;flex:0 0 auto;width:calc(var(--proposal-page-base-width) * var(--proposal-page-scale));height:calc(var(--proposal-page-base-height) * var(--proposal-page-scale));aspect-ratio:auto;transition:transform .34s cubic-bezier(.22,1,.36,1)}
     .r-proposal-page-stack.insert-after{z-index:90;transform:translateY(-96px);animation:rProposalSplitUp .34s cubic-bezier(.22,1,.36,1)}
     .r-proposal-page-stack.insert-after + .r-proposal-page-stack{z-index:1;transform:translateY(96px);animation:rProposalSplitDown .34s cubic-bezier(.22,1,.36,1)}
     @keyframes rProposalSplitUp{from{transform:translateY(0)}to{transform:translateY(-96px)}}
     @keyframes rProposalSplitDown{from{transform:translateY(0)}to{transform:translateY(96px)}}
-    .r-proposal-page{position:relative;overflow:hidden;width:100%;height:100%;min-height:0;max-height:100%;aspect-ratio:8.5/11;box-sizing:border-box;background:#fff;border:1px solid rgba(15,23,42,.08);box-shadow:0 18px 42px rgba(15,23,42,.14);padding:38px 42px;display:flex;flex-direction:column;gap:18px;font-family:var(--proposal-font-family,"Montserrat",Arial,sans-serif)}
+    .r-proposal-page{position:relative;overflow:hidden;width:var(--proposal-page-base-width);height:var(--proposal-page-base-height);min-height:0;max-height:none;max-width:none;aspect-ratio:auto;box-sizing:border-box;background:#fff;border:1px solid rgba(15,23,42,.08);box-shadow:0 18px 42px rgba(15,23,42,.14);padding:38px 42px;display:flex;flex-direction:column;gap:18px;font-family:var(--proposal-font-family,"Montserrat",Arial,sans-serif);transform:scale(var(--proposal-page-scale));transform-origin:top left}
     .r-proposal-page :where(input,textarea,button,select,h2,h3,p,div,span,b,label,section){font-family:inherit}
     .r-proposal-page.is-active{box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),0.16),0 18px 42px rgba(15,23,42,.14)}
     .r-proposal-page.theme-margin{padding-left:108px;background:#fff}
@@ -1122,6 +1226,7 @@
     .r-proposal-brand-lockup.triangles .r-proposal-cobrand-remove{right:auto;left:-8px}
     .r-proposal-cobrand.editable:hover .r-proposal-cobrand-remove{display:flex}
     .r-proposal-page-content{position:relative;z-index:1;display:flex;flex:1 1 auto;flex-direction:column;gap:18px;min-height:0;max-height:100%;overflow:visible}
+    .r-proposal-page.kind-pricing .r-proposal-page-content{overflow:visible}
     .r-proposal-page.theme-margin.is-cover .r-proposal-page-content{padding-top:44px}
     .r-proposal-page.theme-triangles.is-cover .r-proposal-page-content{padding-top:36px;height:calc(100% - 40px);min-height:0;justify-content:center;align-items:center}
     .r-proposal-page.theme-triangles:not(.is-cover) .r-proposal-page-content{padding-top:92px}
@@ -1147,10 +1252,10 @@
     .r-proposal-cover-image-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px;padding:6px;height:100%;box-sizing:border-box;position:relative;z-index:1}
     .r-proposal-cover-image-grid.count-1{grid-template-columns:1fr;grid-template-rows:1fr}
     .r-proposal-cover-image-grid.count-2{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr}
-    .r-proposal-cover-image-grid img{width:100%;height:100%;object-fit:cover;display:block;border-radius:16px}
-    .r-proposal-cover-image-grid.count-1 img{transform-origin:center center}
+    .r-proposal-cover-image-grid > :is(img,.r-proposal-video-frame,.r-proposal-media-processing){width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;display:block;border-radius:16px;overflow:hidden}
+    .r-proposal-cover-image-grid.count-1 > :is(img,.r-proposal-video-frame,.r-proposal-media-processing){transform-origin:center center}
     .r-proposal-cover-image-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:42px;color:#98a2b3;z-index:1}
-    .r-proposal-cover-image-badge{position:absolute;right:12px;bottom:12px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid rgba(15,23,42,.08);font-size:10px;font-weight:1000;color:#344054;z-index:2;opacity:0;transform:translateY(4px);transition:.18s ease}
+    .r-proposal-cover-image-badge{position:absolute;right:12px;bottom:12px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid rgba(15,23,42,.08);font-size:10px;font-weight:1000;color:#344054;z-index:2;opacity:0;transform:translateY(4px);transition:.18s ease;pointer-events:none}
     .r-proposal-cover-image.is-editable:hover .r-proposal-cover-image-badge{opacity:1;transform:translateY(0)}
     .r-proposal-cover-editbtn{position:absolute;top:12px;right:12px;z-index:4}
     .r-proposal-cover-toggle-anchor{position:absolute;top:8px;left:calc(100% + 12px);display:flex;justify-content:flex-start;align-items:center;z-index:5;pointer-events:none}
@@ -1197,11 +1302,30 @@
     .r-proposal-section.mode-list .r-proposal-listing{animation:rProposalPanelSettle .24s ease}
     @keyframes rProposalPanelIn{from{opacity:.72;transform:translateX(34px)}to{opacity:1;transform:translateX(0)}}
     @keyframes rProposalPanelSettle{from{opacity:.82;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}
-    .r-overlay.proposal-workspace #rStepCustomer,
-    .r-overlay.proposal-workspace #rStepAddress,
+    .r-overlay.proposal-workspace:not(.proposal-list-mode) #rStepCustomer,
+    .r-overlay.proposal-workspace:not(.proposal-list-mode) #rStepAddress,
     .r-overlay.proposal-workspace #rStepType,
     .r-overlay.proposal-workspace #rStepReport,
     .r-overlay.proposal-workspace #rStepRoof{display:none!important}
+    .r-overlay.left-override[data-left-override-tab="proposal"].proposal-list-mode #rStepCustomer,
+    .r-overlay.left-override[data-left-override-tab="proposal"].proposal-list-mode #rStepAddress{display:block!important}
+    .r-overlay.proposal-list-mode #rStepAddress{border-bottom:1px solid rgba(15,23,42,.10);padding-bottom:12px;margin-bottom:4px}
+    .r-overlay.proposal-list-mode #rProposalSection.visible{min-height:0;flex:1 1 auto}
+    .r-overlay.proposal-list-mode .r-proposal-listing{min-height:0;flex:1 1 auto}
+    .r-overlay.proposal-list-mode .r-proposal-workspace-head{padding:4px 0 6px;margin:0;align-items:flex-start}
+    .r-overlay.proposal-list-mode .r-proposal-workspace-head > div{gap:3px}
+    .r-overlay.proposal-list-mode .r-proposal-workspace-head strong{font-size:13px;font-weight:1000;color:#111827;line-height:1.2}
+    .r-overlay.proposal-list-mode .r-proposal-workspace-head span{font-size:11px;font-weight:800;color:#667085;line-height:1.45}
+    .r-overlay.proposal-edit-mode .r-scroll{overflow:hidden;display:flex;flex-direction:column}
+    .r-overlay.proposal-edit-mode #rProposalSection.visible{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
+    .r-overlay.proposal-edit-mode #rProposalSection .r-step-shell,
+    .r-overlay.proposal-edit-mode #rProposalSection .r-step-inner,
+    .r-overlay.proposal-edit-mode #rProposalSection .r-step-body{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
+    .r-overlay.proposal-edit-mode #rProposalSection .r-step-inner{overflow:hidden}
+    .r-overlay.proposal-edit-mode #rProposalSection .r-step-body{padding-bottom:0}
+    .r-overlay.proposal-edit-mode .r-proposal-listing{min-height:0;flex:1 1 auto;overflow:hidden}
+    .r-overlay.left-override[data-left-override-tab="scope"] .r-scroll{overflow:hidden;display:flex;flex-direction:column}
+    .r-overlay.left-override[data-left-override-tab="scope"] #rProposalSection.visible{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
     .r-proposal-listing{display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 320px)}
     .r-proposal-workspace-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
     .r-proposal-workspace-head > div{min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -1211,6 +1335,9 @@
     .r-proposal-settings-link:hover{border-color:rgba(var(--primary-rgb,217,48,37),.24);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.04)}
     .r-proposal-workspace-title{min-width:0;flex:1;border:0;background:transparent;color:#111827;font-size:13px;font-weight:1000;font-family:inherit;padding:7px 0}
     .r-proposal-workspace-title:focus{outline:none}
+    .r-proposal-editor-head{flex-shrink:0}
+    .r-proposal-editor-head .r-proposal-status-row{flex:0 0 auto;flex-direction:row;flex-wrap:nowrap}
+    .r-proposal-rail-scroll{display:flex;flex:1 1 auto;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;overflow-x:hidden;box-sizing:border-box;padding-right:var(--fm-scrollbar-content-gap,10px);scrollbar-gutter:stable}
     .r-proposal-back{width:34px;height:34px;border-radius:12px;border:1px solid rgba(15,23,42,.08);background:#fff;color:#475467;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
     .r-proposal-back:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.24);background:rgba(var(--primary-rgb,217,48,37),.04)}
     .r-proposal-add-card{width:100%;min-height:56px;border:1px dashed rgba(var(--primary-rgb,217,48,37),.28);border-radius:16px;background:rgba(var(--primary-rgb,217,48,37),.045);color:var(--primary-readable,var(--primary,#d93025));display:flex;align-items:center;justify-content:center;gap:9px;font-size:12px;font-weight:1000;cursor:pointer;transition:.18s ease}
@@ -1236,11 +1363,19 @@
     .r-proposal-list-actions button:disabled{opacity:.58;cursor:not-allowed;transform:none}
     .r-proposal-list-actions button.loading{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.22);background:rgba(var(--primary-rgb,217,48,37),.04)}
     .r-proposal-list-actions button.confirm{background:#b42318;border-color:#b42318;color:#fff}
+    .r-proposal-more-wrap{position:relative;display:inline-flex}
+    .r-proposal-more-menu{position:absolute;right:0;top:calc(100% + 6px);width:176px;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.16);padding:6px;z-index:30;display:grid;gap:2px}
+    .r-proposal-list-actions .r-proposal-more-menu button{width:100%;height:34px;border:0;border-radius:9px;background:transparent;color:#344054;justify-content:flex-start;gap:9px;padding:0 9px;font-size:12px}
+    .r-proposal-list-actions .r-proposal-more-menu button:hover{background:#f8fafc;border-color:transparent;color:#111827}
+    .r-proposal-list-actions .r-proposal-more-menu button.danger{color:#b42318}
+    .r-proposal-list-actions .r-proposal-more-menu button.danger:hover{background:rgba(180,35,24,.07);color:#b42318}
+    .r-proposal-list-actions .r-proposal-more-menu button.confirm{background:#b42318;color:#fff}
     .r-proposal-empty-list,.r-proposal-preview-empty{min-height:220px;border:1px dashed rgba(15,23,42,.12);border-radius:18px;background:rgba(255,255,255,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;color:#667085;padding:20px}
-    .r-proposal-empty-list i,.r-proposal-preview-empty i{font-size:24px;color:var(--primary-readable,var(--primary,#d93025))}
-    .r-proposal-empty-list strong,.r-proposal-preview-empty strong{font-size:13px;font-weight:1000;color:#111827}
-    .r-proposal-empty-list span,.r-proposal-preview-empty span{font-size:11px;font-weight:800;line-height:1.45}
+    .r-proposal-empty-list>i,.r-proposal-preview-empty>i{font-size:24px;color:var(--primary-readable,var(--primary,#d93025))}
+    .r-proposal-empty-list>strong,.r-proposal-preview-empty>strong{font-size:13px;font-weight:1000;color:#111827}
+    .r-proposal-empty-list>span,.r-proposal-preview-empty>span{font-size:11px;font-weight:800;line-height:1.45}
     .r-proposal-preview-empty{height:100%;border:0;background:#f8fafc;border-radius:0}
+    .r-proposal-preview-create{display:none}
     .r-proposal-send-form{display:flex;flex-direction:column;gap:12px}
     .r-proposal-send-block{border:1px solid rgba(15,23,42,.08);border-radius:16px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:9px}
     .r-proposal-send-block > strong,.r-proposal-send-message span{font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#667085}
@@ -1263,6 +1398,39 @@
     .r-proposal-settings-head strong{font-size:12px;font-weight:1000;color:#111827}
     .r-proposal-settings-head span{font-size:11px;font-weight:800;color:#667085}
     .r-proposal-settings-head-actions{display:flex;align-items:center;gap:10px}
+    .r-proposal-rail-section{display:flex;flex-direction:column;gap:10px;padding:0 0 14px;border-bottom:1px solid rgba(15,23,42,.1)}
+    .r-proposal-rail-section:last-child{border-bottom:0;padding-bottom:0}
+    .r-proposal-rail-toggle,.r-proposal-rail-heading{border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left}
+    .r-proposal-rail-toggle{cursor:pointer}
+    .r-proposal-rail-toggle span,.r-proposal-rail-heading span{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .r-proposal-rail-toggle strong,.r-proposal-rail-heading strong{font-size:12px;font-weight:1000;color:#111827}
+    .r-proposal-rail-toggle small,.r-proposal-rail-heading small{font-size:11px;font-weight:800;color:#667085;line-height:1.35}
+    .r-proposal-rail-title{display:flex!important;flex-direction:row!important;align-items:baseline!important;gap:0!important;min-width:0;font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
+    .r-proposal-rail-title strong{font-size:11px!important;font-weight:1000!important;color:#667085!important;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+    .r-proposal-rail-title small{min-width:0;font-size:11px!important;font-weight:800!important;color:#667085!important;letter-spacing:0;text-transform:none;font-style:italic;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .r-proposal-rail-toggle i{color:#667085;transition:transform .18s ease}
+    .r-proposal-rail-section.expanded>.r-proposal-rail-toggle i{transform:rotate(180deg)}
+    .r-proposal-rail-body{display:flex;flex-direction:column;gap:12px}
+    .r-proposal-rail-section.collapsed>.r-proposal-rail-body{display:none}
+    .r-proposal-rail-section.pages-section{flex:0 0 auto;min-height:0}
+    .r-proposal-rail-section.r-proposal-agent-section:not(.has-mounted),
+    .r-proposal-rail-section.r-proposal-notes-section:not(.has-mounted){display:none}
+    .r-proposal-rail-mount .r-proposal-agent,
+    .r-proposal-rail-mount .r-bottom-notes{border-bottom:0!important;padding-bottom:0!important;margin:0}
+    .r-proposal-rail-mount .r-proposal-agent-head,
+    .r-proposal-rail-mount .r-bottom-notes-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+    .r-proposal-rail-mount .r-proposal-agent-title,
+    .r-proposal-rail-mount .r-bottom-notes-head label{display:flex!important;align-items:baseline!important;gap:7px!important;min-width:0;font-size:11px!important;font-weight:1000!important;color:#667085!important;letter-spacing:.08em!important;text-transform:uppercase!important;cursor:pointer}
+    .r-proposal-rail-mount .r-proposal-agent-title i{display:none!important}
+    .r-proposal-rail-mount .r-proposal-agent-toggle,
+    .r-proposal-rail-mount .r-bottom-notes-toggle{border:0!important;background:transparent!important;color:#667085!important;border-radius:0!important;width:auto!important;height:auto!important;display:flex!important;padding:0!important;box-shadow:none!important}
+    .r-proposal-rail-mount .r-proposal-agent-toggle:hover,
+    .r-proposal-rail-mount .r-bottom-notes-toggle:hover{color:#111827!important;border-color:transparent!important;background:transparent!important}
+    .r-proposal-scope-summary{display:flex;flex-direction:column;gap:7px}
+    .r-proposal-scope-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:10px;align-items:center;border:1px solid rgba(15,23,42,.08);border-radius:12px;background:#fff;padding:8px 9px}
+    .r-proposal-scope-row span{min-width:0;font-size:10px;font-weight:1000;color:#667085;text-transform:uppercase;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .r-proposal-scope-row strong{min-width:0;font-size:11px;font-weight:1000;color:#111827;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .r-proposal-scope-empty{border:1px dashed rgba(15,23,42,.14);border-radius:12px;background:rgba(248,250,252,.72);padding:10px;font-size:11px;font-weight:850;color:#667085;line-height:1.35}
     .r-proposal-template-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
     .r-proposal-template-card{position:relative;border:1px solid rgba(15,23,42,.1);background:#fff;border-radius:14px;padding:10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:5px;min-height:54px;transition:.16s ease}
     .r-proposal-template-card:hover{transform:translateY(-1px);border-color:rgba(var(--primary-rgb,217,48,37),.28);box-shadow:0 12px 22px rgba(15,23,42,.08)}
@@ -1307,6 +1475,9 @@
     .r-proposal-measure-status.needed{color:#b42318}
     .r-proposal-measure-details{display:none;flex-direction:column;gap:12px}
     .r-proposal-measurements.expanded .r-proposal-measure-details{display:flex}
+    .r-proposal-rail-section.r-proposal-measurements{border-left:0;border-right:0;border-top:0;border-radius:0;background:transparent;padding:0 0 14px}
+    .r-proposal-rail-section.r-proposal-measurements .r-proposal-measure-details{display:flex}
+    .r-proposal-rail-section.r-proposal-measurements.collapsed .r-proposal-measure-details{display:none}
     .r-proposal-measure-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
     .r-proposal-measure-group{display:flex;flex-direction:column;gap:6px}
     .r-proposal-measure-group label{font-size:10px;font-weight:1000;letter-spacing:.05em;text-transform:uppercase;color:#667085}
@@ -1318,7 +1489,7 @@
     .r-proposal-measure-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;transition:opacity .2s ease,transform .22s cubic-bezier(.22,1,.36,1)}
     .r-proposal-measure-strip strong{font-size:10px;font-weight:1000;letter-spacing:.05em;text-transform:uppercase;color:#667085}
     .r-proposal-measure-strip span{font-size:13px;font-weight:1000;color:#111827;white-space:nowrap}
-    .r-proposal-pitch-table{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end;width:100%}
+    .r-proposal-pitch-table{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;width:100%}
     .r-proposal-pitch-head{font-size:10px;font-weight:1000;letter-spacing:.05em;text-transform:uppercase;color:#667085;text-align:center}
     .r-proposal-pitch-cell{display:flex;flex-direction:column;gap:6px}
     .r-proposal-pitch-cell input{width:100%;padding:10px 10px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#111827;font-size:12px;font-weight:900;outline:none;text-align:center;transition:border-color .18s ease,box-shadow .22s ease,background .18s ease,transform .18s ease}
@@ -1347,10 +1518,11 @@
     .r-proposal-color-field input{appearance:none;width:32px;height:28px;border:0;background:transparent;padding:0;cursor:pointer}
     .r-proposal-color-field input::-webkit-color-swatch-wrapper{padding:0}
     .r-proposal-color-field input::-webkit-color-swatch{border:1px solid rgba(15,23,42,.12);border-radius:9px}
-    .r-proposal-font-field{display:flex;flex-direction:column;gap:6px;border:1px solid rgba(15,23,42,.1);background:#fff;border-radius:13px;padding:9px}
+    .r-proposal-type-paper-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+    .r-proposal-font-field{display:flex;min-width:0;flex-direction:column;gap:6px;border:1px solid rgba(15,23,42,.1);background:#fff;border-radius:13px;padding:9px}
     .r-proposal-font-field span{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#667085}
-    .r-proposal-font-field select{width:100%;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#f8fafc;color:#111827;padding:0 9px;font:inherit;font-size:12px;font-weight:900;outline:none}
-    .r-proposal-pages-list{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0}
+    .r-proposal-font-field select{width:100%;min-width:0;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#f8fafc;color:#111827;padding:0 9px;font:inherit;font-size:12px;font-weight:900;outline:none;text-overflow:ellipsis}
+    .r-proposal-pages-list{display:flex;flex-direction:column;gap:4px;flex:0 0 auto;min-height:0}
     .r-proposal-list-insert{display:flex;justify-content:center;align-items:center;height:0;position:relative;z-index:3;margin:-4px 0}
     .r-proposal-list-insert-btn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:19px;height:19px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.38);color:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:none;transition:all .22s cubic-bezier(.22,1,.36,1)}
     .r-proposal-list-insert-btn:hover{width:32px;height:32px;background:#fff;color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.24);box-shadow:0 11px 20px rgba(15,23,42,.11)}
@@ -1397,6 +1569,7 @@
     .r-proposal-edit-meta{font-size:14px;font-weight:900;line-height:1.35;color:#111827;display:inline-block;width:fit-content;min-width:0;max-width:100%;white-space:nowrap}
     .r-proposal-edit-meta.multiline{display:block;width:100%;white-space:pre-line;line-height:1.45}
     .r-proposal-edit-paragraph{font-size:13px;line-height:1.6;color:#475467;white-space:pre-wrap}
+    .r-proposal-editable[data-proposal-placeholder]:empty::before{content:attr(data-proposal-placeholder);color:#98a2b3;pointer-events:none}
     .r-proposal-editable.is-rich{display:block;text-align:var(--proposal-text-align,left);color:var(--proposal-text-color,inherit);padding:10px 12px;min-height:88px;width:100%}
     .r-proposal-editable.is-rich.is-preview{padding:10px 12px}
     .r-proposal-editable.is-rich > *:first-child{margin-top:0}
@@ -1420,6 +1593,9 @@
     .r-proposal-edit-total{font-size:24px;font-weight:1000;line-height:1.1;color:#111827;text-align:right;max-width:220px}
     .r-proposal-row-value{display:flex;justify-content:flex-end;align-items:flex-start;text-align:right;min-width:0}
     .r-proposal-row-value .r-proposal-editable{width:auto;max-width:100%;min-width:0}
+    .r-proposal-row-value.quantity-cell .r-proposal-edit-rowvalue{min-width:52px}
+    .r-proposal-row-value.unit-cell .r-proposal-edit-rowvalue{min-width:82px}
+    .r-proposal-row-value.amount-cell .r-proposal-edit-rowvalue{min-width:96px}
     .r-proposal-row-value .r-proposal-editable.is-rich,
     .r-proposal-edit-paragraph.r-proposal-editable{width:100%}
     .r-proposal-edit-meta.r-proposal-editable,
@@ -1431,18 +1607,133 @@
     .r-proposal-contact-name{display:block;font-size:12px;font-weight:1000;color:#111827}
     .r-proposal-contact-copy{display:block;font-size:13px;line-height:1.6;color:#475467}
     .r-proposal-line-items{display:flex;flex-direction:column;gap:0}
-    .r-proposal-line-item{position:relative;display:grid;grid-template-columns:minmax(0,1.5fr) 90px 120px 120px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(15,23,42,.08);overflow:visible}
+    .r-proposal-line-item{position:relative;display:grid;grid-template-columns:minmax(0,1.5fr) 86px 78px 104px 112px;gap:9px;align-items:center;padding:8px 0 8px calc(var(--proposal-depth,0) * 18px);border-bottom:0;background:linear-gradient(to right,transparent 0 calc(var(--proposal-depth,0) * 18px),rgba(15,23,42,.08) calc(var(--proposal-depth,0) * 18px) 100%) left bottom/100% 1px no-repeat;overflow:visible}
     .r-proposal-line-item::before{content:'';position:absolute;left:-42px;top:0;bottom:0;width:42px}
     .r-proposal-line-item:last-child{border-bottom:0}
+    .r-proposal-line-item.depth-1{grid-template-columns:minmax(0,1.5fr) 86px 78px 104px 112px}
+    .r-proposal-line-item.is-category{grid-template-columns:minmax(0,1fr) 120px;padding-top:12px;padding-bottom:10px;background-image:linear-gradient(to right,transparent 0 calc(var(--proposal-depth,0) * 18px),rgba(15,23,42,.14) calc(var(--proposal-depth,0) * 18px) 100%)}
+    .r-proposal-line-item.is-category .r-proposal-line-label{font-size:14px;font-weight:1000;color:#111827}
+    .r-proposal-line-item.is-category .r-proposal-row-value{font-weight:1000;color:#111827}
+    .r-proposal-line-item.is-category .r-proposal-variation-cell,.r-proposal-line-item.is-category .r-proposal-row-value.quantity-cell,.r-proposal-line-item.is-category .r-proposal-row-value.unit-cell{display:none}
+    .r-proposal-line-item.is-category .r-proposal-line-description{max-width:none}
+    .r-proposal-line-item.is-included .r-proposal-line-label{color:#475467}
+    .r-proposal-line-item.is-disabled{opacity:1;filter:none}
+    .r-proposal-line-item.is-disabled > :not(.r-proposal-line-more-wrap):not(.r-proposal-line-delete){opacity:.48;filter:grayscale(.75)}
+    .r-proposal-line-item.is-disabled::after{content:'';position:absolute;inset:5px -3px;border-radius:8px;background:rgba(248,250,252,.55);pointer-events:none;z-index:-1}
+    .r-proposal-line-item.is-menu-open{z-index:3000}
+    .r-proposal-line-item.is-discount .r-proposal-line-label,.r-proposal-line-item.is-discount .r-proposal-row-value{color:#137a3a}
     .r-proposal-line-labelwrap{display:flex;flex-direction:column;gap:4px;min-width:0}
-    .r-proposal-line-label{font-size:13px;line-height:1.55;color:#344054}
+    .r-proposal-line-labelrow{display:flex;align-items:center;gap:6px;min-width:0}
+    .r-proposal-line-label{font-size:12.5px;line-height:1.35;color:#344054}
+    .r-proposal-line-labelrow .r-proposal-line-label{min-width:0;flex:1 1 auto}
+    .r-proposal-line-description{font-size:11px;line-height:1.35;color:#667085;padding-left:10px;border-left:2px solid rgba(15,23,42,.1);min-height:15px}
     .r-proposal-line-meta{font-size:10px;font-weight:900;letter-spacing:.03em;color:#667085;text-transform:uppercase}
+    .r-proposal-included-badge{font-size:11px;font-weight:1000;letter-spacing:.04em;text-transform:uppercase;color:#667085}
+    .r-proposal-variation-cell{position:relative;display:flex;justify-content:flex-start;min-width:0;z-index:24}
+    .r-proposal-variation-pill{max-width:100%;min-width:72px;min-height:24px;border:1px solid rgba(15,23,42,.1);border-radius:999px;background:#f8fafc;color:#475467;padding:4px 7px;font-size:10.5px;font-weight:950;display:inline-flex;align-items:center;gap:5px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    button.r-proposal-variation-pill{cursor:pointer}
+    button.r-proposal-variation-pill:hover,.r-proposal-variation-cell.open .r-proposal-variation-pill{border-color:rgba(var(--primary-rgb,217,48,37),.26);background:rgba(var(--primary-rgb,217,48,37),.06);color:var(--primary-readable,var(--primary,#d93025))}
+    .r-proposal-variation-pill span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+    .r-proposal-variation-pill.locked{background:transparent;border-color:transparent;padding-left:0;color:#667085}
+    .r-proposal-variation-swatch{width:11px;height:11px;border-radius:999px;background:var(--variation-color,#94a3b8);border:1px solid rgba(15,23,42,.14);display:inline-block;flex:0 0 auto}
+    .r-proposal-variation-menu{position:absolute;left:0;top:calc(100% + 5px);width:168px;border:1px solid rgba(15,23,42,.12);border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.18);padding:6px;z-index:3004;display:flex;flex-direction:column;gap:2px}
+    .r-proposal-variation-menu button{border:0;background:transparent;border-radius:9px;padding:8px 9px;display:grid;grid-template-columns:16px minmax(0,1fr);gap:7px;align-items:center;text-align:left;color:#344054;font-size:12px;font-weight:900;cursor:pointer}
+    .r-proposal-variation-menu button span{display:inline-flex;align-items:center;gap:6px;min-width:0}
+    .r-proposal-variation-menu button:hover{background:rgba(15,23,42,.055);color:#111827}
+    .r-proposal-choice-grid-row{display:grid;grid-template-columns:repeat(var(--choice-cols,3),minmax(0,1fr));gap:6px;padding:6px 0 8px calc(var(--proposal-depth,0) * 18px);background:linear-gradient(to right,transparent 0 calc(var(--proposal-depth,0) * 18px),rgba(15,23,42,.06) calc(var(--proposal-depth,0) * 18px) 100%) left bottom/100% 1px no-repeat;position:relative;z-index:3}
+    .r-proposal-choice-grid-row:has(.r-proposal-choice-mini:hover){z-index:3300}
+    .r-proposal-choice-mini{position:relative;min-width:0;border:1px solid rgba(15,23,42,.1);border-radius:10px;background:#fff;padding:6px 7px;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;gap:2px 6px;align-items:center;color:#344054;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease,transform .16s ease}
+    .r-proposal-choice-mini.has-logo,.r-proposal-choice-mini:has(> img){grid-template-columns:22px minmax(0,1fr)}
+    .r-proposal-choice-mini:hover{border-color:rgba(var(--primary-rgb,217,48,37),.28);box-shadow:0 10px 20px rgba(15,23,42,.08);transform:translateY(-1px);z-index:7}
+    .r-proposal-choice-mini.selected{border-color:rgba(var(--primary-rgb,217,48,37),.34);background:rgba(var(--primary-rgb,217,48,37),.055)}
+    .r-proposal-choice-mini > img{width:18px;height:18px;object-fit:contain;grid-row:1 / span 2;grid-column:1}
+    .r-proposal-choice-mini span{grid-column:1;min-width:0;font-size:10.5px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .r-proposal-choice-mini.has-logo span,.r-proposal-choice-mini:has(> img) span{grid-column:2}
+    .r-proposal-choice-mini strong{grid-column:1;grid-row:2;font-size:10px;font-weight:1000;color:#111827;white-space:nowrap}
+    .r-proposal-choice-mini.has-logo strong,.r-proposal-choice-mini:has(> img) strong{grid-column:2}
+    .r-proposal-choice-hover{display:none;position:absolute;left:0;top:calc(100% + 8px);bottom:auto;width:220px;border:1px solid rgba(15,23,42,.12);border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.18);padding:10px;z-index:3400;color:#344054}
+    .r-proposal-choice-mini:hover .r-proposal-choice-hover{display:grid;gap:6px}
+    .r-proposal-choice-hover img{max-width:74px;max-height:34px;object-fit:contain}
+    .r-proposal-choice-hover b{font-size:12px;color:#111827}
+    .r-proposal-choice-hover p{font-size:11px;line-height:1.35;color:#667085}
+    .r-proposal-line-more-wrap{position:absolute;right:-34px;top:50%;transform:translateY(-50%);z-index:20}
+    .r-proposal-line-more-btn{width:28px;height:28px;border:0;background:transparent;color:#667085;display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:1000;line-height:1;letter-spacing:1px;cursor:pointer;padding:0;transition:color .16s ease,transform .16s ease}
+    .r-proposal-line-more-btn:hover,.r-proposal-line-more-btn.active{color:#111827;transform:translateY(-1px)}
+    .r-proposal-line-more-btn.active{background:rgba(15,23,42,.06);border-radius:8px}
+    .r-proposal-line-item.is-menu-open .r-proposal-line-more-wrap{z-index:3002}
+    .r-proposal-line-more-menu{position:absolute;right:0;top:28px;width:224px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#fff;box-shadow:0 22px 48px rgba(15,23,42,.2);padding:6px;display:flex;flex-direction:column;gap:2px;z-index:3003}
+    .r-proposal-line-more-menu button{width:100%;border:0;background:transparent;border-radius:10px;padding:9px 10px;display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;align-items:center;text-align:left;color:#344054;font-size:12px;font-weight:900;cursor:pointer}
+    .r-proposal-line-more-menu button:hover{background:rgba(15,23,42,.055);color:#111827}
+    .r-proposal-line-more-menu button.is-muted{color:#98a2b3}
+    .r-proposal-line-more-check{width:18px;height:18px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--primary,#d93025);font-size:10px}
+    .r-proposal-choice-settings-btn{flex:0 0 auto;width:24px;height:24px;border-radius:999px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#98a2b3;display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;transition:background .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+    .r-proposal-choice-settings-btn:hover{color:#344054;border-color:rgba(15,23,42,.22);box-shadow:0 6px 14px rgba(15,23,42,.1);transform:translateY(-1px)}
+    .r-proposal-choice-settings-btn.active{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.34);background:rgba(var(--primary-rgb,217,48,37),.1)}
+    .r-proposal-choice-backdrop{position:absolute;inset:0;z-index:2147483199;background:rgba(15,23,42,.42);backdrop-filter:grayscale(.4);border-radius:0}
+    .r-proposal-choice-popover{position:absolute;z-index:2147483200;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100% - 48px));max-height:min(760px,calc(100% - 48px));overflow:hidden;border:1px solid rgba(15,23,42,.14);border-radius:16px;background:#fff;box-shadow:0 24px 60px rgba(15,23,42,.22);padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0}
+    .r-proposal-choice-popover-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .r-proposal-choice-popover-head span{display:flex;flex-direction:column;gap:3px;min-width:0}
+    .r-proposal-choice-popover-head strong{font-size:14px;font-weight:1000;color:#111827;line-height:1.2}
+    .r-proposal-choice-popover-head em{font-style:normal;font-size:11px;font-weight:800;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+    .r-proposal-choice-close{width:28px;height:28px;border-radius:999px;border:1px solid rgba(15,23,42,.1);background:#fff;color:#667085;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+    .r-proposal-choice-help{font-size:11px;font-weight:750;color:#667085;line-height:1.35}
+    .r-proposal-choice-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;overflow:auto;min-height:0;padding-right:2px}
+    .r-proposal-choice-option{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start;border:1px solid rgba(15,23,42,.1);border-radius:12px;padding:10px;background:#fff}
+    .r-proposal-choice-option.selected{border-color:rgba(var(--primary-rgb,217,48,37),.3);background:rgba(var(--primary-rgb,217,48,37),.055)}
+    .r-proposal-choice-option.customer-visible:not(.selected){border-color:rgba(var(--primary-rgb,217,48,37),.18);background:#fff}
+    .r-proposal-choice-radio{display:flex;align-items:center;justify-content:center;margin:0}
+    .r-proposal-choice-radio input{position:absolute;opacity:0;pointer-events:none}
+    .r-proposal-choice-radio span{width:16px;height:16px;border-radius:999px;border:2px solid #cbd5e1;background:#fff;box-sizing:border-box}
+    .r-proposal-choice-radio input:checked + span{border-color:var(--primary,#d93025);box-shadow:inset 0 0 0 4px #fff;background:var(--primary,#d93025)}
+    .r-proposal-choice-fields{display:flex;flex-direction:column;gap:7px;min-width:0}
+    .r-proposal-choice-name-row{display:flex;align-items:center;gap:8px;min-width:0}
+    .r-proposal-choice-name-row img{width:28px;height:28px;object-fit:contain;flex:0 0 auto}
+    .r-proposal-choice-group-title{display:flex;flex-direction:column;gap:4px;margin:0;font-size:10px;font-weight:1000;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em}
+    .r-proposal-choice-name,.r-proposal-choice-grid input,.r-proposal-choice-group-title input{width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;padding:8px 9px;font-size:12px;font-weight:850;color:#111827;outline:none}
+    .r-proposal-choice-name:focus,.r-proposal-choice-grid input:focus,.r-proposal-choice-group-title input:focus{border-color:rgba(var(--primary-rgb,217,48,37),.45);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.1)}
+    .r-proposal-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .r-proposal-choice-grid label{display:flex;flex-direction:column;gap:3px;margin:0}
+    .r-proposal-choice-grid span{font-size:9px;font-weight:1000;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em}
+    .r-proposal-choice-customer{grid-column:2;display:inline-flex;align-items:center;gap:7px;margin:0;font-size:10px;font-weight:1000;color:#667085;white-space:nowrap;cursor:pointer;justify-self:start}
+    .r-proposal-choice-customer input{position:absolute;opacity:0;pointer-events:none}
+    .r-proposal-choice-switch{position:relative;width:32px;height:18px;border-radius:999px;background:#cbd5e1;transition:background .16s ease,box-shadow .16s ease;flex:0 0 auto}
+    .r-proposal-choice-switch::after{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.22);transition:transform .16s ease}
+    .r-proposal-choice-customer input:checked + .r-proposal-choice-switch{background:var(--primary,#d93025)}
+    .r-proposal-choice-customer input:checked + .r-proposal-choice-switch::after{transform:translateX(14px)}
+    .r-proposal-choice-customer input:disabled + .r-proposal-choice-switch{opacity:.72}
+    .r-proposal-choice-customer em{font-style:normal}
+    .r-proposal-choice-remove{grid-column:2;border:0;background:transparent;color:#b42318;display:inline-flex;align-items:center;justify-content:flex-start;gap:6px;cursor:pointer;font-size:10px;font-weight:1000;padding:0;justify-self:start}
+    .r-proposal-choice-remove:hover{text-decoration:underline}
+    .r-proposal-choice-popover-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid rgba(15,23,42,.08);padding-top:12px;flex:0 0 auto}
+    .r-proposal-choice-add,.r-proposal-choice-save{border-radius:999px;border:1px solid rgba(15,23,42,.12);padding:9px 12px;font-size:12px;font-weight:950;cursor:pointer}
+    .r-proposal-choice-add{background:#fff;color:#344054}
+    .r-proposal-choice-save{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}
+    @media(max-width:760px){.r-proposal-choice-options{grid-template-columns:1fr}.r-proposal-choice-popover{width:min(560px,calc(100% - 28px));max-height:calc(100% - 28px)}}
     .r-proposal-line-delete{position:absolute;left:-34px;top:50%;transform:translateY(-50%) scale(.92);width:22px;height:22px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.94);color:#98a2b3;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease,color .18s ease,border-color .18s ease,background .18s ease;z-index:2}
     .r-proposal-line-item:hover .r-proposal-line-delete,.r-proposal-line-item:focus-within .r-proposal-line-delete{opacity:1;pointer-events:auto;transform:translateY(-50%) scale(1)}
     .r-proposal-line-delete:hover{color:#b42318;border-color:rgba(180,35,24,.24);background:#fff}
-    .r-proposal-addrow{display:grid;grid-template-columns:minmax(0,1.5fr) 90px 120px 120px;gap:12px;align-items:center;padding:12px 0;border:1px dashed rgba(15,23,42,.16);border-radius:14px;color:#667085;background:rgba(15,23,42,.02);cursor:pointer;transition:.16s ease}
+    .r-proposal-discount-mode{display:inline-flex;align-items:center;border:1px solid rgba(22,163,74,.2);border-radius:999px;background:#f0fdf4;padding:2px;gap:2px}
+    .r-proposal-discount-mode button{width:24px;height:22px;border:0;border-radius:999px;background:transparent;color:#15803d;font-size:11px;font-weight:1000;cursor:pointer}
+    .r-proposal-discount-mode button.active{background:#16a34a;color:#fff}
+    .r-proposal-discount-value,.r-proposal-discount-amount{color:#137a3a!important;font-weight:1000}
+    .r-proposal-addrow-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center;margin-top:10px}
+    .r-proposal-addrow{display:flex;align-items:center;justify-content:center;gap:7px;min-width:0;padding:10px 12px;border:1px dashed rgba(15,23,42,.16);border-radius:12px;color:#667085;background:rgba(15,23,42,.02);cursor:pointer;transition:.16s ease;font-size:12px;font-weight:1000;white-space:nowrap}
     .r-proposal-addrow:hover{border-color:rgba(217,48,37,.26);background:rgba(217,48,37,.035);color:#b42318}
-    .r-proposal-addrow span:first-child{padding-left:16px;font-weight:900}
+    .r-proposal-add-discount{border-color:rgba(22,163,74,.22);background:#f0fdf4;color:#137a3a}
+    .r-proposal-add-discount:hover{border-color:rgba(22,163,74,.34);background:#dcfce7;color:#166534}
+    .r-proposal-addrow span:first-child{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:0;white-space:nowrap;font-weight:1000}
+    .r-proposal-section-actions{display:flex;flex-wrap:wrap;gap:6px;margin:3px 0 5px 0;padding-left:calc(var(--proposal-depth,0) * 18px);position:relative;z-index:1}
+    .r-proposal-section-actions button{border:1px dashed rgba(15,23,42,.14);border-radius:10px;background:rgba(248,250,252,.72);color:#667085;padding:5px 8px;font-size:10.5px;font-weight:1000;display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;line-height:1.1}
+    .r-proposal-section-actions button:hover{border-color:rgba(var(--primary-rgb,217,48,37),.24);background:rgba(var(--primary-rgb,217,48,37),.045);color:var(--primary-readable,var(--primary,#d93025))}
+    .r-builder-discount-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .r-builder-discount-actions button{border:1px solid rgba(22,163,74,.18);background:#f0fdf4;color:#137a3a;border-radius:14px;padding:11px 12px;font-size:12px;font-weight:1000;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+    .r-builder-discount-actions button:hover{background:#dcfce7;border-color:rgba(22,163,74,.34)}
+    .r-builder-discount-list{display:flex;flex-direction:column;gap:9px}
+    .r-builder-discount-row{display:grid;grid-template-columns:minmax(0,1fr) auto 90px 120px 30px;gap:8px;align-items:center;border:1px solid rgba(22,163,74,.16);background:#f7fef9;border-radius:14px;padding:10px}
+    .r-builder-discount-row input{width:100%;box-sizing:border-box;border:1px solid rgba(22,163,74,.16);border-radius:10px;background:#fff;padding:8px 9px;font-size:12px;font-weight:850;color:#14532d;outline:none}
+    .r-builder-discount-row strong{font-size:12px;font-weight:1000;color:#137a3a;text-align:right;white-space:nowrap}
+    .r-builder-discount-row > button{width:28px;height:28px;border-radius:999px;border:1px solid rgba(22,163,74,.14);background:#fff;color:#15803d;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .r-builder-discount-empty{border:1px dashed rgba(22,163,74,.2);background:#f7fef9;color:#15803d;border-radius:14px;padding:14px;font-size:12px;font-weight:900;text-align:center}
     .r-proposal-signature-stack{display:flex;flex-direction:column;gap:18px}
     .r-proposal-signature-intro{font-size:13px;line-height:1.6;color:#475467}
     .r-proposal-signature-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(240px,.85fr);gap:18px;align-items:start}
@@ -1479,9 +1770,12 @@
     .r-proposal-payment-card.invalid{border-color:rgba(180,35,24,.34);background:rgba(180,35,24,.035)}
     .r-proposal-payment-card strong{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#667085}
     .r-proposal-payment-row{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;color:#475467}
+    .r-proposal-payment-row.preview{grid-template-columns:minmax(0,1fr) auto}
+    .r-proposal-payment-row.preview .r-proposal-payment-label{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .r-proposal-payment-row.preview .r-proposal-payment-amount{justify-self:end;text-align:right;white-space:nowrap;font-weight:900;color:#344054}
     .r-proposal-payment-card.invalid .r-proposal-payment-row{color:#b42318}
     .r-proposal-payment-card.invalid .r-proposal-payment-row .r-proposal-editable{border-color:rgba(180,35,24,.2);background:rgba(180,35,24,.05)}
-    .r-proposal-payment-percent{display:inline-flex;align-items:center;justify-content:flex-end;gap:2px;min-width:0;font-weight:900;color:#344054}
+    .r-proposal-payment-percent{display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;min-width:0;font-weight:900;color:#344054}
     .r-proposal-edit-payment-label{font-size:13px;line-height:1.5;color:#475467;display:inline-block;min-width:0;max-width:100%}
     .r-proposal-payment-warning{border:1px solid rgba(180,35,24,.18);border-radius:12px;background:#fff;color:#b42318;padding:9px 10px;font-size:11px;font-weight:900;line-height:1.35}
     .r-proposal-payment-options{display:flex;flex-direction:column;gap:8px;padding-top:2px}
@@ -1518,13 +1812,20 @@
     .r-proposal-media-pane.has-image{border-style:solid}
     .r-proposal-media-pane:not(.is-editable):not(.has-image){border-color:transparent;background:transparent}
     .r-proposal-media-pane.is-editable{cursor:pointer}
-    .r-proposal-media-pane.is-editable::after{content:'Edit Photos';position:absolute;right:10px;bottom:10px;padding:6px 9px;border-radius:999px;background:rgba(255,255,255,.9);color:#344054;font-size:10px;font-weight:1000;opacity:0;transform:translateY(4px);transition:.18s ease}
+    .r-proposal-media-pane.is-editable::after{content:'Edit Media';position:absolute;right:10px;bottom:10px;padding:6px 9px;border-radius:999px;background:rgba(255,255,255,.9);color:#344054;font-size:10px;font-weight:1000;opacity:0;transform:translateY(4px);transition:.18s ease;pointer-events:none}
     .r-proposal-media-pane.is-editable:hover::after{opacity:1;transform:translateY(0)}
     .r-proposal-media-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px;padding:6px;height:100%;flex:1 1 auto;min-height:0;box-sizing:border-box;align-content:stretch}
     .r-proposal-media-gallery.count-1{grid-template-columns:1fr;grid-template-rows:1fr}
     .r-proposal-media-gallery.count-2{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr}
     .r-proposal-media-gallery.count-3,.r-proposal-media-gallery.count-4{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
-    .r-proposal-media-gallery img{width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;min-height:0}
+    .r-proposal-media-gallery > :is(img,.r-proposal-video-frame,.r-proposal-media-processing){width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;min-width:0;min-height:0;overflow:hidden}
+    .r-proposal-media-processing{background:#eef2f6;color:#667085;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;font-size:18px}
+    .r-proposal-media-processing strong{font-size:11px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase}
+    .r-proposal-video-frame{position:relative;background:#101828;color:#fff}
+    .r-proposal-video-player,.r-proposal-video-print-thumbnail{display:block;width:100%;height:100%;object-fit:cover;background:#101828}
+    .r-proposal-video-print-thumbnail,.r-proposal-video-print-fallback{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#101828}
+    .r-proposal-video-print-thumbnail,.r-proposal-video-print-fallback,.r-proposal-video-print-placeholder{display:none}
+    .r-proposal-video-print-placeholder{width:100%;height:100%;align-items:center;justify-content:center;background:#101828;color:#fff;font-size:36px}
     .r-proposal-media-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:28px}
     .r-proposal-media-text{grid-area:copy;min-width:0;min-height:0;display:flex;flex-direction:column;height:100%}
     .r-proposal-media-text .r-proposal-edit-paragraph{height:100%}
@@ -1557,9 +1858,10 @@
     .r-pricebook-suggest-item strong{font-size:12px;color:#101828}
     .r-pricebook-suggest-item span{font-size:11px;font-weight:800;color:#667085}
     .r-pricebook-suggest-item:hover{border-color:rgba(var(--primary-rgb,217,48,37),.22);background:rgba(var(--primary-rgb,217,48,37),.04)}
-    .r-proposal-media-pick-thumb{border:1px solid rgba(15,23,42,.08);border-radius:16px;background:#fff;overflow:hidden;cursor:pointer;transition:.16s ease}
+    .r-proposal-media-pick-thumb{position:relative;border:1px solid rgba(15,23,42,.08);border-radius:16px;background:#fff;overflow:hidden;cursor:pointer;transition:.16s ease}
     .r-proposal-media-pick-thumb.selected{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.12)}
-    .r-proposal-media-pick-thumb img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+    .r-proposal-media-pick-thumb :is(img,video){width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+    .r-proposal-media-pick-video{position:absolute;right:8px;bottom:8px;width:28px;height:28px;border-radius:999px;background:rgba(15,23,42,.78);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;pointer-events:none}
     .r-proposal-media-pick-actions{display:flex;justify-content:space-between;gap:10px;align-items:center}
     .r-proposal-page-insert{position:absolute;left:50%;top:calc(100% + 9px);transform:translate(-50%,-50%);z-index:120;display:flex;flex-direction:column;align-items:center;pointer-events:none;transition:top .34s cubic-bezier(.22,1,.36,1)}
     .r-proposal-page-insert.active{top:calc(100% + 98px)}
@@ -1636,11 +1938,27 @@
     .storage-checkout-body{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;color:#98a2b3;font-size:13px;font-weight:900;text-align:center}
     .storage-limit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
     @media (max-width:1080px){.r-win{flex-direction:column;height:min(calc(var(--fm-visual-vh,100vh) * .96),1320px)}.r-left{width:100%;max-width:none;max-height:58%;border-right:none;border-bottom:1px solid rgba(15,23,42,.08)}.r-right{min-height:320px}.r-photo-grid{grid-template-columns:1fr}}
+    @media (max-width:820px){
+      .r-overlay.entitlement-mobile-fullscreen{align-items:stretch;background:#fff;backdrop-filter:none}
+      .r-overlay.entitlement-mobile-fullscreen .r-win{width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100dvh);max-height:none;border-radius:0;box-shadow:none;animation:none}
+      .r-overlay.entitlement-hide-fullscreen #rFullscreenToggle{display:none!important}
+      .r-overlay.entitlement-tab-icons .r-tabbar{grid-auto-columns:minmax(44px,1fr)}
+      .r-overlay.entitlement-tab-icons .r-tab{padding:0 10px;font-size:0}
+      .r-overlay.entitlement-tab-icons .r-tab i{font-size:15px;margin:0}
+    }
     @media (max-width:720px){
       .r-overlay{align-items:stretch}
       .r-win{width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100dvh);max-height:none;border-radius:0}
+      /* Existing projects are a bottom-up workspace tray instead of a hard
+         fullscreen takeover. The slim, shaded reveal above it preserves the
+         sense of the Projects view that the user came from. */
+      @keyframes rMobileProjectTrayIn{from{transform:translateY(100%);opacity:.96}to{transform:translateY(0);opacity:1}}
+      .r-overlay.mobile-info-navigation:not(.mobile-order){align-items:flex-end;justify-content:center;padding-top:20px;box-sizing:border-box;background:rgba(11,16,24,.34);backdrop-filter:blur(2px)}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-win{width:var(--fm-visual-vw,100vw);height:calc(var(--fm-visual-vh,100dvh) - 20px);max-height:calc(var(--fm-visual-vh,100dvh) - 20px);border-radius:18px 18px 0 0;box-shadow:0 -9px 28px rgba(15,23,42,.30);animation:rMobileProjectTrayIn .36s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-info-navigation.route-initial-open:not(.mobile-order) .r-win{animation:none}
       .r-left{padding:12px;gap:8px;max-height:48%;flex-basis:auto}
-      .r-scroll-cue{left:50%;bottom:calc(52% + 10px);padding:7px 10px;font-size:10px}
+      .r-left.notes-panel-ready:has(.r-firstmeasure-notes){padding-bottom:12px}
+      .r-left.notes-history-expanded .r-left-bottom,.r-left:has(.r-bottom-notes.expanded) .r-left-bottom{margin:0;padding-left:12px;padding-right:12px;padding-bottom:5px}
       .r-top{padding-bottom:4px}
       .r-title{font-size:18px}
       .r-stagebar{margin:-1px 0 1px}
@@ -1665,7 +1983,7 @@
       .r-contact-list.has-multiple + .r-contact-add{margin-top:2px}
       .r-bottom-notes label::after{content:'Optional';margin-left:2px;color:#98a2b3;font-size:10px;font-weight:800;letter-spacing:0;text-transform:none}
       .r-bottom-notes .customer-report-tip{display:none}
-      .r-bottom-notes textarea{min-height:58px!important;height:58px;rows:2}
+      .r-bottom-notes textarea{min-height:58px!important}
       .r-inline-notes-mount{display:block}
       .r-inline-notes-mount .r-bottom-notes{padding:0 0 8px}
       .r-mobile-internal-notes-mount{display:none}
@@ -1714,6 +2032,10 @@
       .r-overlay.report-ordered:not(.mobile-order) .r-measure-tab i{font-size:17px}
       .r-overlay.report-ordered:not(.mobile-order) .r-measure-meta{display:none}
       .r-overlay.report-ordered:not(.mobile-order) .r-measure-body{inset:48px 0 0;overflow:hidden;background:#e5e7eb}
+      .r-overlay.report-tabs-in-header.report-ordered:not(.mobile-order) .r-modal-header{height:48px;min-height:48px}
+      .r-overlay.report-tabs-in-header.report-ordered:not(.mobile-order) .r-modal-header .r-measure-tabs{display:grid;height:48px;overflow-x:auto}
+      .r-overlay.report-tabs-in-header.report-ordered:not(.mobile-order) .r-measure-body{inset:0}
+
       .r-overlay.report-ordered:not(.mobile-order) .r-report-pending{box-sizing:border-box;padding:8px;overflow:hidden;align-items:stretch}
       .r-overlay.report-ordered:not(.mobile-order) .r-report-pending-card{width:100%;max-height:100%;box-sizing:border-box;overflow:hidden;border-radius:14px;padding:12px;gap:6px;box-shadow:0 10px 24px rgba(15,23,42,.10)}
       .r-overlay.report-ordered:not(.mobile-order) .r-report-pending-card.is-expedited{justify-content:center;gap:10px}
@@ -1734,16 +2056,20 @@
       .r-overlay.report-ordered:not(.mobile-order) .r-pending-action-copy span,
       .r-overlay.report-ordered:not(.mobile-order) .r-pending-note{font-size:9.5px;line-height:1.25}
       .r-overlay.report-ordered:not(.mobile-order) .r-report-refund-note{gap:7px;margin-bottom:6px;padding:8px 9px;border-radius:10px;font-size:10.5px;line-height:1.3}
-      .modal-close-x{display:flex;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:38px;height:38px;border-radius:12px;z-index:90}
+      .r-modal-header{height:39px;min-height:39px}
+      .modal-shell-actions{display:flex;position:static;z-index:auto;gap:0}
+      .modal-shell-btn{width:36px;height:38px;min-height:38px;border-radius:0}
       .r-project-hour-head,.r-project-day-head,.r-project-time,.r-cal-person,.r-cal-time{position:static}
       .r-photo-wrap{padding:20px}
       .r-photo-title{font-size:22px}
-      .r-overlay.mobile-order .r-win{padding-bottom:50px;box-sizing:border-box}
+      .r-overlay.mobile-order{--r-mobile-pager-height:calc(47px + env(safe-area-inset-bottom,0px))}
+      .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box}
+      .r-overlay.mobile-order .r-modal-header{display:none}
       .r-overlay.mobile-order,
       .r-overlay.mobile-order .r-win,
       .r-overlay.mobile-order .r-left,
       .r-overlay.mobile-order .r-scroll{overflow-x:hidden}
-      .r-overlay.mobile-order .r-top{display:block;overflow:hidden;padding-right:0}
+      .r-overlay.mobile-order .r-top{display:block;overflow:hidden;padding-right:46px}
       .r-overlay.mobile-order .r-title-wrap{overflow:hidden}
       .r-overlay.mobile-order .r-title,
       .r-overlay.mobile-order .r-title-input,
@@ -1752,9 +2078,13 @@
       .r-overlay.mobile-order .r-preview{padding:0}
       .r-overlay.mobile-order .r-preview-stage{border:0;border-radius:0;box-shadow:none;background:transparent;overflow:hidden}
       .r-overlay.mobile-order .r-preview-panel{border:0;border-radius:0;box-shadow:none}
-      .r-overlay.mobile-order .r-preview-panel:not([data-panel="map"]){display:none!important}
-      .r-overlay.mobile-order #rMapCloseX{display:none!important}
-      .r-overlay.mobile-order .r-scroll-cue{display:none!important}
+      .r-overlay.mobile-order .r-preview-panel:not([data-panel="map"]):not(:has(#rMeasurementMap)){display:none!important}
+      .r-overlay.mobile-order [data-panel="measurements"]:has(#rMeasurementMap){display:flex!important}
+      .r-overlay.mobile-order #rMeasureTabs{display:none!important}
+      .r-overlay.mobile-order .r-measure-body{inset:0}
+      .r-overlay.mobile-order [data-measure-pane="map"]{display:block!important}
+      .r-overlay.mobile-order .r-measure-pane:not([data-measure-pane="map"]){display:none!important}
+      .r-overlay.mobile-order .modal-shell-actions{display:none!important}
       .r-overlay.mobile-order .r-map-hint{top:0;left:0;right:0;width:auto;transform:none;box-sizing:border-box;border-radius:0 0 10px 10px;border-left:0;border-right:0;padding:5px 10px;min-height:24px;text-align:center;font-size:10.5px;line-height:1.2;box-shadow:0 6px 14px rgba(15,23,42,.10);background:rgba(255,255,255,.94)}
       .r-overlay.mobile-order .r-inline-label{display:none!important}
       .r-overlay.mobile-order .r-report-choice-row{display:none!important}
@@ -1763,7 +2093,7 @@
       .r-overlay.mobile-order #rSubmit,
       .r-overlay.mobile-order #rExpediteSubmit{display:none!important}
       .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
-      .r-overlay.mobile-order .r-mobile-pager{position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
+      .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
@@ -1836,8 +2166,6 @@
       .r-overlay.mobile-order.mobile-order-details .r-mobile-internal-notes-mount .r-bottom-notes{padding:0;display:flex;flex:1 1 auto;min-height:0;flex-direction:column}
       .r-overlay.mobile-order.mobile-order-details .r-mobile-internal-notes-mount .r-bottom-notes textarea{flex:1 1 auto;height:auto!important;min-height:58px!important}
       .r-overlay.mobile-order.mobile-order-details .r-inline-notes-mount{display:none}
-      .r-overlay.mobile-order.mobile-order-details .r-scroll-cue,
-      .r-overlay.mobile-order.mobile-order-final .r-scroll-cue{display:none!important}
       .r-overlay.mobile-order.mobile-order-final #rStepCustomer,
       .r-overlay.mobile-order.mobile-order-final #rStepAddress,
       .r-overlay.mobile-order.mobile-order-final #rStepType,
@@ -1859,11 +2187,142 @@
       .r-overlay.mobile-order.mobile-page-anim-forward .r-right{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
       .r-overlay.mobile-order.mobile-page-anim-back .r-left,
       .r-overlay.mobile-order.mobile-page-anim-back .r-right{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
+      /* Existing-project details are available from the title drawer, so tabs
+         can use the complete workspace instead of stacking the default column. */
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-modal-header{height:48px}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tabbar{grid-auto-columns:minmax(44px,1fr)}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab{min-height:48px;padding:0 10px;font-size:0}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab i{margin:0;font-size:16px}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-label{display:none}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) #rProjectHeaderAction{display:none!important}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) #rFullscreenToggle{display:none!important}
+      .r-overlay.mobile-info-navigation:not(.mobile-order):not(.mobile-info-active):not(.left-override):not(.mobile-default-info-tray-mode) .r-left{display:none!important}
+      .r-overlay.mobile-info-navigation:not(.mobile-order):not(.mobile-info-active):not(.left-override) .r-right{flex:1 1 auto;min-height:0}
+      .r-overlay.mobile-info-navigation:not(.mobile-order):not(.mobile-info-active) .r-mobile-project-title{height:48px;min-height:48px;box-sizing:border-box;display:flex;align-items:center;gap:8px;flex:0 0 auto;padding:0 16px;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;color:#101828;font-size:18px;font-weight:1000;letter-spacing:-.02em;line-height:1.2}
+      .r-mobile-project-tab-title{display:inline-flex;align-items:center;gap:9px;min-width:0;overflow:hidden;white-space:nowrap;flex:0 1 auto;font-size:16px;font-weight:1000;color:#475467;letter-spacing:-.01em}
+      .r-mobile-project-tab-title span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+      .r-mobile-project-tab-title i{font-size:14px;color:#667085;flex:0 0 auto}
+      .r-overlay.visit-identity-header:not(.mobile-order) .r-mobile-project-title{height:62px;min-height:62px;padding-top:7px;padding-bottom:7px}
+      .r-overlay.visit-identity-header .r-mobile-project-tab-title{flex:1 1 auto;max-width:100%;color:#101828}
+      .r-mobile-visit-identity-copy{display:flex;min-width:0;flex-direction:column;gap:2px;line-height:1.15}
+      .r-mobile-visit-identity-copy strong,.r-mobile-visit-identity-copy small{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .r-mobile-visit-identity-copy strong{font-size:17px;color:#101828}.r-mobile-visit-identity-copy small{font-size:11px;font-weight:750;color:#667085}
+      .r-mobile-project-header-action{margin-left:auto;min-height:34px;padding:0 12px;border:1px solid rgba(var(--primary-rgb,217,48,37),.24);border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);display:inline-flex;align-items:center;justify-content:center;gap:7px;font:inherit;font-size:12px;font-weight:1000;white-space:nowrap;cursor:pointer}
+      .r-mobile-project-header-action[hidden]{display:none!important}
+      .r-mobile-project-header-action i{font-size:11px}
+      .r-mobile-project-info-toggle{margin-left:0;min-width:0;max-width:64%;padding:0;border:0;background:transparent;color:#475467;display:inline-flex;align-items:center;justify-content:flex-end;gap:10px;font:inherit;cursor:pointer}
+      .r-mobile-project-header-action[hidden] + .r-mobile-project-info-toggle{margin-left:auto}
+      .r-mobile-project-info-toggle i{flex:0 0 auto;font-size:14px;color:#667085}
+      .r-mobile-project-title-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:16px;font-weight:1000;letter-spacing:-.01em}
+      .r-overlay.entitlement-info-none #rMobileProjectInfoToggle{pointer-events:none}
+      .r-overlay.entitlement-info-none #rMobileProjectInfoChevron{display:none}
+      .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-right{order:1;flex:0 0 48px;min-height:48px;background:#fff}
+      .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-right .r-preview{display:none!important}
+      .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-left{order:2;display:flex!important;flex:1 1 auto;min-height:0;max-height:none;border-bottom:0}
+      .r-overlay.mobile-left-tray-mode .r-modal-header,
+      .r-overlay.mobile-left-tray-mode .r-mobile-project-title{position:relative;z-index:101}
+      /* The modal chrome owns the project identity on mobile.  The left region
+         can contain project details, but must not repeat the same title. */
+      .r-overlay.mobile-left-tray-mode .r-left .r-top,.r-overlay.mobile-default-info-tray-mode .r-left .r-top{display:none!important}
+      .r-overlay.mobile-left-tray-mode .r-mobile-project-tab-title{display:none}
+      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle{min-width:0;max-width:58%;padding:0;border:0;background:transparent;color:#475467;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font:inherit;font-size:16px;font-weight:1000;letter-spacing:-.01em}
+      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}
+      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle i{font-size:14px;flex:0 0 auto;color:#667085}
+      .r-overlay.mobile-left-tray-mode .r-mobile-project-info-toggle{max-width:58%}
+      .r-overlay.mobile-left-tray-mode .r-left{position:absolute;z-index:90;top:96px;bottom:0;left:0;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(-103%);pointer-events:none;border:0;box-shadow:18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
+      /* These are custom-left-tray rules only.  Do not let them restyle the
+         shared project-info surface when that same node is the right drawer. */
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left,
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left .r-scroll,
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left .r-scroll > *{min-width:0;max-width:100%;box-sizing:border-box}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open:not(.mobile-default-info-tray-open) .r-left{height:calc(100% - 96px);max-height:calc(100% - 96px);flex:0 0 auto}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left .r-scroll{flex:1 1 auto;min-height:0}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left{transform:translateX(0);pointer-events:auto}
+      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-scrim{display:none;position:absolute;z-index:89;top:96px;right:0;bottom:0;width:5%;border:0;padding:0;background:linear-gradient(90deg,rgba(15,23,42,.30),rgba(15,23,42,.06));cursor:pointer}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-mobile-left-tray-scrim{display:block}
+      /* Custom tab panels always originate on the left. The project-details
+         drawer is independent and only takes the right edge while it is open. */
+      .r-overlay.mobile-default-info-tray-mode:not(.mobile-left-tray-mode) .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(103%);pointer-events:none;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:auto;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open.mobile-default-info-tray-entering .r-left{transform:translateX(103%);transition:none}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-leaving .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:none;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:none}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-leaving.mobile-default-info-tray-leaving-active .r-left{transform:translateX(103%);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
+      /* When a tab also owns a left tray, the shared region must still become
+         a right-originating standard-info drawer while that drawer is open. */
+      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-open .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:auto;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
+      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-open.mobile-default-info-tray-entering .r-left{transform:translateX(103%);transition:none}
+      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-leaving .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:none;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:none}
+      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-leaving.mobile-default-info-tray-leaving-active .r-left{transform:translateX(103%);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-resetting .r-left{transition:none!important}
+      .r-overlay.mobile-default-info-tray-mode .r-mobile-default-info-tray-scrim{display:none;position:absolute;z-index:89;top:96px;left:0;bottom:0;width:5%;border:0;padding:0;background:linear-gradient(270deg,rgba(15,23,42,.30),rgba(15,23,42,.06));cursor:pointer}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open .r-mobile-default-info-tray-scrim{display:block}
+      /* A custom desktop left region and the mobile project-info drawer share
+         the source markup, but the mobile drawer must always be the complete
+         standard project-info surface.  Restore that surface explicitly rather
+         than leaking the active region app's layout into it. */
+      .r-overlay.mobile-default-info-tray-open #rProjectStageBar{display:block!important}
+      .r-overlay.mobile-default-info-tray-open #rAfterHours.visible{display:flex!important}
+      .r-overlay.mobile-default-info-tray-open #rProjectionCard,.r-overlay.mobile-default-info-tray-open #rViewerSummary,.r-overlay.mobile-default-info-tray-open #rStepCustomer,.r-overlay.mobile-default-info-tray-open #rInlineNotesMount,.r-overlay.mobile-default-info-tray-open #rCustomerPortalLinkMount,.r-overlay.mobile-default-info-tray-open #rStepAddress,.r-overlay.mobile-default-info-tray-open #rStepType,.r-overlay.mobile-default-info-tray-open #rStepReport,.r-overlay.mobile-default-info-tray-open #rStepRoof{display:block!important}
+      .r-overlay.mobile-default-info-tray-open #rWorkflowDock.visible{display:block!important}
+      .r-overlay.mobile-default-info-tray-open #rProposalSection{display:none!important}
+      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open .r-scroll{overflow:auto!important;display:block!important;min-height:0!important;box-sizing:border-box;padding-bottom:74px!important}
+      .r-overlay.mobile-default-info-tray-open .r-workflow-dock.visible,.r-overlay.mobile-default-info-tray-open .r-workflow-empty{display:flex!important;flex-direction:column;min-height:0}
+      .r-mobile-project-notes-launcher,.r-mobile-project-notes-workspace,.r-mobile-project-notes-scrim{display:none}
+      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher{position:absolute;z-index:92;right:0;bottom:0;left:5%;width:auto;height:58px;padding:0 18px;border:0;border-top:1px solid rgba(15,23,42,.10);border-radius:0;background:#fff;color:#344054;box-shadow:0 -8px 20px rgba(15,23,42,.10);display:flex;align-items:center;justify-content:flex-start;gap:10px;font-size:14px;font-weight:900;cursor:pointer}
+      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher > i:first-child{font-size:16px;color:var(--primary-readable,var(--primary,#d93025))}
+      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher > i:last-child{margin-left:auto;font-size:12px;color:#98a2b3}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-mobile-project-notes-launcher:hover{color:var(--primary-readable,var(--primary,#d93025));background:#f8fafc}
+      .r-overlay.mobile-project-notes-open .r-mobile-project-notes-launcher{display:none!important}
+      .r-overlay.mobile-project-notes-open .r-mobile-project-notes-scrim{position:absolute;z-index:120;inset:0;display:block;border:0;background:rgba(15,23,42,.48);backdrop-filter:blur(2px);cursor:pointer}
+      .r-overlay.mobile-project-notes-open .r-mobile-project-notes-workspace{position:absolute;z-index:130;inset:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));display:flex;min-height:0;flex-direction:column;overflow:hidden;border:1px solid rgba(15,23,42,.12);border-radius:20px;background:#fff;box-shadow:0 24px 64px rgba(15,23,42,.28);animation:rMobileNotesIn .18s cubic-bezier(.22,1,.36,1)}
+      @keyframes rMobileNotesIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+      .r-mobile-project-notes-head{height:54px;flex:0 0 auto;padding:0 10px 0 16px;border-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff}
+      .r-mobile-project-notes-head strong{font-size:16px;font-weight:1000;color:#101828;letter-spacing:-.01em}
+      .r-mobile-project-notes-close{width:34px;height:34px;padding:0;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#475467;display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer}
+      .r-mobile-project-notes-body{display:flex;flex:1 1 auto;min-height:0;padding:14px;box-sizing:border-box;background:#fff}
+      .r-mobile-project-notes-body .r-bottom-notes{width:100%;height:100%;display:grid!important;grid-template-rows:minmax(0,1fr) auto;gap:10px;margin:0;padding:0!important;min-height:0;background:transparent}
+      .r-mobile-project-notes-body .r-firstmeasure-notes{display:flex!important;height:auto;align-self:flex-start;flex-direction:column}
+      .r-mobile-project-notes-body .r-firstmeasure-notes textarea.r-inp{min-height:160px;height:160px!important}
+      .r-mobile-project-notes-body .r-note-history-deck{height:100%!important;min-height:0;margin:0!important;padding:0 0 10px!important;visibility:visible!important;overflow:hidden;border-bottom:0;display:flex;flex-direction:column;gap:9px}
+      .r-mobile-project-notes-body .r-note-history-deck::before{display:none!important}
+      .r-mobile-project-notes-body .r-note-history-tools,.r-mobile-project-notes-body .r-note-history{opacity:1!important}
+      .r-mobile-project-notes-body .r-note-history{min-height:0;padding-right:2px}
+      .r-mobile-project-notes-body .r-note-composer-shell{gap:9px;padding:0;background:transparent}
+      .r-mobile-project-notes-body .r-bottom-notes-head label{font-size:12px;font-weight:1000;color:#475467;letter-spacing:.05em;text-transform:uppercase}
+      .r-mobile-project-notes-body .r-note-visibility-disclaimer{font-size:9px}
+      .r-mobile-project-notes-body .r-note-visibility-choice strong{max-width:150px;font-size:10px}
+      .r-mobile-project-notes-body .r-bottom-notes textarea{min-height:78px!important;max-height:150px;font-size:14px;line-height:1.45}
+      .r-mobile-project-notes-body .r-note-input-highlights{font-size:14px;line-height:1.45}
+      .r-mobile-project-notes-body .r-note-compose-actions{min-height:36px}
+      .r-mobile-project-notes-body .r-note-history-toggle{display:none!important}
+      .r-mobile-project-notes-body .r-note-empty{border:0;background:transparent}
+      .r-mobile-project-notes-body .r-note-compose-actions button{min-height:36px;padding:8px 12px;font-size:11px}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mn-top .mn-title,
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mt-top .mt-title{display:none!important}
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mn-top,
+      .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mt-top{padding:10px 12px;min-height:0}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open #rProposalSection .r-proposal-workspace-head>div:first-child,
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open #rProposalSection .mt-left-head>strong{display:none!important}
+      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open #rProposalSection .r-proposal-workspace-head{justify-content:flex-end}
+      #rProposalPreview .r-proposal-mobile-main{height:100%;min-height:0;overflow:auto;box-sizing:border-box;padding:14px 12px 24px;background:#f8fafc}
+      #rProposalPreview .r-proposal-mobile-main .r-proposal-listing{min-height:0;gap:12px}
+      #rProposalPreview .r-proposal-mobile-main .r-proposal-workspace-head{padding:2px 0 4px;margin:0}
+      #rProposalPreview .r-proposal-mobile-main .r-proposal-workspace-head strong{font-size:16px}
+      #rProposalPreview .r-proposal-mobile-main .r-proposal-workspace-head span{font-size:11px}
+      #rProposalPreview .r-proposal-mobile-main .r-proposal-list-card{padding:13px}
+      .r-proposal-preview-empty .r-proposal-preview-create{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 14px;border:1px solid var(--primary,#d93025);border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;font-weight:1000;cursor:pointer}
+      .r-proposal-preview-empty .r-proposal-preview-create i,.r-proposal-preview-empty .r-proposal-preview-create span{font:inherit;color:inherit;line-height:1}
       @media (prefers-reduced-motion:reduce){
         .r-overlay.mobile-order.mobile-page-anim-forward .r-left,
         .r-overlay.mobile-order.mobile-page-anim-forward .r-right,
         .r-overlay.mobile-order.mobile-page-anim-back .r-left,
         .r-overlay.mobile-order.mobile-page-anim-back .r-right{animation:none}
+        .r-overlay.mobile-left-tray-mode .r-left{transition:none}
+        .r-overlay.mobile-default-info-tray-mode .r-left{transition:none}
+        .r-overlay.mobile-project-notes-open .r-mobile-project-notes-workspace{animation:none}
       }
     }
     @media (max-width:430px){
@@ -1877,10 +2336,190 @@
   }
 
   function shouldUseMobileOrderPagination(){
+    if (window.Portal.ExteriorOrder?.active()) return false;
     return isMobileProjectOrder()
+      && requestedWorkflow === 'report'
       && !hasReportOrdered()
       && !proposalWorkspaceOpen
       && actionAvailable('roof');
+  }
+
+  function mobileProjectInfoTabEnabled(){
+    return false;
+  }
+
+  function mobileProjectNavigationEnabled(){
+    return !window.Portal.ExteriorOrder?.active() && isMobileProjectOrder() && viewingExistingProject && !shouldUseMobileOrderPagination();
+  }
+
+  function syncMobileProjectInfoNavigation(){
+    const overlay = $('#rOverlay');
+    if (!overlay) return;
+    const enabled = mobileProjectNavigationEnabled();
+    overlay.classList.toggle('mobile-info-navigation', enabled);
+    overlay.classList.remove('mobile-info-active');
+  }
+
+  function mobileLeftTrayEnabled(){
+    return isMobileProjectOrder() && !shouldUseMobileOrderPagination() && projectLeftColumnOverridden();
+  }
+
+  function mobileDefaultInfoTrayEnabled(){
+    // Field-style project modals (crew/supervisor) opt out of the right-side
+    // project-info pop-out entirely via presentation mobileInfo:'none'.
+    return mobileProjectNavigationEnabled()
+      && projectModalResolvedPresentation().infoTrayHidden !== true;
+  }
+
+  function mobileDefaultProjectInfoVisible(){
+    return mobileDefaultInfoTrayOpen
+      && mobileDefaultInfoTrayEnabled();
+  }
+
+  function shouldRenderDefaultProjectInfo(){
+    return !projectLeftColumnOverridden() || mobileDefaultProjectInfoVisible();
+  }
+
+  function refreshMobileDefaultProjectInfo(){
+    if (!mobileDefaultProjectInfoVisible()) return;
+    renderProjectStageBar();
+    renderProjectViewerSummary();
+    renderProjectTodoDock();
+    renderCustomerPortalLink();
+    renderAfterHoursNotice();
+  }
+
+  function syncMobileDefaultInfoTray(){
+    const overlay = $('#rOverlay');
+    const toggle = $('#rMobileProjectInfoToggle');
+    if (!overlay) return;
+    const enabled = mobileDefaultInfoTrayEnabled();
+    if (!enabled) mobileDefaultInfoTrayOpen = false;
+    overlay.classList.toggle('mobile-default-info-tray-mode', enabled);
+    overlay.classList.toggle('mobile-default-info-tray-open', enabled && mobileDefaultInfoTrayOpen);
+    const win = overlay.querySelector('.r-win');
+    if (win) window.requestAnimationFrame(() => { win.scrollLeft = 0; });
+    if (!toggle) return;
+    const open = enabled && mobileDefaultInfoTrayOpen;
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.setAttribute('aria-label', open ? 'Close project details' : 'Open project details');
+    toggle.title = open ? 'Close project details' : 'Open project details';
+    const icon = $('#rMobileProjectInfoChevron');
+    if (icon) icon.className = `fas ${open ? 'fa-chevron-right' : 'fa-chevron-left'}`;
+  }
+
+  function setMobileDefaultInfoTrayOpen(open){
+    const wantsOpen = !!open;
+    const overlay = $('#rOverlay');
+    window.clearTimeout(mobileDefaultInfoTrayLeaveTimer);
+    mobileDefaultInfoTrayLeaveTimer = 0;
+    if (wantsOpen) overlay?.classList.remove('mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active', 'mobile-default-info-tray-resetting');
+    const shouldStageCloseToRight = !wantsOpen && mobileDefaultInfoTrayOpen;
+    const shouldStageFromRight = wantsOpen && !mobileDefaultInfoTrayOpen;
+    if (shouldStageFromRight) overlay?.classList.add('mobile-default-info-tray-entering');
+    if (!wantsOpen) overlay?.classList.remove('mobile-default-info-tray-entering');
+    mobileDefaultInfoTrayOpen = wantsOpen;
+    if (mobileDefaultInfoTrayOpen) mobileLeftTrayOpen = false;
+    if (shouldStageCloseToRight) overlay?.classList.add('mobile-default-info-tray-leaving');
+    syncMobileLeftTray();
+    syncMobileDefaultInfoTray();
+    if (wantsOpen) refreshMobileDefaultProjectInfo();
+    if (shouldStageFromRight) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (mobileDefaultInfoTrayOpen) overlay?.classList.remove('mobile-default-info-tray-entering');
+      }));
+    }
+    if (shouldStageCloseToRight) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (!mobileDefaultInfoTrayOpen) overlay?.classList.add('mobile-default-info-tray-leaving-active');
+      }));
+      mobileDefaultInfoTrayLeaveTimer = window.setTimeout(() => {
+        overlay?.classList.add('mobile-default-info-tray-resetting');
+        overlay?.classList.remove('mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active');
+        requestAnimationFrame(() => requestAnimationFrame(() => overlay?.classList.remove('mobile-default-info-tray-resetting')));
+        mobileDefaultInfoTrayLeaveTimer = 0;
+      }, 330);
+    }
+  }
+
+  function mobileProjectNotesEnabled(){
+    return isMobileProjectOrder() && viewingExistingProject && !!activeBaseProject && !shouldUseMobileOrderPagination();
+  }
+
+  function syncMobileProjectNotes(){
+    const overlay = $('#rOverlay');
+    const launch = $('#rMobileProjectNotesLauncher');
+    if (!overlay) return;
+    const enabled = mobileProjectNotesEnabled();
+    if (!enabled && mobileProjectNotesOpen) {
+      mobileProjectNotesOpen = false;
+      syncProjectNotesPlacement();
+    }
+    overlay.classList.toggle('mobile-project-notes-open', enabled && mobileProjectNotesOpen);
+    if (launch) launch.hidden = !enabled;
+  }
+
+  function setMobileProjectNotesOpen(open, options = {}){
+    const wantsOpen = !!open;
+    if (wantsOpen && !mobileProjectNotesEnabled()) return;
+    const overlay = $('#rOverlay');
+    const notes = document.querySelector('#rOverlay .r-bottom-notes');
+    const workspace = $('#rMobileProjectNotesBody');
+    if (!overlay || !notes || !workspace) return;
+    if (wantsOpen) {
+      setMobileDefaultInfoTrayOpen(true);
+      closeProjectNoteVisibilityMenu();
+      mobileProjectNotesOpen = true;
+      workspace.appendChild(notes);
+      window.clearTimeout(projectNoteHistoryCloseTimer);
+      projectNoteHistoryCloseTimer = 0;
+      projectNoteHistoryClosing = false;
+      proposalInternalNotesCollapsed = false;
+      syncMobileProjectNotes();
+      syncProjectNotesUi();
+      if (!options.fromRoute && !window.Portal?.navigation?.applying) {
+        window.Portal?.navigation?.push?.({ project:activeProjectRouteId(), projectTab:activePreviewTab, projectNotes:'1' }, { source:'project-mobile-notes-open', ownedKeys:['projectNotes'] });
+      }
+      window.requestAnimationFrame(() => $('#rProjectNotes')?.focus());
+      return;
+    }
+    if (!mobileProjectNotesOpen) return;
+    closeProjectNoteVisibilityMenu();
+    mobileProjectNotesOpen = false;
+    syncMobileProjectNotes();
+    syncProjectNotesPlacement();
+    if (!options.fromRoute && !window.Portal?.navigation?.applying) {
+      window.Portal?.navigation?.backOrClose?.(['projectNotes'], { projectNotes:null }, { source:'project-mobile-notes-close' });
+    }
+  }
+
+  function syncMobileLeftTray(){
+    const overlay = $('#rOverlay');
+    if (!overlay) return;
+    const enabled = mobileLeftTrayEnabled();
+    if (!enabled) mobileLeftTrayOpen = false;
+    overlay.classList.toggle('mobile-left-tray-mode', enabled);
+    overlay.classList.toggle('mobile-left-tray-open', enabled && mobileLeftTrayOpen);
+    const toggle = $('#rMobileLeftTrayToggle');
+    if (!toggle) return;
+    const open = enabled && mobileLeftTrayOpen;
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.setAttribute('aria-label', open ? 'Return to project content' : 'Open project panel');
+    toggle.title = open ? 'Return to project content' : 'Open project panel';
+    const icon = $('#rMobileLeftTrayChevron');
+    if (icon) icon.className = `fas ${open ? 'fa-chevron-left' : 'fa-chevron-right'}`;
+  }
+
+  function setMobileLeftTrayOpen(open){
+    mobileLeftTrayOpen = !!open;
+    if (mobileLeftTrayOpen) {
+      mobileDefaultInfoTrayOpen = false;
+      window.clearTimeout(mobileDefaultInfoTrayLeaveTimer);
+      mobileDefaultInfoTrayLeaveTimer = 0;
+      $('#rOverlay')?.classList.remove('mobile-default-info-tray-entering', 'mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active', 'mobile-default-info-tray-resetting');
+    }
+    syncMobileLeftTray();
+    syncMobileDefaultInfoTray();
   }
 
   function mobileOrderReadyForDetails(){
@@ -2024,6 +2663,10 @@
     overlay.classList.toggle('mobile-order-location', mobile && mobileOrderPage === 'location');
     overlay.classList.toggle('mobile-order-details', mobile && mobileOrderPage === 'details');
     overlay.classList.toggle('mobile-order-final', mobile && mobileOrderPage === 'final');
+    syncMobileProjectInfoNavigation();
+    syncMobileLeftTray();
+    syncMobileDefaultInfoTray();
+    syncMobileProjectNotes();
     const back = $('#rMobileBack');
     const next = $('#rMobileNext');
     const order = $('#rMobileOrder');
@@ -2032,7 +2675,7 @@
       const ready = mobileOrderPage === 'details' ? mobileOrderReadyForFinal() : mobileOrderReadyForDetails();
       next.style.display = mobile && (mobileOrderPage === 'location' || (mobileOrderPage === 'details' && hasFinalPage)) ? '' : 'none';
       next.disabled = mobile ? !ready : false;
-      next.innerHTML = '<span>Next</span><i class="fas fa-arrow-right"></i>';
+      next.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i>`;
     }
     if (order) {
       const submit = activeSubmitButton();
@@ -2074,7 +2717,7 @@
   function showStructurePinLimitNotice(maxPins = maxPinsForType(selectedType)){
     structurePinLimitNoticeActive = true;
     renderPinInfo();
-    showToast('Pin limit', pinLimitMessage(maxPins || MAX_PINS_PER_STRUCTURE_REPORT), false);
+    showToast((globalThis.PlatformLanguage?.text("project-request","m_21b024a2811c3a","Pin limit") ?? "Pin limit"), pinLimitMessage(maxPins || MAX_PINS_PER_STRUCTURE_REPORT), false);
     return true;
   }
 
@@ -2103,8 +2746,16 @@
   }
   function hasProposalDrafted(){ return proposals.length > 0 || (Array.isArray(activeBaseProject?.proposals) && activeBaseProject.proposals.length > 0); }
   function hasAppointmentScheduled(){ return !!currentProjectSalesAppointment(); }
+  injectCSS('firstmeasure-notes', `
+    #rOverlay .r-firstmeasure-notes{display:flex;flex-direction:column;gap:8px}
+    #rOverlay .r-firstmeasure-notes textarea{display:block;min-height:72px;background:#fff;color:#333}
+    #rOverlay .r-firstmeasure-notes.expanded textarea{min-height:180px}
+  `);
+
+  function expandedPlatformEnabled(){ return window.Portal?.capabilities?.value?.('platform.expanded_access', false) === true; }
+
   function appFeatureEnabled(group, flag, fallback = true){
-    const appFlags = window.Portal?.appFlags;
+    const appFlags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     if (appFlags?.current?.()) {
       if (appFlags.has?.(group, flag)) return true;
       const value = appFlags.value?.(group, flag, undefined);
@@ -2113,32 +2764,79 @@
     return fallback;
   }
   function appFlagValue(group, flag, fallback = null){
-    const appFlags = window.Portal?.appFlags;
+    const appFlags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     if (appFlags?.current?.()) return appFlags.value?.(group, flag, fallback) ?? fallback;
     return fallback;
   }
   function projectPhotosEnabled(){ return appFeatureEnabled('platform', 'project_photos', false); }
-  function projectDocsEnabled(){ return appFeatureEnabled('platform', 'project_docs', false); }
+  // Consolidated Docs tab: shown when either the legacy project-docs flag or
+  // the document engine is on (the tab embeds the engine when available).
+  function projectDocsEnabled(){
+    return appFeatureEnabled('platform', 'project_docs', false) || appFeatureEnabled('platform', 'documents', false);
+  }
   function activeProjectRouteId(){
     return window.Portal?.routeState?.projectId?.(activeBaseProject) || String(activeBaseProject?.id || '').trim();
   }
   function routePhotoId(photo = {}){
     return window.Portal?.routeState?.mediaId?.(photo) || projectPhotoId(photo);
   }
-  function syncActiveProjectRoute(extra = {}){
+  function syncActiveProjectRoute(extra = {}, options = {}){
     const projectId = activeProjectRouteId();
-    if (!projectId || !viewingExistingProject) return;
-    const patch = { project: projectId, projectTab: activePreviewTab, ...extra };
+    if (!projectId || !activeBaseProject) return;
+    const patch = { project: projectId, projectTab: activePreviewTab, projectFullscreen: projectModalFullscreen ? '1' : null, contact:null, user:null, userTab:null, pin:null, day:null, callQueue:null, callIndex:null, callStep:null, ...extra };
     if ((patch.projectTab || activePreviewTab) !== 'photos' && !patch.photo) {
       patch.photo = null;
       patch.photoScope = null;
     }
-    window.Portal?.routeState?.set?.(patch);
+    if (projectRouteBatching || window.Portal?.navigation?.applying) return;
+    window.Portal?.routeState?.set?.(patch, {
+      history: options.history || 'replace',
+      source: options.source || 'project-sync',
+      ownedKeys: options.ownedKeys || ['project', 'projectTab']
+    });
   }
-  function clearProjectRoute(){
-    window.Portal?.routeState?.set?.({ project: null, projectTab: null, photo: null, photoScope: null });
+  function clearProjectRoute(options = {}){
+    const patch = { project: null, projectTab: null, projectNote: null, projectNotes: null, photo: null, photoScope: null, projectFullscreen: null, proposal: null, proposalMode: null, moneyView: null, receipt: null, reportView: null, document: null, documentView: null, materialList: null, materialSection: null, checklistView: null, customerPortalView: null, projectScheduleView: null, projectScheduleTarget: null };
+    if (options.back !== false && window.Portal?.navigation?.backOrClose) {
+      return window.Portal.navigation.backOrClose(['project'], patch, { source:'project-close' });
+    }
+    return window.Portal?.routeState?.set?.(patch, { history:'replace', source:options.source || 'project-clear' });
+  }
+  function routeFullscreenEnabled(value){
+    const text = String(value || '').trim().toLowerCase();
+    return !!text && !['0', 'false', 'off', 'no'].includes(text);
+  }
+  function syncProjectModalFullscreenRoute(){
+    if (!viewingExistingProject) return;
+    syncActiveProjectRoute({ projectFullscreen: projectModalFullscreen ? '1' : null });
+  }
+  function setProjectModalFullscreen(enabled, options = {}){
+    projectModalFullscreen = !!enabled;
+    const overlay = $('#rOverlay');
+    clearTimeout(projectModalFullscreenTimer);
+    if (overlay) {
+      overlay.classList.add('fullscreen-transitioning');
+      void overlay.offsetWidth;
+    }
+    overlay?.classList.toggle('fullscreen', projectModalFullscreen);
+    const btn = $('#rFullscreenToggle');
+    if (btn) {
+      btn.setAttribute('aria-label', projectModalFullscreen ? 'Shrink project modal' : 'Open project fullscreen');
+      btn.setAttribute('title', projectModalFullscreen ? 'Shrink' : 'Fullscreen');
+      btn.setAttribute('data-fm-tooltip', projectModalFullscreen ? 'Shrink' : 'Fullscreen');
+      btn.innerHTML = `<i class="fas ${projectModalFullscreen ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}"></i>`;
+    }
+    projectModalFullscreenTimer = setTimeout(() => {
+      overlay?.classList.remove('fullscreen-transitioning');
+      projectModalFullscreenTimer = null;
+      if (options.syncRoute !== false) syncProjectModalFullscreenRoute();
+    }, options.immediate ? 0 : 340);
+  }
+  function toggleProjectModalFullscreen(){
+    setProjectModalFullscreen(!projectModalFullscreen);
   }
   function preferMapForNewProjectInput(){
+    if (proposalWorkspaceOpen && activePreviewTab === 'proposal') return;
     if (viewingExistingProject || hasReportOrdered() || activePreviewTab === 'map') return;
     setActivePreviewTab('map');
   }
@@ -2154,6 +2852,7 @@
     } catch (_) {}
   }
   function proposalsEnabled(){ return appFeatureEnabled('platform', 'proposals', false); }
+  function documentsEngineEnabled(){ return appFeatureEnabled('platform', 'documents', false); }
   function materialsEnabled(){ return appFeatureEnabled('platform', 'materials', false); }
   function moneyEnabled(){
     return appFeatureEnabled('platform', 'money', false);
@@ -2164,6 +2863,12 @@
   function contactsEnabled(){ return appFeatureEnabled('platform', 'contacts', false); }
   function projectTodosEnabled(){ return appFeatureEnabled('platform', 'left_column_todo_list', false); }
   function projectStagesEnabled(){ return appFeatureEnabled('platform', 'project_stages_view', false); }
+  function projectAssignmentsEnabled(){ return appFeatureEnabled('platform', 'project_assignments', true); }
+  function manualProjectStageMovementEnabled(){ return appFeatureEnabled('platform', 'manual_project_stage_movement', false); }
+  function canManageProjectStages(){
+    const permissions = window.Portal?.currentUser?.permissions || {};
+    return permissions['*'] === true || permissions.manage_projects === true;
+  }
   function schedulingEnabled(){ return appFeatureEnabled('platform', 'scheduling', false); }
   function schedulePreviewAvailable(){ return schedulingEnabled() && (addressSelected || !!activeBaseProject); }
   function firstMeasureReportOrdersEnabled(){ return appFeatureEnabled('firstmeasure', 'report_orders', true); }
@@ -2178,6 +2883,7 @@
   function actionAvailable(action){
     if (action === 'roof') return firstMeasureReportOrdersEnabled() && !hasReportOrdered();
     if (action === 'proposal') return proposalsEnabled();
+    if (action === 'document') return documentsEngineEnabled();
     if (action === 'schedule') return schedulingEnabled() && !hasAppointmentScheduled();
     return false;
   }
@@ -2188,9 +2894,22 @@
     const workflow = String(value || 'project').trim().toLowerCase();
     if (['contact', 'contacts', 'customer', 'customers'].includes(workflow)) return 'contact';
     if (['report', 'roof', 'measurement', 'measurements'].includes(workflow)) return 'report';
-    if (['proposal', 'proposals'].includes(workflow)) return 'proposal';
+    // Legacy proposal workflow now lands on the document engine (Docs tab).
+    if (['proposal', 'proposals'].includes(workflow)) return 'document';
+    if (['document', 'documents', 'doc'].includes(workflow)) return 'document';
     if (['appointment', 'schedule', 'scheduling'].includes(workflow)) return 'appointment';
     return 'project';
+  }
+  function isUnfinishedReportDraft(project = {}){
+    if (!project || projectHasReportOrder(project)) return false;
+    const workflowIntent = String(project.workflow_intent || project.creation_workflow || '').trim();
+    if (workflowIntent && normalizeWorkflow(workflowIntent) === 'report') return true;
+    if (String(project.report_selection || '').trim().toLowerCase() === 'roof') return true;
+    return String(project.workflow_state || '').trim().toLowerCase() === 'draft'
+      && !!String(project.address || '').trim()
+      && firstMeasureReportOrdersEnabled()
+      && !proposalsEnabled()
+      && !schedulingEnabled();
   }
   function workflowWantsAction(){
     return !['project', 'contact'].includes(requestedWorkflow) || !!reportSelection || hasReportOrdered();
@@ -2198,6 +2917,7 @@
   function workflowActionKey(){
     if (requestedWorkflow === 'report') return 'roof';
     if (requestedWorkflow === 'proposal') return 'proposal';
+    if (requestedWorkflow === 'document') return 'document';
     if (requestedWorkflow === 'appointment') return 'schedule';
     return null;
   }
@@ -2213,21 +2933,32 @@
       setActivePreviewTab('map');
     } else if (key === 'proposal' && proposalsEnabled()) {
       setTimeout(() => launchProposalBuilder(), 0);
+    } else if (key === 'document' && documentsEngineEnabled()) {
+      // Doc-first flow: land on the unified Docs tab. With no base project the
+      // left column shows the project picker; with one, go straight to the
+      // create wizard (type preselected when the action named one).
+      setTimeout(() => beginDocumentWorkflow(), 0);
     } else if (key === 'schedule' && schedulingEnabled()) {
       setTimeout(() => startAppointmentScheduling(), 0);
     }
   }
   function projectLeftColumnOverridden(tab = activePreviewTab){
-    const id = String(tab || '').trim();
-    return id === 'proposal' || id === 'schedule' || id === 'materials' || id === 'money';
+    // On phones, the proposal list and setup flow use the full preview pane.
+    // Keep the drawer for the actual editor rail only; desktop keeps its
+    // existing two-column presentation for every proposal state.
+    if (tab === 'proposal' && isMobileProjectOrder() && proposalWorkspaceMode !== 'edit') return false;
+    return ['app', 'override', 'replace', 'drawer', 'popout'].includes(projectModalResolvedPresentation(tab).leftMode);
   }
   function syncLeftColumnOverride(){
     const overlay = $('#rOverlay');
     if (!overlay) return false;
+    applyProjectModalPresentation();
     const overridden = projectLeftColumnOverridden();
     overlay.classList.toggle('left-override', overridden);
     if (overridden) overlay.dataset.leftOverrideTab = activePreviewTab;
     else delete overlay.dataset.leftOverrideTab;
+    syncMobileLeftTray();
+    syncMobileDefaultInfoTray();
     return overridden;
   }
   function syncContactsFeatureState(){
@@ -2255,7 +2986,7 @@
     section?.classList.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
     if (label) {
       label.hidden = false;
-      label.textContent = 'Proposal';
+      label.textContent = (globalThis.PlatformLanguage?.text("project-request","m_1d8655e967c464","Proposal") ?? "Proposal");
     }
     if (list) list.innerHTML = '';
     renderProjectStageBar();
@@ -2269,7 +3000,7 @@
     if (!projectTodosEnabled()) return false;
     if (shouldLockReportOrderingWorkflow()) return false;
     if (hasSelectedAddons() && !hasReportOrdered()) return false;
-    return !projectLeftColumnOverridden();
+    return shouldRenderDefaultProjectInfo();
   }
   function hasGutterAddon(){ return gutterReportsEnabled() && selectedType === 'residential' && includeGutterMeasurements; }
   function hasWeatherAddon(){ return weatherReportsEnabled() && includeWeatherReport; }
@@ -2277,7 +3008,7 @@
   function reportExpediteChoiceComplete(){ return !reportExpediteOptionsEnabled() || !hasSelectedAddons() || reportOrderingClosed() || !!selectedReportExpediteOption(); }
   function roofStepComplete(){ return isProposalChoice() || isScheduleChoice() || (hasSelectedAddons() && locationConfirmed && reportExpediteChoiceComplete()); }
   function customerStepVisible(){ return roofDecisionMade() && roofStepComplete(); }
-  function canSubmit(){ return !!(addressSelected && selectedType && roofDecisionMade() && roofStepComplete()); }
+  function canSubmit(){ if (window.Portal.ExteriorOrder?.needsChoice()) return false; if (window.Portal.ExteriorOrder?.active()) return window.Portal.ExteriorOrder.ready(); return !!(addressSelected && selectedType && roofDecisionMade() && roofStepComplete()); }
   function roofReportControlsUnlocked(){
     return !hasSelectedAddons() || shouldUseMobileOrderPagination() || !!locationConfirmed;
   }
@@ -2387,6 +3118,10 @@
     const amount = Math.round(n * 100) / 100;
     return amount % 1 === 0 ? String(amount.toFixed(0)) : amount.toFixed(2);
   }
+  function fmtWholeMoney(value){
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.round(n).toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US")) : '0';
+  }
   function creditErrorDetails(errorOrData = {}){
     const data = errorOrData?.data || errorOrData || {};
     const text = [
@@ -2462,6 +3197,7 @@
     };
   }
   function currentPrice(){
+    if (window.Portal.ExteriorOrder?.active()) return window.Portal.ExteriorOrder.price();
     return currentPriceQuote().final_amount;
   }
 
@@ -2470,13 +3206,15 @@
   }
 
   let projectMapMounting = false;
+  let mountedProjectMapApp = null;
+  let mountedProjectMapRoot = null;
   let projectMapInitTimer = 0;
 
   function mountProjectMapApp(context = {}){
     const app = projectMapModule();
     if (!app?.mount) return null;
     if (projectMapMounting) return app;
-    const panelRoot = context.panelRoot || document.querySelector('#rOverlay .r-preview-panel[data-panel="map"]');
+    const panelRoot = context.panelRoot || (document.querySelector('#rOverlay .r-preview-panel[data-panel="map"]') || document.querySelector('#rMeasurementMap'));
     projectMapMounting = true;
     try {
       app.mount({
@@ -2487,6 +3225,8 @@
         host: projectWorkspaceHost(),
         projectWorkspace: projectWorkspaceHost()
       });
+      mountedProjectMapApp = app;
+      mountedProjectMapRoot = panelRoot;
       return app;
     } finally {
       projectMapMounting = false;
@@ -2494,7 +3234,11 @@
   }
 
   function projectMapInvoke(name, args = []){
-    const app = mountProjectMapApp();
+    const panelRoot = (document.querySelector('#rOverlay .r-preview-panel[data-panel="map"]') || document.querySelector('#rMeasurementMap'));
+    const module = projectMapModule();
+    // Read helpers such as pinCount must not remount and recenter the map.
+    const app = module === mountedProjectMapApp && panelRoot && panelRoot === mountedProjectMapRoot
+      ? module : mountProjectMapApp();
     if (app?.invoke) return app.invoke(name, args);
     const fn = app && app[name];
     return typeof fn === 'function' ? fn(...(Array.isArray(args) ? args : [])) : undefined;
@@ -2542,17 +3286,19 @@
     return emails;
   }
 
-  function addCcRow(value){
+  function addCcRow(value, options = {}){
     const list = $('#rCcList');
     if (!list) return;
     const row = document.createElement('div');
     row.className = 'r-cc-row';
-    row.innerHTML = `<input class="r-inp" type="email" placeholder="email@example.com" value="${value || ''}"><div class="r-cc-remove" data-fm-tooltip="Remove"><i class="fas fa-times"></i></div>`;
+    row.innerHTML = `<input class="r-inp" type="email" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}" value="${String(escapeHtml(value || ''))}"><div class="r-cc-remove" data-fm-tooltip="Remove"><i class="fas fa-times"></i></div>`;
     row.querySelector('.r-cc-remove').addEventListener('click', () => { row.remove(); queueAutosaveNotice(); });
     list.appendChild(row);
-    queueAutosaveNotice();
-    const inp = row.querySelector('input');
-    if (inp) setTimeout(() => inp.focus(), 50);
+    if (!options.hydrate) {
+      queueAutosaveNotice();
+      const inp = row.querySelector('input');
+      if (inp) setTimeout(() => inp.focus(), 50);
+    }
   }
 
   function cardContactId(card){
@@ -2566,6 +3312,9 @@
   function contactFromCard(card){
     if (!card) return {};
     const id = cardContactId(card);
+    let customFieldValues = {};
+    try { customFieldValues = JSON.parse(card.dataset.contactCustomFieldValues || '{}') || {}; }
+    catch (_) { customFieldValues = {}; }
     return {
       id,
       contact_id: id,
@@ -2575,6 +3324,7 @@
       email: (card.querySelector('[data-field="email"]')?.value || '').trim(),
       address: projectText(card.dataset.contactAddress),
       default_address: projectText(card.dataset.contactAddress),
+      custom_field_values: customFieldValues,
       primary: card.classList.contains('primary')
     };
   }
@@ -2585,6 +3335,7 @@
     card.dataset.contactId = id;
     card.dataset.contactAddress = projectText(contact.address, contact.default_address);
     card.dataset.contactRecordProjectId = projectText(contact.record_project_id, contact.project_id);
+    card.dataset.contactCustomFieldValues = JSON.stringify(contact.custom_field_values || contact.contact_custom_field_values || {});
     const set = (field, value) => {
       const input = card.querySelector(`[data-field="${field}"]`);
       if (input) input.value = projectText(value);
@@ -2614,13 +3365,13 @@
         email: projectText(contact.email),
         address: projectText(contact.address),
         default_address: projectText(contact.address),
+        custom_field_values: { ...(contact.custom_field_values || {}) },
         primary: true
       }],
+      contact_custom_field_values: { ...(contact.custom_field_values || {}) },
       contact_id: id,
       primary_contact_id: id,
       contact_ids: [id],
-      stage: INITIAL_PROJECT_STAGE_ID,
-      stage_id: INITIAL_PROJECT_STAGE_ID,
       workflow_state: 'contact_only',
       measurement: {},
       measurement_project: {},
@@ -2635,13 +3386,14 @@
   function openContactFromCard(card){
     if (!contactsEnabled()) return;
     const contact = contactFromCard(card);
-    const currentContextId = projectText(activeContactContext?.contact?.id, activeContactContext?.contact?.contact_id);
+    const contactContext = activeContactContext;
+    const currentContextId = projectText(contactContext?.contact?.id, contactContext?.contact?.contact_id);
     if (currentContextId && projectText(contact.id, contact.contact_id) === currentContextId) {
-      close();
-      window.Portal?.modules?.contacts?.open?.(activeContactContext.contact, { projects: activeContactContext.projects || [] });
+      close({ skipHistory:true });
+      window.Portal?.modules?.contacts?.open?.(contactContext.contact, { projects: contactContext.projects || [] });
       return;
     }
-    close();
+    close({ skipHistory:true });
     window.Portal?.modules?.contacts?.open?.(contact, { projects: activeBaseProject ? [activeBaseProject] : [] });
   }
 
@@ -2718,10 +3470,10 @@
     const canRemove = cards.length > 1;
     menu.dataset.contactIndex = String(card.dataset.contactIndex || '');
     menu.innerHTML = `
-      ${isPrimary ? '' : '<button type="button" data-contact-menu-action="primary"><i class="fas fa-star"></i><span>Make primary</span></button>'}
-      <button type="button" data-contact-menu-action="view"><i class="fas fa-address-book"></i><span>View contact</span></button>
-      <button type="button" data-contact-menu-action="new"><i class="fas fa-plus"></i><span>New contact</span></button>
-      <button type="button" class="danger" data-contact-menu-action="remove"${canRemove ? '' : ' disabled'}><i class="fas fa-times"></i><span>Remove from project</span></button>
+      ${String(isPrimary ? '' : '<button type="button" data-contact-menu-action="primary"><i class="fas fa-star"></i><span>Make primary</span></button>')}
+      <button type="button" data-contact-menu-action="view"><i class="fas fa-address-book"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_94b3d11b415704","View contact") ?? "View contact")}</span></button>
+      <button type="button" data-contact-menu-action="new"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_9ed0a85dcdfd8e","New contact") ?? "New contact")}</span></button>
+      <button type="button" class="danger" data-contact-menu-action="remove"${String(canRemove ? '' : ' disabled')}><i class="fas fa-times"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_ea7197edfa259b","Remove from project") ?? "Remove from project")}</span></button>
     `;
     menu.querySelectorAll('[data-contact-menu-action]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -2764,23 +3516,24 @@
     if (contactAddress) wrap.dataset.contactAddress = contactAddress;
     const recordProjectId = projectText(values.record_project_id, values.project_id);
     if (recordProjectId) wrap.dataset.contactRecordProjectId = recordProjectId;
+    wrap.dataset.contactCustomFieldValues = JSON.stringify(values.custom_field_values || values.contact_custom_field_values || {});
     if (values.primary || index === primaryContactIndex) wrap.classList.add('primary');
     wrap.innerHTML = `
-      <div class="r-mobile-customer-label">Customer Info</div>
+      <div class="r-mobile-customer-label">${(globalThis.PlatformLanguage?.text("project-request","m_59b58b1850f257","Customer Info") ?? "Customer Info")}</div>
       <div class="r-inline">
         <div class="r-group">
-          <label>Name <span class="r-label-optional">- optional</span></label>
-          <input class="r-inp" data-field="name" placeholder="Name" value="${escapeHtml(values.name || '')}">
+          <label>${(globalThis.PlatformLanguage?.text("project-request","m_006d986794e9db","Name ") ?? "Name ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.text("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <input class="r-inp" data-field="name" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_8cf345002184e5","Name") ?? "Name")}" value="${String(escapeHtml(values.name || ''))}">
         </div>
         <div class="r-group">
-          <label>Phone <span class="r-label-optional">- optional</span></label>
-          <input class="r-inp" data-field="phone" placeholder="Phone" type="tel" value="${escapeHtml(values.phone || '')}">
+          <label>${(globalThis.PlatformLanguage?.text("project-request","m_432606fa294b6c","Phone ") ?? "Phone ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.text("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <input class="r-inp" data-field="phone" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_ed04c65845180f","Phone") ?? "Phone")}" type="tel" value="${String(escapeHtml(values.phone || ''))}">
         </div>
       </div>
       <div class="r-contact-email-row">
         <div class="r-group">
-          <label>Email <span class="r-label-optional">- optional</span></label>
-          <input class="r-inp" data-field="email" placeholder="Email" type="email" value="${escapeHtml(values.email || '')}">
+          <label>${(globalThis.PlatformLanguage?.text("project-request","m_374bb9c6199652","Email ") ?? "Email ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.text("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <input class="r-inp" data-field="email" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_5d2b9327181e33","Email") ?? "Email")}" type="email" value="${String(escapeHtml(values.email || ''))}">
         </div>
       </div>
       <div class="r-contact-actions">
@@ -2818,6 +3571,7 @@
     list.appendChild(card);
     refreshContactCards();
     updateModalTitle();
+    if (options.hydrate) return;
     queueAutosaveNotice();
     if (options.deferPersist) setTimeout(persistActiveBaseProject, 0);
     else persistActiveBaseProject();
@@ -2930,9 +3684,9 @@
     picker.id = 'rContactPicker';
     picker.className = 'r-contact-picker';
     picker.innerHTML = `
-      <input class="r-contact-picker-search" id="rContactPickerSearch" placeholder="Search contacts">
+      <input class="r-contact-picker-search" id="rContactPickerSearch" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_b753851275b3e8","Search contacts") ?? "Search contacts")}">
       <div class="r-contact-picker-list" id="rContactPickerList"></div>
-      <button type="button" class="r-contact-picker-new" id="rContactPickerNew"><i class="fas fa-plus"></i><span>Create new contact</span></button>
+      <button type="button" class="r-contact-picker-new" id="rContactPickerNew"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_4f460d87ee9426","Create new contact") ?? "Create new contact")}</span></button>
     `;
     document.body.appendChild(picker);
     picker.querySelector('#rContactPickerSearch')?.addEventListener('input', renderContactPicker);
@@ -3038,18 +3792,36 @@
   function collectContacts(){
     const list = $('#rContactList');
     if (!list) return [];
+    const savedContacts = Array.isArray(activeBaseProject?.contacts) ? activeBaseProject.contacts : [];
+    const assignedByIdentity = new Map();
     return [...list.querySelectorAll('.r-contact-card')].map((card, index) => {
-      const id = cardContactId(card);
       const address = projectText(card.dataset.contactAddress);
-      return {
-        id,
-        contact_id: id,
+      const contact = {
+        id: cardContactId(card),
+        contact_id: cardContactId(card),
         name: (card.querySelector('[data-field="name"]')?.value || '').trim(),
         phone: (card.querySelector('[data-field="phone"]')?.value || '').trim(),
         email: (card.querySelector('[data-field="email"]')?.value || '').trim(),
         address,
         default_address: address,
         primary: index === primaryContactIndex,
+      };
+      if (!projectText(contact.name, contact.phone, contact.email, contact.address)) return contact;
+      const emailKey = projectText(contact.email).toLowerCase();
+      const phoneKey = projectText(contact.phone).replace(/\D+/g, '');
+      const nameKey = projectText(contact.name).toLowerCase().replace(/\s+/g, ' ');
+      const identityKey = emailKey ? `email:${emailKey}` : (phoneKey.length >= 7 ? `phone:${phoneKey}` : (nameKey ? `name:${nameKey}` : ''));
+      let id = projectText(contact.id, contact.contact_id);
+      if (!id && identityKey) id = projectText(assignedByIdentity.get(identityKey));
+      if (!id) id = projectText(savedContacts[index]?.id, savedContacts[index]?.contact_id);
+      if (!id && index === primaryContactIndex) id = projectText(activeBaseProject?.contact_id, activeBaseProject?.primary_contact_id);
+      if (!id) id = `contact_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      card.dataset.contactId = id;
+      if (identityKey) assignedByIdentity.set(identityKey, id);
+      return {
+        ...contact,
+        id,
+        contact_id: id,
       };
     }).filter((contact) => projectText(contact.id, contact.name, contact.phone, contact.email, contact.address));
   }
@@ -3087,6 +3859,7 @@
   }
 
   function projectIdentity(project = {}){
+    project = project || {};
     return projectText(project.id, project.platform_project_id, project.base_project_id);
   }
 
@@ -3138,7 +3911,7 @@
         </button>
       </div>
       <div class="r-contact-context-tabs">
-        ${tabs || '<div class="r-contact-context-empty">No other projects</div>'}
+        ${tabs || `<div class="r-contact-context-empty">${(globalThis.PlatformLanguage?.text("project-request","m_b0390c8bca193d","No other projects") ?? "No other projects")}</div>`}
       </div>
     `;
   }
@@ -3225,7 +3998,7 @@
 
   function formatCurrency(value){
     const num = Number(value || 0);
-    return `$${num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    return `$${num.toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   }
 
   function getPricebookModule(){
@@ -3241,29 +4014,34 @@
     { key: 'pitch13PlusSquares', label: '13+/12' },
   ];
   const PROPOSAL_MEASUREMENT_FIELDS = [
-    { key: 'wastePercent', label: 'Waste %' },
-    { key: 'eavesLf', label: 'Eaves (LF)' },
-    { key: 'rakesLf', label: 'Rakes (LF)' },
-    { key: 'hipsLf', label: 'Hips (LF)' },
-    { key: 'ridgesLf', label: 'Ridges (LF)' },
-    { key: 'valleyLf', label: 'Valleys (LF)' },
-    { key: 'transitionsLf', label: 'Transitions (LF)' },
-    { key: 'sideWallLf', label: 'Side Wall (LF)' },
-    { key: 'headWallLf', label: 'Head Wall (LF)' },
-    { key: 'gutterLf', label: 'Gutters (LF)' },
-    { key: 'downspoutLf', label: 'Downspouts (LF)' },
-    { key: 'structures', label: 'Structures' },
-    { key: 'chimneysEa', label: 'Chimneys' },
-    { key: 'skylightsEa', label: 'Skylights' },
+    { key: 'wastePercent', label: (globalThis.PlatformLanguage?.text("project-request","m_185415b1d2c50e","Waste %") ?? "Waste %") },
+    { key: 'eavesLf', label: (globalThis.PlatformLanguage?.text("project-request","m_440f5bc2a4a952","Eaves (LF)") ?? "Eaves (LF)") },
+    { key: 'rakesLf', label: (globalThis.PlatformLanguage?.text("project-request","m_bf4b9cfb1b180a","Rakes (LF)") ?? "Rakes (LF)") },
+    { key: 'hipsLf', label: (globalThis.PlatformLanguage?.text("project-request","m_2fcb2eeb6acb94","Hips (LF)") ?? "Hips (LF)") },
+    { key: 'ridgesLf', label: (globalThis.PlatformLanguage?.text("project-request","m_c52328c3032f2e","Ridges (LF)") ?? "Ridges (LF)") },
+    { key: 'valleyLf', label: (globalThis.PlatformLanguage?.text("project-request","m_e68824fd286246","Valleys (LF)") ?? "Valleys (LF)") },
+    { key: 'transitionsLf', label: (globalThis.PlatformLanguage?.text("project-request","m_a38eff4477656a","Transitions (LF)") ?? "Transitions (LF)") },
+    { key: 'sideWallLf', label: (globalThis.PlatformLanguage?.text("project-request","m_18d57aea0dc79e","Side Wall (LF)") ?? "Side Wall (LF)") },
+    { key: 'headWallLf', label: (globalThis.PlatformLanguage?.text("project-request","m_4a283fa6e37581","Head Wall (LF)") ?? "Head Wall (LF)") },
+    { key: 'gutterLf', label: (globalThis.PlatformLanguage?.text("project-request","m_7b63c9ab1a740a","Gutters (LF)") ?? "Gutters (LF)") },
+    { key: 'downspoutLf', label: (globalThis.PlatformLanguage?.text("project-request","m_911bbaded09649","Downspouts (LF)") ?? "Downspouts (LF)") },
+    { key: 'chimneysEa', label: (globalThis.PlatformLanguage?.text("project-request","m_2586b5b0f04d70","Chimneys") ?? "Chimneys") },
+    { key: 'skylightsEa', label: (globalThis.PlatformLanguage?.text("project-request","m_f8cd783f0f9952","Skylights") ?? "Skylights") },
+    { key: 'pipeBootsEa', label: (globalThis.PlatformLanguage?.text("project-request","m_e3f935307ef27c","Pipe Boots") ?? "Pipe Boots") },
+    { key: 'roofVentsEa', label: (globalThis.PlatformLanguage?.text("project-request","m_684d328858cea9","Roof Vents") ?? "Roof Vents") },
+    { key: 'ridgeVentLf', label: (globalThis.PlatformLanguage?.text("project-request","m_f3dd7d16439791","Ridge Vent (LF)") ?? "Ridge Vent (LF)") },
+    { key: 'boxVentsEa', label: (globalThis.PlatformLanguage?.text("project-request","m_0293b757a0a77c","Box Vents") ?? "Box Vents") },
   ];
 
   function normalizeProjectConfig(config){
     const mode = String(config?.title_mode || config?.project_title_mode || 'customer_name').trim();
     const celebrationMode = String(config?.celebrations_mode || config?.celebrations?.mode || 'on').trim();
+    const pillFields = Array.isArray(config?.project_header_pills) ? config.project_header_pills.map(cleanStageText).filter(Boolean) : ['scope_type','stage','dollar_value'];
     return {
       ...(config && typeof config === 'object' ? config : {}),
       title_mode: ['customer_name', 'address', 'manual'].includes(mode) ? mode : 'customer_name',
-      celebrations_mode: ['on', 'small_only', 'off'].includes(celebrationMode) ? celebrationMode : 'on'
+      celebrations_mode: ['on', 'small_only', 'off'].includes(celebrationMode) ? celebrationMode : 'on',
+      project_header_pills: pillFields
     };
   }
 
@@ -3298,178 +4076,462 @@
     return cleanStageText(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || activeBaseProject?.branch_id || 'default') || 'default';
   }
 
-  function normalizeStageList(stages = []){
-    const byId = new Map(FALLBACK_PROJECT_STAGES.map((stage) => [stage.id, { ...stage }]));
-    const loaded = Array.isArray(stages) ? stages : [];
-    loaded.forEach((stage) => {
-      const id = cleanStageText(stage?.id || stage?.stage_id || stage);
-      if (!id) return;
-      const status = cleanStageText(stage?.status).toLowerCase();
-      if (status === 'disabled' || status === 'archived') return;
-      byId.set(id, {
-        ...(byId.get(id) || {}),
-        ...(stage && typeof stage === 'object' ? stage : {}),
-        id,
-        label: cleanStageText(stage?.label || stage?.name || byId.get(id)?.label) || humanizeStageId(id)
-      });
-    });
-    const loadedIds = loaded.map((stage) => cleanStageText(stage?.id || stage?.stage_id || stage)).filter((id) => byId.has(id));
-    const legacyDefaultOrders = [
-      ['appointment_scheduled', 'newly_sold', 'project_started', 'in_progress', 'completed'],
-      ['new_lead', 'contacting', 'appointment_scheduled', 'newly_sold', 'lost'],
-      ['contacting', 'appointment_scheduled', 'newly_sold', 'lost']
-    ];
-    if (legacyDefaultOrders.some((order) => order.length === loadedIds.length && order.every((stage, index) => stage === loadedIds[index]))) {
-      return FALLBACK_PROJECT_STAGES.map((stage) => ({ ...stage }));
-    }
-    const orderedIds = [...new Set([
-      ...loadedIds,
-      ...FALLBACK_PROJECT_STAGES.map((stage) => stage.id).filter((id) => !loadedIds.includes(id))
-    ])];
-    return orderedIds.map((id) => byId.get(id)).filter(Boolean);
+  function projectActiveWorkInstances(project = activeBaseProject){
+    const projection = project?.work_projection && typeof project.work_projection === 'object' ? project.work_projection : {};
+    if (Array.isArray(projection.active_instances)) return projection.active_instances.filter((instance) => instance && typeof instance === 'object');
+    const instances = Array.isArray(projection.instances) ? projection.instances : [];
+    return instances.filter((instance) => instance && typeof instance === 'object' && (instance.status === 'active' || instance.status === 'pending'));
   }
 
-  function normalizeStagesModule(stagesRaw = {}, mappingsRaw = {}){
-    const stagesData = stagesRaw?.data && typeof stagesRaw.data === 'object' ? stagesRaw.data : (stagesRaw || {});
-    const mappingsData = mappingsRaw?.data && typeof mappingsRaw.data === 'object' ? mappingsRaw.data : (mappingsRaw || {});
-    const labels = mappingsData?.labels?.stages && typeof mappingsData.labels.stages === 'object' ? mappingsData.labels.stages : {};
-    const stageMap = stagesData?.stages && typeof stagesData.stages === 'object' ? stagesData.stages : {};
-    const order = Array.isArray(stagesData?.order) ? stagesData.order : [];
-    const stages = order.map((id) => ({
-      ...(stageMap[id] || {}),
-      id,
-      label: cleanStageText(labels[id] || stageMap[id]?.label || stageMap[id]?.name) || humanizeStageId(id)
-    }));
-    Object.entries(stageMap).forEach(([id, stage]) => {
-      if (stages.some((item) => item.id === id)) return;
-      stages.push({ ...(stage || {}), id, label: cleanStageText(labels[id] || stage?.label || stage?.name) || humanizeStageId(id) });
-    });
-    return normalizeStageList(stages);
+  function projectLifecycleInfo(project = activeBaseProject){
+    const projection = project?.work_projection && typeof project.work_projection === 'object' ? project.work_projection : {};
+    if (projection.lifecycle && typeof projection.lifecycle === 'object') return projection.lifecycle;
+    return (project?.lifecycle && typeof project.lifecycle === 'object') ? project.lifecycle : {};
   }
 
-  async function loadBranchStageConfig(options = {}){
-    if (branchStageConfig && !options.refresh) return branchStageConfig;
-    if (branchStageConfigPromise && !options.refresh) return branchStageConfigPromise;
-    const oid = projectOrgId();
-    const bid = currentBranchId();
-    branchStageConfigPromise = (async () => {
-      try {
-        if (oid && window.PlatformScheduling?.loadBranchConfig) {
-          const config = await window.PlatformScheduling.loadBranchConfig(oid, bid);
-          branchStageConfig = normalizeStageList(config?.stages || []);
-          renderProjectStageBar();
-          return branchStageConfig;
-        }
-        if (window.Portal?.branchModules?.get) {
-          const [stagesRaw, mappingsRaw] = await Promise.all([
-            window.Portal.branchModules.get('stages').catch(() => null),
-            window.Portal.branchModules.get('variable_mappings').catch(() => null)
-          ]);
-          branchStageConfig = normalizeStagesModule(stagesRaw, mappingsRaw);
-          renderProjectStageBar();
-          return branchStageConfig;
-        }
-      } catch (error) {
-        console.warn('Unable to load project stages', error);
-      } finally {
-        branchStageConfigPromise = null;
-      }
-      branchStageConfig = normalizeStageList();
+  let projectTagBoards = [];
+  let projectTagBoardsLoaded = false;
+  let projectTagBoardsPromise = null;
+
+  function projectTagProposals(project = activeBaseProject){
+    const fromProject = Array.isArray(project?.proposals) ? project.proposals : [];
+    const fromWorkspace = Array.isArray(proposals) ? proposals : [];
+    const seen = new Set();
+    return [...fromProject, ...fromWorkspace].filter((proposal) => {
+      const key = cleanStageText(proposal?.id || proposal?.proposal_id || proposal?.uuid) || proposal;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function signedProjectProposal(project = activeBaseProject){
+    return projectTagProposals(project).find((proposal) => (
+      ['signed', 'accepted', 'approved'].includes(String(proposal?.status || proposal?.state || proposal?.delivery?.status || proposal?.delivery_status || '').toLowerCase())
+    )) || null;
+  }
+
+  function projectTagStatus(project = activeBaseProject){
+    const instances = projectActiveWorkInstances(project);
+    const primary = instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+    const label = cleanStageText(primary?.stage_title || primary?.title);
+    if (label) return label;
+    const status = cleanStageText(projectLifecycleInfo(project).status).toLowerCase();
+    if (status === 'lost') return 'Lost';
+    if (status === 'completed') return 'Completed';
+    if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
+    return '';
+  }
+
+  function projectTagBoard(project = activeBaseProject){
+    const projectId = String(project?.id || project?.project_id || '').trim();
+    const explicitBoardId = cleanStageText(project?.board_id || project?.work_board_id || project?.scope_id);
+    const matched = projectTagBoards.find((board) => {
+      if (explicitBoardId && String(board?.id || '') === explicitBoardId) return true;
+      return (Array.isArray(board?.columns) ? board.columns : []).some((column) =>
+        (Array.isArray(column?.cards) ? column.cards : []).some((card) => String(card?.project_id || card?.id || '') === projectId)
+      );
+    });
+    if (matched) return matched;
+    return projectTagBoards.find((board) => /sales/i.test(String(board?.title || board?.name || board?.id || ''))) || null;
+  }
+
+  function loadProjectTagBoards(){
+    if (!expandedPlatformEnabled()) return Promise.resolve([]);
+    const orgId = projectOrgId();
+    if (projectTagBoardsLoaded || !orgId || !window.PlatformAPI?.work?.boards) return Promise.resolve(projectTagBoards);
+    if (projectTagBoardsPromise) return projectTagBoardsPromise;
+    projectTagBoardsPromise = window.PlatformAPI.work.boards(orgId, { includeCompleted:true }).then((result) => {
+      projectTagBoards = Array.isArray(result?.boards) ? result.boards : [];
+      projectTagBoardsLoaded = true;
       renderProjectStageBar();
-      return branchStageConfig;
-    })();
-    return branchStageConfigPromise;
+      return projectTagBoards;
+    }).catch((error) => {
+      console.warn('Unable to load project tag colors', error);
+      projectTagBoardsLoaded = true;
+      return [];
+    }).finally(() => { projectTagBoardsPromise = null; });
+    return projectTagBoardsPromise;
   }
 
-  function projectStageId(project = activeBaseProject){
-    return cleanStageText(project?.stage || project?.stage_id || project?.mapped_stage?.id);
+  function projectTagTotal(project = activeBaseProject){
+    const values = [
+      project?.project_total, project?.project_total_amount, project?.contract_total, project?.contract_value,
+      project?.sale_total, project?.sold_total, project?.total_amount, project?.total_price,
+      project?.financials?.project_total, project?.financials?.contract_total,
+      project?.money?.project_total, project?.money?.project_total_cents != null ? Number(project.money.project_total_cents) / 100 : null
+    ];
+    const direct = values.map(Number).find((value) => Number.isFinite(value) && value > 0);
+    if (direct != null) return direct;
+    const proposalList = projectTagProposals(project);
+    const accepted = signedProjectProposal(project) || proposalList[0];
+    const proposalTotal = Number(accepted?.total ?? accepted?.grand_total ?? accepted?.total_amount ?? accepted?.amount);
+    if (Number.isFinite(proposalTotal) && proposalTotal > 0) return proposalTotal;
+    const calculatedTotal = Number(proposalPricingSummary(accepted)?.total);
+    return Number.isFinite(calculatedTotal) && calculatedTotal >= 0 ? calculatedTotal : 0;
   }
 
-  function projectStageHistory(project = activeBaseProject){
-    return Array.isArray(project?.stage_history) ? project.stage_history.map((entry) => entry && typeof entry === 'object' ? entry : {}).filter(Boolean) : [];
+  function projectTagDate(value){
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? cleanStageText(value) : date.toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.());
   }
 
-  function projectStageSequence(project = activeBaseProject){
-    const currentId = projectStageId(project);
-    if (!currentId) return [];
-    const stages = normalizeStageList(branchStageConfig || []);
-    const byId = new Map(stages.map((stage) => [stage.id, stage]));
-    const ordered = [...stages];
-    const ensureStage = (id) => {
-      const cleanId = cleanStageText(id);
-      if (!cleanId || byId.has(cleanId)) return;
-      const stage = { id: cleanId, label: humanizeStageId(cleanId) };
-      byId.set(cleanId, stage);
-      ordered.push(stage);
+  function projectScopeSetTag(project = activeBaseProject){
+    const direct = project?.scope_template || project?.scope_set || project?.scope;
+    const directId = cleanStageText(project?.scope_template_id || project?.scope_set_id || direct?.scope_template_id || direct?.template_id || direct?.id);
+    const directName = cleanStageText(project?.scope_template_name || project?.scope_set_name || (directId ? (direct?.name || direct?.display_name) : ''));
+    const directColor = cleanStageText(project?.scope_color || project?.scope_template_color || project?.scope_set_color || direct?.color);
+    if (directName) return { name: directName, color: directColor };
+
+    const proposal = signedProjectProposal(project) || projectTagProposals(project)[0];
+    const roots = Array.isArray(proposal?.scope?.root_items)
+      ? proposal.scope.root_items
+      : (Array.isArray(proposal?.scope?.children) ? proposal.scope.children : []);
+    const stack = [...roots];
+    while (stack.length) {
+      const item = stack.shift() || {};
+      const name = cleanStageText(item.scope_template_name || item.template_name || item.display_name || item.name);
+      if (cleanStageText(item.scope_template_id || item.template_id) && name) {
+        return { name, color: cleanStageText(item.scope_color || item.color) };
+      }
+      if (Array.isArray(item.children)) stack.push(...item.children);
+    }
+    return null;
+  }
+
+  function projectManualStageContexts(project = activeBaseProject){
+    const projectId = cleanStageText(project?.id || project?.project_id);
+    if (!projectId) return [];
+    const contexts = [];
+    for (const board of projectTagBoards) {
+      const columns = Array.isArray(board?.columns) ? board.columns : [];
+      for (const column of columns) {
+        const card = (Array.isArray(column?.cards) ? column.cards : []).find((item) => cleanStageText(item?.project_id || item?.id) === projectId);
+        if (!card?.plan_id) continue;
+        contexts.push({ board, column, card, planId:cleanStageText(card.plan_id), columns });
+      }
+    }
+    const seen = new Set();
+    return contexts.filter((context) => {
+      if (seen.has(context.planId)) return false;
+      seen.add(context.planId);
+      return true;
+    });
+  }
+
+  function closeManualStagePicker(){
+    document.querySelector('#rOverlay .r-manual-stage-backdrop')?.remove();
+  }
+
+  function openManualStagePicker(){
+    closeManualStagePicker();
+    const contexts = projectManualStageContexts();
+    if (!contexts.length) {
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("project-request","m_a665e8249df2aa","Stage unavailable") ?? "Stage unavailable"), (globalThis.PlatformLanguage?.text("project-request","m_e4f8d91f496ad2","This project is not on an active work board yet.") ?? "This project is not on an active work board yet."), false);
+      return;
+    }
+    const overlay = document.getElementById('rOverlay');
+    if (!overlay) return;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'r-manual-stage-backdrop';
+    backdrop.innerHTML = `<section class="r-manual-stage-dialog" role="dialog" aria-modal="true" aria-labelledby="rManualStageTitle"><header class="r-manual-stage-head"><i class="fas fa-arrows-left-right" aria-hidden="true"></i><div class="r-manual-stage-head-copy"><h3 id="rManualStageTitle">${(globalThis.PlatformLanguage?.text("project-request","m_a12d99be8366cc","Move to another stage") ?? "Move to another stage")}</h3><p>${(globalThis.PlatformLanguage?.text("project-request","m_73f44538c28f3e","Choose the board and the stage where this project should appear.") ?? "Choose the board and the stage where this project should appear.")}</p></div><button type="button" class="r-manual-stage-close" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></header><div class="r-manual-stage-body"></div></section>`;
+    overlay.appendChild(backdrop);
+    const body = backdrop.querySelector('.r-manual-stage-body');
+    let activeContext = contexts[0];
+    const render = () => {
+      body.innerHTML = (String(contexts.length > 1 ? `<label><span class="r-manual-stage-board-label">Board</span><select class="r-manual-stage-board-select">${contexts.map((context) => `<option value="${escapeHtml(context.planId)}" ${context.planId === activeContext.planId ? 'selected' : ''}>${escapeHtml(context.board.title || context.board.id || 'Board')}</option>`).join('')}</select></label>` : `<span class="r-manual-stage-board-label">${escapeHtml(activeContext.board.title || activeContext.board.id || 'Board')}</span>`) + "<div class=\"r-manual-stage-list\">" + String(activeContext.columns.map((column) => {
+        const current = cleanStageText(column.id) === cleanStageText(activeContext.column.id);
+        return `<button type="button" class="r-manual-stage-option ${current ? 'current' : ''}" data-stage-id="${escapeHtml(column.id)}" style="--stage-color:${escapeHtml(column.color || activeContext.board.color || '#667085')}"><span class="r-manual-stage-dot"></span><span><strong>${escapeHtml(column.title || 'Stage')}</strong><small>${escapeHtml(column.description || (current ? 'Current board stage' : 'Move this project here'))}</small></span>${current ? '<span class="r-manual-stage-current">Current</span>' : '<i class="fas fa-chevron-right" aria-hidden="true"></i>'}</button>`;
+      }).join('')) + "</div><div class=\"r-manual-stage-note\"><i class=\"fas fa-circle-info\"></i><span>" + (globalThis.PlatformLanguage?.text("project-request","m_e227614ba32bfe","This changes board placement without completing or skipping workflow tasks. The next real workflow transition or automation takes control again.") ?? "This changes board placement without completing or skipping workflow tasks. The next real workflow transition or automation takes control again.") + "</span></div>");
+      body.querySelector('.r-manual-stage-board-select')?.addEventListener('change', (event) => {
+        activeContext = contexts.find((context) => context.planId === event.target.value) || contexts[0];
+        render();
+      });
+      body.querySelectorAll('.r-manual-stage-option').forEach((option) => option.addEventListener('click', async () => {
+        const stageId = cleanStageText(option.dataset.stageId);
+        if (!stageId || stageId === cleanStageText(activeContext.column.id)) return;
+        body.querySelectorAll('button,select').forEach((control) => { control.disabled = true; });
+        try {
+          const result = await window.PlatformAPI.work.setManualStage(projectOrgId(), activeContext.planId, stageId);
+          const targetColumn = activeContext.columns.find((column) => cleanStageText(column.id) === stageId);
+          for (const column of activeContext.columns) {
+            column.cards = (Array.isArray(column.cards) ? column.cards : []).filter((card) => cleanStageText(card.plan_id) !== activeContext.planId);
+          }
+          if (targetColumn) targetColumn.cards = [...(targetColumn.cards || []), { ...activeContext.card, stage_id:stageId, manual_stage_override:true }];
+          if (result?.projection) {
+            activeBaseProject = { ...activeBaseProject, work_projection:result.projection };
+            window.Portal?.ProjectStore?.save?.(activeBaseProject);
+          }
+          closeManualStagePicker();
+          renderProjectStageBar();
+          window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("project-request","m_1bdd4e384f01a8","Stage updated") ?? "Stage updated"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_cc6d8119258484",`Project moved to ${v0}.`,{v0}) ?? `Project moved to ${v0}.`)(targetColumn?.title || 'the selected stage'), true);
+        } catch (error) {
+          body.querySelectorAll('button,select').forEach((control) => { control.disabled = false; });
+          window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("project-request","m_1bc89b9afda475","Stage not changed") ?? "Stage not changed"), error?.message || 'The project could not be moved.', false);
+        }
+      }));
     };
-    projectStageHistory(project).forEach((entry) => {
-      ensureStage(entry.from || entry.stage || entry.stage_id);
-      ensureStage(entry.to);
-    });
-    ensureStage(currentId);
-    return ordered;
+    render();
+    backdrop.querySelector('.r-manual-stage-close')?.addEventListener('click', closeManualStagePicker);
+    backdrop.addEventListener('click', (event) => { if (event.target === backdrop) closeManualStagePicker(); });
+    backdrop.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeManualStagePicker(); });
+    backdrop.querySelector('.r-manual-stage-close')?.focus();
   }
 
-  function completedProjectStageIds(project = activeBaseProject, stages = []){
-    const currentId = projectStageId(project);
-    const done = new Set();
-    const history = projectStageHistory(project);
-    history.forEach((entry) => {
-      const from = cleanStageText(entry.from || entry.stage || entry.stage_id);
-      const to = cleanStageText(entry.to);
-      if (from && from !== currentId) done.add(from);
-      if (to && to !== currentId && history.some((next) => cleanStageText(next.from || next.stage || next.stage_id) === to)) done.add(to);
+  function projectHeaderPillHtml(field, project, board){
+    if (String(field || '').startsWith('custom_field:')) {
+      const path = String(field).slice('custom_field:'.length);
+      const runtime = window.FirstMateCustomFields;
+      const definition = runtime?.definitionsFor?.('project', project, { location:'all' })
+        ?.find?.((candidate) => String(candidate.path || candidate.key) === path);
+      if (!definition) return '';
+      const value = runtime.valueFor(definition, project);
+      const display = runtime.formatValue(definition, value);
+      if (!display || display === 'Not set') {
+        const emptyBehavior = definition.ui?.project_tag_empty_behavior || definition.ui?.empty_behavior || 'hide';
+        if (emptyBehavior !== 'show') return '';
+      }
+      const icon = cleanStageText(definition.ui?.project_tag_icon || definition.ui?.icon)
+        || (definition.data_type === 'reference' ? 'fa-user-tag' : 'fa-tag');
+      const label = cleanStageText(definition.ui?.project_tag_label || definition.label);
+      return `<div class="r-project-tag custom-field" title="${escapeHtml(label)}"><i class="fas ${escapeHtml(icon)}" aria-hidden="true"></i><span>${escapeHtml(display === 'Not set' ? `${label}: Unassigned` : display)}</span></div>`;
+    }
+    if (field === 'stage' && manualProjectStageMovementEnabled() && canManageProjectStages() && projectManualStageContexts(project).length) {
+      const [primaryContext] = projectManualStageContexts(project);
+      const status = cleanStageText(primaryContext?.column?.title) || projectTagStatus(project);
+      if (!status) return '';
+      return `<button type="button" class="r-project-tag status stage-editable" data-manual-stage-trigger title="${(globalThis.PlatformLanguage?.text("project-request","m_0aa4129cee6f73","Change board stage") ?? "Change board stage")}" aria-label="${((v0) => globalThis.PlatformLanguage?.text("project-request","m_c2b7110fd652f2",`Change board stage, currently ${v0}`,{v0}) ?? `Change board stage, currently ${v0}`)(escapeHtml(status))}" aria-haspopup="dialog"><i class="fas fa-circle-dot"></i><span>${String(escapeHtml(status))}</span><i class="fas fa-chevron-down"></i></button>`;
+    }
+    const scopeSet = projectScopeSetTag(project);
+    const scopeColor = cleanStageText(scopeSet?.color) || '#4f7cac';
+    const contact = projectPrimaryContactAlias(project || {});
+    const propertyType = normalizedProjectType(project?.project_type || selectedType);
+    const propertyTypeMeta = TYPE_META[propertyType] || null;
+    const definitions = {
+      scope_type: { icon:'fa-layer-group', value:scopeSet?.name || '', cls:'scope', style:`--tag-color:${scopeColor}`, title:(globalThis.PlatformLanguage?.text("project-request","m_db64d2c3e595d5","Scope set") ?? "Scope set") },
+      stage: { icon:'fa-circle-dot', value:projectTagStatus(project), cls:'status' },
+      dollar_value: { value:`$${fmtWholeMoney(projectTagTotal(project))}`, cls:'total' },
+      start_date: { icon:'fa-calendar-day', value:projectTagDate(project?.start_date || project?.starts_at || project?.scheduled_start), cls:'' },
+      end_date: { icon:'fa-calendar-check', value:projectTagDate(project?.end_date || project?.ends_at || project?.scheduled_end), cls:'' },
+      customer: { icon:'fa-user', value:cleanStageText(contact?.name || project?.customer_name || project?.primary_contact_name), cls:'' },
+      address: { icon:'fa-location-dot', value:cleanStageText(project?.address), cls:'' },
+      owner: { icon:'fa-user-tie', value:cleanStageText(project?.owner_name || project?.project_owner_name || project?.assigned_to_name || project?.sales_rep_name), cls:'' },
+      project_type: {
+        value:propertyTypeMeta?.label || humanizeStageId(propertyType),
+        cls:'property-type',
+        html:`<button type="button" class="r-property-type-trigger" data-header-property-type aria-label="Change property type, currently ${escapeHtml(propertyTypeMeta?.label || humanizeStageId(propertyType))}" aria-haspopup="listbox" aria-expanded="false"><i class="fas ${escapeHtml(propertyTypeMeta?.icon || 'fa-house')} property-type-icon" aria-hidden="true"></i><span>${escapeHtml(propertyTypeMeta?.label || humanizeStageId(propertyType))}</span><i class="fas fa-chevron-down property-type-chevron" aria-hidden="true"></i></button>`
+      },
+      created_date: { icon:'fa-calendar-plus', value:projectTagDate(project?.created_at), cls:'' },
+      updated_date: { icon:'fa-clock-rotate-left', value:projectTagDate(project?.updated_at), cls:'' },
+      project_number: { icon:'fa-hashtag', value:cleanStageText(project?.project_number || project?.job_number || project?.number), cls:'' }
+    };
+    const item = definitions[field];
+    if (!item?.value) return '';
+    if (item.html) return `<div class="r-project-tag ${item.cls}">${item.html}</div>`;
+    const icon = item.icon ? `<i class="fas ${item.icon}" aria-hidden="true"></i>` : '';
+    return `<div class="r-project-tag ${item.cls}" ${item.style ? `style="${escapeHtml(item.style)}"` : ''} ${item.title ? `title="${escapeHtml(item.title)}"` : ''}>${icon}<span>${escapeHtml(item.value)}</span></div>`;
+  }
+
+  function workPlanStageNodes(plan = {}){
+    const stages = [];
+    const visit = (nodes = []) => (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+      if (String(node?.terminology_key || '').endsWith('stage')) stages.push(node);
+      visit(node?.children);
     });
-    return done;
+    visit(plan.root_nodes);
+    return stages;
+  }
+
+  async function loadProjectWorkPlans(options = {}){
+    if (!expandedPlatformEnabled()) return [];
+    const projectId = String(activeBaseProject?.id || activeBaseProject?.project_id || '').trim();
+    const orgId = projectOrgId();
+    if (!projectId || !orgId || !window.PlatformAPI?.work?.plans) return [];
+    if (projectWorkPlanState.projectId === projectId && projectWorkPlanState.loaded && !options.refresh) return projectWorkPlanState.plans;
+    if (projectWorkPlanPromise && !options.refresh) return projectWorkPlanPromise;
+    projectWorkPlanPromise = window.PlatformAPI.work.plans(orgId, projectId, { includeTree: true }).then((result) => {
+      if (String(activeBaseProject?.id || '') !== projectId) return [];
+      projectWorkPlanState = { projectId, plans: Array.isArray(result?.plans) ? result.plans : [], loaded: true };
+      renderProjectStageBar();
+      return projectWorkPlanState.plans;
+    }).catch((error) => {
+      console.warn('Unable to load project work plan', error);
+      projectWorkPlanState = { projectId, plans: [], loaded: true };
+      return [];
+    }).finally(() => { projectWorkPlanPromise = null; });
+    return projectWorkPlanPromise;
+  }
+
+  function renderWorkPlanStageBar(bar){
+    const plans = projectWorkPlanState.plans || [];
+    if (!plans.length) return false;
+    const phases = plans.flatMap((plan) => (Array.isArray(plan.root_nodes) ? plan.root_nodes : []).map((phase) => ({
+      plan,
+      phase,
+      stages: workPlanStageNodes({ root_nodes:[phase] })
+    })));
+    bar.hidden = false;
+    bar.innerHTML = `
+      <div class="r-stage-track" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_aa1db7f907b58f","Project work progress") ?? "Project work progress")}">
+        <div class="r-work-phase-list">
+          ${String(phases.map(({ plan, phase, stages }) => `
+            <div class="r-work-phase" data-work-plan-id="${escapeHtml(plan.id || '')}">
+              <span class="r-work-phase-name">${escapeHtml(phase.title || plan.title || 'Phase')}</span>
+              <div class="r-stage-list">
+                ${stages.map((stage, index) => {
+                  const status = String(stage.status || 'pending');
+                  const state = ['completed','skipped'].includes(status) ? 'done' : ['active','ready'].includes(status) ? 'current' : 'upcoming';
+                  const icon = state === 'done' ? 'fa-check' : state === 'current' ? 'fa-circle-dot' : 'fa-circle';
+                  return `${index ? '<i class="fas fa-arrow-right r-stage-arrow" aria-hidden="true"></i>' : ''}<div class="r-stage-pill ${state}" data-work-node-id="${escapeHtml(stage.id || '')}"><i class="fas ${icon}" aria-hidden="true"></i><span>${escapeHtml(stage.title || 'Stage')}</span></div>`;
+                }).join('')}
+              </div>
+            </div>`).join(''))}
+        </div>
+      </div>`;
+    return true;
   }
 
   function renderProjectStageBar(){
+    closeHeaderPropertyTypeMenu();
     const bar = document.getElementById('rProjectStageBar');
     if (!bar) return;
-    if (!projectStagesEnabled()) {
+    if (!expandedPlatformEnabled() || !shouldRenderDefaultProjectInfo() || !activeBaseProject) {
       bar.hidden = true;
       bar.innerHTML = '';
       return;
     }
-    const currentId = projectStageId();
-    if (projectLeftColumnOverridden() || !activeBaseProject || !currentId) {
-      bar.hidden = true;
-      bar.innerHTML = '';
-      return;
+    loadProjectTagBoards().catch(() => null);
+    const board = projectTagBoard();
+    const configuredFields = Array.isArray(branchProjectConfig?.project_header_pills) ? branchProjectConfig.project_header_pills : ['scope_type','stage','dollar_value'];
+    const customFieldPills = window.FirstMateCustomFields?.definitionsFor?.('project', activeBaseProject, { location:'all' })
+      ?.filter?.((definition) => projectAssignmentsEnabled() || definition.group_path !== 'assignments')
+      ?.filter?.((definition) => definition.ui?.project_tag === true || definition.ui?.visible_tag === true)
+      ?.map?.((definition) => `custom_field:${definition.path || definition.key}`) || [];
+    const configuredWithCustomFields = [...new Set([...configuredFields, ...customFieldPills])];
+    // Manual stage movement is an action, not merely an optional informational
+    // header field. Keep its control visible even when a branch customized the
+    // project pills before this feature existed.
+    if (manualProjectStageMovementEnabled() && canManageProjectStages() && projectManualStageContexts(activeBaseProject).length
+      && !configuredWithCustomFields.includes('stage')) {
+      const scopeIndex = configuredWithCustomFields.indexOf('scope_type');
+      configuredWithCustomFields.splice(scopeIndex >= 0 ? scopeIndex + 1 : 0, 0, 'stage');
     }
-    const stages = projectStageSequence();
-    const currentIndex = stages.findIndex((stage) => stage.id === currentId);
-    if (!stages.length || currentIndex < 0) {
-      bar.hidden = true;
-      bar.innerHTML = '';
-      return;
-    }
-    const done = completedProjectStageIds(activeBaseProject, stages);
+    const fields = newProjectCreationSession
+      ? configuredWithCustomFields.filter((field) => field !== 'project_type')
+      : [...configuredWithCustomFields.filter((field) => field !== 'project_type'), 'project_type'];
+    const pills = fields.map((field) => projectHeaderPillHtml(field, activeBaseProject, board)).filter(Boolean).join('');
+    if (!pills) { bar.hidden = true; bar.innerHTML = ''; return; }
     bar.hidden = false;
-    bar.innerHTML = `
-      <div class="r-stage-track" aria-label="Project stage progress">
-        <div class="r-stage-list">
-          ${stages.map((stage, index) => {
-            const state = stage.id === currentId ? 'current' : (done.has(stage.id) ? 'done' : 'upcoming');
-            const icon = state === 'done' ? 'fa-check' : (state === 'current' ? 'fa-circle-dot' : 'fa-circle');
-            return `${index ? '<i class="fas fa-arrow-right r-stage-arrow" aria-hidden="true"></i>' : ''}
-              <div class="r-stage-pill ${state}" data-stage-id="${escapeHtml(stage.id)}" ${state === 'current' ? 'data-current-stage="1"' : ''}>
-                <i class="fas ${icon}" aria-hidden="true"></i><span>${escapeHtml(stage.label || humanizeStageId(stage.id))}</span>
-              </div>`;
-          }).join('')}
-        </div>
-      </div>
-    `;
-    requestAnimationFrame(() => {
-      const current = bar.querySelector('[data-current-stage="1"]');
-      current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    bar.innerHTML = ("\n      <div class=\"r-project-tags\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-request","m_12e617b6b10c5c","Project details") ?? "Project details") + "\">\n        " + String(pills) + "\n      </div>\n    ");
+    bindProjectStageBarWheel();
+  }
+
+  function closeHeaderPropertyTypeMenu(options = {}){
+    if (!headerPropertyTypeMenu) return;
+    const { menu, trigger } = headerPropertyTypeMenu;
+    menu.remove();
+    trigger?.setAttribute('aria-expanded', 'false');
+    trigger?.closest('.property-type')?.classList.remove('menu-open');
+    headerPropertyTypeMenu = null;
+    if (options.restoreFocus) trigger?.focus();
+  }
+
+  function positionHeaderPropertyTypeMenu(menu, trigger){
+    const rect = trigger.getBoundingClientRect();
+    const gutter = 8;
+    const width = Math.min(260, window.innerWidth - (gutter * 2));
+    menu.style.width = `${width}px`;
+    const left = Math.max(gutter, Math.min(window.innerWidth - width - gutter, rect.right - width));
+    const menuHeight = menu.offsetHeight || 164;
+    const opensAbove = rect.bottom + gutter + menuHeight > window.innerHeight && rect.top > menuHeight + gutter;
+    const top = opensAbove ? rect.top - menuHeight - 6 : rect.bottom + 6;
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(Math.max(gutter, top))}px`;
+    menu.style.transformOrigin = `${rect.left + (rect.width / 2) - left}px ${opensAbove ? 'bottom' : 'top'}`;
+  }
+
+  function openHeaderPropertyTypeMenu(trigger){
+    if (headerPropertyTypeMenu?.trigger === trigger) {
+      closeHeaderPropertyTypeMenu({ restoreFocus:true });
+      return;
+    }
+    closeHeaderPropertyTypeMenu();
+    const currentType = normalizedProjectType(activeBaseProject?.project_type || selectedType) || 'residential';
+    const descriptions = {
+      residential:'Houses and single-family homes',
+      commercial:'Business and industrial properties',
+      multifamily:'Apartments and shared housing'
+    };
+    const menu = document.createElement('div');
+    menu.className = 'r-property-type-menu';
+    menu.setAttribute('role', 'listbox');
+    menu.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("project-request","m_dccbe8abe35b17","Property type") ?? "Property type"));
+    menu.innerHTML = Object.entries(TYPE_META).map(([key, meta]) => `<button type="button" class="r-property-type-option" role="option" data-property-type="${escapeHtml(key)}" aria-selected="${key === currentType ? 'true' : 'false'}"><span class="r-property-type-option-icon"><i class="fas ${escapeHtml(meta.icon)}" aria-hidden="true"></i></span><span class="r-property-type-option-copy"><strong>${escapeHtml(meta.label)}</strong><small>${escapeHtml(descriptions[key])}</small></span><i class="fas fa-check r-property-type-option-check" aria-hidden="true"></i></button>`).join('');
+    document.body.appendChild(menu);
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.closest('.property-type')?.classList.add('menu-open');
+    headerPropertyTypeMenu = { menu, trigger };
+    positionHeaderPropertyTypeMenu(menu, trigger);
+    const options = [...menu.querySelectorAll('[data-property-type]')];
+    const currentOption = menu.querySelector('[aria-selected="true"]') || options[0];
+    menu.addEventListener('click', (event) => {
+      const option = event.target.closest('[data-property-type]');
+      if (!option) return;
+      const value = option.dataset.propertyType;
+      closeHeaderPropertyTypeMenu();
+      selectProjectType(value, { reveal:false, persist:true });
     });
+    menu.addEventListener('keydown', (event) => {
+      const index = Math.max(0, options.indexOf(document.activeElement));
+      if (event.key === 'Escape') { event.preventDefault(); closeHeaderPropertyTypeMenu({ restoreFocus:true }); return; }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const delta = event.key === 'ArrowDown' ? 1 : -1;
+        options[(index + delta + options.length) % options.length]?.focus();
+      }
+      if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); options[event.key === 'Home' ? 0 : options.length - 1]?.focus(); }
+    });
+    currentOption?.focus();
+  }
+
+  function bindHeaderPropertyTypeGlobalEvents(){
+    if (headerPropertyTypeGlobalEventsBound) return;
+    headerPropertyTypeGlobalEventsBound = true;
+    document.addEventListener('click', (event) => {
+      const trigger = event.target.closest?.('[data-header-property-type]');
+      if (!trigger) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openHeaderPropertyTypeMenu(trigger);
+    }, true);
+    document.addEventListener('keydown', (event) => {
+      const trigger = event.target.closest?.('[data-header-property-type]');
+      if (!trigger || !['ArrowDown','ArrowUp'].includes(event.key)) return;
+      event.preventDefault();
+      openHeaderPropertyTypeMenu(trigger);
+    }, true);
+    document.addEventListener('pointerdown', (event) => {
+      if (!headerPropertyTypeMenu) return;
+      if (headerPropertyTypeMenu.menu.contains(event.target) || headerPropertyTypeMenu.trigger.contains(event.target)) return;
+      closeHeaderPropertyTypeMenu();
+    });
+    document.addEventListener('scroll', () => {
+      if (headerPropertyTypeMenu?.trigger?.isConnected) {
+        positionHeaderPropertyTypeMenu(headerPropertyTypeMenu.menu, headerPropertyTypeMenu.trigger);
+      }
+    }, true);
+    window.addEventListener('resize', () => closeHeaderPropertyTypeMenu());
   }
 
   function bindProjectStageBarWheel(){
+    bindHeaderPropertyTypeGlobalEvents();
     const bar = document.getElementById('rProjectStageBar');
     if (!bar || bar.__fmStageWheelBound) return;
     bar.__fmStageWheelBound = true;
+    bar.addEventListener('click', (event) => {
+      if (event.target.closest('[data-manual-stage-trigger]')) openManualStagePicker();
+    });
     bar.addEventListener('wheel', (event) => {
       const track = bar.querySelector('.r-stage-track');
       if (!track || track.scrollWidth <= track.clientWidth) return;
@@ -3480,9 +4542,15 @@
     }, { passive: false });
   }
 
+  bindHeaderPropertyTypeGlobalEvents();
+
   function customerPortalProjectModule(){
     return window.Portal?.modules?.customerPortalProject || window.Portal?.ProjectCustomerPortalApp || null;
   }
+
+  // The dedicated project tab owns Customer Portal access for now. Keep the
+  // left-column card implementation intact so it can be restored easily.
+  const CUSTOMER_PORTAL_LEFT_COLUMN_ENABLED = false;
 
   function mountCustomerPortalProjectApp(context = {}){
     const app = customerPortalProjectModule();
@@ -3524,9 +4592,9 @@
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      showToast('Copied', 'Customer portal link copied.', true);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_16841202d17c7c","Copied") ?? "Copied"), (globalThis.PlatformLanguage?.text("project-request","m_bfa8fef03b9ba7","Customer portal link copied.") ?? "Customer portal link copied."), true);
     } catch (_) {
-      showToast('Copy failed', 'Could not copy the customer portal link.', false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_9c6d3ea981962c","Copy failed") ?? "Copy failed"), (globalThis.PlatformLanguage?.text("project-request","m_4cd4659b75610e","Could not copy the customer portal link.") ?? "Could not copy the customer portal link."), false);
     }
   }
 
@@ -3534,7 +4602,7 @@
     const mount = document.getElementById('rCustomerPortalLinkMount');
     if (!mount) return;
     const pid = customerPortalProjectId();
-    if (projectLeftColumnOverridden() || !customerPortalEnabled() || !pid) {
+    if (!CUSTOMER_PORTAL_LEFT_COLUMN_ENABLED || !shouldRenderDefaultProjectInfo() || !customerPortalEnabled() || !pid) {
       mount.classList.remove('visible');
       mount.innerHTML = '';
       return;
@@ -3550,15 +4618,15 @@
     mount.innerHTML = `
       <div class="r-customer-portal-card">
         <div class="r-customer-portal-card-head">
-          <div class="r-customer-portal-card-title"><i class="fas fa-link"></i><span>Customer Portal</span></div>
-          <div class="r-customer-portal-card-status">${busy ? 'Loading' : (ready ? 'Ready' : 'Not created')}</div>
+          <div class="r-customer-portal-card-title"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</span></div>
+          <div class="r-customer-portal-card-status">${String(busy ? 'Loading' : (ready ? 'Ready' : 'Not created'))}</div>
         </div>
         <div class="r-customer-portal-actions">
-          <button type="button" class="${ready ? '' : 'primary'}" data-customer-portal-open-tab>${ready ? 'Manage' : 'Create Link'}</button>
-          ${liveUrl ? `
+          <button type="button" class="${String(ready ? '' : 'primary')}" data-customer-portal-open-tab>${String(ready ? 'Manage' : 'Create Link')}</button>
+          ${String(liveUrl ? `
             <button type="button" data-customer-portal-copy><i class="fas fa-copy"></i><span>Copy</span></button>
-          ` : ''}
-          ${previewUrl ? `<a href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i><span>Open</span></a>` : ''}
+          ` : '')}
+          ${String(previewUrl ? `<a href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i><span>Open</span></a>` : '')}
         </div>
       </div>
     `;
@@ -3963,11 +5031,11 @@
         syncLeftColumnOverride();
       },
       onDeactivate: () => {
-        $('#rOverlay')?.classList.remove('proposal-workspace');
+        $('#rOverlay')?.classList.remove('proposal-workspace', 'proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode');
         syncLeftColumnOverride();
       },
       onReset: () => {
-        $('#rOverlay')?.classList.remove('proposal-workspace');
+        $('#rOverlay')?.classList.remove('proposal-workspace', 'proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode');
         syncLeftColumnOverride();
       }
     };
@@ -3999,26 +5067,31 @@
   }
 
   function syncProposalPricebookItems(...args){ return proposalInvoke('syncProposalPricebookItems', args); }
-  function queueAutosaveNotice(...args){ return proposalInvoke('queueAutosaveNotice', args); }
+  function queueAutosaveNotice(...args){
+    // FirstMeasure drafts must save even when the platform proposal app is off.
+    if (!proposalsEnabled() || !proposalTabModule()) return persistActiveBaseProject();
+    return proposalInvoke('queueAutosaveNotice', args);
+  }
   function ensureProposalSignatureData(...args){ return proposalInvoke('ensureProposalSignatureData', args); }
   function ensureProposalSigningSession(...args){ return proposalInvoke('ensureProposalSigningSession', args); }
   function proposalSigningComplete(...args){ return proposalInvoke('proposalSigningComplete', args); }
   function proposalNextUnsignedTarget(...args){ return proposalInvoke('proposalNextUnsignedTarget', args); }
+  function proposalPricingSummary(...args){ return proposalInvoke('proposalPricingSummary', args) || null; }
   function proposalTriangleHeaderVars(...args){ return proposalInvoke('proposalTriangleHeaderVars', args); }
   function proposalRenderSections(...args){ return proposalInvoke('proposalRenderSections', args); }
-  function loadBranchPresentationStyle(...args){ return proposalInvoke('loadBranchPresentationStyle', args); }
+  async function loadBranchPresentationStyle(...args){ return proposalInvoke('loadBranchPresentationStyle', args); }
   function hexToRgbString(...args){ return proposalInvoke('hexToRgbString', args); }
   function getProposalPrimaryColor(...args){ return proposalInvoke('getProposalPrimaryColor', args); }
   function getProposalAccentColor(...args){ return proposalInvoke('getProposalAccentColor', args); }
   function getProposalAccentReadableColor(...args){ return proposalInvoke('getProposalAccentReadableColor', args); }
   function proposalBrandLockup(...args){ return proposalInvoke('proposalBrandLockup', args); }
   function ensureProposalPageIds(...args){ return proposalInvoke('ensureProposalPageIds', args); }
-  function loadBranchProposalTemplates(...args){ return proposalInvoke('loadBranchProposalTemplates', args); }
+  async function loadBranchProposalTemplates(...args){ return proposalInvoke('loadBranchProposalTemplates', args); }
   function proposalPageMarkup(...args){ return proposalInvoke('proposalPageMarkup', args); }
-  function proposalMarkupDockHtml(...args){ return proposalInvoke('proposalMarkupDockHtml', args); }
+  function proposalMarkupDockHtml(...args){ return proposalInvoke('proposalMarkupDockHtml', args) || ''; }
   function proposalStableId(...args){ return proposalInvoke('proposalStableId', args); }
   function normalizeProposalCollection(...args){ return proposalInvoke('normalizeProposalCollection', args); }
-  function hydrateProposalsFromBackend(...args){ return proposalInvoke('hydrateProposalsFromBackend', args); }
+  async function hydrateProposalsFromBackend(...args){ return proposalInvoke('hydrateProposalsFromBackend', args); }
   function enterProposalEditMode(...args){ return proposalInvoke('enterProposalEditMode', args); }
   function enterProposalSendMode(...args){ return proposalInvoke('enterProposalSendMode', args); }
   function createNewProposalAndEdit(...args){ return proposalInvoke('createNewProposalAndEdit', args); }
@@ -4094,10 +5167,14 @@
   }
 
   function renderProposalSection(){
-    if (!projectLeftColumnOverridden()) {
+    const mobileProposalMain = activePreviewTab === 'proposal'
+      && isMobileProjectOrder()
+      && proposalWorkspaceMode !== 'edit';
+    if (!projectLeftColumnOverridden() && !mobileProposalMain) {
       restoreDefaultLeftColumnState();
       return;
     }
+    if (activePreviewTab === 'schedule' && schedulePreviewAvailable()) return;
     if (activePreviewTab === 'materials' && materialsEnabled()) return;
     if (activePreviewTab === 'money' && moneyEnabled()) return;
     const tab = mountProposalTab();
@@ -4119,9 +5196,21 @@
   }
 
   function reportAddonInfo(key){
+    if (key === 'full_house') return {
+      title: (globalThis.PlatformLanguage?.text("project-request","m_4a6c4929742fbe","Full Structure report") ?? "Full Structure report"),
+      body: 'Exterior measurements for the whole house, including the roof.',
+      bullets: ['Walls, windows, doors, and siding areas.', 'Roof and gutter measurements included.', 'Eight reference photos per structure are required.'],
+      sample: {label: (globalThis.PlatformLanguage?.text("project-request","m_e1fd389d2c4cb3","Download sample Full Structure report") ?? "Download sample Full Structure report"), url: 'samples/full_house_sample.pdf'}
+    };
+    if (key === 'roof') return {
+      title: (globalThis.PlatformLanguage?.text("project-request","m_874db260d86062","Roof Only report") ?? "Roof Only report"), body: 'Your roof measurement report.',
+      bullets: ['Roof areas, slopes, edges and measurements.', 'Add gutters or other available reports when ordering.'],
+      sample: {label: (globalThis.PlatformLanguage?.text("project-request","m_9db79290d13f2b","Download sample roof report") ?? "Download sample roof report"), url: 'landing/variants/landing_template/media/sample-roof-measurement-report.pdf'}
+    };
+
     if (key === 'gutters') {
       return {
-        title: 'Gutter report',
+        title: (globalThis.PlatformLanguage?.text("project-request","m_f4779b9d631992","Gutter report") ?? "Gutter report"),
         body: 'Adds a dedicated gutter page to the standard residential report.',
         bullets: [
           'Active gutter linear feet calculated from eave runs.',
@@ -4130,14 +5219,14 @@
           'Miter counts for outside 90, inside 90, and non-90 corners.'
         ],
         sample: {
-          label: 'Download sample gutter report',
+          label: (globalThis.PlatformLanguage?.text("project-request","m_67350ceb0509e7","Download sample gutter report") ?? "Download sample gutter report"),
           url: 'samples/gutter_sample.pdf'
         }
       };
     }
     if (key === 'inspection') {
       return {
-        title: 'Instant report',
+        title: (globalThis.PlatformLanguage?.text("project-request","m_8fb9df3711e29f","Instant report") ?? "Instant report"),
         body: 'Adds an instant measurement report while the standard report is processing.',
         bullets: [
           'Fast AI-generated roof measurement preview.',
@@ -4150,7 +5239,7 @@
     }
     if (key === 'weather') {
       return {
-        title: 'Historical weather report',
+        title: (globalThis.PlatformLanguage?.text("project-request","m_a3126077e6d02c","Historical weather report") ?? "Historical weather report"),
         body: 'Adds a severe-weather history report for the property.',
         bullets: [
           'Broad hail, wind, and tornado event history for the address.',
@@ -4159,13 +5248,13 @@
           'Useful for claim review, customer conversations, and project documentation.'
         ],
         sample: {
-          label: 'Download sample weather report',
+          label: (globalThis.PlatformLanguage?.text("project-request","m_e92ed7b63f5c68","Download sample weather report") ?? "Download sample weather report"),
           url: 'samples/weather_sample.pdf'
         }
       };
     }
     return {
-      title: 'Add-on',
+      title: (globalThis.PlatformLanguage?.text("project-request","m_66645473310bb3","Add-on") ?? "Add-on"),
       body: 'Adds an optional report feature to this order.',
       bullets: [],
       sample: null
@@ -4194,12 +5283,12 @@
     const count = Math.max(1, pinCount());
     const total = Math.round(unit * count * 100) / 100;
     const structureLabel = count === 1 ? 'structure' : 'structures';
-    return `<div class="r-addon-info-price">$${escapeHtml(fmtMoney(unit))} / structure x ${count} ${structureLabel} = $${escapeHtml(fmtMoney(total))}</div>`;
+    return `<div class="r-addon-info-price">${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("project-request","m_f2a719928b5a49",`$${v0} / structure x ${v1} ${v2} = $${v3}`,{v0,v1,v2,v3}) ?? `$${v0} / structure x ${v1} ${v2} = $${v3}`)(escapeHtml(fmtMoney(unit)),count,structureLabel,escapeHtml(fmtMoney(total)))}</div>`;
   }
 
   function addonInfoIcon(key){
     const info = reportAddonInfo(key);
-    return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${escapeHtml(key)}" role="button" tabindex="0" aria-label="${escapeHtml(info.title)} information"><i class="fas fa-info"></i></span>`;
+    return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.text("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
   function buildTypeButtons(){
@@ -4210,6 +5299,41 @@
         <div class="r-type-label">${meta.label}</div>
         <div class="r-type-price">${pricingLabels[key]}</div>
       </button>`).join('');
+  }
+
+  function buildTypeOptions(selected = ''){
+    return Object.entries(TYPE_META).map(([key, meta]) =>
+      `<option value="${escapeHtml(key)}"${key === selected ? ' selected' : ''}>${escapeHtml(meta.label || key)}</option>`
+    ).join('');
+  }
+
+  function selectProjectType(value, options = {}){
+    const nextType = normalizedProjectType(value);
+    if (!nextType || !TYPE_META[nextType]) return false;
+    const previousType = selectedType;
+    selectedType = nextType;
+    typePickerExpanded = false;
+    if (activeBaseProject) activeBaseProject.project_type = nextType;
+    if (previousType && previousType !== selectedType && reportExpediteOptionsEnabled()) {
+      selectedReportExpedite = null;
+      invalidateReportExpediteOptions();
+      reportExpediteOptions = [...FALLBACK_REPORT_EXPEDITE_OPTIONS];
+      reportExpediteOptionsAuthoritative = false;
+      if (reportSelection === 'roof' && !shouldLockReportOrderingWorkflow()) reportSelection = null;
+    }
+    normalizeReportSelection();
+    if (hasSelectedAddons()) locationConfirmed = false;
+    refreshMarkerIcons();
+    renderWorkflowState();
+    renderProjectStageBar();
+    if (!addressSelected) {
+      const typedAddress = ($('#rAddress')?.value || '').trim();
+      if (typedAddress) forwardGeocode(typedAddress);
+    }
+    if (options.reveal !== false) revealInLeftColumnIfBelow('#rStepReport');
+    queueAutosaveNotice();
+    if (options.persist) persistActiveBaseProject();
+    return true;
   }
 
   function roofOnlyPriceLabel(){
@@ -4336,7 +5460,7 @@
 
   function reportExpeditePriceHtml(option, type = selectedType){
     if (option?.expedited && !reportExpeditePricingReady(type)) {
-      return '<span class="r-expedite-price is-loading" aria-label="Loading current price"></span>';
+      return ("<span class=\"r-expedite-price is-loading\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-request","m_4345f5c42b261f","Loading current price") ?? "Loading current price") + "\"></span>");
     }
     if (!option?.expedited) {
       const standard = reportExpediteNetTotalPrice(option, type);
@@ -4377,8 +5501,8 @@
 
   function reportExpediteWaitPosition(option){
     const isStandard = option?.key === 'standard_3_6';
-    const start = isStandard ? 240 : Number(option?.baseStartMinutes ?? option?.base_start_minutes ?? option?.startMinutes ?? 180);
-    const end = isStandard ? 420 : Number(option?.baseEndMinutes ?? option?.base_end_minutes ?? option?.endMinutes ?? 360);
+    const start = isStandard ? 180 : Number(option?.baseStartMinutes ?? option?.base_start_minutes ?? option?.startMinutes ?? 180);
+    const end = isStandard ? 360 : Number(option?.baseEndMinutes ?? option?.base_end_minutes ?? option?.endMinutes ?? 360);
     const wait = reportExpediteEstimatedWaitMinutes(option);
     const range = Math.max(1, end - start);
     return Math.max(0, Math.min(100, Math.round(((wait - start) / range) * 100)));
@@ -4414,7 +5538,7 @@
   }
 
   function localReportExpediteStandardWait(now = new Date()){
-    const parts = new Intl.DateTimeFormat('en-US', {
+    const parts = new Intl.DateTimeFormat((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), {
       timeZone: 'America/Los_Angeles',
       year: 'numeric',
       month: '2-digit',
@@ -4708,8 +5832,8 @@
       const icon = escapeHtml(meta.icon || 'fa-house');
       const label = escapeHtml(meta.label || selectedType);
       pill.innerHTML = hasReportOrdered()
-        ? `<span class="r-viewer-type-tag" aria-label="Project type"><i class="fas ${icon}"></i> ${label}</span>`
-        : `<button type="button" class="r-viewer-type-tag" data-type-pill aria-label="Change project type"><i class="fas ${icon}"></i> ${label} <i class="fas fa-chevron-down"></i></button>`;
+        ? ("<span class=\"r-viewer-type-tag\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-request","m_207fd0b5cbe442","Project type") ?? "Project type") + "\"><i class=\"fas " + String(icon) + "\"></i> " + String(label) + "</span>")
+        : `<label class="r-order-select"><i class="fas ${String(icon)}" aria-hidden="true"></i><select data-property-type aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_dccbe8abe35b17","Property type") ?? "Property type")}">${String(Object.entries(TYPE_META).map(([key,item])=>`<option value="${escapeHtml(key)}" ${key===selectedType?'selected':''}>${escapeHtml(item.label)}</option>`).join(''))}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></label>`;
     }
   }
 
@@ -4738,13 +5862,13 @@
       waitMount.innerHTML = `
         <div class="r-expedite-default-head">
           <div class="r-expedite-status">
-            <strong>${escapeHtml(reportExpediteBusyLabel(defaultOption))}</strong>
-            <span>Estimated wait time right now</span>
+            <strong>${String(escapeHtml(reportExpediteBusyLabel(defaultOption)))}</strong>
+            <span>${(globalThis.PlatformLanguage?.text("project-request","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}</span>
           </div>
-          <div class="r-expedite-eta">${escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption))}</div>
+          <div class="r-expedite-eta">${String(escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption)))}</div>
         </div>
-        <div class="r-expedite-bar" style="--wait-position:${position}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
-        <div class="r-expedite-bar-labels"><span>3 hrs</span><span>6 hrs</span></div>`;
+        <div class="r-expedite-bar" style="--wait-position:${String(position)}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
+        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.text("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.text("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
     } else if (waitMount) {
       waitMount.innerHTML = '';
     }
@@ -4768,7 +5892,7 @@
             <span class="r-expedite-copy">
               <span class="r-expedite-name">${escapeHtml(name)}</span>
               <span class="r-expedite-window${windowCompact}">${escapeHtml(window)}</span>
-              ${isStandard ? '' : '<span class="r-expedite-pill">Expedited</span>'}
+              ${isStandard ? '' : `<span class="r-expedite-pill">${(globalThis.PlatformLanguage?.text("project-request","m_b51f2220e8185c","Expedited") ?? "Expedited")}</span>`}
             </span>
             ${reportExpeditePriceHtml(option, selectedType)}
           </button>`;
@@ -4782,7 +5906,7 @@
       const showCoupon = selectedOption && reportExpediteCouponDiscount(selectedOption, selectedType) > 0;
       couponMount.classList.toggle('visible', !!showCoupon);
       couponMount.innerHTML = showCoupon
-        ? `<i class="fas fa-bolt"></i><span>Includes free expedite. ${uses} free expedite use${uses === 1 ? '' : 's'} remaining.</span>`
+        ? `<i class="fas fa-bolt"></i><span>${((v0,v1) => globalThis.PlatformLanguage?.text("project-request","m_b08d94d95ec9f8",`Includes free expedite. ${v0} free expedite use${v1} remaining.`,{v0,v1}) ?? `Includes free expedite. ${v0} free expedite use${v1} remaining.`)(uses,uses === 1 ? '' : 's')}</span>`
         : '';
     }
 
@@ -4862,6 +5986,7 @@
     const mount = $('#rProjectTodoList');
     if (!dock || !mount) return;
     const visible = showProjectTodoDock();
+    $('#rOverlay')?.classList.toggle('project-todos-visible', visible);
     dock.classList.toggle('visible', visible);
     if (!visible) {
       projectTodoController?.destroy?.();
@@ -4876,11 +6001,11 @@
       projectTodoController?.destroy?.();
       projectTodoController = null;
       projectTodoLoadedFor = '';
-      mount.innerHTML = '<div class="pai-today-list"><div class="pai-state">Project to-dos will appear here once this project is saved.</div></div>';
+      mount.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.text("project-request","m_4998638df5e181","Project to-dos will appear here once this project is saved.") ?? "Project to-dos will appear here once this project is saved.")}</div></div>`;
       return;
     }
     if (!orgId || !window.PlatformActionItems?.renderTodayList) {
-      mount.innerHTML = '<div class="pai-today-list"><div class="pai-state">Project to-dos are not available.</div></div>';
+      mount.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.text("project-request","m_48f1ac01db9289","Project to-dos are not available.") ?? "Project to-dos are not available.")}</div></div>`;
       return;
     }
     const key = `${orgId}:${projectId}`;
@@ -4897,7 +6022,14 @@
       projectTitle: projectTitleAlias(activeBaseProject || {}) || projectText(activeBaseProject?.customer_name, activeBaseProject?.resident_name, activeBaseProject?.address, 'Project'),
       projectAddress: projectText(activeBaseProject?.address, activeBaseProject?.project_address, reportOrderState?.address),
       userId: String(cfg.userId || window.__APP?.userId || ''),
-      completedOpen: true
+      completedOpen: false,
+      futureOpen: false,
+      dockDeferredSections: true,
+      scrollItemsOnly: true,
+      showProjectContext: false,
+      showUpcoming: true,
+      showFuture: true,
+      query: { includeFuture: true, includeAll: true }
     });
   }
 
@@ -4953,8 +6085,8 @@
     overlay.id = 'rAddonInfoModal';
     overlay.innerHTML = `
       <div class="r-addon-info-modal-card" role="dialog" aria-modal="true">
-        <button type="button" class="r-addon-info-modal-close" aria-label="Close"><i class="fas fa-times"></i></button>
-        ${reportAddonInfoHtml(key)}
+        <button type="button" class="r-addon-info-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+        ${String(reportAddonInfoHtml(key))}
       </div>`;
     document.body.appendChild(overlay);
     addonInfoModalHandle = window.Portal?.modals?.register?.(overlay, {
@@ -5062,9 +6194,9 @@
     }
     const quote = currentPriceQuote();
     if (quote.active) {
-      el.innerHTML = `<i class="fas fa-percent"></i><span>${quote.discount_percent}% referral discount applied. <s>$${fmtMoney(quote.original_amount)}</s>$${fmtMoney(quote.final_amount)} total.</span>`;
+      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_2bba8198d7ade2",`${v0}% referral discount applied. `,{v0}) ?? `${v0}% referral discount applied. `)(quote.discount_percent)}<s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("project-request","m_ede7d3676ea640",`$${v2} total.`,{v2}) ?? `$${v2} total.`)(fmtMoney(quote.final_amount))}</span>`;
     } else {
-      el.innerHTML = `<i class="fas fa-percent"></i><span>Your ${discount.discount_percent}% referral discount applies to standard report base pricing.</span>`;
+      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_c5fd3cbf0b07a0",`Your ${v0}% referral discount applies to standard report base pricing.`,{v0}) ?? `Your ${v0}% referral discount applies to standard report base pricing.`)(discount.discount_percent)}</span>`;
     }
     el.classList.add('visible');
   }
@@ -5076,21 +6208,23 @@
     if (!wrap || !tx || !ic) return;
 
     wrap.classList.remove('active', 'checked');
+    wrap.setAttribute('aria-checked',String(locationConfirmed));
+    wrap.setAttribute('aria-labelledby','rConfirmTx');
 
     if (!hasSelectedAddons()) {
-      tx.textContent = 'Skip roof-report placement and continue to customer details.';
+      tx.textContent = (globalThis.PlatformLanguage?.text("project-request","m_2f7dd304a33ed5","Skip roof-report placement and continue to customer details.") ?? "Skip roof-report placement and continue to customer details.");
       ic.innerHTML = `<i class="far fa-square"></i>`;
       return;
     }
     if (!addressSelected || pinCount() === 0) {
-      tx.textContent = 'Place at least one pin on the map.';
+      tx.textContent = (globalThis.PlatformLanguage?.text("project-request","m_d8cc2d868e3317","Place at least one pin on the map.") ?? "Place at least one pin on the map.");
       ic.innerHTML = `<i class="far fa-square"></i>`;
       return;
     }
 
     wrap.classList.add('active');
     if (!locationConfirmed) {
-      tx.textContent = 'I have placed a pin on every structure to be included in this report';
+      tx.textContent = (globalThis.PlatformLanguage?.text("project-request","m_93a548f13a353b","I have placed a pin on every structure to be included in this report") ?? "I have placed a pin on every structure to be included in this report");
       ic.innerHTML = `<i class="far fa-square"></i>`;
       return;
     }
@@ -5177,9 +6311,9 @@
     const top = $('#rSigningOverlay .r-signing-top');
     if (top) {
       top.innerHTML = `
-        <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i> Back</button>
+        <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("project-request","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="r-signing-actions">
-          ${canFinish ? `<button type="button" class="r-signing-finish" id="rSigningFinishTop"><i class="fas fa-paper-plane"></i> Finish and Send</button>` : `<button type="button" class="r-signing-next" id="rSigningNext"><i class="fas fa-arrow-right"></i> Next Signature</button>`}
+          ${String(canFinish ? `<button type="button" class="r-signing-finish" id="rSigningFinishTop"><i class="fas fa-paper-plane"></i> Finish and Send</button>` : `<button type="button" class="r-signing-next" id="rSigningNext"><i class="fas fa-arrow-right"></i> Next Signature</button>`)}
         </div>
       `;
     }
@@ -5234,7 +6368,7 @@
       proposalSigningMode = false;
       proposalSigningSession = null;
       closeSignatureChooser();
-      showToast('Signed', 'Signed proposal prepared for sending.', true);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_ab7ec8db303996","Signed") ?? "Signed"), (globalThis.PlatformLanguage?.text("project-request","m_9304bb766f7e70","Signed proposal prepared for sending.") ?? "Signed proposal prepared for sending."), true);
       renderWorkflowState();
       renderSigningOverlay();
     });
@@ -5282,17 +6416,13 @@
     });
   }
 
-  function setActivePreviewTab(tab){
+  function setActivePreviewTab(tab, options = {}){
     const previousTab = activePreviewTab;
-    if (tab === 'photos' && !projectPhotosEnabled()) tab = 'map';
-    if (tab === 'docs' && !projectDocsEnabled()) tab = 'map';
-    if (tab === 'schedule' && !schedulePreviewAvailable()) tab = 'map';
-    if (tab === 'proposal' && !proposalsEnabled()) tab = 'map';
-    if (tab === 'materials' && !materialsEnabled()) tab = 'map';
-    if (tab === 'measurements' && !reportsEnabled()) tab = 'map';
-    if (tab === 'money' && !moneyEnabled()) tab = 'map';
-    if (tab === 'customer_portal' && !customerPortalEnabled()) tab = 'map';
+    window.Portal.ExteriorOrder?.previewTabChanged?.(tab);
     const allowed = validPreviewTabs();
+    // Docs consolidation aliases: the retired standalone Documents tab and the
+    // deprecated Proposals tab both land on the unified Docs tab.
+    if (!allowed.includes(tab) && ['documents', 'proposal'].includes(tab) && allowed.includes('docs')) tab = 'docs';
     activePreviewTab = allowed.includes(tab) ? tab : projectDefaultPreviewTab();
     proposalWorkspaceOpen = proposalsEnabled() && activePreviewTab === 'proposal';
     if (activePreviewTab !== 'proposal') proposalSettingsPanelOpen = false;
@@ -5308,9 +6438,11 @@
       closeSignatureChooser();
     }
     $('#rOverlay')?.classList.toggle('proposal-workspace', !!proposalWorkspaceOpen);
+    if (!proposalWorkspaceOpen) $('#rOverlay')?.classList.remove('proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode');
     syncLeftColumnOverride();
+    syncMobileProjectInfoNavigation();
     ensureProjectModalAppPanels();
-    mountProjectModalRegionApps('left');
+    if (!projectShellLoading) mountProjectModalRegionApps('left');
     if (projectViewer && projectViewer.activeTab !== activePreviewTab) {
       projectViewer.activeTab = activePreviewTab;
       projectViewer.render?.();
@@ -5318,7 +6450,10 @@
     document.querySelectorAll('.r-preview-panel').forEach((panel) => {
       panel.classList.toggle('active', panel.dataset.panel === activePreviewTab);
     });
-    syncProjectModalAppActivation(previousTab);
+    // The mobile title is derived from the active tab, so update the shared
+    // viewer chrome whenever a tab changes instead of only during a full render.
+    syncProjectViewerTabs();
+    if (!projectShellLoading) syncProjectModalAppActivation(previousTab);
     restoreDefaultLeftColumnState();
     const hint = $('#rMapHint');
     const topMode = $('#rProposalTopMode');
@@ -5334,7 +6469,18 @@
     restoreDefaultLeftColumnState();
     syncProjectNotesPlacement();
     renderActionRow();
-    syncActiveProjectRoute();
+    if (options.syncRoute !== false) {
+      syncActiveProjectRoute({
+        projectNote:null, projectNotes:null,
+        proposal:null, proposalMode:null,
+        moneyView:null, receipt:null,
+        document:null, documentView:null,
+        materialList:null, materialSection:null,
+        reportView:null,
+        customerPortalView:null,
+        projectScheduleView:null, projectScheduleTarget:null
+      }, options);
+    }
   }
 
   function projectModalTabContext(){
@@ -5375,6 +6521,8 @@
       getProposals: () => proposals,
       setProposals: (nextProposals) => {
         proposals = Array.isArray(nextProposals) ? nextProposals : [];
+        if (activeBaseProject) activeBaseProject.proposals = proposals;
+        renderProjectStageBar();
         return proposals;
       },
       getBranchProjectConfig: () => branchProjectConfig,
@@ -5384,7 +6532,26 @@
         return reportOrderState;
       },
       persistProject: () => persistActiveBaseProject(),
+      saveContactEmail: async ({ contact_id: contactId = '', index = 0, email = '' } = {}) => {
+        const cards = [...($('#rContactList')?.querySelectorAll('.r-contact-card') || [])];
+        const normalizedId = projectText(contactId);
+        const card = (normalizedId ? cards.find((entry) => cardContactId(entry) === normalizedId) : null) || cards[Number(index) || 0];
+        const input = card?.querySelector('[data-field="email"]');
+        if (!card || !input) throw new Error('The customer contact could not be updated.');
+        input.value = projectText(email);
+        const updated = contactFromCard(card);
+        const standalone = findStandaloneContactRecord(updated);
+        if (standalone) saveStandaloneContact({ ...updated, record_project_id: projectIdentity(standalone) });
+        persistActiveBaseProject();
+        if (activeBaseProject && window.Portal?.ProjectStore?.saveRemote) {
+          const saved = await window.Portal.ProjectStore.saveRemote(activeBaseProject);
+          if (saved) activeBaseProject = { ...activeBaseProject, ...saved, contacts: collectContacts() };
+        }
+        return collectContacts().find((contact) => projectText(contact.id, contact.contact_id) === projectText(updated.id, updated.contact_id)) || updated;
+      },
       autosaveSoon: () => queueAutosaveNotice(),
+      loadCustomerPortal: (options = {}) => loadCustomerPortal(options),
+      renderCustomerPortalLink: () => renderCustomerPortalLink(),
       setActivePreviewTab: (tab) => setActivePreviewTab(tab),
       getActivePreviewTab: () => activePreviewTab,
       isLeftColumnOverridden: (tab) => projectLeftColumnOverridden(tab),
@@ -5504,6 +6671,9 @@
       closeProjectWorkspace: () => close(),
       openProjectWorkspace: (...args) => open(...args),
       projectDefaultPreviewTab: () => projectDefaultPreviewTab(),
+      setCoords: (...args) => setCoords(...args),
+      setMobileOrderPage: (page) => setMobileOrderPage(page),
+      mobileOrderUsesFinalPage: () => mobileOrderUsesFinalPage(),
       getMarkersData: () => getMarkersData(),
       normalizeProjectPins: (...args) => normalizeProjectPins(...args),
       buildPinIcon: (...args) => buildPinIcon(...args),
@@ -5553,6 +6723,46 @@
   const PROJECT_MODAL_APP_PREFIX = 'project.';
   const projectModalAppHandles = new Map();
   const projectModalRegionAppHandles = new Map();
+  const projectModalAppMounts = new Map();
+  const projectModalRegionAppMounts = new Map();
+  let projectModalHeaderIdentity = null;
+
+  function setProjectModalHeaderAction(action = null){
+    const buttons = [$('#rProjectHeaderAction'), $('#rMobileProjectHeaderAction')].filter(Boolean);
+    if (!buttons.length) return;
+    const label = String(action?.label || '').trim();
+    const onClick = typeof action?.onClick === 'function' ? action.onClick : null;
+    buttons.forEach((button) => {
+      if (button.__fmHeaderAction) button.removeEventListener('click', button.__fmHeaderAction);
+      button.__fmHeaderAction = null;
+      if (!label || !onClick) {
+        button.hidden = true;
+        button.replaceChildren();
+        button.removeAttribute('aria-label');
+        return;
+      }
+      const iconNode = document.createElement('i');
+      iconNode.className = `fas ${String(action?.icon || 'fa-plus').trim()}`;
+      iconNode.setAttribute('aria-hidden', 'true');
+      const labelNode = document.createElement('span');
+      labelNode.textContent = label;
+      button.replaceChildren(iconNode, labelNode);
+      button.setAttribute('aria-label', label);
+      button.hidden = false;
+      button.__fmHeaderAction = onClick;
+      button.addEventListener('click', onClick);
+    });
+  }
+
+  function setProjectModalHeaderIdentity(identity = null){
+    const value = identity && typeof identity === 'object' ? identity : null;
+    projectModalHeaderIdentity = value ? {
+      ownerTab:String(value.ownerTab || activePreviewTab || ''),
+      title:String(value.title || '').trim(),
+      subtitle:String(value.subtitle || '').trim()
+    } : null;
+    syncProjectViewerTabs();
+  }
 
   function projectModalTabId(meta = {}){
     const explicit = meta.app?.projectModalTabId || meta.app?.tabId;
@@ -5564,6 +6774,7 @@
   function firstMeasureOrderServices(){
     return {
       buildTypeButtons: () => buildTypeButtons(),
+      buildTypeOptions: () => buildTypeOptions(),
       proposalsEnabled: () => proposalsEnabled(),
       schedulingEnabled: () => schedulingEnabled(),
       proposalAgentEnabled: () => proposalAgentEnabled(),
@@ -5578,6 +6789,7 @@
   function projectModalRuntimeContext(extra = {}){
     const host = extra.host || projectWorkspaceHost();
     const project = activeBaseProject || null;
+    const leftRoot = Object.prototype.hasOwnProperty.call(extra, 'leftRoot') ? extra.leftRoot : $('#rProposalSection');
     const services = {
       ...(extra.services || {}),
       firstMeasureOrder: {
@@ -5600,10 +6812,17 @@
       orgId: projectOrgId(),
       branchId: window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default',
       activeTab: activePreviewTab,
+      projectIdentity: {
+        mobileOwner: 'modal_chrome',
+        mobileTitleElementId: 'rMobileProjectTitleText',
+        hideLeftRegionTitleInTray: true
+      },
+      setHeaderAction: setProjectModalHeaderAction,
+      setHeaderIdentity: setProjectModalHeaderIdentity,
       host,
       projectWorkspace: host,
       overlayRoot: $('#rOverlay'),
-      leftRoot: extra.leftRoot || $('#rProposalSection'),
+      leftRoot,
       leftRegionRoot: $('#rOverlay .r-left'),
       services
     };
@@ -5641,9 +6860,34 @@
     return `<div class="r-${escapeHtml(region)}" data-region="${escapeHtml(region)}"></div>`;
   }
 
+  function disposeProjectModalRegionApps(region){
+    projectModalRegionAppHandles.forEach((handle, key) => {
+      const [handleRegion] = String(key).split(':');
+      if (handleRegion !== region) return;
+      try { handle?.destroy?.(); } catch (error) { console.warn(`Project modal region app destroy failed for ${key}`, error); }
+      projectModalRegionAppHandles.delete(key);
+    });
+  }
+
+  function ensureProjectModalLeftRegion(){
+    const root = $('#rOverlay .r-left');
+    if (!root || root.children.length || projectModalResolvedPresentation().leftMode === 'none') return false;
+    const template = document.createElement('template');
+    template.innerHTML = projectModalRegionHtml('left').trim();
+    const replacement = template.content.firstElementChild;
+    if (!replacement?.classList.contains('r-left') || !replacement.children.length) return false;
+    root.replaceWith(replacement);
+    bindProjectModalFormControls();
+    return true;
+  }
+
   function mountProjectModalRegionApps(region){
     const runtime = window.FirstMateEmbeddableApps;
     if (!runtime?.mount) return;
+    if (region === 'left' && projectModalResolvedPresentation().leftMode === 'none') {
+      disposeProjectModalRegionApps(region);
+      return;
+    }
     const apps = projectModalRegionApps(region);
     const appIds = new Set(apps.map((app) => app.appId));
     projectModalRegionAppHandles.forEach((handle, key) => {
@@ -5668,6 +6912,7 @@
           if (replacement && region === 'left' && replacement.classList?.contains('r-left')) {
             root.replaceWith(replacement);
             root = replacement;
+            bindProjectModalFormControls();
           } else if (html) {
             root.innerHTML = html;
           }
@@ -5694,16 +6939,27 @@
         }
         return;
       }
-      runtime.mount({ main: root, left: context.leftRoot, overlay: $('#rOverlay') }, app.appId, context)
+      // Rendering the order workflow can re-enter this path several times before
+      // an async app mount resolves. Reuse that in-flight mount; otherwise every
+      // render starts another full app instance and the renderer can run out of
+      // memory before the first instance becomes available.
+      if (projectModalRegionAppMounts.has(key)) return;
+      const mountPromise = runtime.mount({ main: root, left: context.leftRoot, overlay: $('#rOverlay') }, app.appId, context)
         .then((handle) => {
           projectModalRegionAppHandles.set(key, handle);
           handle?.setActive?.(true);
           if (region === 'left') bindProjectStageBarWheel();
+          return handle;
         })
         .catch((error) => {
           projectModalRegionAppHandles.delete(key);
           console.warn(`Project modal region app mount failed for ${app.appId}`, error);
+          return null;
+        })
+        .finally(() => {
+          if (projectModalRegionAppMounts.get(key) === mountPromise) projectModalRegionAppMounts.delete(key);
         });
+      projectModalRegionAppMounts.set(key, mountPromise);
     });
   }
 
@@ -5714,38 +6970,109 @@
     const apps = runtime.listApps(context)
       .filter((meta) => meta?.id && meta.id !== 'project.request')
       .filter((meta) => meta.app?.kind === 'project_modal_app' || String(meta.id || '').startsWith(PROJECT_MODAL_APP_PREFIX))
-      .filter((meta) => projectModalAppFeatureEnabled(projectModalTabId(meta)))
       .map((meta) => ({
         ...meta,
         id: projectModalTabId(meta),
         appId: meta.id,
-        label: meta.label || meta.title || projectModalTabId(meta),
-        title: meta.title || meta.label || projectModalTabId(meta),
+        terminologyKey:meta.app?.terminologyKey || meta.terminologyKey || '',
+        label:window.PlatformTerminology?.appLabel?.(meta, meta.label || meta.title || projectModalTabId(meta)) || meta.label || meta.title || projectModalTabId(meta),
+        title:window.PlatformTerminology?.appLabel?.(meta, meta.title || meta.label || projectModalTabId(meta)) || meta.title || meta.label || projectModalTabId(meta),
         icon: meta.icon || '',
+        params: meta.params || {},
+        layout: meta.layout || {},
+        presentation: meta.presentation || {},
+        defaultHome: meta.defaultHome === true,
+        access: meta.access || {},
+        entitlement: meta.entitlement,
+        reasons: meta.reasons || [],
+        regions: meta.regions || meta.app?.regions || ['main'],
         panelHtml: meta.app?.panelHtml,
         app: meta.app
       }));
+    if (window.Portal.ExteriorOrder?.active()) {
+      const map = apps.find(app => app.id === 'map');
+      const photos = apps.find(app => app.id === 'photos') || { id:'photos', label:'Photos', title:'Photos', icon:'fa-images', regions:['main'], panelHtml:'<div id="rExteriorPhotosPanel" style="height:100%"></div>' };
+      return [map, photos, ...apps.filter(app => app.id === 'materials' && !app.app?.promoBadge)].filter(Boolean);
+    }
+    // Doc-first standalone mode: until a project is picked/created, the modal
+    // is a single standalone document — only the Docs tab exists.
+    if (docWorkflowStandaloneActive()) return apps.filter((app) => app.id === 'docs');
     return options.includeInlineMap || !projectModalAppsShouldInlineMap(apps)
       ? apps
       : apps.filter((app) => app.id !== 'map');
   }
 
-  function projectModalAppsShouldInlineMap(apps = projectModalApps({ includeInlineMap: true })){
-    const ids = (apps || []).map((app) => app?.id).filter(Boolean);
-    return ids.length === 2 && ids.includes('map') && ids.includes('measurements');
+  function projectModalResolvedPresentation(tabId = activePreviewTab){
+    const id = String(tabId || '').trim();
+    const app = projectModalApps({ includeInlineMap: true }).find((entry) => entry.id === id) || null;
+    const presentation = app?.presentation && typeof app.presentation === 'object' ? app.presentation : {};
+    const layout = app?.layout && typeof app.layout === 'object' ? app.layout : {};
+    const modal = {
+      ...presentation,
+      ...layout,
+      ...(presentation.project_modal || presentation.projectModal || {}),
+      ...(layout.project_modal || layout.projectModal || {})
+    };
+    const mobile = !!window.matchMedia?.('(max-width: 820px)')?.matches;
+    const devicePolicy = mobile
+      ? { ...(modal.mobile && typeof modal.mobile === 'object' ? modal.mobile : {}) }
+      : { ...(modal.desktop && typeof modal.desktop === 'object' ? modal.desktop : {}) };
+    const generalLeft = typeof modal.left === 'object'
+      ? (mobile ? modal.left.mobile : modal.left.desktop) || modal.left.default
+      : modal.left;
+    let leftMode = String(
+      (mobile
+        ? (modal.mobileLeft ?? modal.mobile_left ?? devicePolicy.left)
+        : (modal.desktopLeft ?? modal.desktop_left ?? devicePolicy.left))
+      ?? generalLeft
+      ?? modal.left_column
+      ?? ''
+    ).trim().toLowerCase();
+    if (modal.uses_left_column === false || modal.usesLeftColumn === false) leftMode = 'none';
+    if (['hidden', 'hide', 'off'].includes(leftMode)) leftMode = 'none';
+    if (['standard', 'host'].includes(leftMode)) leftMode = 'default';
+    if (!leftMode) {
+      leftMode = app?.regions?.includes?.('left') || ['proposal', 'scope', 'schedule', 'materials', 'money'].includes(id)
+        ? 'app'
+        : 'default';
+    }
+    const mobileTabs = String(modal.mobileTabs ?? modal.mobile_tabs ?? modal.mobile_navigation ?? devicePolicy.tabs ?? modal.tabs ?? '').trim().toLowerCase();
+    const infoTray = String(modal.mobileInfo ?? modal.mobile_info ?? modal.mobileInfoTray ?? modal.mobile_info_tray ?? devicePolicy.infoTray ?? '').trim().toLowerCase();
+    const fullscreenControl = mobile
+      ? (modal.mobileFullscreenControl ?? modal.mobile_fullscreen_control ?? devicePolicy.fullscreenControl ?? devicePolicy.fullscreen_control ?? modal.fullscreenControl)
+      : (modal.desktopFullscreenControl ?? modal.desktop_fullscreen_control ?? devicePolicy.fullscreenControl ?? modal.fullscreenControl);
+    const mobileFullscreen = mobile && (modal.mobileFullscreen === true || modal.mobile_fullscreen === true || devicePolicy.fullscreen === true || fullscreenControl === false);
+    return {
+      app,
+      modal,
+      mobile,
+      leftMode,
+      iconOnly: mobile && ['icons', 'icon', 'icon-only'].includes(mobileTabs),
+      infoTrayHidden: mobile && ['none', 'hidden', 'hide', 'off'].includes(infoTray),
+      mobileFullscreen,
+      showFullscreenControl: !(mobile && (fullscreenControl === false || mobileFullscreen))
+    };
   }
 
-  function projectModalAppFeatureEnabled(tabId){
-    const tab = String(tabId || '').trim();
-    if (tab === 'photos') return projectPhotosEnabled();
-    if (tab === 'docs') return projectDocsEnabled();
-    if (tab === 'schedule') return schedulePreviewAvailable();
-    if (tab === 'proposal') return proposalsEnabled();
-    if (tab === 'materials') return materialsEnabled();
-    if (tab === 'measurements') return reportsEnabled();
-    if (tab === 'money') return moneyEnabled();
-    if (tab === 'customer_portal') return customerPortalEnabled();
-    return true;
+  function applyProjectModalPresentation(){
+    const policy = projectModalResolvedPresentation();
+    const overlay = $('#rOverlay');
+    if (!overlay) return policy;
+    overlay.classList.toggle('entitlement-left-none', policy.leftMode === 'none');
+    overlay.classList.toggle('entitlement-mobile-fullscreen', policy.mobileFullscreen);
+    overlay.classList.toggle('entitlement-tab-icons', policy.iconOnly);
+    overlay.classList.toggle('entitlement-hide-fullscreen', !policy.showFullscreenControl);
+    overlay.classList.toggle('entitlement-info-none', policy.infoTrayHidden === true);
+    overlay.dataset.projectLeftMode = policy.leftMode;
+    overlay.dataset.projectTabMode = policy.iconOnly ? 'icons' : 'labels';
+    projectViewer?.setPresentation?.({ iconOnly: policy.iconOnly });
+    syncMobileDefaultInfoTray();
+    return policy;
+  }
+
+  function projectModalAppsShouldInlineMap(apps = projectModalApps({ includeInlineMap: true })){
+    const ids = (apps || []).filter((app) => !app?.app?.promoBadge).map((app) => app?.id).filter(Boolean);
+    return ids.length === 2 && ids.includes('map') && ids.includes('measurements');
   }
 
   function projectModalAppPanelsHtml(){
@@ -5807,8 +7134,8 @@
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-triangle-exclamation"></i>
-          <h3>${escapeHtml(tab?.label || tab?.title || tab?.id || 'Project app')} unavailable</h3>
-          <p>${escapeHtml(error?.message || `Could not ${phase || 'load'} this project app.`)}</p>
+          <h3>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_20b9cbe18eee54",`${v0} unavailable`,{v0}) ?? `${v0} unavailable`)(escapeHtml(tab?.label || tab?.title || tab?.id || 'Project app'))}</h3>
+          <p>${String(escapeHtml(error?.message || `Could not ${phase || 'load'} this project app.`))}</p>
         </div>
       </div>`;
   }
@@ -5830,11 +7157,13 @@
     if (!panelRoot) return Promise.resolve(null);
     const existing = projectModalAppHandles.get(app.appId);
     if (existing && !force) return Promise.resolve(existing);
+    const pending = projectModalAppMounts.get(app.appId);
+    if (pending && !force) return pending;
     const host = projectWorkspaceHost();
     const active = app.id === activePreviewTab;
-    const leftRoot = $('#rProposalSection');
+    const leftRoot = projectModalResolvedPresentation(app.id).leftMode === 'none' ? null : $('#rProposalSection');
     const overlayRoot = $('#rOverlay');
-    return runtime.mount({ main: panelRoot, left: leftRoot, overlay: overlayRoot }, app.appId, projectModalRuntimeContext({
+    const mountPromise = runtime.mount({ main: panelRoot, left: leftRoot, overlay: overlayRoot }, app.appId, projectModalRuntimeContext({
       active,
       roots: { main: panelRoot, left: leftRoot, overlay: overlayRoot },
       panelRoot,
@@ -5842,22 +7171,33 @@
       leftRoot,
       overlayRoot,
       host,
-      projectWorkspace: host
+      projectWorkspace: host,
+      params: app.params || {},
+      layout: app.layout || {},
+      presentation: app.presentation || {},
+      entitlement: app.entitlement,
+      defaultHome: app.defaultHome === true
     })).then((handle) => {
       projectModalAppHandles.set(app.appId, handle);
-      handle?.setActive?.(active);
+      // The route may change while the app bundle loads (including capability
+      // recovery switching away from the temporary Docs fallback).
+      handle?.setActive?.(app.id === activePreviewTab);
       return handle;
     }).catch((error) => {
       projectModalAppHandles.delete(app.appId);
       renderProjectModalTabError(app, 'mount', error);
       console.warn(`Project modal app mount failed for ${app.appId}`, error);
       return null;
+    }).finally(() => {
+      if (projectModalAppMounts.get(app.appId) === mountPromise) projectModalAppMounts.delete(app.appId);
     });
+    projectModalAppMounts.set(app.appId, mountPromise);
+    return mountPromise;
   }
 
   function projectModalAppRuntimeContext(app, active){
     const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(app?.id || '')}"]`);
-    const leftRoot = $('#rProposalSection');
+    const leftRoot = projectModalResolvedPresentation(app?.id).leftMode === 'none' ? null : $('#rProposalSection');
     const overlayRoot = $('#rOverlay');
     const host = projectWorkspaceHost();
     return projectModalRuntimeContext({
@@ -5868,7 +7208,12 @@
       leftRoot,
       overlayRoot,
       host,
-      projectWorkspace: host
+      projectWorkspace: host,
+      params: app?.params || {},
+      layout: app?.layout || {},
+      presentation: app?.presentation || {},
+      entitlement: app?.entitlement,
+      defaultHome: app?.defaultHome === true
     });
   }
 
@@ -5901,6 +7246,7 @@
 
   function syncProjectModalAppActivation(previousTab = ''){
     ensureProjectModalAppPanels();
+    setProjectModalHeaderAction(null);
     projectModalApps().forEach((app) => {
       const active = app.id === activePreviewTab;
       safelyRunProjectModalTab(app, active ? 'activate' : 'deactivate', () => {
@@ -5931,34 +7277,74 @@
 
   function projectViewerTabs(){
     const tabs = [];
+    if (mobileProjectInfoTabEnabled()) {
+      tabs.push({
+        id: 'info',
+        label: (globalThis.PlatformLanguage?.text("project-request","m_e3530bc541f8e4","Info") ?? "Info"),
+        icon: 'fa-circle-info',
+        className: 'r-mobile-info-tab'
+      });
+    }
     projectModalApps().forEach((tab) => {
       if (!tabs.some((entry) => entry.id === tab.id)) {
         tabs.push({
           id: tab.id,
-          label: tab.id === 'map' ? projectOverviewTabLabel() : (tab.label || tab.title || tab.id),
+          label: tab.id === 'map' ? (window.Portal.ExteriorOrder?.active() ? 'Map' : projectOverviewTabLabel()) : (tab.label || tab.title || tab.id),
           icon: tab.icon || '',
           pending: !!tab.pending,
+          badge: tab.app?.promoBadge || '',
           disabled: !!tab.disabled
         });
       }
     });
-    if (!projectModalAppsShouldInlineMap() && !tabs.some((entry) => entry.id === 'map')) {
-      tabs.unshift({ id:'map', label: projectOverviewTabLabel(), icon:'fa-table-columns' });
-    }
     return tabs;
   }
 
   function syncProjectViewerTabs(){
     ensureProjectModalAppPanels();
-    projectViewer?.setTabs(projectViewerTabs());
+    const tabs = projectViewerTabs();
+    projectViewer?.setTabs(tabs);
+    const activeTab = tabs.find((tab) => tab.id === activePreviewTab)
+      || projectModalApps({ includeInlineMap:true }).find((tab) => tab.id === activePreviewTab)
+      || null;
+    const mobileTabLabel = activeTab?.label || activeTab?.title || activePreviewTab || '';
+    const mobileTabTitle = $('#rMobileProjectTabTitle');
+    const mobileLeftTrayTitle = $('#rMobileLeftTrayTitle');
+    if (mobileTabTitle) mobileTabTitle.textContent = mobileTabLabel;
+    if (mobileLeftTrayTitle) mobileLeftTrayTitle.textContent = mobileTabLabel;
+    const mobileTabIcon = $('#rMobileProjectTabIcon');
+    if (mobileTabIcon) {
+      const icon = String(activeTab?.icon || '').trim();
+      mobileTabIcon.hidden = !icon;
+      mobileTabIcon.className = icon ? `fas ${icon}` : 'fas';
+    }
+    const overlay = $('#rOverlay');
+    const infoToggle = $('#rMobileProjectInfoToggle');
+    const identity = projectModalHeaderIdentity?.ownerTab === activePreviewTab ? projectModalHeaderIdentity : null;
+    overlay?.classList.toggle('visit-identity-header', !!identity);
+    if (infoToggle) infoToggle.hidden = !!identity;
+    if (identity && mobileTabTitle) {
+      const copy = document.createElement('span');
+      copy.className = 'r-mobile-visit-identity-copy';
+      const title = document.createElement('strong');
+      title.textContent = identity.title || mobileTabLabel;
+      copy.appendChild(title);
+      if (identity.subtitle) {
+        const subtitle = document.createElement('small');
+        subtitle.textContent = identity.subtitle;
+        copy.appendChild(subtitle);
+      }
+      mobileTabTitle.replaceChildren(copy);
+      if (mobileTabIcon) mobileTabIcon.hidden = true;
+    }
+    applyProjectModalPresentation();
   }
 
   function validPreviewTabs(){
-    const tabs = [];
+    const tabs = mobileProjectInfoTabEnabled() ? ['info'] : [];
     projectModalApps().forEach((app) => {
       if (!tabs.includes(app.id)) tabs.push(app.id);
     });
-    if (!projectModalAppsShouldInlineMap() && !tabs.includes('map')) tabs.unshift('map');
     return tabs;
   }
 
@@ -5976,11 +7362,18 @@
   }
 
   function projectOverviewTabLabel(){
-    return projectOverviewIsMapOnly() ? 'Map' : 'Overview';
+    return projectOverviewIsMapOnly()
+      ? (window.Portal?.terminology?.get?.('projects.map_tab', 'Map') || 'Map')
+      : (window.Portal?.terminology?.get?.('projects.overview_tab', 'Overview') || 'Overview');
   }
 
   function projectDefaultPreviewTab(){
-    return projectModalAppsShouldInlineMap() ? 'measurements' : 'map';
+    const apps = projectModalApps();
+    const entitlementHome = apps.find((app) => app.defaultHome === true && !app.disabled);
+    if (entitlementHome) return entitlementHome.id;
+    if (projectModalAppsShouldInlineMap() && apps.some((app) => app.id === 'measurements')) return 'measurements';
+    if (apps.some((app) => app.id === 'map')) return 'map';
+    return apps.find((app) => !app.disabled)?.id || apps[0]?.id || 'map';
   }
 
   function projectMeasurementsModule(){
@@ -6276,9 +7669,25 @@
       ? activeBaseProject.measurement_project
       : ((activeBaseProject?.measurement && typeof activeBaseProject.measurement === 'object') ? activeBaseProject.measurement : {});
     const raw = (measurement.raw && typeof measurement.raw === 'object') ? measurement.raw : {};
+    const assetMeasurementId = measurementIdFromAssetUrl(
+      activeBaseProject?.report_url,
+      activeBaseProject?.pdf_url,
+      activeBaseProject?.summary_url,
+      activeBaseProject?.xml_url,
+      measurement.report_url,
+      measurement.pdf_url,
+      measurement.summary_url,
+      measurement.xml_url,
+      raw.report_url,
+      raw.pdf_url,
+      raw.summary_url,
+      raw.xml_url,
+      reportOrderState?.reportUrl,
+      reportOrderState?.summaryUrl,
+      reportOrderState?.xmlUrl
+    );
     return firstMeasurementId(
       measurement.id,
-      measurement.project_id,
       measurement.folder,
       measurement.measurement_project_id,
       raw.folder,
@@ -6288,25 +7697,10 @@
       reportOrderState?.data?.project?.id,
       reportOrderState?.data?.project?.project_id,
       activeBaseProject?.measurement_project_id,
-      activeBaseProject?.project_id,
       activeBaseProject?.folder,
-      measurementIdFromAssetUrl(
-        activeBaseProject?.report_url,
-        activeBaseProject?.pdf_url,
-        activeBaseProject?.summary_url,
-        activeBaseProject?.xml_url,
-        measurement.report_url,
-        measurement.pdf_url,
-        measurement.summary_url,
-        measurement.xml_url,
-        raw.report_url,
-        raw.pdf_url,
-        raw.summary_url,
-        raw.xml_url,
-        reportOrderState?.reportUrl,
-        reportOrderState?.summaryUrl,
-        reportOrderState?.xmlUrl
-      )
+      assetMeasurementId,
+      measurement.project_id,
+      activeBaseProject?.project_id
     );
   }
   function parseReportDate(...args){ return projectMeasurementsInvoke('parseReportDate', args); }
@@ -6461,33 +7855,346 @@
       primary.phone || ''
     ].filter(Boolean);
     summary.innerHTML = `
-      <div class="r-viewer-item"><div class="r-viewer-k">Address</div><div class="r-viewer-v">${escapeHtml(($('#rAddress')?.value || reportOrderState?.address || '—').trim() || '—')}</div></div>
-      <div class="r-viewer-item"><div class="r-viewer-k">Project Type</div><div class="r-viewer-v">${escapeHtml(TYPE_META[selectedType]?.label || selectedType || '—')}</div></div>
-      <div class="r-viewer-item"><div class="r-viewer-k">Customer</div><div class="r-viewer-v">${contactLines.length ? contactLines.map(escapeHtml).join('<br>') : '—'}</div></div>
+      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.text("project-request","m_53d803cdbe9ab1","Address") ?? "Address")}</div><div class="r-viewer-v">${String(escapeHtml(($('#rAddress')?.value || reportOrderState?.address || '—').trim() || '—'))}</div></div>
+      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.text("project-request","m_29f3cc51016963","Project Type") ?? "Project Type")}</div><div class="r-viewer-v">${String(escapeHtml(TYPE_META[selectedType]?.label || selectedType || '—'))}</div></div>
+      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.text("project-request","m_ae8e4953e07d70","Customer") ?? "Customer")}</div><div class="r-viewer-v">${String(contactLines.length ? contactLines.map(escapeHtml).join('<br>') : '—')}</div></div>
     `;
+  }
+
+  function projectNotesApi(){ return expandedPlatformEnabled() ? window.Portal?.ProjectNotes || null : null; }
+  function legacyProjectNotesText(){
+    if (!expandedPlatformEnabled()) return ($('#rProjectNotes')?.value || '').trim();
+    return typeof activeBaseProject?.project_notes === 'string' ? activeBaseProject.project_notes : '';
+  }
+  function projectNoteDate(value){
+    const date = new Date(value || 0);
+    return Number.isFinite(date.getTime()) && date.getTime() > 0 ? date.toLocaleString([], { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : 'Earlier';
+  }
+  function projectNoteMentionAvatar(user = {}){
+    return projectText(user.avatar, user.avatar_url, user.photo_url, user.profile_photo_url, user.image_url, user.picture);
+  }
+  function projectNoteMentionHtml(user = {}, label = ''){
+    const name = projectText(user.name, user.label, user.email, user.id, String(label).replace(/^@/, ''));
+    const email = projectText(user.email, user.id);
+    const avatar = projectNoteMentionAvatar(user);
+    const initial = projectText(name, email, '?').slice(0, 1).toUpperCase();
+    const isAgent = String(user.id || '').startsWith('agent_') || user.agent === true;
+    const avatarHtml = isAgent
+      ? '<span style="display:inline-block;width:22px;height:22px;background:var(--primary-readable,var(--primary,#d93025));-webkit-mask:url(\'/images/logo_square.png\') center / contain no-repeat;mask:url(\'/images/logo_square.png\') center / contain no-repeat"></span>'
+      : (avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml(initial));
+    return `<span class="r-note-mention" role="button" tabindex="0" data-project-note-mention-user="${escapeHtml(projectText(user.id, email, name))}" data-project-note-mention-name="${escapeHtml(name)}" data-project-note-mention-email="${escapeHtml(email)}" data-project-note-mention-avatar="${escapeHtml(avatar)}">${escapeHtml(String(label).replace(/^@/, '') || name)}<span class="r-note-mention-card"><span class="r-note-mention-avatar"${isAgent ? ' style="background:#fff;border:1px solid #eef1f4"' : ''}>${avatarHtml}</span><span style="min-width:0"><span class="r-note-mention-name">${escapeHtml(name || email || 'User')}</span>${email ? `<span class="r-note-mention-email">${escapeHtml(email)}</span>` : ''}</span></span></span>`;
+  }
+  function projectNoteTextHtml(note = {}){
+    const text = String(note.text || '');
+    const storedUsers = Array.isArray(note.mention_users) ? note.mention_users.filter(Boolean) : [];
+    const inferredUsers = window.FirstMateTags?.extractMentions?.(text, projectNoteMentionDirectory) || [];
+    const users = [...new Map([...storedUsers, ...inferredUsers].map((user) => [projectText(user.id, user.email, user.name).toLowerCase(), user])).values()].filter(Boolean);
+    if (!text || !users.length) return escapeHtml(text);
+    const ranges = [];
+    users.forEach((user) => {
+      const labels = [...new Set([user.name, user.email, user.label, user.id].map(projectText).filter(Boolean))].sort((a,b) => b.length - a.length);
+      labels.forEach((label) => {
+        const escaped = String(label).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`@${escaped}(?=$|\\s|[.,;:!?\\)\\]])`, 'ig');
+        let match;
+        while ((match = regex.exec(text))) {
+          const start = match.index;
+          const end = start + match[0].length;
+          if (!ranges.some((range) => start < range.end && end > range.start)) ranges.push({ start, end, user, label:match[0] });
+        }
+      });
+    });
+    if (!ranges.length) return escapeHtml(text);
+    ranges.sort((a,b) => a.start - b.start);
+    let html = '';
+    let cursor = 0;
+    ranges.forEach((range) => {
+      html += escapeHtml(text.slice(cursor, range.start));
+      html += projectNoteMentionHtml(range.user, range.label);
+      cursor = range.end;
+    });
+    return html + escapeHtml(text.slice(cursor));
+  }
+  function projectNoteMentionUser(chip){
+    return { id:chip?.dataset?.projectNoteMentionUser || '', name:chip?.dataset?.projectNoteMentionName || '', email:chip?.dataset?.projectNoteMentionEmail || '', avatar:chip?.dataset?.projectNoteMentionAvatar || '' };
+  }
+  function positionProjectNoteMentionCard(chip){
+    const card = chip?.querySelector?.('.r-note-mention-card');
+    if (!chip || !card) return;
+    const rect = chip.getBoundingClientRect();
+    card.classList.add('visible');
+    const cardRect = card.getBoundingClientRect();
+    const width = cardRect.width || 250;
+    const height = cardRect.height || 64;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const preferredTop = rect.top - height - 8;
+    card.style.left = `${left}px`;
+    card.style.top = `${Math.max(8, preferredTop < 8 ? rect.bottom + 8 : preferredTop)}px`;
+  }
+  function hideProjectNoteMentionCard(chip){ chip?.querySelector?.('.r-note-mention-card')?.classList.remove('visible'); }
+  function openProjectNoteMentionUser(chip){
+    const user = projectNoteMentionUser(chip);
+    if (!projectText(user.id, user.email, user.name)) return;
+    window.Portal?.PhotoFeed?.openUserModal?.(user, []);
+  }
+  function autoSizeProjectNoteInput(){
+    const input = $('#rProjectNotes');
+    if (!input) return;
+    input.style.height = '0px';
+    input.style.height = `${Math.min(180, Math.max(56, input.scrollHeight))}px`;
+    input.style.overflowY = input.scrollHeight > 180 ? 'auto' : 'hidden';
+    const highlights = $('#rProjectNoteHighlights');
+    if (highlights) highlights.style.height = input.style.height;
+  }
+  function renderProjectNoteComposerMentions(){
+    const input = $('#rProjectNotes');
+    const highlights = $('#rProjectNoteHighlights');
+    const wrap = input?.closest('.r-note-input-wrap');
+    if (!input || !highlights || !wrap) return;
+    const text = input.value || '';
+    const mentions = projectNoteMentionController?.confirmedMentions?.() || [];
+    const ranges = [];
+    mentions.forEach((user) => {
+      const labels = [user.name, user.email, user.id].map((value) => projectText(value)).filter(Boolean);
+      labels.forEach((label) => {
+        const needle = `@${label}`.toLowerCase();
+        let from = 0;
+        while (from < text.length) {
+          const start = text.toLowerCase().indexOf(needle, from);
+          if (start < 0) break;
+          const end = start + needle.length;
+          if (!ranges.some((range) => start < range.end && end > range.start)) ranges.push({ start, end });
+          from = end;
+        }
+      });
+    });
+    ranges.sort((a, b) => a.start - b.start);
+    let cursor = 0;
+    highlights.innerHTML = ranges.map((range) => {
+      const before = escapeHtml(text.slice(cursor, range.start));
+      const tag = `<span class="r-note-compose-mention">${escapeHtml(text.slice(range.start, range.end))}</span>`;
+      cursor = range.end;
+      return before + tag;
+    }).join('') + escapeHtml(text.slice(cursor)) + (text.endsWith('\n') ? '\n' : '');
+    const style = getComputedStyle(input);
+    highlights.style.padding = style.padding;
+    highlights.style.font = style.font;
+    highlights.style.letterSpacing = style.letterSpacing;
+    highlights.style.lineHeight = style.lineHeight;
+    highlights.scrollTop = input.scrollTop;
+    wrap.classList.toggle('has-mentions', ranges.length > 0);
+  }
+  function renderProjectNoteVisibilityMenu(){
+    const api = projectNotesApi();
+    const menu = $('#rProjectNoteVisibilityMenu');
+    const label = $('#rProjectNoteVisibilityLabel');
+    if (!api || !menu) return;
+    const all = projectNoteVisibility.length === api.GROUPS.length;
+    menu.innerHTML = ("<button type=\"button\" data-project-note-group=\"everybody\" class=\"" + String(all ? 'active' : '') + "\"><i class=\"fas fa-" + String(all ? 'check-circle' : 'circle') + "\"></i>" + (globalThis.PlatformLanguage?.text("project-request","m_d068fb68fb07d2","Everybody") ?? "Everybody") + "</button>" + String(api.GROUPS.map((group) => `<button type="button" data-project-note-group="${group}" class="${projectNoteVisibility.includes(group) ? 'active' : ''}"><i class="fas fa-${projectNoteVisibility.includes(group) ? 'check-circle' : 'circle'}"></i>${escapeHtml(group[0].toUpperCase() + group.slice(1))}</button>`).join('')) + "<button type=\"button\" data-project-note-group=\"only_tagged\" class=\"" + String(projectNoteVisibility.length ? '' : 'active') + "\"><i class=\"fas fa-" + String(projectNoteVisibility.length ? 'circle' : 'check-circle') + "\"></i>" + (globalThis.PlatformLanguage?.text("project-request","m_6909fe060ad4e1","Only Tagged") ?? "Only Tagged") + "</button>");
+    if (label) label.textContent = api.visibilityLabel(projectNoteVisibility);
+  }
+  function projectNoteVisibilityMenuHome(){ return document.querySelector('#rOverlay .r-bottom-notes'); }
+  function closeProjectNoteVisibilityMenu(){
+    const menu = $('#rProjectNoteVisibilityMenu');
+    if (!menu) return;
+    menu.hidden = true;
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    projectNoteVisibilityMenuHome()?.appendChild(menu);
+    $('#rProjectNoteVisibility')?.setAttribute('aria-expanded', 'false');
+  }
+  function positionProjectNoteVisibilityMenu(){
+    const menu = $('#rProjectNoteVisibilityMenu');
+    const trigger = $('#rProjectNoteVisibility');
+    if (!menu || !trigger || menu.hidden) return;
+    const rect = trigger.getBoundingClientRect();
+    const gap = 8;
+    const safeInset = 16;
+    const viewportWidth = Math.max(320, window.innerWidth || document.documentElement.clientWidth || 0);
+    const viewportHeight = Math.max(320, window.innerHeight || document.documentElement.clientHeight || 0);
+    const preferredLeft = rect.right + gap;
+    const left = Math.max(safeInset, Math.min(preferredLeft, viewportWidth - menu.offsetWidth - safeInset));
+    const top = Math.max(safeInset, Math.min(rect.top - 6, viewportHeight - menu.offsetHeight - safeInset));
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  }
+  function openProjectNoteVisibilityMenu(){
+    const menu = $('#rProjectNoteVisibilityMenu');
+    const trigger = $('#rProjectNoteVisibility');
+    if (!menu || !trigger) return;
+    document.body.appendChild(menu);
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    positionProjectNoteVisibilityMenu();
+  }
+  function renderProjectNoteHistory(){
+    const api = projectNotesApi();
+    const history = $('#rProjectNoteHistory');
+    const tools = $('#rProjectNoteHistoryTools');
+    const deck = $('#rProjectNoteHistoryDeck');
+    if (!history || !tools || !deck || !api) return;
+    const open = !proposalInternalNotesCollapsed;
+    const expanded = open || projectNoteHistoryClosing;
+    deck.setAttribute('aria-hidden', open ? 'false' : 'true');
+    const notesRoot = history.closest('.r-bottom-notes');
+    notesRoot?.classList.toggle('expanded', expanded);
+    notesRoot?.classList.toggle('closing', projectNoteHistoryClosing);
+    notesRoot?.closest('.r-left')?.classList.toggle('notes-history-expanded', expanded);
+    const search = ($('#rProjectNoteSearch')?.value || '').trim().toLowerCase();
+    const oldest = $('#rProjectNoteSort')?.value === 'oldest';
+    const notes = (activeBaseProject ? (search ? api.visible(activeBaseProject) : (api.timeline?.(activeBaseProject) || api.visible(activeBaseProject))) : []).filter((note) => !search || `${note.text} ${note.created_by?.name || ''} ${note.created_by?.email || ''} ${(api.typeTags(note) || []).map((tag) => tag.label).join(' ')}`.toLowerCase().includes(search)).sort((a,b) => (oldest ? 1 : -1) * String(a.created_at).localeCompare(String(b.created_at)));
+    history.innerHTML = notes.length ? notes.map((note) => note.deleted_at
+      ? `<article class="r-note-card pn-removed" data-project-note-id="${escapeHtml(note.id)}">${api.removedNoteHtml?.(note) || ''}</article>`
+      : `<article class="r-note-card ${api.typeTags(note).length ? 'fm-note-card-with-types' : ''}" data-project-note-id="${escapeHtml(note.id)}">${api.renderTypeTags(note)}${note.text ? `<p>${projectNoteTextHtml(note)}</p>` : ''}${api.audioPlayerHtml?.(note) || ''}${api.mediaAttachmentsHtml?.(note) || ''}<div class="r-note-card-meta"><span>${escapeHtml(note.created_by?.name || note.created_by?.email || 'Unknown')} · ${escapeHtml(projectNoteDate(note.created_at))} · ${escapeHtml(api.visibilityLabel(note.visibility))}${api.editedMetaHtml?.(note) || ''}</span><span class="r-note-card-actions">${api.repliesToggleHtml?.(note) || ''}${(note.can_edit || api.owns(note)) ? `<button type="button" data-project-note-edit="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_1fcb173e99effe","Edit note") ?? "Edit note")}"><i class="fas fa-pen"></i></button>` : ''}${(note.can_delete || api.owns(note)) ? `<button type="button" data-project-note-remove="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_4b4ba3b5b6d01b","Remove note") ?? "Remove note")}"><i class="fas fa-trash"></i></button>` : ''}</span></div></article>`).join('') : `<div class="r-note-empty">${search ? 'No notes match this filter.' : 'No notes yet.'}</div>`;
+    window.FirstMateAudioNotes?.hydrate?.(history);
+  }
+  function syncProjectNotesUi(){
+    if (!expandedPlatformEnabled()) return;
+    const api = projectNotesApi();
+    // Notes come from the channels backend; kick a lazy load so the history
+    // deck fills in and re-renders via fm:project-notes:refreshed.
+    if (activeBaseProject?.id) projectNotesApi()?.load?.(activeBaseProject);
+    renderProjectNoteVisibilityMenu();
+    renderProjectNoteHistory();
+    const audioPending = $('#rProjectAudioPending');
+    if (audioPending) {
+      if (pendingProjectAudio) {
+        const pendingAudioButton = $('#rProjectAudioNote');
+        if (pendingAudioButton) pendingAudioButton.disabled = true;
+        api?.mountPreparedUpload?.(audioPending, pendingProjectAudio, () => {
+          pendingProjectAudio = null;
+          const audioButton = $('#rProjectAudioNote');
+          if (audioButton) audioButton.disabled = false;
+          const uploadButton = $('#rProjectNoteUpload');
+          if (uploadButton) uploadButton.disabled = false;
+          audioPending.innerHTML = '';
+        });
+      } else {
+        audioPending.innerHTML = '';
+      }
+    }
+    const button = $('#rProjectNoteAdd');
+    if (button) button.innerHTML = editingProjectNoteId ? '<i class="fas fa-check"></i> Save note' : '<i class="fas fa-plus"></i> Add note';
+    $('#rProjectNotesToggle')?.setAttribute('aria-expanded', proposalInternalNotesCollapsed ? 'false' : 'true');
+    autoSizeProjectNoteInput();
+    renderProjectNoteComposerMentions();
+  }
+  function revealRoutedProjectNote(noteId){
+    const id = projectText(noteId);
+    if (!id || !activeBaseProject || projectShellLoading) return false;
+    window.clearTimeout(projectNoteHistoryCloseTimer);
+    projectNoteHistoryCloseTimer = 0;
+    projectNoteHistoryClosing = false;
+    proposalInternalNotesCollapsed = false;
+    const search = $('#rProjectNoteSearch');
+    if (search) search.value = '';
+    renderProjectNoteHistory();
+    const findCard = () => [...($('#rProjectNoteHistory')?.querySelectorAll('[data-project-note-id]') || [])]
+      .find((item) => projectText(item.dataset.projectNoteId) === id);
+    const highlight = (card) => {
+      card.classList.add('notification-target');
+      window.requestAnimationFrame(() => card.scrollIntoView?.({ behavior:'smooth', block:'center' }));
+      window.setTimeout(() => card.classList.remove('notification-target'), 3600);
+    };
+    const card = findCard();
+    if (card) { highlight(card); return true; }
+    // Notes may still be loading from the backend — retry once after the fetch.
+    projectNotesApi()?.load?.(activeBaseProject)?.then?.(() => {
+      renderProjectNoteHistory();
+      const late = findCard();
+      if (late) highlight(late);
+    });
+    return false;
+  }
+
+  function restoreProjectNoteRoute(){
+    const route = window.Portal?.navigation?.read?.() || window.Portal?.routeState?.get?.() || {};
+    const noteId = projectText(route.projectNote);
+    if (!noteId || !activeModalMatchesProject(route.project)) return false;
+    return revealRoutedProjectNote(noteId);
+  }
+  async function persistProjectNoteMutation(){
+    // Notes persist through the channels backend (flush awaits the pending
+    // write); the project document itself no longer carries note data.
+    await projectNotesApi()?.flush?.(activeBaseProject)?.catch?.(() => null);
+    window.dispatchEvent(new CustomEvent('fm:project-notes:changed', { detail:{ projectId:activeBaseProject?.id || '' } }));
+  }
+  async function commitProjectNote(){
+    const api = projectNotesApi();
+    const input = $('#rProjectNotes');
+    const text = (input?.value || '').trim();
+    if (!api || (!text && !pendingProjectAudio?.attachment)) return;
+    if (!activeBaseProject) ensureContactOnlyBaseProject() || ensureDraftBaseProject();
+    if (!activeBaseProject) return;
+    const mentionUsers = projectNoteMentionController?.selectedMentions?.() || [];
+    const note = editingProjectNoteId
+      ? api.update(activeBaseProject, editingProjectNoteId, { text, visibility:projectNoteVisibility, mention_users:mentionUsers })
+      : api.add(activeBaseProject, text, projectNoteVisibility, mentionUsers, [], pendingProjectAudio ? {
+        attachments:[pendingProjectAudio.attachment],
+        metadata:pendingProjectAudio.kind === 'audio' || String(pendingProjectAudio.attachment?.content_type || '').startsWith('audio/')
+          ? { audio_note:pendingProjectAudio.metadata }
+          : pendingProjectAudio.metadata
+      } : {});
+    editingProjectNoteId = '';
+    pendingProjectAudio = null;
+    const audioButton = $('#rProjectAudioNote');
+    if (audioButton) audioButton.disabled = false;
+    const uploadButton = $('#rProjectNoteUpload');
+    if (uploadButton) uploadButton.disabled = false;
+    input.value = '';
+    projectNoteMentionController?.setSelectedMentions?.([]);
+    autoSizeProjectNoteInput();
+    renderProjectNoteComposerMentions();
+    proposalInternalNotesCollapsed = false;
+    syncProjectNotesUi();
+    await persistProjectNoteMutation();
+    // Mention notifications are created server-side by the channels backend,
+    // so no frontend mention event is needed here anymore.
+    showToast((globalThis.PlatformLanguage?.text("project-request","m_6c9ffb3d517f10","Note saved") ?? "Note saved"), (globalThis.PlatformLanguage?.text("project-request","m_3b44027b035a28","Project note added to the history.") ?? "Project note added to the history."), true);
   }
 
   function syncProjectNotesPlacement(){
     const notes = document.querySelector('#rOverlay .r-bottom-notes');
+    const agent = document.querySelector('#rOverlay #rProposalAgent');
     const inlineMount = $('#rInlineNotesMount');
     const mobileDetailMount = $('#rMobileInternalNotesMount');
     const bottomMount = document.querySelector('#rOverlay .r-left-bottom');
+    const notesRailMount = $('#rProposalNotesRailMount');
+    const notesRailSection = $('#rProposalNotesRailSection');
+    const agentRailMount = $('#rProposalAgentRailMount');
+    const agentRailSection = $('#rProposalAgentRailSection');
     if (!notes || !inlineMount || !bottomMount) return;
-    const mobileInline = !projectLeftColumnOverridden() && window.matchMedia?.('(max-width: 720px)')?.matches;
-    const target = mobileInline ? (mobileDetailMount || inlineMount) : bottomMount;
+    const proposalTabActive = proposalsEnabled() && proposalWorkspaceOpen && activePreviewTab === 'proposal';
+    const mobileInline = proposalTabActive && !projectLeftColumnOverridden() && window.matchMedia?.('(max-width: 720px)')?.matches;
+    const proposalEditMode = proposalTabActive && proposalWorkspaceMode === 'edit';
+    const mobileOrderDetails = shouldUseMobileOrderPagination() && mobileOrderPage === 'details';
+    const mobileNotesMount = mobileProjectNotesOpen && mobileProjectNotesEnabled() ? $('#rMobileProjectNotesBody') : null;
+    const target = mobileNotesMount || (mobileOrderDetails ? (mobileDetailMount || bottomMount) : mobileInline ? (mobileDetailMount || inlineMount) : bottomMount);
     if (notes.parentElement !== target) target.appendChild(notes);
-    const proposalNotesMode = proposalsEnabled() && proposalWorkspaceOpen && activePreviewTab === 'proposal';
+    notes.closest('.r-left')?.classList.add('notes-panel-ready');
+    if (agent) {
+      const agentTarget = proposalEditMode && agentRailMount ? agentRailMount : bottomMount;
+      if (agent.parentElement !== agentTarget) agentTarget.prepend(agent);
+    }
+    const proposalNotesMode = proposalTabActive;
     notes.classList.toggle('collapsed', proposalNotesMode && proposalInternalNotesCollapsed);
-    notes.querySelector('.r-bottom-notes-toggle')?.setAttribute('aria-expanded', proposalNotesMode && !proposalInternalNotesCollapsed ? 'true' : 'false');
+    const simpleNotes = notes.classList.contains('r-firstmeasure-notes');
+    if (simpleNotes) notes.classList.toggle('notes-expanded', !proposalInternalNotesCollapsed);
+    notes.querySelector('.r-bottom-notes-toggle')?.setAttribute('aria-expanded', (simpleNotes || proposalNotesMode) && !proposalInternalNotesCollapsed ? 'true' : 'false');
+    if (simpleNotes) notes.querySelector('.r-bottom-notes-toggle')?.setAttribute('aria-label', proposalInternalNotesCollapsed ? 'Expand internal notes' : 'Reduce internal notes');
+    notesRailSection?.classList.toggle('has-mounted', proposalEditMode && notes.parentElement === notesRailMount);
+    agentRailSection?.classList.toggle('has-mounted', proposalEditMode && !!agent && agent.parentElement === agentRailMount);
     inlineMount.classList.toggle('has-notes', mobileInline);
     mobileDetailMount?.classList.toggle('has-notes', mobileInline);
     syncProposalAgentState();
     syncProposalBottomSendState();
+    syncProjectNotesUi();
   }
 
   function updateModalTitle(){
     const titleWrap = document.querySelector('#rOverlay .r-title-wrap');
     const sub = document.querySelector('#rOverlay .r-sub');
+    const mobileTitle = document.getElementById('rMobileProjectTitleText');
     if (!titleWrap || !sub) return;
     const mode = branchProjectConfig?.title_mode || 'customer_name';
     const address = projectText($('#rAddress')?.value, reportOrderState?.address, activeBaseProject?.address);
@@ -6506,9 +8213,17 @@
       activeCustomer.name,
       activeResident.name
     );
-    const computed = savedTitle || (mode === 'address'
-      ? (address || customerName || 'New Project')
-      : (customerName || address || 'New Project'));
+    // Saved titles are manual overrides.  In the configured customer/address
+    // modes, always derive the modal heading from the selected display rule.
+    const computed = mode === 'manual'
+      ? (savedTitle || customerName || address || 'New Project')
+      : (mode === 'address'
+        ? (address || customerName || 'New Project')
+        : (customerName || address || 'New Project'));
+    const mobileDisplayTitle = hasReportOrdered()
+      ? (mode === 'manual' ? (savedTitle || computed || 'Project') : (computed || 'Project'))
+      : (mode === 'manual' ? (savedTitle || computed || 'Project') : computed);
+    if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
     titleWrap.classList.toggle('manual-title', mode === 'manual' && !hasReportOrdered());
     if (hasReportOrdered()) {
       const orderedTitle = mode === 'manual'
@@ -6540,7 +8255,12 @@
   }
 
   function persistActiveBaseProject(){
+    // Routed shells and contact hydration contain incomplete field values.
+    // They must never overwrite the saved project while it is still loading.
+    if (projectShellLoading || projectFormHydrating) return;
     if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactOnlyBaseProject();
+    if (!activeBaseProject && requestedWorkflow === 'document' && docPickerDismissed) ensureDocumentBaseProject();
+    if (!activeBaseProject && addressSelected) ensureDraftBaseProject();
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
     syncProjectPhotosFromLibrary();
     const currentPrimary = primaryContact();
@@ -6593,18 +8313,46 @@
       primary_contact_email: customerEmail,
       customer_phone: customerPhone,
       primary_contact_phone: customerPhone,
-      project_notes: ($('#rProjectNotes')?.value || '').trim(),
+      project_notes: legacyProjectNotesText(),
+      tech_notes: $('#rTechNotes')?.value ?? activeBaseProject?.tech_notes ?? '',
+      cc_emails: $('#rCcList') ? collectCcEmails() : (activeBaseProject?.cc_emails || []),
       photos: projectPhotos.map(serializablePhoto),
       thumbnail_photo_id: projectPhotoId(projectThumbnailPhoto()),
       thumbnail_photo: serializablePhoto(projectThumbnailPhoto()),
-      stage: activeBaseProject.stage || activeBaseProject.stage_id || INITIAL_PROJECT_STAGE_ID,
-      stage_id: activeBaseProject.stage_id || activeBaseProject.stage || INITIAL_PROJECT_STAGE_ID,
       workflow_state: nextWorkflowState,
+      workflow_intent: hasReportOrdered() ? '' : requestedWorkflow,
+      report_selection: hasReportOrdered() ? 'roof' : (reportSelection || ''),
       measurement: measurementProject,
       measurement_project: measurementProject,
       events: Array.isArray(activeBaseProject.events) ? activeBaseProject.events : [],
       proposals
     });
+  }
+
+  function renderProjectCustomFields(){
+    const mount = $('#rProjectCustomFields');
+    if (!mount || !window.FirstMateCustomFields?.renderEditor) return null;
+    const rendered = window.FirstMateCustomFields.renderEditor(mount, activeBaseProject || {}, 'project', {
+      location:'overview',
+      showSave:false,
+      flat:true,
+      fieldClass:'r-group',
+      inputClass:'r-inp'
+    });
+    rendered?.then?.(() => renderProjectStageBar());
+    return rendered;
+  }
+
+  function syncProjectCustomFieldValues(){
+    const mount = $('#rProjectCustomFields');
+    const runtime = window.FirstMateCustomFields;
+    if (!activeBaseProject || !mount || !runtime?.editorValues || !runtime?.applyValues) return activeBaseProject;
+    activeBaseProject = runtime.applyValues(
+      activeBaseProject,
+      'project',
+      runtime.editorValues(mount, activeBaseProject, 'project')
+    );
+    return activeBaseProject;
   }
 
   function ensureDraftBaseProject(){
@@ -6619,10 +8367,10 @@
       address_components: (() => { try { return JSON.parse($('#rComps')?.value || '{}'); } catch (e) { return {}; } })(),
       pins: getMarkersData(),
       contacts: collectContacts(),
-      project_notes: ($('#rProjectNotes')?.value || '').trim(),
-      stage: INITIAL_PROJECT_STAGE_ID,
-      stage_id: INITIAL_PROJECT_STAGE_ID,
+      project_notes: legacyProjectNotesText(),
       workflow_state: 'draft',
+      workflow_intent: requestedWorkflow,
+      report_selection: reportSelection || '',
       photos: projectPhotos.map(serializablePhoto),
       thumbnail_photo_id: projectPhotoId(projectThumbnailPhoto()),
       thumbnail_photo: serializablePhoto(projectThumbnailPhoto()),
@@ -6632,6 +8380,8 @@
       proposals,
       updated_at: new Date().toISOString()
     });
+    viewingExistingProject = true;
+    syncActiveProjectRoute({}, { history:'replace', source:'project-draft-create' });
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     return activeBaseProject;
   }
@@ -6654,9 +8404,7 @@
       primary_contact_email: primary.email || '',
       customer_phone: primary.phone || '',
       primary_contact_phone: primary.phone || '',
-      project_notes: ($('#rProjectNotes')?.value || '').trim(),
-      stage: INITIAL_PROJECT_STAGE_ID,
-      stage_id: INITIAL_PROJECT_STAGE_ID,
+      project_notes: legacyProjectNotesText(),
       workflow_state: 'contact_only',
       photos: projectPhotos.map(serializablePhoto),
       thumbnail_photo_id: projectPhotoId(projectThumbnailPhoto()),
@@ -6667,6 +8415,8 @@
       proposals,
       updated_at: new Date().toISOString()
     });
+    viewingExistingProject = true;
+    syncActiveProjectRoute();
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     return activeBaseProject;
   }
@@ -6674,7 +8424,10 @@
   function ensureProposalOnlyBaseProject(){
     if (!window.Portal.ProjectStore) return null;
     if (activeBaseProject) {
-      activeBaseProject.workflow_state = activeBaseProject.workflow_state || 'proposal_only';
+      const workflow = String(activeBaseProject.workflow_state || '').trim().toLowerCase();
+      if (!workflow || workflow === 'draft' || workflow === 'contact_only') activeBaseProject.workflow_state = 'proposal_only';
+      activeBaseProject.has_meaningful_activity = true;
+      activeBaseProject.last_activity_at = new Date().toISOString();
       persistActiveBaseProject();
       return activeBaseProject;
     }
@@ -6684,20 +8437,374 @@
       address: ($('#rAddress')?.value || '').trim(),
       project_type: selectedType || 'residential',
       contacts: collectContacts(),
-      project_notes: ($('#rProjectNotes')?.value || '').trim(),
-      stage: INITIAL_PROJECT_STAGE_ID,
-      stage_id: INITIAL_PROJECT_STAGE_ID,
+      project_notes: legacyProjectNotesText(),
+      tech_notes: $('#rTechNotes')?.value ?? activeBaseProject?.tech_notes ?? '',
+      cc_emails: $('#rCcList') ? collectCcEmails() : (activeBaseProject?.cc_emails || []),
       photos: projectPhotos.map(serializablePhoto),
       thumbnail_photo_id: projectPhotoId(projectThumbnailPhoto()),
       thumbnail_photo: serializablePhoto(projectThumbnailPhoto()),
       workflow_state: 'proposal_only',
+      has_meaningful_activity: true,
+      last_activity_at: new Date().toISOString(),
       measurement: {},
       measurement_project: {},
       events: [],
       proposals,
       updated_at: new Date().toISOString()
     });
+    viewingExistingProject = true;
+    syncActiveProjectRoute();
     return activeBaseProject;
+  }
+
+  // ------------------------------------------------ doc-first workflow (Docs)
+  // "New Document"/"New <doc type>" from the global New button: the modal opens
+  // on the unified Docs tab; with no base project the left column shows a
+  // picker (attach to an existing project, or start a new one — mirroring the
+  // legacy proposal_only shell), then the create wizard opens with the
+  // requested type preselected.
+  function ensureDocumentBaseProject(){
+    if (!window.Portal.ProjectStore) return null;
+    if (activeBaseProject) {
+      const workflow = String(activeBaseProject.workflow_state || '').trim().toLowerCase();
+      if (!workflow || workflow === 'draft' || workflow === 'contact_only') activeBaseProject.workflow_state = 'document_only';
+      activeBaseProject.has_meaningful_activity = true;
+      activeBaseProject.last_activity_at = new Date().toISOString();
+      persistActiveBaseProject();
+      return activeBaseProject;
+    }
+    activeBaseProject = window.Portal.ProjectStore.save({
+      id: `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+      title: manualProjectTitle(),
+      address: ($('#rAddress')?.value || '').trim(),
+      project_type: selectedType || 'residential',
+      contacts: collectContacts(),
+      project_notes: legacyProjectNotesText(),
+      tech_notes: $('#rTechNotes')?.value ?? activeBaseProject?.tech_notes ?? '',
+      cc_emails: $('#rCcList') ? collectCcEmails() : (activeBaseProject?.cc_emails || []),
+      photos: projectPhotos.map(serializablePhoto),
+      thumbnail_photo_id: projectPhotoId(projectThumbnailPhoto()),
+      thumbnail_photo: serializablePhoto(projectThumbnailPhoto()),
+      workflow_state: 'document_only',
+      has_meaningful_activity: true,
+      last_activity_at: new Date().toISOString(),
+      measurement: {},
+      measurement_project: {},
+      events: [],
+      proposals,
+      updated_at: new Date().toISOString()
+    });
+    viewingExistingProject = true;
+    syncActiveProjectRoute();
+    window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
+    return activeBaseProject;
+  }
+
+  async function launchDocumentCreate(options = {}){
+    if (docCreateLaunched) return;
+    docCreateLaunched = true;
+    setActivePreviewTab('docs');
+    const docsTab = window.Portal?.modules?.projectDocsTab;
+    const opener = docsTab?.openNewDocumentInline || docsTab?.openNewDocument;
+    if (!opener) return;
+    // The engine mount fails closed while capability state is still loading —
+    // retry briefly instead of leaving the flow dead on a fresh page.
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        // The wizard renders INLINE in the modal's right panel (typed prefill
+        // lands on the params step; generic opens the type selector) — never a
+        // modal over the modal.
+        const opened = await opener.call(docsTab,
+          requestedDocumentType ? { document_type: requestedDocumentType } : {},
+          { standalone: options.standalone === true }
+        );
+        if (opened) return;
+      } catch (error) {
+        console.warn('Document create wizard failed to open', error);
+        return;
+      }
+      if (requestedWorkflow !== 'document') return;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+  }
+
+  function beginDocumentWorkflow(){
+    setActivePreviewTab('docs');
+    if (activeBaseProject) {
+      launchDocumentCreate();
+      return;
+    }
+    // Resume an existing standalone draft (My Projects → Drafts): skip the
+    // chooser, open the document in the editor with the compact left-column
+    // picker available for attaching it to a project.
+    if (requestedDocumentResume) {
+      const record = requestedDocumentResume;
+      requestedDocumentResume = null;
+      docPickerChoiceMade = true;
+      docCreateLaunched = true;
+      syncDocWorkflowPicker();
+      setTimeout(async () => {
+        const docsTab = window.Portal?.modules?.projectDocsTab;
+        const opened = await docsTab?.openEngineDocument?.(record, { standalone: true }).catch(() => false);
+        if (!opened) showToast((globalThis.PlatformLanguage?.text("project-request","m_5d7c7ad6033624","Documents") ?? "Documents"), (globalThis.PlatformLanguage?.text("project-request","m_fbfab8434a3f39","Could not reopen this draft.") ?? "Could not reopen this draft."), false);
+      }, 0);
+      return;
+    }
+    // Standalone doc-first mode: only the Docs tab exists (projectModalApps
+    // filter). The flow opens with a FULL-WIDTH chooser — pick a project,
+    // start a new one, or continue without one — and only then slides into
+    // the left column while the create wizard fills the right panel.
+    syncDocWorkflowPicker();
+  }
+
+  /** The document workflow just gained a project (picked or created): remount
+   *  the engine under it, attach the standalone doc being worked on, unlock
+   *  the other tabs, and reopen the doc (or the wizard when none existed). */
+  /** Snapshot of the standalone engine's documents, taken BEFORE any reopen or
+   *  remount destroys the standalone instance. */
+  function captureStandaloneDocState(){
+    const docsTab = window.Portal?.modules?.projectDocsTab;
+    return {
+      document: docsTab?.currentEngineDoc?.() || null,
+      documents: docsTab?.standaloneEngineDocs?.() || []
+    };
+  }
+
+  async function continueDocWorkflowWithProject(capture = null){
+    // A still-open standalone create wizard belongs to the engine instance
+    // that is about to be remounted — close it; the wizard reopens under the
+    // project when no document had been created yet.
+    document.querySelector('.fmdx-modal-back')?.remove();
+    setActivePreviewTab('docs');
+    const docsTab = window.Portal?.modules?.projectDocsTab;
+    let adopted = null;
+    try {
+      adopted = await docsTab?.adoptProject?.(capture || {});
+    } catch (error) {
+      console.warn('Document adopt-project handoff failed', error);
+    }
+    if (!adopted?.id) {
+      docCreateLaunched = false;
+      launchDocumentCreate();
+    }
+  }
+
+  function docWorkflowStandaloneActive(){
+    return requestedWorkflow === 'document' && !activeBaseProject && !viewingExistingProject;
+  }
+
+  function docWorkflowPickerActive(){
+    return docWorkflowStandaloneActive() && !docPickerDismissed;
+  }
+
+  function removeDocWorkflowPicker(){
+    document.querySelector('#rOverlay [data-doc-picker]')?.remove();
+  }
+
+  function syncDocWorkflowPicker(){
+    if (!docWorkflowPickerActive()) {
+      removeDocWorkflowPicker();
+      return;
+    }
+    renderDocWorkflowPicker();
+  }
+
+  function docPickerProjectLabel(project = {}){
+    return projectText(project.title, project.project_title, project.customer_name, project.address, 'Untitled project');
+  }
+
+  /** Choice-made transition, shared by all three picker choices: the
+   *  full-width chooser slides into the left column, `applyContent` renders
+   *  whatever belongs there next (project left column, new-project form, or
+   *  the compact picker) BENEATH it, and the chooser cross-fades away.
+   *  The element is unmarked first so resetNewProjectState()/open() can't
+   *  remove it mid-animation. */
+  function animateDocPickerHandoff(applyContent){
+    const picker = document.querySelector('#rOverlay [data-doc-picker]');
+    if (!picker) { applyContent?.(); return; }
+    // Ghost the element: it is now pure animation chrome, owned by this timer.
+    picker.removeAttribute('data-doc-picker');
+    picker.dataset.docPickerGhost = '';
+    const fadeAway = () => {
+      try { applyContent?.(); } catch (error) { console.warn('Doc picker handoff failed', error); }
+      picker.style.transition = 'opacity .26s ease';
+      picker.style.opacity = '0';
+      setTimeout(() => picker.remove(), 300);
+    };
+    const left = document.querySelector('#rOverlay .r-left');
+    const winRect = picker.parentElement?.getBoundingClientRect?.();
+    const leftRect = left?.getBoundingClientRect?.();
+    if (picker.dataset.docPickerMode !== 'full' || !winRect || !leftRect?.width) {
+      fadeAway();
+      return;
+    }
+    picker.style.transition = 'width .32s ease';
+    picker.style.width = `${Math.max(120, Math.round(leftRect.right - winRect.left))}px`;
+    picker.style.overflow = 'hidden';
+    setTimeout(fadeAway, 340);
+  }
+
+  function renderDocWorkflowPicker(){
+    injectCSS('request_doc_picker', `
+      .r-doc-picker{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;gap:12px;background:#fff;padding:18px 16px;box-sizing:border-box;overflow:hidden}
+      .r-doc-picker[data-doc-picker-mode="full"]{z-index:80;left:0;top:0;bottom:0;right:auto;width:100%;padding:34px 24px 24px;align-items:center}
+      .r-doc-picker[data-doc-picker-mode="full"] .r-doc-picker-inner{width:min(560px,100%);flex:1;min-height:0;display:flex;flex-direction:column;gap:14px}
+      .r-doc-picker .r-doc-picker-inner{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;width:100%}
+      .r-doc-picker-head strong{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:1000;color:#101828}
+      .r-doc-picker[data-doc-picker-mode="full"] .r-doc-picker-head strong{font-size:19px;justify-content:center}
+      .r-doc-picker-head span{display:block;margin-top:4px;font-size:12px;font-weight:800;color:#667085}
+      .r-doc-picker[data-doc-picker-mode="full"] .r-doc-picker-head{text-align:center}
+      .r-doc-picker-search{display:flex;align-items:center;gap:8px;border:1px solid #e4e7ec;border-radius:10px;background:#f9fafb;padding:0 10px;height:38px;color:#98a2b3;flex:0 0 auto}
+      .r-doc-picker-search input{flex:1;border:0;background:transparent;font:inherit;font-size:13px;font-weight:800;color:#101828;outline:none}
+      .r-doc-picker-list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+      .r-doc-picker-row{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:9px 11px;text-align:left;cursor:pointer;font:inherit}
+      .r-doc-picker-row:hover{border-color:rgba(var(--primary-rgb,217,48,37),.4);background:rgba(var(--primary-rgb,217,48,37),.04)}
+      .r-doc-picker-row strong{display:block;font-size:13px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .r-doc-picker-row em{display:block;margin-top:2px;font-style:normal;font-size:11px;font-weight:800;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .r-doc-picker-empty{padding:18px 8px;text-align:center;color:#667085;font-size:12px;font-weight:800}
+      .r-doc-picker-foot{border-top:1px solid #eaecf0;padding-top:12px;display:flex;flex-direction:column;gap:8px;flex:0 0 auto}
+      .r-doc-picker-new{width:100%;height:40px;border:0;border-radius:10px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:13px;font-weight:1000;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+      .r-doc-picker-new:hover{filter:brightness(.95)}
+      .r-doc-picker-skip{width:100%;height:40px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:1000;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+      .r-doc-picker-skip:hover{border-color:#98a2b3}
+    `);
+    removeDocWorkflowPicker();
+    const mode = docPickerChoiceMade ? 'left' : 'full';
+    const container = mode === 'full'
+      ? document.querySelector('#rOverlay .r-win')
+      : document.querySelector('#rOverlay .r-left');
+    if (!container) return;
+    if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+    const typeLabel = requestedDocumentType
+      ? requestedDocumentType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      : 'Document';
+    const picker = document.createElement('div');
+    picker.dataset.docPicker = '';
+    picker.dataset.docPickerMode = mode;
+    picker.className = 'r-doc-picker';
+    picker.innerHTML = `
+      <div class="r-doc-picker-inner">
+        <div class="r-doc-picker-head">
+          <strong><i class="fas fa-file-medical"></i>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_e67e48daacbe10",` New ${v0}`,{v0}) ?? ` New ${v0}`)(escapeHtml(typeLabel))}</strong>
+          <span>${(globalThis.PlatformLanguage?.text("project-request","m_97c5ddb47fa1ff","Select a project for this document.") ?? "Select a project for this document.")}</span>
+        </div>
+        <label class="r-doc-picker-search"><i class="fas fa-search"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_af80d9cead6991","Search projects") ?? "Search projects")}" data-doc-picker-search></label>
+        <div class="r-doc-picker-list" data-doc-picker-list><div class="r-doc-picker-empty">${(globalThis.PlatformLanguage?.text("project-request","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>
+        <div class="r-doc-picker-foot">
+          <button type="button" class="r-doc-picker-new" data-doc-picker-new><i class="fas fa-folder-plus"></i>${(globalThis.PlatformLanguage?.text("project-request","m_1014630484dad8"," Start a new project") ?? " Start a new project")}</button>
+          ${String(mode === 'full' ? `<button type="button" class="r-doc-picker-skip" data-doc-picker-skip><i class="fas fa-file-medical"></i> Create without a project</button>` : '')}
+        </div>
+      </div>`;
+    container.appendChild(picker);
+    const input = picker.querySelector('[data-doc-picker-search]');
+    const list = picker.querySelector('[data-doc-picker-list]');
+    const renderList = () => {
+      if (!picker.isConnected) return;
+      const rows = docPickerRowsCache.rows || [];
+      const query = String(input?.value || '').trim().toLowerCase();
+      const matches = (query ? rows.filter((row) => row.search.includes(query)) : rows).slice(0, 30);
+      list.innerHTML = matches.length
+        ? matches.map((row) => `
+          <button type="button" class="r-doc-picker-row" data-doc-picker-project="${escapeHtml(row.id)}">
+            <strong>${escapeHtml(row.label)}</strong>
+            ${row.address ? `<em>${escapeHtml(row.address)}</em>` : ''}
+          </button>`).join('')
+        : `<div class="r-doc-picker-empty">${docPickerRowsCache.rows
+          ? (query ? 'No projects match your search.' : 'No projects yet — start a new one below.')
+          : 'Loading projects…'}</div>`;
+      list.querySelectorAll('[data-doc-picker-project]').forEach((button) => button.addEventListener('click', () => {
+        const row = rows.find((entry) => entry.id === button.dataset.docPickerProject);
+        if (!row) return;
+        const documentType = requestedDocumentType;
+        docPickerChoiceMade = true;
+        // Cache ONLY the selected project (a full-list cache pass serializes
+        // the whole store per project and freezes the page on large orgs).
+        const project = window.Portal?.ProjectStore?.cache?.({ ...row.data, id: row.data?.id || row.id }) || { ...row.data, id: row.id };
+        // Capture the standalone documents BEFORE reopening — the reopen
+        // remounts the docs tab and its embedded engine.
+        const capture = captureStandaloneDocState();
+        // Slide into the left column, hydrate the project beneath, cross-fade.
+        animateDocPickerHandoff(() => {
+          open(project, { tab: 'docs' });
+          requestedDocumentType = documentType;
+          docCreateLaunched = true;
+          setTimeout(() => continueDocWorkflowWithProject(capture), 0);
+        });
+      }));
+    };
+    let searchDebounce = 0;
+    input?.addEventListener('input', () => {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(renderList, 120);
+    });
+    picker.querySelector('[data-doc-picker-new]')?.addEventListener('click', () => {
+      const capture = captureStandaloneDocState();
+      docPickerChoiceMade = true;
+      docPickerDismissed = true;
+      // Slide into the left column, reveal the new-project form beneath.
+      animateDocPickerHandoff(() => {
+        ensureDocumentBaseProject();
+        setTimeout(() => continueDocWorkflowWithProject(capture), 0);
+        setTimeout(() => document.querySelector('#rContactList [data-field="name"]')?.focus(), 60);
+      });
+    });
+    // "Create without a project": the chooser slides into the left column and
+    // cross-fades into the compact picker (still there for attaching later)
+    // while the create wizard fills the right panel with a standalone doc.
+    picker.querySelector('[data-doc-picker-skip]')?.addEventListener('click', () => {
+      docPickerChoiceMade = true;
+      animateDocPickerHandoff(() => {
+        renderDocWorkflowPicker();
+        launchDocumentCreate({ standalone: true });
+      });
+    });
+    renderList();
+    loadDocPickerRows().then(renderList).catch(() => renderList());
+  }
+
+  /** Lightweight picker rows, fetched ONCE per session and NEVER written into
+   *  the ProjectStore (bulk-caching serializes the entire store per project —
+   *  that froze the browser on orgs with many projects). Each row keeps a
+   *  reference to the raw project data for the eventual selection. */
+  const docPickerRowsCache = { orgId: '', rows: null, promise: null };
+  window.addEventListener('fm:projects:refresh', () => { docPickerRowsCache.rows = null; });
+  function loadDocPickerRows(){
+    const orgId = String(window.__APP?.userOrgId || window.__APP?.orgId || '').trim();
+    if (!orgId || !window.PlatformAPI?.projects?.list) return Promise.resolve([]);
+    if (docPickerRowsCache.orgId === orgId && docPickerRowsCache.rows) return Promise.resolve(docPickerRowsCache.rows);
+    if (docPickerRowsCache.orgId === orgId && docPickerRowsCache.promise) return docPickerRowsCache.promise;
+    docPickerRowsCache.orgId = orgId;
+    docPickerRowsCache.rows = null;
+    docPickerRowsCache.promise = window.PlatformAPI.projects.list(orgId).then((result) => {
+      const seen = new Set();
+      const rows = [];
+      (result?.documents || result?.projects || []).forEach((doc) => {
+        const data = doc?.data || doc?.project || doc?.document?.data || doc;
+        const id = projectText(data?.platform_project_id, data?.base_project_id, data?.id, doc?.id);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        const label = docPickerProjectLabel(data);
+        const address = projectText(data?.address);
+        rows.push({
+          id,
+          label,
+          address,
+          updated_at: String(data?.updated_at || ''),
+          search: `${label} ${address} ${projectText(data?.customer_name)}`.toLowerCase(),
+          data
+        });
+      });
+      rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+      docPickerRowsCache.rows = rows;
+      docPickerRowsCache.promise = null;
+      return rows;
+    }).catch((error) => {
+      console.warn('Project picker list failed', error);
+      docPickerRowsCache.rows = [];
+      docPickerRowsCache.promise = null;
+      return [];
+    });
+    return docPickerRowsCache.promise;
   }
 
   function contactHasContent(contact = {}){
@@ -6750,25 +8857,25 @@
     const card = $('#rProjectionCard');
     if (card && hasReportOrdered()) {
       if (reportOrderIsCancelled()) {
-        card.innerHTML = `<strong>Report canceled</strong>This report order was canceled. You can reorder it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_aad3492084d297","Report canceled") ?? "Report canceled")}</strong>This report order was canceled. You can reorder it from the Reports tab.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (reportOrderIsRejected()) {
-        card.innerHTML = `<strong>Report rejected</strong>This report order was rejected. You can review it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</strong>This report order was rejected. You can review it from the Reports tab.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (reportOrderIsStaleSubmitted()) {
-        card.innerHTML = `<strong>Report not active</strong>This report order stalled before processing. You can reorder it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This report order stalled before processing. You can reorder it from the Reports tab.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (!reportOrderIsActivelyPending() && !reportOrderIsCompleteLike()) {
-        card.innerHTML = `<strong>Report not active</strong>This project does not have an active report order.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This project does not have an active report order.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
@@ -6834,7 +8941,23 @@
     scrollOrderedSidebarIntoPosition();
   }
 
-  function renderWorkflowState(){
+  function renderWorkflowState(options = {}){
+    // The field/Crew project shell intentionally has no FirstMeasure left-region
+    // workflow. Keep shell presentation current without running renderers that
+    // target controls supplied exclusively by that optional region app.
+    if (!$('#rForm')) {
+      applyProjectModalPresentation();
+      return;
+    }
+    // A deep-linked modal paints its chrome before the project request returns.
+    // Do not let workflow renderers fan out into project-specific requests until
+    // the base record has hydrated; the requested tab and chrome are already live.
+    if (projectShellLoading) {
+      updateModalTitle();
+      syncProjectViewerTabs();
+      applyProjectModalPresentation();
+      return;
+    }
     if (workflowRenderInProgress) return;
     const now = Date.now();
     if (now - workflowRenderLastAt < 32) {
@@ -6842,7 +8965,7 @@
         workflowRenderScheduled = true;
         requestAnimationFrame(() => {
           workflowRenderScheduled = false;
-          renderWorkflowState();
+          renderWorkflowState(options);
         });
       }
       return;
@@ -6850,27 +8973,28 @@
     workflowRenderLastAt = now;
     workflowRenderInProgress = true;
     try {
-      renderWorkflowStateBody();
+      renderWorkflowStateBody(options);
     } finally {
       workflowRenderInProgress = false;
     }
   }
 
-  function renderWorkflowStateBody(){
+  function renderWorkflowStateBody(options = {}){
+    const preserveRouteTab = options.preserveRouteTab === true;
     normalizeReportSelection();
     if (shouldLockReportOrderingWorkflow()) {
       reportSelection = 'roof';
-      if (!hasReportOrdered() && activePreviewTab !== 'map') setActivePreviewTab('map');
+      if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active() && !hasReportOrdered() && activePreviewTab !== 'map') setActivePreviewTab('map');
     }
     if (shouldUseMobileOrderPagination()) {
       reportSelection = 'roof';
-      setActivePreviewTab('map');
+      if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active()) setActivePreviewTab('map');
     }
     const hasAddress = !!(($('#rAddress')?.value || '').trim());
     const typeReady = addressSelected || hasAddress;
     const reportReady = addressSelected && !!selectedType;
     const customerOpen = true;
-    const typeCondensed = reportReady && !typePickerExpanded;
+    const existingProjectSession = !newProjectCreationSession;
     let availableActions = availableProjectActions();
     if (workflowWantsAction() && autoSelectOnlyAction(availableActions)) availableActions = availableProjectActions();
     const roofNeedsPins = hasSelectedAddons();
@@ -6878,8 +9002,8 @@
     const reportCondensed = roofDecisionMade();
     const roofCondensed = false;
 
-    setStepState('#rStepAddress', true, addressSelected ? 'complete' : 'active', typeReady);
-    setStepState('#rStepType', typeReady, selectedType ? 'complete' : (typeReady ? 'active' : 'locked'), typeCondensed, { hidePrices: isProposalChoice() || isScheduleChoice() || typeCondensed });
+    setStepState('#rStepAddress', true, addressSelected ? 'complete' : 'active', false);
+    setStepState('#rStepType', typeReady && (!existingProjectSession || (requestedWorkflow === 'report' && !hasReportOrdered())), selectedType ? 'complete' : (typeReady ? 'active' : 'locked'), !!selectedType, { hidePrices: isProposalChoice() || isScheduleChoice() });
     const mobileOrder = shouldUseMobileOrderPagination();
     const mobileReportOpen = mobileOrder && (addressSelected || mobileOrderPage !== 'location');
     const explicitActionWorkflow = !['project', 'contact'].includes(requestedWorkflow);
@@ -6891,11 +9015,7 @@
     const roofSkip = $('#rRoofSkipSummary');
     if (roofFields) roofFields.style.display = roofNeedsPins ? '' : 'none';
     if (roofSkip) roofSkip.style.display = isProposalChoice() ? '' : 'none';
-    if (!projectPhotosEnabled() && activePreviewTab === 'photos') setActivePreviewTab('map');
-    if (!projectDocsEnabled() && activePreviewTab === 'docs') setActivePreviewTab('map');
-    if (!schedulePreviewAvailable() && activePreviewTab === 'schedule') setActivePreviewTab('map');
-    if (!proposalsEnabled() && activePreviewTab === 'proposal') setActivePreviewTab('map');
-    if (!reportsEnabled() && activePreviewTab === 'measurements') setActivePreviewTab('map');
+    if (!preserveRouteTab && !validPreviewTabs().includes(activePreviewTab)) setActivePreviewTab(projectDefaultPreviewTab());
 
     const reportSummary = $('#rReportSummary');
     const roofSummary = $('#rRoofSummary');
@@ -6951,17 +9071,17 @@
       renderProposalPreview();
     } else if (activePreviewTab === 'proposal' && proposalsEnabled()) {
       renderProposalPreview();
-    } else if (isScheduleChoice() && schedulePreviewAvailable() && activePreviewTab !== 'schedule') {
+    } else if (!preserveRouteTab && isScheduleChoice() && schedulePreviewAvailable() && activePreviewTab !== 'schedule') {
       setActivePreviewTab('schedule');
-    } else if (!proposalWorkspaceOpen && isProposalChoice() && proposalsEnabled() && customerOpen) {
+    } else if (!preserveRouteTab && !proposalWorkspaceOpen && isProposalChoice() && proposalsEnabled() && customerOpen) {
       setActivePreviewTab(projectDefaultPreviewTab());
-    } else if (hasReportOrdered() && !validPreviewTabs().includes(activePreviewTab)) {
+    } else if (!preserveRouteTab && hasReportOrdered() && !validPreviewTabs().includes(activePreviewTab)) {
       setActivePreviewTab('measurements');
-    } else if (hasSelectedAddons() && !hasReportOrdered() && activePreviewTab !== 'map' && !(activePreviewTab === 'schedule' && schedulePreviewAvailable())) {
+    } else if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active() && hasSelectedAddons() && !hasReportOrdered() && activePreviewTab !== 'map' && !(activePreviewTab === 'schedule' && schedulePreviewAvailable())) {
       setActivePreviewTab('map');
     }
     syncReportExpediteMinuteRefresh();
-    requestAnimationFrame(updateScrollCue);
+    window.Portal.ExteriorOrder?.sync({type:selectedType,count:pinCount(),pins:getMarkersData(),showMap:()=>setActivePreviewTab('map'),showPhotos:()=>setActivePreviewTab('photos'),syncPhotoTabs:()=>syncProjectViewerTabs(),locationConfirmed,closed:reportOrderingClosed(),setPinConfirmed:value=>{locationConfirmed=!!value;renderConfirm();},getNotes:()=>$('#rTechNotes')?.value||'',setNotes:value=>{if($('#rTechNotes'))$('#rTechNotes').value=value;},getCc:()=>collectCcEmails(),showInfo:key=>showAddonInfoModal(key),hoverInfo:element=>showAddonInfoPopout(element),hideInfo:()=>hideAddonInfoPopout(120),ordered:hasReportOrdered(),orderWorkflow:requestedWorkflow==='report',refresh:()=>renderWorkflowState(),submit:()=>onSubmit({preventDefault(){}})});
   }
 
   function revealInLeftColumnIfBelow(target, options = {}){
@@ -6983,7 +9103,9 @@
   function scrollReportControlsToTop(){
     if (shouldUseMobileOrderPagination()) return;
     const scroller = document.querySelector('#rOverlay .r-scroll');
-    const target = document.querySelector('#rRoofReportFields .r-addon-toggle.visible')
+    const target = window.Portal.ExteriorOrder?.active()
+      ? document.querySelector('#rExteriorOrder .ext-delivery-heading')
+      : document.querySelector('#rRoofReportFields .r-addon-toggle.visible')
       || document.querySelector('#rExpeditePanel.visible')
       || document.querySelector('#rSubmit');
     if (!scroller || !target) return;
@@ -7007,7 +9129,7 @@
 
   function getAfterHoursMessage(){
     const now = new Date();
-    const pacificStr = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+    const pacificStr = now.toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { timeZone: 'America/Los_Angeles' });
     const pacific = new Date(pacificStr);
     const hour = pacific.getHours();
     if (hour >= 20) {
@@ -7017,9 +9139,12 @@
   }
 
   function renderAfterHoursNotice(){
-    const ahMsg = hasSelectedAddons() ? getAfterHoursMessage() : null;
-    $('#rAfterHoursMsg').textContent = ahMsg || '';
-    $('#rAfterHours').classList.toggle('visible', !!ahMsg);
+    const ahMsg = (hasSelectedAddons() || window.Portal.ExteriorOrder?.active()) ? getAfterHoursMessage()?.replace(/Roof reports/g, 'Reports') : null;
+    const message = $('#rAfterHoursMsg');
+    const notice = $('#rAfterHours');
+    if (!message || !notice) return;
+    message.textContent = ahMsg || '';
+    notice.classList.toggle('visible', !!ahMsg);
   }
 
   function bindProjectModalCloseControls(){
@@ -7029,10 +9154,50 @@
       closeX.__fmCloseBound = true;
       closeX.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
     }
+    const fullscreenToggle = $('#rFullscreenToggle');
+    if (fullscreenToggle && !fullscreenToggle.__fmFullscreenBound) {
+      fullscreenToggle.__fmFullscreenBound = true;
+      fullscreenToggle.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleProjectModalFullscreen(); });
+    }
     const mobileClose = $('#rMobileClose');
     if (mobileClose && !mobileClose.__fmCloseBound) {
       mobileClose.__fmCloseBound = true;
       mobileClose.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
+    }
+    const leftTrayToggle = $('#rMobileLeftTrayToggle');
+    if (leftTrayToggle && !leftTrayToggle.__fmLeftTrayBound) {
+      leftTrayToggle.__fmLeftTrayBound = true;
+      leftTrayToggle.addEventListener('click', () => setMobileLeftTrayOpen(!mobileLeftTrayOpen));
+    }
+    const leftTrayScrim = $('#rMobileLeftTrayScrim');
+    if (leftTrayScrim && !leftTrayScrim.__fmLeftTrayBound) {
+      leftTrayScrim.__fmLeftTrayBound = true;
+      leftTrayScrim.addEventListener('click', () => setMobileLeftTrayOpen(false));
+    }
+    const defaultInfoToggle = $('#rMobileProjectInfoToggle');
+    if (defaultInfoToggle && !defaultInfoToggle.__fmDefaultInfoBound) {
+      defaultInfoToggle.__fmDefaultInfoBound = true;
+      defaultInfoToggle.addEventListener('click', () => setMobileDefaultInfoTrayOpen(!mobileDefaultInfoTrayOpen));
+    }
+    const defaultInfoScrim = $('#rMobileDefaultInfoTrayScrim');
+    if (defaultInfoScrim && !defaultInfoScrim.__fmDefaultInfoBound) {
+      defaultInfoScrim.__fmDefaultInfoBound = true;
+      defaultInfoScrim.addEventListener('click', () => setMobileDefaultInfoTrayOpen(false));
+    }
+    const mobileNotesLauncher = $('#rMobileProjectNotesLauncher');
+    if (mobileNotesLauncher && !mobileNotesLauncher.__fmMobileNotesBound) {
+      mobileNotesLauncher.__fmMobileNotesBound = true;
+      mobileNotesLauncher.addEventListener('click', () => setMobileProjectNotesOpen(true));
+    }
+    const mobileNotesClose = $('#rMobileProjectNotesClose');
+    if (mobileNotesClose && !mobileNotesClose.__fmMobileNotesBound) {
+      mobileNotesClose.__fmMobileNotesBound = true;
+      mobileNotesClose.addEventListener('click', () => setMobileProjectNotesOpen(false));
+    }
+    const mobileNotesScrim = $('#rMobileProjectNotesScrim');
+    if (mobileNotesScrim && !mobileNotesScrim.__fmMobileNotesBound) {
+      mobileNotesScrim.__fmMobileNotesBound = true;
+      mobileNotesScrim.addEventListener('click', () => setMobileProjectNotesOpen(false));
     }
     const cancel = $('#rCancel');
     if (cancel && !cancel.__fmCloseBound) {
@@ -7056,29 +9221,49 @@
     el.innerHTML = `
       <div class="r-win">
         <div class="r-contact-contextbar" id="rContactContextBar"></div>
-        ${projectModalRegionHtml('left')}
+        ${String(projectModalRegionHtml('left'))}
 
         <div class="r-right" id="rMapWrap">
-          <div class="r-tabbar" id="rProjectViewerTabs"></div>
+          <div class="r-modal-header">
+            <div class="r-tabbar" id="rProjectViewerTabs"></div>
+            <div class="modal-shell-actions">
+              <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>
+              <button type="button" class="modal-shell-btn" id="rFullscreenToggle" data-fm-tooltip="Fullscreen" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_0ce034af23e970","Open project fullscreen") ?? "Open project fullscreen")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
+              <button type="button" class="modal-shell-btn" id="rMapCloseX" data-fm-tooltip="Close" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div class="r-mobile-project-title" data-project-identity-owner="modal-chrome">
+            <button type="button" class="r-mobile-left-tray-toggle" id="rMobileLeftTrayToggle" aria-expanded="false"><i class="fas fa-chevron-right" id="rMobileLeftTrayChevron" aria-hidden="true"></i><span id="rMobileLeftTrayTitle"></span></button>
+            <span class="r-mobile-project-tab-title"><i class="fas" id="rMobileProjectTabIcon" aria-hidden="true" hidden></i><span id="rMobileProjectTabTitle"></span></span>
+            <button type="button" class="r-mobile-project-header-action" id="rMobileProjectHeaderAction" hidden></button>
+            <button type="button" class="r-mobile-project-info-toggle" id="rMobileProjectInfoToggle" aria-expanded="false"><span class="r-mobile-project-title-text" id="rMobileProjectTitleText"></span><i class="fas fa-chevron-left" id="rMobileProjectInfoChevron" aria-hidden="true"></i></button>
+          </div>
+          <div class="r-project-shell-status" id="rProjectShellStatus" role="status" aria-live="polite"><div class="r-project-shell-status-card"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…")}</span></div></div>
           <div class="r-preview"><div class="r-preview-stage">
-            ${projectModalAppPanelsHtml()}
+            ${String(projectModalAppPanelsHtml())}
           </div></div>
-          <div class="r-proposal-topmode" id="rProposalTopMode"><div class="r-proposal-mode"><button type="button" class="r-proposal-mode-btn" data-proposal-mode="preview">Preview</button><button type="button" class="r-proposal-mode-btn" data-proposal-mode="edit">Edit</button></div></div>
-          ${proposalMarkupDockHtml()}
-          <div class="modal-close-x" id="rMapCloseX" data-fm-tooltip="Close"><i class="fas fa-times"></i></div>
+          <div class="r-proposal-topmode" id="rProposalTopMode"><div class="r-proposal-mode"><button type="button" class="r-proposal-mode-btn" data-proposal-mode="preview">${(globalThis.PlatformLanguage?.text("project-request","m_afff48796c3165","Preview") ?? "Preview")}</button><button type="button" class="r-proposal-mode-btn" data-proposal-mode="edit">${(globalThis.PlatformLanguage?.text("project-request","m_5b9378df7220c1","Edit") ?? "Edit")}</button></div></div>
+          ${String(proposalMarkupDockHtml())}
           <div class="r-addon-info-popout" id="rAddonInfoPopout"></div>
         </div>
-        <button type="button" class="r-scroll-cue" id="rScrollCue"><i class="fas fa-chevron-down"></i><span>Scroll for more</span></button>
+        <button type="button" class="r-mobile-left-tray-scrim" id="rMobileLeftTrayScrim" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_b9a40030066f65","Close project panel") ?? "Close project panel")}"></button>
+        <button type="button" class="r-mobile-default-info-tray-scrim" id="rMobileDefaultInfoTrayScrim" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_ba681b9f330860","Close project details") ?? "Close project details")}"></button>
+        <button type="button" class="r-mobile-project-notes-launcher" id="rMobileProjectNotesLauncher" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_e200ae071e12c3","Open project notes") ?? "Open project notes")}" hidden><i class="fas fa-comment-dots"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+        <button type="button" class="r-mobile-project-notes-scrim" id="rMobileProjectNotesScrim" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"></button>
+        <section class="r-mobile-project-notes-workspace" id="rMobileProjectNotesWorkspace" role="dialog" aria-modal="true" aria-labelledby="rMobileProjectNotesTitle">
+          <header class="r-mobile-project-notes-head"><strong id="rMobileProjectNotesTitle">${(globalThis.PlatformLanguage?.text("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</strong><button type="button" class="r-mobile-project-notes-close" id="rMobileProjectNotesClose" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"><i class="fas fa-xmark"></i></button></header>
+          <div class="r-mobile-project-notes-body" id="rMobileProjectNotesBody"></div>
+        </section>
         <button type="button" class="r-mobile-close" id="rMobileClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
         <div class="r-mobile-pager" id="rMobilePager">
-          <button type="button" class="r-mobile-page-btn" id="rMobileBack"><i class="fas fa-arrow-left"></i><span>Back</span></button>
-          <button type="button" class="r-mobile-page-btn primary" id="rMobileNext" disabled><span>Next</span><i class="fas fa-arrow-right"></i></button>
-          <button type="button" class="r-mobile-page-btn primary" id="rMobileOrder" disabled>Order Report</button>
+          <button type="button" class="r-mobile-page-btn" id="rMobileBack"><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_121372231b5699","Back") ?? "Back")}</span></button>
+          <button type="button" class="r-mobile-page-btn primary" id="rMobileNext" disabled><span>${(globalThis.PlatformLanguage?.text("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i></button>
+          <button type="button" class="r-mobile-page-btn primary" id="rMobileOrder" disabled>${(globalThis.PlatformLanguage?.text("project-request","m_5a0d9c5a13439c","Order Report") ?? "Order Report")}</button>
         </div>
-        <div class="r-save-toast" id="rSaveToast">Saved</div>
+        <div class="r-save-toast" id="rSaveToast">${(globalThis.PlatformLanguage?.text("project-request","m_4bb4688766e904","Saved") ?? "Saved")}</div>
         <div class="r-signing-overlay" id="rSigningOverlay">
           <div class="r-signing-top">
-            <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("project-request","m_206d31a7c795c4"," Back") ?? " Back")}</button>
           </div>
           <div class="r-signing-body">
             <div class="r-signing-sheet" id="rSigningSheet"></div>
@@ -7092,7 +9277,7 @@
     syncContactsFeatureState();
     bindProjectModalCloseControls();
     bindProjectStageBarWheel();
-    mountProjectModalRegionApps('left');
+    if (!projectShellLoading) mountProjectModalRegionApps('left');
     projectViewer = new window.Portal.ProjectViewer({
       root: el,
       tabsEl: $('#rProjectViewerTabs'),
@@ -7100,7 +9285,7 @@
       tabClass: 'r-tab',
       onTabChange: (tab) => {
         if (tab === 'proposal') {
-          showProposalWorkspace();
+          showProposalWorkspace({ history:'push', source:'project-tab' });
           return;
         }
         if (proposalWorkspaceOpen && proposals.length) {
@@ -7108,54 +9293,57 @@
           proposalSigningMode = false;
           if (tab === 'photos') setTimeout(revealCustomerSection, 40);
         }
-        setActivePreviewTab(tab);
+        setActivePreviewTab(tab, { history:'push', source:'project-tab' });
       }
     });
-    mountProjectModalApps();
+    if (!projectShellLoading) mountProjectModalApps();
     syncProjectViewerTabs();
-    mountProjectModalRegionApps('left');
+    if (!projectShellLoading) mountProjectModalRegionApps('left');
     bindProjectModalCloseControls();
 
+    bindProjectModalFormControls();
+  }
+
+  let boundProjectForm = null;
+  let projectFormListeners = null;
+  function bindProjectModalFormControls(){
+    const el = $('#rOverlay');
+    const form = $('#rForm');
+    if (!el || !form || boundProjectForm === form) return;
+    projectFormListeners?.abort();
+    projectFormListeners = new AbortController();
+    boundProjectForm = form;
     $('#rProposalSend')?.addEventListener('click', () => {
       proposalActionExpanded = false;
-      showToast('Proposal ready', 'Proposal prepared for sending.', true);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_4b185986cad257","Proposal ready") ?? "Proposal ready"), (globalThis.PlatformLanguage?.text("project-request","m_53f50f8bfd652f","Proposal prepared for sending.") ?? "Proposal prepared for sending."), true);
       renderActionRow();
-    });
+    }, { signal: projectFormListeners.signal });
     $('#rProposalSign')?.addEventListener('click', () => {
       proposalActionExpanded = false;
       proposalSigningMode = true;
       proposalSigningSession = null;
       renderWorkflowState();
       renderSigningOverlay();
-    });
-    $('#rSignatureModal').addEventListener('click', (evt) => {
+    }, { signal: projectFormListeners.signal });
+    $('#rSignatureModal')?.addEventListener('click', (evt) => {
       if (evt.target === $('#rSignatureModal')) closeSignatureChooser();
-    });
-    $('#rOverlay .r-scroll')?.addEventListener('scroll', updateScrollCue, { passive: true });
-    $('#rScrollCue')?.addEventListener('click', () => {
-      const scroller = $('#rOverlay .r-scroll');
-      if (!scroller) return;
-      scroller.scrollTo({
-        top: Math.min(scroller.scrollHeight - scroller.clientHeight, scroller.scrollTop + Math.max(140, scroller.clientHeight * 0.72)),
-        behavior: 'smooth'
-      });
-    });
-    $('#rMobileBack')?.addEventListener('click', mobileOrderGoBack);
-    $('#rMobileNext')?.addEventListener('click', mobileOrderGoNext);
-    el.querySelector('.r-win')?.addEventListener('touchstart', handleMobileOrderSwipeStart, { passive: true });
-    el.querySelector('.r-win')?.addEventListener('touchend', handleMobileOrderSwipeEnd, { passive: true });
+    }, { signal: projectFormListeners.signal });
+    $('#rMobileBack')?.addEventListener('click', mobileOrderGoBack, { signal: projectFormListeners.signal });
+    $('#rMobileNext')?.addEventListener('click', mobileOrderGoNext, { signal: projectFormListeners.signal });
+    el.querySelector('.r-win')?.addEventListener('touchstart', handleMobileOrderSwipeStart, { ...({ passive: true }), signal: projectFormListeners.signal });
+    el.querySelector('.r-win')?.addEventListener('touchend', handleMobileOrderSwipeEnd, { ...({ passive: true }), signal: projectFormListeners.signal });
     $('#rMobileOrder')?.addEventListener('click', () => {
       const submit = activeSubmitButton();
       if (!submit || submit.disabled) return;
       const form = $('#rForm');
       if (form?.requestSubmit) form.requestSubmit(submit);
       else submit.click();
-    });
+    }, { signal: projectFormListeners.signal });
     $('#rContactContextBar')?.addEventListener('click', (event) => {
       const overview = event.target.closest('[data-contact-context-overview]');
       if (overview) {
         const context = activeContactContext;
-        close();
+        close({ skipHistory:true });
         if (context && window.Portal?.modules?.contacts?.open) {
           window.Portal.modules.contacts.open(context.contact || {}, { projects: context.projects || [] });
         }
@@ -7167,54 +9355,265 @@
       if (!id || id === String(activeBaseProject?.id || '')) return;
       const project = (activeContactContext.projects || []).find((item) => String(item?.id || '') === id);
       if (project) openProject(project, { contactContext: activeContactContext });
-    });
-    $('#rProjectNotesToggle')?.addEventListener('click', () => {
-      proposalInternalNotesCollapsed = !proposalInternalNotesCollapsed;
-      syncProjectNotesPlacement();
-    });
+    }, { signal: projectFormListeners.signal });
+    const toggleProjectNoteHistory = () => {
+      if (!expandedPlatformEnabled()) {
+        proposalInternalNotesCollapsed = !proposalInternalNotesCollapsed;
+        const notes = document.querySelector('#rOverlay .r-firstmeasure-notes');
+        notes?.classList.toggle('notes-expanded', !proposalInternalNotesCollapsed);
+        $('#rProjectNotesToggle')?.setAttribute('aria-expanded', String(!proposalInternalNotesCollapsed));
+        $('#rProjectNotesToggle')?.setAttribute('aria-label', proposalInternalNotesCollapsed ? 'Expand internal notes' : 'Reduce internal notes');
+        return;
+      }
+      if (!proposalInternalNotesCollapsed && !projectNoteHistoryClosing) {
+        proposalInternalNotesCollapsed = true;
+        projectNoteHistoryClosing = true;
+        syncProjectNotesUi();
+        window.clearTimeout(projectNoteHistoryCloseTimer);
+        projectNoteHistoryCloseTimer = window.setTimeout(() => {
+          projectNoteHistoryClosing = false;
+          projectNoteHistoryCloseTimer = 0;
+          syncProjectNotesUi();
+        }, 520);
+        return;
+      }
+      window.clearTimeout(projectNoteHistoryCloseTimer);
+      projectNoteHistoryCloseTimer = 0;
+      projectNoteHistoryClosing = false;
+      proposalInternalNotesCollapsed = false;
+      syncProjectNotesUi();
+      const notesRoot = $('#rProjectNoteHistory')?.closest('.r-bottom-notes');
+      notesRoot?.classList.add('opening');
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => notesRoot?.classList.remove('opening')));
+    };
+    $('#rProjectNotesToggle')?.addEventListener('click', toggleProjectNoteHistory, { signal: projectFormListeners.signal });
+    $('#rProjectNotesToggle')?.addEventListener('keydown', (event) => {
+      if (!['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      toggleProjectNoteHistory();
+    }, { signal: projectFormListeners.signal });
+    const toggleProjectNoteVisibility = (event) => {
+      event.stopPropagation();
+      const menu = $('#rProjectNoteVisibilityMenu');
+      if (!menu) return;
+      if (menu.hidden) openProjectNoteVisibilityMenu();
+      else closeProjectNoteVisibilityMenu();
+    };
+    $('#rProjectNoteVisibility')?.addEventListener('click', toggleProjectNoteVisibility, { signal: projectFormListeners.signal });
+    $('#rProjectNoteVisibility')?.addEventListener('keydown', (event) => {
+      if (!['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      toggleProjectNoteVisibility(event);
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteVisibilityMenu')?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-project-note-group]');
+      const api = projectNotesApi();
+      if (!button || !api) return;
+      event.stopPropagation();
+      const group = button.dataset.projectNoteGroup;
+      if (group === 'everybody') projectNoteVisibility = [...api.GROUPS];
+      else if (group === 'only_tagged') projectNoteVisibility = [];
+      else projectNoteVisibility = projectNoteVisibility.includes(group) ? projectNoteVisibility.filter((item) => item !== group) : [...projectNoteVisibility, group];
+      renderProjectNoteVisibilityMenu();
+      positionProjectNoteVisibilityMenu();
+    }, { signal: projectFormListeners.signal });
+    projectNoteMentionController?.destroy?.();
+    projectNoteMentionController = window.FirstMateTags?.attachMentionTextarea?.($('#rProjectNotes'), {
+      orgId:projectOrgId(),
+      includeAgents:true,
+      onSelect:() => { autoSizeProjectNoteInput(); renderProjectNoteComposerMentions(); }
+    }) || null;
+    Promise.all([
+      window.FirstMateTags?.listUsers?.(projectOrgId()) || Promise.resolve([]),
+      window.FirstMateTags?.listAgentParticipants?.(projectOrgId()) || Promise.resolve([])
+    ]).then(([users, agents]) => {
+      projectNoteMentionDirectory = [...(Array.isArray(users) ? users : []), ...(Array.isArray(agents) ? agents : [])];
+      renderProjectNoteHistory();
+    }).catch(() => {});
+    $('#rProjectNoteUpload')?.addEventListener('click', () => $('#rProjectNoteUploadInput')?.click(), { signal: projectFormListeners.signal });
+    $('#rProjectNoteUploadInput')?.addEventListener('change', async (event) => {
+      const inputFile = event.currentTarget;
+      const file = inputFile.files?.[0];
+      const button = $('#rProjectNoteUpload');
+      const audioButton = $('#rProjectAudioNote');
+      const api = projectNotesApi();
+      inputFile.value = '';
+      if (!file || !api?.prepareUpload || !activeBaseProject || pendingProjectAudio) return;
+      if (button) button.disabled = true;
+      if (audioButton) audioButton.disabled = true;
+      try {
+        pendingProjectAudio = await api.prepareUpload(activeBaseProject, file);
+        if (pendingProjectAudio.text) {
+          const noteInput = $('#rProjectNotes');
+          if (noteInput) noteInput.value = [noteInput.value.trim(), pendingProjectAudio.text].filter(Boolean).join('\n');
+        }
+        editingProjectNoteId = '';
+        syncProjectNotesUi();
+      } catch (error) {
+        pendingProjectAudio = null;
+        if (button) button.disabled = false;
+        if (audioButton) audioButton.disabled = false;
+        showToast((globalThis.PlatformLanguage?.text("project-request","m_eba695c553b0b3","Upload failed") ?? "Upload failed"), String(error?.message || 'Could not attach this file to the note.'), false);
+      }
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectAudioNote')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const api = projectNotesApi();
+      if (!api?.prepareAudioInline || !activeBaseProject || button.disabled || pendingProjectAudio) return;
+      button.disabled = true;
+      const uploadButton = $('#rProjectNoteUpload');
+      if (uploadButton) uploadButton.disabled = true;
+      const mount = $('#rProjectAudioPending');
+      const removeAudio = () => {
+        pendingProjectAudio = null;
+        button.disabled = false;
+        if (uploadButton) uploadButton.disabled = false;
+      };
+      try {
+        pendingProjectAudio = await api.prepareAudioInline(activeBaseProject, mount, { onRemove:removeAudio });
+        const input = $('#rProjectNotes');
+        if (input) input.value = pendingProjectAudio.text;
+        editingProjectNoteId = '';
+        autoSizeProjectNoteInput();
+        renderProjectNoteComposerMentions();
+      } catch (error) {
+        if (!String(error?.message || '').toLowerCase().includes('cancelled')) {
+          showToast((globalThis.PlatformLanguage?.text("project-request","m_8373af9614b53c","Audio note failed") ?? "Audio note failed"), String(error?.message || 'Could not create the audio note.'), false);
+        }
+        button.disabled = false;
+        if (uploadButton) uploadButton.disabled = false;
+      }
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteAdd')?.addEventListener('click', commitProjectNote, { signal: projectFormListeners.signal });
+    $('#rProjectNotes')?.addEventListener('input', (event) => {
+      autoSizeProjectNoteInput();
+      renderProjectNoteComposerMentions();
+      // The mobile notes drawer lives outside the autosaving form.
+      if (!expandedPlatformEnabled() && !event.target.closest('#rForm')) queueAutosaveNotice();
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNotes')?.addEventListener('scroll', () => {
+      const highlights = $('#rProjectNoteHighlights');
+      if (highlights) highlights.scrollTop = $('#rProjectNotes')?.scrollTop || 0;
+    }, { ...({ passive:true }), signal: projectFormListeners.signal });
+    $('#rProjectNotes')?.addEventListener('keydown', (event) => {
+      if (!expandedPlatformEnabled()) return;
+      if ((event.metaKey || event.ctrlKey) && String(event.key || '').toLowerCase() === 'a') {
+        event.preventDefault();
+        event.stopPropagation();
+        const input = event.currentTarget;
+        input.setSelectionRange(0, input.value.length);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); commitProjectNote(); }
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteSearch')?.addEventListener('input', renderProjectNoteHistory, { signal: projectFormListeners.signal });
+    $('#rProjectNoteSort')?.addEventListener('change', renderProjectNoteHistory, { signal: projectFormListeners.signal });
+    $('#rProjectNoteHistory')?.addEventListener('mouseover', (event) => {
+      const chip = event.target.closest('[data-project-note-mention-user]');
+      if (chip) positionProjectNoteMentionCard(chip);
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteHistory')?.addEventListener('mouseout', (event) => {
+      const chip = event.target.closest('[data-project-note-mention-user]');
+      if (chip && !chip.contains(event.relatedTarget)) hideProjectNoteMentionCard(chip);
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteHistory')?.addEventListener('focusin', (event) => {
+      const chip = event.target.closest('[data-project-note-mention-user]');
+      if (chip) positionProjectNoteMentionCard(chip);
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteHistory')?.addEventListener('focusout', (event) => {
+      const chip = event.target.closest('[data-project-note-mention-user]');
+      if (chip) hideProjectNoteMentionCard(chip);
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteHistory')?.addEventListener('keydown', (event) => {
+      const chip = event.target.closest('[data-project-note-mention-user]');
+      if (!chip || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      openProjectNoteMentionUser(chip);
+    }, { signal: projectFormListeners.signal });
+    $('#rProjectNoteHistory')?.addEventListener('click', async (event) => {
+      const mentionChip = event.target.closest('[data-project-note-mention-user]');
+      if (mentionChip) {
+        event.preventDefault();
+        event.stopPropagation();
+        openProjectNoteMentionUser(mentionChip);
+        return;
+      }
+      const api = projectNotesApi();
+      const edit = event.target.closest('[data-project-note-edit]');
+      const remove = event.target.closest('[data-project-note-remove]');
+      if (!api || (!edit && !remove) || !activeBaseProject) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const project = activeBaseProject;
+      const noteId = (edit || remove).dataset.projectNoteEdit || (edit || remove).dataset.projectNoteRemove;
+      if (edit) {
+        const note = api.all(activeBaseProject).find((item) => item.id === noteId);
+        if (!note) return;
+        editingProjectNoteId = note.id;
+        pendingProjectAudio = null;
+        projectNoteVisibility = [...note.visibility];
+        $('#rProjectNotes').value = note.text;
+        projectNoteMentionController?.setSelectedMentions?.(note.mention_users || []);
+        syncProjectNotesUi();
+        autoSizeProjectNoteInput();
+        $('#rProjectNotes').focus();
+      } else {
+        const confirmed = await window.confirm((globalThis.PlatformLanguage?.text("project-request","m_a5c3be1df7bbf2","Remove this project note?") ?? "Remove this project note?"));
+        if (!confirmed || activeBaseProject !== project || !api.remove(project, noteId)) return;
+        if (editingProjectNoteId === noteId) { editingProjectNoteId = ''; $('#rProjectNotes').value = ''; projectNoteMentionController?.setSelectedMentions?.([]); }
+        syncProjectNotesUi();
+        await persistProjectNoteMutation();
+      }
+    }, { signal: projectFormListeners.signal });
+    // Channels-backed extras: edit-history popover, removed-note restore, and
+    // inline replies, delegated on the same history container.
+    projectNotesApi()?.bindHistoryExtras?.($('#rProjectNoteHistory'), () => activeBaseProject);
+    window.addEventListener('fm:project-notes:refreshed', (event) => {
+      if (projectText(event.detail?.projectId) && projectText(event.detail?.projectId) === projectText(activeBaseProject?.id)) renderProjectNoteHistory();
+    }, { signal: projectFormListeners.signal });
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('#rProjectNoteVisibility,#rProjectNoteVisibilityMenu')) return;
+      closeProjectNoteVisibilityMenu();
+    }, { signal: projectFormListeners.signal });
+    window.addEventListener('resize', positionProjectNoteVisibilityMenu, { ...({ passive:true }), signal: projectFormListeners.signal });
     $('#rProposalAgentToggle')?.addEventListener('click', () => {
       proposalAgentCollapsed = !proposalAgentCollapsed;
       syncProposalAgentState();
-    });
+    }, { signal: projectFormListeners.signal });
+    $('#rOverlay .r-proposal-agent-head')?.addEventListener('click', (event) => {
+      if (event.target.closest('button,a,.customer-report-tip')) return;
+      proposalAgentCollapsed = !proposalAgentCollapsed;
+      syncProposalAgentState();
+    }, { signal: projectFormListeners.signal });
     $('#rProposalAgentPrompt')?.addEventListener('input', (event) => {
       proposalAgentPrompt = event.target.value || '';
       syncProposalAgentState();
-    });
-    $('#rProposalAgentDictate')?.addEventListener('click', toggleProposalAgentDictation);
-    $('#rProposalAgentSubmit')?.addEventListener('click', startProposalAgentProgress);
+    }, { signal: projectFormListeners.signal });
+    $('#rProposalAgentDictate')?.addEventListener('click', toggleProposalAgentDictation, { signal: projectFormListeners.signal });
+    $('#rProposalAgentSubmit')?.addEventListener('click', startProposalAgentProgress, { signal: projectFormListeners.signal });
     $('#rProposalBottomSend')?.addEventListener('click', () => {
       if (!proposals.length) return;
       enterProposalSendMode('edit', [proposalStableId(proposals[activeProposalIndex], activeProposalIndex)]);
-    });
-    window.addEventListener('resize', updateScrollCue);
-    window.addEventListener('resize', syncMobileOrderPagination);
+    }, { signal: projectFormListeners.signal });
+    window.addEventListener('resize', syncMobileOrderPagination, { signal: projectFormListeners.signal });
 
-    $('#rTypeGroup').addEventListener('click', (e) => {
+    // The configurable left-region app can replace its inner markup while the
+    // modal stays open. Delegate from the stable overlay so the newly rendered
+    // property-type buttons never lose their click handler.
+    el.addEventListener('click', (e) => {
       const btn = e.target.closest('.r-type-btn');
-      if (!btn) return;
-      const previousType = selectedType;
-      selectedType = btn.dataset.type;
-      typePickerExpanded = false;
-      if (previousType && previousType !== selectedType && reportExpediteOptionsEnabled()) {
-        selectedReportExpedite = null;
-        invalidateReportExpediteOptions();
-        reportExpediteOptions = [...FALLBACK_REPORT_EXPEDITE_OPTIONS];
-        reportExpediteOptionsAuthoritative = false;
-        if (reportSelection === 'roof' && !shouldLockReportOrderingWorkflow()) reportSelection = null;
-      }
-      normalizeReportSelection();
-      if (hasSelectedAddons()) locationConfirmed = false;
-      refreshMarkerIcons();
-      renderWorkflowState();
-      revealInLeftColumnIfBelow('#rStepReport');
-      queueAutosaveNotice();
-    });
+      if (!btn || !btn.closest('#rTypeGroup')) return;
+      selectProjectType(btn.dataset.type);
+    }, { signal: projectFormListeners.signal });
+    el.addEventListener('change', (e) => {
+      if (e.target.matches('[data-property-type]') && !hasReportOrdered()) selectProjectType(e.target.value);
+    }, { signal: projectFormListeners.signal });
     $('#rTypePill')?.addEventListener('click', (e) => {
       const pill = e.target.closest('[data-type-pill]');
       if (!pill || !selectedType || hasReportOrdered()) return;
       typePickerExpanded = true;
       renderWorkflowState();
-    });
+    }, { signal: projectFormListeners.signal });
 
     document.querySelectorAll('.r-toggle-btn[data-report-choice]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -7235,7 +9634,7 @@
         renderWorkflowState();
         revealInLeftColumnIfBelow(isScheduleChoice() ? '#rScheduleChoiceCard' : '#rReportOptionGroup');
         queueAutosaveNotice();
-      });
+      }, { signal: projectFormListeners.signal });
     });
     $('#rExpeditePanel')?.addEventListener('click', (e) => {
       const optionBtn = e.target.closest('.r-expedite-btn[data-expedite-option]');
@@ -7251,7 +9650,7 @@
         queueAutosaveNotice();
         return;
       }
-    });
+    }, { signal: projectFormListeners.signal });
     $('#rReportOptionGroup')?.addEventListener('click', (e) => {
       if (openAddonInfoFromEvent(e)) return;
       const addon = e.target.closest('.r-addon-toggle[data-report-addon]');
@@ -7272,47 +9671,55 @@
       normalizeReportSelection();
       renderWorkflowState();
       queueAutosaveNotice();
-    });
+    }, { signal: projectFormListeners.signal });
 
-    $('#rPinClear').addEventListener('click', () => {
+    $('#rPinClear')?.addEventListener('click', () => {
       clearAllPins();
       locationConfirmed = false;
       renderWorkflowState();
       queueAutosaveNotice();
-    });
-    $('#rConfirm').addEventListener('click', () => {
+    }, { signal: projectFormListeners.signal });
+    $('#rConfirm')?.setAttribute('role','checkbox');
+    $('#rConfirm')?.setAttribute('tabindex','0');
+    $('#rConfirm')?.addEventListener('keydown', event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();event.currentTarget.click();}}, { signal: projectFormListeners.signal });
+    $('#rConfirm')?.addEventListener('click', () => {
       if (!hasSelectedAddons() || !addressSelected || pinCount() === 0) return;
       locationConfirmed = !locationConfirmed;
       renderWorkflowState();
       if (locationConfirmed) scrollReportControlsToTop();
       queueAutosaveNotice();
-    });
-    $('#rCcAdd').addEventListener('click', () => addCcRow(''));
-    $('#rAddContact')?.addEventListener('click', (event) => openContactPicker(event.currentTarget));
-    $('#rForm').addEventListener('submit', onSubmit);
+    }, { signal: projectFormListeners.signal });
+    $('#rCcAdd')?.addEventListener('click', () => addCcRow(''), { signal: projectFormListeners.signal });
+    $('#rAddContact')?.addEventListener('click', (event) => openContactPicker(event.currentTarget), { signal: projectFormListeners.signal });
+    $('#rForm')?.addEventListener('submit', onSubmit, { signal: projectFormListeners.signal });
     $('#rAddress')?.addEventListener('focus', () => {
       initMapOnce();
       preferMapForNewProjectInput();
-    });
-    $('#rAddress')?.addEventListener('input', preferMapForNewProjectInput);
-    $('#rForm').addEventListener('input', (e) => {
+    }, { signal: projectFormListeners.signal });
+    $('#rAddress')?.addEventListener('input', () => {
+      preferMapForNewProjectInput();
+      renderWorkflowState();
+    }, { signal: projectFormListeners.signal });
+    $('#rForm')?.addEventListener('input', (e) => {
       if (e.target.matches('input, textarea, select')) queueAutosaveNotice();
       if (e.target.matches('#rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
+      if (e.target.matches('[data-fm-cf-input]')) syncProjectCustomFieldValues();
       persistActiveBaseProject();
-    });
-    $('#rForm').addEventListener('change', (e) => {
+    }, { signal: projectFormListeners.signal });
+    $('#rForm')?.addEventListener('change', (e) => {
       if (e.target.matches('input, textarea, select')) queueAutosaveNotice();
       if (e.target.matches('#rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
+      if (e.target.matches('[data-fm-cf-input]')) syncProjectCustomFieldValues();
       persistActiveBaseProject();
-    });
-    document.addEventListener('keydown', handleGalleryKeydown);
-    document.addEventListener('keydown', handleProposalPreviewKeydown);
-    document.addEventListener('keydown', handleProjectModalKeydown);
+    }, { signal: projectFormListeners.signal });
+    document.addEventListener('keydown', handleGalleryKeydown, { signal: projectFormListeners.signal });
+    document.addEventListener('keydown', handleProposalPreviewKeydown, { signal: projectFormListeners.signal });
+    document.addEventListener('keydown', handleProjectModalKeydown, { signal: projectFormListeners.signal });
     bindProposalModeToggle();
     bindProposalMarkupToggle();
-    addContactCard();
+    addContactCard({}, { hydrate:true });
     renderPhotoGallery();
     bindAddonInfoInteractions();
   }
@@ -7330,7 +9737,7 @@
         residentPhone: primary.phone || '',
         contacts: JSON.stringify(contacts),
         project_title: manualProjectTitle(),
-        projectNotes: ($('#rProjectNotes').value || '').trim(),
+        projectNotes: ($('#rProjectNotes')?.value || '').trim(),
         lat: ($('#rLat').value || '').trim(),
         lng: ($('#rLng').value || '').trim(),
         custom_coords: ($('#rCustom').value || '0').trim(),
@@ -7353,6 +9760,7 @@
         base_project_id: activeBaseProject?.id || '',
         reorder_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         source_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
+        ...(window.Portal.ExteriorOrder?.payload() || {}),
       }
     };
     try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); } catch (e) {}
@@ -7363,10 +9771,10 @@
     const cachedBalance = Number(window.Portal?.credits?.lastCredits);
     if (Number.isFinite(cachedBalance) && cachedBalance < price) {
       capturePendingOrder();
-      showToast('No credits', `You need $${price} to place this roof report order.`, false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae",`You need $${v0} to place this report order.`,{v0}) ?? `You need $${v0} to place this report order.`)(price), false);
       close();
       await openReportCreditGateTopup({
-        label: 'this roof report',
+        label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
         required: price,
         balance: cachedBalance,
         context: 'credit_gate'
@@ -7378,10 +9786,10 @@
     const bal = window.Portal.credits.lastCredits ?? 0;
     if (bal >= price) return true;
     capturePendingOrder();
-    showToast('No credits', `You need $${price} to place this roof report order.`, false);
+    showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae",`You need $${v0} to place this report order.`,{v0}) ?? `You need $${v0} to place this report order.`)(price), false);
     close();
     await openReportCreditGateTopup({
-      label: 'this roof report',
+      label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
       required: price,
       balance: bal,
       context: 'credit_gate'
@@ -7575,8 +9983,8 @@
       overlay.className = 'r-dup-overlay';
       const statusLabels = { submitted: 'In Progress', queued: 'In Progress', ready: 'In Progress', processing: 'In Progress', in_progress: 'In Progress', awaiting_review: 'Awaiting Review', awaiting_manager_review: 'Awaiting Review', correction_needed: 'Correction Needed', completed: 'Completed', pending_rejection: 'Pending Review' };
       const st = (existingProject.status || '').toLowerCase();
-      const created = existingProject.created_at ? new Date(existingProject.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      overlay.innerHTML = `<div class="r-dup-dialog"><div class="r-dup-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="r-dup-title">Duplicate report detected</div><div class="r-dup-body">It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?</div><div class="r-dup-match"><div class="r-dup-match-addr">${(existingProject.address || newAddress).replace(/</g, '&lt;')}</div><div class="r-dup-match-meta">Status: ${statusLabels[st] || existingProject.status || 'Unknown'}${created ? ' - Ordered: ' + created : ''}</div></div><div class="r-dup-actions"><button class="r-dup-btn" id="rDupCancel">Cancel</button><button class="r-dup-btn primary" id="rDupProceed">Order Anyway</button></div></div>`;
+      const created = existingProject.created_at ? new Date(existingProject.created_at).toLocaleDateString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      overlay.innerHTML = `<div class="r-dup-dialog"><div class="r-dup-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="r-dup-title">${(globalThis.PlatformLanguage?.text("project-request","m_5586d2df7e38a9","Duplicate report detected") ?? "Duplicate report detected")}</div><div class="r-dup-body">${(globalThis.PlatformLanguage?.text("project-request","m_9ee3ae5b218a97","It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?") ?? "It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?")}</div><div class="r-dup-match"><div class="r-dup-match-addr">${String((existingProject.address || newAddress).replace(/</g, '&lt;'))}</div><div class="r-dup-match-meta">${((v1,v2) => globalThis.PlatformLanguage?.text("project-request","m_26a0ffb1c5f2ca",`Status: ${v1}${v2}`,{v1,v2}) ?? `Status: ${v1}${v2}`)(statusLabels[st] || existingProject.status || 'Unknown',created ? ' - Ordered: ' + created : '')}</div></div><div class="r-dup-actions"><button class="r-dup-btn" id="rDupCancel">${(globalThis.PlatformLanguage?.text("project-request","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="r-dup-btn primary" id="rDupProceed">${(globalThis.PlatformLanguage?.text("project-request","m_a2c586200d3d66","Order Anyway") ?? "Order Anyway")}</button></div></div>`;
       document.body.appendChild(overlay);
       let modalHandle = null;
       function cleanup(result){
@@ -7598,8 +10006,8 @@
 
   async function onSubmit(e){
     e.preventDefault();
-    if (selectedReportExpeditePricingPending()) {
-      showToast('Pricing still loading', 'Please wait for the current expedited price before ordering.', false);
+    if (!window.Portal.ExteriorOrder?.active() && selectedReportExpeditePricingPending()) {
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_de248990c3b2ce","Pricing still loading") ?? "Pricing still loading"), (globalThis.PlatformLanguage?.text("project-request","m_16748599c5acea","Please wait for the current expedited price before ordering.") ?? "Please wait for the current expedited price before ordering."), false);
       updateSubmitLabel();
       syncMobileOrderPagination();
       return;
@@ -7697,13 +10105,14 @@
     // they create a fresh measurement order while staying attached to the same Platform project.
     const shouldReopenReorderSource = reorderSourceCanReopenInPlace && !!reorderSourceProjectId;
     const payload = {
+      branch_id: window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || "default",
       address: ($('#rAddress').value || '').trim(),
       residentName: primary.name || '',
       residentEmail: primary.email || '',
       residentPhone: primary.phone || '',
       contacts: JSON.stringify(contacts),
       project_title: manualProjectTitle(),
-      project_notes: ($('#rProjectNotes').value || '').trim(),
+      project_notes: legacyProjectNotesText(),
       lat: String(primaryLat),
       lng: String(primaryLng),
       custom_coords: pins.length > 0 ? '1' : ($('#rCustom').value || '0').trim(),
@@ -7726,29 +10135,31 @@
       base_project_id: activeBaseProject?.id || '',
       reorder_project_id: shouldReopenReorderSource ? reorderSourceProjectId : '',
       source_project_id: shouldReopenReorderSource ? reorderSourceProjectId : '',
+      ...window.Portal.ExteriorOrder?.payload(),
     };
     try {
       const { data } = await postAction('queue', payload);
       if (!data || !data.success) {
-        const msg = data?.error || 'Submission failed.';
+        const msg = data?.message || data?.error || 'Submission failed.';
+        if(window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.failed(data);
         btn.disabled = false;
         updateSubmitLabel();
         if (String(msg).toLowerCase().includes('credit')) {
           capturePendingOrder();
           await openReportCreditGateTopup({
-            label: 'this roof report',
+            label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
             required: currentPrice(),
             balance: Number(window.Portal?.credits?.lastCredits),
             context: 'server_credit_reject'
           });
-          showToast('No credits', 'Top up to submit this exact roof report order.', false);
+          showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db","No credits") ?? "No credits"), (globalThis.PlatformLanguage?.text("project-request","m_1c14a09330064b","Top up to submit this exact roof report order.") ?? "Top up to submit this exact roof report order."), false);
           return;
         }
-        showToast('Order issue', msg, false);
+        showToast((globalThis.PlatformLanguage?.text("project-request","m_be1a6bd83137b5","Order issue") ?? "Order issue"), msg, false);
         return;
       }
       try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (ex) {}
-      showToast('Roof report ordered', getAfterHoursMessage() || 'Report is now processing.', true);
+      showToast(payload.measurement_scope === 'full_house' ? 'Full Structure report ordered' : 'Roof report ordered', getAfterHoursMessage() || 'Report is now processing.', true);
       const shouldUpdateExistingProject = !!String(payload.platform_project_id || payload.base_project_id || '').trim();
       reorderMeasurementProjectId = '';
       reorderSourceCanReopenInPlace = false;
@@ -7782,7 +10193,7 @@
     } catch (error) {
       btn.disabled = false;
       updateSubmitLabel();
-      showToast('Couldn’t submit order', error?.message || 'Connection error. Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), error?.message || 'Connection error. Please try again.', false);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     }
@@ -7794,16 +10205,23 @@
   function initMapOnce(...args){ return projectMapInvoke('initMapOnce', args); }
   function initializeMapView(...args){ return projectMapInvoke('initializeMapView', args); }
 
-  function hydrateFromBaseProject(baseProject){
+  let projectFormHydrating = 0;
+  function hydrateFromBaseProject(baseProject, options = {}){
+    projectFormHydrating++;
+    try {
     const base = baseProject || {};
     activeBaseProject = base;
+    projectWorkPlanState = { projectId: '', plans: [], loaded: false };
+    if (!options.deferRemoteContent) loadProjectWorkPlans().catch(() => null);
     activeBaseProject.events = Array.isArray(activeBaseProject.events) ? activeBaseProject.events : [];
     addressSelected = !!base.address;
-    locationConfirmed = true;
+    locationConfirmed = !isUnfinishedReportDraft(base);
     selectedType = base.project_type || 'residential';
     typePickerExpanded = false;
     const hasBaseMeasurement = projectHasReportOrder(base);
-    reportSelection = hasBaseMeasurement ? 'roof' : (base.workflow_state === 'proposal_only' ? 'proposal' : reportSelection);
+    reportSelection = hasBaseMeasurement || isUnfinishedReportDraft(base)
+      ? 'roof'
+      : (base.workflow_state === 'proposal_only' ? 'proposal' : reportSelection);
     includeGutterMeasurements = !!(base.measurement?.include_gutters || base.include_gutter_measurements);
     includeWeatherReport = !!(
       base.measurement?.include_weather_report
@@ -7823,22 +10241,40 @@
       const components = base.address_components || base.addressComponents || base.components || {};
       $('#rComps').value = typeof components === 'string' ? components : JSON.stringify(components || {});
     }
-    if ($('#rProjectNotes')) $('#rProjectNotes').value = base.project_notes || '';
+    if ($('#rProjectNotes')) $('#rProjectNotes').value = expandedPlatformEnabled() ? '' : (base.project_notes || '');
+    const savedMeasurement = base.measurement_project || base.measurement || {};
+    const savedManifest = savedMeasurement.raw?.manifest || savedMeasurement.manifest || {};
+    if ($('#rTechNotes')) $('#rTechNotes').value = base.tech_notes ?? savedMeasurement.tech_notes ?? savedManifest.tech_notes ?? '';
+    const savedCcEmails = base.cc_emails ?? savedMeasurement.cc_emails ?? savedManifest.cc_emails ?? [];
+    if ($('#rCcList')) {
+      $('#rCcList').replaceChildren();
+      (Array.isArray(savedCcEmails) ? savedCcEmails : []).forEach((email) => addCcRow(email, { hydrate:true }));
+    }
+    editingProjectNoteId = '';
+    pendingProjectAudio = null;
+    projectNoteVisibility = [...(projectNotesApi()?.GROUPS || ['office', 'crew', 'sales'])];
+    syncProjectNotesUi();
     projectPhotos = normalizeProjectPhotoList(base);
     syncProjectPhotosFromLibrary();
     proposals = Array.isArray(base.proposals) ? base.proposals : [];
     normalizeProposalCollection();
     proposalBackendLoadedProjectId = '';
-    hydrateProposalsFromBackend({ render: true, force: true }).catch((error) => console.warn('Proposal load failed', error));
+    if ($('#rForm') && !options.deferRemoteContent) {
+      hydrateProposalsFromBackend({ render: true, force: true })
+        .then(() => renderProjectStageBar())
+        .catch((error) => console.warn('Proposal load failed', error));
+    }
     activeProposalIndex = proposals.length ? Math.min(activeProposalIndex, proposals.length - 1) : 0;
     if (reportSelection && !actionAvailable(reportSelection)) reportSelection = null;
     activePhotoIndex = 0;
-    $('#rContactList').innerHTML = '';
+    const contactList = $('#rContactList');
+    if (contactList) contactList.innerHTML = '';
     const resolvedContacts = contactForProjectModal(base);
     const contacts = resolvedContacts.length ? resolvedContacts : [{ name: '', phone: '', email: '' }];
     const primaryIndex = contacts.findIndex((contact) => contact?.primary);
     primaryContactIndex = primaryIndex >= 0 ? primaryIndex : 0;
-    contacts.forEach((contact) => addContactCard(contact));
+    if (contactList) contacts.forEach((contact) => addContactCard(contact, { hydrate:true }));
+    renderProjectCustomFields();
     updateModalTitle();
     if (hasBaseMeasurement) {
       const measurementSource = (base.measurement_project && typeof base.measurement_project === 'object') ? base.measurement_project : (base.measurement || {});
@@ -7926,16 +10362,26 @@
       };
       setActiveMeasurementTab(cancelledMeasurement ? 'standard' : (reportOrderState.includeInspection ? 'instant' : 'standard'));
       setProjectionMode(true);
-      setActivePreviewTab('measurements');
+      if (!options.preferredTab) setActivePreviewTab('measurements');
     }
+    } finally { projectFormHydrating--; }
   }
 
   function resetNewProjectState(){
+    window.Portal.ExteriorOrder?.reset();
     activeBaseProject = null;
+    projectWorkPlanState = { projectId: '', plans: [], loaded: false };
     resetCustomerPortalApp();
     viewingExistingProject = false;
+    newProjectCreationSession = false;
     reportOrderState = null;
     requestedWorkflow = 'project';
+    requestedDocumentType = '';
+    requestedDocumentResume = null;
+    docPickerDismissed = false;
+    docPickerChoiceMade = false;
+    docCreateLaunched = false;
+    removeDocWorkflowPicker();
     projectTodoController?.destroy?.();
     projectTodoController = null;
     projectTodoLoadedFor = '';
@@ -7978,6 +10424,9 @@
     proposalActionExpanded = false;
     proposalMeasurementsExpanded = false;
     proposalInternalNotesCollapsed = true;
+    projectNoteHistoryClosing = false;
+    window.clearTimeout(projectNoteHistoryCloseTimer);
+    projectNoteHistoryCloseTimer = 0;
     proposalAgentCollapsed = true;
     proposalAgentPrompt = '';
     stopProposalAgentActivity();
@@ -7988,11 +10437,17 @@
     photoViewerOpen = false;
     clearAllPins();
     ['rAddress','rProjectNotes','rLat','rLng','rTechNotes'].forEach((id) => { const el = $('#' + id); if (el) el.value = ''; });
-    $('#rCustom').value = '0';
-    $('#rComps').value = '{}';
-    $('#rCcList').innerHTML = '';
-    $('#rContactList').innerHTML = '';
-    addContactCard();
+    const custom = $('#rCustom');
+    const components = $('#rComps');
+    const ccList = $('#rCcList');
+    const contactList = $('#rContactList');
+    if (custom) custom.value = '0';
+    if (components) components.value = '{}';
+    if (ccList) ccList.innerHTML = '';
+    if (contactList) {
+      contactList.innerHTML = '';
+      addContactCard({}, { hydrate:true });
+    }
     updateModalTitle();
   }
 
@@ -8051,7 +10506,7 @@
     const prefillProject = readStructureReorderPrefillFromUrl();
     if (!prefillProject) return false;
     if (!hasPerm('order_reports')) {
-      showToast('Access denied', 'You do not have permission to reorder reports.', false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_60fa00527e725c","Access denied") ?? "Access denied"), (globalThis.PlatformLanguage?.text("project-request","m_2cc90ca1575166","You do not have permission to reorder reports.") ?? "You do not have permission to reorder reports."), false);
       return false;
     }
     const measurementProbe = {
@@ -8079,44 +10534,137 @@
         }
       : prefillProject;
     open(baseProject, { fromReorder: true });
-    showToast('Reorder ready', 'The previous order settings were pre-filled with the corrected project type.', true);
+    showToast((globalThis.PlatformLanguage?.text("project-request","m_0cdd1397e79336","Reorder ready") ?? "Reorder ready"), (globalThis.PlatformLanguage?.text("project-request","m_2ab573f546afc1","The previous order settings were pre-filled with the corrected project type.") ?? "The previous order settings were pre-filled with the corrected project type."), true);
+    return true;
+  }
+
+  function projectOpenId(project = activeBaseProject){
+    return String(platformProjectId(project) || project?.id || '').trim();
+  }
+
+  function setProjectShellLoading(loading){
+    projectShellLoading = !!loading;
+    const overlay = $('#rOverlay');
+    if (!overlay) return;
+    overlay.classList.toggle('project-shell-loading', projectShellLoading);
+    overlay.setAttribute('aria-busy', projectShellLoading ? 'true' : 'false');
+  }
+
+  function activeModalMatchesProject(projectId){
+    const overlay = $('#rOverlay');
+    return !!(overlay?.classList.contains('active') && projectId && projectOpenId() === String(projectId || '').trim());
+  }
+
+  function applyProjectOpenRouteOptions(options = {}){
+    if (Object.prototype.hasOwnProperty.call(options, 'photo')) {
+      pendingRoutePhotoId = String(options.photo || '').trim();
+    }
+    const requestedTab = pendingRoutePhotoId && projectPhotosEnabled()
+      ? 'photos'
+      : String(options.tab || '').trim();
+    if (requestedTab) setActivePreviewTab(requestedTab, {
+      syncRoute:options.fromRoute !== true,
+      history:options.history || 'push',
+      source:options.source || 'project-open'
+    });
+    if (options.fromRoute) {
+      setProjectModalFullscreen(routeFullscreenEnabled(options.projectFullscreen), { syncRoute: false });
+    }
+  }
+
+  function hydrateOpenProjectContent(project, options = {}, generation = projectOpenGeneration, expectedProjectId = ''){
+    if (!project || generation !== projectOpenGeneration) return false;
+    if (!$('#rOverlay')?.classList.contains('active')) return false;
+    if (expectedProjectId && !activeModalMatchesProject(expectedProjectId)) return false;
+    const desiredTab = String(
+      (options.photo ? 'photos' : '')
+      || options.tab
+      || activePreviewTab
+      || ''
+    ).trim();
+    const wasShellLoading = projectShellLoading;
+    // The URL shell only knows an ID. Recover the report workflow once the saved draft arrives.
+    if (isUnfinishedReportDraft(project)) requestedWorkflow = 'report';
+    // Capabilities may have become ready after the routed shell was painted.
+    // Create its controls before hydrating values into them.
+    ensureProjectModalLeftRegion();
+    hydrateFromBaseProject(project, { preferredTab:desiredTab });
+    viewingExistingProject = true;
+    setProjectShellLoading(false);
+    // The routed shell is already the modal the user can see. Keep that exact
+    // DOM mounted while the project record hydrates so loading content cannot
+    // look like a second modal opening. Shell-only opens never mount app
+    // handles, so the existing panels can safely be populated in place.
+    if (wasShellLoading) {
+      ensureProjectModalAppPanels();
+      pruneStaleProjectModalAppPanels();
+    }
+    if (desiredTab) setActivePreviewTab(desiredTab, { syncRoute:false });
+    renderContactContextBar();
+    syncProjectViewerTabs();
+    renderWorkflowState({ preserveRouteTab:options.fromRoute === true });
+    mountProjectModalRegionApps('left');
+    mountProjectModalApps();
+    syncProjectModalAppActivation();
+    const routePatch = options.routePatch && typeof options.routePatch === 'object' ? options.routePatch : {};
+    if (!options.fromRoute) {
+      syncActiveProjectRoute({
+        ...routePatch,
+        ...(options.photo ? { photo: options.photo, photoScope: 'project', projectTab: 'photos' } : {})
+      });
+    }
+    if (validPreviewTabs().includes('map') || projectModalAppsShouldInlineMap()) scheduleProjectMapInitialize(project, 80);
+    window.dispatchEvent(new CustomEvent('fm:project-modal:hydrated', { detail: { projectId: projectOpenId(project) } }));
+    restoreProjectNoteRoute();
     return true;
   }
 
   function open(baseProject = null, options = {}){
     if (!baseProject && !hasPerm('order_reports')) {
-      showToast('Access denied', 'You do not have permission to start this workflow.', false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_60fa00527e725c","Access denied") ?? "Access denied"), (globalThis.PlatformLanguage?.text("project-request","m_3e88019828556d","You do not have permission to start this workflow.") ?? "You do not have permission to start this workflow."), false);
       return;
     }
+    const continuingCreationSession = !!baseProject
+      && newProjectCreationSession
+      && projectOpenId(baseProject) === projectOpenId(activeBaseProject);
+    const unfinishedReportDraft = !!baseProject && isUnfinishedReportDraft(baseProject);
+    const nextRequestedWorkflow = baseProject
+      ? (unfinishedReportDraft ? 'report' : 'project')
+      : normalizeWorkflow(options.workflow || options.createWorkflow || options.intent);
+    projectShellLoading = !!options.shellOnly;
+    projectRouteBatching = true;
     ensureUI();
+    setMobileProjectNotesOpen(false, { fromRoute:true });
     const overlay = $('#rOverlay');
-    syncContactsFeatureState();
-    overlay.classList.add('active');
-    requestModalHandle?.unregister?.();
-    requestModalHandle = window.Portal?.modals?.register?.(overlay, {
-      id: 'project-modal',
-      closeOnEscape: true,
-      closeOnBackdrop: false,
-      onClose: () => close()
-    }) || null;
+
+    // Build the final state and presentation before exposing the overlay. The
+    // mobile bottom-sheet class depends on viewingExistingProject, which used
+    // to be cleared again by resetNewProjectState() after the overlay was made
+    // visible. That produced a fullscreen/stacked paint followed by a second
+    // bottom-sheet animation.
     resetNewProjectState();
-    requestedWorkflow = baseProject ? 'project' : normalizeWorkflow(options.workflow || options.createWorkflow || options.intent);
+    requestedWorkflow = nextRequestedWorkflow;
+    requestedDocumentType = baseProject ? '' : String(options.documentType || '').trim().toLowerCase();
+    requestedDocumentResume = baseProject ? null : (options.resumeDocument && typeof options.resumeDocument === 'object' ? options.resumeDocument : null);
+    viewingExistingProject = !!baseProject;
+    newProjectCreationSession = !baseProject || continuingCreationSession || unfinishedReportDraft;
     activeContactContext = baseProject ? normalizeContactContext(options.contactContext, baseProject) : null;
     modalInitialProjectIds = new Set((window.Portal.ProjectStore?.cachedIds?.() || []).map(String));
-    viewingExistingProject = !!baseProject;
-    if (baseProject) hydrateFromBaseProject(baseProject);
+    ensureProjectModalLeftRegion();
+    if (baseProject) hydrateFromBaseProject(baseProject, { deferRemoteContent: projectShellLoading, preferredTab:options.tab });
     else preloadFirstReportCheckoutEligibility();
     if (options.fromReorder) applyReorderPrefillState(baseProject || {});
     if (!baseProject) applyRequestedWorkflow();
     pendingRoutePhotoId = String(options.photo || '').trim();
     resetProjectModalAppPanels();
+    setProjectModalFullscreen(!!(options.fromRoute && routeFullscreenEnabled(options.projectFullscreen)), { syncRoute: false });
     renderAfterHoursNotice();
     clearTimeout(autosaveDebounceTimer);
     clearTimeout(autosaveToastTimer);
     $('#rSaveToast')?.classList.remove('visible');
     closeSignatureChooser();
     setProjectionMode(hasReportOrdered());
-    if (!baseProject) clearProjectRoute();
+    if (!baseProject) clearProjectRoute({ back:false, source:'new-project' });
     if (options.fromReorder) {
       setActivePreviewTab('map');
     } else {
@@ -8126,16 +10674,53 @@
     if (pendingRoutePhotoId && projectPhotosEnabled()) setActivePreviewTab('photos');
     renderContactContextBar();
     syncProjectViewerTabs();
-    renderWorkflowState();
-    mountProjectModalRegionApps('left');
-    syncProjectModalAppActivation();
-    syncActiveProjectRoute(pendingRoutePhotoId ? { photo: pendingRoutePhotoId, photoScope: 'project', projectTab: 'photos' } : {});
-    if (options.proposalIntent) setTimeout(() => {
+    renderWorkflowState({ preserveRouteTab:options.fromRoute === true });
+    syncContactsFeatureState();
+    syncMobileProjectInfoNavigation();
+    syncMobileLeftTray();
+    syncMobileDefaultInfoTray();
+    applyProjectModalPresentation();
+    if (!projectShellLoading) {
+      mountProjectModalRegionApps('left');
+      syncProjectModalAppActivation();
+    }
+    renderProjectCustomFields();
+
+    // Reveal one fully prepared shell. Remote project data and tab apps hydrate
+    // inside this mounted modal instead of replacing it.
+    overlay.classList.toggle('route-initial-open', !!options.fromRoute);
+    setProjectShellLoading(projectShellLoading);
+    overlay.classList.add('active');
+    window.requestAnimationFrame(() => document.getElementById('fmProjectRoutePrecover')?.remove());
+    requestModalHandle?.unregister?.();
+    requestModalHandle = window.Portal?.modals?.register?.(overlay, {
+      id: 'project-modal',
+      closeOnEscape: true,
+      closeOnBackdrop: false,
+      onClose: () => close()
+    }) || null;
+    projectRouteBatching = false;
+    const routePatch = options.routePatch && typeof options.routePatch === 'object' ? options.routePatch : {};
+    if (!options.fromRoute) {
+      syncActiveProjectRoute({
+        ...routePatch,
+        ...(pendingRoutePhotoId ? { photo: pendingRoutePhotoId, photoScope: 'project', projectTab: 'photos' } : {})
+      }, {
+        history:options.history || 'push',
+        source:'project-open',
+        ownedKeys:['project', 'projectTab']
+      });
+    }
+    if (!projectShellLoading && options.proposalIntent) setTimeout(() => {
       applyProposalOpenIntent(options).catch((error) => console.warn('Proposal open intent failed', error));
     }, 0);
-    scheduleProjectMapInitialize(baseProject, 120);
+    if (!projectShellLoading && (validPreviewTabs().includes('map') || projectModalAppsShouldInlineMap())) scheduleProjectMapInitialize(baseProject, 120);
+    else {
+      clearTimeout(projectMapInitTimer);
+      projectMapInitTimer = 0;
+    }
     setTimeout(() => {
-      if (!hasReportOrdered()) {
+      if (!projectShellLoading && !hasReportOrdered()) {
         const firstContactName = document.querySelector('#rContactList [data-field="name"]');
         (firstContactName || $('#rAddress'))?.focus();
         if (!firstContactName) $('#rAddress')?.select?.();
@@ -8144,9 +10729,18 @@
     window.dispatchEvent(new CustomEvent('fm:modal:open', { detail: { open: true, id: 'request' } }));
   }
 
-  function close(){
+  function close(options = {}){
+    projectOpenGeneration += 1;
+    closeHeaderPropertyTypeMenu();
+    closeProjectNoteVisibilityMenu();
+    routeRestoreInFlight = false;
+    routeRestorePromise = null;
+    routeRestoreProjectId = '';
+    projectShellLoading = false;
     clearTimeout(projectMapInitTimer);
     projectMapInitTimer = 0;
+    clearTimeout(projectModalFullscreenTimer);
+    projectModalFullscreenTimer = null;
     requestModalHandle?.unregister?.();
     requestModalHandle = null;
     closeContactPicker();
@@ -8155,7 +10749,12 @@
     renderContactContextBar();
     setProjectPhotoFocus(false);
     pendingRoutePhotoId = '';
-    clearProjectRoute();
+    if (!options.skipHistory && !options.fromRoute) {
+      const closingRoute = window.Portal?.routeState?.get?.() || {};
+      projectRouteClosePendingId = String(closingRoute.project || activeProjectRouteId() || '').trim();
+      const closeResult = clearProjectRoute();
+      if (!closeResult?.backed) projectRouteClosePendingId = '';
+    }
     stopProposalAgentActivity();
     clearCancellationCountdown();
     stopReportExpediteMinuteRefresh();
@@ -8165,15 +10764,22 @@
     projectTodoLoadedFor = '';
     const discarded = discardEmptyNewProjectDraft();
     disposeInstantMeasurement();
+    mobileLeftTrayOpen = false;
+    mobileDefaultInfoTrayOpen = false;
+    setMobileProjectNotesOpen(false, { fromRoute:true });
     const ov = $('#rOverlay');
     if (ov) {
-      ov.classList.remove('active', 'proposal-workspace', 'left-override', 'materials-workspace', 'money-workspace', 'schedule-workspace');
+      ov.classList.remove('active', 'fullscreen', 'fullscreen-transitioning', 'route-initial-open', 'project-shell-loading', 'proposal-workspace', 'proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode', 'left-override', 'mobile-left-tray-mode', 'mobile-left-tray-open', 'mobile-default-info-tray-mode', 'mobile-default-info-tray-open', 'mobile-default-info-tray-entering', 'mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active', 'mobile-default-info-tray-resetting', 'mobile-project-notes-open', 'materials-workspace', 'money-workspace', 'schedule-workspace', 'entitlement-left-none', 'entitlement-mobile-fullscreen', 'entitlement-tab-icons', 'entitlement-hide-fullscreen');
+      ov.setAttribute('aria-busy', 'false');
       delete ov.dataset.leftOverrideTab;
+      delete ov.dataset.projectLeftMode;
+      delete ov.dataset.projectTabMode;
     }
+    projectModalFullscreen = false;
     proposalTabModule()?.deactivate?.();
     projectPhotosTabModule()?.deactivate?.();
     (window.Portal?.modules?.projectDocsTab || window.Portal?.ProjectDocsTab)?.deactivate?.();
-    if (discarded) setTimeout(() => showToast('Empty project discarded', 'No project was saved.', true), 0);
+    if (discarded) setTimeout(() => showToast((globalThis.PlatformLanguage?.text("project-request","m_b371ac5dc6d019","Empty project discarded") ?? "Empty project discarded"), (globalThis.PlatformLanguage?.text("project-request","m_e424d47363bdd1","No project was saved.") ?? "No project was saved."), true), 0);
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     window.dispatchEvent(new CustomEvent('fm:modal:open', { detail: { open: false, id: 'request' } }));
   }
@@ -8210,30 +10816,30 @@
         window.Portal.modules.contacts.open();
         return;
       }
-      open(null, { workflow });
+      open(null, { workflow, documentType: event?.detail?.documentType || '' });
     });
     loadBranchPresentationStyle().catch(() => null);
     loadBranchProposalTemplates().catch(() => null);
     loadBranchProjectConfig().catch(() => null);
-    loadBranchStageConfig().catch(() => null);
     updateButtonVisibility();
     window.setTimeout(() => openStructureReorderFromUrl(), 250);
   });
 
   window.addEventListener('fm:perms:updated', updateButtonVisibility);
+  window.addEventListener('fm:custom-fields:definitions-loaded', () => {
+    if ($('#rOverlay')?.classList.contains('active')) renderProjectCustomFields();
+  });
+  window.addEventListener('fm:custom-fields:definitions-updated', () => {
+    if ($('#rOverlay')?.classList.contains('active')) renderProjectCustomFields();
+  });
   window.addEventListener('fm:project-config:updated', (event) => {
     branchProjectConfig = normalizeProjectConfig(event?.detail || branchProjectConfig);
     window.PlatformCelebrations?.configure?.({ mode: branchProjectConfig.celebrations_mode });
     updateModalTitle();
   });
-  function handleStageModuleUpdated(event){
-    const moduleId = cleanStageText(event?.detail?.moduleId || event?.detail?.module_id || event?.detail?.id);
-    if (moduleId !== 'stages' && moduleId !== 'variable_mappings') return;
-    branchStageConfig = null;
-    loadBranchStageConfig({ refresh: true }).catch(() => null);
-  }
-  window.addEventListener('fm:branch-module:updated', handleStageModuleUpdated);
-  window.addEventListener('fm:settings-pages:module-updated', handleStageModuleUpdated);
+  window.addEventListener('fm:terminology:updated', () => {
+    if (projectViewer) syncProjectViewerTabs();
+  });
   window.addEventListener('fm:theme:updated', () => {
     if (proposalsEnabled() && proposals.length && activePreviewTab === 'proposal') {
       renderProposalSection();
@@ -8303,8 +10909,8 @@
       'primary_contact_phone',
       'address',
       'project_type',
-      'stage',
-      'stage_id'
+      'work_projection',
+      'lifecycle'
     ].forEach(keepIncoming);
     ['contacts', 'photos', 'proposals', 'events'].forEach(keepBetterArray);
     if (incoming.manifest && typeof incoming.manifest === 'object') {
@@ -8336,6 +10942,7 @@
   }
 
   function platformProjectId(project = {}){
+    project = project || {};
     return projectText(project.platform_project_id, project.base_project_id, project.id);
   }
 
@@ -8387,8 +10994,7 @@
       'project_title',
       'project_name',
       'projectName',
-      'stage',
-      'stage_id',
+      'work_projection',
       'project_notes',
       'customer',
       'customer_name',
@@ -8417,44 +11023,122 @@
   }
 
   async function openProject(project, options = {}){
+    const requestedProjectId = projectOpenId(project);
+    if (requestedProjectId && activeModalMatchesProject(requestedProjectId) && !options.forceRefresh) {
+      applyProjectOpenRouteOptions(options);
+      return activeBaseProject;
+    }
+    const generation = ++projectOpenGeneration;
     const useMeasurementResolver = looksLikeMeasurementOnlyRecord(project);
-    const resolved = !useMeasurementResolver
-      ? await hydratePlatformProjectForOpen(project)
-      : (await window.Portal.ProjectStore?.ensureFromMeasurementAsync?.(project) || window.Portal.ProjectStore?.ensureFromMeasurement?.(project) || project);
-    const base = useMeasurementResolver ? mergeProjectForViewing(resolved, project) : resolved;
-    open(base, options);
+    const immediate = useMeasurementResolver
+      ? (window.Portal.ProjectStore?.ensureFromMeasurement?.(project) || project)
+      : project;
+    const base = useMeasurementResolver ? mergeProjectForViewing(immediate, project) : immediate;
+    open(base, { ...options, history:options.history || (options.fromRoute ? 'replace' : 'push') });
+    try {
+      const resolved = !useMeasurementResolver
+        ? await hydratePlatformProjectForOpen(project)
+        : (await window.Portal.ProjectStore?.ensureFromMeasurementAsync?.(project) || immediate);
+      const hydrated = useMeasurementResolver ? mergeProjectForViewing(resolved, project) : resolved;
+      if (hydrated !== base || projectShellLoading) {
+        hydrateOpenProjectContent(hydrated, options, generation, projectOpenId(base));
+      }
+      return hydrated;
+    } catch (error) {
+      if (generation === projectOpenGeneration) setProjectShellLoading(false);
+      throw error;
+    }
   }
 
   async function restoreRouteState(){
     const route = window.Portal?.routeState?.get?.() || {};
-    if (!route.project || route.photoScope === 'feed' || routeRestoreInFlight) return;
-    routeRestoreInFlight = true;
-    try {
-      if (route.projectTab || route.tab) {
-        await window.Portal?.appFlags?.load?.().catch(() => null);
-      }
-      const project = await window.Portal?.routeState?.resolveProject?.(route.project);
-      if (!project) return;
-      await openProject(project, {
-        tab: route.photo ? 'photos' : (route.projectTab || route.tab),
-        photo: route.photo,
-        fromRoute: true
-      });
-    } catch (error) {
-      console.warn('Could not restore project route', error);
-    } finally {
-      routeRestoreInFlight = false;
+    const projectId = String(route.project || '').trim();
+    if (projectRouteClosePendingId) {
+      if (!projectId) projectRouteClosePendingId = '';
+      else if (projectId === projectRouteClosePendingId) return;
+      else projectRouteClosePendingId = '';
     }
+    if (!route.project || route.photoScope === 'feed') {
+      if ($('#rOverlay')?.classList.contains('active') && viewingExistingProject) close({ fromRoute:true });
+      return;
+    }
+    const openOptions = {
+      tab: route.photo ? 'photos' : (route.projectTab || route.tab),
+      photo: route.photo,
+      projectFullscreen: route.projectFullscreen,
+      fromRoute: true
+    };
+    if (activeModalMatchesProject(projectId)) {
+      applyProjectOpenRouteOptions(openOptions);
+      if (routeRestorePromise) return routeRestorePromise;
+      if (!projectShellLoading) return activeBaseProject;
+    }
+    if (routeRestoreInFlight && routeRestoreProjectId === projectId && routeRestorePromise) return routeRestorePromise;
+    const generation = activeModalMatchesProject(projectId) ? projectOpenGeneration : ++projectOpenGeneration;
+    if (!activeModalMatchesProject(projectId)) {
+      const cached = window.Portal.ProjectStore?.get?.(projectId) || null;
+      const seed = cached || {
+        id: projectId,
+        platform_project_id: projectId,
+        base_project_id: projectId,
+        title: (globalThis.PlatformLanguage?.text("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…"),
+        __projectShellLoading: true
+      };
+      open(seed, { ...openOptions, shellOnly: !cached });
+    }
+    routeRestoreInFlight = true;
+    routeRestoreProjectId = projectId;
+    const restorePromise = Promise.resolve(window.Portal?.routeState?.resolveProject?.(projectId))
+      .then((project) => {
+        if (!project) return null;
+        hydrateOpenProjectContent(project, openOptions, generation, projectId);
+        return project;
+      })
+      .catch((error) => {
+        console.warn('Could not restore project route', error);
+        return null;
+      })
+      .finally(() => {
+        if (routeRestorePromise !== restorePromise) return;
+        routeRestoreInFlight = false;
+        routeRestorePromise = null;
+      });
+    routeRestorePromise = restorePromise;
+    return restorePromise;
   }
 
   function refreshProjectModalForAppFlags(){
     if (!document.querySelector('#rOverlay')) return;
+    const restoredLeftRegion = ensureProjectModalLeftRegion();
+    // Only hydrate newly created controls. Repeated settings updates must not
+    // overwrite edits in an already populated project form.
+    if (restoredLeftRegion && activeBaseProject) {
+      hydrateFromBaseProject(activeBaseProject, { deferRemoteContent:true });
+    }
     syncContactsFeatureState();
+    if (projectShellLoading) {
+      ensureProjectModalAppPanels();
+      syncProjectViewerTabs();
+      applyProjectModalPresentation();
+      return;
+    }
+    ensureProjectModalAppPanels();
     renderProjectStageBar();
-    if (!validPreviewTabs().includes(activePreviewTab)) setActivePreviewTab(projectDefaultPreviewTab());
-    renderWorkflowState();
+    const route = window.Portal?.routeState?.get?.() || {};
+    const routedProjectId = String(route.project || '').trim();
+    const routedTab = routedProjectId && routedProjectId === projectOpenId()
+      ? String(route.projectTab || '').trim()
+      : '';
+    const availableTabs = validPreviewTabs();
+    if (routedTab && availableTabs.includes(routedTab)) {
+      setActivePreviewTab(routedTab, { syncRoute:false });
+    } else if (!availableTabs.includes(activePreviewTab)) {
+      setActivePreviewTab(projectDefaultPreviewTab(), { syncRoute:!routedTab });
+    }
+    renderWorkflowState({ preserveRouteTab:!!routedTab });
     window.Portal?.modules?.projectMap?.renderOverview?.();
     syncProjectViewerTabs();
+    applyProjectModalPresentation();
     mountProjectModalRegionApps('left');
     mountProjectModalApps();
     syncProjectModalAppActivation();
@@ -8464,12 +11148,53 @@
     injectCSS('request', css);
   }
 
-  window.Portal.modules.request = { open, openProject, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors };
-  window.addEventListener('popstate', () => restoreRouteState());
+  /** My Projects → Drafts: reopen the doc-first session for a standalone
+   *  document (editor on the right, attach-a-project picker on the left). */
+  function openDocumentDraft(docRecord){
+    if (!docRecord || typeof docRecord !== 'object' || !String(docRecord.id || '').trim()) return;
+    open(null, {
+      workflow: 'document',
+      documentType: String(docRecord.document_type || '').trim().toLowerCase(),
+      resumeDocument: docRecord
+    });
+  }
+
+  window.Portal.modules.request = { open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors };
+  window.Portal?.navigation?.registerSchema?.('projectFullscreen', { history:'replace', scope:{ project:true } });
+  window.Portal?.navigation?.registerSchema?.('projectNote', { history:'replace', scope:{ project:true } });
+  window.Portal?.navigation?.registerSchema?.('projectNotes', { history:'push', values:['1'], default:'', scope:{ project:true } });
+  window.Portal?.navigation?.registerHandler?.('project-modal', {
+    priority:200,
+    immediate:true,
+    apply: () => restoreRouteState()
+  });
+  window.Portal?.navigation?.registerHandler?.('project-note-target', {
+    priority:700,
+    apply: () => restoreProjectNoteRoute()
+  });
+  window.Portal?.navigation?.registerHandler?.('project-mobile-notes-route', {
+    priority:720,
+    apply: (route) => {
+      if (!activeModalMatchesProject(route.project)) return false;
+      setMobileProjectNotesOpen(route.projectNotes === '1', { fromRoute:true });
+      return true;
+    }
+  });
   window.addEventListener('fm:platform-session:updated', () => restoreRouteState());
+  window.addEventListener('fm:work:updated', () => {
+    if (!activeBaseProject?.id) return;
+    loadProjectWorkPlans({ refresh: true }).catch(() => null);
+    mountProjectTodoList({ force: true });
+  });
   window.addEventListener('fm:app-flags:updated', () => {
     restoreRouteState();
     refreshProjectModalForAppFlags();
   });
+  window.addEventListener('fm:capabilities:updated', () => refreshProjectModalForAppFlags());
+  window.addEventListener('fm:app-entitlements:updated', (event) => {
+    if (event?.detail?.source !== 'device') refreshProjectModalForAppFlags();
+  });
+  window.addEventListener('fm:device:updated', () => refreshProjectModalForAppFlags());
+  window.setTimeout(() => restoreRouteState(), 0);
   window.setTimeout(() => restoreRouteState(), 900);
 })();

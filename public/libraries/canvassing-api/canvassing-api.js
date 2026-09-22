@@ -111,13 +111,13 @@
       default_status_id: cleanText(patch.default_status_id || 'new'),
       lead_stage_id: cleanText(patch.lead_stage_id || 'new_lead'),
       statuses: Array.isArray(patch.statuses) && patch.statuses.length ? patch.statuses : [
-        { id: 'new', color: '#2563eb', order: 10, lead_eligible: true, label: 'New' },
-        { id: 'no_answer', color: '#f59e0b', order: 20, lead_eligible: false, label: 'No Answer' },
-        { id: 'not_interested', color: '#64748b', order: 30, lead_eligible: false, label: 'Not Interested' },
-        { id: 'follow_up', color: '#8b5cf6', order: 40, lead_eligible: true, label: 'Follow Up' },
-        { id: 'appointment_set', color: '#16a34a', order: 50, lead_eligible: true, label: 'Appointment Set' },
-        { id: 'lead_created', color: '#0f766e', order: 60, lead_eligible: false, label: 'Lead Created' },
-        { id: 'deleted', color: '#991b1b', order: 999, lead_eligible: false, label: 'Deleted' }
+        { id: 'new', color: '#2563eb', order: 10, lead_eligible: true, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_96834d2fc9c9a5","New") ?? "New") },
+        { id: 'no_answer', color: '#f59e0b', order: 20, lead_eligible: false, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_1d4734780f901f","No Answer") ?? "No Answer") },
+        { id: 'not_interested', color: '#64748b', order: 30, lead_eligible: false, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_91ba9a39871345","Not Interested") ?? "Not Interested") },
+        { id: 'follow_up', color: '#8b5cf6', order: 40, lead_eligible: true, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_7bb6770732db90","Follow Up") ?? "Follow Up") },
+        { id: 'appointment_set', color: '#16a34a', order: 50, lead_eligible: true, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_262635746bdeca","Appointment Set") ?? "Appointment Set") },
+        { id: 'lead_created', color: '#0f766e', order: 60, lead_eligible: false, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_9effbc1dcd62b4","Lead Created") ?? "Lead Created") },
+        { id: 'deleted', color: '#991b1b', order: 999, lead_eligible: false, label: (globalThis.PlatformLanguage?.text("canvassing-api","m_b244b99b91d25b","Deleted") ?? "Deleted") }
       ],
       labels: {
         ...(patch.labels || {}),

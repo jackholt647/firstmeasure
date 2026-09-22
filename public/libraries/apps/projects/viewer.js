@@ -2,7 +2,7 @@
  * Changes vs last:
  * - Sidebar logout: ultra low-profile, no border, sits at bottom of left column ABOVE the signed-in info (uses same vibe as left menu links)
  * - Status model: ONLY rejected / ready / processing (no "finalizing")
- * - Persist view mode (tiles|list|stages) to localStorage + restore on load
+ * - Default to Stages; keep the selected view in the URL
  * - Do NOT persist status/sort; ALSO: list-sort only affects list, tile-sort only affects tiles
  * - "Tip: In List view..." only shows when list view is active
  * - Modal: multiple downloads (Report.pdf, Summary.pdf, model_data.xml) w/ buttons when available
@@ -18,9 +18,10 @@
 
   const { $, escapeHtml, injectCSS, formatDate, postAction, enableSafeBackdropClose, fmJson, fmPost, fmUrl, googleMapsApiKey, currentActor } = window.Portal.util;
 
-  const LS_VIEW_KEY = 'fm_viewer_view_v1';
-  const VIEW_MODES = new Set(['tiles', 'list', 'stages']);
-  const STAGES_VIEW_FLAG = { group: 'platform', flag: 'project_stages_view' };
+  const VIEW_MODES = new Set(['tiles', 'list', 'stages', 'drafts']);
+  const PROJECT_VIEW_QUERY_KEY = 'projectView';
+  const PROJECT_BOARD_QUERY_KEY = 'projectBoard';
+  const PROJECT_BOARD_STORAGE_PREFIX = 'fm_projects_board_v1';
   const INSTANT_PITCH_UI_ENABLED = false;
   const INSTANT_WALL_SLOPE_DEGREES_THRESHOLD = 80;
   const INSTANT_WALL_MIN_HEIGHT_METERS = 0.6;
@@ -45,12 +46,29 @@
 
   function stagesViewEnabled(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
-    return !!flags.has?.(STAGES_VIEW_FLAG.group, STAGES_VIEW_FLAG.flag);
+    return flags?.value?.('platform', 'project_stages_view', false) === true;
+  }
+
+  function manualStageMovementEnabled(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    return flags?.value?.('platform', 'manual_project_stage_movement', false) === true;
+  }
+
+  function canManageProjectStages(){
+    const permissions = window.Portal?.currentUser?.permissions || {};
+    return permissions['*'] === true || permissions.manage_projects === true;
+  }
+
+  // The Drafts view (standalone documents with no project yet) needs the
+  // document engine.
+  function draftsViewEnabled(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    return flags?.value?.('platform', 'documents', false) === true && !!window.DocumentsAPI?.documents?.listStandalone;
   }
 
   function normalizeViewMode(mode){
-    const clean = VIEW_MODES.has(mode) ? mode : 'tiles';
+    const clean = VIEW_MODES.has(mode) ? mode : (stagesViewEnabled() ? 'stages' : 'tiles');
+    if (clean === 'drafts' && !draftsViewEnabled()) return stagesViewEnabled() ? 'stages' : 'tiles';
     return clean === 'stages' && !stagesViewEnabled() ? 'tiles' : clean;
   }
 
@@ -69,7 +87,7 @@
       `We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ` +
       `We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ` +
       `We apologize for any inconvenience this may have caused.<br><br>` +
-      `<strong>Note:</strong> Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
+      `<strong>${(globalThis.PlatformLanguage?.text("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
     const projectTypeLabel = (() => {
       const type = String(p?.project_type || 'residential').trim().toLowerCase().replace(/_/g, '-');
       if (type === 'multi-family' || type === 'multifamily') return 'multi-family';
@@ -96,7 +114,7 @@
       ? (
           `We could not generate a FirstMeasure Instant for this pin because the selected point did not land on a structure with accurate instant data. ` +
           `We currently have about 90% coverage across the US for instant reports, but there are still some places where we do not have accurate enough data for this product.<br><br>` +
-          `<strong>Note:</strong> This only affects the instant report for this pinned structure. You can still order a standard full report for this property below.`
+          `<strong>${(globalThis.PlatformLanguage?.text("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> This only affects the instant report for this pinned structure. You can still order a standard full report for this property below.`
         )
       : noCoverageHtml;
     }
@@ -140,7 +158,7 @@
     const normalized = type === 'multi-family' ? 'multifamily' : type;
     if (!['commercial', 'multifamily'].includes(normalized)) return '';
     const label = normalized === 'multifamily' ? 'Multi-family' : 'Commercial';
-    return `<div style="margin-top:14px;"><button type="button" id="vmRejectedReorder" class="v-dlbtn"><i class="fas fa-cart-plus"></i> Reorder as ${escapeHtml(label)}</button></div>`;
+    return `<div style="margin-top:14px;"><button type="button" id="vmRejectedReorder" class="v-dlbtn"><i class="fas fa-cart-plus"></i>${((v0) => globalThis.PlatformLanguage?.text("projects","m_6ba65308b090c7",` Reorder as ${v0}`,{v0}) ?? ` Reorder as ${v0}`)(escapeHtml(label))}</button></div>`;
   }
 
   function openRejectedReorder(p){
@@ -326,18 +344,17 @@
     const meta = activeCustomerReworkMeta(p);
     if (!meta.active) return '';
     const dateText = meta.requestedAt ? ` Requested ${formatDate(meta.requestedAt)}.` : '';
-    return `<div class="v-side-chip change-pending"><i class="fas fa-clock-rotate-left"></i><span>Changes pending: ${escapeHtml(meta.label)}.${dateText} Your current PDFs remain available until the updated report is ready.</span></div>`;
+    return `<div class="v-side-chip change-pending"><i class="fas fa-clock-rotate-left"></i><span>${((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_3e1451fceaaf24",`Changes pending: ${v0}.${v1} Your current PDFs remain available until the updated report is ready.`,{v0,v1}) ?? `Changes pending: ${v0}.${v1} Your current PDFs remain available until the updated report is ready.`)(escapeHtml(meta.label),dateText)}</span></div>`;
   }
 
   function pendingCustomerReworkPanelHtml(p){
     const meta = activeCustomerReworkMeta(p);
     if (!meta.active) return '';
     return `
-      <h4 style="margin:14px 0 10px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-clock-rotate-left" style="color:#7a4b00;"></i> Changes Pending</h4>
+      <h4 style="margin:14px 0 10px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-clock-rotate-left" style="color:#7a4b00;"></i>${(globalThis.PlatformLanguage?.text("projects","m_94450c26696df2"," Changes Pending") ?? " Changes Pending")}</h4>
       <div style="font-size:12px; color:#5f4520; line-height:1.4; padding:10px 12px; border:1px solid #f4d58d; background:#fff8e1; border-radius:12px;">
-        <strong>${escapeHtml(meta.label)}</strong>${meta.requestedAt ? ` was requested ${escapeHtml(formatDate(meta.requestedAt))}.` : ' is being reviewed.'}
-        <br><br>Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.
-      </div>
+        <strong>${String(escapeHtml(meta.label))}</strong>${String(meta.requestedAt ? ` was requested ${escapeHtml(formatDate(meta.requestedAt))}.` : ' is being reviewed.')}
+        <br><br>${(globalThis.PlatformLanguage?.text("projects","m_0c4fdb2a1614b3","Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.\n      ") ?? "Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.\n      ")}</div>
     `;
   }
 
@@ -345,11 +362,12 @@
     const meta = completedCustomerReworkMeta(p);
     if (!meta.completed) return '';
     const dateText = meta.completedAt ? ` Finalized ${formatDate(meta.completedAt)}.` : '';
-    return `<div class="v-side-chip corrected"><i class="fas fa-screwdriver-wrench"></i><span>Corrected report PDFs are ready.${dateText}</span></div>`;
+    return `<div class="v-side-chip corrected"><i class="fas fa-screwdriver-wrench"></i><span>${((v0) => globalThis.PlatformLanguage?.text("projects","m_8edcc78437502b",`Corrected report PDFs are ready.${v0}`,{v0}) ?? `Corrected report PDFs are ready.${v0}`)(dateText)}</span></div>`;
   }
 
   const ViewerCSS = `
-    .v-wrap{max-width:1500px; margin:0 auto; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden}
+    .v-wrap{width:100%; max-width:none; margin:0; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden}
+    .v-report-search{box-sizing:border-box;width:100%;min-width:0;flex-shrink:0;border:1px solid #dadce0;border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:#202124}
     .v-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px; flex:0 0 auto}
     .v-title{display:flex; flex-direction:column; gap:2px}
     .v-title h1{margin:0; font-size:22px; font-weight:1000; letter-spacing:-.3px}
@@ -360,23 +378,9 @@
     .v-btn:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.45); color:var(--primary-readable, var(--primary,#d93025)); transform:translateY(-1px)}
     .v-btn.active{border-color:rgba(var(--primary-rgb,217,48,37),0.55); box-shadow:0 10px 22px rgba(var(--primary-rgb,217,48,37),0.16)}
     .v-pill{border-radius:999px; padding:10px 14px}
-    .v-searchwrap{position:relative; display:flex; align-items:center; gap:10px}
-    .v-search{width:min(420px, 62vw); background:#fff; border:1px solid rgba(0,0,0,0.10); border-radius:999px; padding:11px 14px 11px 40px; font-weight:900; outline:none; transition:.16s ease}
-    .v-search:focus{border-color:rgba(var(--primary-rgb,217,48,37),0.55); box-shadow:0 10px 22px rgba(var(--primary-rgb,217,48,37),0.16)}
-    .v-searchicon{position:absolute; left:14px; color:#777}
-    .v-clear{position:absolute; right:10px; width:30px; height:30px; border-radius:999px; display:none; align-items:center; justify-content:center; cursor:pointer; color:#666; border:1px solid rgba(0,0,0,0.10); background:#fff; transition:.16s ease}
-    .v-clear:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.45); color:var(--primary-readable, var(--primary,#d93025))}
-    .v-suggest{position:absolute; top:46px; right:0; width:min(520px, 86vw); background:#fff; border:1px solid rgba(0,0,0,0.10); border-radius:14px; box-shadow:0 18px 46px rgba(0,0,0,0.14); overflow:hidden; display:none; z-index:50}
-    .v-suggest .it{padding:10px 12px; cursor:pointer; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; border-top:1px solid rgba(0,0,0,0.06)}
-    .v-suggest .it:first-child{border-top:none}
-    .v-suggest .it:hover{background:#f8f9fa}
-    .v-suggest .a1{font-weight:1000; font-size:13px; line-height:1.2}
-    .v-suggest .a2{font-weight:850; font-size:11px; color:#777; margin-top:3px}
-    .v-suggest .meta{font-weight:1000; font-size:11px; color:#999; white-space:nowrap; margin-top:1px}
-    .v-suggest .tag{font-weight:1000; font-size:10px; letter-spacing:.3px; text-transform:uppercase; padding:4px 8px; border-radius:999px; border:1px solid rgba(0,0,0,0.10); color:#666; background:#fff}
     .v-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0 12px; flex:0 0 auto}
-    .v-leftbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-    .v-rightbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+    .v-leftbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0}
+    .v-rightbar{display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-left:auto}
     .v-chip{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid rgba(0,0,0,0.10); border-radius:14px; padding:9px 10px; font-weight:950; color:#333}
     .v-chip select{border:none; outline:none; font-weight:950; background:transparent; color:#333; padding:2px 2px}
     .v-toggle-chip{cursor:pointer; user-select:none; font-size:12px; line-height:1}
@@ -419,6 +423,8 @@
     .v-meta-tags{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px}
     .v-meta-tag{font-size:10px; font-weight:1000; padding:3px 8px; border-radius:999px; border:1px solid rgba(0,0,0,0.08); color:#555; background:#f8f9fa; display:inline-flex; align-items:center; gap:5px}
     .v-meta-tag-addon{background:#fff4db; color:#8a5a00; border-color:rgba(171,123,0,0.18)}
+    .v-meta-tag-stage{background:color-mix(in srgb,var(--stage-color,#667085) 10%,#fff); color:color-mix(in srgb,var(--stage-color,#667085) 78%,#17212b); border-color:color-mix(in srgb,var(--stage-color,#667085) 28%,#e3e7ec)}
+    .v-meta-tag-stage-closed{background:#f1f3f4; color:#5f6368; border-color:rgba(0,0,0,0.10)}
     .v-meta-tag-expedite{background:#fff7d6; color:#7a5b00; border-color:rgba(251,188,4,0.38)}
     .v-m-details{margin-bottom:16px}
     .v-m-details .v-detail-row{display:flex; align-items:flex-start; gap:10px; margin-top:8px}
@@ -446,16 +452,18 @@
     .v-statuspill{display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border-radius:999px; font-weight:1000; font-size:11px; letter-spacing:.3px; text-transform:uppercase; width:fit-content}
     .v-statuspill i,.v-badge i{font-size:.95em}
     .v-stages-shell{height:100%; min-height:0; display:flex; flex-direction:column; gap:10px; padding-bottom:0}
-    .v-stages-summary{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 2px 2px}
-    .v-stages-kicker{display:inline-flex; align-items:center; gap:8px; color:#667085; font-size:12px; font-weight:950}
-    .v-stages-kicker strong{color:#1f2937; font-weight:1000}
+    .v-stage-move-hint{display:flex;align-items:center;gap:7px;align-self:flex-start;border:1px solid #dbe7f4;border-radius:999px;background:#f4f8fc;color:#46627d;padding:6px 10px;font-size:10px;font-weight:900}.v-stage-move-hint i{color:#1769aa}.v-stage-move-hint strong{color:#27445f}
+    .v-mobile-stage-switcher{display:none}
+    .v-stages-summary{position:relative;display:none;align-items:center;min-width:190px;height:40px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 30%,#dce2e8);border-left:5px solid var(--board-color,#4f7cac);border-radius:10px;background:color-mix(in srgb,var(--board-color,#4f7cac) 8%,#fff);white-space:nowrap}
+    .v-stages-summary.visible{display:inline-flex}.v-board-trigger{appearance:none;border:0;background:transparent;color:color-mix(in srgb,var(--board-color,#4f7cac) 78%,#17212b);width:100%;height:100%;min-width:0;padding:0 7px 0 10px;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;font-size:14px;font-weight:1000;line-height:1;letter-spacing:0;cursor:pointer;outline:none}.v-board-trigger:hover{background:color-mix(in srgb,var(--board-color,#4f7cac) 9%,transparent)}.v-board-trigger:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--board-color,#4f7cac) 22%,transparent)}.v-board-trigger-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:1000}.v-board-trigger-icon{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 24%,#d4dae1);color:var(--board-color,#4f7cac);font-size:10px;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:transform .16s ease;flex:0 0 auto}.v-board-trigger[aria-expanded="true"] .v-board-trigger-icon{transform:rotate(180deg)}
+    .v-board-menu{position:absolute;top:calc(100% + 7px);left:-5px;z-index:80;min-width:max(220px,100%);max-height:min(70vh,520px);overflow-y:auto;padding:6px;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.16);white-space:normal}.v-board-menu[hidden],.v-board-unused-list[hidden]{display:none}.v-board-option{appearance:none;width:100%;border:0;background:transparent;border-radius:8px;padding:9px 10px;display:grid;grid-template-columns:12px minmax(0,1fr) auto 16px;align-items:center;gap:9px;color:#263442;text-align:left;font:900 12px/1.25 inherit;cursor:pointer}.v-board-option:hover,.v-board-option:focus-visible{background:#f4f6f8;outline:none}.v-board-option.active{color:color-mix(in srgb,var(--option-color,#4f7cac) 76%,#17212b);background:color-mix(in srgb,var(--option-color,#4f7cac) 8%,#fff)}.v-board-option-dot{width:10px;height:10px;border-radius:999px;background:var(--option-color,#4f7cac);box-shadow:0 0 0 3px color-mix(in srgb,var(--option-color,#4f7cac) 13%,transparent)}.v-board-option-count{min-width:24px;padding:3px 6px;border-radius:999px;background:#eef1f4;color:#667085;font-size:10px;font-weight:1000;text-align:center}.v-board-option.active .v-board-option-count{background:color-mix(in srgb,var(--option-color,#4f7cac) 13%,#fff);color:inherit}.v-board-option i{font-size:10px;color:var(--option-color,#4f7cac);text-align:center}.v-board-unused{margin-top:5px;padding-top:5px;border-top:1px solid #edf0f3}.v-board-unused-toggle{appearance:none;width:100%;border:0;background:transparent;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;color:#667085;text-align:left;font:900 11px/1.2 inherit;cursor:pointer}.v-board-unused-toggle:hover,.v-board-unused-toggle:focus-visible{background:#f4f6f8;outline:none}.v-board-unused-toggle .v-board-unused-total{margin-left:auto;min-width:24px;padding:3px 6px;border-radius:999px;background:#eef1f4;text-align:center;font-size:10px}.v-board-unused-toggle i{font-size:9px;transition:transform .16s ease}.v-board-unused-toggle[aria-expanded="true"] i{transform:rotate(180deg)}.v-board-unused-list{padding-top:3px}
     .v-stages-board{flex:1 1 auto; min-height:0; display:grid; grid-auto-flow:column; grid-auto-columns:minmax(270px, 1fr); gap:12px; overflow-x:auto; overflow-y:hidden; padding:2px 2px 12px; scroll-snap-type:x proximity; scrollbar-width:thin}
-    .v-stage-col{min-width:270px; min-height:0; border:1px solid rgba(15,23,42,0.08); border-radius:16px; background:linear-gradient(180deg, #fff 0%, #f8fafc 100%); box-shadow:0 10px 24px rgba(15,23,42,0.06); display:flex; flex-direction:column; scroll-snap-align:start; overflow:hidden}
+    .v-stage-col{min-width:270px; min-height:0; border:1px solid color-mix(in srgb,var(--stage-color,#667085) 20%,#e3e7ec); border-top:4px solid var(--stage-color,#667085); border-radius:12px; background:linear-gradient(180deg, #fff 0%, #f8fafc 100%); box-shadow:0 10px 24px rgba(15,23,42,0.06); display:flex; flex-direction:column; scroll-snap-align:start; overflow:hidden}
     .v-stage-head{flex:0 0 auto; z-index:1; background:rgba(255,255,255,0.92); backdrop-filter:blur(10px); padding:12px 12px 10px; border-bottom:1px solid rgba(15,23,42,0.07)}
     .v-stage-title-row{display:flex; align-items:center; justify-content:space-between; gap:10px}
     .v-stage-title{display:flex; align-items:center; gap:8px; min-width:0; font-size:12px; font-weight:1000; color:#1f2937; letter-spacing:0}
     .v-stage-title span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-    .v-stage-icon{width:26px; height:26px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; color:var(--primary-readable, var(--primary,#d93025)); background:rgba(var(--primary-rgb,217,48,37),0.08); border:1px solid rgba(var(--primary-rgb,217,48,37),0.14); flex-shrink:0}
+    .v-stage-icon{width:26px; height:26px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; color:var(--stage-color,var(--primary-readable,var(--primary,#d93025))); background:color-mix(in srgb,var(--stage-color,#667085) 10%,#fff); border:1px solid color-mix(in srgb,var(--stage-color,#667085) 22%,#fff); flex-shrink:0}
     .v-stage-count{display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:24px; border-radius:999px; padding:0 8px; background:#eef2f7; color:#536071; font-size:11px; font-weight:1000}
     .v-stage-progress{display:flex; gap:4px; margin-top:10px}
     .v-stage-tick{height:3px; border-radius:999px; flex:1; background:#e5e7eb}
@@ -465,6 +473,11 @@
     .v-stage-load{flex:0 0 auto; border:1px dashed rgba(15,23,42,0.12); border-radius:10px; padding:8px 10px; background:#f8fafc; color:#667085; font-size:11px; font-weight:950; text-align:center}
     .v-stage-load.done{display:none}
     .v-stage-card{appearance:none; border:1px solid rgba(15,23,42,0.08); border-radius:10px; padding:8px 10px; background:#fff; box-shadow:0 6px 14px rgba(15,23,42,0.045); cursor:pointer; text-align:left; transition:.16s ease; display:flex; flex-direction:column; gap:4px}
+    .v-stage-card[draggable="true"]{cursor:grab}.v-stage-card[draggable="true"]:active{cursor:grabbing}.v-stage-card.is-dragging{opacity:.42;transform:scale(.98)}
+    .v-stage-card-top{display:flex;align-items:center;gap:8px}.v-stage-card-top .v-stage-name{flex:1}.v-stage-drag-handle{display:none;flex:0 0 auto;color:#98a2b3;font-size:11px}.v-stage-card[draggable="true"] .v-stage-drag-handle{display:inline-flex}.v-stage-card[draggable="true"]:hover .v-stage-drag-handle{color:#1769aa}
+    .v-stage-manual-badge{display:inline-flex;align-items:center;gap:4px;color:#805ad5;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em}
+    .v-stage-col.is-drop-target{border-color:var(--stage-color,#667085);box-shadow:0 0 0 3px color-mix(in srgb,var(--stage-color,#667085) 18%,transparent),0 16px 32px rgba(15,23,42,.10)}.v-stage-col.is-drop-target .v-stage-list{background:color-mix(in srgb,var(--stage-color,#667085) 7%,#fff)}
+    .v-stage-col.is-drop-target .v-stage-head::after{content:'Drop to move here';display:block;margin-top:8px;color:var(--stage-color,#667085);font-size:10px;font-weight:1000}
     .v-stage-card:hover{transform:translateY(-2px); border-color:rgba(var(--primary-rgb,217,48,37),0.26); box-shadow:0 14px 28px rgba(15,23,42,0.10)}
     .v-stage-name{min-width:0; color:#18222d; font-size:13px; font-weight:1000; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
     .v-stage-addr{min-width:0; font-size:12px; font-weight:900; color:#425466; line-height:1.2}
@@ -686,37 +699,23 @@
        ========================================================== */
     @media (max-width: 820px){
 
-      /* --- Page header: stack vertically --- */
-      .v-head{
-        flex-direction:column;
-        gap:10px;
-        margin-bottom:10px;
+      /* --- Mobile control strip: views left, filters right --- */
+      .v-wrap{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        grid-template-rows:auto auto minmax(0,1fr) auto;
       }
-      body:has(.mobile-topbar.has-tab-title) .v-title{display:none}
+      .v-report-search{grid-column:1 / -1;grid-row:2;margin-top:8px}
+      .v-head,.v-bar{display:contents}
+      .v-title{display:none}
       .v-title h1{font-size:18px}
       .v-title .sub{font-size:11px; display:none}
       .v-actions{
-        width:100%;
-        justify-content:stretch;
+        grid-column:1;
+        grid-row:1;
+        width:auto;
+        justify-content:flex-start;
         gap:8px;
-      }
-
-      /* --- Search: full width --- */
-      .v-searchwrap{
-        flex:1; width:100%; order:-1;
-      }
-      .v-search{
-        width:100%;
-        padding:12px 14px 12px 38px;
-        font-size:14px;
-      }
-      .v-suggest{
-        width:100%;
-        left:0; right:0;
-        top:48px;
-        max-height:60vh;
-        overflow:auto;
-        -webkit-overflow-scrolling:touch;
       }
 
       /* --- View toggle buttons: compact --- */
@@ -734,38 +733,51 @@
       #vViewStages span.btn-label{display:none}
       /* Refresh: icon only */
       #vRefresh span.btn-label{display:none}
+      #vRefresh{display:none}
 
-      /* --- Filter bar: horizontal scroll --- */
-      .v-bar{
-        flex-direction:row;
-        gap:8px;
-        margin:8px 0 10px;
-        overflow-x:auto;
-        -webkit-overflow-scrolling:touch;
-        scrollbar-width:none;
-        -ms-overflow-style:none;
-        padding-bottom:2px;
-      }
-      .v-bar::-webkit-scrollbar{display:none}
+      /* The selects retain their native picker, but the compact icon is all
+         that is needed in the mobile header. */
       .v-leftbar{
+        display:contents;
+      }
+      .v-rightbar{
+        grid-column:2;
+        grid-row:1;
+        display:flex;
         flex-wrap:nowrap;
-        gap:8px;
+        margin-left:0;
+        gap:6px;
       }
-      .v-rightbar{display:none}
-      .v-chip{
-        flex-shrink:0;
-        padding:8px 10px;
+      .v-rightbar .v-tip{display:none!important}
+      .v-rightbar .v-chip{
+        position:relative;
+        width:36px;
+        height:36px;
+        flex:0 0 36px;
+        justify-content:center;
+        padding:0;
         border-radius:12px;
-        font-size:12px;
       }
-      .v-chip select{
-        font-size:12px;
+      .v-rightbar .v-chip i{pointer-events:none;font-size:13px}
+      .v-rightbar .v-chip select{
+        position:absolute;
+        inset:0;
+        width:100%;
+        height:100%;
+        margin:0;
+        padding:0;
+        opacity:0;
+        cursor:pointer;
+        appearance:none;
+        -webkit-appearance:none;
       }
       .v-count{
-        flex-shrink:0;
-        font-size:11px;
-        white-space:nowrap;
+        display:none;
       }
+      #vResults{grid-column:1 / -1;grid-row:3;min-height:0}
+      #vResults:has(.v-grid),
+      #vResults:has(.v-list){padding-top:8px;box-sizing:border-box}
+      .v-pagination{grid-column:1 / -1;grid-row:4}
 
       /* --- Tile grid: single column on small phones, 2 col on wider --- */
       .v-grid{
@@ -829,18 +841,73 @@
         font-size:10px;
         padding:5px 8px;
       }
-      .v-stages-summary{display:none}
+      .v-stages-summary{min-width:170px;height:36px;flex-shrink:0}.v-board-trigger{font-size:12px;padding-left:8px;gap:8px}.v-board-trigger-icon{width:24px;height:24px}.v-board-menu{min-width:210px}
+      .v-stages-summary.visible{
+        grid-column:1 / -1;
+        grid-row:2;
+        width:100%;
+        min-width:0;
+        margin:8px 0;
+      }
+      /* --- Stages: a focused, touch-friendly single-stage feed --- */
+      .v-mobile-stage-switcher{
+        display:flex;
+        gap:8px;
+        overflow-x:auto;
+        padding:1px 2px 5px;
+        margin:0 -2px;
+        scrollbar-width:none;
+        -webkit-overflow-scrolling:touch;
+      }
+      .v-mobile-stage-switcher::-webkit-scrollbar{display:none}
+      .v-mobile-stage-option{
+        appearance:none;
+        flex:0 0 auto;
+        display:inline-flex;
+        align-items:center;
+        gap:7px;
+        min-height:38px;
+        padding:8px 11px;
+        border:1px solid color-mix(in srgb,var(--stage-color,#667085) 22%,#dce2e8);
+        border-radius:11px;
+        background:#fff;
+        color:#425466;
+        font:950 12px/1 inherit;
+        white-space:nowrap;
+        cursor:pointer;
+      }
+      .v-mobile-stage-option[aria-selected="true"]{
+        color:color-mix(in srgb,var(--stage-color,#667085) 80%,#17212b);
+        border-color:color-mix(in srgb,var(--stage-color,#667085) 48%,#dce2e8);
+        background:color-mix(in srgb,var(--stage-color,#667085) 11%,#fff);
+        box-shadow:0 3px 10px color-mix(in srgb,var(--stage-color,#667085) 16%,transparent);
+      }
+      .v-mobile-stage-option:focus-visible{outline:3px solid color-mix(in srgb,var(--stage-color,#667085) 28%,transparent); outline-offset:2px}
+      .v-mobile-stage-count{display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; padding:0 5px; border-radius:999px; background:rgba(15,23,42,.08); color:inherit; font-size:10px}
       .v-stages-board{
-        grid-auto-columns:min(82vw, 318px);
-        gap:10px;
-        padding-bottom:10px;
+        display:block;
+        flex:1 1 0;
+        height:0;
+        min-height:0;
+        overflow:hidden;
+        padding:2px 2px 10px;
       }
       .v-stage-col{
-        min-width:min(82vw, 318px);
+        display:none;
+        min-width:0;
         min-height:0;
+        height:100%;
+        max-height:100%;
         border-radius:14px;
         box-shadow:0 6px 18px rgba(0,0,0,0.07);
       }
+      .v-stage-col.is-mobile-active{display:flex}
+      .v-stage-head{padding:12px 13px 10px}
+      .v-stage-list{min-height:0;padding:10px;gap:8px;overflow-y:auto;overscroll-behavior:contain}
+      .v-stage-card{padding:12px; gap:5px; border-radius:11px}
+      .v-stage-name{font-size:14px}
+      .v-stage-addr{font-size:12px}
+      .v-stage-card-foot{padding-top:3px; font-size:11px}
       .v-stage-card:hover{
         transform:none;
         box-shadow:0 8px 18px rgba(15,23,42,0.06);
@@ -1053,22 +1120,27 @@
   let allProjects = [];
   let filteredProjects = [];
   let lastProjectsById = new Map();
-  let viewMode = 'tiles';
+  let viewMode = 'stages';
+  let workBoards = [];
+  let activeWorkBoardId = '';
+  let activeMobileStageId = '';
+  let workBoardsLoaded = false;
+  let workBoardsPromise = null;
+  let manualStageDragPayload = null;
+  let manualStageMoveInFlight = false;
   let statusFilter = 'all';
+  let reportSearchQuery = '';
+  let reportSearchTimer = null;
   let hideDrafts = true;
   let tileSortKey = 'created_at';
   let tileSortDir = 'desc';
   let listSortKey = 'created_at';
   let listSortDir = 'desc';
-  let searchQuery = '';
-  let activeSuggest = false;
-  let searchDebounceTimer = null;
   let fetchProjectsSeq = 0;
   let hydrateRefreshTimer = null;
   const PAGE_SIZE = 25;
   const STAGE_COLUMN_PAGE_SIZE = 15;
   const STAGE_COLUMN_PREFETCH_PX = 140;
-  const SEARCH_DEBOUNCE_MS = 220;
   let currentPage = 1;
   let totalPages = 1;
   let totalCount = 0;
@@ -1089,10 +1161,6 @@
   const _optimisticProjectUpdates = new Map();
   const OPTIMISTIC_PROJECT_UPDATE_TTL_MS = 45000;
   const detailHydrationInFlight = new Set();
-  const detailHydrationQueued = new Set();
-  const detailHydrationQueue = [];
-  const DETAIL_HYDRATION_CONCURRENCY = 4;
-  let detailHydrationActive = 0;
 
   function ensureViewMap(){
     if (viewMap) return true;
@@ -1206,7 +1274,7 @@
       loading.classList.remove('error');
       loading.innerHTML = `
         <div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div>
-        <div class="v-instant-loadingTitle">Instant Report Generating</div>
+        <div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")}</div>
       `;
       return;
     }
@@ -1215,9 +1283,9 @@
     loading.style.display = '';
     loading.classList.toggle('error', !!isError);
     loading.innerHTML = `
-      <div class="v-instant-loadingIcon"><i class="fas ${isError ? 'fa-triangle-exclamation' : 'fa-circle-notch fa-spin'}"></i></div>
-      <div class="v-instant-loadingTitle">Instant Report Unavailable</div>
-      <div class="v-instant-loadingText">${escapeHtml(text)}</div>
+      <div class="v-instant-loadingIcon"><i class="fas ${String(isError ? 'fa-triangle-exclamation' : 'fa-circle-notch fa-spin')}"></i></div>
+      <div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_b4955d13eb2537","Instant Report Unavailable") ?? "Instant Report Unavailable")}</div>
+      <div class="v-instant-loadingText">${String(escapeHtml(text))}</div>
     `;
   }
 
@@ -1303,7 +1371,7 @@
   function formatRoofingSquareCount(value){
     const squares = Number(value);
     if (!Number.isFinite(squares)) return '-';
-    return `${Math.ceil(squares).toLocaleString()} ${Math.ceil(squares) === 1 ? 'square' : 'squares'}`;
+    return `${Math.ceil(squares).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} ${Math.ceil(squares) === 1 ? 'square' : 'squares'}`;
   }
 
   function formatRoofingSquareRange(value){
@@ -1312,7 +1380,9 @@
     const center = Math.ceil(squares);
     const low = Math.max(1, center - 2);
     const high = center;
-    return `${low.toLocaleString()} to ${high.toLocaleString()} Squares`;
+    const units = window.ReportUnits?.create(project || {});
+    if (units?.metric) return `${units.number(low, "sq")} to ${units.quantity(high, "sq")}`;
+    return `${low.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} to ${high.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} Squares`;
   }
 
   function pitchToRise12(degrees){
@@ -1523,8 +1593,14 @@
       return await existing.catch(() => instant);
     }
 
+    const key = String(googleMapsApiKey?.() || '').trim();
+    if (!key) {
+      return instant;
+    }
+
     const repairPromise = (async () => {
       const response = await fmPost(`projects/${encodeURIComponent(projectId)}/instant/ensure`, {
+        google_api_key: key,
         force: true
       });
       const nextInstant = response?.instant || instant;
@@ -1565,7 +1641,7 @@
     const structures = getInstantStructures(instant);
     if (structures.length <= 1) return [];
     return [
-      { id: 'total', label: 'Total', structure: null },
+      { id: 'total', label: (globalThis.PlatformLanguage?.text("projects","m_9403c7637d4905","Total") ?? "Total"), structure: null },
       ...structures.map((structure, index) => ({
         id: `structure:${index}`,
         label: String(structure?.label || String.fromCharCode(65 + index)),
@@ -1663,17 +1739,17 @@
     const customerButtonLabel = instantPdfReady
       ? 'Download Customer Report'
       : (instantPdfFailed ? 'Retrying Customer Report' : 'Generating Customer Report');
-    const standardButtonText = `<span class="v-instant-actionFullLabel">${standardButtonLabel}</span><span class="v-instant-actionMobileLabel">Standard Report</span>`;
-    const customerButtonText = `<span class="v-instant-actionFullLabel">${customerButtonLabel}</span><span class="v-instant-actionMobileLabel">Customer Report</span>`;
+    const standardButtonText = `<span class="v-instant-actionFullLabel">${String(standardButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span>`;
+    const customerButtonText = `<span class="v-instant-actionFullLabel">${String(customerButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span>`;
     const instantPdfButtonIcon = instantPdfReady ? 'fa-file-arrow-down' : 'fa-circle-notch fa-spin';
     const instantPdfDisabled = instantPdfReady ? '' : ' disabled';
     if (!instant) {
       return `
-        <div class="v-instant-metric"><div class="v-instant-k">Square Range</div><div class="v-instant-v">-</div></div>
-        <div class="v-instant-metric"><div class="v-instant-k">Pitch</div><div class="v-instant-v">-</div></div>
+        <div class="v-instant-metric"><div class="v-instant-k">${String(project?.measurement_system === "metric" ? "Area Range (m²)" : "Square Range")}</div><div class="v-instant-v">-</div></div>
+        <div class="v-instant-metric"><div class="v-instant-k">${(globalThis.PlatformLanguage?.text("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div><div class="v-instant-v">-</div></div>
         <div class="v-instant-actionStack">
-          <button type="button" id="vmInstantStandardBtn" class="v-instant-action" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">Generating Standard Report</span><span class="v-instant-actionMobileLabel">Standard Report</span></button>
-          <button type="button" id="vmInstantCustomerBtn" class="v-instant-action secondary" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">Generating Customer Report</span><span class="v-instant-actionMobileLabel">Customer Report</span></button>
+          <button type="button" id="vmInstantStandardBtn" class="v-instant-action" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.text("projects","m_d73d69127069a4","Generating Standard Report") ?? "Generating Standard Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span></button>
+          <button type="button" id="vmInstantCustomerBtn" class="v-instant-action secondary" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.text("projects","m_1198cef22af516","Generating Customer Report") ?? "Generating Customer Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span></button>
         </div>
       `;
     }
@@ -1720,9 +1796,9 @@
         : '';
       missingStructureMarkup = `
         <div class="v-instant-emptyState">
-          <div class="v-instant-emptyTitle"><i class="fas fa-triangle-exclamation"></i> No usable instant data found</div>
-          <div class="v-instant-emptyText">${escapeHtml(`${structureName} could not be generated from the available instant coverage.`)}</div>
-          ${refundText ? `<div class="v-instant-emptyRefund">${escapeHtml(refundText)}<br><br>Try ordering a full report to get measurements for this structure.</div>` : ''}
+          <div class="v-instant-emptyTitle"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.text("projects","m_2ad8e8d0b5129a"," No usable instant data found") ?? " No usable instant data found")}</div>
+          <div class="v-instant-emptyText">${String(escapeHtml(`${structureName} could not be generated from the available instant coverage.`))}</div>
+          ${String(refundText ? `<div class="v-instant-emptyRefund">${escapeHtml(refundText)}<br><br>Try ordering a full report to get measurements for this structure.</div>` : '')}
         </div>
       `;
     } else if (metrics.activeScope === 'total' && missingStructureCount > 0) {
@@ -1743,14 +1819,14 @@
       ${tabsMarkup}
       ${metrics.coverageMissing ? missingStructureMarkup : `
         <div class="v-instant-metric">
-          <div class="v-instant-k">Square Range</div>
-          <div class="v-instant-v">${escapeHtml(formatRoofingSquareRange(metrics.roofSquares))}</div>
+          <div class="v-instant-k">${String(project?.measurement_system === "metric" ? "Area Range (m²)" : "Square Range")}</div>
+          <div class="v-instant-v">${String(escapeHtml(formatRoofingSquareRange(metrics.roofSquares, project)))}</div>
         </div>
         <div class="v-instant-metric">
-          <div class="v-instant-k">Pitch</div>
-          <div class="v-instant-v">${escapeHtml(formatPitchRange(metrics.pitchRise))}</div>
+          <div class="v-instant-k">${(globalThis.PlatformLanguage?.text("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div>
+          <div class="v-instant-v">${String(escapeHtml(formatPitchRange(metrics.pitchRise)))}</div>
         </div>
-        ${coverageNote}
+        ${String(coverageNote)}
       `}
       <div class="v-instant-actionStack${metrics.coverageMissing ? ' is-missing' : ''}">
         <button type="button" id="vmInstantStandardBtn" class="v-instant-action"${instantPdfDisabled}><i class="fas ${instantPdfButtonIcon}"></i> ${standardButtonText}</button>
@@ -1800,7 +1876,7 @@
             buildInstantPdfFileName(project, variant)
           );
         } catch (error) {
-          window.Portal?.ui?.showToast?.('PDF issue', error?.message || fallbackError, false);
+          window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_8dc4b791f1f2b7","PDF issue") ?? "PDF issue"), error?.message || fallbackError, false);
           console.error(error);
         } finally {
           button.disabled = !instantPdfReady;
@@ -3305,7 +3381,7 @@
       && instantSceneState?.sceneSignature === sceneSignature
     ) {
       if (statusEl) {
-        statusEl.textContent = 'INSTANT READY';
+        statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_4cf34416fa788d","INSTANT READY") ?? "INSTANT READY");
         statusEl.style.color = '#8ab4f8';
       }
       if (loading) {
@@ -3321,7 +3397,7 @@
     const didStartScene = await startInstantScene(instant, cacheKey, sceneSignature);
     if (didStartScene) {
       if (statusEl) {
-        statusEl.textContent = 'INSTANT READY';
+        statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_4cf34416fa788d","INSTANT READY") ?? "INSTANT READY");
         statusEl.style.color = '#8ab4f8';
       }
       if (loading) {
@@ -3545,7 +3621,7 @@
     if (config.showInfo) {
       tabItems.push({
         id: 'info',
-        label: 'Info',
+        label: (globalThis.PlatformLanguage?.text("projects","m_e3530bc541f8e4","Info") ?? "Info"),
         icon: 'fa-circle-info',
         buttonId: 'vmTabInfo',
         className: 'is-info-tab',
@@ -3555,7 +3631,7 @@
     if (config.showMap) {
       tabItems.push({
         id: 'map',
-        label: 'Map',
+        label: (globalThis.PlatformLanguage?.text("projects","m_9afd0eccc8e530","Map") ?? "Map"),
         icon: 'fa-map-location-dot',
         buttonId: 'vmTabMap',
         active: config.activeMainTab === 'map'
@@ -3564,7 +3640,7 @@
     if (config.showMeasurements) {
       tabItems.push({
         id: 'measurements',
-        label: 'Measurements',
+        label: (globalThis.PlatformLanguage?.text("projects","m_ae873abaa56707","Measurements") ?? "Measurements"),
         icon: 'fa-ruler-combined',
         buttonId: 'vmTabMeasurements',
         active: config.activeMainTab === 'measurements'
@@ -3621,52 +3697,54 @@
   function normalizeStr(s){ return String(s||'').trim().toLowerCase(); }
 
   const PROJECT_TYPE_META = {
-    residential:  { label:'Residential', short:'RES',  icon:'fa-house',     color:'#666', cls:'v-type-res' },
-    commercial:   { label:'Commercial',  short:'COM',  icon:'fa-building',  color:'#666', cls:'v-type-com' },
-    multifamily:  { label:'Multifamily', short:'MF',   icon:'fa-buildings', color:'#666', cls:'v-type-mf' },
+    residential:  { label:(globalThis.PlatformLanguage?.text("projects","m_aaf397f737f7b1","Residential") ?? "Residential"), short:'RES',  icon:'fa-house',     color:'#666', cls:'v-type-res' },
+    commercial:   { label:(globalThis.PlatformLanguage?.text("projects","m_84e41491611ca9","Commercial") ?? "Commercial"),  short:'COM',  icon:'fa-building',  color:'#666', cls:'v-type-com' },
+    multifamily:  { label:(globalThis.PlatformLanguage?.text("projects","m_fcd3013fb39a97","Multifamily") ?? "Multifamily"), short:'MF',   icon:'fa-buildings', color:'#666', cls:'v-type-mf' },
   };
-  const PROJECT_STAGE_COLUMNS = [
-    { id:'new_lead', label:'New Lead', icon:'fa-user-plus' },
-    { id:'appointment_scheduled', label:'Appointment Scheduled', icon:'fa-calendar-check' },
-    { id:'drafting_proposal', label:'Drafting Proposal', icon:'fa-file-pen' },
-    { id:'proposal_sent', label:'Proposal Sent', icon:'fa-paper-plane' },
-    { id:'newly_sold', label:'Sold', icon:'fa-handshake' },
-    { id:'project_started', label:'Project Started', icon:'fa-play' },
-    { id:'in_progress', label:'In Progress', icon:'fa-spinner' },
-    { id:'completed', label:'Completed', icon:'fa-check' },
-    { id:'cancelled', label:'Cancelled', icon:'fa-ban', terminal:true },
-    { id:'lost', label:'Lost', icon:'fa-circle-xmark', terminal:true },
-  ];
-  const OPTIONAL_PROJECT_STAGE_COLUMNS = {
-    contacting: { id:'contacting', label:'Contacting', icon:'fa-phone', after:'new_lead' },
-    job_sold: { id:'job_sold', label:'Job Sold', icon:'fa-handshake', after:'newly_sold' }
-  };
-  const PROJECT_STAGE_BY_ID = new Map(PROJECT_STAGE_COLUMNS.map((stage, index) => [stage.id, { ...stage, index }]));
-  Object.values(OPTIONAL_PROJECT_STAGE_COLUMNS).forEach((stage) => {
-    PROJECT_STAGE_BY_ID.set(stage.id, { ...stage, optional:true });
-  });
-  const PROJECT_STAGE_RANK = new Map(PROJECT_STAGE_COLUMNS.map((stage, index) => [stage.id, index]));
-  const OPTIONAL_PROJECT_STAGE_RANK = new Map(Object.values(OPTIONAL_PROJECT_STAGE_COLUMNS).map((stage) => {
-    const baseRank = PROJECT_STAGE_RANK.has(stage.after) ? PROJECT_STAGE_RANK.get(stage.after) : PROJECT_STAGE_COLUMNS.length;
-    return [stage.id, baseRank + 0.5];
-  }));
-  const LEGACY_PROJECT_STAGE_MAP = {
-    contacting: 'contacting',
-    contact: 'contacting',
-    lead: 'new_lead',
-    sold: 'newly_sold',
-    newly_sold: 'newly_sold',
-    closed_won: 'newly_sold',
-    won: 'newly_sold',
-    started: 'project_started',
-    active: 'in_progress',
-    complete: 'completed',
-    done: 'completed',
-    canceled: 'cancelled',
-    measurement_ordered: '',
-    measurement_cancelled: 'cancelled',
-    proposal_only: 'drafting_proposal'
-  };
+  /* Work projection helpers — project stage/lifecycle now come from the denormalized
+     `work_projection` the backend writes on every project document. */
+  function projectWorkProjection(p){
+    return (p?.work_projection && typeof p.work_projection === 'object' && !Array.isArray(p.work_projection)) ? p.work_projection : {};
+  }
+  function projectActiveInstances(p){
+    const wp = projectWorkProjection(p);
+    if (Array.isArray(wp.active_instances)) return wp.active_instances.filter((instance) => instance && typeof instance === 'object');
+    const instances = Array.isArray(wp.instances) ? wp.instances : [];
+    return instances.filter((instance) => instance && typeof instance === 'object' && (instance.status === 'active' || instance.status === 'pending'));
+  }
+  function projectLifecycle(p){
+    const wp = projectWorkProjection(p);
+    if (wp.lifecycle && typeof wp.lifecycle === 'object') return wp.lifecycle;
+    return (p?.lifecycle && typeof p.lifecycle === 'object') ? p.lifecycle : {};
+  }
+  function projectLifecycleLabel(p){
+    const status = String(projectLifecycle(p).status || '').trim().toLowerCase();
+    if (status === 'lost') return 'Lost';
+    if (status === 'completed') return 'Completed';
+    if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
+    return 'Unassigned';
+  }
+  function primaryProjectInstance(p){
+    const instances = projectActiveInstances(p);
+    return instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+  }
+  function instanceStageLabel(instance){
+    return firstNonEmptyString(instance?.stage_title, instance?.title) || 'In Progress';
+  }
+  function instanceStageColor(instance){
+    return firstNonEmptyString(instance?.stage_color, instance?.color) || '#667085';
+  }
+  function stageChipsHtml(p){
+    const instances = projectActiveInstances(p);
+    if (instances.length){
+      return instances.map((instance) => `<span class="v-meta-tag v-meta-tag-stage" style="--stage-color:${escapeHtml(instanceStageColor(instance))}">${escapeHtml(instanceStageLabel(instance))}</span>`).join('');
+    }
+    const status = String(projectLifecycle(p).status || '').trim().toLowerCase();
+    if (['lost', 'completed', 'canceled', 'cancelled'].includes(status)){
+      return `<span class="v-meta-tag v-meta-tag-stage v-meta-tag-stage-closed">${escapeHtml(projectLifecycleLabel(p))}</span>`;
+    }
+    return '';
+  }
   function projectIncludesGutters(p){
     if (String(p?.project_type || 'residential').trim().toLowerCase() !== 'residential') return false;
     const value = p?.include_gutter_measurements;
@@ -4012,7 +4090,7 @@
   function buildUpgradeCcRow(value){
     return `
       <div class="v-upgrade-ccRow">
-        <input type="email" class="v-upgrade-ccInput" placeholder="name@example.com" value="${escapeHtml(String(value || ''))}">
+        <input type="email" class="v-upgrade-ccInput" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_0864076e5066f2","name@example.com") ?? "name@example.com")}" value="${String(escapeHtml(String(value || '')))}">
         <button type="button" class="v-upgrade-ccRemove" data-fm-tooltip="Remove CC"><i class="fas fa-times"></i></button>
       </div>
     `;
@@ -4043,7 +4121,7 @@
     const total = fmtMoney(quote.final_amount);
     if (price) {
       price.innerHTML = quote.active
-        ? `Total <strong>$${total}</strong><div class="v-upgrade-discount"><s>$${fmtMoney(quote.original_amount)}</s>${quote.discount_percent}% referral discount</div>`
+        ? `Total <strong>$${String(total)}</strong><div class="v-upgrade-discount"><s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("projects","m_c43c813f3a0345",`${v2}% referral discount`,{v2}) ?? `${v2}% referral discount`)(quote.discount_percent)}</div>`
         : `Total <strong>$${total}</strong>`;
     }
     if (submit && !submit.disabled) {
@@ -4072,8 +4150,8 @@
     const gutterEligible = canOfferGutterUpgrade(project);
     dialog.innerHTML = `
       <form id="vmUpgradeForm" class="v-upgrade-form">
-        <div class="v-upgrade-title">Order Standard Report</div>
-        ${gutterEligible ? `
+        <div class="v-upgrade-title">${(globalThis.PlatformLanguage?.text("projects","m_a5a27536009ca9","Order Standard Report") ?? "Order Standard Report")}</div>
+        ${String(gutterEligible ? `
           <div class="v-upgrade-section">
             <label class="v-upgrade-sectionTitle">Report Scope</label>
             <div class="v-upgrade-scopeGroup" id="vmUpgradeScopeGroup">
@@ -4091,37 +4169,37 @@
               </button>
             </div>
           </div>
-        ` : ''}
+        ` : '')}
         <div class="v-upgrade-section">
-          <label class="v-upgrade-sectionTitle">CC Email Addresses</label>
+          <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.text("projects","m_f3772e419cc613","CC Email Addresses") ?? "CC Email Addresses")}</label>
           <div id="vmUpgradeCcList" class="v-upgrade-ccList"></div>
-          <button type="button" id="vmUpgradeAddCc" class="v-upgrade-addCc"><i class="fas fa-plus"></i> Add CC</button>
+          <button type="button" id="vmUpgradeAddCc" class="v-upgrade-addCc"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("projects","m_9adb5b7e4e80ed"," Add CC") ?? " Add CC")}</button>
         </div>
         <div class="v-upgrade-section">
           <div class="v-upgrade-field">
-            <label for="vmUpgradeTechNotes">Notes for Technician</label>
-            <textarea id="vmUpgradeTechNotes" placeholder="Anything the technician should know about this property...">${escapeHtml(prefill.techNotes)}</textarea>
+            <label for="vmUpgradeTechNotes">${(globalThis.PlatformLanguage?.text("projects","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</label>
+            <textarea id="vmUpgradeTechNotes" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_1ac4cec881f322","Anything the technician should know about this property...") ?? "Anything the technician should know about this property...")}">${String(escapeHtml(prefill.techNotes))}</textarea>
           </div>
         </div>
         <div class="v-upgrade-section">
-          <label class="v-upgrade-sectionTitle">Contact Information <span style="font-weight:700; color:#9aa4af; letter-spacing:0; text-transform:none; font-size:10px; margin-left:2px">- optional</span></label>
+          <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.text("projects","m_e00f36e03123f1","Contact Information ") ?? "Contact Information ")}<span style="font-weight:700; color:#9aa4af; letter-spacing:0; text-transform:none; font-size:10px; margin-left:2px">${(globalThis.PlatformLanguage?.text("projects","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
           <div class="v-upgrade-field">
-            <label for="vmUpgradeResidentName">Name</label>
-            <input id="vmUpgradeResidentName" type="text" value="${escapeHtml(prefill.residentName)}" placeholder="Contact name">
+            <label for="vmUpgradeResidentName">${(globalThis.PlatformLanguage?.text("projects","m_8cf345002184e5","Name") ?? "Name")}</label>
+            <input id="vmUpgradeResidentName" type="text" value="${String(escapeHtml(prefill.residentName))}" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_fd30fab0713a9b","Contact name") ?? "Contact name")}">
           </div>
           <div class="v-upgrade-field">
-            <label for="vmUpgradeResidentEmail">Email</label>
-            <input id="vmUpgradeResidentEmail" type="email" value="${escapeHtml(prefill.residentEmail)}" placeholder="email@example.com">
+            <label for="vmUpgradeResidentEmail">${(globalThis.PlatformLanguage?.text("projects","m_5d2b9327181e33","Email") ?? "Email")}</label>
+            <input id="vmUpgradeResidentEmail" type="email" value="${String(escapeHtml(prefill.residentEmail))}" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}">
           </div>
           <div class="v-upgrade-field">
-            <label for="vmUpgradeResidentPhone">Phone</label>
-            <input id="vmUpgradeResidentPhone" type="tel" value="${escapeHtml(prefill.residentPhone)}" placeholder="(555) 123-4567">
+            <label for="vmUpgradeResidentPhone">${(globalThis.PlatformLanguage?.text("projects","m_ed04c65845180f","Phone") ?? "Phone")}</label>
+            <input id="vmUpgradeResidentPhone" type="tel" value="${String(escapeHtml(prefill.residentPhone))}" placeholder="(555) 123-4567">
           </div>
         </div>
         <div class="v-upgrade-actions">
           <div id="vmUpgradePrice" class="v-upgrade-price"></div>
           <div class="v-upgrade-btns">
-            <button type="button" id="vmUpgradeCancel" class="v-upgrade-btn secondary">Cancel</button>
+            <button type="button" id="vmUpgradeCancel" class="v-upgrade-btn secondary">${(globalThis.PlatformLanguage?.text("projects","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             <button type="submit" id="vmUpgradeSubmit" class="v-upgrade-btn primary"></button>
           </div>
         </div>
@@ -4168,7 +4246,7 @@
         openModal(project);
       } catch (error) {
         setUpgradeSubmitState(false, project);
-        window.Portal?.ui?.showToast?.('Order issue', error?.message || 'Unable to order the standard report.', false);
+        window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_be1a6bd83137b5","Order issue") ?? "Order issue"), error?.message || 'Unable to order the standard report.', false);
       }
     });
     residentName?.focus();
@@ -4184,7 +4262,7 @@
     const total = fmtMoney(quote.final_amount);
     if (price) {
       price.innerHTML = quote.active
-        ? `Total <strong>$${total}</strong><div class="v-upgrade-discount"><s>$${fmtMoney(quote.original_amount)}</s>${quote.discount_percent}% referral discount</div>`
+        ? `Total <strong>$${String(total)}</strong><div class="v-upgrade-discount"><s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("projects","m_c43c813f3a0345",`${v2}% referral discount`,{v2}) ?? `${v2}% referral discount`)(quote.discount_percent)}</div>`
         : `Total <strong>$${total}</strong>`;
     }
     if (submit && !submit.disabled) {
@@ -4379,9 +4457,6 @@
       project_title: firstNonEmptyString(p.project_title, manifest.project_title, projectTitle),
       address: p.address || manifest.address || '',
       status: p.status || manifest.status || '',
-      stage_id: firstNonEmptyString(p.stage_id, p.project_stage_id, p.stage, p.project_stage, manifest.stage_id, manifest.project_stage_id, manifest.stage, manifest.project_stage),
-      project_stage_id: firstNonEmptyString(p.project_stage_id, p.stage_id, p.stage, p.project_stage, manifest.project_stage_id, manifest.stage_id, manifest.stage, manifest.project_stage),
-      project_stage: firstNonEmptyString(p.project_stage, p.stage_label, manifest.project_stage, manifest.stage_label),
       project_type: p.project_type || manifest.project_type || 'residential',
       lat: p.lat ?? manifest.lat ?? null,
       lng: p.lng ?? manifest.lng ?? null,
@@ -4418,11 +4493,11 @@
   }
   function gutterThumbBadgeHtml(p){
     if (!projectIncludesGutters(p)) return '';
-    return `<div class="v-addon-badge" data-role="gutter-badge"><i class="fas fa-water"></i> Gutters</div>`;
+    return `<div class="v-addon-badge" data-role="gutter-badge"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_63c27a0d67e876"," Gutters") ?? " Gutters")}</div>`;
   }
   function gutterMetaTagHtml(p){
     if (!projectIncludesGutters(p)) return '';
-    return `<div class="v-meta-tags" data-role="gutter-meta"><span class="v-meta-tag v-meta-tag-addon"><i class="fas fa-water"></i> Roof + Gutters</span></div>`;
+    return `<div class="v-meta-tags" data-role="gutter-meta"><span class="v-meta-tag v-meta-tag-addon"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span></div>`;
   }
   function projectReportMode(p){
     const explicitMode = String(p?.report_mode || '').trim().toLowerCase();
@@ -4445,14 +4520,14 @@
   }
   function instantDeliveryBadgeHtml(p){
     const mode = projectReportMode(p);
-    if (mode === 'instant') return `<div class="v-delivery-badge instant-only" data-role="delivery-badge"><i class="fas fa-bolt"></i> Instant</div>`;
-    if (mode === 'both') return `<div class="v-delivery-badge instant-both" data-role="delivery-badge"><i class="fas fa-layer-group"></i> Instant + Full</div>`;
+    if (mode === 'instant') return `<div class="v-delivery-badge instant-only" data-role="delivery-badge"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_c41fa7b045ba9f"," Instant") ?? " Instant")}</div>`;
+    if (mode === 'both') return `<div class="v-delivery-badge instant-both" data-role="delivery-badge"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("projects","m_0f4b6909892fa5"," Instant + Full") ?? " Instant + Full")}</div>`;
     return '';
   }
   function instantMetaTagHtml(p){
     const mode = projectReportMode(p);
-    if (mode === 'instant') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-bolt"></i> Instant</span>`;
-    if (mode === 'both') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-layer-group"></i> Instant + Full</span>`;
+    if (mode === 'instant') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_c41fa7b045ba9f"," Instant") ?? " Instant")}</span>`;
+    if (mode === 'both') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("projects","m_0f4b6909892fa5"," Instant + Full") ?? " Instant + Full")}</span>`;
     return '';
   }
   function fullReportOriginalBasePrice(p){
@@ -4590,10 +4665,23 @@
       return status !== 'cancelled' && status !== 'canceled' && status !== 'deleted';
     });
   }
+  function hasMeaningfulProjectActivity(p){
+    if (hasProjectProposals(p) || hasScheduledAppointment(p)) return true;
+    if (p?.has_meaningful_activity === true || p?.meaningful_activity === true) return true;
+    const workflow = String(p?.workflow_state || '').trim().toLowerCase();
+    if (['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'].includes(workflow)) return true;
+    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'work_plan_ids', 'todos', 'action_items'];
+    if (populatedArrays.some((key) => Array.isArray(p?.[key]) && p[key].length)) return true;
+    const scope = p?.scope && typeof p.scope === 'object' ? p.scope : {};
+    if ((Array.isArray(scope.root_items) && scope.root_items.length) || (Array.isArray(scope.pieces) && scope.pieces.length)) return true;
+    const workProjection = p?.work_projection && typeof p.work_projection === 'object' ? p.work_projection : {};
+    if (Array.isArray(workProjection.plans) && workProjection.plans.length) return true;
+    return !!String(p?.project_notes || p?.notes || p?.tech_notes || '').trim();
+  }
   function isDraftProject(p){
     const status = String(p?.status || p?.measurement_project?.status || p?.measurement?.status || p?.workflow_state || '').trim().toLowerCase();
     if (hasMeasurementOrder(p) && ['queued', 'processing', 'in_progress', 'awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return false;
-    return !hasMeasurementOrder(p) && !hasProjectProposals(p) && !hasScheduledAppointment(p);
+    return !hasMeasurementOrder(p) && !hasMeaningfulProjectActivity(p);
   }
 
   function projectStatusGroup(p){
@@ -4641,110 +4729,29 @@
     const text = upper ? String(s.txt || '').toUpperCase() : String(s.txt || '');
     return s.html ? `<i class="fas fa-bolt"></i> ${escapeHtml(text)}` : escapeHtml(text);
   }
-  function normalizeStageKey(value){
-    const key = String(value || '').trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    return Object.prototype.hasOwnProperty.call(LEGACY_PROJECT_STAGE_MAP, key) ? LEGACY_PROJECT_STAGE_MAP[key] : key;
-  }
-  function humanizeStageKey(value){
-    return String(value || '')
-      .replace(/[_-]+/g, ' ')
-      .trim()
-      .replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
-  }
-  function explicitProjectStageId(p){
-    const stageObj = (p?.stage && typeof p.stage === 'object' && !Array.isArray(p.stage)) ? p.stage : {};
-    const raw = firstNonEmptyString(
-      p?.stage_id,
-      p?.project_stage_id,
-      p?.mapped_stage?.id,
-      stageObj?.id,
-      stageObj?.default_id,
-      stageObj?.key,
-      p?.stage,
-      p?.project_stage,
-      p?.stage_label,
-      p?.mapped_stage?.label,
-      p?.workflow_stage
-    );
-    return normalizeStageKey(raw);
-  }
-  function proposalStageId(p){
-    const proposalList = Array.isArray(p?.proposals) ? p.proposals : [];
-    const statuses = proposalList.flatMap((proposal) => [
-      proposal?.status,
-      proposal?.state,
-      proposal?.delivery?.status,
-      proposal?.delivery_status,
-      proposal?.signature_status
-    ]).map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
-    if (statuses.some((status) => ['signed', 'accepted', 'approved'].includes(status)) || p?.sold_at || p?.closed_at || p?.sale_date) return 'newly_sold';
-    if (statuses.some((status) => ['sent', 'viewed'].includes(status)) || proposalList.some((proposal) => proposal?.sent_at || proposal?.delivery?.sent_at)) return 'proposal_sent';
-    if (proposalList.length || Array.isArray(p?.proposal_ids) && p.proposal_ids.length || String(p?.proposal_id || p?.active_proposal_id || '').trim()) return 'drafting_proposal';
-    const workflow = normalizeStageKey(p?.workflow_state);
-    return workflow === 'drafting_proposal' || workflow === 'proposal_sent' ? workflow : '';
-  }
-  function terminalProjectStageId(p){
-    const values = [
-      p?.status,
-      p?.workflow_state,
-      p?.stage_id,
-      p?.stage,
-      p?.stage?.id,
-      p?.stage?.key,
-      p?.stage?.label,
-      p?.measurement_project?.status,
-      p?.measurement?.status
-    ].map(normalizeStageKey).filter(Boolean);
-    if (values.includes('cancelled')) return 'cancelled';
-    if (values.includes('lost')) return 'lost';
-    return '';
-  }
-  function highestProjectStageId(ids){
-    return ids.filter(Boolean).reduce((best, id) => {
-      if (!best) return id;
-      const bestRank = PROJECT_STAGE_RANK.has(best) ? PROJECT_STAGE_RANK.get(best) : (OPTIONAL_PROJECT_STAGE_RANK.get(best) ?? -1);
-      const nextRank = PROJECT_STAGE_RANK.has(id) ? PROJECT_STAGE_RANK.get(id) : (OPTIONAL_PROJECT_STAGE_RANK.get(id) ?? -1);
-      return nextRank > bestRank ? id : best;
-    }, '');
-  }
-  function projectStageId(p){
-    const terminal = terminalProjectStageId(p);
-    if (terminal) return terminal;
-    const explicit = explicitProjectStageId(p);
-    if (explicit && !PROJECT_STAGE_RANK.has(explicit) && !OPTIONAL_PROJECT_STAGE_RANK.has(explicit)) return explicit;
-    const inferred = highestProjectStageId([
-      hasScheduledAppointment(p) ? 'appointment_scheduled' : '',
-      proposalStageId(p)
-    ]);
-    return highestProjectStageId([explicit, inferred]) || 'new_lead';
-  }
-  function projectStageLabel(stageId, p){
-    const known = PROJECT_STAGE_BY_ID.get(stageId);
-    if (known) return known.label;
-    const stageObj = (p?.stage && typeof p.stage === 'object' && !Array.isArray(p.stage)) ? p.stage : {};
-    return firstNonEmptyString(p?.stage_label, p?.project_stage, stageObj?.label, stageObj?.name) || humanizeStageKey(stageId) || 'Other';
-  }
   function stageColumnsForProjects(projects){
-    const columns = PROJECT_STAGE_COLUMNS.map((stage, index) => ({ ...stage, index, custom:false }));
-    const seen = new Set(columns.map((stage) => stage.id));
+    /* Derive columns from work_projection: pipeline instance stages first, then
+       production instance stages (in encounter order), then lifecycle buckets for
+       projects with no active work instance. */
+    const pipeline = new Map();
+    const production = new Map();
+    const lifecycle = new Map();
     for (const p of projects){
-      const id = projectStageId(p);
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      const optional = OPTIONAL_PROJECT_STAGE_COLUMNS[id];
-      const column = optional
-        ? { ...optional, label:projectStageLabel(id, p), index:columns.length, custom:true, optional:true }
-        : { id, label:projectStageLabel(id, p), icon:'fa-tag', index:columns.length, custom:true };
-      if (optional?.after) {
-        const afterIndex = columns.findIndex((stage) => stage.id === optional.after);
-        if (afterIndex >= 0) {
-          columns.splice(afterIndex + 1, 0, column);
-          continue;
-        }
+      const instance = primaryProjectInstance(p);
+      if (instance){
+        const bucketMap = instance.kind === 'production' ? production : pipeline;
+        const title = instanceStageLabel(instance);
+        const key = `${instance.kind === 'production' ? 'production' : 'pipeline'}:${firstNonEmptyString(instance.stage_id, title)}`;
+        if (!bucketMap.has(key)) bucketMap.set(key, { id:key, title, color:instanceStageColor(instance), items:[] });
+        bucketMap.get(key).items.push(p);
+        continue;
       }
-      columns.push(column);
+      const label = projectLifecycleLabel(p);
+      const key = `lifecycle:${label.toLowerCase()}`;
+      if (!lifecycle.has(key)) lifecycle.set(key, { id:key, title:label, color:'#667085', items:[] });
+      lifecycle.get(key).items.push(p);
     }
-    return columns;
+    return [...pipeline.values(), ...production.values(), ...lifecycle.values()];
   }
   function formatStageDate(value){
     try {
@@ -4754,7 +4761,7 @@
       const withZone = (isoish.includes('Z') || /[+-]\d\d:?\d\d$/.test(isoish)) ? isoish : `${isoish}Z`;
       const date = new Date(withZone);
       if (Number.isNaN(date.getTime())) return text;
-      return date.toLocaleDateString();
+      return date.toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.());
     } catch(e) {
       return String(value ?? '');
     }
@@ -4768,85 +4775,415 @@
     card.type = 'button';
     card.className = 'v-stage-card';
     card.dataset.id = id;
+    card.dataset.planId = String(p.plan_id || '');
+    card.dataset.stageId = String(p.stage_id || '');
+    const movable = manualStageMovementEnabled() && canManageProjectStages() && !!card.dataset.planId;
+    card.draggable = movable;
     card.innerHTML = `
-      <div class="v-stage-name">${escapeHtml(name)}</div>
+      <div class="v-stage-card-top"><div class="v-stage-name">${String(escapeHtml(name))}</div><span class="v-stage-drag-handle" title="${(globalThis.PlatformLanguage?.text("projects","m_6327be62073e85","Drag to another stage") ?? "Drag to another stage")}" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span></div>
       <div class="v-stage-addr">
-        ${escapeHtml(displayAddressLine1(p))}
-        <span class="l2">${escapeHtml(displayAddressLine2(p) || '\u00a0')}</span>
+        ${String(escapeHtml(displayAddressLine1(p)))}
+        <span class="l2">${String(escapeHtml(displayAddressLine2(p) || '\u00a0'))}</span>
       </div>
-      <div class="v-stage-card-foot"><span>${escapeHtml(formatStageDate(p.created_at))}</span><span>Open <i class="fas fa-chevron-right"></i></span></div>
+      <div class="v-stage-card-foot"><span>${String(p.manual_stage_override ? '<span class="v-stage-manual-badge"><i class="fas fa-hand"></i> Manual</span>' : escapeHtml(formatStageDate(p.created_at)))}</span><span>${(globalThis.PlatformLanguage?.text("projects","m_4e1cba76df8f1d","Open ") ?? "Open ")}<i class="fas fa-chevron-right"></i></span></div>
     `;
-    card.addEventListener('click', () => openModal(lastProjectsById.get(id) || p));
+    card.__stageSignature = card.innerHTML;
+    card.__stageProject = p;
+    card.addEventListener('click', () => {
+      if (card.__suppressClick) { card.__suppressClick = false; return; }
+      openModal(lastProjectsById.get(id) || card.__stageProject);
+    });
+    if (movable) {
+      card.addEventListener('dragstart', (event) => {
+        if (manualStageMoveInFlight) { event.preventDefault(); return; }
+        manualStageDragPayload = { projectId:id, planId:card.dataset.planId, fromStageId:card.dataset.stageId };
+        card.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', JSON.stringify(manualStageDragPayload));
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('is-dragging');
+        card.__suppressClick = true;
+        manualStageDragPayload = null;
+        panelEl?.querySelectorAll('.v-stage-col.is-drop-target').forEach((column) => column.classList.remove('is-drop-target'));
+      });
+    }
     return card;
+  }
+  function newestProjectFirst(a, b){
+    const timestamp = (project) => {
+      const value = project?.created_at || project?.submitted_at || project?.updated_at || '';
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+    return timestamp(b) - timestamp(a) || String(b?.id || '').localeCompare(String(a?.id || ''));
   }
   function renderStagesShell(){
     return `
       <div class="v-stages-shell">
+        ${String(manualStageMovementEnabled() && canManageProjectStages() ? '<div class="v-stage-move-hint"><i class="fas fa-arrows-left-right"></i><strong>Manual movement is on</strong><span>Drag a project card to another stage.</span></div>' : '')}
+        <div class="v-mobile-stage-switcher" id="vMobileStageSwitcher" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_46cdcd4517ac63","Project stages") ?? "Project stages")}"></div>
         <div class="v-stages-board" id="vStagesBoard"></div>
       </div>
     `;
   }
+
+  function workBoardProjectCount(board){
+    const projectIds = new Set();
+    (Array.isArray(board?.columns) ? board.columns : []).forEach((column) => {
+      (Array.isArray(column?.cards) ? column.cards : []).forEach((card) => {
+        const projectId = String(card?.project_id || card?.project?.id || '').trim();
+        if (projectId) projectIds.add(projectId);
+      });
+    });
+    return projectIds.size;
+  }
+  function orderedWorkBoards(){
+    return workBoards.slice().sort((left, right) => (
+      workBoardProjectCount(right) - workBoardProjectCount(left)
+      || String(left?.title || left?.id || '').localeCompare(String(right?.title || right?.id || ''))
+    ));
+  }
+
+  async function moveProjectToBoardStage(payload, targetStageId){
+    const planId = String(payload?.planId || '').trim();
+    const projectId = String(payload?.projectId || '').trim();
+    targetStageId = String(targetStageId || '').trim();
+    if (!planId || !projectId || !targetStageId || targetStageId === String(payload?.fromStageId || '')) return;
+    const board = workBoards.find((item) => String(item.id) === activeWorkBoardId);
+    const source = board?.columns?.find((column) => (column.cards || []).some((card) => String(card.project_id) === projectId && String(card.plan_id) === planId));
+    const target = board?.columns?.find((column) => String(column.id) === targetStageId);
+    if (!source || !target) return;
+    const cardIndex = source.cards.findIndex((card) => String(card.project_id) === projectId && String(card.plan_id) === planId);
+    const [boardCard] = source.cards.splice(cardIndex, 1);
+    target.cards = [...(target.cards || []), { ...boardCard, stage_id:targetStageId, manual_stage_override:true }];
+    manualStageMoveInFlight = true;
+    renderStagesView();
+    try {
+      const result = await window.PlatformAPI.work.setManualStage(String(window.__APP?.userOrgId || ''), planId, targetStageId);
+      const current = lastProjectsById.get(projectId);
+      if (current && result?.projection) {
+        const next = { ...current, work_projection:result.projection };
+        lastProjectsById.set(projectId, next);
+        allProjects = allProjects.map((item) => String(item.id) === projectId ? next : item);
+      }
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_1bdd4e384f01a8","Stage updated") ?? "Stage updated"), ((v0) => globalThis.PlatformLanguage?.text("projects","m_cc6d8119258484",`Project moved to ${v0}.`,{v0}) ?? `Project moved to ${v0}.`)(target.title || 'the selected stage'), true);
+    } catch (error) {
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_1bc89b9afda475","Stage not changed") ?? "Stage not changed"), error?.message || 'The project could not be moved.', false);
+    } finally {
+      manualStageMoveInFlight = false;
+      await loadWorkBoards({ refresh:true });
+    }
+  }
+
+  function bindStageColumnDrop(column, stageId){
+    if (!manualStageMovementEnabled() || !canManageProjectStages()) return;
+    column.ondragover = (event) => {
+      if (!manualStageDragPayload || String(manualStageDragPayload.fromStageId) === String(stageId)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      column.classList.add('is-drop-target');
+    };
+    column.ondragleave = (event) => {
+      if (!column.contains(event.relatedTarget)) column.classList.remove('is-drop-target');
+    };
+    column.ondrop = (event) => {
+      event.preventDefault();
+      column.classList.remove('is-drop-target');
+      const payload = manualStageDragPayload;
+      manualStageDragPayload = null;
+      void moveProjectToBoardStage(payload, stageId);
+    };
+  }
+  function workBoardOptionHtml(item, activeBoardId){
+    const count = workBoardProjectCount(item);
+    const active = String(item?.id || '') === String(activeBoardId || '');
+    return `<button type="button" class="v-board-option${String(active ? ' active' : '')}" role="option" aria-selected="${String(active ? 'true' : 'false')}" data-board-id="${String(escapeHtml(item.id))}" style="--option-color:${String(escapeHtml(item.color || '#4f7cac'))}"><span class="v-board-option-dot" aria-hidden="true"></span><span>${String(escapeHtml(item.title || item.id))}</span><span class="v-board-option-count" aria-label="${((v5) => globalThis.PlatformLanguage?.text("projects","m_611dbcbdcb7bf6",`${v5} projects`,{v5}) ?? `${v5} projects`)(count)}">${String(count)}</span>${String(active ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>')}</button>`;
+  }
+  function workBoardMenuHtml(boards, activeBoardId){
+    const used = boards.filter((item) => workBoardProjectCount(item) > 0);
+    const unused = boards.filter((item) => workBoardProjectCount(item) === 0);
+    const usedOptions = used.map((item) => workBoardOptionHtml(item, activeBoardId)).join('');
+    const unusedSection = unused.length ? `<div class="v-board-unused"><button type="button" class="v-board-unused-toggle" id="vUnusedBoardsToggle" aria-expanded="false" aria-controls="vUnusedBoardsList"><span>${(globalThis.PlatformLanguage?.text("projects","m_164adef2abc1b5","Unused") ?? "Unused")}</span><span class="v-board-unused-total" aria-label="${((v0) => globalThis.PlatformLanguage?.text("projects","m_df6a6980467b68",`${v0} unused boards`,{v0}) ?? `${v0} unused boards`)(unused.length)}">${String(unused.length)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-board-unused-list" id="vUnusedBoardsList" role="listbox" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_a91ee30942f6fd","Unused work boards") ?? "Unused work boards")}" hidden>${String(unused.map((item) => workBoardOptionHtml(item, activeBoardId)).join(''))}</div></div>` : '';
+    return ("<div class=\"v-board-used-list\" role=\"listbox\" aria-label=\"" + (globalThis.PlatformLanguage?.text("projects","m_f9cb3d542eb9c6","Work boards with projects") ?? "Work boards with projects") + "\">" + String(usedOptions) + "</div>" + String(unusedSection));
+  }
+  function workBoardStorageKey(){
+    const orgId = String(window.__APP?.userOrgId || '').trim();
+    return `${PROJECT_BOARD_STORAGE_PREFIX}:${orgId || 'default'}`;
+  }
+  function rememberedWorkBoardId(){
+    try { return String(localStorage.getItem(workBoardStorageKey()) || '').trim(); }
+    catch (error) { return ''; }
+  }
+  function rememberWorkBoardId(boardId){
+    const value = String(boardId || '').trim();
+    if (!value) return;
+    try { localStorage.setItem(workBoardStorageKey(), value); }
+    catch (error) {}
+  }
+  function requestedWorkBoardId(){
+    try { return String(window.Portal?.navigation?.read?.()?.[PROJECT_BOARD_QUERY_KEY] || '').trim(); }
+    catch (error) { return ''; }
+  }
+  function syncWorkBoardToUrl(history = 'replace'){
+    if (!activeWorkBoardId || window.Portal?.navigation?.applying) return;
+    const route = window.Portal?.navigation?.read?.() || {};
+    if (route.tab && route.tab !== 'viewer') return;
+    window.Portal?.navigation?.[history]?.({ [PROJECT_BOARD_QUERY_KEY]:activeWorkBoardId }, {
+      source:'projects-board',
+      ownedKeys:[PROJECT_BOARD_QUERY_KEY]
+    });
+  }
+  function selectWorkBoard(boardId, options = {}){
+    const value = String(boardId || '').trim();
+    if (!workBoards.some((board) => String(board?.id || '') === value)) return false;
+    activeWorkBoardId = value;
+    rememberWorkBoardId(value);
+    if (options.syncUrl !== false) syncWorkBoardToUrl(options.history || 'push');
+    renderStagesView();
+    updateCount();
+    return true;
+  }
+
+  async function loadWorkBoards(options = {}){
+    const orgId = String(window.__APP?.userOrgId || '').trim();
+    if (!orgId || !window.PlatformAPI?.work?.boards) return [];
+    if (workBoardsLoaded && !options.refresh) return workBoards;
+    if (workBoardsPromise && !options.refresh) return workBoardsPromise;
+    workBoardsPromise = window.PlatformAPI.work.boards(orgId, { includeCompleted:true }).then((result) => {
+      workBoards = Array.isArray(result?.boards) ? result.boards : [];
+      workBoardsLoaded = true;
+      const routeBoardId = requestedWorkBoardId();
+      const preferredBoardId = routeBoardId || activeWorkBoardId || rememberedWorkBoardId();
+      const boardsByUsage = orderedWorkBoards();
+      activeWorkBoardId = workBoards.some((board) => String(board?.id || '') === preferredBoardId)
+        ? preferredBoardId
+        : String(boardsByUsage[0]?.id || '');
+      if (activeWorkBoardId) {
+        rememberWorkBoardId(activeWorkBoardId);
+        if (routeBoardId !== activeWorkBoardId) syncWorkBoardToUrl('replace');
+      }
+      if (viewMode === 'stages') renderStagesView();
+      updateCount();
+      return workBoards;
+    }).catch((error) => {
+      console.warn('Work boards could not be loaded', error);
+      workBoardsLoaded = true;
+      workBoards = [];
+      return [];
+    }).finally(() => { workBoardsPromise = null; });
+    return workBoardsPromise;
+  }
   function mountStageItems(list, items){
     if (!list) return;
+    items = (Array.isArray(items) ? items : []).slice().sort(newestProjectFirst);
     if (!items.length){
-      list.innerHTML = `<div class="v-stage-empty"><i class="fas fa-layer-group"></i>No projects here</div>`;
+      list.onscroll = null;
+      list.innerHTML = `<div class="v-stage-empty"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("projects","m_7eeed0d1bbc9e2","No projects here") ?? "No projects here")}</div>`;
+      list.__stageMount = null;
       return;
     }
-    let loaded = 0;
-    const more = document.createElement('div');
-    more.className = 'v-stage-load';
-    const renderMore = () => {
-      const next = Math.min(loaded + STAGE_COLUMN_PAGE_SIZE, items.length);
-      for (let i = loaded; i < next; i++) list.insertBefore(createStageCard(items[i]), more);
-      loaded = next;
-      if (loaded >= items.length) {
-        more.classList.add('done');
-        more.textContent = '';
-      } else {
-        more.classList.remove('done');
-        more.textContent = `${loaded} of ${items.length} loaded`;
-      }
-    };
-    list.appendChild(more);
-    renderMore();
-    if (items.length > loaded) {
-      list.addEventListener('scroll', () => {
+    const scrollAnchor = list.scrollTop > 0
+      ? Array.from(list.querySelectorAll(':scope > .v-stage-card')).find((card) => card.offsetTop + card.offsetHeight > list.scrollTop)
+      : null;
+    const scrollAnchorOffset = scrollAnchor ? scrollAnchor.offsetTop - list.scrollTop : 0;
+    const scrollAnchorId = String(scrollAnchor?.dataset.id || '');
+    list.querySelector('.v-stage-empty')?.remove();
+    let state = list.__stageMount;
+    if (!state) {
+      const more = document.createElement('div');
+      more.className = 'v-stage-load';
+      list.appendChild(more);
+      state = { items:[], loaded:0, more };
+      state.render = (loadAnotherPage = false) => {
+        if (loadAnotherPage) state.loaded += STAGE_COLUMN_PAGE_SIZE;
+        state.loaded = Math.min(Math.max(state.loaded, STAGE_COLUMN_PAGE_SIZE), state.items.length);
+        const wanted = state.items.slice(0, state.loaded);
+        const wantedIds = new Set(wanted.map((project) => String(project.id)));
+        const existing = new Map(Array.from(list.querySelectorAll(':scope > .v-stage-card')).map((card) => [String(card.dataset.id || ''), card]));
+        let cursor = list.firstElementChild;
+        for (const project of wanted) {
+          const id = String(project.id);
+          const fresh = createStageCard(project);
+          let card = existing.get(id);
+          if (!card) card = fresh;
+          else if (card.__stageSignature !== fresh.__stageSignature) {
+            card.innerHTML = fresh.innerHTML;
+            card.__stageSignature = fresh.__stageSignature;
+          }
+          card.__stageProject = project;
+          if (card !== cursor) list.insertBefore(card, cursor || state.more);
+          cursor = card.nextElementSibling;
+        }
+        for (const [id, card] of existing) if (!wantedIds.has(id)) card.remove();
+        list.appendChild(state.more);
+        if (state.loaded >= state.items.length) {
+          state.more.classList.add('done');
+          state.more.textContent = '';
+        } else {
+          state.more.classList.remove('done');
+          state.more.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_3d1029ead2296a",`${v0} of ${v1} loaded`,{v0,v1}) ?? `${v0} of ${v1} loaded`)(state.loaded,state.items.length);
+        }
+      };
+      list.onscroll = () => {
         const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
-        if (remaining <= STAGE_COLUMN_PREFETCH_PX) renderMore();
-      }, { passive: true });
+        if (remaining <= STAGE_COLUMN_PREFETCH_PX && state.loaded < state.items.length) state.render(true);
+      };
+      list.__stageMount = state;
     }
+    state.items = items;
+    state.render(false);
+    if (scrollAnchorId) {
+      const currentAnchor = Array.from(list.querySelectorAll(':scope > .v-stage-card')).find((card) => String(card.dataset.id || '') === scrollAnchorId);
+      if (currentAnchor) list.scrollTop = currentAnchor.offsetTop - scrollAnchorOffset;
+    }
+  }
+  function reconcileMobileStageSwitcher(board, columns){
+    const switcher = $('#vMobileStageSwitcher', panelEl);
+    if (!switcher || !board) return;
+    const available = columns.filter((column) => String(column?.id || ''));
+    if (!available.some((column) => String(column.id) === activeMobileStageId)) activeMobileStageId = String(available[0]?.id || '');
+    const signature = JSON.stringify(available.map((column) => [String(column.id), column.title || '', column.color || '', column.items?.length || 0]));
+    const applySelection = (stageId, { focus = false } = {}) => {
+      activeMobileStageId = String(stageId || '');
+      board.querySelectorAll(':scope > .v-stage-col').forEach((column) => {
+        column.classList.toggle('is-mobile-active', String(column.dataset.stage || '') === activeMobileStageId);
+      });
+      switcher.querySelectorAll('.v-mobile-stage-option').forEach((option) => {
+        const active = String(option.dataset.stage || '') === activeMobileStageId;
+        option.setAttribute('aria-selected', String(active));
+        option.tabIndex = active ? 0 : -1;
+        if (active && focus) option.focus();
+      });
+    };
+    if (switcher.__stageSignature !== signature) {
+      switcher.innerHTML = available.map((column) => {
+        const id = String(column.id);
+        const active = id === activeMobileStageId;
+        return `<button type="button" class="v-mobile-stage-option" role="tab" aria-selected="${active}" tabindex="${active ? '0' : '-1'}" data-stage="${escapeHtml(id)}" style="--stage-color:${escapeHtml(column.color || '#667085')}"><span>${escapeHtml(column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage"))}</span><span class="v-mobile-stage-count">${Number(column.items?.length || 0)}</span></button>`;
+      }).join('');
+      switcher.__stageSignature = signature;
+      switcher.querySelectorAll('.v-mobile-stage-option').forEach((option) => {
+        option.addEventListener('click', () => applySelection(option.dataset.stage));
+        option.addEventListener('keydown', (event) => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          const options = Array.from(switcher.querySelectorAll('.v-mobile-stage-option'));
+          const current = options.indexOf(option);
+          const next = event.key === 'Home' ? 0
+            : event.key === 'End' ? options.length - 1
+              : (current + (event.key === 'ArrowRight' ? 1 : -1) + options.length) % options.length;
+          event.preventDefault();
+          applySelection(options[next]?.dataset.stage, { focus:true });
+        });
+      });
+    }
+    applySelection(activeMobileStageId);
+  }
+  function reconcileStageColumns(board, columns){
+    const wantedStages = new Set(columns.map((column) => String(column.id)));
+    const existing = new Map(Array.from(board.querySelectorAll(':scope > .v-stage-col')).map((column) => [String(column.dataset.stage || ''), column]));
+    let cursor = board.firstElementChild;
+    for (const column of columns) {
+      const stageId = String(column.id);
+      let col = existing.get(stageId);
+      if (!col) {
+        col = document.createElement('section');
+        col.className = 'v-stage-col';
+        col.dataset.stage = stageId;
+        col.innerHTML = `<div class="v-stage-head"><div class="v-stage-title-row"><div class="v-stage-title"><span class="v-stage-icon"><i class="fas fa-layer-group"></i></span><span data-stage-title></span></div><span class="v-stage-count"></span></div></div><div class="v-stage-list"></div>`;
+      }
+      col.style.setProperty('--stage-color', column.color || '#667085');
+      bindStageColumnDrop(col, stageId);
+      const title = col.querySelector('[data-stage-title]');
+      if (title && title.textContent !== column.title) title.textContent = column.title;
+      const count = col.querySelector('.v-stage-count');
+      if (count && count.textContent !== String(column.items.length)) count.textContent = String(column.items.length);
+      mountStageItems(col.querySelector('.v-stage-list'), column.items);
+      if (col !== cursor) board.insertBefore(col, cursor || null);
+      cursor = col.nextElementSibling;
+    }
+    for (const [stageId, column] of existing) if (!wantedStages.has(stageId)) column.remove();
+    reconcileMobileStageSwitcher(board, columns);
   }
   function renderStagesView(){
     const results = $('#vResults', panelEl);
     if (!results) return;
-    results.innerHTML = renderStagesShell();
+    if (!results.querySelector('#vStagesBoard')) results.innerHTML = renderStagesShell();
     const board = $('#vStagesBoard', panelEl);
     if (!board) return;
-    const columns = stageColumnsForProjects(filteredProjects);
-    const buckets = new Map(columns.map((stage) => [stage.id, []]));
-    for (const p of filteredProjects){
-      const id = projectStageId(p);
-      if (!buckets.has(id)) buckets.set(id, []);
-      buckets.get(id).push(p);
+    if (!workBoardsLoaded) {
+      if (!board.children.length) board.innerHTML = `<div class="v-stage-empty"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("projects","m_69a7d7da023752","Loading boards") ?? "Loading boards")}</div>`;
+      loadWorkBoards().catch(() => null);
+      return;
     }
-    for (const column of columns){
-      const items = buckets.get(column.id) || [];
-      const col = document.createElement('section');
-      col.className = 'v-stage-col';
-      col.dataset.stage = column.id;
-      col.innerHTML = `
-        <div class="v-stage-head">
-          <div class="v-stage-title-row">
-            <div class="v-stage-title"><span class="v-stage-icon"><i class="fas ${column.icon}"></i></span><span>${escapeHtml(column.label)}</span></div>
-            <span class="v-stage-count">${items.length}</span>
-          </div>
-        </div>
-        <div class="v-stage-list"></div>
-      `;
-      const list = col.querySelector('.v-stage-list');
-      mountStageItems(list, items);
-      board.appendChild(col);
+    board.querySelector(':scope > .v-stage-empty')?.remove();
+    if (workBoards.length) {
+      const boardsByUsage = orderedWorkBoards();
+      const selected = workBoards.find((item) => String(item.id) === activeWorkBoardId) || boardsByUsage[0];
+      activeWorkBoardId = String(selected?.id || '');
+      const summary = $('#vWorkBoardSummary', panelEl);
+      if (summary) {
+        summary.style.setProperty('--board-color', selected?.color || '#4f7cac');
+        summary.classList.add('visible');
+        const summarySignature = JSON.stringify([activeWorkBoardId, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
+        if (summary.__boardSignature !== summarySignature) {
+          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(selected?.title || 'Board'))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
+          summary.__boardSignature = summarySignature;
+          const trigger = $('#vWorkBoardTrigger', panelEl);
+          const menu = $('#vWorkBoardMenu', panelEl);
+          const unusedToggle = $('#vUnusedBoardsToggle', panelEl);
+          const unusedList = $('#vUnusedBoardsList', panelEl);
+          const visibleOptions = () => Array.from(menu?.querySelectorAll('.v-board-option') || []).filter((option) => !option.closest('[hidden]'));
+          const closeMenu = () => { if (!menu) return; menu.hidden = true; trigger?.setAttribute('aria-expanded', 'false'); };
+          const openMenu = () => { if (!menu) return; menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true'); };
+          trigger?.addEventListener('click', () => menu?.hidden ? openMenu() : closeMenu());
+          trigger?.addEventListener('keydown', (event) => {
+            if (!['ArrowDown', 'Enter', ' '].includes(event.key)) return;
+            event.preventDefault();
+            openMenu();
+            (visibleOptions().find((option) => option.classList.contains('active')) || visibleOptions()[0] || unusedToggle)?.focus();
+          });
+          unusedToggle?.addEventListener('click', () => {
+            const expanded = unusedToggle.getAttribute('aria-expanded') !== 'true';
+            unusedToggle.setAttribute('aria-expanded', String(expanded));
+            if (unusedList) unusedList.hidden = !expanded;
+          });
+          menu?.querySelectorAll('.v-board-option').forEach((option) => option.addEventListener('click', () => {
+            closeMenu();
+            selectWorkBoard(option.dataset.boardId, { history:'push' });
+          }));
+          summary.__closeBoardMenu = closeMenu;
+          summary.onkeydown = (event) => {
+            if (event.key === 'Escape') { closeMenu(); trigger?.focus(); return; }
+            if (!['ArrowDown', 'ArrowUp'].includes(event.key) || menu?.hidden) return;
+            const options = visibleOptions();
+            if (!options.length) return;
+            const current = options.indexOf(document.activeElement);
+            const next = event.key === 'ArrowDown' ? (current + 1) % options.length : (current <= 0 ? options.length - 1 : current - 1);
+            event.preventDefault();
+            options[next]?.focus();
+          };
+          if (!summary.__boardOutsideHandler) {
+            summary.__boardOutsideHandler = (event) => { if (!summary.contains(event.target)) summary.__closeBoardMenu?.(); };
+            document.addEventListener('click', summary.__boardOutsideHandler, { passive:true });
+          }
+        }
+      }
+      const columns = (Array.isArray(selected?.columns) ? selected.columns : []).map((column) => {
+        const items = (Array.isArray(column.cards) ? column.cards : []).map((card) => {
+          const project = lastProjectsById.get(String(card.project_id || '')) || {};
+          return { ...card, ...project, id: card.project_id || project.id, plan_id:card.plan_id, stage_id:column.id, manual_stage_override:card.manual_stage_override === true, title: project.title || card.title, address: project.address || card.address };
+        }).filter((project) => project.id).sort(newestProjectFirst);
+        return { id:column.id, title:column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage"), color:column.color || selected?.color || '#667085', items };
+      });
+      reconcileStageColumns(board, columns);
+      updateCount();
+      return;
     }
+    reconcileStageColumns(board, stageColumnsForProjects(filteredProjects).map((column) => ({
+      ...column,
+      items:column.items.slice().sort(newestProjectFirst)
+    })));
   }
   function getActiveSort(){
     if (viewMode === 'list') return { key:listSortKey, dir:listSortDir };
@@ -4974,14 +5311,16 @@
     const el = $('#vCount', panelEl);
     if (!el) return;
     if (viewMode === 'stages') {
-      const count = totalCount || filteredProjects.length || allProjects.length;
-      el.textContent = `${count} project${count===1?'':'s'}`;
+      const selected = workBoards.find((board) => String(board?.id || '') === activeWorkBoardId);
+      const selectedCount = selected ? workBoardProjectCount(selected) : 0;
+      const total = totalUnfilteredCount || totalCount || filteredProjects.length || allProjects.length;
+      el.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_083f86b59b7e4c",`${v0} / ${v1} projects`,{v0,v1}) ?? `${v0} / ${v1} projects`)(selectedCount,total);
       return;
     }
     if (totalCount > 0 && totalPages > 1){
       const start = (currentPage - 1) * PAGE_SIZE + 1;
       const end = Math.min(currentPage * PAGE_SIZE, totalCount);
-      el.textContent = `${start}\u2013${end} of ${totalCount}`;
+      el.textContent = ((v0,v1,v2) => globalThis.PlatformLanguage?.text("projects","m_43e3b1a1d65dbe",`${v0}–${v1} of ${v2}`,{v0,v1,v2}) ?? `${v0}–${v1} of ${v2}`)(start,end,totalCount);
     } else {
       const a = allProjects.length;
       const f = filteredProjects.length;
@@ -5029,62 +5368,6 @@
       });
     });
   }
-  function buildSuggestions(max=8){
-    const q = normalizeStr(searchQuery);
-    if (!q) return [];
-    const hits = [];
-    for (const p of allProjects){
-      const addr = normalizeStr(p.address || displayAddressPlain(p));
-      const contact = resolveResidentFields(p);
-      const contactText = normalizeStr(contact.searchText || contact.displayName || contact.name || '');
-      if (!addr.includes(q) && !contactText.includes(q)) continue;
-      hits.push({ id: String(p.id), a1: displayAddressLine1(p), a2: displayAddressLine2(p), contact: contact.displayName || contact.name || '', status: statusLabel(p), group: projectStatusGroup(p), created_at: p.created_at });
-      if (hits.length >= max) break;
-    }
-    return hits;
-  }
-  function showSuggest(){
-    const box = $('#vSuggest', panelEl);
-    if (!box) return;
-    const items = buildSuggestions(8);
-    if (!items.length){ box.style.display = 'none'; activeSuggest = false; return; }
-    box.innerHTML = items.map(it=>{
-      const cls = it.group === 'ready' ? 'sp-ready' : it.group === 'rejected' ? 'sp-rej' : it.group === 'cancelled' ? 'sp-cancel' : it.group === 'draft' ? 'sp-draft' : 'sp-pending';
-      const tag = it.group === 'project' ? '' : `<span class="tag ${cls}" style="border-radius:999px;">${escapeHtml(it.status)}</span>`;
-      const subtitle = [it.a2, it.contact ? `Contact: ${it.contact}` : ''].filter(Boolean).join(' | ');
-      return `<div class="it" data-id="${escapeHtml(it.id)}"><div style="min-width:0;"><div class="a1">${escapeHtml(it.a1 || '')}</div><div class="a2">${escapeHtml(subtitle)}</div></div><div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">${tag}<div class="meta">${escapeHtml(formatDate(it.created_at))}</div></div></div>`;
-    }).join('');
-    box.style.display = 'block';
-    activeSuggest = true;
-    box.querySelectorAll('.it').forEach(row=>{
-      row.addEventListener('mousedown', (e)=>{
-        e.preventDefault();
-        const id = row.getAttribute('data-id');
-        const p = lastProjectsById.get(String(id));
-        if (p){ const addr = p.address || displayAddressPlain(p); setSearch(addr, true); if (normalizeStr(addr) === normalizeStr(searchQuery)) openModal(p); }
-        hideSuggest();
-      });
-    });
-  }
-  function hideSuggest(){ const box = $('#vSuggest', panelEl); if (box) box.style.display = 'none'; activeSuggest = false; }
-  function scheduleSearchFetch(immediate){
-    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(()=>{
-      currentPage = 1;
-      fetchProjects(true);
-    }, immediate ? 0 : SEARCH_DEBOUNCE_MS);
-  }
-  function setSearch(val, suppressSuggest){
-    const nextQuery = String(val||'');
-    const prevQuery = searchQuery;
-    searchQuery = nextQuery;
-    const input = $('#vSearch', panelEl);
-    if (input && input.value !== searchQuery) input.value = searchQuery;
-    const clear = $('#vClear', panelEl);
-    if (clear) clear.style.display = searchQuery ? 'flex' : 'none';
-    hideSuggest();
-    if (normalizeStr(prevQuery) !== normalizeStr(nextQuery)) scheduleSearchFetch(!!suppressSuggest);
-  }
   function updateOpenModalFromLatest(projects){
     if (!modalOpen || !panelEl || !currentModalId) return;
     const p = lastProjectsById.get(String(currentModalId));
@@ -5093,17 +5376,28 @@
     if (g !== currentModalGroup){ openModal(p); return; }
     const statusEl = $('#vmStatus', panelEl);
       if (statusEl){
-        if (g === 'ready'){ statusEl.textContent = 'READY'; statusEl.style.color = '#34a853'; }
-        else if (g === 'queued'){ statusEl.textContent = 'PROCESSING'; statusEl.style.color = '#fbbc04'; }
-        else if (g === 'rejected'){ statusEl.textContent = 'REJECTED'; statusEl.style.color = '#d93025'; }
-        else if (g === 'cancelled'){ statusEl.textContent = 'CANCELLED'; statusEl.style.color = '#5f6368'; }
-        else if (g === 'draft'){ statusEl.textContent = 'DRAFT'; statusEl.style.color = '#667085'; }
+        if (g === 'ready'){ statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_c465169ea6d99b","READY") ?? "READY"); statusEl.style.color = '#34a853'; }
+        else if (g === 'queued'){ statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_1bcd4e4b834c5f","PROCESSING") ?? "PROCESSING"); statusEl.style.color = '#fbbc04'; }
+        else if (g === 'rejected'){ statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_dbcc5bc92eb962","REJECTED") ?? "REJECTED"); statusEl.style.color = '#d93025'; }
+        else if (g === 'cancelled'){ statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_2fdae33d099b84","CANCELLED") ?? "CANCELLED"); statusEl.style.color = '#5f6368'; }
+        else if (g === 'draft'){ statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_c5801d3bbab0ce","DRAFT") ?? "DRAFT"); statusEl.style.color = '#667085'; }
         else if (g === 'project'){ statusEl.textContent = ''; statusEl.style.color = '#5f6368'; }
-        else { statusEl.textContent = 'PROCESSING'; statusEl.style.color = '#fbbc04'; }
+        else { statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_1bcd4e4b834c5f","PROCESSING") ?? "PROCESSING"); statusEl.style.color = '#fbbc04'; }
       }
   }
-  function loadPersistedView(){ try{ const v = localStorage.getItem(LS_VIEW_KEY); if (VIEW_MODES.has(v)) return normalizeViewMode(v); }catch(e){} return 'tiles'; }
-  function persistView(mode){ try{ localStorage.setItem(LS_VIEW_KEY, mode); }catch(e){} }
+  function requestedViewMode(){
+    try {
+      const mode = window.Portal?.navigation?.read?.()?.[PROJECT_VIEW_QUERY_KEY] || new URLSearchParams(window.location.search || '').get(PROJECT_VIEW_QUERY_KEY);
+      return VIEW_MODES.has(mode) ? normalizeViewMode(mode) : '';
+    } catch (error) { return ''; }
+  }
+  function defaultViewMode(){ return stagesViewEnabled() ? 'stages' : 'tiles'; }
+  function syncViewModeToUrl(options = {}){
+    window.Portal?.routeState?.set?.({ [PROJECT_VIEW_QUERY_KEY]: viewMode }, {
+      history:options.history || 'replace',
+      source:options.source || 'projects-view'
+    });
+  }
   function enforceDraftsHidden(){
     hideDrafts = true;
     if (statusFilter === 'draft') {
@@ -5113,20 +5407,28 @@
     }
   }
   function updateViewControls(){
-    const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
+    const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl); const bD = $('#vViewDrafts', panelEl);
     if (bT) bT.classList.toggle('active', viewMode === 'tiles');
     if (bL) bL.classList.toggle('active', viewMode === 'list');
     if (bS) {
       bS.hidden = !stagesViewEnabled();
       bS.classList.toggle('active', viewMode === 'stages');
     }
+    if (bD) {
+      bD.hidden = !draftsViewEnabled();
+      bD.classList.toggle('active', viewMode === 'drafts');
+    }
     const tip = $('#vTip', panelEl);
     if (tip) tip.style.display = (viewMode === 'list') ? 'block' : 'none';
+    const boardSummary = $('#vWorkBoardSummary', panelEl);
+    if (boardSummary) boardSummary.classList.toggle('visible', viewMode === 'stages' && workBoards.length > 0);
   }
-  function setView(mode){
+  function setView(mode, options = {}){
     const previousMode = viewMode;
     viewMode = normalizeViewMode(mode);
-    persistView(viewMode);
+    if (viewMode === 'stages') loadWorkBoards().catch(() => null);
+    if (viewMode === 'drafts') loadDraftDocs(true).catch(() => null);
+    if (options.syncUrl !== false && !window.Portal?.navigation?.applying) syncViewModeToUrl(options);
     updateViewControls();
     syncSortDropdown();
     if (previousMode !== viewMode && ((previousMode === 'stages') !== (viewMode === 'stages'))) {
@@ -5143,16 +5445,22 @@
       return;
     }
     updateViewControls();
+    if (viewMode === 'stages') {
+      const results = $('#vResults', panelEl);
+      if (results) results.innerHTML = '';
+      renderStagesView();
+    }
   }
   function syncSortDropdown(){ const sel = $('#vSort', panelEl); if (!sel) return; const s = getActiveSort(); sel.value = `${s.key}:${s.dir}`; }
   function injectSidebarLogout(){
     const footer = document.querySelector('.sidebar-footer');
     if (!footer) return;
+    if (document.getElementById('accountSwitcherButton')) return;
     if (document.getElementById('sidebarLogoutLow')) return;
     injectCSS('viewer_logout_fix', `.sidebar-footer{ display:flex; flex-direction:column; align-items:center; gap:6px; } .sidebar-footer .sb-logout-low{ display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:900; font-size:12px; color:#888; text-decoration:none; padding:6px 0 2px; cursor:pointer; user-select:none; } .sidebar-footer .sb-logout-low:hover{ color: var(--primary,#d93025); }`);
     const a = document.createElement('a');
     a.id = 'sidebarLogoutLow'; a.className = 'sb-logout-low'; a.href = 'logout.php';
-    a.innerHTML = `<i class="fas fa-right-from-bracket"></i><span>Log out</span>`;
+    a.innerHTML = `<i class="fas fa-right-from-bracket"></i><span>${(globalThis.PlatformLanguage?.text("projects","m_332a081300e1ca","Log out") ?? "Log out")}</span>`;
     footer.insertBefore(a, footer.firstChild);
   }
   function displayAddressLine1(p){
@@ -5180,7 +5488,7 @@
     return s.dir === 'asc' ? `<i class="fas fa-sort-up"></i>` : `<i class="fas fa-sort-down"></i>`;
   }
   function renderListShell(){
-    return `<div class="v-list"><div class="v-lhead" id="vListHead"><div class="v-lcell sortable" data-k="status">Status <span class="sicon">${sortIcon('status')}</span></div><div class="v-lcell sortable" data-k="address">Address <span class="sicon">${sortIcon('address')}</span></div><div class="v-lcell sortable" data-k="resident">Contact <span class="sicon">${sortIcon('resident')}</span></div><div class="v-lcell sortable" data-k="created_at">Submitted <span class="sicon">${sortIcon('created_at')}</span></div></div><div class="v-lscroll" id="vListScroll"></div></div>`;
+    return `<div class="v-list"><div class="v-lhead" id="vListHead"><div class="v-lcell sortable" data-k="status">${(globalThis.PlatformLanguage?.text("projects","m_5b1cdca9bcee11","Status ") ?? "Status ")}<span class="sicon">${String(sortIcon('status'))}</span></div><div class="v-lcell sortable" data-k="address">${(globalThis.PlatformLanguage?.text("projects","m_b1b343667e2302","Address ") ?? "Address ")}<span class="sicon">${String(sortIcon('address'))}</span></div><div class="v-lcell sortable" data-k="resident">${(globalThis.PlatformLanguage?.text("projects","m_af1b50e10cbaa6","Contact ") ?? "Contact ")}<span class="sicon">${String(sortIcon('resident'))}</span></div><div class="v-lcell sortable" data-k="created_at">${(globalThis.PlatformLanguage?.text("projects","m_4bb83270974e09","Submitted ") ?? "Submitted ")}<span class="sicon">${String(sortIcon('created_at'))}</span></div></div><div class="v-lscroll" id="vListScroll"></div></div>`;
   }
   function wireListHeaderSort(){
     const head = $('#vListHead', panelEl);
@@ -5208,7 +5516,7 @@
     const typeBadge = (tm !== PROJECT_TYPE_META.residential) ? `<div class="v-type-badge ${tm.cls}${deliveryBadge ? '' : ' no-delivery'}"><i class="fas ${tm.icon}"></i> ${escapeHtml(tm.short)}</div>` : '';
     const statusBadge = s ? `<div class="v-badge ${s.cls}">${statusBadgeContent(s)}</div>` : '';
     const contact = resolveResidentFields(p);
-    div.innerHTML = `<div class="v-thumb${(!hasThumbnail && isProcessing) ? ' loading' : ''}"><img src="${escapeHtml(thumbSrc)}" loading="lazy" alt="">${typeBadge}${deliveryBadge}${gutterThumbBadgeHtml(p)}${statusBadge}</div><div class="v-body"><div class="v-addr">${displayAddress(p)}</div><div class="v-meta"><i class="fas fa-user"></i> ${escapeHtml(contact.displayName || contact.name || 'N/A')}</div><div class="v-foot"><span>${escapeHtml(formatDate(p.created_at))}</span><span class="cta">View <i class="fas fa-chevron-right"></i></span></div></div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || 'N/A'))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.text("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
     const img = div.querySelector('.v-thumb img');
@@ -5266,24 +5574,92 @@
     const row = document.createElement('div'); row.className = 'v-lrow'; row.dataset.id = id;
     const s = statusBadgeClasses(p);
     const a1 = displayAddressLine1(p); const a2 = displayAddressLine2(p);
-    const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i> Expedited</span>` : '';
-    const rowTags = `${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i> Roof + Gutters</span>` : ''}`;
+    const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
+    const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const statusPill = s ? `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>` : '';
     row.innerHTML = `<div class="v-lcell">${statusPill}</div><div class="v-lcell" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div><div class="v-lcell" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.displayName || resident.name || '\u2014')}</div><div style="font-weight:850; font-size:11px; color:#777; margin-top:3px;">${escapeHtml((resident.displayDetail || '').toString())}</div></div><div class="v-lcell" data-col="created_at" style="color:#666; font-weight:1000;">${escapeHtml(formatDate(p.created_at))}</div>`;
     row.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
     return row;
   }
-  function renderResults(){
+  // ------------------------------------------------------------ Drafts view
+  // Catch-all for in-progress work that has no project yet. Today that means
+  // standalone document-engine drafts ("Create without a project"); the tile
+  // model carries a `kind` so other draft kinds (payments, …) can join later.
+  let draftDocs = null;
+  let draftDocsLoading = false;
+  async function loadDraftDocs(force = false){
+    if (draftDocsLoading) return;
+    if (draftDocs && !force) return;
+    draftDocsLoading = true;
+    if (viewMode === 'drafts') renderResults();
+    try {
+      const orgId = String(window.__APP?.userOrgId || '').trim();
+      const res = await window.DocumentsAPI?.documents?.listStandalone?.(orgId);
+      draftDocs = (Array.isArray(res?.documents) ? res.documents : [])
+        .filter((doc) => String(doc?.status || '').toLowerCase() !== 'void');
+    } catch (error) {
+      console.warn('Draft documents unavailable', error);
+      draftDocs = [];
+    }
+    draftDocsLoading = false;
+    if (viewMode === 'drafts') renderResults();
+  }
+  function draftTypeLabel(doc = {}){
+    const type = String(doc.document_type || 'document').trim().toLowerCase();
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Document';
+  }
+  function draftStatusLabel(doc = {}){
+    const status = String(doc.status || 'draft').trim().toLowerCase();
+    return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  function renderDraftsView(){
     const results = $('#vResults', panelEl); if (!results) return;
-    if (!allProjects.length){
-      if (hideDrafts && totalUnfilteredCount > 0) {
-        results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">No visible projects.</div><div style="margin-top:8px; color:#999; font-weight:850;">No non-draft projects match this view.</div></div>`;
-        return;
-      }
-      results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">No projects yet.</div><div style="margin-top:8px; color:#999; font-weight:850;">Click "New Project" to get started.</div></div>`;
+    injectCSS('viewer_drafts_view', `
+      .v-draft-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:14px; padding:4px 2px 24px;}
+      .v-draft-tile{position:relative; border:1px solid #e4e7ec; border-top:4px solid var(--primary,#d93025); border-radius:12px; background:#fff; padding:14px; text-align:left; cursor:pointer; font:inherit; box-shadow:0 10px 24px rgba(16,24,40,.05); transition:.14s ease; display:flex; flex-direction:column; gap:8px; min-height:118px;}
+      .v-draft-tile:hover{transform:translateY(-1px); box-shadow:0 16px 30px rgba(16,24,40,.09);}
+      .v-draft-kind{display:inline-flex; align-items:center; gap:6px; align-self:flex-start; border-radius:999px; padding:3px 9px; background:rgba(var(--primary-rgb,217,48,37),.08); color:var(--primary-readable,var(--primary,#d93025)); font-size:10px; font-weight:1000; text-transform:uppercase; letter-spacing:.05em;}
+      .v-draft-title{font-size:14px; font-weight:1000; color:#101828; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+      .v-draft-meta{margin-top:auto; font-size:11px; font-weight:850; color:#667085;}
+      .v-draft-empty{text-align:center; color:#bbb; padding:44px 0;}
+    `);
+    if (draftDocsLoading && !draftDocs) {
+      results.innerHTML = `<div class="v-draft-empty"><i class="fas fa-circle-notch fa-spin"></i></div>`;
       return;
     }
-    if (!filteredProjects.length){ results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">No matches.</div><div style="margin-top:8px; color:#999; font-weight:850;">Try clearing filters or searching a different term.</div></div>`; return; }
+    const drafts = draftDocs || [];
+    if (!drafts.length){
+      results.innerHTML = `<div class="v-draft-empty"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_532a53ea6b6258","No drafts.") ?? "No drafts.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_a4ceefead53c2f","Documents created without a project land here until they're attached.") ?? "Documents created without a project land here until they're attached.")}</div></div>`;
+      return;
+    }
+    const sorted = [...drafts].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    results.innerHTML = `<div class="v-draft-grid">${sorted.map((doc, index) => `
+      <button type="button" class="v-draft-tile" data-draft-index="${String(index)}">
+        <span class="v-draft-kind"><i class="fas fa-pen-to-square"></i>${((v1) => globalThis.PlatformLanguage?.text("projects","m_afa3b70ae874eb",` ${v1} draft`,{v1}) ?? ` ${v1} draft`)(escapeHtml(draftTypeLabel(doc)))}</span>
+        <span class="v-draft-title">${String(escapeHtml(String(doc.title || draftTypeLabel(doc))))}</span>
+        <span class="v-draft-meta">${String(escapeHtml(draftStatusLabel(doc)))}${String(doc.updated_at ? ` · ${escapeHtml(formatDate(doc.updated_at))}` : '')}</span>
+      </button>`).join('')}</div>`;
+    results.querySelectorAll('[data-draft-index]').forEach((tile) => tile.addEventListener('click', () => {
+      const doc = sorted[Number(tile.dataset.draftIndex || 0)];
+      if (!doc) return;
+      // Reopen the doc-first session: standalone modal with this document in
+      // the editor and the project picker in the left column for attaching.
+      window.Portal?.modules?.request?.openDocumentDraft?.(doc);
+    }));
+  }
+
+  function renderResults(){
+    const results = $('#vResults', panelEl); if (!results) return;
+    if (viewMode === 'drafts'){ renderDraftsView(); return; }
+    if (!allProjects.length){
+      if (hideDrafts && totalUnfilteredCount > 0) {
+        results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;
+        return;
+      }
+      results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_15231f2e986455","No projects yet.") ?? "No projects yet.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_14cd6d654d6fa8","Click \"New Project\" to get started.") ?? "Click \"New Project\" to get started.")}</div></div>`;
+      return;
+    }
+    if (!filteredProjects.length){ results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_6f8bc477c58867","No matches.") ?? "No matches.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_d87926e9f2e245","Try clearing filters or searching a different term.") ?? "Try clearing filters or searching a different term.")}</div></div>`; return; }
     if (viewMode === 'stages'){ renderStagesView(); return; }
     if (viewMode === 'list'){ results.innerHTML = renderListShell(); const scroll = $('#vListScroll', panelEl); for (const p of filteredProjects) scroll.appendChild(createListRow(p)); wireListHeaderSort(); return; }
     results.innerHTML = `<div class="v-grid" id="vGrid"></div>`;
@@ -5387,8 +5763,8 @@
           const tags = [];
           const instantMeta = instantMetaTagHtml(project);
           if (instantMeta) tags.push(instantMeta);
-          if (projectIsExpedited(project)) tags.push(`<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i> Expedited</span>`);
-          if (projectIncludesGutters(project)) tags.push(`<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i> Roof + Gutters</span>`);
+          if (projectIsExpedited(project)) tags.push(`<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>`);
+          if (projectIncludesGutters(project)) tags.push(`<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>`);
           const existingTags = addr.querySelector('.v-meta-tags');
           if (existingTags) existingTags.outerHTML = tags.length ? `<div class="v-meta-tags">${tags.join('')}</div>` : '';
         }
@@ -5471,29 +5847,14 @@
     for (const project of projects){
       if (!needsDisplayHydration(project)) continue;
       const id = String(project.id);
-      if (!id || detailHydrationInFlight.has(id) || detailHydrationQueued.has(id)) continue;
-      detailHydrationQueued.add(id);
-      detailHydrationQueue.push({ id, project });
-    }
-    pumpProjectDetailHydration();
-  }
-  function pumpProjectDetailHydration(){
-    while (detailHydrationActive < DETAIL_HYDRATION_CONCURRENCY && detailHydrationQueue.length){
-      const next = detailHydrationQueue.shift();
-      if (!next) continue;
-      const { id, project } = next;
-      detailHydrationQueued.delete(id);
-      if (!needsDisplayHydration(project) || detailHydrationInFlight.has(id)) continue;
+      if (!id || detailHydrationInFlight.has(id)) continue;
       detailHydrationInFlight.add(id);
-      detailHydrationActive += 1;
       hydrateProjectDetails(project)
         .then((normalized) => {
           if (normalized && normalized !== project) scheduleHydratedDisplayRefresh();
         })
         .finally(() => {
           detailHydrationInFlight.delete(id);
-          detailHydrationActive = Math.max(0, detailHydrationActive - 1);
-          pumpProjectDetailHydration();
         });
     }
   }
@@ -5516,8 +5877,8 @@
   function xmlDownloadPanelHtml(){
     return `
       <div style="display:flex; flex-direction:column; gap:12px; padding-top:14px;">
-        <h4 style="margin:0; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-code" style="color:var(--primary-readable,var(--primary,#d93025));"></i> XML Model</h4>
-        <a href="#" class="v-dlbtn" id="vmXmlPanelDownload"><i class="fas fa-code"></i> Download XML Model</a>
+        <h4 style="margin:0; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-code" style="color:var(--primary-readable,var(--primary,#d93025));"></i>${(globalThis.PlatformLanguage?.text("projects","m_6ee3b17fb03572"," XML Model") ?? " XML Model")}</h4>
+        <a href="#" class="v-dlbtn" id="vmXmlPanelDownload"><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.text("projects","m_53b61658976f5f"," Download XML Model") ?? " Download XML Model")}</a>
       </div>`;
   }
   function pdfPreviewDisabledPanelHtml(url, label){
@@ -5526,9 +5887,9 @@
     return `
       <div class="v-pdf-debug-card">
         <i class="fas fa-file-pdf"></i>
-        <h4>${safeLabel} preview disabled</h4>
-        <p>The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.</p>
-        ${url ? `<a href="${safeUrl}" target="_blank" rel="noopener" class="v-dlbtn"><i class="fas fa-up-right-from-square"></i> Open PDF</a>` : ''}
+        <h4>${((v0) => globalThis.PlatformLanguage?.text("projects","m_73bc2143138bc4",`${v0} preview disabled`,{v0}) ?? `${v0} preview disabled`)(safeLabel)}</h4>
+        <p>${(globalThis.PlatformLanguage?.text("projects","m_2e4271049dbb8a","The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.") ?? "The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.")}</p>
+        ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener" class="v-dlbtn"><i class="fas fa-up-right-from-square"></i> Open PDF</a>` : '')}
       </div>`;
   }
   function hidePdfPreviewDisabledPanel(pending){
@@ -5557,7 +5918,7 @@
       try {
         await forceDownloadFile(url, xmlDownloadName(project));
       } catch (error) {
-        window.PlatformUI?.alert?.('Could not download XML file.') || alert('Could not download XML file.');
+        window.PlatformUI?.alert?.((globalThis.PlatformLanguage?.text("projects","m_8226b65f65880f","Could not download XML file.") ?? "Could not download XML file.")) || alert((globalThis.PlatformLanguage?.text("projects","m_8226b65f65880f","Could not download XML file.") ?? "Could not download XML file."));
         console.error(error);
       }
     });
@@ -5687,7 +6048,7 @@
     if (!button) return;
     button.textContent = text || 'Saved';
     await new Promise((resolve) => setTimeout(resolve, Number(durationMs) || 650));
-    button.textContent = 'Save';
+    button.textContent = (globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save");
   }
   function validateCustomerInfoDraft(draft, options){
     const hasAny = !!(draft?.name || draft?.email || draft?.phone);
@@ -5828,7 +6189,7 @@
     aEl.onclick = null; aEl.onmousedown = null; aEl.removeAttribute('download');
     if (o.forceDownload){
       aEl.href = '#'; aEl.removeAttribute('target');
-      aEl.onclick = async (e)=>{ e.preventDefault(); e.stopPropagation(); try{ await forceDownloadFile(url, o.downloadName || 'model_data.xml'); }catch(err){ window.PlatformUI?.alert?.('Could not download file.') || alert('Could not download file.'); console.error(err); } };
+      aEl.onclick = async (e)=>{ e.preventDefault(); e.stopPropagation(); try{ await forceDownloadFile(url, o.downloadName || 'model_data.xml'); }catch(err){ window.PlatformUI?.alert?.((globalThis.PlatformLanguage?.text("projects","m_5de7e268ab9335","Could not download file.") ?? "Could not download file.")) || alert((globalThis.PlatformLanguage?.text("projects","m_5de7e268ab9335","Could not download file.") ?? "Could not download file.")); console.error(err); } };
       return;
     }
     aEl.href = url;
@@ -5922,10 +6283,10 @@
             await flashCustomerSaveButton(customerEls.save, 'Saved', 650);
           } catch (error) {
             setCustomerInfoMeta(error?.message || 'Could not save contact info.', 'error');
-            window.Portal?.ui?.showToast?.('Contact info', error?.message || 'Could not save contact info.', false);
+            window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_f9a48356b663a0","Contact info") ?? "Contact info"), error?.message || 'Could not save contact info.', false);
           } finally {
             customerEls.save.disabled = false;
-            customerEls.save.textContent = 'Save';
+            customerEls.save.textContent = (globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save");
           }
         };
       }
@@ -5948,7 +6309,7 @@
         } finally {
           if (customerEls.save) {
             customerEls.save.disabled = false;
-            customerEls.save.textContent = 'Save';
+            customerEls.save.textContent = (globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save");
           }
         }
       };
@@ -6028,7 +6389,7 @@
         if (hasInstant) {
           tabs.push({
             id: 'instant',
-            label: 'Instant',
+            label: (globalThis.PlatformLanguage?.text("projects","m_b347d50e8516d3","Instant") ?? "Instant"),
             icon: 'fa-bolt',
             active: activeMeasurementTab === 'instant'
           });
@@ -6053,7 +6414,7 @@
           if (xmlDownloadReady) {
             tabs.push({
               id: 'xml',
-              label: 'XML',
+              label: (globalThis.PlatformLanguage?.text("projects","m_8efb983a491620","XML") ?? "XML"),
               icon: hasFullReady ? 'fa-code' : 'fa-circle-notch fa-spin',
               active: activeMeasurementTab === 'xml',
               disabled: !hasFullReady,
@@ -6063,7 +6424,7 @@
           if (fullReworkPending) {
             tabs.push({
               id: 'changes',
-              label: 'Changes Pending',
+              label: (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"),
               icon: 'fa-clock-rotate-left',
               active: activeMeasurementTab === 'changes'
             });
@@ -6088,7 +6449,7 @@
         if (projectReportMode(p) === 'instant' && !linkedFullProject) {
           actionsHtml = `<button type="button" id="vmOrderFull" class="v-dlbtn">${sidebarOrderLabel()}</button>`;
         } else if (!hasFullReady && wantsFullTab) {
-          actionsHtml = `<div class="v-side-chip pending"><i class="fas fa-circle-notch"></i> Full report is still processing</div>`;
+          actionsHtml = `<div class="v-side-chip pending"><i class="fas fa-circle-notch"></i>${(globalThis.PlatformLanguage?.text("projects","m_058d2a2e01bd08"," Full report is still processing") ?? " Full report is still processing")}</div>`;
         }
         actionsHtml += pendingCustomerReworkNoticeHtml(fullProject);
         renderSidebarActions({
@@ -6335,10 +6696,10 @@
         { id: 'customer', label: standaloneReportIsCorrected ? 'Customer Copy' : 'Customer', icon: 'fa-file-lines', active: standaloneMeasurementTab === 'customer' }
       ];
       if (standaloneXmlDownloadReady) {
-        tabs.push({ id: 'xml', label: 'XML', icon: 'fa-code', active: standaloneMeasurementTab === 'xml' });
+        tabs.push({ id: 'xml', label: (globalThis.PlatformLanguage?.text("projects","m_8efb983a491620","XML") ?? "XML"), icon: 'fa-code', active: standaloneMeasurementTab === 'xml' });
       }
       if (standaloneReworkPending) {
-        tabs.push({ id: 'changes', label: 'Changes Pending', icon: 'fa-clock-rotate-left', active: standaloneMeasurementTab === 'changes' });
+        tabs.push({ id: 'changes', label: (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"), icon: 'fa-clock-rotate-left', active: standaloneMeasurementTab === 'changes' });
       }
       return tabs;
     };
@@ -6519,33 +6880,33 @@
     renderStandaloneTabs();
 
     if (isRejected){
-      currentModalGroup = 'rejected'; statusEl.textContent = 'REJECTED'; statusEl.style.color = '#d93025';
+      currentModalGroup = 'rejected'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_dbcc5bc92eb962","REJECTED") ?? "REJECTED"); statusEl.style.color = '#d93025';
       pending.classList.add('rejected');
       const instantMiss = String(p?.instant_rejection_reason || '').trim().toLowerCase() === 'no_structure_at_pin';
       const showOrderFullFromReject = instantMiss && projectReportMode(p) === 'instant';
-      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-circle-exclamation" style="color:#d93025;"></i> Unable to generate report</h4><div style="font-size:12px; color:#7a1b18; line-height:1.35; padding:10px 12px; border:1px solid #f4b4ae; background:#fce8e6; border-radius:12px;">${buildCoverageRejectionDisclaimer(p)}</div>${rejectedReorderButtonHtml(p)}${showOrderFullFromReject ? `<div style="margin-top:14px;"><button type="button" id="vmRejectedOrderFull" class="v-dlbtn"><i class="fas fa-file-lines"></i> Order Full Report - $${fmtMoney(fullReportBasePrice(p))}</button></div>` : ''}`;
+      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-circle-exclamation" style="color:#d93025;"></i>${(globalThis.PlatformLanguage?.text("projects","m_d017ee19e185ba"," Unable to generate report") ?? " Unable to generate report")}</h4><div style="font-size:12px; color:#7a1b18; line-height:1.35; padding:10px 12px; border:1px solid #f4b4ae; background:#fce8e6; border-radius:12px;">${String(buildCoverageRejectionDisclaimer(p))}</div>${String(rejectedReorderButtonHtml(p))}${String(showOrderFullFromReject ? `<div style="margin-top:14px;"><button type="button" id="vmRejectedOrderFull" class="v-dlbtn"><i class="fas fa-file-lines"></i> Order Full Report - $${fmtMoney(fullReportBasePrice(p))}</button></div>` : '')}`;
       pending.style.display = 'block';
       document.getElementById('vmRejectedReorder')?.addEventListener('click', () => openRejectedReorder(p));
       if (showOrderFullFromReject) {
         document.getElementById('vmRejectedOrderFull')?.addEventListener('click', () => showFullReportUpgradeDialog(p));
       }
     } else if (isCancelled) {
-      currentModalGroup = 'cancelled'; statusEl.textContent = 'CANCELLED'; statusEl.style.color = '#5f6368';
+      currentModalGroup = 'cancelled'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_2fdae33d099b84","CANCELLED") ?? "CANCELLED"); statusEl.style.color = '#5f6368';
       pending.classList.add('cancelled');
-      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-ban" style="color:#5f6368;"></i> Project cancelled</h4><div style="font-size:12px; color:#3c4043; line-height:1.35; padding:10px 12px; border:1px solid #dadce0; background:#f1f3f4; border-radius:12px;">${buildCancellationDisclaimer(p)}</div>`;
+      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-ban" style="color:#5f6368;"></i>${(globalThis.PlatformLanguage?.text("projects","m_3b89c261062af6"," Project cancelled") ?? " Project cancelled")}</h4><div style="font-size:12px; color:#3c4043; line-height:1.35; padding:10px 12px; border:1px solid #dadce0; background:#f1f3f4; border-radius:12px;">${String(buildCancellationDisclaimer(p))}</div>`;
       pending.style.display = 'block';
     } else if (standaloneFullReady) {
       currentModalGroup = 'ready';
       statusEl.textContent = standaloneReworkPending ? 'CHANGES PENDING' : (standaloneReportIsCorrected ? 'CORRECTED REPORT READY' : 'REPORT READY');
       statusEl.style.color = standaloneReworkPending ? '#fbbc04' : '#34a853';
     } else if (projectStatusGroup(p) === 'draft') {
-      currentModalGroup = 'draft'; statusEl.textContent = 'DRAFT'; statusEl.style.color = '#667085';
+      currentModalGroup = 'draft'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_c5801d3bbab0ce","DRAFT") ?? "DRAFT"); statusEl.style.color = '#667085';
     } else if (projectStatusGroup(p) === 'project') {
       currentModalGroup = 'project'; statusEl.textContent = ''; statusEl.style.color = '#5f6368';
     } else {
-      currentModalGroup = 'processing'; statusEl.textContent = 'PROCESSING'; statusEl.style.color = '#fbbc04';
+      currentModalGroup = 'processing'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_1bcd4e4b834c5f","PROCESSING") ?? "PROCESSING"); statusEl.style.color = '#fbbc04';
       pending.classList.add('processing');
-      pending.innerHTML = `<h4 style="margin:14px 0 14px;"><i class="fas fa-circle-notch fa-spin"></i> Report Processing</h4><p style="margin:0; font-size:12px; color:#555;">We are currently generating the report for this location.</p>`;
+      pending.innerHTML = `<h4 style="margin:14px 0 14px;"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("projects","m_d2aae37cb0f341"," Report Processing") ?? " Report Processing")}</h4><p style="margin:0; font-size:12px; color:#555;">${(globalThis.PlatformLanguage?.text("projects","m_85313f431379c3","We are currently generating the report for this location.") ?? "We are currently generating the report for this location.")}</p>`;
       pending.style.display = 'block';
     }
     $('#vOverlay', panelEl).classList.add('active');
@@ -6613,14 +6974,14 @@
       <div id="vmInstantPane" class="v-instant-pane active">
         <div class="v-instant-scene">
           <div class="v-instant-controls">
-            <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">Auto Spin</button>
-            <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i> Reset</button>
-            <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="Zoom instant model"></div>
-            ${INSTANT_PITCH_UI_ENABLED ? '<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i> Pitches On</button>' : ''}
+            <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">${(globalThis.PlatformLanguage?.text("projects","m_c19fecd059fb49","Auto Spin") ?? "Auto Spin")}</button>
+            <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i>${(globalThis.PlatformLanguage?.text("projects","m_f915937425dda7"," Reset") ?? " Reset")}</button>
+            <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_1ef0acc5ffb80c","Zoom instant model") ?? "Zoom instant model")}"></div>
+            ${String(INSTANT_PITCH_UI_ENABLED ? '<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i> Pitches On</button>' : '')}
           </div>
           <canvas id="vmInstantCanvas" class="v-instant-canvas"></canvas>
           <div id="vmInstantLabels" class="v-instant-labels"></div>
-          <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">Instant Report Generating</div></div>
+          <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")}</div></div>
         </div>
         <div id="vmInstantStats" class="v-instant-stats"></div>
       </div>
@@ -6658,12 +7019,11 @@
     const results = $('#vResults', panelEl); if (!results) return;
     const requestSeq = ++fetchProjectsSeq;
     try{
-      if (redraw && !_optimisticProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>Loading projects\u2026</div></div>`; }
+      if (redraw && !_optimisticProjects.length && !allProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.text("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>`; }
       const previousVisibleIds = sortedProjectIds(allProjects);
-      const trimmedSearch = String(searchQuery || '').trim();
       const stagesMode = viewMode === 'stages';
       const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter: statusFilter || 'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
-      if (trimmedSearch.length >= 2) payload.search = trimmedSearch;
+      if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);
       if (requestSeq !== fetchProjectsSeq) return;
       if (data && data.error === 'Not logged in'){ window.location.href = 'login.php'; return; }
@@ -6714,67 +7074,68 @@
       }
       applyQueryFilterSort(); renderPagination();
       hydrateProjectsForDisplay(allProjects);
-    }catch(e){ if (redraw){ results.innerHTML = `<div style="text-align:center; color:var(--primary-readable, var(--primary,#d93025)); font-weight:1000; padding:40px 0;">Error loading projects.</div>`; } }
+    }catch(e){ if (redraw && !allProjects.length){ results.innerHTML = `<div style="text-align:center; color:var(--primary-readable, var(--primary,#d93025)); font-weight:1000; padding:40px 0;">${(globalThis.PlatformLanguage?.text("projects","m_63d938b49a4ff4","Error loading projects.") ?? "Error loading projects.")}</div>`; } }
   }
 
   function mount(panel){
     panelEl = panel;
     injectCSS('viewer', ViewerCSS);
     injectSidebarLogout();
-    viewMode = loadPersistedView();
+    viewMode = requestedViewMode() || defaultViewMode();
+    activeWorkBoardId = requestedWorkBoardId() || rememberedWorkBoardId();
     enforceDraftsHidden();
 
     panelEl.innerHTML = `
       <div class="v-wrap">
         <div class="v-head">
-          <div class="v-title"><h1>My Projects</h1><p class="sub">Search, filter, and open reports.</p></div>
+          <div class="v-title"><h1>${(globalThis.PlatformLanguage?.text("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1><p class="sub">${(globalThis.PlatformLanguage?.text("projects","m_b898e7a01f3962","Filter and open reports.") ?? "Filter and open reports.")}</p></div>
           <div class="v-actions">
-            <div class="v-searchwrap">
-              <i class="fas fa-magnifying-glass v-searchicon"></i>
-              <input id="vSearch" class="v-search" type="text" placeholder="Search address, contact\u2026">
-              <div class="v-clear" id="vClear" data-fm-tooltip="Clear"><i class="fas fa-times"></i></div>
-              <div class="v-suggest" id="vSuggest"></div>
-            </div>
-            <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label"> Tiles</span></button>
-            <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label"> List</span></button>
-            <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label"> Stages</span></button>
-            <button class="v-btn" id="vRefresh"><i class="fas fa-sync-alt"></i><span class="btn-label"> Refresh</span></button>
+            <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
+            <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
+            <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
+            <!-- fa-file-pen needs FA 6.1+; the portal ships FA 6.0. -->
+            <button class="v-btn v-pill" id="vViewDrafts" hidden><i class="fas fa-pen-to-square"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_15edff78f24414"," Drafts") ?? " Drafts")}</span></button>
+            <button class="v-btn" id="vRefresh"><i class="fas fa-sync-alt"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_4f524800833039"," Refresh") ?? " Refresh")}</span></button>
           </div>
         </div>
+        ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? '<input id="vReportSearch" class="v-report-search" type="search" placeholder="Search address, contact…" aria-label="Search projects" autocomplete="off">' : '')}
         <div class="v-bar">
           <div class="v-leftbar">
-            <div class="v-chip"><i class="fas fa-filter"></i><select id="vStatus"><option value="all">All statuses</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option></select></div>
-            <div class="v-chip"><i class="fas fa-arrow-up-wide-short"></i><select id="vSort"><option value="created_at:desc">Newest first</option><option value="created_at:asc">Oldest first</option><option value="address:asc">Address A \u2192 Z</option><option value="address:desc">Address Z \u2192 A</option><option value="resident:asc">Contact A \u2192 Z</option><option value="resident:desc">Contact Z \u2192 A</option><option value="status:asc">Status A \u2192 Z</option><option value="status:desc">Status Z \u2192 A</option></select></div>
-            <div class="v-count" id="vCount">\u2014</div>
+            <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
+            <div class="v-count" id="vCount">—</div>
           </div>
-          <div class="v-rightbar"><div class="v-tip" id="vTip">Tip: Click a column header to sort.</div></div>
+          <div class="v-rightbar">
+            <div class="v-chip" title="${(globalThis.PlatformLanguage?.text("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><i class="fas fa-filter"></i><select id="vStatus" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><option value="all">${(globalThis.PlatformLanguage?.text("projects","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option><option value="ready">${(globalThis.PlatformLanguage?.text("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</option><option value="processing">${(globalThis.PlatformLanguage?.text("projects","m_7244c568a68bff","Processing") ?? "Processing")}</option><option value="rejected">${(globalThis.PlatformLanguage?.text("projects","m_61023422d0cb5d","Rejected") ?? "Rejected")}</option><option value="cancelled">${(globalThis.PlatformLanguage?.text("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled")}</option></select></div>
+            <div class="v-chip" title="${(globalThis.PlatformLanguage?.text("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><i class="fas fa-arrow-up-wide-short"></i><select id="vSort" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><option value="created_at:desc">${(globalThis.PlatformLanguage?.text("projects","m_20923367c9f84a","Newest first") ?? "Newest first")}</option><option value="created_at:asc">${(globalThis.PlatformLanguage?.text("projects","m_ff649e336c32a9","Oldest first") ?? "Oldest first")}</option><option value="address:asc">${(globalThis.PlatformLanguage?.text("projects","m_7852c02c2473f7","Address A → Z") ?? "Address A → Z")}</option><option value="address:desc">${(globalThis.PlatformLanguage?.text("projects","m_b6517b4f34d553","Address Z → A") ?? "Address Z → A")}</option><option value="resident:asc">${(globalThis.PlatformLanguage?.text("projects","m_7c3998611785d4","Contact A → Z") ?? "Contact A → Z")}</option><option value="resident:desc">${(globalThis.PlatformLanguage?.text("projects","m_1d104147be5bf0","Contact Z → A") ?? "Contact Z → A")}</option><option value="status:asc">${(globalThis.PlatformLanguage?.text("projects","m_6e5ff692711330","Status A → Z") ?? "Status A → Z")}</option><option value="status:desc">${(globalThis.PlatformLanguage?.text("projects","m_6475ed7365aa22","Status Z → A") ?? "Status Z → A")}</option></select></div>
+            <div class="v-tip" id="vTip">${(globalThis.PlatformLanguage?.text("projects","m_6dc2ac8df2a515","Tip: Click a column header to sort.") ?? "Tip: Click a column header to sort.")}</div>
+          </div>
         </div>
-        <div id="vResults"><div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>Loading projects\u2026</div></div></div>
+        <div id="vResults"><div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.text("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div></div>
         <div id="vPagination" class="v-pagination"></div>
       </div>
       <div class="v-overlay" id="vOverlay">
         <div class="v-modal" role="dialog" aria-modal="true">
           <div class="v-m-side">
-            <div class="v-m-head"><div class="v-m-title" id="vmAddress">\u2014</div><div class="v-m-status" id="vmStatus">\u2014</div></div>
+            <div class="v-m-head"><div class="v-m-title" id="vmAddress">—</div><div class="v-m-status" id="vmStatus">—</div></div>
             <div class="v-m-body">
-              <div class="v-item"><div class="v-k">Requested By</div><div class="v-v" id="vmIssuer">\u2014</div><div class="v-v" id="vmIssuerEmail" style="font-size:12px; color:#666;"></div></div>
-              <div class="v-item"><div class="v-k">Submitted</div><div class="v-v" id="vmDate">\u2014</div></div>
-              <div class="v-item" id="vmTypeItem" style="display:none;"><div class="v-k">Project Type</div><div class="v-v" id="vmType">\u2014</div></div>
-              <div class="v-item" id="vmScopeItem" style="display:none;"><div class="v-k">Report Scope</div><div class="v-v" id="vmScope">\u2014</div></div>
-              <div class="v-item" id="vmCcItem" style="display:none;"><div class="v-k">CC Recipients</div><div class="v-v" id="vmCcEmails">\u2014</div></div>
-              <div class="v-item" id="vmTechNotesItem" style="display:none;"><div class="v-k">Notes for Technician</div><div class="v-v" id="vmTechNotes" style="white-space:pre-wrap; font-size:12px; line-height:1.45; color:#333; background:#f8f9fa; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,0.06);">\u2014</div></div>
-              <div class="v-item"><label class="v-k" for="vmCustomerName">Contact Name</label><input id="vmCustomerName" class="v-customerInput" type="text" placeholder="Jane Smith"></div>
-              <div class="v-item"><label class="v-k" for="vmCustomerEmail">Contact Email</label><input id="vmCustomerEmail" class="v-customerInput" type="email" placeholder="jane@example.com"></div>
-              <div class="v-item"><label class="v-k" for="vmCustomerPhone">Contact Phone</label><input id="vmCustomerPhone" class="v-customerInput" type="text" placeholder="(555) 555-5555"></div>
-              <div class="v-item v-customerRow"><button type="button" id="vmCustomerSave" class="v-customerSave">Save</button></div>
+              <div class="v-item"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_3d68d8d4229251","Requested By") ?? "Requested By")}</div><div class="v-v" id="vmIssuer">—</div><div class="v-v" id="vmIssuerEmail" style="font-size:12px; color:#666;"></div></div>
+              <div class="v-item"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_e2b803de55a93e","Submitted") ?? "Submitted")}</div><div class="v-v" id="vmDate">—</div></div>
+              <div class="v-item" id="vmTypeItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_29f3cc51016963","Project Type") ?? "Project Type")}</div><div class="v-v" id="vmType">—</div></div>
+              <div class="v-item" id="vmScopeItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_b16c8007140424","Report Scope") ?? "Report Scope")}</div><div class="v-v" id="vmScope">—</div></div>
+              <div class="v-item" id="vmCcItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_77a7e4ecd53cce","CC Recipients") ?? "CC Recipients")}</div><div class="v-v" id="vmCcEmails">—</div></div>
+              <div class="v-item" id="vmTechNotesItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</div><div class="v-v" id="vmTechNotes" style="white-space:pre-wrap; font-size:12px; line-height:1.45; color:#333; background:#f8f9fa; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,0.06);">—</div></div>
+              <div class="v-item"><label class="v-k" for="vmCustomerName">${(globalThis.PlatformLanguage?.text("projects","m_d7bdddf7cb1464","Contact Name") ?? "Contact Name")}</label><input id="vmCustomerName" class="v-customerInput" type="text" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_f022fa62257ce9","Jane Smith") ?? "Jane Smith")}"></div>
+              <div class="v-item"><label class="v-k" for="vmCustomerEmail">${(globalThis.PlatformLanguage?.text("projects","m_3bafbfce9a3a60","Contact Email") ?? "Contact Email")}</label><input id="vmCustomerEmail" class="v-customerInput" type="email" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_564fe2da7605fa","jane@example.com") ?? "jane@example.com")}"></div>
+              <div class="v-item"><label class="v-k" for="vmCustomerPhone">${(globalThis.PlatformLanguage?.text("projects","m_5a562a8569b7f1","Contact Phone") ?? "Contact Phone")}</label><input id="vmCustomerPhone" class="v-customerInput" type="text" placeholder="(555) 555-5555"></div>
+              <div class="v-item v-customerRow"><button type="button" id="vmCustomerSave" class="v-customerSave">${(globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save")}</button></div>
             </div>
             <div class="v-m-foot">
               <div id="vmSideActions" class="v-side-actions"></div>
               <div id="vmSidePop" class="v-side-pop"></div>
               <div class="v-dlwrap">
-                <a href="#" target="_blank" class="v-dlbtn" id="vmDlReport" style="display:none;"><i class="fas fa-file-pdf"></i> Download Report (PDF)</a>
-                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlSummary" style="display:none;"><i class="fas fa-file-lines"></i> Download Customer PDF</a>
-                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlXml" style="display:none;"><i class="fas fa-code"></i> Download XML Model</a>
+                <a href="#" target="_blank" class="v-dlbtn" id="vmDlReport" style="display:none;"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.text("projects","m_58307d78206477"," Download Report (PDF)") ?? " Download Report (PDF)")}</a>
+                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlSummary" style="display:none;"><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.text("projects","m_9008bd9c1cda46"," Download Customer PDF") ?? " Download Customer PDF")}</a>
+                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlXml" style="display:none;"><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.text("projects","m_53b61658976f5f"," Download XML Model") ?? " Download XML Model")}</a>
               </div>
             </div>
           </div>
@@ -6788,14 +7149,14 @@
               <div id="vmInstantPane" class="v-instant-pane">
                 <div class="v-instant-scene">
                   <div class="v-instant-controls">
-                    <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">Auto Spin</button>
-                    <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i> Reset</button>
-                    <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="Zoom instant model"></div>
-                    ${INSTANT_PITCH_UI_ENABLED ? '<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i> Pitches On</button>' : ''}
+                    <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">${(globalThis.PlatformLanguage?.text("projects","m_c19fecd059fb49","Auto Spin") ?? "Auto Spin")}</button>
+                    <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i>${(globalThis.PlatformLanguage?.text("projects","m_f915937425dda7"," Reset") ?? " Reset")}</button>
+                    <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_1ef0acc5ffb80c","Zoom instant model") ?? "Zoom instant model")}"></div>
+                    ${String(INSTANT_PITCH_UI_ENABLED ? '<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i> Pitches On</button>' : '')}
                   </div>
                   <canvas id="vmInstantCanvas" class="v-instant-canvas"></canvas>
                   <div id="vmInstantLabels" class="v-instant-labels"></div>
-                  <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">Generating</div></div>
+                  <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_2aeb07b38d6894","Generating") ?? "Generating")}</div></div>
                 </div>
                 <div id="vmInstantStats" class="v-instant-stats"></div>
               </div>
@@ -6807,17 +7168,28 @@
               <div id="vmFooterPop" class="v-footer-pop"></div>
             </div>
             <div id="vmUpgradeOverlay" class="v-upgrade-overlay">
-              <div id="vmUpgradeDialog" class="v-upgrade-dialog" role="dialog" aria-modal="true" aria-label="Order standard report"></div>
+              <div id="vmUpgradeDialog" class="v-upgrade-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_7247f8e5fa0e91","Order standard report") ?? "Order standard report")}"></div>
             </div>
           </div>
         </div>
       </div>
     `;
 
+    const reportSearch = $('#vReportSearch', panelEl);
+    if (reportSearch) {
+      reportSearch.value = reportSearchQuery;
+      reportSearch.addEventListener('input', () => {
+        reportSearchQuery = reportSearch.value;
+        currentPage = 1;
+        clearTimeout(reportSearchTimer);
+        reportSearchTimer = setTimeout(() => fetchProjects(true), 250);
+      });
+    }
     $('#vRefresh', panelEl)?.addEventListener('click', ()=>{ currentPage = 1; fetchProjects(true); });
-    $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles'));
-    $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list'));
-    $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages'));
+    $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view' }));
+    $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view' }));
+    $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view' }));
+    $('#vViewDrafts', panelEl)?.addEventListener('click', ()=>setView('drafts', { history:'push', source:'projects-view' }));
     window.addEventListener('fm:app-flags:updated', applyStagesViewFlag);
     window.addEventListener('fm:app-flags:failed', applyStagesViewFlag);
     const statusSel = $('#vStatus', panelEl);
@@ -6829,13 +7201,6 @@
     });
     const sortSel = $('#vSort', panelEl);
     sortSel?.addEventListener('change', ()=>{ const val = String(sortSel.value||'created_at:desc'); const parts = val.split(':'); setActiveSort(parts[0] || 'created_at', parts[1] || 'desc'); });
-    const input = $('#vSearch', panelEl); const clear = $('#vClear', panelEl);
-    input?.addEventListener('input', ()=> setSearch(input.value, false));
-    input?.addEventListener('focus', ()=> { if (input.value) showSuggest(); });
-    input?.addEventListener('keydown', (e)=>{ if (e.key === 'Escape'){ hideSuggest(); input.blur(); } if (e.key === 'Enter'){ hideSuggest(); const items = buildSuggestions(8); if (items.length === 1){ const p = lastProjectsById.get(String(items[0].id)); if (p) openModal(p); } } });
-    input?.addEventListener('blur', ()=>{ setTimeout(()=>{ if (!document.activeElement || document.activeElement !== input) hideSuggest(); }, 120); });
-    clear?.addEventListener('click', ()=>{ setSearch('', true); hideSuggest(); input?.focus(); });
-    document.addEventListener('click', (e)=>{ if (!panelEl) return; const sw = panelEl.querySelector('.v-searchwrap'); if (!sw) return; if (sw.contains(e.target)) return; hideSuggest(); }, { passive:true });
     const overlay = $('#vOverlay', panelEl);
     $('#vmX', panelEl).addEventListener('click', closeModal);
     enableSafeBackdropClose(overlay, closeModal);
@@ -6843,7 +7208,7 @@
       if (event.target?.id === 'vmUpgradeOverlay') hideFullReportUpgradeDialog();
     });
     document.getElementById('vmUpgradeDialog')?.addEventListener('click', (event) => event.stopPropagation());
-    setView(viewMode); syncSortDropdown();
+    setView(viewMode, { syncUrl:false }); syncSortDropdown();
     fetchProjects(true);
     pollTimer = setInterval(()=>{ fetchProjects(false); }, 60000);
   }
@@ -6854,6 +7219,18 @@
   };
   window.Portal.modules = window.Portal.modules || {};
   window.Portal.modules.viewer = { refresh: (redraw=true)=>fetchProjects(!!redraw), openProjectById, openProject };
+  window.Portal?.navigation?.registerSchema?.(PROJECT_VIEW_QUERY_KEY, { default:'stages', values:['stages','tiles','list','drafts'], history:'push' });
+  window.Portal?.navigation?.registerSchema?.(PROJECT_BOARD_QUERY_KEY, { history:'push' });
+  window.Portal?.navigation?.registerHandler?.('projects-view', {
+    priority:400,
+    apply:(route) => {
+      if (route.tab !== 'viewer' || !panelEl) return;
+      const next = VIEW_MODES.has(route[PROJECT_VIEW_QUERY_KEY]) ? route[PROJECT_VIEW_QUERY_KEY] : defaultViewMode();
+      if (next !== viewMode) setView(next, { syncUrl:false });
+      const nextBoardId = String(route[PROJECT_BOARD_QUERY_KEY] || '').trim();
+      if (nextBoardId && nextBoardId !== activeWorkBoardId) selectWorkBoard(nextBoardId, { syncUrl:false });
+    }
+  });
 
   /* After a submit/refresh event, do a burst of fast re-polls so the
    * user sees the new project appear and its status update quickly. */
@@ -6871,6 +7248,23 @@
     const redraw = e?.detail?.redraw ?? false;
     fetchProjects(!!redraw && !allProjects.length);
     scheduleBurstPolls();
+  });
+
+  window.addEventListener('fm:work:updated', () => {
+    workBoardsLoaded = false;
+    loadWorkBoards({ refresh:true }).catch(() => null);
+  });
+
+  window.addEventListener('fm:work-configuration:updated', () => {
+    workBoardsLoaded = false;
+    workBoardsPromise = null;
+    loadWorkBoards({ refresh:true }).catch(() => null);
+  });
+
+  window.addEventListener('fm:scope-templates:updated', () => {
+    workBoardsLoaded = false;
+    workBoardsPromise = null;
+    loadWorkBoards({ refresh:true }).catch(() => null);
   });
 
   window.addEventListener('fm:projects:open', (e)=>{
@@ -6926,7 +7320,7 @@
     applyQueryFilterSort();
     renderPagination();
   });
-  window.Portal.apps.registerPortalApp({ id: 'portal.viewer', tabId: 'viewer', title: 'My Projects', icon: 'fa-folder-open', order: 10, mount, onShow: ()=>{ try{ injectSidebarLogout(); }catch(e){} } });
+  window.Portal.apps.registerPortalApp({ id: 'portal.viewer', tabId: 'viewer', title: (globalThis.PlatformLanguage?.text("projects","m_1a8d3340c06415","My Projects") ?? "My Projects"), icon: 'fa-folder-open', order: 10, mount, onShow: ()=>{ try{ injectSidebarLogout(); }catch(e){} } });
   try{ injectCSS('viewer', ViewerCSS); }catch(e){}
   try{ injectSidebarLogout(); }catch(e){}
 })();

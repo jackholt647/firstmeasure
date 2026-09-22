@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -7,9 +7,10 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { createSharedDocument, listSharedDocuments, mutateSharedDocument, readSharedDocument } from "../src/database/shared_documents.js";
 import { deleteSharedObject, getSharedObject, isSpacesArtifactStorageEnabled, putSharedObject } from "../src/storage/project_artifacts.js";
-import { DEFAULT_TEMPLATE_KEY, PRICEBOOK_FILE_NAMES, PRICEBOOK_SCHEMA_VERSION } from "./constants.js";
+import { DEFAULT_TEMPLATE_KEY, GLOBAL_MARKET_PRICEBOOK_ID, PRICEBOOK_FILE_NAMES, PRICEBOOK_SCHEMA_VERSION } from "./constants.js";
 import { DEFAULT_PRICEBOOK_TEMPLATE } from "./default_template.js";
 import { badRequest, conflict, notFound } from "./errors.js";
+import { autoAddScopeItems, resolveCatalogItemToScopeItem, validateCatalogGraph } from "./resolver.js";
 
 export type JsonObject = Record<string, unknown>;
 
@@ -42,7 +43,17 @@ export type CatalogAsset = JsonObject & {
 export type PricebookCatalog = JsonObject & {
   taxonomy: Record<string, unknown>;
   items: Array<Record<string, unknown>>;
+  variation_sets: Array<Record<string, unknown>>;
   assets: CatalogAsset[];
+  settings: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+};
+
+export type OrganizationPricebookOverlay = JsonObject & {
+  schema_version: number;
+  organization_ref: { id: string };
+  global_pricebook_ref: { id: string; revision: number };
+  entries: Array<Record<string, unknown>>;
   settings: Record<string, unknown>;
   metadata: Record<string, unknown>;
 };
@@ -136,6 +147,13 @@ export function readTemplateCatalog(templateKey: string) {
 export async function createPricebook(input: JsonObject = {}) {
   const pricebookId = input.id ? sanitizePricebookId(String(input.id)) : generatePricebookId();
   await ensurePricebookStorage();
+  const organizationId = String(asRecord(input.organization_ref).id ?? "").trim();
+  if (organizationId && pricebookId !== organizationPricebookId(organizationId)) {
+    throw conflict(
+      "organization_pricebook_is_singleton",
+      `Organization '${organizationId}' has one price book. Use its organization price book endpoint instead of creating another.`
+    );
+  }
   const manifestPath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.manifest);
   if (!isFirstMeasurePostgresEnabled() && await pathExists(manifestPath)) {
     throw conflict("pricebook_already_exists", `Price book '${pricebookId}' already exists.`);
@@ -310,6 +328,82 @@ export async function readCatalog(pricebookId: string): Promise<PricebookCatalog
   return normalizeCatalog(raw);
 }
 
+export async function getGlobalMarketPricebook() {
+  const manifestPath = path.join(pricebookDir(GLOBAL_MARKET_PRICEBOOK_ID), PRICEBOOK_FILE_NAMES.manifest);
+  if (!(await pathExists(manifestPath))) {
+    await createPricebook({
+      id: GLOBAL_MARKET_PRICEBOOK_ID,
+      name: "Global Market Price Book",
+      description: "Shared market reference catalog for every organization.",
+      metadata: { pricebook_layer: "global_market" }
+    });
+  }
+  return getPricebookDetail(GLOBAL_MARKET_PRICEBOOK_ID);
+}
+
+export async function getOrganizationPricebook(organizationIdValue: string) {
+  const organizationId = cleanRequiredId(organizationIdValue, "organization_id");
+  const global = await getGlobalMarketPricebook();
+  const pricebookId = organizationPricebookId(organizationId);
+  const manifestPath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.manifest);
+
+  if (!(await pathExists(manifestPath))) {
+    await createPricebook({
+      id: pricebookId,
+      name: "Organization Price Book",
+      description: "Organization catalog linked to the global market price book.",
+      organization_ref: { id: organizationId },
+      metadata: { pricebook_layer: "organization", singleton: true }
+    });
+    const overlay = initialOrganizationOverlay(organizationId, global);
+    await saveOrganizationOverlayRaw(pricebookId, overlay);
+    await saveCatalogRaw(pricebookId, materializeOrganizationCatalog(global.catalog, overlay));
+  }
+
+  const manifest = await readManifest(pricebookId);
+  const overlay = await readOrganizationOverlay(pricebookId, organizationId, global);
+  const catalog = materializeOrganizationCatalog(global.catalog, overlay);
+  return {
+    manifest: {
+      ...manifest,
+      global_pricebook_ref: { id: GLOBAL_MARKET_PRICEBOOK_ID, revision: global.manifest.revision }
+    },
+    catalog,
+    overlay,
+    global: { manifest: global.manifest }
+  };
+}
+
+export async function saveOrganizationCatalog(organizationIdValue: string, catalogInput: unknown, expectedRevision?: number) {
+  const organizationId = cleanRequiredId(organizationIdValue, "organization_id");
+  const current = await getOrganizationPricebook(organizationId);
+  const pricebookId = String(current.manifest.id);
+  const manifest = await readManifest(pricebookId);
+  assertExpectedRevision(manifest, expectedRevision);
+  const global = await getGlobalMarketPricebook();
+  const catalog = normalizeCatalog(catalogInput);
+  const overlay = buildOrganizationOverlay(organizationId, global, catalog, current.overlay);
+  const effectiveCatalog = materializeOrganizationCatalog(global.catalog, overlay);
+  validateCatalogGraph(effectiveCatalog);
+  await saveOrganizationOverlayRaw(pricebookId, overlay);
+  await saveCatalogRaw(pricebookId, effectiveCatalog);
+  manifest.revision += 1;
+  manifest.timestamps = {
+    ...asRecord(manifest.timestamps),
+    updated_at: toSqlDate(new Date().toISOString())
+  };
+  manifest.counts = deriveCounts(effectiveCatalog);
+  await saveManifest(pricebookId, manifest);
+  return {
+    manifest: {
+      ...manifest,
+      global_pricebook_ref: { id: GLOBAL_MARKET_PRICEBOOK_ID, revision: global.manifest.revision }
+    },
+    catalog: effectiveCatalog,
+    overlay
+  };
+}
+
 async function saveCatalogRaw(pricebookId: string, catalog: PricebookCatalog) {
   if (isFirstMeasurePostgresEnabled()) {
     await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => ({ ...current, catalog }), {
@@ -338,6 +432,7 @@ export async function saveCatalog(pricebookId: string, catalogInput: unknown, ex
   const manifest = await readManifest(pricebookId);
   assertExpectedRevision(manifest, expectedRevision);
   const catalog = normalizeCatalog(catalogInput);
+  validateCatalogGraph(catalog);
   await saveCatalogRaw(pricebookId, catalog);
   manifest.revision += 1;
   manifest.timestamps = {
@@ -347,6 +442,16 @@ export async function saveCatalog(pricebookId: string, catalogInput: unknown, ex
   manifest.counts = deriveCounts(catalog);
   await saveManifest(pricebookId, manifest);
   return { manifest, catalog };
+}
+
+export async function resolveItem(pricebookId: string, itemId: string, overrides: JsonObject = {}) {
+  const catalog = await readCatalog(pricebookId);
+  return resolveCatalogItemToScopeItem(catalog, itemId, overrides);
+}
+
+export async function resolveAutoAddItems(pricebookId: string) {
+  const catalog = await readCatalog(pricebookId);
+  return autoAddScopeItems(catalog);
 }
 
 export async function createItem(pricebookId: string, itemInput: Record<string, unknown>, expectedRevision?: number) {
@@ -560,32 +665,239 @@ export async function listPricebookFiles(pricebookId: string): Promise<FileEntry
   return files.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function organizationPricebookId(organizationId: string) {
+  const readable = sanitizePricebookId(organizationId).slice(0, 48);
+  const digest = createHash("sha256").update(organizationId).digest("hex").slice(0, 12);
+  return `org_${readable}_${digest}`;
+}
+
+function organizationOverlayPath(pricebookId: string) {
+  return path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.organizationOverlay);
+}
+
+function cleanRequiredId(value: string, field: string) {
+  const cleaned = String(value ?? "").trim();
+  if (!cleaned) throw badRequest(`missing_${field}`, `${field} is required.`);
+  return cleaned;
+}
+
+function initialOrganizationOverlay(organizationId: string, global: Awaited<ReturnType<typeof getPricebookDetail>>): OrganizationPricebookOverlay {
+  return {
+    schema_version: PRICEBOOK_SCHEMA_VERSION,
+    organization_ref: { id: organizationId },
+    global_pricebook_ref: { id: GLOBAL_MARKET_PRICEBOOK_ID, revision: Number(global.manifest.revision || 1) },
+    entries: global.catalog.items.map((item) => ({
+      id: String(item.id),
+      global_item_ref: { pricebook_id: GLOBAL_MARKET_PRICEBOOK_ID, item_id: String(item.id) },
+      link_mode: "live",
+      overrides: {}
+    })),
+    settings: clone(global.catalog.settings || {}),
+    metadata: { storage_model: "global_references_with_sparse_overrides" }
+  };
+}
+
+async function readOrganizationOverlay(
+  pricebookId: string,
+  organizationId: string,
+  global: Awaited<ReturnType<typeof getPricebookDetail>>
+): Promise<OrganizationPricebookOverlay> {
+  const filePath = organizationOverlayPath(pricebookId);
+  if (!(await pathExists(filePath))) {
+    const legacyCatalog = await readCatalog(pricebookId);
+    const overlay = buildOrganizationOverlay(organizationId, global, legacyCatalog);
+    await saveOrganizationOverlayRaw(pricebookId, overlay);
+    return overlay;
+  }
+  const raw = await readJsonFile<OrganizationPricebookOverlay>(filePath, {
+    code: "organization_pricebook_overlay_not_found",
+    message: `Organization overlay for price book '${pricebookId}' does not exist.`
+  });
+  return {
+    ...asRecord(raw),
+    schema_version: PRICEBOOK_SCHEMA_VERSION,
+    organization_ref: { id: organizationId },
+    global_pricebook_ref: {
+      id: GLOBAL_MARKET_PRICEBOOK_ID,
+      revision: Number(asRecord(raw.global_pricebook_ref).revision || global.manifest.revision || 1)
+    },
+    entries: Array.isArray(raw.entries) ? raw.entries.map(asRecord) : [],
+    settings: asRecord(raw.settings),
+    metadata: asRecord(raw.metadata)
+  } as OrganizationPricebookOverlay;
+}
+
+async function saveOrganizationOverlayRaw(pricebookId: string, overlay: OrganizationPricebookOverlay) {
+  await writeJsonAtomic(organizationOverlayPath(pricebookId), overlay);
+}
+
+function buildOrganizationOverlay(
+  organizationId: string,
+  global: Awaited<ReturnType<typeof getPricebookDetail>>,
+  organizationCatalog: PricebookCatalog,
+  previous?: OrganizationPricebookOverlay
+): OrganizationPricebookOverlay {
+  const globalItems = new Map(global.catalog.items.map((item) => [String(item.id), item]));
+  const previousEntries = new Map((previous?.entries || []).map((entry) => [String(entry.id), entry]));
+  const entries = organizationCatalog.items.map((item) => {
+    const id = String(item.id);
+    const globalItem = globalItems.get(id);
+    if (!globalItem || item.global_link_mode === "local") {
+      return { id, link_mode: "local", item: stripOrganizationMetadata(item) };
+    }
+    const oldEntry = previousEntries.get(id);
+    const requestedMode = String(item.global_link_mode || oldEntry?.link_mode || "live");
+    const linkMode = requestedMode === "snapshot" ? "snapshot" : "live";
+    const sourceSnapshot = linkMode === "snapshot"
+      ? clone(asRecord(oldEntry?.source_snapshot && oldEntry?.link_mode === "snapshot" ? oldEntry.source_snapshot : globalItem))
+      : undefined;
+    const base = linkMode === "snapshot" ? sourceSnapshot! : globalItem;
+    return {
+      id,
+      global_item_ref: { pricebook_id: GLOBAL_MARKET_PRICEBOOK_ID, item_id: id },
+      link_mode: linkMode,
+      ...(sourceSnapshot ? { source_snapshot: sourceSnapshot } : {}),
+      overrides: sparseDifference(base, stripOrganizationMetadata(item))
+    };
+  });
+  return {
+    schema_version: PRICEBOOK_SCHEMA_VERSION,
+    organization_ref: { id: organizationId },
+    global_pricebook_ref: { id: GLOBAL_MARKET_PRICEBOOK_ID, revision: Number(global.manifest.revision || 1) },
+    entries,
+    settings: clone(organizationCatalog.settings || {}),
+    metadata: {
+      ...asRecord(previous?.metadata),
+      storage_model: "global_references_with_sparse_overrides"
+    }
+  };
+}
+
+function materializeOrganizationCatalog(globalCatalog: PricebookCatalog, overlay: OrganizationPricebookOverlay): PricebookCatalog {
+  const globalItems = new Map(globalCatalog.items.map((item) => [String(item.id), item]));
+  const items = overlay.entries.map((entry): JsonObject | null => {
+    const id = String(entry.id || asRecord(entry.global_item_ref).item_id || "");
+    if (entry.link_mode === "local") {
+      return {
+        ...asRecord(entry.item),
+        id,
+        global_link_mode: "local"
+      };
+    }
+    const currentGlobal = globalItems.get(id);
+    const base = entry.link_mode === "snapshot" ? asRecord(entry.source_snapshot) : asRecord(currentGlobal);
+    if (!Object.keys(base).length) return null;
+    const overrides = asRecord(entry.overrides);
+    return {
+      ...(deepMerge(base, overrides) as JsonObject),
+      id,
+      global_item_ref: { pricebook_id: GLOBAL_MARKET_PRICEBOOK_ID, item_id: id },
+      global_link_mode: entry.link_mode === "snapshot" ? "snapshot" : "live",
+      global_overrides: clone(overrides),
+      global_market_snapshot: clone(currentGlobal || base)
+    };
+  }).filter((item): item is JsonObject => item !== null);
+  return normalizeCatalog({
+    taxonomy: globalCatalog.taxonomy,
+    items,
+    variation_sets: globalCatalog.variation_sets,
+    assets: globalCatalog.assets,
+    settings: overlay.settings,
+    metadata: {
+      ...asRecord(globalCatalog.metadata),
+      ...asRecord(overlay.metadata),
+      pricebook_layer: "organization",
+      global_pricebook_ref: overlay.global_pricebook_ref
+    }
+  });
+}
+
+function stripOrganizationMetadata(value: Record<string, unknown>) {
+  const result = clone(value);
+  ["global_item_ref", "global_link_mode", "global_overrides", "global_market_snapshot"].forEach((key) => delete result[key]);
+  return result;
+}
+
+function sparseDifference(baseValue: unknown, nextValue: unknown): unknown {
+  if (Array.isArray(baseValue) || Array.isArray(nextValue)) {
+    return JSON.stringify(baseValue ?? null) === JSON.stringify(nextValue ?? null) ? undefined : clone(nextValue);
+  }
+  if (isRecord(baseValue) && isRecord(nextValue)) {
+    const output: JsonObject = {};
+    for (const [key, value] of Object.entries(nextValue)) {
+      const difference = sparseDifference(baseValue[key], value);
+      if (difference !== undefined) output[key] = difference;
+    }
+    return Object.keys(output).length ? output : undefined;
+  }
+  return Object.is(baseValue, nextValue) ? undefined : clone(nextValue);
+}
+
 function normalizeCatalog(value: unknown): PricebookCatalog {
   const source = asRecord(value);
-  return {
+  const variationSets = source.variation_sets ?? source.variationSets;
+  const catalog = {
     taxonomy: isRecord(source.taxonomy) ? source.taxonomy : clone(DEFAULT_PRICEBOOK_TEMPLATE.catalog.taxonomy),
     items: Array.isArray(source.items) ? source.items.map((item, index) => normalizeItem(asRecord(item), index)).sort(compareItems) : [],
+    variation_sets: Array.isArray(variationSets)
+      ? variationSets.map((set, index) => normalizeVariationSet(asRecord(set), index))
+      : [],
     assets: Array.isArray(source.assets) ? source.assets.map((asset) => normalizeAsset(asRecord(asset))) : [],
     settings: isRecord(source.settings) ? source.settings : {},
     metadata: isRecord(source.metadata) ? source.metadata : {}
   };
+  validateCatalogGraph(catalog);
+  return catalog;
 }
 
 function normalizeItem(value: Record<string, unknown>, index: number) {
-  const unitPrice = Number(value.unitPrice ?? 0);
+  const unitPrice = Number(value.unit_price ?? value.unitPrice ?? value.base_price ?? value.basePrice ?? 0);
+  const mediaRefs = value.media_refs ?? value.mediaRefs;
+  const variationSetRefs = value.variation_set_refs ?? value.variationSetRefs;
+  const selectionGroups = value.selection_groups ?? value.selectionGroups;
   return {
     ...value,
     id: String(value.id ?? "").trim() || `item_${index + 1}`,
+    kind: String(value.kind ?? (Array.isArray(value.components) && value.components.length ? "assembly" : "atomic")),
     name: String(value.name ?? "").trim() || "New Pricebook Item",
     code: value.code == null ? undefined : String(value.code),
+    type: String(value.type ?? value.product_type ?? value.category ?? "Item"),
     category: String(value.category ?? "shingle_roofs"),
-    manufacturer: String(value.manufacturer ?? "generic"),
+    manufacturer: value.manufacturer == null ? "" : String(value.manufacturer),
     segment: String(value.segment ?? "all"),
     unit: String(value.unit ?? "ea"),
+    unit_price: Number.isFinite(unitPrice) ? unitPrice : 0,
+    base_price: Number.isFinite(Number(value.base_price ?? value.basePrice)) ? Number(value.base_price ?? value.basePrice) : (Number.isFinite(unitPrice) ? unitPrice : 0),
+    internal_cost: Number.isFinite(Number(value.internal_cost ?? value.internalCost)) ? Number(value.internal_cost ?? value.internalCost) : 0,
     unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
-    formulaConfig: normalizeFormulaConfig(asRecord(value.formulaConfig)),
+    formulaConfig: normalizeFormulaConfig(asRecord(value.formulaConfig || value.formula_config)),
+    formula_config: isRecord(value.formula_config) ? value.formula_config : normalizeFormulaConfig(asRecord(value.formulaConfig)),
     autoAdd: Boolean(value.autoAdd ?? false),
+    auto_add: Boolean(value.auto_add ?? value.autoAdd ?? false),
     description: value.description == null ? "" : String(value.description),
+    internal_description: value.internal_description == null ? String(value.internalDescription ?? "") : String(value.internal_description),
+    external_description: value.external_description == null ? String(value.externalDescription ?? value.description ?? "") : String(value.external_description),
+    variables: isRecord(value.variables) ? value.variables : {},
+    measurements: isRecord(value.measurements) ? value.measurements : {},
+    media_refs: Array.isArray(mediaRefs)
+      ? mediaRefs.map(asRecord)
+      : [],
+    variation_set_refs: Array.isArray(variationSetRefs)
+      ? variationSetRefs.map((entry) => String(entry)).filter(Boolean)
+      : [],
+    variation_overrides: isRecord(value.variation_overrides || value.variationOverrides) ? asRecord(value.variation_overrides || value.variationOverrides) : {},
+    variations: Array.isArray(value.variations) ? value.variations.map((variation, variationIndex) => normalizeVariation(asRecord(variation), variationIndex)) : [],
+    variant_dimensions: Array.isArray(value.variant_dimensions || value.variantDimensions)
+      ? ((value.variant_dimensions || value.variantDimensions) as unknown[]).map((dimension, dimensionIndex) => normalizeVariantDimension(asRecord(dimension), dimensionIndex))
+      : [],
+    variant_overrides: isRecord(value.variant_overrides || value.variantOverrides) ? asRecord(value.variant_overrides || value.variantOverrides) : {},
+    default_variant_selection: isRecord(value.default_variant_selection || value.defaultVariantSelection) ? asRecord(value.default_variant_selection || value.defaultVariantSelection) : {},
+    default_pricing_update_rule: normalizePriceUpdateRule(asRecord(value.default_pricing_update_rule || value.defaultPricingUpdateRule)),
+    selection: isRecord(value.selection) ? value.selection : {},
+    selection_groups: Array.isArray(selectionGroups)
+      ? selectionGroups.map(asRecord)
+      : [],
+    components: Array.isArray(value.components) ? value.components.map((component, componentIndex) => normalizeComponent(asRecord(component), componentIndex)) : [],
     images: Array.isArray(value.images)
       ? value.images.map((image) => ({
         asset_id: String(asRecord(image).asset_id ?? ""),
@@ -597,6 +909,90 @@ function normalizeItem(value: Record<string, unknown>, index: number) {
     sort_order: Number.isFinite(Number(value.sort_order)) ? Number(value.sort_order) : (index + 1) * 10,
     status: String(value.status ?? "active"),
     metadata: isRecord(value.metadata) ? value.metadata : {}
+  };
+}
+
+function normalizeVariantDimension(value: Record<string, unknown>, index: number) {
+  const kind = ["color", "option", "pricing_policy"].includes(String(value.kind)) ? String(value.kind) : "option";
+  return {
+    ...value,
+    id: String(value.id ?? `dimension_${index + 1}`).trim(),
+    label: String(value.label ?? value.name ?? `Dimension ${index + 1}`),
+    kind,
+    affects_sku: kind === "pricing_policy" ? false : value.affects_sku !== false,
+    values: Array.isArray(value.values) ? value.values.map((entry, valueIndex) => normalizeVariantDimensionValue(asRecord(entry), valueIndex)) : [],
+    metadata: isRecord(value.metadata) ? value.metadata : {}
+  };
+}
+
+function normalizeVariantDimensionValue(value: Record<string, unknown>, index: number) {
+  return {
+    ...value,
+    id: String(value.id ?? value.value ?? `value_${index + 1}`).trim(),
+    label: String(value.label ?? value.name ?? value.id ?? `Value ${index + 1}`),
+    hex: value.hex == null ? null : String(value.hex),
+    image: value.image == null ? null : String(value.image),
+    adjustment: isRecord(value.adjustment) ? value.adjustment : { operation: "none", value: 0, target: "sell_price" },
+    pricing_update_rule: normalizePriceUpdateRule(asRecord(value.pricing_update_rule || value.pricingUpdateRule)),
+    metadata: isRecord(value.metadata) ? value.metadata : {}
+  };
+}
+
+function normalizePriceUpdateRule(value: Record<string, unknown>) {
+  const mode = ["fixed", "live", "conditional"].includes(String(value.mode)) ? String(value.mode) : "fixed";
+  return {
+    ...value,
+    id: String(value.id ?? (mode === "fixed" ? "fixed_forever" : mode)),
+    label: String(value.label ?? (mode === "fixed" ? "Fixed forever" : mode === "live" ? "Live price" : "Conditional price")),
+    mode,
+    source: String(value.source ?? "organization_pricebook"),
+    lock_on: Array.isArray(value.lock_on) ? value.lock_on.map(String) : [],
+    formula: value.formula == null ? null : String(value.formula)
+  };
+}
+
+function normalizeComponent(value: Record<string, unknown>, index: number) {
+  return {
+    ...value,
+    id: String(value.id ?? `component_${index + 1}`),
+    item_ref: String(value.item_ref ?? value.itemRef ?? value.item_id ?? value.itemId ?? "").trim(),
+    included: Boolean(value.included ?? false),
+    price_driving: value.price_driving !== false && value.priceDriving !== false,
+    selection: isRecord(value.selection) ? value.selection : {},
+    variation_selection: isRecord(value.variation_selection || value.variationSelection) ? asRecord(value.variation_selection || value.variationSelection) : {},
+    variables: isRecord(value.variables) ? value.variables : {},
+    measurements: isRecord(value.measurements) ? value.measurements : {},
+    overrides: isRecord(value.overrides) ? value.overrides : {}
+  };
+}
+
+function normalizeVariationSet(value: Record<string, unknown>, index: number) {
+  return {
+    ...value,
+    id: String(value.id ?? `variation_set_${index + 1}`).trim(),
+    label: String(value.label ?? value.name ?? value.id ?? `Variation Set ${index + 1}`),
+    variable_key: String(value.variable_key ?? value.variableKey ?? value.id ?? `variation_${index + 1}`),
+    values: Array.isArray(value.values) ? value.values.map((entry, valueIndex) => normalizeVariationValue(asRecord(entry), valueIndex)) : []
+  };
+}
+
+function normalizeVariationValue(value: Record<string, unknown>, index: number) {
+  const mediaRefs = value.media_refs ?? value.mediaRefs;
+  return {
+    ...value,
+    id: String(value.id ?? value.value ?? `value_${index + 1}`).trim(),
+    label: String(value.label ?? value.name ?? value.id ?? `Value ${index + 1}`),
+    media_refs: Array.isArray(mediaRefs) ? mediaRefs.map(asRecord) : [],
+    overrides: isRecord(value.overrides) ? value.overrides : {}
+  };
+}
+
+function normalizeVariation(value: Record<string, unknown>, index: number) {
+  return {
+    ...value,
+    id: String(value.id ?? `variation_${index + 1}`).trim(),
+    label: String(value.label ?? value.name ?? value.id ?? `Variation ${index + 1}`),
+    overrides: isRecord(value.overrides) ? value.overrides : {}
   };
 }
 
@@ -652,7 +1048,7 @@ function normalizeAsset(value: Record<string, unknown>): CatalogAsset {
 }
 
 function deriveCounts(catalog: PricebookCatalog) {
-  return { items: catalog.items.length, assets: catalog.assets.length };
+  return { items: catalog.items.length, variation_sets: catalog.variation_sets.length, assets: catalog.assets.length };
 }
 
 function nextCatalogRecord(current: SharedPricebookRecord, catalog: PricebookCatalog): SharedPricebookRecord {
@@ -750,6 +1146,7 @@ function asRecord(value: unknown): JsonObject {
 }
 
 function clone<T>(value: T): T {
+  if (value === undefined) return value;
   return JSON.parse(JSON.stringify(value)) as T;
 }
 

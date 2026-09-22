@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-const src=await readFile('../../outputs/qa-pass-build/internal/api.js','utf8');
+const src=await readFile('./dist/internal/api.js','utf8');
 const a=src.indexOf('async function organizationIdsMatchingCustomerEmail('),b=src.indexOf('function sortCustomerDashboardRows(',a);
 let calls=0,sql,params;
 const ctx=vm.createContext({database:{isFirstMeasurePostgresEnabled:()=>true,queryPostgres:async(s,p)=>{calls++;sql=s;params=p;return {rows:[{organization_id:'a'}]}}}});

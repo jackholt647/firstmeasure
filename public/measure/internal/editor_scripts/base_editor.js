@@ -238,7 +238,7 @@ window.createBaseEditor=function(host){
    if(e&&mouse){const p=position(e,mouse.v,B.center(source).z);if(p)t.anchor={...p,z:pl.dx*p.x+pl.dy*p.y+pl.k};}
    const result=window.WallSteps.basePattern(t.original,t.faceId,t.count,t.anchor,t.sizeScale||1,{alignToBoundary:!(typeof isFreeMove!=='undefined'&&isFreeMove)}),next=result.base,edits=window.WallBaseBinding.follow(t.originalEdits,t.original,next);
    if(t.originalEdits.$base)edits.$base=next;state().wallEdits=edits;state().base=next;t.valid=true;t.pattern=result.pattern;if(t.sizeScale&&t.count>1)t.sizeScale=t.pattern.spacing*t.pattern.sections/t.pattern.run;
-   message=t.count+' base steps · '+(Math.abs(t.pattern.rise)/t.count/.3048).toFixed(2)+' ft rise · '+(t.pattern.spacing/.3048).toFixed(2)+' ft width'+(result.alignedToBoundary?' · aligned to base edge':'')+' · S count; move offset; Ctrl+wheel width; click to place';
+   message=t.count+' base steps · '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((Math.abs(t.pattern.rise)/t.count/.3048), 'ft') : (Math.abs(t.pattern.rise)/t.count/.3048).toFixed(2)+" ft")+" rise · "+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((t.pattern.spacing/.3048), 'ft') : (t.pattern.spacing/.3048).toFixed(2)+" ft")+" width"+(result.alignedToBoundary?' · aligned to base edge':'')+' · S count; move offset; Ctrl+wheel width; click to place';
   }catch(e){t.valid=false;message=e.message;}
  }
  function placeStep(){if(!tool?.valid)return;const t=tool,next=copy(base());state().wallEdits=copy(t.originalEdits);state().base=next;record(t.original);tool=null;changed();}

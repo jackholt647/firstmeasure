@@ -7,7 +7,6 @@ import { chromium } from "playwright-core";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { codeReportStorageRoot, readCodeReport } from "./storage.js";
 import type { CodeReport } from "./types.js";
-import { finalizeFirstMatePdf } from "../src/pdf_metadata.js";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PAGE_WIDTH_PX = 1836;
@@ -71,18 +70,12 @@ export async function renderCodeReportPdfDocument(report: CodeReport) {
     }), { waitUntil: "domcontentloaded" });
     await page.evaluate(() => document.fonts.ready);
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => null);
-    const pdf = await page.pdf({
+    return await page.pdf({
       printBackground: true,
       width: `${PAGE_WIDTH_PX}px`,
       height: `${PAGE_HEIGHT_PX}px`,
       margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
       preferCSSPageSize: true
-    });
-    const address = String(report.property.matched_address ?? report.property.input_address ?? "Property").trim() || "Property";
-    return finalizeFirstMatePdf(pdf, {
-      title: `${address} - FirstMate Code Report`,
-      subject: "FirstMate property code report",
-      keywords: ["building code", "roofing code", "report"]
     });
   } finally {
     await browser.close();

@@ -1,5 +1,220 @@
 {
+  "schemaVersion": 5,
+  "settings": {
+    "default_pricing_policies": [
+      { "id": "fixed_forever", "label": "Fixed forever", "mode": "fixed", "source": "organization_pricebook", "lock_on": ["send"] },
+      { "id": "good_for_30_days", "label": "Good for 30 days", "mode": "conditional", "source": "organization_pricebook", "lock_on": ["signature"], "expires_after": { "amount": 30, "unit": "days" } },
+      { "id": "cost_plus_until_signed", "label": "Cost plus until signed", "mode": "live", "source": "organization_pricebook", "lock_on": ["signature"] }
+    ]
+  },
   "items": [
+    {
+      "id": "roof_replacement",
+      "kind": "assembly",
+      "name": "Roof Replacement",
+      "category": "shingle_roofs",
+      "unit": "ea",
+      "unitPrice": 0,
+      "unit_price": 0,
+      "base_price": 0,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "number",
+            "value": "1"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": true,
+      "auto_add": true,
+      "description": "Complete sloped roof replacement scope assembled from reusable price book items.",
+      "itemTypeId": "roof_replacement",
+      "itemTypeName": "Roof Replacement",
+      "variantId": "standard",
+      "variantName": "Standard",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "variables": {},
+      "measurements": {},
+      "selection": {
+        "mode": "fixed",
+        "selected": true,
+        "selectable_by": [
+          "internal"
+        ]
+      },
+      "selection_groups": [
+        {
+          "id": "shingle_profile",
+          "title": "Shingle Profile",
+          "behavior": "single",
+          "required": true,
+          "selectable_by": [
+            "internal",
+            "customer"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "id": "roof_tearoff",
+          "item_ref": "tearoff",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_underlayment",
+          "item_ref": "underlayment",
+          "included": false,
+          "price_driving": true
+        },
+        {
+          "id": "roof_architectural_shingles",
+          "item_ref": "laminated_shingles",
+          "included": false,
+          "price_driving": true,
+          "selection": {
+            "mode": "choice",
+            "group_id": "shingle_profile",
+            "group_behavior": "single",
+            "selected": true,
+            "default_selected": true,
+            "selectable_by": [
+              "internal",
+              "customer"
+            ]
+          },
+          "variation_selection": {
+            "default_variation_id": "charcoal",
+            "selectable_by": [
+              "internal",
+              "customer"
+            ]
+          }
+        },
+        {
+          "id": "roof_three_tab_shingles",
+          "item_ref": "three_tab_shingles",
+          "included": false,
+          "price_driving": true,
+          "selection": {
+            "mode": "choice",
+            "group_id": "shingle_profile",
+            "group_behavior": "single",
+            "selected": false,
+            "default_selected": false,
+            "selectable_by": [
+              "internal",
+              "customer"
+            ]
+          },
+          "variation_selection": {
+            "default_variation_id": "charcoal",
+            "selectable_by": [
+              "internal",
+              "customer"
+            ]
+          }
+        },
+        {
+          "id": "roof_starter",
+          "item_ref": "starter",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_ridge_cap",
+          "item_ref": "ridge_cap",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_drip_edge",
+          "item_ref": "drip_edge",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_valley_metal",
+          "item_ref": "valley_metal",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_headwall_flashing",
+          "item_ref": "headwall_flashing",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_sidewall_flashing",
+          "item_ref": "sidewall_flashing",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_ridge_vent",
+          "item_ref": "ridge_vent",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_pipe_boots",
+          "item_ref": "pipe_boot",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_skylight_flashing",
+          "item_ref": "skylight_flashing",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_chimney_flashing",
+          "item_ref": "chimney_flashing",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_gutters",
+          "item_ref": "gutter_replace",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_downspouts",
+          "item_ref": "downspout",
+          "included": true,
+          "price_driving": true
+        },
+        {
+          "id": "roof_weatherwatch_upgrade",
+          "item_ref": "gaf_weatherwatch",
+          "included": false,
+          "price_driving": true,
+          "selection": {
+            "mode": "optional",
+            "selected": false,
+            "default_selected": false,
+            "selectable_by": [
+              "internal",
+              "customer"
+            ]
+          }
+        },
+        {
+          "id": "roof_steep_slope",
+          "item_ref": "steep_slope",
+          "included": true,
+          "price_driving": true
+        }
+      ],
+      "optionDefinitions": [],
+      "defaultOptions": {},
+      "metadata": {}
+    },
     {
       "id": "matlab_misc",
       "name": "MatLab",
@@ -68,7 +283,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Tear-off and disposal of existing roofing",
       "itemTypeId": "tearoff",
       "itemTypeName": "Remove Existing Roofing",
@@ -95,7 +310,7 @@
         ],
         "includeWaste": true
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Field shingles with waste applied automatically",
       "itemTypeId": "field_shingles",
       "itemTypeName": "Shingles",
@@ -139,11 +354,91 @@
       ],
       "defaultOptions": {
         "color": "weathered_wood"
+      },
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "three_tab_shingles",
+      "name": "Three-Tab Shingles",
+      "category": "shingle_roofs",
+      "manufacturer": "generic",
+      "unit": "sq",
+      "unitPrice": 315,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Three-tab field shingles with waste applied automatically",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "generic_three_tab",
+      "variantName": "Three-Tab",
+      "variantGroupId": "unbranded",
+      "variantGroupName": "Unbranded",
+      "variantRole": "standard",
+      "isDefaultVariant": false,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "barkwood",
+              "label": "Barkwood"
+            },
+            {
+              "value": "shakewood",
+              "label": "Shakewood"
+            },
+            {
+              "value": "driftwood",
+              "label": "Driftwood"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      },
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
       }
     },
     {
       "id": "gaf_hd",
-      "name": "GAF Timberline HDZ",
+      "name": "GAF HDZ",
       "category": "shingle_roofs",
       "manufacturer": "gaf",
       "unit": "sq",
@@ -201,6 +496,202 @@
       ],
       "defaultOptions": {
         "color": "weathered_wood"
+      },
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "gaf_ns",
+      "name": "GAF NS",
+      "category": "shingle_roofs",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 348,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "GAF Natural Shadow architectural shingle",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "gaf_natural_shadow",
+      "variantName": "Natural Shadow",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {},
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "gaf_uhdz",
+      "name": "GAF UHDZ",
+      "category": "shingle_roofs",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 465,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "GAF Timberline UHDZ premium architectural shingle",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "gaf_timberline_uhdz",
+      "variantName": "Timberline UHDZ",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "premium",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {},
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "gaf_camelot_ii",
+      "name": "GAF Camelot II",
+      "category": "shingle_roofs",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 525,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Designer shingle with slate-like profile",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "gaf_camelot_ii",
+      "variantName": "Camelot II",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "designer",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {},
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "gaf_slateline",
+      "name": "GAF Slateline",
+      "category": "shingle_roofs",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 498,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Designer architectural shingle with slate styling",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "gaf_slateline",
+      "variantName": "Slateline",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "designer",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {},
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "gaf_grand_sequoia",
+      "name": "GAF Grand Sequoia",
+      "category": "shingle_roofs",
+      "manufacturer": "gaf",
+      "unit": "sq",
+      "unitPrice": 545,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Designer shingle with heavy wood-shake styling",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "gaf_grand_sequoia",
+      "variantName": "Grand Sequoia",
+      "variantGroupId": "gaf",
+      "variantGroupName": "GAF",
+      "variantRole": "designer",
+      "isDefaultVariant": false,
+      "optionDefinitions": [],
+      "defaultOptions": {},
+      "variation_set_refs": [
+        "shingle_color"
+      ],
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
       }
     },
     {
@@ -263,6 +754,12 @@
       ],
       "defaultOptions": {
         "color": "weathered_wood"
+      },
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
       }
     },
     {
@@ -325,6 +822,80 @@
       ],
       "defaultOptions": {
         "color": "weathered_wood"
+      },
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
+      }
+    },
+    {
+      "id": "certainteed_landmark",
+      "name": "CertainTeed Landmark",
+      "category": "shingle_roofs",
+      "manufacturer": "certainteed",
+      "unit": "sq",
+      "unitPrice": 412,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "shingleSquares"
+          }
+        ],
+        "includeWaste": true
+      },
+      "autoAdd": false,
+      "description": "Architectural laminate shingle",
+      "itemTypeId": "field_shingles",
+      "itemTypeName": "Shingles",
+      "variantId": "certainteed_landmark",
+      "variantName": "Landmark",
+      "variantGroupId": "certainteed",
+      "variantGroupName": "CertainTeed",
+      "variantRole": "branded",
+      "isDefaultVariant": false,
+      "optionDefinitions": [
+        {
+          "id": "color",
+          "label": "Color",
+          "type": "select",
+          "defaultValue": "weathered_wood",
+          "required": true,
+          "values": [
+            {
+              "value": "weathered_wood",
+              "label": "Weathered Wood"
+            },
+            {
+              "value": "charcoal",
+              "label": "Charcoal"
+            },
+            {
+              "value": "burnt_sienna",
+              "label": "Burnt Sienna"
+            },
+            {
+              "value": "moire_black",
+              "label": "Moire Black"
+            },
+            {
+              "value": "resawn_shake",
+              "label": "Resawn Shake"
+            }
+          ],
+          "metadata": {}
+        }
+      ],
+      "defaultOptions": {
+        "color": "weathered_wood"
+      },
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "packages_per_unit": 3,
+        "description": "3 bundles per square"
       }
     },
     {
@@ -351,7 +922,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Starter along eaves and rakes",
       "itemTypeId": "starter",
       "itemTypeName": "Starter Strip",
@@ -362,7 +933,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "units_per_package": 120,
+        "description": "Bundle covers 120 lf"
+      }
     },
     {
       "id": "ridge_cap",
@@ -388,7 +965,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Hip and ridge cap shingles",
       "itemTypeId": "ridge_cap",
       "itemTypeName": "Ridge Cap",
@@ -432,6 +1009,12 @@
       ],
       "defaultOptions": {
         "color": "weathered_wood"
+      },
+      "order_packaging": {
+        "order_unit": "bundle",
+        "order_unit_plural": "bundles",
+        "units_per_package": 25,
+        "description": "Bundle covers 25 lf"
       }
     },
     {
@@ -450,7 +1033,7 @@
         ],
         "includeWaste": true
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Synthetic felt underlayment",
       "itemTypeId": "underlayment",
       "itemTypeName": "Underlayment",
@@ -461,7 +1044,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 10,
+        "description": "10-square roll"
+      }
     },
     {
       "id": "gaf_shinglemate",
@@ -490,7 +1079,13 @@
       "variantRole": "branded",
       "isDefaultVariant": false,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 4,
+        "description": "4-square roll"
+      }
     },
     {
       "id": "gaf_feltbuster",
@@ -519,7 +1114,13 @@
       "variantRole": "branded",
       "isDefaultVariant": false,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 10,
+        "description": "10-square roll"
+      }
     },
     {
       "id": "gaf_tiger_paw",
@@ -548,7 +1149,13 @@
       "variantRole": "branded",
       "isDefaultVariant": false,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 10,
+        "description": "10-square roll"
+      }
     },
     {
       "id": "steep_slope",
@@ -582,7 +1189,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Additional labor for steep slope roof sections",
       "itemTypeId": "steep_slope",
       "itemTypeName": "Steep Slope Charge",
@@ -649,7 +1256,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Eaves and valleys ice barrier",
       "itemTypeId": "leak_barrier",
       "itemTypeName": "Leak Barrier",
@@ -660,7 +1267,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 2,
+        "description": "2-square roll (66.7 ft)"
+      }
     },
     {
       "id": "gaf_weatherwatch",
@@ -689,7 +1302,13 @@
       "variantRole": "branded",
       "isDefaultVariant": false,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 1.5,
+        "description": "1.5-square roll (50 ft)"
+      }
     },
     {
       "id": "owens_weatherlock",
@@ -718,7 +1337,13 @@
       "variantRole": "branded",
       "isDefaultVariant": false,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 2,
+        "description": "2-square roll (66.7 ft)"
+      }
     },
     {
       "id": "drip_edge",
@@ -744,7 +1369,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Metal drip edge at perimeter",
       "itemTypeId": "drip_edge",
       "itemTypeName": "Drip Edge",
@@ -776,6 +1401,12 @@
       ],
       "defaultOptions": {
         "color": "black"
+      },
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft piece"
       }
     },
     {
@@ -794,7 +1425,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Open valley metal in roof valleys",
       "itemTypeId": "valley_metal",
       "itemTypeName": "Valley Metal",
@@ -826,15 +1457,48 @@
       ],
       "defaultOptions": {
         "color": "black"
+      },
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft piece"
       }
     },
     {
       "id": "pipe_boot",
-      "name": "Skylight Flashing",
+      "name": "Pipe Boots",
       "category": "flashing",
       "segment": "sloped",
       "unit": "ea",
       "unitPrice": 95,
+      "formulaConfig": {
+        "tokens": [
+          {
+            "type": "measurement",
+            "value": "pipeBootsEa"
+          }
+        ],
+        "includeWaste": false
+      },
+      "autoAdd": false,
+      "description": "Replace roof pipe boot flashings",
+      "itemTypeId": "pipe_boot",
+      "itemTypeName": "Pipe Boots",
+      "variantId": "generic",
+      "variantName": "Pipe Boots",
+      "variantRole": "generic",
+      "isDefaultVariant": true,
+      "optionDefinitions": [],
+      "defaultOptions": {}
+    },
+    {
+      "id": "skylight_flashing",
+      "name": "Skylight Flashing",
+      "category": "flashing",
+      "segment": "sloped",
+      "unit": "ea",
+      "unitPrice": 125,
       "formulaConfig": {
         "tokens": [
           {
@@ -846,7 +1510,7 @@
       },
       "autoAdd": false,
       "description": "Replace skylight flashing kits",
-      "itemTypeId": "pipe_boot",
+      "itemTypeId": "skylight_flashing",
       "itemTypeName": "Skylight Flashing",
       "variantId": "generic",
       "variantName": "Skylight Flashing",
@@ -907,7 +1571,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft piece"
+      }
     },
     {
       "id": "sidewall_flashing",
@@ -934,7 +1604,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft piece"
+      }
     },
     {
       "id": "tpo_drain",
@@ -1004,7 +1680,7 @@
         ],
         "includeWaste": false
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Continuous ridge ventilation",
       "itemTypeId": "ridge_vent",
       "itemTypeName": "Ridge Vent",
@@ -1013,7 +1689,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 4,
+        "description": "4 ft stick"
+      }
     },
     {
       "id": "chimney_flashing",
@@ -1091,7 +1773,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft section"
+      }
     },
     {
       "id": "tpo_membrane",
@@ -1108,7 +1796,7 @@
         ],
         "includeWaste": true
       },
-      "autoAdd": true,
+      "autoAdd": false,
       "description": "Single-ply membrane roofing",
       "itemTypeId": "flat_roof_membrane",
       "itemTypeName": "Flat Roof Membrane",
@@ -1144,6 +1832,15 @@
       ],
       "defaultOptions": {
         "color": "white"
+      },
+      "variation_set_refs": [
+        "membrane_color"
+      ],
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 10,
+        "description": "10 ft x 100 ft roll"
       }
     },
     {
@@ -1172,7 +1869,13 @@
       "variantRole": "standard",
       "isDefaultVariant": false,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "roll",
+        "order_unit_plural": "rolls",
+        "units_per_package": 1,
+        "description": "1-square roll"
+      }
     },
     {
       "id": "transition_metal",
@@ -1198,7 +1901,13 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft piece"
+      }
     },
     {
       "id": "flat_roof_chimney",
@@ -1258,9 +1967,85 @@
       "variantRole": "generic",
       "isDefaultVariant": true,
       "optionDefinitions": [],
-      "defaultOptions": {}
+      "defaultOptions": {},
+      "order_packaging": {
+        "order_unit": "piece",
+        "order_unit_plural": "pieces",
+        "units_per_package": 10,
+        "description": "10 ft piece"
+      }
     }
   ],
   "schemaVersion": 4,
-  "variationSchemaVersion": 1
+  "variationSchemaVersion": 1,
+  "variation_sets": [
+    {
+      "id": "shingle_color",
+      "label": "Shingle Color",
+      "variable_key": "shingle_color",
+      "values": [
+        {
+          "id": "charcoal",
+          "label": "Charcoal",
+          "overrides": {
+            "variables": {
+              "color": "charcoal"
+            }
+          }
+        },
+        {
+          "id": "weathered_wood",
+          "label": "Weathered Wood",
+          "overrides": {
+            "variables": {
+              "color": "weathered_wood"
+            }
+          }
+        },
+        {
+          "id": "shakewood",
+          "label": "Shakewood",
+          "overrides": {
+            "variables": {
+              "color": "shakewood"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "membrane_color",
+      "label": "Membrane Color",
+      "variable_key": "membrane_color",
+      "values": [
+        {
+          "id": "white",
+          "label": "White",
+          "overrides": {
+            "variables": {
+              "color": "white"
+            }
+          }
+        },
+        {
+          "id": "gray",
+          "label": "Gray",
+          "overrides": {
+            "variables": {
+              "color": "gray"
+            }
+          }
+        },
+        {
+          "id": "tan",
+          "label": "Tan",
+          "overrides": {
+            "variables": {
+              "color": "tan"
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

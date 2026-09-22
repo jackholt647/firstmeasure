@@ -170,7 +170,7 @@ const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideStic
 
 })(typeof window!=='undefined'?window:globalThis);
 
-(function(){if(typeof window==='undefined')return;const F=window.WallFeatures;
+(function(){if(typeof window==='undefined')return;const root=window,F=window.WallFeatures;
 
 F.mountUI=function(command,selection,busy=()=>false,materials={}){
  if(typeof document==='undefined')return;
@@ -235,7 +235,7 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  face.onclick=()=>{placementPanel.hidden=true;panel.hidden=!panel.hidden;face.setAttribute('aria-expanded',String(!panel.hidden));};
  panel.querySelector('.exterior-face-heading button').onclick=()=>{closeFace();face.focus();};
  // Build the complete catalog once so opening never waits on a render or rebuild.
- const choices=[],feet=n=>{const inches=Math.round(n*12),f=Math.floor(inches/12),i=inches%12;return f+'′'+(i?i+'″':'');};
+ const choices=[],feet=n=>{if(root.ReportUnits?.current().metric)return root.ReportUnits.current().quantity(n,"ft");const inches=Math.round(n*12),f=Math.floor(inches/12),i=inches%12;return f+'′'+(i?i+'″':'');};
  const addChoice=(container,type,preset,label)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.type=type;b.dataset.preset=preset===null?'current':String(preset);b.setAttribute('aria-label',(F.defs.get(type)?.name||'Untyped face')+' · '+label);b.onclick=()=>{if(busy())return;const place=!selection();if(place&&preset===null)return;if(place){command(type,preset,true);closeFace();}else command(type,preset);F.refreshUI();};container.appendChild(b);choices.push({b,type,preset});};
  for(const def of [{id:'none',name:'Untyped face',color:'#c1ccd5',sizes:[]},...F.defs.values()]){
   const row=document.createElement('tr'),heading=document.createElement('th'),cell=document.createElement('td'),options=document.createElement('div');heading.scope='row';const name=document.createElement('span');name.className='exterior-face-type';const swatch=document.createElement('span');swatch.className='exterior-swatch';swatch.style.background=def.color;name.append(swatch,document.createTextNode(def.name));heading.appendChild(name);options.className='exterior-size-options';cell.appendChild(options);row.append(heading,cell);panel.querySelector('tbody').appendChild(row);
@@ -259,11 +259,11 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
    const standard=def.sizes.map((s,index)=>({...s,index})).filter(s=>s.shape==='rectangle'&&Number.isInteger(s.w)&&Number.isInteger(s.h)),widths=[...new Set(standard.map(s=>s.w))].sort((a,b)=>a-b),heights=[...new Set(standard.map(s=>s.h))].sort((a,b)=>a-b);
    const table=document.createElement('table');table.className='placement-matrix';const head=document.createElement('thead'),tr=document.createElement('tr'),corner=document.createElement('th');corner.textContent='Height / Width';tr.appendChild(corner);for(const w of widths){const th=document.createElement('th');th.scope='col';th.textContent=feet(w);tr.appendChild(th);}head.appendChild(tr);table.appendChild(head);const body=document.createElement('tbody');table.appendChild(body);main.appendChild(table);
 
-   for(const h of heights){const row=document.createElement('tr'),th=document.createElement('th');th.scope='row';th.textContent=feet(h);row.appendChild(th);for(const w of widths){const cell=document.createElement('td'),size=standard.find(s=>s.w===w&&s.h===h);if(size)add(cell,size.index,w+' \u00d7 '+h);else cell.textContent='\u2014';row.appendChild(cell);}body.appendChild(row);}
+   for(const h of heights){const row=document.createElement('tr'),th=document.createElement('th');th.scope='row';th.textContent=feet(h);row.appendChild(th);for(const w of widths){const cell=document.createElement('td'),size=standard.find(s=>s.w===w&&s.h===h);if(size)add(cell,size.index,(root.ReportUnits?.current().metric?feet(w)+' \u00d7 '+feet(h):w+' \u00d7 '+h));else cell.textContent='\u2014';row.appendChild(cell);}body.appendChild(row);}
    const extras=def.sizes.map((s,index)=>({...s,index})).filter(s=>!standard.some(v=>v.index===s.index));if(extras.length){const heading=document.createElement('h5');heading.textContent='Other sizes & shapes';other.appendChild(heading);const options=document.createElement('div');options.className='exterior-size-options';other.appendChild(options);for(const s of extras)add(options,s.index,feet(s.w)+' \u00d7 '+feet(s.h)+(s.shape==='circle'?' \u00b7 Round':''));}
    }
   }
-  const size=def.sizes[active.index];placementPanel.querySelector('.placement-current').textContent='Selected: '+feet(size.w)+' wide \u00d7 '+feet(size.h)+' tall'+(size.shape==='circle'?' \u00b7 Round':'')+(F.supportsTrim(active.type)?' · Trim: '+(active.trimInches?active.trimInches+' in':'off')+' · T cycles trim.':'')+'. Click the wall to place.';
+  const size=def.sizes[active.index];placementPanel.querySelector('.placement-current').textContent='Selected: '+feet(size.w)+' wide \u00d7 '+feet(size.h)+' tall'+(size.shape==='circle'?' \u00b7 Round':'')+(F.supportsTrim(active.type)?' · Trim: '+(active.trimInches?(root.ReportUnits?.current().metric?root.ReportUnits.current().quantity(active.trimInches,'inch'):active.trimInches+' in'):'off')+' · T cycles trim.':'')+'. Click the wall to place.';
   for(const {b,index}of placementChoices)b.setAttribute('aria-pressed',String(index===active.index));
  }
  const toggle=document.createElement('button');toggle.className='exterior-sticker-toggle';toggle.innerHTML='<i class="fas fa-chevron-right" aria-hidden="true"></i>';toggle.title='Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded','true');toggle.onclick=()=>{strip.hidden=!strip.hidden;closeFace();placementPanel.hidden=true;toggle.innerHTML='<i class="fas fa-chevron-'+(strip.hidden?'left':'right')+'" aria-hidden="true"></i>';toggle.title=strip.hidden?'Show wall stickers':'Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(!strip.hidden));};bar.appendChild(toggle);parent.appendChild(bar);

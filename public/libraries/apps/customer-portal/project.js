@@ -36,7 +36,9 @@
   }
 
   function modelFromContext(context = {}){
-    return context.projectModel || context.model || window.FirstMateAppContext?.modelFromContext?.(context) || state.model || null;
+    if (context.projectModel || context.model) return context.projectModel || context.model;
+    if (context.projectWorkspace || context.host) return null;
+    return state.model || window.FirstMateAppContext?.modelFromContext?.(context) || null;
   }
 
   function project(){
@@ -169,9 +171,9 @@
       mediaHtml = `<img src="${escapeHtml(imageSrc)}" alt="${safeAlt}" loading="lazy" decoding="async" data-cp-thumb-img data-cp-base-src="${escapeHtml(imageSrc)}" data-cp-media-kind="image">`;
     }
     return `
-      <div class="r-cp-thumb${mediaHtml ? '' : ' failed'}">
-        ${mediaHtml}
-        <span class="r-cp-fallback"><i class="fas ${fallbackIcon}"></i><span>Preview unavailable</span></span>
+      <div class="r-cp-thumb${String(mediaHtml ? '' : ' failed')}">
+        ${String(mediaHtml)}
+        <span class="r-cp-fallback"><i class="fas ${String(fallbackIcon)}"></i><span>${(globalThis.PlatformLanguage?.text("customer-portal","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</span></span>
         <span class="r-cp-check"><i class="fas fa-check"></i></span>
       </div>
     `;
@@ -312,12 +314,15 @@
       setPortal({ ...state.portal, loading: false, portal: result.portal || state.portal.portal, error: '' });
       const sourceBucket = shared ? 'unshared' : 'shared';
       ids.forEach((id) => state.mediaSelection[sourceBucket]?.delete(id));
-      showToast(shared ? 'Shared with portal' : 'Removed from portal', `${ids.length} item${ids.length === 1 ? '' : 's'} updated.`, true);
+      showToast(shared ? 'Shared with portal' : 'Removed from portal', ((v0,v1) => globalThis.PlatformLanguage?.text("customer-portal","m_e95c22e05588b5",`${v0} item${v1} updated.`,{v0,v1}) ?? `${v0} item${v1} updated.`)(ids.length,ids.length === 1 ? '' : 's'), true);
+      render();
+      return true;
     } catch (error) {
       setPortal({ ...state.portal, loading: false, error: error?.message || 'Could not update sharing.' });
-      showToast('Portal update failed', state.portal.error, false);
+      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_0834090fafcc24","Portal update failed") ?? "Portal update failed"), state.portal.error, false);
+      render();
+      return false;
     }
-    render();
   }
 
   async function updateAll(shared){
@@ -325,12 +330,63 @@
     await updateSharing(ids, shared);
   }
 
+  async function setCustomerSharingEnabled(enabled){
+    const oid = orgId();
+    const pid = projectId();
+    const portal = state.portal.portal || {};
+    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
+    try {
+      setPortal({ ...state.portal, loading:true }); render();
+      const result = await window.PlatformAPI.customerPortals.update(oid, pid, {
+        settings: { ...(portal.settings || {}), sharing:{ ...((portal.settings || {}).sharing || {}), enabled:enabled === true } }
+      });
+      setPortal({ ...state.portal, loading:false, portal:result.portal || portal, error:'' });
+      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_419fcba6686d2f","Sharing updated") ?? "Sharing updated"), enabled ? 'The customer can now create secure guest links.' : 'The customer can no longer create new guest links.', true);
+    } catch (error) {
+      setPortal({ ...state.portal, loading:false, error:error?.message || 'Could not update portal sharing.' });
+    }
+    render();
+  }
+
+  async function setCustomerReschedulingEnabled(enabled){
+    const oid = orgId();
+    const pid = projectId();
+    const portal = state.portal.portal || {};
+    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
+    try {
+      setPortal({ ...state.portal, loading:true }); render();
+      const result = await window.PlatformAPI.customerPortals.update(oid, pid, {
+        settings: { ...(portal.settings || {}), scheduling:{ ...((portal.settings || {}).scheduling || {}), enabled:enabled === true, reschedule:enabled === true } }
+      });
+      setPortal({ ...state.portal, loading:false, portal:result.portal || portal, error:'' });
+      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_03bc09a605e95b","Portal scheduling updated") ?? "Portal scheduling updated"), enabled ? 'Eligible appointments can now be rescheduled in the customer portal.' : 'Customer portal rescheduling is off for this project.', true);
+    } catch (error) {
+      setPortal({ ...state.portal, loading:false, error:error?.message || 'Could not update portal scheduling.' });
+    }
+    render();
+  }
+
+  async function revokeGuestShare(shareId){
+    const oid = orgId();
+    const pid = projectId();
+    if (!oid || !pid || !shareId || !window.PlatformAPI?.customerPortals?.revokeShare) return;
+    if (!window.confirm((globalThis.PlatformLanguage?.text("customer-portal","m_4673313e439d76","Revoke this shared portal link immediately?") ?? "Revoke this shared portal link immediately?"))) return;
+    try {
+      setPortal({ ...state.portal, loading:true }); render();
+      await window.PlatformAPI.customerPortals.revokeShare(oid, pid, shareId);
+      await load({ silent:true });
+      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_5b7392e0641e18","Access revoked") ?? "Access revoked"), (globalThis.PlatformLanguage?.text("customer-portal","m_5f69f2a41b214d","The shared link can no longer open the portal.") ?? "The shared link can no longer open the portal."), true);
+    } catch (error) {
+      setPortal({ ...state.portal, loading:false, error:error?.message || 'Could not revoke the shared link.' }); render();
+    }
+  }
+
   async function copyLink(url, label){
     try {
       await navigator.clipboard.writeText(url);
-      showToast('Copied', `${label} copied to clipboard.`, true);
+      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_16841202d17c7c","Copied") ?? "Copied"), ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_43c7ce84738c11",`${v0} copied to clipboard.`,{v0}) ?? `${v0} copied to clipboard.`)(label), true);
     } catch (_) {
-      showToast('Copy failed', 'Could not copy this portal link.', false);
+      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_9c6d3ea981962c","Copy failed") ?? "Copy failed"), (globalThis.PlatformLanguage?.text("customer-portal","m_3dcfecb51d7499","Could not copy this portal link.") ?? "Could not copy this portal link."), false);
     }
   }
 
@@ -498,7 +554,7 @@
           <time>${escapeHtml(formatWhen(group.last) || 'No time')}</time>
         </div>
         <div class="r-cp-visitor-counts">
-          ${actionCounts.length ? actionCounts.map(([label, value]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join('') : '<span><b>0</b>Actions</span>'}
+          ${actionCounts.length ? actionCounts.map(([label, value]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join('') : `<span><b>0</b>${(globalThis.PlatformLanguage?.text("customer-portal","m_6067958dea3386","Actions") ?? "Actions")}</span>`}
         </div>
         <div class="r-cp-visitor-window">
           ${group.first && group.last ? `${escapeHtml(formatWhen(group.first))} - ${escapeHtml(formatWhen(group.last))}` : 'Timeline unavailable'}
@@ -519,7 +575,7 @@
   }
 
   function activityHtml(events = []){
-    if (!events.length) return '<div class="r-cp-empty">No customer portal activity yet.</div>';
+    if (!events.length) return `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.text("customer-portal","m_397f550437b4ad","No customer portal activity yet.") ?? "No customer portal activity yet.")}</div>`;
     const groups = activityGroups(events);
     return `
       ${activityStatsHtml(events, groups)}
@@ -543,77 +599,88 @@
     const unsharedSelected = state.mediaSelection.unshared.size;
     const loadingAttr = state.portal.loading ? ' disabled' : '';
     const mediaEnabled = customerPortalMediaEnabled();
+    const guestLinks = Array.isArray(portal.guest_links) ? portal.guest_links : [];
+    const activeGuestLinks = guestLinks.filter((item) => String(item.status || '').toLowerCase() === 'active');
+    const customerSharingEnabled = portal.settings?.sharing?.enabled === true;
+    const customerReschedulingEnabled = portal.settings?.scheduling?.enabled === true && portal.settings?.scheduling?.reschedule === true;
     if (state.activeSubtab === 'media' && !mediaEnabled) state.activeSubtab = 'overview';
     const activeSubtab = state.activeSubtab === 'media' ? 'media' : 'overview';
     const overviewHtml = `
       <div class="r-cp-links">
         <div class="r-cp-link-card">
-          <span>Live customer link</span>
-          <input readonly value="${escapeHtml(liveUrl)}">
+          <span>${(globalThis.PlatformLanguage?.text("customer-portal","m_8f8f3196e91e22","Live customer link") ?? "Live customer link")}</span>
+          <input readonly value="${String(escapeHtml(liveUrl))}">
           <div class="r-cp-actions">
-            <button type="button" data-cp-copy="live">Copy</button>
-            <a href="mailto:${escapeHtml(portal.customer?.email || '')}?subject=${encodeURIComponent('Your project portal')}&body=${encodeURIComponent(liveUrl)}">Email</a>
-            <button type="button" data-cp-qr>Download QR</button>
+            <button type="button" data-cp-copy="live">${(globalThis.PlatformLanguage?.text("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
+            <a href="mailto:${String(escapeHtml(portal.customer?.email || ''))}?subject=${String(encodeURIComponent('Your project portal'))}&body=${String(encodeURIComponent(liveUrl))}">${(globalThis.PlatformLanguage?.text("customer-portal","m_5d2b9327181e33","Email") ?? "Email")}</a>
+            <button type="button" data-cp-qr>${(globalThis.PlatformLanguage?.text("customer-portal","m_194f593f8d0a16","Download QR") ?? "Download QR")}</button>
           </div>
         </div>
         <div class="r-cp-link-card preview">
-          <span>Preview link</span>
-          <input readonly value="${escapeHtml(previewUrl)}">
+          <span>${(globalThis.PlatformLanguage?.text("customer-portal","m_4556b229717606","Preview link") ?? "Preview link")}</span>
+          <input readonly value="${String(escapeHtml(previewUrl))}">
           <div class="r-cp-actions">
-            <button type="button" data-cp-copy="preview">Copy</button>
-            <a href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener">Open Preview</a>
+            <button type="button" data-cp-copy="preview">${(globalThis.PlatformLanguage?.text("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
+            <a href="${String(escapeHtml(previewUrl))}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.text("customer-portal","m_f25442be2eb9d3","Open Preview") ?? "Open Preview")}</a>
           </div>
         </div>
       </div>
-      <div class="r-cp-section-title"><strong>Portal History</strong><button type="button" data-cp-refresh>Refresh</button></div>
-      <div class="r-cp-events">${activityHtml(state.portal.activity)}</div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_6904cbcb4bf953","Customer sharing") ?? "Customer sharing")}</strong><button type="button" data-cp-sharing-toggle="${String(customerSharingEnabled ? 'off' : 'on')}">${String(customerSharingEnabled ? 'Disable new links' : 'Enable secure sharing')}</button></div>
+      <div class="r-cp-sharing-admin">
+        <p>${String(customerSharingEnabled ? 'The customer can create revocable, read-only links with optional expiration. Guest links never include payments, signatures, approvals, or editing.' : 'Customer-created guest links are off for this project. Staff can still view and revoke existing links.')}</p>
+        ${String(activeGuestLinks.length ? `<div class="r-cp-share-list">${activeGuestLinks.map((item) => `<div><span><strong>${escapeHtml(item.label || 'Shared access')}</strong><small>${escapeHtml(String(item.preset || '').replace(/_/g, ' '))} · ${item.expires_at ? `expires ${escapeHtml(formatWhen(new Date(item.expires_at), { includeYear:true }))}` : 'never expires'}</small></span><button type="button" data-cp-revoke-share="${escapeHtml(item.id)}">Revoke</button></div>`).join('')}</div>` : '<div class="r-cp-empty">No active guest links.</div>')}
+      </div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_d3e2a22ddb5f09","Appointment self-service") ?? "Appointment self-service")}</strong><button type="button" data-cp-rescheduling-toggle="${String(customerReschedulingEnabled ? 'off' : 'on')}">${String(customerReschedulingEnabled ? 'Turn off' : 'Enable rescheduling')}</button></div>
+      <div class="r-cp-sharing-admin"><p>${String(customerReschedulingEnabled ? 'When an upcoming appointment is also enabled by its scheduling policy, the customer can choose from live available times in this portal.' : 'Customers cannot reschedule from this project portal. Confirmation and staff-managed scheduling continue to work normally.')}</p></div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_736894e3c896cd","Portal History") ?? "Portal History")}</strong><button type="button" data-cp-refresh>${(globalThis.PlatformLanguage?.text("customer-portal","m_78973ce0cf3403","Refresh") ?? "Refresh")}</button></div>
+      <div class="r-cp-events">${String(activityHtml(state.portal.activity))}</div>
     `;
     const mediaHtml = mediaEnabled ? `
-      <div class="r-cp-section-title"><strong>Media Sharing</strong><span>${sharedPhotos.length} shared / ${unsharedPhotos.length} unshared</span></div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_2c7fddee1414af","Media Sharing") ?? "Media Sharing")}</strong><span>${((v0,v1) => globalThis.PlatformLanguage?.text("customer-portal","m_4dab4512a74cfd",`${v0} shared / ${v1} unshared`,{v0,v1}) ?? `${v0} shared / ${v1} unshared`)(sharedPhotos.length,unsharedPhotos.length)}</span></div>
       <div class="r-cp-media-board">
         <section class="r-cp-media-box">
           <div class="r-cp-media-box-head">
             <div class="r-cp-media-box-title">
-              <strong>Shared Media</strong>
-              <span>${sharedSelected} selected of ${sharedPhotos.length}</span>
+              <strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_a7a7382d100092","Shared Media") ?? "Shared Media")}</strong>
+              <span>${((v2,v3) => globalThis.PlatformLanguage?.text("customer-portal","m_5c8fe5927480d3",`${v2} selected of ${v3}`,{v2,v3}) ?? `${v2} selected of ${v3}`)(sharedSelected,sharedPhotos.length)}</span>
             </div>
             <div class="r-cp-media-box-actions">
-              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="shared"${loadingAttr || (!sharedPhotos.length ? ' disabled' : '')}><i class="fas fa-check-double"></i>Select all</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="shared"${loadingAttr || (!sharedSelected ? ' disabled' : '')}><i class="fas fa-times"></i>Clear</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-bulk="unshare"${loadingAttr || (!sharedSelected ? ' disabled' : '')}><i class="fas fa-link-slash"></i>Unshare selected</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="shared"${String(loadingAttr || (!sharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="shared"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-bulk="unshare"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-link-slash"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_48203573600b0c","Unshare selected") ?? "Unshare selected")}</button>
             </div>
           </div>
-          ${mediaGridHtml(sharedPhotos, 'shared')}
+          ${String(mediaGridHtml(sharedPhotos, 'shared'))}
         </section>
         <section class="r-cp-media-box">
           <div class="r-cp-media-box-head">
             <div class="r-cp-media-box-title">
-              <strong>Unshared Media</strong>
-              <span>${unsharedSelected} selected of ${unsharedPhotos.length}</span>
+              <strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_011f74477ef775","Unshared Media") ?? "Unshared Media")}</strong>
+              <span>${((v8,v9) => globalThis.PlatformLanguage?.text("customer-portal","m_a40ec62159b706",`${v8} selected of ${v9}`,{v8,v9}) ?? `${v8} selected of ${v9}`)(unsharedSelected,unsharedPhotos.length)}</span>
             </div>
             <div class="r-cp-media-box-actions">
-              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="unshared"${loadingAttr || (!unsharedPhotos.length ? ' disabled' : '')}><i class="fas fa-check-double"></i>Select all</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="unshared"${loadingAttr || (!unsharedSelected ? ' disabled' : '')}><i class="fas fa-times"></i>Clear</button>
-              <button type="button" class="r-cp-bulk-btn primary" data-cp-bulk="share"${loadingAttr || (!unsharedSelected ? ' disabled' : '')}><i class="fas fa-link"></i>Share selected</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="unshared"${String(loadingAttr || (!unsharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="unshared"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
+              <button type="button" class="r-cp-bulk-btn primary" data-cp-bulk="share"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_d7f1181b9fe7a7","Share selected") ?? "Share selected")}</button>
             </div>
           </div>
-          ${mediaGridHtml(unsharedPhotos, 'unshared')}
+          ${String(mediaGridHtml(unsharedPhotos, 'unshared'))}
         </section>
       </div>
-    ` : '<div class="r-cp-empty">Customer portal media sharing is disabled for this organization.</div>';
+    ` : `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.text("customer-portal","m_45f01ee4eaf862","Customer portal media sharing is disabled for this organization.") ?? "Customer portal media sharing is disabled for this organization.")}</div>`;
     root.innerHTML = `
       <div class="r-cp-wrap">
         <div class="r-cp-head">
-          <div><h3>Customer Portal</h3><p>Share only the project information and media this customer should be able to see.</p></div>
-          ${state.portal.loading ? '<span class="r-cp-pill">Syncing...</span>' : '<span class="r-cp-pill">Ready</span>'}
+          <div><h3>${(globalThis.PlatformLanguage?.text("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</h3><p>${(globalThis.PlatformLanguage?.text("customer-portal","m_929b0824765a0f","Share only the project information and media this customer should be able to see.") ?? "Share only the project information and media this customer should be able to see.")}</p></div>
+          ${String(state.portal.loading ? '<span class="r-cp-pill">Syncing...</span>' : '<span class="r-cp-pill">Ready</span>')}
         </div>
-        ${state.portal.error ? `<div class="r-cp-error">${escapeHtml(state.portal.error)}</div>` : ''}
-        <nav class="r-cp-subtabs" aria-label="Customer portal sections">
-          <button type="button" class="${activeSubtab === 'overview' ? 'active' : ''}" data-cp-subtab="overview" aria-selected="${activeSubtab === 'overview' ? 'true' : 'false'}"><i class="fas fa-chart-line"></i><span>Overview</span></button>
-          <button type="button" class="${activeSubtab === 'media' ? 'active' : ''}" data-cp-subtab="media" aria-selected="${activeSubtab === 'media' ? 'true' : 'false'}"${mediaEnabled ? '' : ' disabled'}><i class="fas fa-images"></i><span>Media</span></button>
+        ${String(state.portal.error ? `<div class="r-cp-error">${escapeHtml(state.portal.error)}</div>` : '')}
+        <nav class="r-cp-subtabs" aria-label="${(globalThis.PlatformLanguage?.text("customer-portal","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
+          <button type="button" class="${String(activeSubtab === 'overview' ? 'active' : '')}" data-cp-subtab="overview" aria-selected="${String(activeSubtab === 'overview' ? 'true' : 'false')}"><i class="fas fa-chart-line"></i><span>${String(escapeHtml(window.Portal?.terminology?.get?.('customer_portal.overview_view', 'Overview') || 'Overview'))}</span></button>
+          <button type="button" class="${String(activeSubtab === 'media' ? 'active' : '')}" data-cp-subtab="media" aria-selected="${String(activeSubtab === 'media' ? 'true' : 'false')}"${String(mediaEnabled ? '' : ' disabled')}><i class="fas fa-images"></i><span>${String(escapeHtml(window.Portal?.terminology?.get?.('customer_portal.media_view', 'Media') || 'Media'))}</span></button>
         </nav>
         <section class="r-cp-tab-panel">
-          ${activeSubtab === 'media' ? mediaHtml : overviewHtml}
+          ${String(activeSubtab === 'media' ? mediaHtml : overviewHtml)}
         </section>
       </div>
     `;
@@ -622,6 +689,7 @@
         const next = btn.dataset.cpSubtab === 'media' ? 'media' : 'overview';
         if (next === 'media' && !mediaEnabled) return;
         state.activeSubtab = next;
+        window.Portal?.navigation?.push?.({ customerPortalView:next }, { source:'customer-portal-view', ownedKeys:['customerPortalView'] });
         render();
       });
     });
@@ -629,6 +697,9 @@
     root.querySelector('[data-cp-copy="preview"]')?.addEventListener('click', () => copyLink(previewUrl, 'Preview portal link'));
     root.querySelector('[data-cp-qr]')?.addEventListener('click', () => downloadQr(liveUrl));
     root.querySelector('[data-cp-refresh]')?.addEventListener('click', () => load({ silent: false }));
+    root.querySelector('[data-cp-sharing-toggle]')?.addEventListener('click', (event) => setCustomerSharingEnabled(event.currentTarget.dataset.cpSharingToggle === 'on'));
+    root.querySelector('[data-cp-rescheduling-toggle]')?.addEventListener('click', (event) => setCustomerReschedulingEnabled(event.currentTarget.dataset.cpReschedulingToggle === 'on'));
+    root.querySelectorAll('[data-cp-revoke-share]').forEach((button) => button.addEventListener('click', () => revokeGuestShare(button.dataset.cpRevokeShare || '')));
     root.querySelector('[data-cp-share-all]')?.addEventListener('click', () => updateAll(true));
     root.querySelector('[data-cp-unshare-all]')?.addEventListener('click', () => updateAll(false));
     bindThumbLoading(root);
@@ -674,6 +745,8 @@
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
+    const routedView = window.Portal?.navigation?.read?.().customerPortalView;
+    if (['overview','media'].includes(routedView)) state.activeSubtab = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
@@ -708,8 +781,8 @@
   const definition = {
     id: 'project.customer_portal',
     kind: 'project_modal_app',
-    title: 'Customer Portal',
-    label: 'Customer Portal',
+    title: (globalThis.PlatformLanguage?.text("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal"),
+    label: (globalThis.PlatformLanguage?.text("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal"),
     icon: 'fa-link',
     order: 30,
     visible: true,
@@ -724,6 +797,15 @@
   Portal.modules = Portal.modules || {};
   Portal.modules.customerPortalProject = api;
   Portal.ProjectCustomerPortalApp = api;
+
+  window.Portal?.navigation?.registerHandler?.('project-customer-portal-view', {
+    priority:600,
+    apply:(route) => {
+      if (!route.project || route.projectTab !== 'customer_portal' || !state.mounted) return;
+      const next = route.customerPortalView === 'media' ? 'media' : 'overview';
+      if (next !== state.activeSubtab) { state.activeSubtab = next; render(); }
+    }
+  });
 
   runtime?.registerApp?.(definition);
 })();

@@ -2,7 +2,7 @@
 
 `libraries/platform-action-items/platform-action-items.js` is the reusable browser helper for `/v1/platform` action items. Load it after `libraries/platform-api/platform-api.js`.
 
-The backend owns action item records, assignment, status, history, and per-user state. Frontend code registers kind handlers that decide what clicking an item does.
+The Work API owns the canonical node records, assignment, status, and history. The Platform routes adapt those nodes to this older client shape, while per-user display state remains on the org user record. Frontend code registers kind handlers that decide what clicking an item does.
 
 ```js
 PlatformActionItems.registerKind('schedule_sold_project', {
@@ -22,4 +22,4 @@ Core helpers:
 - `markSeen`, `hide`, `dismiss`, `pin`, `snooze`: per-user UI state.
 - `open(item, context)`: calls the registered frontend handler for the item kind or `frontend_action.kind`.
 
-Backend item records are org-scoped and are queried by assignment. A blank assignment means any user in the organization can fulfill the item.
+Backend nodes are org-scoped and are queried by assignment. A blank assignment means any user in the organization can fulfill the item. New code may use `PlatformAPI.work` directly; this helper remains useful for the shared to-do UI and older feature modules.

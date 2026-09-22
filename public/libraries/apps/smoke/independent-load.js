@@ -17,11 +17,11 @@
 
   function renderRows(){
     tbody.innerHTML = apps.map((app) => `
-      <tr data-app-id="${escapeHtml(app.id)}">
-        <td><code>${escapeHtml(app.id)}</code><div>${escapeHtml(app.title || '')}</div></td>
-        <td>${escapeHtml(app.kind || '')}</td>
-        <td>${(app.dependencies || []).map((id) => `<code>${escapeHtml(id)}</code>`).join(', ') || '<span class="pending">none</span>'}</td>
-        <td class="status pending">Pending</td>
+      <tr data-app-id="${String(escapeHtml(app.id))}">
+        <td><code>${String(escapeHtml(app.id))}</code><div>${String(escapeHtml(app.title || ''))}</div></td>
+        <td>${String(escapeHtml(app.kind || ''))}</td>
+        <td>${String((app.dependencies || []).map((id) => `<code>${escapeHtml(id)}</code>`).join(', ') || '<span class="pending">none</span>')}</td>
+        <td class="status pending">${(globalThis.PlatformLanguage?.text("smoke","m_2175240180a38e","Pending") ?? "Pending")}</td>
         <td class="details"></td>
       </tr>
     `).join('');

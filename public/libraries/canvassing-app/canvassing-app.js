@@ -175,14 +175,14 @@
     }
 
     renderShell(){
-      const managerButton = this.canManage() ? `<button class="${this.state.view === 'manager' ? 'active' : ''}" data-fmc-tab="manager"><i class="fas fa-chart-simple"></i> <span>Manager</span></button>` : '';
+      const managerButton = this.canManage() ? `<button class="${String(this.state.view === 'manager' ? 'active' : '')}" data-fmc-tab="manager"><i class="fas fa-chart-simple"></i> <span>${(globalThis.PlatformLanguage?.text("canvassing-app","m_32263fb2e2d35f","Manager") ?? "Manager")}</span></button>` : '';
       this.root.innerHTML = `
         <main class="fmc-shell">
           <header class="fmc-top">
-            <div class="fmc-brand"><div class="mark"><i class="fas fa-map-location-dot"></i></div><div>${escapeHtml(this.title)}</div></div>
+            <div class="fmc-brand"><div class="mark"><i class="fas fa-map-location-dot"></i></div><div>${String(escapeHtml(this.title))}</div></div>
             <nav class="fmc-tabs">
-              <button class="${this.state.view === 'map' ? 'active' : ''}" data-fmc-tab="map"><i class="fas fa-map"></i> <span>Map</span></button>
-              ${managerButton}
+              <button class="${String(this.state.view === 'map' ? 'active' : '')}" data-fmc-tab="map"><i class="fas fa-map"></i> <span>${(globalThis.PlatformLanguage?.text("canvassing-app","m_9afd0eccc8e530","Map") ?? "Map")}</span></button>
+              ${String(managerButton)}
               <button class="ghost" data-fmc-action="logout"><i class="fas fa-right-from-bracket"></i></button>
             </nav>
           </header>
@@ -259,19 +259,19 @@
       sheet.dataset.lat = coords?.lat ?? pin?.coordinates?.lat ?? '';
       sheet.dataset.lng = coords?.lng ?? pin?.coordinates?.lng ?? '';
       sheet.innerHTML = `
-        <label>Status</label>
-        <select data-fmc-field="status">${statuses.map((s) => `<option value="${escapeHtml(s.id)}" ${String(pin?.status_id || this.state.settings?.default_status_id || 'new') === String(s.id) ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</select>
-        <label>Address</label><input data-fmc-field="address" value="${escapeHtml(pin?.address || '')}" placeholder="Address">
+        <label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_1352cafa75b8da","Status") ?? "Status")}</label>
+        <select data-fmc-field="status">${String(statuses.map((s) => `<option value="${escapeHtml(s.id)}" ${String(pin?.status_id || this.state.settings?.default_status_id || 'new') === String(s.id) ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join(''))}</select>
+        <label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_53d803cdbe9ab1","Address") ?? "Address")}</label><input data-fmc-field="address" value="${String(escapeHtml(pin?.address || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("canvassing-app","m_53d803cdbe9ab1","Address") ?? "Address")}">
         <div class="fmc-row">
-          <div><label>Name</label><input data-fmc-field="name" value="${escapeHtml(contact.name || '')}" placeholder="Name"></div>
-          <div><label>Phone</label><input data-fmc-field="phone" value="${escapeHtml(contact.phone || '')}" placeholder="Phone"></div>
+          <div><label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_8cf345002184e5","Name") ?? "Name")}</label><input data-fmc-field="name" value="${String(escapeHtml(contact.name || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("canvassing-app","m_8cf345002184e5","Name") ?? "Name")}"></div>
+          <div><label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_ed04c65845180f","Phone") ?? "Phone")}</label><input data-fmc-field="phone" value="${String(escapeHtml(contact.phone || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("canvassing-app","m_ed04c65845180f","Phone") ?? "Phone")}"></div>
         </div>
-        <label>Notes</label><textarea data-fmc-field="notes" placeholder="Notes">${escapeHtml(pin?.notes || '')}</textarea>
+        <label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_de7d6168ae1ad6","Notes") ?? "Notes")}</label><textarea data-fmc-field="notes" placeholder="${(globalThis.PlatformLanguage?.text("canvassing-app","m_de7d6168ae1ad6","Notes") ?? "Notes")}">${String(escapeHtml(pin?.notes || ''))}</textarea>
         <div class="fmc-row" style="margin-top:10px">
-          <button data-fmc-action="close-sheet">Close</button>
-          <button class="primary" data-fmc-action="save-pin">Save</button>
+          <button data-fmc-action="close-sheet">${(globalThis.PlatformLanguage?.text("canvassing-app","m_3742924668fb10","Close") ?? "Close")}</button>
+          <button class="primary" data-fmc-action="save-pin">${(globalThis.PlatformLanguage?.text("canvassing-app","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
         </div>
-        ${pin ? `<div class="fmc-row" style="margin-top:8px"><button class="primary" data-fmc-action="promote-pin">Create Lead</button></div>` : ''}
+        ${String(pin ? `<div class="fmc-row" style="margin-top:8px"><button class="primary" data-fmc-action="promote-pin">Create Lead</button></div>` : '')}
       `;
       sheet.querySelector('[data-fmc-action="close-sheet"]').addEventListener('click', () => sheet.classList.remove('open'));
       sheet.querySelector('[data-fmc-action="save-pin"]').addEventListener('click', () => this.saveSheet());
@@ -320,32 +320,32 @@
       const todayCount = this.state.pins.filter((pin) => String(pin.updated_at || '').slice(0,10) === today).length;
       content.innerHTML = `
         <section class="fmc-panel">
-          <h2>Canvassing Manager</h2>
-          <div class="fmc-muted">${escapeHtml(this.session?.organization?.name || '')}</div>
+          <h2>${(globalThis.PlatformLanguage?.text("canvassing-app","m_eb8da783249abd","Canvassing Manager") ?? "Canvassing Manager")}</h2>
+          <div class="fmc-muted">${String(escapeHtml(this.session?.organization?.name || ''))}</div>
           <div class="fmc-statgrid" style="margin-top:12px">
-            <div class="fmc-stat"><div class="num">${total}</div><div class="lbl">Pins</div></div>
-            <div class="fmc-stat"><div class="num">${todayCount}</div><div class="lbl">Today</div></div>
-            <div class="fmc-stat"><div class="num">${leads}</div><div class="lbl">Leads</div></div>
+            <div class="fmc-stat"><div class="num">${String(total)}</div><div class="lbl">${(globalThis.PlatformLanguage?.text("canvassing-app","m_576cd53c8d929f","Pins") ?? "Pins")}</div></div>
+            <div class="fmc-stat"><div class="num">${String(todayCount)}</div><div class="lbl">${(globalThis.PlatformLanguage?.text("canvassing-app","m_23929ba4ba84dd","Today") ?? "Today")}</div></div>
+            <div class="fmc-stat"><div class="num">${String(leads)}</div><div class="lbl">${(globalThis.PlatformLanguage?.text("canvassing-app","m_bc5721b3795c59","Leads") ?? "Leads")}</div></div>
           </div>
         </section>
         <section class="fmc-panel">
-          <h2>Add Canvasser</h2>
+          <h2>${(globalThis.PlatformLanguage?.text("canvassing-app","m_19344c5b0a26ae","Add Canvasser") ?? "Add Canvasser")}</h2>
           <form data-fmc-form="add-user">
             <div class="fmc-row">
-              <div><label>Name</label><input data-fmc-field="new-user-name" required></div>
-              <div><label>Email</label><input data-fmc-field="new-user-email" type="email" required></div>
+              <div><label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_8cf345002184e5","Name") ?? "Name")}</label><input data-fmc-field="new-user-name" required></div>
+              <div><label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_5d2b9327181e33","Email") ?? "Email")}</label><input data-fmc-field="new-user-email" type="email" required></div>
             </div>
             <div class="fmc-row">
-              <div><label>Role</label><select data-fmc-field="new-user-role"><option value="canvasser">Canvasser</option><option value="canvassing_manager">Canvassing Manager</option></select></div>
-              <div><label>Temporary Password</label><input data-fmc-field="new-user-password" placeholder="Optional"></div>
+              <div><label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_17b51e98936157","Role") ?? "Role")}</label><select data-fmc-field="new-user-role"><option value="canvasser">${(globalThis.PlatformLanguage?.text("canvassing-app","m_88c2073b2326a6","Canvasser") ?? "Canvasser")}</option><option value="canvassing_manager">${(globalThis.PlatformLanguage?.text("canvassing-app","m_eb8da783249abd","Canvassing Manager") ?? "Canvassing Manager")}</option></select></div>
+              <div><label>${(globalThis.PlatformLanguage?.text("canvassing-app","m_745f82f81c8230","Temporary Password") ?? "Temporary Password")}</label><input data-fmc-field="new-user-password" placeholder="${(globalThis.PlatformLanguage?.text("canvassing-app","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
             </div>
-            <button class="primary" type="submit" style="margin-top:10px;width:100%">Add User</button>
-            <div class="fmc-muted" style="margin-top:8px">If no temporary password is entered, the user is stored as invited for now. Email delivery/accept-invite can be wired later.</div>
+            <button class="primary" type="submit" style="margin-top:10px;width:100%">${(globalThis.PlatformLanguage?.text("canvassing-app","m_53a6f3f99f98de","Add User") ?? "Add User")}</button>
+            <div class="fmc-muted" style="margin-top:8px">${(globalThis.PlatformLanguage?.text("canvassing-app","m_9be93d6051475b","If no temporary password is entered, the user is stored as invited for now. Email delivery/accept-invite can be wired later.") ?? "If no temporary password is entered, the user is stored as invited for now. Email delivery/accept-invite can be wired later.")}</div>
           </form>
         </section>
         <section class="fmc-panel">
-          <h2>Canvassing Users</h2>
-          <div data-fmc-users>Loading...</div>
+          <h2>${(globalThis.PlatformLanguage?.text("canvassing-app","m_0891b6d3299aa3","Canvassing Users") ?? "Canvassing Users")}</h2>
+          <div data-fmc-users>${(globalThis.PlatformLanguage?.text("canvassing-app","m_cf106559e52254","Loading...") ?? "Loading...")}</div>
         </section>
       `;
       content.querySelector('[data-fmc-form="add-user"]').addEventListener('submit', (event) => this.addUser(event));
@@ -366,7 +366,7 @@
           </div>
           <div class="fmc-muted">${escapeHtml(user.status || 'active')}</div>
         </div>
-      `).join('') || '<div class="fmc-muted">No canvassing users yet.</div>';
+      `).join('') || `<div class="fmc-muted">${(globalThis.PlatformLanguage?.text("canvassing-app","m_a19a5f28971e25","No canvassing users yet.") ?? "No canvassing users yet.")}</div>`;
     }
 
     async addUser(event){

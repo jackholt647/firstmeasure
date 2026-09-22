@@ -1,0 +1,1064 @@
+{
+  "files": 151,
+  "namespaces": 87,
+  "messages": 8560,
+  "migration": [
+    {
+      "file": "public/libraries/account-switcher/account-switcher.js",
+      "namespace": "account-switcher",
+      "references": 15,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/agent-chat/agent-chat.js",
+      "namespace": "agent-chat",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/agents-api/agents-api.js",
+      "namespace": "agents-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/app-runtime/firstmate-app-context.js",
+      "namespace": "app-runtime",
+      "references": 23,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/app-runtime/firstmate-embeddable-apps.js",
+      "namespace": "app-runtime",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/app-runtime/firstmate-external-apps.js",
+      "namespace": "app-runtime",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/app-setup-workflows/app-setup-workflows.js",
+      "namespace": "app-setup-workflows",
+      "references": 32,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/billing/app.js",
+      "namespace": "billing",
+      "references": 53,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/calls/app.js",
+      "namespace": "calls",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/canvassing/app.js",
+      "namespace": "canvassing",
+      "references": 30,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/channels/app.js",
+      "namespace": "channels",
+      "references": 3,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/chat/app.js",
+      "namespace": "chat",
+      "references": 72,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/checklists/app.js",
+      "namespace": "checklists",
+      "references": 101,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/comms/calling-runtime.js",
+      "namespace": "comms",
+      "references": 18,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/comms/communications-ui.js",
+      "namespace": "comms",
+      "references": 5,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/comms/project.js",
+      "namespace": "comms",
+      "references": 74,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/comms/workspace.js",
+      "namespace": "comms",
+      "references": 73,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/contacts/app.js",
+      "namespace": "contacts",
+      "references": 24,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/contacts/modal.js",
+      "namespace": "contacts",
+      "references": 21,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/crew/app.js",
+      "namespace": "crew",
+      "references": 171,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/customer-portal/project.js",
+      "namespace": "customer-portal",
+      "references": 43,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/docs/project.js",
+      "namespace": "docs",
+      "references": 47,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/documents/project.js",
+      "namespace": "documents",
+      "references": 221,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/documents/studio.js",
+      "namespace": "documents",
+      "references": 304,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/equipment/app.js",
+      "namespace": "equipment",
+      "references": 120,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/feedback/app.js",
+      "namespace": "feedback",
+      "references": 2,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/financials/app.js",
+      "namespace": "financials",
+      "references": 97,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/firstmate-apps-manifest.js",
+      "namespace": "firstmate-apps-manifest",
+      "references": 57,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/firstmeasure/order/app.js",
+      "namespace": "firstmeasure",
+      "references": 25,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/firstmeasure/order/exteriors.js",
+      "namespace": "firstmeasure",
+      "references": 32,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/help/app.js",
+      "namespace": "help",
+      "references": 6,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/invoices/app.js",
+      "namespace": "invoices",
+      "references": 82,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/materials/project.js",
+      "namespace": "materials",
+      "references": 226,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/measurements/project.js",
+      "namespace": "measurements",
+      "references": 119,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/money/project.js",
+      "namespace": "money",
+      "references": 221,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/onboarding/wizard.js",
+      "namespace": "onboarding",
+      "references": 108,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/payroll/app.js",
+      "namespace": "payroll",
+      "references": 137,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/payroll/project.js",
+      "namespace": "payroll",
+      "references": 30,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/photos/feed.js",
+      "namespace": "photos",
+      "references": 103,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/photos/project.js",
+      "namespace": "photos",
+      "references": 28,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/pricebook/bridge.js",
+      "namespace": "pricebook",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/project-map/app.js",
+      "namespace": "project-map",
+      "references": 22,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/project-request/app.js",
+      "namespace": "project-request",
+      "references": 171,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/project-schedule/panel.js",
+      "namespace": "project-schedule",
+      "references": 203,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/projects/viewer.js",
+      "namespace": "projects",
+      "references": 175,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/promo-inject/app.js",
+      "namespace": "promo-inject",
+      "references": 14,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/proposals/global.js",
+      "namespace": "proposals",
+      "references": 25,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/proposals/project.js",
+      "namespace": "proposals",
+      "references": 272,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/receipts/app.js",
+      "namespace": "receipts",
+      "references": 27,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/referrals/app.js",
+      "namespace": "referrals",
+      "references": 12,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/sales/app.js",
+      "namespace": "sales",
+      "references": 54,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/scheduling/app.js",
+      "namespace": "scheduling",
+      "references": 220,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/automations.js",
+      "namespace": "settings",
+      "references": 76,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/channels.js",
+      "namespace": "settings",
+      "references": 55,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/comms.js",
+      "namespace": "settings",
+      "references": 74,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/company.js",
+      "namespace": "settings",
+      "references": 1725,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/contacts.js",
+      "namespace": "settings",
+      "references": 57,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/crm.js",
+      "namespace": "settings",
+      "references": 117,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/domains.js",
+      "namespace": "settings",
+      "references": 109,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/equipment.js",
+      "namespace": "settings",
+      "references": 31,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/feedback.js",
+      "namespace": "settings",
+      "references": 101,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/firstmeasure-users.js",
+      "namespace": "settings",
+      "references": 97,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/live_chat.js",
+      "namespace": "settings",
+      "references": 50,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/money-overlay-enforcer.js",
+      "namespace": "settings",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/payroll.js",
+      "namespace": "settings",
+      "references": 73,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/scope-artifacts.js",
+      "namespace": "settings",
+      "references": 48,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/scope-events.js",
+      "namespace": "settings",
+      "references": 23,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/search.js",
+      "namespace": "settings",
+      "references": 44,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/signatures/project.js",
+      "namespace": "signatures",
+      "references": 42,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/smoke/independent-load-frame.js",
+      "namespace": "smoke",
+      "references": 33,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/smoke/independent-load.js",
+      "namespace": "smoke",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/stats/app.js",
+      "namespace": "stats",
+      "references": 45,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/tab-promos/project.js",
+      "namespace": "tab-promos",
+      "references": 13,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/training/app.js",
+      "namespace": "training",
+      "references": 58,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/training/studio.js",
+      "namespace": "training",
+      "references": 153,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/tutorial/app.js",
+      "namespace": "tutorial",
+      "references": 2,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/web-editor/app.js",
+      "namespace": "web-editor",
+      "references": 149,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/assistant-api/assistant-api.js",
+      "namespace": "assistant-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/audio-notes/audio-notes.js",
+      "namespace": "audio-notes",
+      "references": 16,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/audio-structure/audio-structure.js",
+      "namespace": "audio-structure",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-api/calls-api.js",
+      "namespace": "calls-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-runtime/effects/wasm/vision_wasm_internal.js",
+      "namespace": "calls-runtime",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-runtime/effects/wasm/vision_wasm_nosimd_internal.js",
+      "namespace": "calls-runtime",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-runtime/livekit-client.umd.js",
+      "namespace": "calls-runtime",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/canvassing-api/canvassing-api.js",
+      "namespace": "canvassing-api",
+      "references": 7,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/canvassing-app/canvassing-app.js",
+      "namespace": "canvassing-app",
+      "references": 30,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/channels-api/channels-api.js",
+      "namespace": "channels-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/channels-ui/channels-ui.js",
+      "namespace": "channels-ui",
+      "references": 213,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/chat-embed/firstmate-chat-embed.js",
+      "namespace": "chat-embed",
+      "references": 12,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/comms-api/comms-api.js",
+      "namespace": "comms-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/communications-api/communications-api.js",
+      "namespace": "communications-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/communications-templates/communications-templates.js",
+      "namespace": "communications-templates",
+      "references": 7,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/crew-api/crew-api.js",
+      "namespace": "crew-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/custom-fields/firstmate-custom-fields.js",
+      "namespace": "custom-fields",
+      "references": 60,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-agent/doc-agent.js",
+      "namespace": "doc-agent",
+      "references": 5,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-editor/firstmate-doc-editor.js",
+      "namespace": "doc-editor",
+      "references": 430,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-model/firstmate-doc-model.js",
+      "namespace": "doc-model",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-renderer/firstmate-doc-renderer.js",
+      "namespace": "doc-renderer",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-widgets/firstmate-doc-widgets.js",
+      "namespace": "doc-widgets",
+      "references": 122,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-workflow/firstmate-doc-workflow.js",
+      "namespace": "doc-workflow",
+      "references": 60,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/doc-workflow/firstmate-workflow-editor.js",
+      "namespace": "doc-workflow",
+      "references": 80,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/documents-api/documents-api.js",
+      "namespace": "documents-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/domains-api/domains-api.js",
+      "namespace": "domains-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/email-api/email-api.js",
+      "namespace": "email-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/equipment-api/equipment-api.js",
+      "namespace": "equipment-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/field-visit/field-visit.js",
+      "namespace": "field-visit",
+      "references": 30,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/financials-api/financials-api.js",
+      "namespace": "financials-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/firstmeasure-api/firstmeasure-api.js",
+      "namespace": "firstmeasure-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/google-auth/firstmate-google-auth.js",
+      "namespace": "google-auth",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/insights/firstmate-insights.js",
+      "namespace": "insights",
+      "references": 19,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/lead-embed/firstmate-lead-embed.js",
+      "namespace": "lead-embed",
+      "references": 43,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/lead-intake-api/lead-intake-api.js",
+      "namespace": "lead-intake-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/markup/firstmate-markup.js",
+      "namespace": "markup",
+      "references": 37,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/materials-api/materials-api.js",
+      "namespace": "materials-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/navigation/portal-navigation.js",
+      "namespace": "navigation",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/payment-intake/payment-intake.js",
+      "namespace": "payment-intake",
+      "references": 34,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/payments-api/payments-api.js",
+      "namespace": "payments-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/payroll-api/payroll-api.js",
+      "namespace": "payroll-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-action-items/platform-action-items.js",
+      "namespace": "platform-action-items",
+      "references": 77,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-api/platform-api.js",
+      "namespace": "platform-api",
+      "references": 9,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-assistant/platform-assistant.js",
+      "namespace": "platform-assistant",
+      "references": 11,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-banners/platform-banners.js",
+      "namespace": "platform-banners",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-celebrations/platform-celebrations.js",
+      "namespace": "platform-celebrations",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-notifications/platform-notifications.js",
+      "namespace": "platform-notifications",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-realtime/platform-realtime.js",
+      "namespace": "platform-realtime",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-schedule-view/platform-schedule-view.js",
+      "namespace": "platform-schedule-view",
+      "references": 54,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-scheduling/platform-scheduling.js",
+      "namespace": "platform-scheduling",
+      "references": 10,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-tags/platform-tags.js",
+      "namespace": "platform-tags",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-ui/platform-ui.js",
+      "namespace": "platform-ui",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-undo/platform-undo.js",
+      "namespace": "platform-undo",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/portal-widgets/firstmate-portal-widgets.js",
+      "namespace": "portal-widgets",
+      "references": 86,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/pricebook/firstmate-pricebook.js",
+      "namespace": "pricebook",
+      "references": 180,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/project-notes/project-notes.js",
+      "namespace": "project-notes",
+      "references": 15,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/proposals-api/proposals-api.js",
+      "namespace": "proposals-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/report-units.js",
+      "namespace": "report-units.js",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/sales-api/sales-api.js",
+      "namespace": "sales-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/settings-pages/firstmate-settings-pages.js",
+      "namespace": "settings-pages",
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/setup-wizard/setup-wizard.js",
+      "namespace": "setup-wizard",
+      "references": 2,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/stats-api/stats-api.js",
+      "namespace": "stats-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/statsig/firstmate-statsig.js",
+      "namespace": "statsig",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/training-api/training-api.js",
+      "namespace": "training-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/video-editor/firstmate-video-editor.js",
+      "namespace": "video-editor",
+      "references": 26,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/visual-editor/firstmate-visual-editor.js",
+      "namespace": "visual-editor",
+      "references": 134,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/web-widgets/firstmate-web-widgets.js",
+      "namespace": "web-widgets",
+      "references": 15,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/websites-api/websites-api.js",
+      "namespace": "websites-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/window-manager/window-manager.js",
+      "namespace": "window-manager",
+      "references": 3,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/portal/scripts/core.js",
+      "namespace": "platform",
+      "references": 36,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/portal/scripts/dev_overlay.js",
+      "namespace": "platform",
+      "references": 12,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/portal/scripts/project_viewer.js",
+      "namespace": "platform",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/portal/scripts/topbar-artifacts.js",
+      "namespace": "platform",
+      "references": 9,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/portal/scripts/topbar.js",
+      "namespace": "platform",
+      "references": 21,
+      "candidates": 0,
+      "edits": 0
+    }
+  ]
+}

@@ -19,8 +19,10 @@ import {
   readProposal,
   readProposalPdfFile,
   readPublicProposalPdfFile,
+  readPublicProposalReceiptPdfFile,
   recordPublicProposalMockDepositPayment,
   recordPublicProposalPayLater,
+  recordPublicProposalChoiceSelection,
   recordPublicProposalSignatureAdoption,
   recordPublicProposalSignatureSlot,
   recordPublicProposalSignature,
@@ -214,9 +216,22 @@ export const registerProposalsApi: FastifyPluginAsync = async (app) => {
     return sendPdf(reply, file);
   });
 
+  app.get("/public/:token/payments/receipt.pdf", async (request, reply) => {
+    const query = asObject(request.query);
+    const file = await readPublicProposalReceiptPdfFile(getParam(request.params, "token"), cleanText(query.payment_id));
+    return sendPdf(reply, file);
+  });
+
   app.post("/public/:token/view", async (request) => {
     const body = publicProposalEventSchema.parse(request.body ?? {});
     const result = await recordPublicProposalView(getParam(request.params, "token"), body);
+    const workflow = await publicProposalWorkflow(getParam(request.params, "token"));
+    return { ok: true, snapshot: publicSnapshotView(result.snapshot, getParam(request.params, "token"), workflow.workflow), workflow: workflow.workflow };
+  });
+
+  app.post("/public/:token/choices", async (request) => {
+    const body = objectBodySchema.parse(request.body ?? {});
+    const result = await recordPublicProposalChoiceSelection(getParam(request.params, "token"), body, publicRequestAudit(request));
     const workflow = await publicProposalWorkflow(getParam(request.params, "token"));
     return { ok: true, snapshot: publicSnapshotView(result.snapshot, getParam(request.params, "token"), workflow.workflow), workflow: workflow.workflow };
   });
@@ -247,6 +262,65 @@ export const registerProposalsApi: FastifyPluginAsync = async (app) => {
     const result = await recordPublicProposalPayLater(getParam(request.params, "token"), body, publicRequestAudit(request));
     const workflow = await publicProposalWorkflow(getParam(request.params, "token"));
     return { ok: true, snapshot: publicSnapshotView(result.snapshot, getParam(request.params, "token"), workflow.workflow), workflow: workflow.workflow };
+  });
+
+  // --- Public payment intake (provider tokenization over the proposal token).
+  // The portal only ever talks to the proposals public API, so these thin
+  // shims resolve the org from the token (same pattern as mock-deposit) and
+  // delegate to the payments intake module. When no provider is configured
+  // they answer with provider:null and the portal keeps its legacy flow.
+
+  app.get("/public/:token/payments/intake-config", async (request) => {
+    const found = await findPublicProposalSnapshot(getParam(request.params, "token"));
+    const { paymentIntakeConfig } = await import("../payments/intake.js");
+    const snapshot = found.snapshot as Record<string, unknown>;
+    const contacts = asObject(snapshot.contact_snapshot).contacts;
+    const contact = asObject((Array.isArray(contacts) ? contacts : [])[0]
+      || (Array.isArray(snapshot.contacts) ? snapshot.contacts : [])[0]);
+    const config = await paymentIntakeConfig(found.orgId, contact, cleanText(snapshot.branch_id || "default") || "default")
+      .catch(() => ({ provider: null, tokenization: null, surcharge: null, saved_methods: [] }));
+    return { ok: true, ...config };
+  });
+
+  app.post("/public/:token/payments/payment-method-intent", async (request, reply) => {
+    const body = objectBodySchema.parse(request.body ?? {});
+    const found = await findPublicProposalSnapshot(getParam(request.params, "token"));
+    const [{ tokenizePaymentMethod }, { getPaymentProvider }] = await Promise.all([
+      import("../payments/intake.js"),
+      import("../payments/providers/index.js")
+    ]);
+    const provider = await getPaymentProvider(found.orgId);
+    if (!provider) {
+      reply.code(400);
+      return { ok: false, error: "merchant_not_configured", message: "Online card processing is not available for this organization." };
+    }
+    const result = await tokenizePaymentMethod(found.orgId, provider, {
+      type: cleanText(body.type),
+      card: asObject(body.card),
+      bank: asObject(body.bank),
+      billing_details: asObject(body.billing_details)
+    });
+    reply.code(201);
+    return { ok: true, ...result };
+  });
+
+  app.get("/public/:token/payments/surcharge-quote", async (request) => {
+    const query = asObject(request.query);
+    const found = await findPublicProposalSnapshot(getParam(request.params, "token"));
+    const [{ surchargeQuote }, { getPaymentProvider }] = await Promise.all([
+      import("../payments/intake.js"),
+      import("../payments/providers/index.js")
+    ]);
+    const amount = Math.max(0, Math.round(Number(query.amount_cents) || 0));
+    const provider = await getPaymentProvider(found.orgId);
+    if (!provider) return { ok: true, quote: { amount_cents: amount, surcharge_cents: 0, total_cents: amount, enabled: false } };
+    const snapshot = found.snapshot as Record<string, unknown>;
+    const quote = await surchargeQuote(found.orgId, provider, {
+      amount_cents: amount,
+      method: cleanText(query.method),
+      branch_id: cleanText(snapshot.branch_id || "default") || "default"
+    });
+    return { ok: true, quote };
   });
 
   app.post("/public/:token/payments/mock-deposit", async (request) => {
@@ -322,7 +396,7 @@ function publicProposalAppHtml(token: string) {
     window.__APP = window.__APP || {};
     window.__APP.proposalsApiBase = (function(){
       var host = String(location.hostname || '').toLowerCase();
-      if (host === '127.0.0.1' || host === 'localhost') return location.protocol + '//' + location.hostname + ':3111/v1/proposals';
+      if (host === '127.0.0.1' || host === 'localhost') return location.protocol + '//' + location.hostname + ':3101/v1/proposals';
       return '/v1/proposals';
     })();
     window.__PUBLIC_PROPOSAL_TOKEN = ${tokenJson};

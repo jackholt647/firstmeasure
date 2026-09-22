@@ -8,6 +8,8 @@ import {
   createMaterialList,
   createMaterialOrder,
   createMaterialVersion,
+  ensureMaterialListScheduleEvent,
+  initializeProjectMaterialListsFromScope,
   listMaterialDeliveries,
   listMaterialEvents,
   listMaterialOrders,
@@ -25,6 +27,8 @@ import {
   createMaterialListSchema,
   createMaterialOrderSchema,
   createMaterialVersionSchema,
+  ensureMaterialScheduleEventSchema,
+  initializeMaterialListsFromScopeSchema,
   patchMaterialDeliverySchema,
   patchMaterialListSchema,
   patchMaterialOrderSchema,
@@ -65,6 +69,7 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
     message: "materials API is mounted",
     endpoints: {
       projectMaterialLists: "/organizations/:orgId/projects/:projectId/material-lists",
+      initializeFromScope: "/organizations/:orgId/projects/:projectId/material-lists/initialize-from-scope",
       materialList: "/organizations/:orgId/material-lists/:listId",
       versions: "/organizations/:orgId/material-lists/:listId/versions",
       orders: "/organizations/:orgId/material-lists/:listId/orders",
@@ -98,6 +103,14 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, material_list: materialList };
   });
 
+  app.post("/organizations/:orgId/projects/:projectId/material-lists/initialize-from-scope", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = initializeMaterialListsFromScopeSchema.parse(request.body ?? {});
+    const result = await initializeProjectMaterialListsFromScope(orgId, getParam(request.params, "projectId"), body, ctx);
+    return { ok: true, ...result };
+  });
+
   app.get("/organizations/:orgId/material-lists/:listId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects" });
@@ -111,6 +124,16 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
     const body = patchMaterialListSchema.parse(request.body ?? {});
     const materialList = await patchMaterialList(orgId, getParam(request.params, "listId"), body, ctx);
     return { ok: true, material_list: materialList };
+  });
+
+  app.post("/organizations/:orgId/material-lists/:listId/schedule-event", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = ensureMaterialScheduleEventSchema.parse(request.body ?? {});
+    const listId = getParam(request.params, "listId");
+    const event = await ensureMaterialListScheduleEvent(orgId, listId, body);
+    const materialList = await readMaterialList(orgId, listId);
+    return { ok: true, event, material_list: materialList };
   });
 
   app.delete("/organizations/:orgId/material-lists/:listId", async (request) => {

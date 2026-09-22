@@ -18,7 +18,11 @@ export const DEFAULT_WORKLOAD = Object.freeze({
   turnaround_max_minutes: 420, ramp_start_minute: 360, peak_start_minute: 600,
   peak_end_minute: 840, ramp_end_minute: 1020
 });
+export const DEFAULT_EXTERIORS_PRICING = Object.freeze({ exteriors_base_price:25, exteriors_same_day_fee:5, exteriors_priority_fee:10 });
 export const expeditePricingSchema = z.object({
+  exteriors_base_price: z.number().min(0).max(1000),
+  exteriors_same_day_fee: z.number().min(0).max(1000),
+  exteriors_priority_fee: z.number().min(0).max(1000),
   ...workloadFields,
   wait_min_minutes: z.number().int().min(0).max(1440),
   wait_max_minutes: z.number().int().min(1).max(2880),
@@ -28,7 +32,7 @@ export const expeditePricingSchema = z.object({
   fast_multiplier: z.number().min(1).max(20),
   rush_adder: z.number().min(0).max(100),
   fast_adder: z.number().min(0).max(100)
-}).strict().refine(v => v.wait_max_minutes > v.wait_min_minutes, "Upper wait must exceed lower wait")
+}).strict().refine(v => v.exteriors_priority_fee >= v.exteriors_same_day_fee, "Full-house priority fee must be at least the same-day fee").refine(v => v.wait_max_minutes > v.wait_min_minutes, "Upper wait must exceed lower wait")
   .refine(v => v.fast_adder >= v.rush_adder, "Under-one-hour adder must be at least the 1–3-hour adder")
   .refine(v => v.ramp_start_minute < v.peak_start_minute && v.peak_start_minute < v.peak_end_minute && v.peak_end_minute < v.ramp_end_minute,
     "Schedule must be ordered: ramp start, peak start, peak end, ramp end (same Pacific day)")
@@ -37,7 +41,7 @@ export const expeditePricingSchema = z.object({
     "Maximum turnaround must cover peak wait plus buffer");
 export type ExpeditePricingConfig = z.infer<typeof expeditePricingSchema>;
 export const DEFAULT_EXPEDITE_PRICING: Readonly<ExpeditePricingConfig> = Object.freeze({
-  ...DEFAULT_WORKLOAD,
+  ...DEFAULT_WORKLOAD, ...DEFAULT_EXTERIORS_PRICING,
   wait_min_minutes: 240, wait_max_minutes: 420, base_fee: 1, busy_adder: 2,
   fee_multiplier: 1.15, fast_multiplier: 3, rush_adder: 0, fast_adder: 0
 });
@@ -48,7 +52,7 @@ export async function readExpeditePricing() {
   // Only a missing record uses defaults. Corrupt/unavailable storage fails closed.
   // Upgrade legacy stored pricing records in memory without changing their revision.
   // Writes still require every field, so an old browser cannot reset the schedule.
-  return { config: document ? expeditePricingSchema.parse({ ...DEFAULT_WORKLOAD, ...z.record(z.unknown()).parse(document.data) }) : { ...DEFAULT_EXPEDITE_PRICING },
+  return { config: document ? expeditePricingSchema.parse({ ...DEFAULT_WORKLOAD, ...DEFAULT_EXTERIORS_PRICING, ...z.record(z.unknown()).parse(document.data) }) : { ...DEFAULT_EXPEDITE_PRICING },
     revision: Number(document?.revision ?? 0), updated_at: document?.updated_at ?? null,
     updated_by: (document?.metadata as Record<string, unknown> | undefined)?.updated_by ?? null };
 }

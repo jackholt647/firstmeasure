@@ -421,6 +421,18 @@ function portalFeatureFlagRegistry() {
             'default' => false,
             'requires' => [],
         ],
+        'firstmeasure.metric_measurements' => [
+            'group' => 'firstmeasure', 'flag' => 'metric_measurements',
+            'label' => 'Metric measurements',
+            'description' => 'Default new reports to metric measurements. Existing reports keep their ordered units.',
+            'default' => false, 'requires' => [],
+        ],
+        'firstmeasure.report_localization' => [
+            'group' => 'firstmeasure', 'flag' => 'report_localization',
+            'label' => 'Report units and language settings',
+            'description' => 'Allow Company settings and orders to choose measurement units and PDF language.',
+            'default' => false, 'requires' => [],
+        ],
         'firstmeasure.gutter_reports' => [
             'group' => 'firstmeasure',
             'flag' => 'gutter_reports',

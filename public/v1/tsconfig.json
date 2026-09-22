@@ -13,18 +13,25 @@
     "resolveJsonModule": true
   },
   "include": [
-    "src/**/*.ts",
+    "audio-notes/**/*.ts",
     "canvassing/**/*.ts",
+    "channels/**/*.ts",
     "communications/**/*.ts",
+    "documents/**/*.ts",
+    "domains/**/*.ts",
     "firstmeasure/**/*.ts",
     "lead-intake/**/*.ts",
     "materials/**/*.ts",
+    "messaging/**/*.ts",
     "platform/**/*.ts",
-    "proposals/**/*.ts",
     "pricebook/**/*.ts",
+    "proposals/**/*.ts",
     "public-firstmeasure/**/*.ts",
+    "scopes/**/*.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts",
     "weather/**/*.ts",
-    "tests/**/*.ts"
+    "work/**/*.ts"
   ],
   "exclude": [
     "dist",

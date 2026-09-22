@@ -8,17 +8,33 @@ import {
   listProjectObligations,
   listProjectPayments
 } from "../payments/storage.js";
+import { renderInvoiceDocumentPdf } from "../payments/invoices.js";
 import {
   listDocuments,
   listOrganizations,
+  readBranchModule,
   readDocument,
+  readOrganization,
   readMediaFile,
   storeMediaUpload,
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { renderProposalPdf } from "./pdf.js";
+import { ensurePipelinePlanForProject } from "../scopes/router.js";
+import { emitWorkEvent } from "../work/engine.js";
+import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
+import { env } from "../src/config/env.js";
+import { renderProposalTemplatePdf } from "./document_artifacts.js";
+import {
+  findScopeItem,
+  moneyCents as scopeMoneyCents,
+  moneyDisplay as scopeMoneyDisplay,
+  normalizeProposalScope,
+  proposalScopeWithEnrichedPieces,
+  proposalScopeTotalCents,
+  publicScopeLineItems
+} from "./scope.js";
 import {
   PROPOSAL_SCHEMA_VERSION,
   PROPOSAL_SNAPSHOT_SCHEMA_VERSION,
@@ -252,7 +268,7 @@ function snapshotDocumentView(document: JsonObject): JsonObject {
 
 function proposalStatus(value: unknown): ProposalStatus {
   const status = cleanText(value).toLowerCase();
-  if (["sent", "viewed", "signed", "archived", "void"].includes(status)) return status as ProposalStatus;
+  if (["sent", "viewed", "signed", "expired", "archived", "void"].includes(status)) return status as ProposalStatus;
   return "draft";
 }
 
@@ -266,10 +282,12 @@ function nextProposalStatus(current: ProposalStatus, incoming: unknown, edited =
 function editableContent(input: JsonObject = {}, fallbackTitle = "Proposal") {
   const editable = asObject(input.editable);
   const source = Object.keys(editable).length ? editable : input;
+  const scope = normalizeProposalScope(source.scope);
   return {
     schema_version: PROPOSAL_SCHEMA_VERSION,
     title: cleanText(source.title || fallbackTitle) || fallbackTitle,
     pages: Array.isArray(source.pages) ? source.pages : [],
+    scope,
     theme: asObject(source.theme),
     pricing: asObject(source.pricing),
     measurements: asObject(source.measurements),
@@ -283,6 +301,20 @@ function editableContent(input: JsonObject = {}, fallbackTitle = "Proposal") {
       ...asObject(asObject(source.bindings))
     },
     ...source
+  };
+}
+
+function proposalContentWithScopeSnapshot(value: unknown): JsonObject {
+  const content = asObject(value);
+  const scope = normalizeProposalScope(content.scope);
+  return {
+    ...content,
+    scope: proposalScopeWithEnrichedPieces({
+      ...scope,
+      // Proposal-level measurements are the editable, user-entered values. A
+      // scope created before manual entry may still contain its original zeros.
+      measurements: { ...asObject(scope.measurements), ...asObject(content.measurements) }
+    })
   };
 }
 
@@ -421,17 +453,25 @@ async function patchProjectProposalRefs(orgId: string, projectId: string, propos
   const data = documentData(project);
   const proposalIds = normalizeStringArray(data.proposal_ids);
   if (!proposalIds.includes(proposalIdValue)) proposalIds.push(proposalIdValue);
+  const workflow = cleanText(data.workflow_state).toLowerCase();
+  const now = nowIso();
+  const nextData = {
+    proposal_ids: proposalIds,
+    active_proposal_id: cleanText(data.active_proposal_id) || proposalIdValue,
+    workflow_state: !workflow || workflow === "draft" || workflow === "contact_only" ? "proposal_only" : data.workflow_state,
+    has_meaningful_activity: true,
+    last_activity_at: now,
+    updated_at: now
+  };
   await upsertDocument(orgId, "projects", {
     id: projectId,
-    data: {
-      proposal_ids: proposalIds,
-      active_proposal_id: cleanText(data.active_proposal_id) || proposalIdValue
-    },
+    data: nextData,
     metadata: {
       kind: "platform_project",
       proposal_ref_source: "proposals_api"
     }
   }, { replace: false });
+  await ensurePipelinePlanForProject(orgId, { id: projectId, ...data, ...nextData });
 }
 
 export async function listProjectProposals(orgId: string, projectId: string) {
@@ -512,7 +552,7 @@ export async function patchProposal(orgId: string, proposalIdValue: string, patc
     contacts: Object.prototype.hasOwnProperty.call(patch, "contacts") || Object.prototype.hasOwnProperty.call(patch, "participants")
       ? inputContacts(patch)
       : normalizeContacts(current.contacts || current.participants),
-    editable: hasEditablePatch ? { ...asObject(current.editable), ...editablePatch, schema_version: PROPOSAL_SCHEMA_VERSION } : asObject(current.editable),
+    editable: hasEditablePatch ? editableContent({ editable: { ...asObject(current.editable), ...editablePatch } }, cleanText(patch.title || current.title || editablePatch.title) || "Proposal") : asObject(current.editable),
     resources: Object.prototype.hasOwnProperty.call(patch, "resources") ? { ...asObject(current.resources), ...asObject(patch.resources) } : asObject(current.resources),
     delivery: {
       ...currentDelivery,
@@ -642,13 +682,18 @@ export async function createProposalSnapshot(orgId: string, proposalIdValue: str
   const now = nowIso();
   const reason = cleanText(input.reason || "manual") || "manual";
   const includePortal = input.include_portal !== false && asObject(input.delivery).include_portal !== false;
-  const publicToken = reason === "send" && includePortal ? randomUUID() : "";
+  // A field user may need to hand the customer a signing link in person even
+  // when there is no email/SMS recipient. In that case create a public portal
+  // snapshot without representing the proposal as delivered.
+  const publicToken = (reason === "send" || input.create_portal_link === true) && includePortal ? randomUUID() : "";
   const snapshotDelivery = {
     ...deliveryState(proposal.delivery),
     ...asObject(input.delivery),
     ...(Array.isArray(input.recipients) ? { recipients: input.recipients.map(asObject) } : {}),
     ...(publicToken ? { public_token: publicToken } : {})
   };
+  const portalDefaults = await proposalPortalDefaultsForSnapshot(orgId, cleanText(proposal.branch_id || "default"));
+  const frozenContent = proposalContentWithScopeSnapshot(asObject(proposal.editable));
   const data = {
     schema_version: PROPOSAL_SNAPSHOT_SCHEMA_VERSION,
     id,
@@ -661,7 +706,10 @@ export async function createProposalSnapshot(orgId: string, proposalIdValue: str
     title: cleanText(input.title || proposal.title) || "Proposal",
     status: reason === "sign" ? "signed" : reason === "send" ? "sent" : cleanText(proposal.status || "draft"),
     source_revision: Number(proposalDoc.revision || 0),
-    content: JSON.parse(JSON.stringify(asObject(proposal.editable))),
+    content: cloneJson(frozenContent),
+    completion_message: portalDefaults.completion_message,
+    show_portal_price_comparison: portalDefaults.show_portal_price_comparison,
+    allow_multiple_proposal_selection: input.allow_multiple_proposal_selection === true,
     resources: JSON.parse(JSON.stringify(asObject(proposal.resources))),
     contacts: cloneJson(normalizeContacts(proposal.contacts || proposal.participants)),
     delivery: snapshotDelivery,
@@ -711,15 +759,59 @@ async function proposalProjectSnapshot(orgId: string, projectId: string) {
 }
 
 export async function sendProposal(orgId: string, proposalIdValue: string, input: JsonObject, ctx: PlatformAuthContext) {
-  const snapshot = await createProposalSnapshot(orgId, proposalIdValue, {
+  const createdSnapshot = await createProposalSnapshot(orgId, proposalIdValue, {
     ...input,
     reason: "send",
     generate_pdf: input.include_pdf !== false
   }, ctx);
+  const snapshot = await readProposalSnapshot(orgId, cleanText(createdSnapshot.id));
   const proposal = await readProposal(orgId, proposalIdValue);
+  await patchProjectProposalRefs(orgId, cleanText(proposal.project_id), proposalIdValue);
   const delivery = deliveryState(proposal.delivery);
   const sentAt = nowIso();
   const recipients = Array.isArray(input.recipients) ? input.recipients.map(asObject) : delivery.recipients;
+  const emailRecipients = recipients
+    .map((recipient) => ({ email: cleanText(recipient.email || recipient.address).toLowerCase(), name: cleanText(recipient.name) }))
+    .filter((recipient, index, values) => recipient.email && values.findIndex((value) => value.email === recipient.email) === index);
+  const publicToken = cleanText(asObject(snapshot.delivery).public_token);
+  const portalUrl = publicToken ? `${env.publicBaseUrl.replace(/\/+$/, "")}/v1/proposals/public/${encodeURIComponent(publicToken)}/app` : "";
+  const organization = asObject(await readOrganization(orgId).catch(() => ({})));
+  const organizationName = cleanText(organization.name) || "our team";
+  let pdfAttachment: { name: string; contentType: string; content: Uint8Array } | undefined;
+  if (input.include_pdf !== false) {
+    const pdf = asObject(snapshot.pdf);
+    const mediaId = cleanText(pdf.media_id || asObject(pdf.media_ref).media_id);
+    if (mediaId) {
+      const file = await readMediaFile(orgId, mediaId, "original");
+      pdfAttachment = { name: file.fileName || `${cleanText(snapshot.title) || "proposal"}.pdf`, contentType: file.contentType || "application/pdf", content: file.bytes };
+    }
+  }
+  const emailResults = [];
+  for (const recipient of emailRecipients) {
+    const greeting = recipient.name ? `Hi ${recipient.name},` : "Hello,";
+    const textBody = [
+      greeting,
+      "",
+      cleanText(input.message) || `Your proposal from ${organizationName} is ready to review.`,
+      ...(portalUrl ? ["", `Review and respond here: ${portalUrl}`] : [])
+    ].join("\n");
+    const result = await sendOrganizationTransactionalEmail({
+      organizationId: orgId,
+      branchId: cleanText(proposal.branch_id || "default") || "default",
+      to: recipient.email,
+      subject: cleanText(input.subject) || cleanText(snapshot.title) || "Your proposal",
+      textBody,
+      purpose: "transactional",
+      projectId: cleanText(proposal.project_id),
+      tags: ["proposal-send"],
+      source: { type: "user", id: "proposal_delivery", user_id: ctx.userId },
+      metadata: { proposal_id: proposalIdValue, snapshot_id: cleanText(snapshot.id) },
+      idempotencyKey: `proposal_email:${cleanText(snapshot.id)}:${recipient.email}`,
+      attachments: pdfAttachment ? [pdfAttachment] : undefined
+    }, ctx);
+    emailResults.push({ email: recipient.email, message_id: cleanText(result.message.id), ok: result.ok });
+  }
+  if (emailResults.some((result) => !result.ok)) throw badRequest("proposal_email_failed", "The proposal email could not be sent.");
   const updated = await patchProposal(orgId, proposalIdValue, {
     status: "sent",
     delivery: {
@@ -739,7 +831,8 @@ export async function sendProposal(orgId: string, proposalIdValue: string, input
     snapshot_id: cleanText(snapshot.id),
     recipients,
     include_pdf: input.include_pdf !== false,
-    include_portal: input.include_portal !== false
+    include_portal: input.include_portal !== false,
+    email_results: emailResults
   }, ctx);
   await patchProjectSharedProposal(orgId, {
     ...snapshot,
@@ -750,7 +843,7 @@ export async function sendProposal(orgId: string, proposalIdValue: string, input
       public_token: cleanText(asObject(snapshot.delivery).public_token)
     }
   }, cleanText(asObject(snapshot.delivery).public_token)).catch(() => null);
-  return { proposal: updated, snapshot };
+  return { proposal: updated, snapshot, emailed: emailResults };
 }
 
 export async function generateProposalPdf(orgId: string, proposalIdValue: string, input: JsonObject, ctx: PlatformAuthContext) {
@@ -758,11 +851,10 @@ export async function generateProposalPdf(orgId: string, proposalIdValue: string
   const proposal = await readProposal(orgId, proposalIdValue);
   const snapshotIdValue = cleanText(input.snapshot_id || asObject(proposal.delivery).current_snapshot_id);
   const snapshot = snapshotIdValue ? await readProposalSnapshot(orgId, snapshotIdValue).catch(() => null) : null;
-  const rendered = await renderProposalPdf({
+  const rendered = await renderProposalTemplatePdf(orgId, {
     proposal,
     snapshot,
-    title: cleanText(input.title || asObject(snapshot || {}).title || proposal.title),
-    html: cleanText(input.html)
+    title: cleanText(input.title || asObject(snapshot || {}).title || proposal.title)
   });
   if (input.store === false) {
     await recordProposalEvent(orgId, proposalIdValue, "proposal.pdf_rendered", { stored: false }, ctx);
@@ -859,20 +951,16 @@ export async function readProposalPdfFile(orgId: string, proposalIdValue: string
         signatures: Object.keys(asObject(snapshot.signatures)).length ? asObject(snapshot.signatures) : asObject(proposal.signatures),
         status: signed ? "signed" : cleanText(proposal.status || snapshot.status)
       };
-      const html = signedDocumentHtml(signedSnapshot);
-      if (html) {
-        const rendered = await renderProposalPdf({
-          proposal,
-          snapshot: signedSnapshot,
-          title: cleanText(signedSnapshot.title || proposal.title || "Signed Proposal"),
-          html
-        });
-        return {
-          contentType: "application/pdf",
-          fileName: rendered.fileName.replace(/\.pdf$/i, "-signed.pdf"),
-          bytes: rendered.bytes
-        };
-      }
+      const rendered = await renderProposalTemplatePdf(orgId, {
+        proposal,
+        snapshot: signedSnapshot,
+        title: cleanText(signedSnapshot.title || proposal.title || "Signed Proposal")
+      });
+      return {
+        contentType: "application/pdf",
+        fileName: rendered.fileName.replace(/\.pdf$/i, "-signed.pdf"),
+        bytes: rendered.bytes
+      };
     }
   }
   if (!resolvedMediaId) throw notFound("proposal_pdf_not_found", "No generated PDF is available for this proposal.");
@@ -887,13 +975,11 @@ export async function readPublicProposalPdfFile(publicToken: string) {
   const signedMediaRef = asObject(pdf.signed_media_ref);
   const mediaId = cleanText(pdf.signed_media_id || signedMediaRef.media_id || pdf.media_id || mediaRef.media_id);
   if (mediaId) return await readMediaFile(found.orgId, mediaId, "original");
-  const signedHtml = isSignedProposalLike(snapshot) ? signedDocumentHtml(snapshot) : "";
-  if (signedHtml) {
-    const rendered = await renderProposalPdf({
+  if (isSignedProposalLike(snapshot)) {
+    const rendered = await renderProposalTemplatePdf(found.orgId, {
       proposal: {},
       snapshot,
-      title: cleanText(snapshot.title || "Signed Proposal"),
-      html: signedHtml
+      title: cleanText(snapshot.title || "Signed Proposal")
     });
     return {
       contentType: "application/pdf",
@@ -901,7 +987,7 @@ export async function readPublicProposalPdfFile(publicToken: string) {
       bytes: rendered.bytes
     };
   }
-  const rendered = await renderProposalPdf({
+  const rendered = await renderProposalTemplatePdf(found.orgId, {
     proposal: {},
     snapshot,
     title: cleanText(snapshot.title)
@@ -911,6 +997,94 @@ export async function readPublicProposalPdfFile(publicToken: string) {
     fileName: rendered.fileName,
     bytes: rendered.bytes
   };
+}
+
+function paymentInvoiceDate(value: unknown) {
+  const parsed = new Date(cleanText(value));
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
+function paymentInvoiceLabel(payment: JsonObject) {
+  const metadata = asObject(payment.metadata);
+  const explicit = cleanText(metadata.payment_label || payment.label);
+  if (explicit) return explicit;
+  const kind = cleanText(payment.kind).toLowerCase();
+  if (kind.includes("deposit")) return "Deposit";
+  if (kind.includes("final")) return "Final Payment";
+  if (kind.includes("progress")) return "Progress Payment";
+  return "Project Payment";
+}
+
+export async function readPublicProposalReceiptPdfFile(publicToken: string, paymentIdValue = "") {
+  const found = await findPublicProposalSnapshot(publicToken);
+  const snapshot = found.snapshot;
+  const projectId = cleanText(snapshot.project_id);
+  const requestedPaymentId = cleanText(paymentIdValue);
+  const projectPayments = projectId ? await listProjectPayments(found.orgId, projectId, { skipFlag: true }).catch(() => []) : [];
+  const settledPayments = projectPayments.filter((item) => {
+    const direction = cleanText(item.direction || "inbound").toLowerCase();
+    const status = cleanText(item.status).toLowerCase();
+    return direction !== "outbound" && ["settled", "partially_refunded", "paid"].includes(status);
+  });
+  let payment = requestedPaymentId
+    ? settledPayments.find((item) => cleanText(item.id) === requestedPaymentId)
+    : settledPayments.find((item) => cleanText(item.id) === cleanText(asObject(snapshot.customer_payment).payment_id)) || settledPayments[0];
+  if (requestedPaymentId && !payment) throw notFound("payment_receipt_not_found", "That paid invoice is not available for this project.");
+  if (!payment) {
+    const legacyPayment = asObject(snapshot.customer_payment);
+    if (!cleanText(legacyPayment.status).includes("paid") && !cleanText(legacyPayment.paid_at)) {
+      throw badRequest("receipt_not_available", "A paid invoice is available after payment.");
+    }
+    payment = legacyPayment;
+  }
+  const amountCents = Math.max(0, Math.round(Number(payment.amount_cents || payment.deposit_paid_cents || payment.deposit_amount_cents || 0)));
+  if (!amountCents) throw badRequest("receipt_not_available", "A paid invoice is available after payment.");
+  const paymentId = cleanText(payment.id || payment.payment_id || snapshot.id);
+  const paymentSuffix = paymentId.slice(-8).toUpperCase() || "PAYMENT";
+  const paidAt = cleanText(payment.settled_at || payment.received_at || payment.paid_at || payment.created_at);
+  const issueDate = paymentInvoiceDate(paidAt);
+  const projectDocument = projectId ? await readDocument(found.orgId, "projects", projectId).catch(() => null) : null;
+  const project = asObject(asObject(projectDocument).data);
+  const contact = asObject(asArray(asObject(snapshot.contact_snapshot).contacts)[0] || asArray(snapshot.contacts)[0] || asArray(project.contacts)[0]);
+  const label = paymentInvoiceLabel(payment);
+  const invoiceNumber = `INV-${issueDate.replace(/-/g, "").slice(2)}-${paymentSuffix}`;
+  const invoice: JsonObject = {
+    id: `portal_payment_${paymentId}`,
+    invoice_number: invoiceNumber,
+    organization_id: found.orgId,
+    branch_id: cleanText(snapshot.branch_id || project.branch_id || "default") || "default",
+    project_id: projectId,
+    project_ref: {
+      id: projectId,
+      title: cleanText(project.title || snapshot.title || "Project"),
+      address: cleanText(project.address || project.project_address)
+    },
+    proposal_ref: {
+      id: cleanText(snapshot.proposal_id),
+      snapshot_id: cleanText(snapshot.id),
+      title: cleanText(snapshot.title || "Project proposal")
+    },
+    customer: {
+      id: cleanText(contact.id || contact.contact_id),
+      name: cleanText(contact.name || project.customer_name || "Customer"),
+      email: cleanText(contact.email || project.customer_email),
+      address: cleanText(contact.address || project.customer_address || project.address)
+    },
+    issue_date: issueDate,
+    due_date: issueDate,
+    status: "paid",
+    render_paid_in_full: true,
+    line_items: [{ id: `payment_line_${paymentId}`, type: "payment", payment_id: paymentId, description: label, amount_cents: amountCents }],
+    subtotal_cents: amountCents,
+    tax_enabled: false,
+    tax_percent: 0,
+    tax_cents: 0,
+    total_cents: amountCents,
+    amount_paid_cents: amountCents,
+    balance_due_cents: 0
+  };
+  const rendered = await renderInvoiceDocumentPdf(found.orgId, invoice);
+  return { contentType: rendered.contentType, fileName: `paid-invoice-${paymentSuffix.toLowerCase()}.pdf`, bytes: rendered.bytes };
 }
 
 function proposalPages(snapshot: JsonObject) {
@@ -924,6 +1098,9 @@ function proposalSignaturePage(snapshot: JsonObject) {
 
 function proposalPricingSubtotalCents(snapshot: JsonObject) {
   const content = asObject(snapshot.content);
+  const scope = normalizeProposalScope(content.scope);
+  const scopeTotal = proposalScopeTotalCents(scope);
+  if (scopeTotal > 0 || asArray(scope.root_items).length) return scopeTotal;
   const pricing = asObject(content.pricing);
   const pricingTotal = moneyCents(pricing.subtotal ?? pricing.subtotalValue);
   if (pricingTotal > 0) return pricingTotal;
@@ -937,6 +1114,9 @@ function proposalPricingSubtotalCents(snapshot: JsonObject) {
 
 function proposalTotalCents(snapshot: JsonObject) {
   const content = asObject(snapshot.content);
+  const scope = normalizeProposalScope(content.scope);
+  const scopeTotal = proposalScopeTotalCents(scope);
+  if (scopeTotal > 0 || asArray(scope.root_items).length) return scopeTotal;
   const pricing = asObject(content.pricing);
   const signature = proposalSignaturePage(snapshot);
   for (const value of [
@@ -963,6 +1143,16 @@ function proposalDepositCents(snapshot: JsonObject) {
   const payment = asObject(asObject(snapshot.content).payment);
   const first = asArray(payment.schedule || payment.items || payment.payment_schedule).map(asObject)[0] || {};
   return moneyCents(first);
+}
+
+async function proposalPortalDefaultsForSnapshot(orgId: string, branchId: string) {
+  const module = await readBranchModule(orgId, branchId || "default", "presentation_style").catch(() => null);
+  const data = asObject(asObject(module).data);
+  const defaults = asObject(data.proposal_defaults);
+  return {
+    completion_message: cleanText(defaults.completion_message || "{{company}} will reach out with next steps."),
+    show_portal_price_comparison: defaults.show_portal_price_comparison !== false
+  };
 }
 
 function publicProposalLineItems(page: JsonObject) {
@@ -1021,6 +1211,7 @@ function publicProposalPage(pageValue: unknown, snapshot: JsonObject, index: num
   const page = asObject(pageValue);
   const kind = cleanText(page.kind || "scope").toLowerCase() || "scope";
   const pageId = cleanText(page.id) || `page_${index + 1}`;
+  const content = asObject(snapshot.content);
   const base = {
     id: pageId,
     kind,
@@ -1028,12 +1219,20 @@ function publicProposalPage(pageValue: unknown, snapshot: JsonObject, index: num
     kicker: cleanText(page.kicker)
   };
   if (kind === "pricing") {
-    const lineItems = publicProposalLineItems(page);
+    const scopeView = asObject(page.scope_view || page.scopeView || {
+      root_item_id: cleanText(page.scope_root_id || page.scopeRootId || "root") || "root",
+      render_depth: Number(page.render_depth ?? page.renderDepth ?? 1) || 1,
+      show_included_items: page.show_included_items !== false,
+      show_unselected_options: page.show_unselected_options === true
+    });
+    const scopedItems = publicScopeLineItems(content.scope, scopeView);
+    const lineItems = scopedItems.length ? scopedItems : publicProposalLineItems(page);
     return {
       ...base,
       notes: cleanText(page.notes),
+      scope_view: scopeView,
       line_items: lineItems,
-      total: moneyDisplay(lineItems.reduce((sum, item) => sum + moneyCents(item.amount), 0))
+      total: scopeMoneyDisplay(lineItems.reduce((sum, item) => sum + scopeMoneyCents(asObject(item).amount), 0))
     };
   }
   if (kind === "signature") {
@@ -1112,7 +1311,7 @@ function publicSharedProposalView(snapshot: JsonObject, publicToken = "") {
     pdf_url: token ? `/v1/proposals/public/${encodeURIComponent(token)}/pdf` : "",
     pdf: asObject(snapshot.pdf),
     document_html: cleanText(snapshot.document_html),
-    builder_document: cleanText(snapshot.document_html) ? {} : {
+    builder_document: {
       ...asObject(snapshot.content),
       id: cleanText(snapshot.proposal_id),
       title: cleanText(snapshot.title || asObject(snapshot.content).title || "Proposal"),
@@ -1129,7 +1328,10 @@ function publicSharedProposalView(snapshot: JsonObject, publicToken = "") {
     workflow: {
       signed,
       customer_signature_slots: customerSignatureSlots(snapshot),
-      payment: asObject(snapshot.customer_payment)
+      payment: asObject(snapshot.customer_payment),
+      completion_message: cleanText(snapshot.completion_message),
+      show_portal_price_comparison: snapshot.show_portal_price_comparison !== false,
+      allow_multiple_proposal_selection: snapshot.allow_multiple_proposal_selection === true
     },
     pages: proposalPages(snapshot).map((page, index) => publicProposalPage(page, snapshot, index))
   };
@@ -1198,13 +1400,10 @@ function signedDocumentHtml(snapshot: JsonObject) {
 }
 
 async function storeSignedProposalPdf(orgId: string, snapshot: JsonObject) {
-  const html = signedDocumentHtml(snapshot);
-  if (!html) return null;
-  const rendered = await renderProposalPdf({
+  const rendered = await renderProposalTemplatePdf(orgId, {
     proposal: {},
     snapshot,
-    title: cleanText(snapshot.title || "Signed Proposal"),
-    html
+    title: cleanText(snapshot.title || "Signed Proposal")
   });
   const media = await storeMediaUpload(orgId, {
     ownerType: "proposal",
@@ -1262,6 +1461,68 @@ async function patchProjectSharedProposal(orgId: string, snapshot: JsonObject, p
     }
   }, { replace: true });
   return documentData(doc);
+}
+
+async function expireSiblingProposalOptions(orgId: string, signedSnapshot: JsonObject) {
+  if (signedSnapshot.allow_multiple_proposal_selection === true) return;
+  const projectId = cleanText(signedSnapshot.project_id);
+  const signedProposalId = cleanText(signedSnapshot.proposal_id);
+  if (!projectId || !signedProposalId) return;
+  const now = nowIso();
+  const isExpirable = (item: JsonObject) => {
+    const status = cleanText(item.status).toLowerCase();
+    const rawDelivery = asObject(item.delivery);
+    const delivery = deliveryState(item.delivery);
+    const deliveryStatus = cleanText(delivery.state).toLowerCase();
+    if (cleanText(item.proposal_id || item.id) === signedProposalId) return false;
+    if (["signed", "archived", "void", "discarded"].includes(status)) return false;
+    if (["signed", "void"].includes(deliveryStatus)) return false;
+    return ["sent", "viewed", "expired"].includes(status) || ["sent", "viewed", "expired"].includes(deliveryStatus) || !!cleanText(delivery.current_public_token || rawDelivery.public_token);
+  };
+  const expireItem = (item: JsonObject) => ({
+    ...item,
+    status: "expired",
+    expired_at: cleanText(item.expired_at) || now,
+    expired_by_proposal_id: signedProposalId,
+    delivery: {
+      ...deliveryState(item.delivery),
+      state: "expired",
+      expired_at: cleanText(asObject(item.delivery).expired_at) || now,
+      expired_by_proposal_id: signedProposalId
+    }
+  });
+  const projectDoc = await readDocument(orgId, "projects", projectId).catch(() => null);
+  if (projectDoc) {
+    const project = documentData(projectDoc);
+    let changed = false;
+    const proposals = asArray(project.proposals).map(asObject).map((item) => {
+      if (!isExpirable(item)) return item;
+      changed = true;
+      return expireItem(item);
+    });
+    if (changed) {
+      await upsertDocument(orgId, "projects", {
+        id: projectId,
+        data: { ...project, proposals },
+        metadata: {
+          ...asObject(asObject(projectDoc).metadata),
+          kind: cleanText(asObject(asObject(projectDoc).metadata).kind) || "platform_project",
+          proposal_portal_source: "proposals_api"
+        }
+      }, { replace: true });
+    }
+  }
+  const proposalDocs = await listDocuments(orgId, PROPOSAL_COLLECTION).catch(() => []);
+  for (const doc of proposalDocs) {
+    const proposal = proposalDocumentView(doc);
+    if (cleanText(proposal.project_id) !== projectId || !isExpirable(proposal)) continue;
+    const next = expireItem(proposal);
+    await upsertDocument(orgId, PROPOSAL_COLLECTION, {
+      id: cleanText(proposal.id || doc.id),
+      data: next,
+      metadata: { ...asObject(doc.metadata), kind: "proposal", project_id: projectId, status: "expired" }
+    }, { replace: true });
+  }
 }
 
 export async function listProposalEvents(orgId: string, proposalIdValue: string) {
@@ -1372,18 +1633,31 @@ async function proposalPaymentSummary(orgId: string, snapshot: JsonObject) {
   const subtotalCents = proposalPricingSubtotalCents(snapshot);
   const totalCents = proposalTotalCents(snapshot);
   const expectedDepositCents = proposalDepositCents(snapshot);
+  // A transient listing failure must not report the deposit as unpaid (an
+  // empty list makes deposit_due_cents fall back to the full snapshot
+  // deposit, resurrecting "Pay deposit" for money already collected
+  // staff-side) — retry once before degrading.
   const obligations = projectId
-    ? await listProjectObligations(orgId, projectId, { skipFlag: true }).catch(() => [])
+    ? await listProjectObligations(orgId, projectId, { skipFlag: true })
+      .catch(() => listProjectObligations(orgId, projectId, { skipFlag: true }))
+      .catch(() => [])
     : [];
   const sourceObligations = obligations
     .filter((item) => cleanText(asObject(item.source).id) === proposalIdValue && cleanText(asObject(item.source).snapshot_id) === snapshotIdValue)
     .filter((item) => cleanText(item.direction) === "inbound");
   const deposit = sourceObligations.find((item) => /deposit/i.test(cleanText(item.label))) || sourceObligations[0] || {};
+  const customerPayment = asObject(snapshot.customer_payment);
+  const customerPaymentStatus = cleanText(customerPayment.status);
+  const customerPaidCents = !sourceObligations.length && customerPaymentStatus.includes("paid")
+    ? Math.max(0, Math.round(Number(customerPayment.amount_cents || customerPayment.deposit_paid_cents || customerPayment.deposit_amount_cents || 0)))
+    : 0;
   const depositAmountCents = Math.max(expectedDepositCents, Math.round(Number(deposit.amount_cents || 0)));
-  const paidCents = Math.max(0, Math.round(Number(deposit.allocated_cents || 0)));
+  const paidCents = Math.max(0, Math.round(Number(deposit.allocated_cents || 0)), customerPaidCents);
   const openCents = Math.max(0, depositAmountCents - paidCents);
   const payments = projectId
-    ? await listProjectPayments(orgId, projectId, { skipFlag: true }).catch(() => [])
+    ? await listProjectPayments(orgId, projectId, { skipFlag: true })
+      .catch(() => listProjectPayments(orgId, projectId, { skipFlag: true }))
+      .catch(() => [])
     : [];
   return {
     currency: "USD",
@@ -1393,9 +1667,24 @@ async function proposalPaymentSummary(orgId: string, snapshot: JsonObject) {
     deposit_amount_cents: depositAmountCents,
     deposit_due_cents: openCents,
     deposit_paid_cents: paidCents,
+    status: customerPaymentStatus,
+    payment_id: cleanText(customerPayment.payment_id),
+    paid_at: cleanText(customerPayment.paid_at),
+    amount_cents: Math.max(0, Math.round(Number(customerPayment.amount_cents || paidCents || 0))),
     remaining_cents: Math.max(0, totalCents - sourceObligations.reduce((sum, item) => sum + Math.max(0, Math.round(Number(item.allocated_cents || 0))), 0)),
     obligation_id: cleanText(deposit.id),
     schedule_id: cleanText(deposit.schedule_id),
+    obligations: sourceObligations.map((item) => ({
+      id: cleanText(item.id),
+      label: cleanText(item.label || "Payment"),
+      amount_cents: Math.max(0, Math.round(Number(item.amount_cents || 0))),
+      allocated_cents: Math.max(0, Math.round(Number(item.allocated_cents || 0))),
+      balance_due_cents: Math.max(0, Math.round(Number(item.amount_cents || 0)) - Math.round(Number(item.allocated_cents || 0))),
+      due_at: cleanText(item.due_at),
+      due_rule: cleanText(item.due_rule),
+      status: cleanText(item.status),
+      invoice_id: cleanText(asObject(item.metadata).invoice_id)
+    })),
     payments: payments
       .filter((payment) => cleanText(asObject(payment.metadata).proposal_id) === proposalIdValue || cleanText(payment.project_id) === projectId)
       .slice(0, 12)
@@ -1409,6 +1698,97 @@ export async function publicProposalWorkflow(publicToken: string) {
     payment: await proposalPaymentSummary(found.orgId, found.snapshot)
   };
   return { orgId: found.orgId, snapshot: found.snapshot, workflow };
+}
+
+function findRawScopeItemContext(items: unknown, itemId: string, parent: JsonObject | null = null): { item: JsonObject; parent: JsonObject | null; items: JsonObject[] } | null {
+  const needle = cleanText(itemId);
+  if (!needle) return null;
+  const list = asArray(items).filter((item) => item && typeof item === "object" && !Array.isArray(item)) as JsonObject[];
+  for (const item of list) {
+    if (cleanText(item.id) === needle) return { item, parent, items: list };
+    const found = findRawScopeItemContext(item.children, needle, item);
+    if (found) return found;
+  }
+  return null;
+}
+
+function selectionAllowsCustomer(selection: JsonObject = {}) {
+  const selectableBy = asArray(selection.selectable_by || selection.selectableBy).map(cleanText);
+  if (selection.customer_visible === true) return true;
+  if (selection.customer_visible === false) return false;
+  return selectableBy.includes("customer");
+}
+
+export async function recordPublicProposalChoiceSelection(publicToken: string, input: JsonObject = {}, metadata: JsonObject = {}) {
+  const found = await findPublicProposalSnapshot(publicToken);
+  const snapshot = found.snapshot;
+  if (isSignedProposalLike(snapshot)) throw conflict("proposal_already_signed", "Signed proposals cannot be changed.");
+  const requestedGroupId = cleanText(input.group_id || input.groupId);
+  const optionId = cleanText(input.option_id || input.optionId || input.scope_item_id || input.scopeItemId);
+  if (!optionId) throw badRequest("choice_option_required", "A choice option is required.");
+  const content = cloneJson(asObject(snapshot.content));
+  const scope = asObject(content.scope);
+  const roots = asArray(scope.root_items || scope.rootItems || scope.items);
+  const context = findRawScopeItemContext(roots, optionId);
+  if (!context) throw notFound("choice_option_not_found", "That proposal choice option was not found.");
+  const optionSelection = asObject(context.item.selection);
+  const groupId = cleanText(optionSelection.group_id || optionSelection.groupId);
+  if (!groupId || cleanText(optionSelection.mode) !== "choice") throw badRequest("invalid_choice_option", "That item is not a selectable proposal option.");
+  if (requestedGroupId && requestedGroupId !== groupId) throw badRequest("choice_group_mismatch", "That option does not belong to the requested choice group.");
+  if (!selectionAllowsCustomer(optionSelection) && optionSelection.selected !== true) throw forbidden("choice_option_not_customer_selectable", "That option is not available for customer selection.");
+  const now = nowIso();
+  let groupCount = 0;
+  context.items.forEach((item) => {
+    const selection = asObject(item.selection);
+    if (cleanText(selection.mode) !== "choice") return;
+    if (cleanText(selection.group_id || selection.groupId) !== groupId) return;
+    groupCount += 1;
+    const selected = cleanText(item.id) === optionId;
+    const selectableBy = new Set(asArray(selection.selectable_by || selection.selectableBy).map(cleanText).filter(Boolean));
+    if (selected) {
+      selectableBy.add("internal");
+      selectableBy.add("customer");
+    }
+    item.selection = {
+      ...selection,
+      mode: "choice",
+      group_id: groupId,
+      group_behavior: cleanText(selection.group_behavior || selection.groupBehavior || "single") || "single",
+      selected,
+      default_selected: selected,
+      selected_by: selected ? "customer" : cleanText(selection.selected_by || selection.selectedBy),
+      selected_at: selected ? now : cleanText(selection.selected_at || selection.selectedAt),
+      customer_visible: selected ? true : selection.customer_visible,
+      selectable_by: Array.from(selectableBy)
+    };
+  });
+  if (groupCount < 2) throw badRequest("choice_group_not_selectable", "That proposal choice group is not selectable.");
+  const signatures = asObject(snapshot.signatures);
+  const audit = workflowAuditEntry("proposal.choice.selected", input, metadata);
+  const nextSnapshot = {
+    ...snapshot,
+    content,
+    document_html: "",
+    signatures: {
+      ...signatures,
+      audit_log: [...asArray(signatures.audit_log).map(asObject), audit]
+    },
+    updated_at: now
+  };
+  await upsertDocument(found.orgId, PROPOSAL_SNAPSHOT_COLLECTION, {
+    id: cleanText(snapshot.id),
+    data: nextSnapshot,
+    metadata: { kind: "proposal_snapshot", proposal_id: cleanText(snapshot.proposal_id), public_token: publicToken, status: cleanText(snapshot.status) }
+  }, { replace: true });
+  await patchProjectSharedProposal(found.orgId, nextSnapshot, publicToken).catch(() => null);
+  await recordProposalEvent(found.orgId, cleanText(snapshot.proposal_id), "proposal.choice.selected", {
+    snapshot_id: cleanText(snapshot.id),
+    group_id: groupId,
+    option_id: optionId,
+    public: true,
+    audit
+  }, null);
+  return { orgId: found.orgId, snapshot: nextSnapshot };
 }
 
 export async function recordPublicProposalSignatureAdoption(publicToken: string, input: JsonObject = {}, metadata: JsonObject = {}) {
@@ -1564,6 +1944,7 @@ async function finalizePublicProposalSignature(publicToken: string, input: JsonO
   let nextSnapshot: JsonObject = {
     ...snapshot,
     status: "signed",
+    content: proposalContentWithScopeSnapshot(snapshot.content),
     signatures: nextSignatures,
     delivery: nextDelivery,
     ...proposalViewedCompatibilityFields(nextDelivery),
@@ -1617,6 +1998,7 @@ async function finalizePublicProposalSignature(publicToken: string, input: JsonO
     }, { replace: true });
   }
   await patchProjectSharedProposal(found.orgId, nextSnapshot, publicToken).catch(() => null);
+  await expireSiblingProposalOptions(found.orgId, nextSnapshot).catch(() => null);
   await recordProposalEvent(found.orgId, cleanText(snapshot.proposal_id), "proposal.signed", {
     snapshot_id: cleanText(snapshot.id),
     public: true,
@@ -1629,13 +2011,11 @@ async function finalizePublicProposalSignature(publicToken: string, input: JsonO
     signer_name: signerName,
     audit: completionAudit
   }, null);
-  await ensureReceivablesForSignedProposal(found.orgId, cleanText(snapshot.proposal_id), cleanText(snapshot.id), {
-    signed_at: now,
-    source: "proposal_public_esign"
-  }).catch((error) => {
-    if (error?.code === "app_flag_disabled") return null;
-    throw error;
-  });
+  // Production scopes are instantiated by the pipeline template's
+  // `scopes.activateFromProposal.v1` binding when the `proposal.signed` work
+  // event (emitted by recordProposalEvent above) completes the signature node.
+  // Receivables are created by the default organization automation rule
+  // (payments.ensureReceivables.v1 on proposal.signed).
   return { orgId: found.orgId, snapshot: nextSnapshot };
 }
 
@@ -1690,19 +2070,30 @@ export async function recordPublicProposalMockDepositPayment(publicToken: string
   const found = await findPublicProposalSnapshot(publicToken);
   const snapshot = found.snapshot;
   const delivery = deliveryState(snapshot.delivery);
-  if (cleanText(snapshot.status) !== "signed" && cleanText(delivery.state) !== "signed") {
-    throw badRequest("proposal_not_signed", "The proposal must be signed before collecting the deposit.");
+  const isSigned = cleanText(snapshot.status) === "signed" || cleanText(delivery.state) === "signed";
+  if (isSigned) {
+    await ensureReceivablesForSignedProposal(found.orgId, cleanText(snapshot.proposal_id), cleanText(snapshot.id), {
+      signed_at: cleanText(delivery.signed_at) || nowIso(),
+      source: "proposal_public_mock_payment"
+    }).catch((error) => {
+      if (error?.code === "app_flag_disabled") return null;
+      throw error;
+    });
   }
-  await ensureReceivablesForSignedProposal(found.orgId, cleanText(snapshot.proposal_id), cleanText(snapshot.id), {
-    signed_at: cleanText(delivery.signed_at) || nowIso(),
-    source: "proposal_public_mock_payment"
-  }).catch((error) => {
-    if (error?.code === "app_flag_disabled") return null;
-    throw error;
-  });
   const summary = await proposalPaymentSummary(found.orgId, snapshot);
-  const amount = Math.max(0, Math.round(Number(input.amount_cents || summary.deposit_due_cents || summary.deposit_amount_cents || 0)));
-  if (amount <= 0) throw badRequest("deposit_not_due", "There is no deposit currently due for this proposal.");
+  const requestedObligationId = cleanText(input.obligation_id);
+  const summaryObligations = asArray(summary.obligations).map(asObject);
+  const targetObligation = requestedObligationId
+    ? summaryObligations.find((item) => cleanText(item.id) === requestedObligationId)
+    : summaryObligations.find((item) => cleanText(item.id) === cleanText(summary.obligation_id));
+  if (requestedObligationId && !targetObligation) throw badRequest("payment_obligation_not_found", "That payment is not available for this proposal.");
+  const targetBalance = targetObligation
+    ? Math.max(0, Math.round(Number(targetObligation.balance_due_cents || 0)))
+    : Math.max(0, Math.round(Number(summary.deposit_due_cents || summary.deposit_amount_cents || 0)));
+  const amount = Math.max(0, Math.round(Number(input.amount_cents || targetBalance)));
+  if (amount <= 0) throw badRequest("payment_not_due", "There is no open balance for this payment.");
+  const paymentLabel = cleanText(targetObligation?.label || "Deposit");
+  const isDepositPayment = !targetObligation || /deposit/i.test(paymentLabel);
   const ctx = {
     orgId: found.orgId,
     branchId: cleanText(snapshot.branch_id || "default") || "default",
@@ -1711,51 +2102,99 @@ export async function recordPublicProposalMockDepositPayment(publicToken: string
     membership: {},
     permissions: []
   } as unknown as PlatformAuthContext;
-  const paymentResult = await createPayment(found.orgId, {
-    direction: "inbound",
-    kind: "customer_deposit",
-    status: "settled",
-    amount_cents: amount,
-    currency: "USD",
-    project_id: cleanText(snapshot.project_id),
-    contact_ref: asObject(asArray(asObject(snapshot.contact_snapshot).contacts)[0] || asArray(snapshot.contacts)[0]),
-    method: {
-      type: "mock_customer_portal",
-      label: "Customer Portal Mock Payment"
-    },
-    metadata: {
-      public_token: publicToken,
-      proposal_id: cleanText(snapshot.proposal_id),
-      snapshot_id: cleanText(snapshot.id),
-      mock: true,
-      source: "customer_portal"
-    },
-    allocation_mode: "customer_portal_deposit"
-  }, ctx);
+  const paymentKind = isDepositPayment ? "customer_deposit" : /final|completion/i.test(paymentLabel) ? "customer_final" : "customer_progress";
+  const paymentMetadata = {
+    public_token: publicToken,
+    proposal_id: cleanText(snapshot.proposal_id),
+    snapshot_id: cleanText(snapshot.id),
+    obligation_id: cleanText(targetObligation?.id),
+    payment_label: paymentLabel,
+    source: "customer_portal"
+  };
+  const contactRef = asObject(asArray(asObject(snapshot.contact_snapshot).contacts)[0] || asArray(snapshot.contacts)[0]);
+  // Provider charge path: when the portal submitted a tokenized payment
+  // method (or a saved one) AND the org resolves a payment provider, charge
+  // through the adapter and let the shared intake flow write the transaction
+  // with provider fee fields. Otherwise the legacy mock-record behavior below
+  // is untouched.
+  const providerToken = cleanText(input.payment_method_id);
+  const savedMethodId = cleanText(input.saved_payment_method_id);
+  let paymentResult: { payment: JsonObject; allocations: JsonObject[] } | null = null;
+  let providerCharged = false;
+  const { getPaymentProvider } = await import("../payments/providers/index.js");
+  const provider = providerToken || savedMethodId ? await getPaymentProvider(found.orgId).catch(() => null) : null;
+  if (provider) {
+    const { recordProviderChargedPayment, findSavedMethod } = await import("../payments/intake.js");
+    // Legacy fake saved-method ids (test_card_on_file) never resolve; keep
+    // the mock record path for those instead of failing the payment.
+    const savedResolvable = !savedMethodId || providerToken || !!(await findSavedMethod(found.orgId, savedMethodId));
+    if (savedResolvable) {
+      const charged = await recordProviderChargedPayment(found.orgId, provider, {
+        amount_cents: amount,
+        payment_method_id: providerToken,
+        saved_method_id: providerToken ? "" : savedMethodId,
+        method: cleanText(input.payment_method || input.method),
+        project_id: cleanText(snapshot.project_id),
+        branch_id: cleanText(snapshot.branch_id || "default") || "default",
+        save_payment_method: input.save_payment_method === true,
+        contact_ref: contactRef,
+        payment: {
+          kind: paymentKind,
+          currency: "USD",
+          metadata: { ...paymentMetadata, provider: provider.provider },
+          allocation_mode: isDepositPayment ? "customer_portal_deposit" : "customer_portal_invoice",
+          obligation_id: cleanText(targetObligation?.id)
+        }
+      }, ctx);
+      paymentResult = { payment: asObject(charged.payment), allocations: asArray(charged.allocations).map(asObject) };
+      providerCharged = true;
+    }
+  }
+  if (!paymentResult) {
+    paymentResult = await createPayment(found.orgId, {
+      direction: "inbound",
+      kind: paymentKind,
+      status: "settled",
+      amount_cents: amount,
+      currency: "USD",
+      project_id: cleanText(snapshot.project_id),
+      contact_ref: contactRef,
+      method: {
+        type: "mock_customer_portal",
+        label: "Customer Portal Mock Payment"
+      },
+      metadata: { ...paymentMetadata, mock: true },
+      allocation_mode: isDepositPayment ? "customer_portal_deposit" : "customer_portal_invoice",
+      obligation_id: cleanText(targetObligation?.id)
+    }, ctx);
+  }
   const now = nowIso();
   const audit = workflowAuditEntry("proposal.payment.mock_succeeded", input, metadata);
-  const signedAt = cleanText(delivery.signed_at || snapshot.signed_at || snapshot.customer_signed_at || now);
-  const nextDelivery = { ...delivery, state: "signed", signed_at: signedAt };
+  const signedAt = cleanText(delivery.signed_at || snapshot.signed_at || snapshot.customer_signed_at);
+  const nextDelivery = isSigned ? { ...delivery, state: "signed", signed_at: signedAt || now } : delivery;
   const nextSnapshot: JsonObject = {
     ...snapshot,
-    status: "signed",
+    status: isSigned ? "signed" : cleanText(snapshot.status),
     delivery: nextDelivery,
     customer_payment: {
-      status: "deposit_paid",
+      status: isDepositPayment ? "deposit_paid" : "payment_paid",
       payment_id: cleanText(paymentResult.payment.id),
-      amount_cents: amount,
+      obligation_id: cleanText(targetObligation?.id),
+      label: paymentLabel,
+      amount_cents: Math.max(0, Math.round(Number(paymentResult.payment.amount_cents || amount))),
       paid_at: now,
-      mock: true,
+      mock: !providerCharged,
+      ...(providerCharged ? { provider: cleanText(paymentResult.payment.provider) } : {}),
       audit
     },
     ...proposalViewedCompatibilityFields(nextDelivery),
-    ...proposalSignedCompatibilityFields(signedAt, asObject(snapshot.signatures)),
+    ...(isSigned ? proposalSignedCompatibilityFields(signedAt || now, asObject(snapshot.signatures)) : {}),
     updated_at: now
   };
   await upsertDocument(found.orgId, PROPOSAL_SNAPSHOT_COLLECTION, {
     id: cleanText(snapshot.id),
     data: nextSnapshot,
-    metadata: { kind: "proposal_snapshot", proposal_id: cleanText(snapshot.proposal_id), public_token: publicToken, status: "signed" }
+    metadata: { kind: "proposal_snapshot", proposal_id: cleanText(snapshot.proposal_id), public_token: publicToken, status: cleanText(nextSnapshot.status) }
   }, { replace: true });
   const proposal = await readDocument(found.orgId, PROPOSAL_COLLECTION, cleanText(snapshot.proposal_id)).catch(() => null);
   if (proposal) {
@@ -1766,7 +2205,7 @@ export async function recordPublicProposalMockDepositPayment(publicToken: string
       id: cleanText(snapshot.proposal_id),
       data: {
         ...proposalData,
-        status: "signed",
+        status: isSigned ? "signed" : cleanText(proposalData.status),
         pdf: {
           ...asObject(proposalData.pdf),
           signed_media_id: cleanText(asObject(nextSnapshot.pdf).signed_media_id || asObject(asObject(nextSnapshot.pdf).signed_media_ref).media_id || asObject(proposalData.pdf).signed_media_id),
@@ -1781,16 +2220,15 @@ export async function recordPublicProposalMockDepositPayment(publicToken: string
           ...asObject(proposalData.payment),
           customer_payment: asObject(nextSnapshot.customer_payment)
         },
-        ...proposalViewedCompatibilityFields({ ...deliveryData, state: "signed", signed_at: canonicalSignedAt }),
-        ...proposalSignedCompatibilityFields(canonicalSignedAt, asObject(nextSnapshot.signatures)),
+        ...proposalViewedCompatibilityFields(isSigned ? { ...deliveryData, state: "signed", signed_at: canonicalSignedAt } : deliveryData),
+        ...(isSigned ? proposalSignedCompatibilityFields(canonicalSignedAt, asObject(nextSnapshot.signatures)) : {}),
         delivery: {
           ...deliveryData,
-          state: "signed",
-          signed_at: canonicalSignedAt,
+          ...(isSigned ? { state: "signed", signed_at: canonicalSignedAt } : {}),
           current_snapshot_id: cleanText(snapshot.id)
         }
       },
-      metadata: { kind: "proposal", project_id: cleanText(proposalData.project_id), status: "signed" }
+      metadata: { kind: "proposal", project_id: cleanText(proposalData.project_id), status: isSigned ? "signed" : cleanText(proposalData.status) }
     }, { replace: true });
   }
   await patchProjectSharedProposal(found.orgId, nextSnapshot, publicToken).catch(() => null);
@@ -1827,5 +2265,24 @@ export async function recordProposalEvent(orgId: string, proposalIdValue: string
       type
     }
   }, { replace: true });
+  {
+    const proposalDoc = await readDocument(orgId, PROPOSAL_COLLECTION, proposalIdValue).catch(() => null);
+    const proposal = proposalDoc ? documentData(proposalDoc) : {};
+    const projectId = cleanText(payload.project_id || proposal.project_id);
+    if (projectId) {
+      // `proposal.signed` drives the pipeline transition: it completes the
+      // pipeline template's signature node, whose binding instantiates the
+      // signed production scopes.
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: cleanText(proposal.branch_id || "default"),
+        project_id: projectId,
+        type,
+        idempotency_key: `${type}:${proposalIdValue}:${cleanText(payload.snapshot_id || data.id)}`,
+        payload: { proposal_id: proposalIdValue, ...payload },
+        context: { actor_user_id: ctx?.userId || cleanText(payload.actor_user_id) }
+      });
+    }
+  }
   return { ...documentData(doc), id: cleanText(doc.id) };
 }

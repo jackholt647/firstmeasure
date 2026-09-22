@@ -386,7 +386,7 @@ const lengthTextures=new Map();
 function pruneLengthTextures(){for(const [key,entry]of lengthTextures){if(lengthTextures.size<=256)break;if(!entry.users){lengthTextures.delete(key);entry.texture.dispose();}}}
 window.wallLengthMarker=function(group,vector,edge){
  if(typeof document==='undefined'||!THREE.Sprite)return;
- const text=edge.text||(edge.length/.3048).toFixed(1)+'\u2032',key=JSON.stringify([text,!!edge.selected]);
+ const text=edge.text||(window.ReportUnits?.current().distance(edge.length,(edge.length/.3048).toFixed(1)+'\u2032')??(edge.length/.3048).toFixed(1)+'\u2032'),key=JSON.stringify([text,!!edge.selected]);
  let entry=lengthTextures.get(key);
  if(!entry){
  const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;const ctx=canvas.getContext('2d');if(!ctx)return;

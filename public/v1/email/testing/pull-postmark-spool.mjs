@@ -11,7 +11,7 @@
  *
  * Optional:
  *   POSTMARK_SPOOL_URL=https://app.1m8.ai/v1/email/inbound/postmark/index.php
- *   LOCAL_EMAIL_WEBHOOK_URL=http://127.0.0.1:3111/v1/email/inbound/postmark
+ *   LOCAL_EMAIL_WEBHOOK_URL=http://127.0.0.1:3101/v1/email/inbound/postmark
  *   EMAIL_INBOUND_WEBHOOK_TOKEN=...
  */
 
@@ -21,7 +21,7 @@ import dns from "node:dns";
 
 const spoolUrl = process.env.POSTMARK_SPOOL_URL || "https://app.1m8.ai/v1/email/inbound/postmark/index.php";
 const spoolKey = process.env.POSTMARK_SPOOL_KEY || "";
-const localWebhookUrl = process.env.LOCAL_EMAIL_WEBHOOK_URL || "http://127.0.0.1:3111/v1/email/inbound/postmark";
+const localWebhookUrl = process.env.LOCAL_EMAIL_WEBHOOK_URL || "http://127.0.0.1:3101/v1/email/inbound/postmark";
 const localWebhookToken = process.env.EMAIL_INBOUND_WEBHOOK_TOKEN || "";
 
 if (!spoolKey) {

@@ -1,12 +1,19 @@
 import pg, { type Pool, type PoolClient, type PoolConfig, type QueryResultRow } from "pg";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { env } from "../config/env.js";
 
 const { Pool: PgPool } = pg;
 
 let applicationPool: Pool | null = null;
+// Platform SQL stores opt into this context so calls into the existing core
+// participate in the same transaction, including when the pool has one slot.
+const platformTransactionClient = new AsyncLocalStorage<PoolClient>();
+export function withPlatformPostgresClient<T>(client: PoolClient, operation: () => Promise<T>): Promise<T> {
+  return platformTransactionClient.run(client, operation);
+}
 let adminPool: Pool | null = null;
 let bootstrapPromise: Promise<{ appUser: string; database: string; grantsAttempted: boolean }> | null = null;
 
@@ -77,7 +84,7 @@ export async function queryPostgres<T extends QueryResultRow = QueryResultRow>(
   text: string,
   values: unknown[] = []
 ) {
-  return getPostgresPool().query<T>(text, values);
+  return (platformTransactionClient.getStore() ?? getPostgresPool()).query<T>(text, values);
 }
 
 // Session advisory locks must not occupy the application's only pool slot.
@@ -99,6 +106,8 @@ export async function withPostgresClient<T>(fn: (client: PoolClient) => Promise<
 }
 
 export async function withPostgresTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const existing = platformTransactionClient.getStore();
+  if (existing) return fn(existing);
   return withPostgresClient(async (client) => {
     await client.query("BEGIN");
     try {

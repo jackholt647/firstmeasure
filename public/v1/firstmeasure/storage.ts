@@ -1,4 +1,7 @@
+import { isCustomerExteriorId } from "./exteriors.js";
 import { assertFullHouseProjectAccess, isFullHouseId } from './full_house.js';
+import { freezeReportLanguage } from "../platform/localization/reports.js";
+import { resolveOrderReportPreferences, reportPreferencesSchema } from "./report_preferences.js";
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -234,11 +237,13 @@ async function writeJsonAtomic(filePath: string, value: unknown) {
   await writeFileAtomic(filePath, JSON.stringify(value, null, 2));
 }
 
-export async function createProject(input: JsonObject & { address: string }, options: { fullHouse?: boolean } = {}) {
-  if ((isFullHouseId(input.id) || input.measurement_scope != null) && !options.fullHouse) {
+export async function createProject(input: JsonObject & { address: string }, options: { fullHouse?: boolean; customerExteriors?: boolean } = {}) {
+  if ((isFullHouseId(input.id) || input.measurement_scope != null) && !options.fullHouse && !options.customerExteriors) {
     throw badRequest("reserved_project_scope", "Use the internal full-house submission page.");
   }
   if (options.fullHouse && (!isFullHouseId(input.id) || input.measurement_scope !== "full_house")) throw badRequest("invalid_project_scope", "Invalid full-house submission.");
+  if (options.customerExteriors && (!isCustomerExteriorId(input.id) || input.measurement_scope!=="full_house")) throw badRequest("invalid_project_scope","Invalid customer exterior submission.");
+  if (isCustomerExteriorId(input.id) && !options.customerExteriors) throw badRequest("reserved_project_scope","Use the customer full-house order workflow.");
   await ensureFirstMeasureStorage();
 
   const projectId = input.id ? sanitizeProjectId(String(input.id)) : generateProjectId();
@@ -254,8 +259,12 @@ export async function createProject(input: JsonObject & { address: string }, opt
 
   const initialComplexity = (input.complexity as number | string | null | undefined) ?? null;
   const initialIsVip = Boolean(input.is_vip ?? false) || await shouldAutoVipFirstOrganizationProject(input);
+  const reportPreferences = await resolveOrderReportPreferences(input);
+  const languageSnapshot = await freezeReportLanguage(input, reportPreferences);
   const manifest: ProjectManifest = {
     ...(options.fullHouse ? { measurement_scope: "full_house", internal_only: true } : {}),
+    ...reportPreferences,
+    language_snapshot: languageSnapshot,
     schema_version: FIRSTMEASURE_SCHEMA_VERSION,
     id: projectId,
     status: String(input.status ?? "queued"),
@@ -284,6 +293,7 @@ export async function createProject(input: JsonObject & { address: string }, opt
     is_filler: Boolean(input.is_filler ?? false),
     is_vip: initialIsVip,
     is_expedited: Boolean(input.is_expedited ?? false),
+    ...(options.customerExteriors ? {exteriors_base_amount: input.exteriors_base_amount, report_pricing_revision:input.report_pricing_revision} : {}),
     report_expedite_option: input.report_expedite_option == null ? null : String(input.report_expedite_option),
     report_expedite_label: input.report_expedite_label == null ? null : String(input.report_expedite_label),
     report_due_window_start: input.report_due_window_start == null ? null : String(input.report_due_window_start),
@@ -441,6 +451,7 @@ export async function patchManifest(
   patch: JsonObject,
   options?: { refreshArtifacts?: boolean; backup?: boolean }
 ) {
+  reportPreferencesSchema.parse(patch);
   if (Object.prototype.hasOwnProperty.call(patch, "measurement_scope") || Object.prototype.hasOwnProperty.call(patch, "internal_only") || Object.prototype.hasOwnProperty.call(patch, "id")) throw badRequest("immutable_project_scope", "Project identity and measurement scope cannot be changed.");
   assertFullHouseProjectAccess(projectId);
   if (isFirstMeasurePostgresEnabled()) {
@@ -574,7 +585,7 @@ export async function listProjectFiles(projectId: string): Promise<FileEntry[]> 
 }
 
 function assertMeasurementDataScope(projectId: string, value: unknown) {
-  if (isFullHouseId(projectId) || !value || typeof value !== 'object') return;
+  if (isFullHouseId(projectId) || isCustomerExteriorId(projectId) || !value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
   if (data.exteriorsWalls != null || data.exteriorsRoofTrim != null || data.exteriorReport != null) {
     throw badRequest('exterior_project_required', 'Exterior measurements require a full-house project.');

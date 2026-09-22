@@ -55,7 +55,7 @@ POST /v1/lead-intake/public/forms/:formId/submit
 The submission path:
 
 1. Reads the form's `estimate` settings and question pages.
-2. Calls the Google Solar API server-side. The key is resolved from the central `private/provider-keys.json` credential file (with environment variables retained only as a compatibility fallback).
+2. Calls the Google Solar API server-side. The key is resolved from `GOOGLE_SOLAR_API_KEY`, `GOOGLE_MAPS_API_KEY`, `FIRSTMEASURE_GOOGLE_API_KEY`, or the legacy FirstMeasure key files under `public/measure/internal`.
 3. Falls back to `estimate.default_sqft` when Solar data or a key is unavailable.
 4. Creates the Platform lead with `project_data.instant_estimate`.
 5. Sends the customer estimate through the Email-owned outbound helper.

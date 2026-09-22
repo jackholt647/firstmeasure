@@ -85,6 +85,10 @@ const pinSchema = z.object({
 });
 
 export const createProjectSchema = z.object({
+  measurement_scope: z.enum(["roof","full_house"]).optional(),
+  exterior_references: z.array(z.record(z.unknown())).optional(),
+  report_pricing_revision: z.coerce.number().optional(),
+  exteriors_base_amount: z.number().nonnegative().optional(),
   id: optionalString,
   status: optionalString,
   project_type: z.enum(["residential", "commercial", "multifamily"]).optional(),
@@ -93,6 +97,8 @@ export const createProjectSchema = z.object({
   lat: z.number().optional(),
   lng: z.number().optional(),
   pins: z.array(pinSchema).optional(),
+  measurement_system: z.enum(["imperial", "metric"]).optional(),
+  report_language: z.enum(["en-US", "en-GB"]).optional(),
   include_gutter_measurements: z.boolean().optional(),
   include_weather_report: z.boolean().optional(),
   weather_report_tier: optionalString,

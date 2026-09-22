@@ -7,8 +7,12 @@ import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { PlatformError, badRequest, forbidden, notFound } from "../platform/errors.js";
 import { createPlatformLead } from "../platform/api.js";
-import { escapeEmailHtml, sendTransactionalEmail } from "../email/outbound.js";
+import { escapeEmailHtml } from "../email/outbound.js";
+import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
 import { measureSolarRoof, previewSolarProperty } from "./solar.js";
+import { emitWorkEvent } from "../work/engine.js";
+import { appointmentAvailability, holdAppointmentSlot } from "../appointments/availability.js";
+import { deleteSlotHold } from "../appointments/storage.js";
 import {
   listDocuments,
   listOrganizations,
@@ -89,8 +93,10 @@ function defaultCopyForMode(mode: string, copy: JsonObject) {
     subheadline: cleanText(copy.subheadline) || (isEstimate ? "Answer a few questions and preview your project range." : "Tell us where to reach you and we will confirm the next step."),
     submit_label: cleanText(copy.submit_label) || (isEstimate ? "Get my estimate" : isSubmit ? "Submit request" : isCall ? "Request Call" : "Request Appointment"),
     fine_print: cleanText(copy.fine_print) || "By submitting, you agree to be contacted about your request.",
-    success_title: cleanText(copy.success_title) || (isEstimate ? "Estimate ready" : "Request received"),
-    success_body: cleanText(copy.success_body) || "We have your information and will follow up shortly.",
+    success_title: cleanText(copy.success_title) || (isEstimate ? "Estimate ready" : isSubmit ? "Request received" : "Appointment request received"),
+    success_body: cleanText(copy.success_body) || (isSubmit
+      ? "We have your information and will follow up shortly."
+      : "We will call you shortly to confirm the appointment details. Your requested time is held until our team confirms it with you."),
     start_label: cleanText(copy.start_label) || "Get started"
   };
 }
@@ -435,45 +441,32 @@ export async function embeddableFormAvailability(assignment: EmbeddableFormAssig
   const eventType = eventTypeFromScheduling(schedulingData, form);
   const date = dateInput(query.date);
   const window = branchAvailabilityWindow(schedulingData, form, date, eventType.id);
-  const stepMinutes = eventType.slotMinutes;
   const minNoticeMinutes = Math.max(0, Math.min(10080, Number(asObject(form.scheduling).min_notice_minutes || 120) || 0));
-  const minTime = Date.now() + minNoticeMinutes * 60000;
-  const users = (await listDocuments(assignment.orgId, "users")).map(normalizeUserForAvailability);
-  const projects = await listDocuments(assignment.orgId, "projects");
-  const events = projects.flatMap((document) => {
-    const project = asObject({ ...asObject(document.data), id: cleanText(document.id) });
-    return asArray(project.events).map(asObject).map((event) => normalizeEventForAvailability(event, project));
+  const canonical = await appointmentAvailability(assignment.orgId, assignment.branchId, {
+    event_type_id:eventType.id,
+    start_date:date,
+    end_date:date,
+    duration_minutes:eventType.duration,
+    min_notice_minutes:minNoticeMinutes,
+    address:{
+      address:cleanText(query.address),
+      lat:query.lat ?? query.latitude,
+      lng:query.lng ?? query.longitude
+    },
+    limit:500
   });
-  const slots = [];
-  if (window.days.includes(dateAtTime(date, "12:00").getDay())) {
-    for (let minute = minutesFromTime(window.start); minute + eventType.duration <= minutesFromTime(window.end); minute += stepMinutes) {
-      const time = timeFromMinutes(minute);
-      const start = dateAtTime(date, time);
-      if (start.getTime() <= minTime) continue;
-      const required = eventType.requiredRoleIds.map((roleId) => roleAvailability(users, events, roleId, start, eventType.duration, eventType.bufferMinutes));
-      const allowed = eventType.allowedRoleIds.map((roleId) => roleAvailability(users, events, roleId, start, eventType.duration, eventType.bufferMinutes));
-      const requiredOk = required.every((entry) => entry.available_count > 0);
-      const allowedOk = allowed.length ? allowed.some((entry) => entry.available_count > 0) : true;
-      const available = required.length ? requiredOk : allowedOk;
-      slots.push({
-        start: start.toISOString(),
-        time,
-        label: start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-        available,
-        hasAvailability: available,
-        eligible_count: Math.max(...allowed.map((entry) => entry.eligible_count), ...required.map((entry) => entry.eligible_count), 0),
-        available_count: Math.max(...allowed.map((entry) => entry.available_count), ...required.map((entry) => entry.available_count), 0)
-      });
-    }
-  }
+  const slots = asArray(canonical.slots).map(asObject).map((slot) => {
+    const start = new Date(cleanText(slot.start_at));
+    return { ...slot, start:slot.start_at, time:Number.isFinite(start.getTime()) ? start.toLocaleTimeString("en-US", { hour12:false, hour:"2-digit", minute:"2-digit" }) : "", label:Number.isFinite(start.getTime()) ? start.toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : cleanText(slot.label), hasAvailability:slot.available === true };
+  });
   return {
     ok: true,
     form_id: form.id,
     date,
     event_type_id: eventType.id,
     duration_minutes: eventType.duration,
-    slot_minutes: eventType.slotMinutes,
-    buffer_minutes: eventType.bufferMinutes,
+    slot_minutes: canonical.slot_minutes,
+    buffer_minutes: canonical.buffer_minutes,
     window,
     slots
   };
@@ -500,17 +493,64 @@ function estimatePayloadValue(body: JsonObject, key: string) {
   return body[key] ?? body[key.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase())] ?? answers[key];
 }
 
+function estimatePitchCategory(measurement: JsonObject, body: JsonObject) {
+  const measured = cleanText(measurement.pitch_category);
+  if (["Flat", "Low", "Moderate", "Steep"].includes(measured)) return measured;
+  const answer = cleanText(estimatePayloadValue(body, "slope")).toLowerCase();
+  if (answer === "flat") return "Flat";
+  if (answer === "low") return "Low";
+  if (answer === "steep") return "Steep";
+  return "Moderate";
+}
+
+function estimatePricingOptions(estimate: JsonObject, pitchCategory: string, sqft: number) {
+  const rows = asArray(estimate.pricing_matrix).map(asObject);
+  const desiredPitch = pitchCategory === "Flat" ? "Low" : pitchCategory;
+  const flatRows = rows.filter((row) => cleanText(row.roof_type || row.roofType).toLowerCase().includes("flat"));
+  const candidates = (pitchCategory === "Flat" && flatRows.length ? flatRows : rows)
+    .filter((row) => cleanText(row.pitch).toLowerCase() === desiredPitch.toLowerCase());
+  const byRoofType = new Map<string, JsonObject>();
+  for (const row of candidates) {
+    const roofType = cleanText(row.roof_type || row.roofType);
+    if (roofType && !byRoofType.has(roofType.toLowerCase())) byRoofType.set(roofType.toLowerCase(), row);
+  }
+  return [...byRoofType.values()].map((row) => {
+    const roofType = cleanText(row.roof_type || row.roofType) || "Roof replacement";
+    const lowRate = estimateNumber(row.low_price_sqft ?? row.lowPriceSqft, estimateNumber(estimate.low_price_sqft, 6.75));
+    const highRate = Math.max(lowRate, estimateNumber(row.high_price_sqft ?? row.highPriceSqft, estimateNumber(estimate.high_price_sqft, 11.5)));
+    const minPrice = Math.max(0, Number(row.min_price ?? estimate.min_price ?? 0) || 0);
+    const low = Math.max(minPrice, money(sqft * lowRate));
+    const high = Math.max(low, money(sqft * highRate));
+    return {
+      id: roofType.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""),
+      label: cleanText(row.label) || `${roofType} roof`,
+      description: cleanText(row.description),
+      roof_type: roofType,
+      pitch: pitchCategory,
+      low,
+      high,
+      low_price: low,
+      high_price: high,
+      price_per_sqft: { low: lowRate, high: highRate }
+    };
+  });
+}
+
 function instantEstimateFromMeasurement(form: JsonObject, body: JsonObject, measurement: JsonObject) {
   const estimate = asObject(form.estimate);
   const defaultSqft = estimateNumber(estimate.default_sqft, 2200);
   const measuredSqft = estimateNumber(measurement.roof_area_sqft, 0);
   const wasteFactor = Math.max(0, Math.min(100, Number(estimate.waste_factor_percent ?? 0) || 0));
   const sqft = Math.round((measuredSqft || defaultSqft) * (1 + wasteFactor / 100));
+  const pitchCategory = estimatePitchCategory(measurement, body);
+  const pricingOptions = estimatePricingOptions(estimate, pitchCategory, sqft);
   const lowRate = estimateNumber(estimate.low_price_sqft, 6.75);
   const highRate = Math.max(lowRate, estimateNumber(estimate.high_price_sqft, 11.5));
   const minPrice = Math.max(0, Number(estimate.min_price ?? 0) || 0);
-  const low = Math.max(minPrice, money(sqft * lowRate));
-  const high = Math.max(low, money(sqft * highRate));
+  const fallbackLow = Math.max(minPrice, money(sqft * lowRate));
+  const fallbackHigh = Math.max(fallbackLow, money(sqft * highRate));
+  const low = pricingOptions.length ? Math.min(...pricingOptions.map((option) => Number(option.low))) : fallbackLow;
+  const high = pricingOptions.length ? Math.max(...pricingOptions.map((option) => Number(option.high))) : fallbackHigh;
   return {
     status: "ready",
     currency: cleanText(estimate.currency) || "USD",
@@ -522,6 +562,10 @@ function instantEstimateFromMeasurement(form: JsonObject, body: JsonObject, meas
     measured_roof_area_sqft: measuredSqft || null,
     default_roof_area_sqft: defaultSqft,
     price_per_sqft: { low: lowRate, high: highRate },
+    pitch_category: pitchCategory,
+    predominant_pitch_degrees: Number(measurement.predominant_pitch_degrees) || null,
+    flat_roof_percent: Number(measurement.flat_roof_percent) || 0,
+    pricing_options: pricingOptions,
     waste_factor_percent: wasteFactor,
     source: measurement.ok === true ? cleanText(measurement.source) || "google_solar" : "fallback"
   };
@@ -586,23 +630,29 @@ async function prepareInstantEstimateSubmission(form: JsonObject, body: JsonObje
   };
 }
 
-async function sendInstantEstimateEmail(form: JsonObject, body: JsonObject, result: JsonObject, created: JsonObject) {
+async function sendInstantEstimateEmail(organizationId: string, branchId: string, form: JsonObject, body: JsonObject, result: JsonObject, created: JsonObject) {
   const email = normalizeEmail(body.email);
   if (!email) return { ok: false, success: false, error: "missing_customer_email" };
   const settings = asObject(form.estimate);
   if (settings.send_customer_email === false) return { ok: false, success: false, skipped: true, reason: "customer_email_disabled" };
   const message = buildInstantEstimateEmail(form, body, result);
   const project = asObject(created.project);
-  return await sendTransactionalEmail({
+  return await sendOrganizationTransactionalEmail({
+    organizationId,
+    branchId,
     to: email,
     subject: message.subject,
     textBody: message.textBody,
     htmlBody: message.htmlBody,
-    tag: "instant-estimate",
+    purpose: "transactional",
+    projectId: cleanText(project.id),
+    tags: ["instant-estimate"],
+    source: { type: "automation", automation_id: "lead-intake.instant-estimate" },
     metadata: {
       form_id: cleanText(form.id),
       project_id: cleanText(project.id)
-    }
+    },
+    idempotencyKey: `instant_estimate:${cleanText(project.id) || cleanText(form.id)}:${email}`
   });
 }
 
@@ -788,21 +838,83 @@ export async function submitPublicFormById(formId: string, body: JsonObject) {
   await requireFormCapability(assignment.orgId, assignment.form);
   if (assignment.data.enabled === false || assignment.form.enabled === false) throw forbidden("embeddable_form_disabled", "This embeddable form is disabled.");
   const form = normalizeEmbeddableForm(assignment.form);
+  if (form.mode === "instant_estimate") {
+    const consent = cleanText(body.contact_consent || body.contactConsent).toLowerCase();
+    if (!["true", "1", "yes", "on"].includes(consent)) {
+      throw badRequest("estimate_contact_consent_required", "Please agree to be contacted about your roofing estimate.");
+    }
+  }
   const hasContact = cleanText(body.name || body.customer_name) || normalizeEmail(body.email) || cleanText(body.phone);
   const hasLeadData = hasContact || cleanText(body.address) || cleanText(body.message || body.notes || body.project_info || body.projectInfo);
   if (!hasLeadData) throw badRequest("lead_missing_contact_data", "A form submission needs a name, phone, email, address, or message.");
   const instantEstimateResult = form.mode === "instant_estimate" ? await prepareInstantEstimateSubmission(form, body) : null;
-  const created = await createProjectFromEmbeddableForm({ ...assignment, form }, {
-    ...body,
-    ...(instantEstimateResult ? { instant_estimate_result: instantEstimateResult } : {})
-  });
+  const preferredStart = normalizePreferredStart(body.preferred_start_at || body.preferredStartAt);
+  let capacityHoldId = "";
+  if (["appointment", "call"].includes(form.mode) && preferredStart) {
+    const schedulingData = await readSchedulingData(assignment.orgId, assignment.branchId);
+    const eventType = eventTypeFromScheduling(schedulingData, form);
+    const held = await holdAppointmentSlot(assignment.orgId, assignment.branchId, {
+      event_type_id:eventType.id,
+      start_at:preferredStart,
+      duration_minutes:eventType.duration,
+      source:"embeddable_form",
+      source_id:form.id,
+      address:{ address:cleanText(body.address), lat:body.lat ?? body.latitude, lng:body.lng ?? body.longitude }
+    });
+    capacityHoldId = cleanText(asObject(held.hold).id);
+  }
+  let created: JsonObject;
+  try {
+    created = await createProjectFromEmbeddableForm({ ...assignment, form }, {
+      ...body,
+      ...(instantEstimateResult ? { instant_estimate_result: instantEstimateResult } : {})
+    });
+  } finally {
+    if (capacityHoldId) (await deleteSlotHold(capacityHoldId));
+  }
   const instantEstimateEmail = instantEstimateResult
-    ? await sendInstantEstimateEmail(form, body, instantEstimateResult, asObject(created)).catch((error) => ({
+    ? await sendInstantEstimateEmail(assignment.orgId, assignment.branchId, form, body, instantEstimateResult, asObject(created)).catch((error) => ({
         ok: false,
         success: false,
         error: error instanceof Error ? error.message : "email_send_failed"
       }))
     : null;
+  const createdProjectId = cleanText(asObject(created.project).id);
+  await emitWorkEvent({
+    organization_id: assignment.orgId,
+    branch_id: assignment.branchId,
+    ...(createdProjectId ? { project_id: createdProjectId } : {}),
+    type: "lead.form.submitted",
+    // Every submission creates a lead project, so the project id is the
+    // stable identity of the submission.
+    idempotency_key: createdProjectId ? `lead.form.submitted:${createdProjectId}` : "",
+    payload: {
+      form_id: cleanText(form.id),
+      form_name: cleanText(form.name),
+      mode: cleanText(form.mode),
+      ...(createdProjectId ? { project_id: createdProjectId } : {})
+    },
+    context: { source: "lead_intake_public_form" }
+  });
+  if (instantEstimateResult) {
+    const estimate = asObject(asObject(instantEstimateResult).estimate);
+    await emitWorkEvent({
+      organization_id: assignment.orgId,
+      branch_id: assignment.branchId,
+      ...(createdProjectId ? { project_id: createdProjectId } : {}),
+      type: "lead.instant_estimate.generated",
+      idempotency_key: createdProjectId ? `lead.instant_estimate.generated:${createdProjectId}` : "",
+      payload: {
+        form_id: cleanText(form.id),
+        low_cents: Math.round(Number(estimate.low || 0) * 100),
+        high_cents: Math.round(Number(estimate.high || 0) * 100),
+        currency: cleanText(estimate.currency || "USD") || "USD",
+        roof_area_sqft: Number(estimate.roof_area_sqft || 0),
+        ...(createdProjectId ? { project_id: createdProjectId } : {})
+      },
+      context: { source: "lead_intake_public_form" }
+    });
+  }
   return {
     ok: true,
     accepted: true,

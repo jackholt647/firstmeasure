@@ -675,7 +675,7 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
   }catch(error){host.state().wallEdits=before;tool=null;host.message(error.message);host.redraw();}return true;
  }
  function chamferWidth(m){return m?Math.max(0,...m.shoulders.flatMap((p,i)=>m.shoulders.slice(i+1).map(q=>distance3(p,q)))):0;}
- function chamferStatus(){const t=tool;if(t?.kind!=='chamfer')return;host.message((t.pointMode?(t.rounded?'Corner fillet · tilt ':'Corner chamfer · tilt ')+(t.appliedAngle??t.angle).toFixed(1)+'° · rotation '+t.rotation.toFixed(1)+'°':(t.rounded?'Fillet · ':'Chamfer · ')+t.metrics.map(m=>m.angles.map(a=>a.toFixed(1)+'°').join(' / ')).join('; '))+' · width '+(chamferWidth(t.metrics[0])/.3048).toFixed(4)+' ft. '+(t.limited?'Size/angle limit reached on some chamfers; other edges can keep growing. ':'')+(t.pointMode?'Mouse up/down: depth; left/right: rotation. ':'Mouse: depth. ')+(t.chamferSnap?(t.chamferSnap.targets.length>1?'Multiple sides snapped. ':'Side snapped. '):'')+'Wheel: angle; click: place; Escape: cancel.');}
+ function chamferStatus(){const t=tool;if(t?.kind!=='chamfer')return;host.message((t.pointMode?(t.rounded?'Corner fillet · tilt ':'Corner chamfer · tilt ')+(t.appliedAngle??t.angle).toFixed(1)+'° · rotation '+t.rotation.toFixed(1)+'°':(t.rounded?'Fillet · ':'Chamfer · ')+t.metrics.map(m=>m.angles.map(a=>a.toFixed(1)+'°').join(' / ')).join('; '))+' · width '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((chamferWidth(t.metrics[0])/.3048), 'ft') : (chamferWidth(t.metrics[0])/.3048).toFixed(4)+" ft")+". "+(t.limited?'Size/angle limit reached on some chamfers; other edges can keep growing. ':'')+(t.pointMode?'Mouse up/down: depth; left/right: rotation. ':'Mouse: depth. ')+(t.chamferSnap?(t.chamferSnap.targets.length>1?'Multiple sides snapped. ':'Side snapped. '):'')+'Wheel: angle; click: place; Escape: cancel.');}
  function previewChamfer(e,adjustAngle=false){const t=tool;if(t?.kind!=='chamfer')return;
   if(e){t.amount=t.numeric??Math.max(0,t.pointMode?(t.startY-e.clientY)/t.pixels:W.dragAmount(t.axis,e.clientX-t.startX,e.clientY-t.startY));if(t.pointMode)t.rotation=(e.clientX-t.startX)*.5;}
   try{let result=W.chamfer(t.scene,{...t.selection,widthMode:t.numeric!=null},t.amount,t.angle,t.rotation);t.chamferSnap=null;
@@ -696,7 +696,7 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
    const additions=result.additions.map(f=>({...f,id:'chamfer-'+t.op+'-'+f.id}));edits.$surfaces=[...(edits.$surfaces||[]),...additions];
    if(baseChanged){window.ExteriorGeometry.attachBoundaryCurves(base.faces,edits.$surfaces);S.rebind(t.base,base);edits.$base=base;}
    window.ExteriorModel.validateEdits(edits,t.before);host.state().wallEdits=edits;t.metrics=result.metrics;t.appliedAmount=result.amount;t.limited=result.limited;t.appliedAngle=result.angleOffset;t.valid=true;t.changed=result.amount>window.ExteriorGeometry.CONTACT;t.additions=additions;chamferStatus();
-  }catch(error){t.valid=false;host.message('Chamfer preview rejected at '+(t.amount/.3048).toFixed(4)+' ft. '+error.message+' Adjust the mouse or Ctrl+wheel; Escape cancels.');}host.redraw();
+  }catch(error){t.valid=false;host.message('Chamfer preview rejected at '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((t.amount/.3048), 'ft') : (t.amount/.3048).toFixed(4)+" ft")+". "+error.message+' Adjust the mouse or Ctrl+wheel; Escape cancels.');}host.redraw();
  }
  function chamferWheel(e){const t=tool;if(t?.kind!=='chamfer'||!viewOf(e))return false;
   const delta=Math.max(-120,Math.min(120,e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?120:1)));t.angleRaw=Math.max(-60,Math.min(60,t.angleRaw-delta*.01));
@@ -713,9 +713,9 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
    const centerDistance=Math.hypot(m.center.x-m.origin.x,m.center.y-m.origin.y,m.center.z-m.origin.z),label=document.createElement('div');
    Object.assign(label.style,{position:'fixed',pointerEvents:'none',zIndex:10001,width:'154px',boxSizing:'border-box',padding:'6px 8px',border:'1px solid #66737e',borderRadius:'6px',background:'rgba(20,27,33,.94)',color:'#fff',font:'12px/1.5 system-ui',boxShadow:'0 2px 6px #0006'});
    const title=document.createElement('div');title.textContent=(tool.pointMode?'Corner ':'Edge ')+(index+1);title.style.fontWeight='600';label.appendChild(title);if(m.limited??tool.limited){const limit=document.createElement('div');limit.style.color='#ffd04d';limit.textContent='Size / angle limit';label.appendChild(limit);}
-   m.shoulders.forEach((p,i)=>{const row=document.createElement('div');row.style.color=colors[i%colors.length];row.textContent=String.fromCharCode(65+i)+'  '+(m.angles[i]??0).toFixed(1)+'°  ·  '+(m.distances[i]/.3048).toFixed(1)+'\u2032';label.appendChild(row);});
-   const widthRow=document.createElement('div');widthRow.textContent=(tool.pointMode?'Max width  ':'Width  ')+(chamferWidth(m)/.3048).toFixed(1)+'\u2032';widthRow.style.fontWeight='600';label.appendChild(widthRow);
-   const middle=document.createElement('div');middle.textContent='Center  '+(centerDistance/.3048).toFixed(1)+'\u2032';label.appendChild(middle);
+   m.shoulders.forEach((p,i)=>{const row=document.createElement('div');row.style.color=colors[i%colors.length];row.textContent=String.fromCharCode(65+i)+'  '+(m.angles[i]??0).toFixed(1)+'°  ·  '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((m.distances[i]/.3048), 'ft') : (m.distances[i]/.3048).toFixed(1)+"′")+"";label.appendChild(row);});
+   const widthRow=document.createElement('div');widthRow.textContent=(tool.pointMode?'Max width  ':'Width  ')+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((chamferWidth(m)/.3048), 'ft') : (chamferWidth(m)/.3048).toFixed(1)+"′")+"";widthRow.style.fontWeight='600';label.appendChild(widthRow);
+   const middle=document.createElement('div');middle.textContent='Center  '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((centerDistance/.3048), 'ft') : (centerDistance/.3048).toFixed(1)+"′")+"";label.appendChild(middle);
    if(tool.pointMode){const row=document.createElement('div');row.textContent='Tilt '+(tool.appliedAngle??tool.angle).toFixed(1)+'° · Rot '+(tool.chamferSnap?.rotation??tool.rotation).toFixed(1)+'°';label.appendChild(row);}
    document.body.appendChild(label);chamferLabels.push(label);placed.push({label,metric:m,height:20*(m.shoulders.length+3+(tool.pointMode?1:0)+(tool.limited?1:0))});
   }
@@ -749,7 +749,7 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
     d.sketch.edges=d.sketch.edges.filter(edge=>!changed.some(e=>e.id===edge.id));for(const edge of changed){const points=T.rewriteEdge(world(d,node(edge.a)),world(d,node(edge.b)),pattern),ids=points.map(p=>S.add(d,toLocal(d,p),.000001));S.connect(d,ids);}S.resolve(d);
    }
    host.state().wallEdits=edits;t.valid=true;t.pattern=pattern;if(t.sizeScale&&t.count>1)t.sizeScale=pattern.spacing*pattern.sections/pattern.run;lineSelection=pattern.points.slice(1).map((p,i)=>({pair:[pattern.points[i],p],id:W.edgeKey(pattern.points[i],p)}));
-   stepStatus(t.count+(t.count===1?' step':' steps')+' · rise '+(Math.abs(pattern.rise)/t.count/.3048).toFixed(2)+' ft · spacing '+(pattern.spacing/.3048).toFixed(2)+' ft. S count; move offset; Ctrl+wheel width; click to place; Escape cancels.');
+   stepStatus(t.count+(t.count===1?' step':' steps')+' · rise '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((Math.abs(pattern.rise)/t.count/.3048), 'ft') : (Math.abs(pattern.rise)/t.count/.3048).toFixed(2)+" ft")+" · spacing "+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((pattern.spacing/.3048), 'ft') : (pattern.spacing/.3048).toFixed(2)+" ft")+". S count; move offset; Ctrl+wheel width; click to place; Escape cancels.");
   }catch(error){t.valid=false;stepStatus(error.message+' Choose another offset or press Escape.');}host.redraw();
  }
  function cancelStep(){const t=tool;host.state().wallEdits=t.before;lineSelection=[{pair:t.pair,id:W.edgeKey(...t.pair)}];tool=null;stepStatus('Stepping canceled. Press S to start again with one step.');host.redraw();}
@@ -803,7 +803,7 @@ function perf_previewEntity(e){
    }
    t.amount=amount;t.preview=points;t.valid=Math.abs(amount)>1e-6;
    if(t.mode==='move'&&t.valid){const pairs=t.source?[[t.source,t.source]]:[t.pair],delta=t.source?distance3(t.source,points[0]):amount,result=W.slideLines(t.scene,pairs,direction,delta),edits=copy(t.before);edits.$drafts=copy(t.sceneDrafts);applyLineResult(t,result,edits);host.state().wallEdits=edits;}
-   host.message((t.pathSnap?t.pathSnap.kind+' snap · ':'')+(t.mode==='move'?'Move':'Extrude')+': '+(amount/.3048).toFixed(2)+' ft · type a distance; click to place.');
+   host.message((t.pathSnap?t.pathSnap.kind+' snap · ':'')+(t.mode==='move'?'Move':'Extrude')+': '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/.3048), 'ft') : (amount/.3048).toFixed(2)+" ft")+" · type a distance; click to place.");
   }catch(error){host.state().wallEdits=copy(t.before);t.valid=false;host.message(error.message);}host.redraw();
  }
  function placeEntity(e){const t=tool;if(!t.valid)return;
@@ -882,7 +882,7 @@ function perf_previewLineMove(e){
   if(t.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){t.pathSnap=W.motionSnap(t.pairs.flat(),t.pairs,t.direction,amount,t.scene,{heightPoints:t.heightPoints,points:t.snapGeometry.points,edges:[...t.snapGeometry.lines.values()],alignmentNormal:t.plane.frame.n,excludeMoving:true,screen:p=>host.screen(p,'3d'),radius:12,minPixelsPerMeter:33.33});if(t.pathSnap)amount=t.pathSnap.amount;}
   try{const result=W.slideLines(copy(t.scene),t.pairs,t.direction,amount,{preserveConnections:t.extrude}),edits=copy(t.stageBefore||t.before);edits.$drafts=copy(t.sceneDrafts);
    applyLineResult(t,result,edits);
-   host.state().wallEdits=edits;t.invalid=false;t.changed=t.changed||Math.abs(amount)>1e-6;t.amount=amount;t.result=result;lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));host.message(t.pathSnap?t.pathSnap.kind+' snap - click to place':'Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - Line offset: '+(amount/.3048).toFixed(2)+' ft - M changes face; click to place');
+   host.state().wallEdits=edits;t.invalid=false;t.changed=t.changed||Math.abs(amount)>1e-6;t.amount=amount;t.result=result;lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));host.message(t.pathSnap?t.pathSnap.kind+' snap - click to place':'Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - Line offset: '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/.3048), 'ft') : (amount/.3048).toFixed(2)+" ft")+" - M changes face; click to place");
   }catch(error){t.invalid=true;t.pathSnap=null;host.message(error.message);}host.redraw();
  }
  function applyLineResult(t,result,edits){
@@ -1070,7 +1070,7 @@ function perf_moveScene(){
    const middle=h?{x:(b.left+b.right)/2,y:b.top-amount,z:0}:{x:b.left+amount,y:(b.bottom+b.top)/2,z:0},center={x:(b.left+b.right)/2,y:(b.top+b.bottom)/2,z:0},a=host.screen(W.fromFrame(t.layout.frame,middle),'3d'),c=host.screen(W.fromFrame(t.layout.frame,center),'3d');if(Math.hypot(a.x-c.x,a.y-c.y)<8)amount=size/2;
   }
   t.amount=amount;t.result=null;t.invalid=false;
-  try{t.result=F.divideSticker(t.faces,t.orientation,amount,{frame:t.layout.frame,groupId:t.groupId,operationId:t.op});host.message('Divide '+(h?'from top: ':'from left: ')+(amount/F.FT).toFixed(2)+"\u2032 / "+((size-amount)/F.FT).toFixed(2)+"\u2032. L changes direction; type a distance; click to place.");}
+  try{t.result=F.divideSticker(t.faces,t.orientation,amount,{frame:t.layout.frame,groupId:t.groupId,operationId:t.op});host.message('Divide '+(h?'from top: ':'from left: ')+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/F.FT), 'ft') : (amount/F.FT).toFixed(2)+"′")+" / "+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(((size-amount)/F.FT), 'ft') : ((size-amount)/F.FT).toFixed(2)+"′")+". L changes direction; type a distance; click to place.");}
   catch(error){t.invalid=true;host.message(error.message);}host.redraw();
  }
  function replaceDivisionFaces(sources,faces){
@@ -1128,7 +1128,7 @@ function perf_moveScene(){
     if(member.ref.draft){const region=all()[member.ref.draft]?.faces.find(f=>f.id===member.ref.face);if(region){region.solidId=cap.id;region.opening=false;}}
    }
    window.ExteriorModel.validateEdits(edits,t.before);draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];selectedBasePoints=[];faceSelection=selected;selectedSolid=selected.at(-1)?.solid||null;selectedRegion=null;t.previewCaps=result.caps;t.amount=amount;t.changed=true;t.invalid=false;
-   host.message('Extruding '+t.members.length+' faces: '+(amount/.3048).toFixed(2)+"\u2032 each; click to place.");
+   host.message('Extruding '+t.members.length+' faces: '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/.3048), 'ft') : (amount/.3048).toFixed(2)+"′")+" each; click to place.");
   }catch(error){host.state().wallEdits=previous;t.invalid=true;host.message(error.message);}host.redraw();
  }
  function finishMultiExtrusion(){flushPreview();const t=tool;if(t.invalid)return true;if(t.changed)host.commit(t.before);else{host.state().wallEdits=copy(t.before);restoreExtrusionSelection(t);}tool=null;clearGuides();host.redraw();return true;}
@@ -1459,7 +1459,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,
    else edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==face.id);
    edits.$surfaces=[...(edits.$surfaces||[]),...pieces];
   }
-  t.valid=true;host.message('Trim '+(t.width/.3048).toFixed(2)+' ft · '+(result.corner?'both walls':['first side','opposite side','centered'][t.variant])+' · T cycles sides; type width; click to place; Escape cancels.');
+  t.valid=true;host.message('Trim '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((t.width/.3048), 'ft') : (t.width/.3048).toFixed(2)+" ft")+" · "+(result.corner?'both walls':['first side','opposite side','centered'][t.variant])+' · T cycles sides; type width; click to place; Escape cancels.');
  }catch(error){host.state().wallEdits=copy(t.prepared);t.valid=false;host.message(error.message);}host.redraw();}
  function autoTrim(width=window.WallTrim?.defaultWidth){
   if(!Number.isFinite(width)||width<=0)return false;

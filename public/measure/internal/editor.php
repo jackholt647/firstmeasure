@@ -35,6 +35,9 @@ if (!isset($_SESSION['user_email'])) {
 require_once __DIR__ . '/_full_house.php';
 $fmFullHouseEditor = fm_is_full_house_id($_GET['folder'] ?? $_POST['folder'] ?? '');
 if ($fmFullHouseEditor && !fm_full_house_allowed()) fm_full_house_not_found();
+// Customer exteriors retain the normal staff/project access boundary.
+$fmCustomerExteriorsEditor = preg_match('/^exteriors_[a-f0-9]{32}$/D', (string)($_GET['folder'] ?? $_POST['folder'] ?? '')) === 1;
+if ($fmCustomerExteriorsEditor) $fmFullHouseEditor = true;
 $fmTutorialExterior = false;
 $fmTutorialFolder = $_GET['folder'] ?? $_POST['folder'] ?? '';
 if (fm_tutorial_is_tutorial_project_id($fmTutorialFolder)) {
@@ -368,7 +371,7 @@ if ($editorAction === 'project_bundle' || $editorAction === 'project_feedback') 
         fm_editor_json_response(['success' => false, 'error' => 'Tutorial projects must be opened in tutorial mode.'], 403);
         exit;
     }
-    $projectId = fm_is_full_house_id($rawProjectId) ? $rawProjectId : preg_replace('/[^a-f0-9]/', '', strtolower($rawProjectId));
+    $projectId = (fm_is_full_house_id($rawProjectId) || preg_match('/^exteriors_[a-f0-9]{32}$/D', $rawProjectId)) ? $rawProjectId : preg_replace('/[^a-f0-9]/', '', strtolower($rawProjectId));
     if ($projectId === '') {
         fm_editor_json_response(['success' => false, 'error' => 'Missing folder'], 400);
         exit;
@@ -1412,6 +1415,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/pane_layout.js?v=<?=fm_editor_asset_version('editor_scripts/pane_layout.js')?>"></script>
     <script src="editor_scripts/main.js?v=<?=fm_editor_asset_version('editor_scripts/main.js')?>"></script>
     <script src="editor_scripts/measurements.js?v=<?=fm_editor_asset_version('editor_scripts/measurements.js')?>"></script>
+    <script src="../../libraries/report-units.js?v=<?=fm_editor_asset_version('../../libraries/report-units.js')?>"></script>
     <script src="editor_scripts/pdf.js?v=<?=fm_editor_asset_version('editor_scripts/pdf.js')?>"></script>
     <script src="editor_scripts/pdf_standalone.js?v=<?=fm_editor_asset_version('editor_scripts/pdf_standalone.js')?>"></script>
     <script src="editor_scripts/report.js?v=<?=fm_editor_asset_version('editor_scripts/report.js')?>"></script>

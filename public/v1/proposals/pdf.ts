@@ -2,7 +2,8 @@ import { access } from "node:fs/promises";
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { chromium } from "playwright-core";
-import { finalizeFirstMatePdf, setFirstMatePdfMetadata } from "../src/pdf_metadata.js";
+
+import { normalizeProposalScope, publicScopeLineItems } from "./scope.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -113,6 +114,18 @@ function proposalContent(source: JsonObject) {
   return Object.keys(content).length ? content : editable;
 }
 
+const PROPOSAL_PAPER_SIZES = {
+  letter: { key: "letter", widthIn: 8.5, heightIn: 11, cssWidth: "8.5in", cssHeight: "11in" },
+  legal: { key: "legal", widthIn: 8.5, heightIn: 14, cssWidth: "8.5in", cssHeight: "14in" },
+  a4: { key: "a4", widthIn: 210 / 25.4, heightIn: 297 / 25.4, cssWidth: "210mm", cssHeight: "297mm" }
+} as const;
+
+function proposalPaperDimensions(source: JsonObject, content: JsonObject) {
+  const raw = cleanText(content.paper_size || content.paperSize || source.paper_size || source.paperSize).toLowerCase();
+  const key = raw === "legal" || raw === "us-legal" ? "legal" : raw === "a4" || raw === "iso-a4" ? "a4" : "letter";
+  return PROPOSAL_PAPER_SIZES[key];
+}
+
 function pageTitle(page: JsonObject, index: number) {
   return plainText(page.title || page.heading || page.kicker || `Page ${index + 1}`) || `Page ${index + 1}`;
 }
@@ -120,7 +133,7 @@ function pageTitle(page: JsonObject, index: number) {
 function pageBody(page: JsonObject) {
   const kind = cleanText(page.kind).toLowerCase();
   if (kind === "pricing") {
-    const items = Array.isArray(page.lineItems) ? page.lineItems.map(asObject) : [];
+    const items = Array.isArray(page.line_items) ? page.line_items.map(asObject) : Array.isArray(page.lineItems) ? page.lineItems.map(asObject) : [];
     const lines = items.map((item) => {
       const label = plainText(item.label || item.name || "Line item");
       const qty = plainText(item.quantity || "1");
@@ -154,7 +167,18 @@ export async function renderProposalPdf(input: {
   const snapshot = asObject(input.snapshot);
   const source = Object.keys(snapshot).length ? snapshot : proposal;
   const content = proposalContent(source);
-  const pages = Array.isArray(content.pages) ? content.pages.map(asObject) : [];
+  const paper = proposalPaperDimensions(source, content);
+  const scope = normalizeProposalScope(content.scope);
+  const pages = Array.isArray(content.pages) ? content.pages.map(asObject).map((page) => {
+    if (cleanText(page.kind).toLowerCase() !== "pricing") return page;
+    const scopeView = asObject(page.scope_view || {
+      root_item_id: cleanText(page.scope_root_id || "root") || "root",
+      render_depth: Number(page.render_depth ?? 1) || 1,
+      show_included_items: page.show_included_items !== false
+    });
+    const lineItems = publicScopeLineItems(scope, scopeView);
+    return lineItems.length ? { ...page, line_items: lineItems } : page;
+  }) : [];
   const title = cleanText(input.title || source.title || proposal.title || content.title || "Proposal") || "Proposal";
   const html = cleanText(input.html);
   if (html) {
@@ -165,12 +189,48 @@ export async function renderProposalPdf(input: {
     });
     try {
       const page = await browser.newPage({
-        viewport: { width: 820, height: 1061 },
+        viewport: { width: Math.round(paper.widthIn * 96), height: Math.round(paper.heightIn * 96) },
         deviceScaleFactor: 1
       });
       await page.emulateMedia({ media: "screen" });
       await page.setContent(html, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => document.fonts.ready);
+      await page.evaluate(async () => {
+        await Promise.all(Array.from(document.images).map(async (image) => {
+          if (!image.complete) {
+            await new Promise<void>((resolve) => {
+              image.addEventListener("load", () => resolve(), { once: true });
+              image.addEventListener("error", () => resolve(), { once: true });
+            });
+          }
+          if (typeof image.decode === "function") await image.decode().catch(() => undefined);
+        }));
+        await Promise.all(Array.from(document.querySelectorAll<HTMLVideoElement>("video.r-proposal-video-print-fallback")).map((video) => new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+          const captureFrame = () => {
+            try {
+              if (Number.isFinite(video.duration) && video.duration > 0.1) video.currentTime = Math.min(0.1, video.duration / 2);
+            } catch {
+              finish();
+              return;
+            }
+            if (video.seeking) video.addEventListener("seeked", finish, { once: true });
+            else finish();
+          };
+          if (video.readyState >= 2) captureFrame();
+          else {
+            video.addEventListener("loadeddata", captureFrame, { once: true });
+            video.addEventListener("error", finish, { once: true });
+            video.load();
+          }
+          setTimeout(finish, 3_000);
+        })));
+      });
       await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => null);
       await page.waitForFunction(
         () => (window as Window & { __proposalPdfCanvasReady?: boolean }).__proposalPdfCanvasReady !== false,
@@ -179,20 +239,16 @@ export async function renderProposalPdf(input: {
       ).catch(() => null);
       const pdf = await page.pdf({
         printBackground: true,
-        width: "8.5in",
-        height: "11in",
+        width: paper.cssWidth,
+        height: paper.cssHeight,
         margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
         preferCSSPageSize: true
       });
-      const finalizedPdf = await finalizeFirstMatePdf(pdf, {
-        title,
-        subject: "Proposal generated by FirstMate",
-        keywords: ["proposal"]
-      });
+      const renderedPageCount = await page.locator(".r-proposal-page").count().catch(() => 0);
       return {
-        bytes: finalizedPdf,
+        bytes: Buffer.from(pdf),
         fileName: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "proposal"}.pdf`,
-        pageCount: pages.length || await page.locator(".r-proposal-page").count().catch(() => 1) || 1
+        pageCount: renderedPageCount || pages.length || 1
       };
     } finally {
       await browser.close();
@@ -200,17 +256,12 @@ export async function renderProposalPdf(input: {
   }
 
   const doc = await PDFDocument.create();
-  setFirstMatePdfMetadata(doc, {
-    title,
-    subject: "Proposal generated by FirstMate",
-    keywords: ["proposal"]
-  });
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const pageEntries = pages.length ? pages : [{ kind: "summary", title, body: "Proposal content is available in the customer portal." }];
 
   pageEntries.forEach((entry, index) => {
-    const page = doc.addPage([612, 792]);
+    const page = doc.addPage([paper.widthIn * 72, paper.heightIn * 72]);
     const { width, height } = page.getSize();
     page.drawRectangle({
       x: 34,

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FirstMate Insights preview</title>
+  <style>
+    :root{--primary:#d93025;--primary-rgb:217,48,37;--primary-readable:#bd251e;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#101828;background:#f2f4f7}
+    *{box-sizing:border-box}body{min-height:100vh;margin:0;padding:86px 32px 32px}.platform-topbar{position:fixed;z-index:2147483000;inset:0 0 auto;height:54px;display:flex;align-items:center;padding:0 24px;background:#101828;color:#fff;font-size:12px;font-weight:800;box-shadow:0 4px 16px rgba(16,24,40,.2)}.preview{position:relative;min-height:calc(100vh - 118px);border:1px solid #e4e7ec;border-radius:24px;background:#fff;box-shadow:0 18px 50px rgba(16,24,40,.08);overflow:hidden}.preview h1{margin:0;font-size:25px}.preview-copy{max-width:650px;margin:0 auto;padding:48px 24px;text-align:center}.preview-copy p{color:#667085;line-height:1.55}.edge{position:absolute;display:flex;align-items:center;gap:8px;color:#667085;font-size:11px;font-weight:800}.edge.tl{left:18px;top:18px}.edge.tr{right:18px;top:18px;flex-direction:row-reverse}.edge.bl{left:18px;bottom:18px}.edge.br{right:18px;bottom:18px;flex-direction:row-reverse}.settings{max-width:960px;margin:34px auto 0;padding:0 16px 70px}
+  </style>
+</head>
+<body>
+  <header class="platform-topbar" id="platformTopbar">Top-bar boundary fixture</header>
+  <main class="preview">
+    <div class="preview-copy"><h1>Insights interaction preview</h1><p>Each corner trigger should choose a direction with enough room. The center preview demonstrates customer settings and the optional inline conversation.</p></div>
+    <div class="edge tl"><span data-edge="tl"></span><span>Top left</span></div>
+    <div class="edge tr"><span data-edge="tr"></span><span>Top right</span></div>
+    <div class="edge bl"><span data-edge="bl"></span><span>Bottom left</span></div>
+    <div class="edge br"><span data-edge="br"></span><span>Bottom right</span></div>
+  </main>
+  <section class="settings" data-settings></section>
+  <script>
+    window.__APP = { userOrgId:'preview', userBranchId:'default' };
+    let previewSettings = { enabled:true, agent_enabled:true };
+    window.PlatformAPI = { branchModules:{
+      async get(){ return { data:{ ...previewSettings } }; },
+      async save(_org,_branch,_module,next){ previewSettings = { ...next }; return { data:{ ...previewSettings } }; }
+    }};
+    window.AgentsAPI = {
+      async createThread(){ return { thread:{ id:'preview-thread' } }; },
+      async send(_org,_agent,_thread,body){ await new Promise((resolve) => setTimeout(resolve, 650)); return { assistant_message:{ id:`reply-${Date.now()}`, content:`The recommendation is designed to help with **${body.input.insight_title}**. In production, this answer comes from the read-only Insights agent using the hidden developer context.`, data:{ status:'success' } } }; }
+    };
+    window.FirstMateAgentChat = { renderMarkdown(value){ return String(value).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>'); } };
+  </script>
+  <script src="firstmate-insights.js"></script>
+  <script>
+    const copy = 'This recommendation is close to a viewport edge, so its popover should open toward the available space and remain fully visible.';
+    ['tl','tr','bl','br'].forEach((edge) => FirstMateInsights.mount(document.querySelector(`[data-edge="${edge}"]`), { id:`edge_${edge}`, title:`${edge.toUpperCase()} placement`, body:copy }));
+    FirstMateInsights.mountSettings(document.querySelector('[data-settings]'));
+  </script>
+</body>
+</html>

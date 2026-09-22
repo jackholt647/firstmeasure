@@ -76,8 +76,16 @@
  function addPhotos(files){if(locked)return;let rejected=0;for(const file of files){if(!valid(file,photos)){rejected++;continue;}if([...items.values()].some(entry=>entry.file.name===file.name&&entry.file.size===file.size&&entry.file.lastModified===file.lastModified))continue;const entry=item(file);items.set(entry.id,entry);}error.textContent=rejected?'Some files were skipped. Choose nonempty JPG, PNG, WebP, AVIF or GIF photos.':'';render();}
  host.querySelector('.reference-add').onclick=()=>{if(!locked)input.click();};input.onchange=()=>{addPhotos([...input.files]);input.value='';};
  dropTarget(drop,null);
- drop.addEventListener('dragover',e=>{if(!locked&&e.dataTransfer.types.includes('Files')){e.preventDefault();drop.classList.add('dragging');}});
- drop.addEventListener('drop',e=>{if(!e.dataTransfer.types.includes('Files'))return;e.preventDefault();drop.classList.remove('dragging');addPhotos([...e.dataTransfer.files]);});
+ // Accept external photos anywhere on the order page, including the view board.
+ // In-page card drags use dragType and continue through the slot handlers above.
+ const fileDrag=e=>Array.from(e.dataTransfer?.types||[]).includes('Files');
+ let dragDepth=0;
+ const clearDrop=()=>{dragDepth=0;drop.classList.remove('dragging');};
+ document.addEventListener('dragenter',e=>{if(!fileDrag(e))return;e.preventDefault();dragDepth++;if(!locked)drop.classList.add('dragging');},true);
+ document.addEventListener('dragover',e=>{if(!fileDrag(e))return;e.preventDefault();e.dataTransfer.dropEffect=locked?'none':'copy';if(!locked)drop.classList.add('dragging');},true);
+ document.addEventListener('dragleave',e=>{if(dragDepth&&(--dragDepth<=0||!e.relatedTarget))clearDrop();},true);
+ document.addEventListener('drop',e=>{if(!fileDrag(e))return;e.preventDefault();e.stopImmediatePropagation();clearDrop();if(locked){error.textContent='Please wait for the current upload to finish.';return;}addPhotos([...e.dataTransfer.files]);},true);
+ window.addEventListener('dragend',clearDrop);window.addEventListener('blur',clearDrop);
  const video=host.querySelector('#order-reference-video'),videoFile=host.querySelector('.reference-video-file');
  video.onchange=()=>{if(locked)return;const file=video.files[0];if(!file)return;if(!valid(file,videos)){error.textContent='Choose a nonempty MP4, WebM or MOV video.';video.value='';return;}error.textContent='';discard('video');const entry=item(file);items.set('video',entry);videoFile.replaceChildren();const name=document.createElement('p');name.textContent=file.name;const remove=document.createElement('button');remove.type='button';remove.textContent='Remove video';remove.onclick=()=>{if(locked)return;discard('video');video.value='';videoFile.replaceChildren();};videoFile.append(name,remove);};
  render();

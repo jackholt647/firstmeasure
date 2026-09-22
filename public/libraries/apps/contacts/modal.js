@@ -17,7 +17,8 @@
     portalUrl: '',
     handle: null,
     addressAutocomplete: null,
-    addressAutocompleteInput: null
+    addressAutocompleteInput: null,
+    todoController: null
   };
 
   function $(selector, root = document){ return root.querySelector(selector); }
@@ -72,7 +73,18 @@
       name: firstText(contact.name, project.customer_name, project.customerName, project.primary_contact_name, project.resident_name, project.residentName, typeof project.resident === 'string' ? project.resident : '', customer.name, resident.name),
       email: firstText(contact.email, project.customer_email, project.primary_contact_email, project.resident_email, project.residentEmail, customer.email, resident.email),
       phone: firstText(contact.phone, project.customer_phone, project.primary_contact_phone, project.resident_phone, project.residentPhone, customer.phone, resident.phone),
-      address: firstText(contact.address, contact.default_address, project.contact_address, project.customer_address, project.primary_contact_address, customer.address, resident.address)
+      address: firstText(contact.address, contact.default_address, project.contact_address, project.customer_address, project.primary_contact_address, customer.address, resident.address),
+      company: firstText(contact.company),
+      notes: firstText(contact.notes),
+      birthday: firstText(contact.birthday),
+      tags: Array.isArray(contact.tags) ? contact.tags.map(cleanText).filter(Boolean) : [],
+      imported_at: firstText(contact.imported_at),
+      import_id: firstText(contact.import_id),
+      import_source: firstText(contact.import_source),
+      custom_field_values: {
+        ...(project.contact_custom_field_values && typeof project.contact_custom_field_values === 'object' ? project.contact_custom_field_values : {}),
+        ...(contact.custom_field_values && typeof contact.custom_field_values === 'object' ? contact.custom_field_values : {})
+      }
     };
   }
   function normalizeContact(contact = {}, fallbackProject = null){
@@ -84,7 +96,21 @@
       name: firstText(contact.name, contact.customer_name, projectContact.name),
       email: firstText(contact.email, projectContact.email),
       phone: firstText(contact.phone, projectContact.phone),
-      address: firstText(contact.address, contact.default_address, contact.contact_address, projectContact.address, fallbackProject?.contact_address, fallbackProject?.customer_address, fallbackProject?.primary_contact_address, fallbackProject?.workflow_state === 'contact_only' ? fallbackProject?.address : '')
+      address: firstText(contact.address, contact.default_address, contact.contact_address, projectContact.address, fallbackProject?.contact_address, fallbackProject?.customer_address, fallbackProject?.primary_contact_address, fallbackProject?.workflow_state === 'contact_only' ? fallbackProject?.address : ''),
+      company: firstText(contact.company, projectContact.company),
+      notes: firstText(contact.notes, projectContact.notes),
+      birthday: firstText(contact.birthday, projectContact.birthday),
+      tags: Array.isArray(contact.tags) && contact.tags.length
+        ? contact.tags.map(cleanText).filter(Boolean)
+        : (Array.isArray(projectContact.tags) ? projectContact.tags : []),
+      imported_at: firstText(contact.imported_at, projectContact.imported_at),
+      import_id: firstText(contact.import_id, projectContact.import_id),
+      import_source: firstText(contact.import_source, projectContact.import_source),
+      custom_field_values: {
+        ...(fallbackProject?.contact_custom_field_values && typeof fallbackProject.contact_custom_field_values === 'object' ? fallbackProject.contact_custom_field_values : {}),
+        ...(projectContact.custom_field_values && typeof projectContact.custom_field_values === 'object' ? projectContact.custom_field_values : {}),
+        ...(contact.custom_field_values && typeof contact.custom_field_values === 'object' ? contact.custom_field_values : {})
+      }
     };
   }
   function contactTokens(contact = {}){
@@ -92,6 +118,14 @@
       ids: [contact.project_id, contact.primary_project_id, ...(Array.isArray(contact.project_ids) ? contact.project_ids : [])].map(cleanText).filter(Boolean),
       contactId: firstText(contact.id, contact.contact_id)
     };
+  }
+  function contactSemanticKey(contact = {}){
+    const email = cleanText(contact.email).toLowerCase();
+    if (email) return `email:${email}`;
+    const phone = cleanText(contact.phone).replace(/\D+/g, '');
+    if (phone.length >= 7) return `phone:${phone}`;
+    const name = cleanText(contact.name).toLowerCase().replace(/\s+/g, ' ');
+    return name ? `name:${name}` : '';
   }
   function contactHasContent(contact = {}){
     return !!firstText(contact.name, contact.email, contact.phone, contact.address, contact.default_address);
@@ -174,25 +208,25 @@
       .fm-contact-overlay{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.58);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .22s ease}
       .fm-contact-overlay.active{display:flex;opacity:1}
       .fm-contact-win{width:min(1480px,94vw);height:min(940px,90vh);background:#fff;border-radius:28px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;position:relative}
-      .fm-contact-left{width:min(420px,42%);border-right:1px solid rgba(15,23,42,.08);padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;background:#fff}
+      .fm-contact-left{width:min(420px,42%);min-height:0;border-right:1px solid rgba(15,23,42,.08);padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;background:#fff;overflow:hidden}
       .fm-contact-right{flex:1;min-width:0;background:#eef2f6;display:flex;flex-direction:column;position:relative}
       .fm-contact-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-      .fm-contact-kicker{font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
-      .fm-contact-title{margin:4px 0 0;font-size:24px;font-weight:1000;color:#101828;letter-spacing:0}
+      .fm-contact-kicker{font-size:10px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
+      .fm-contact-title{margin:2px 0 0;font-size:20px;font-weight:1000;color:#101828;letter-spacing:0;line-height:1.15}
       .fm-contact-close{position:absolute;top:14px;right:14px;z-index:8;width:40px;height:40px;border-radius:14px;border:1px solid rgba(15,23,42,.10);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 24px rgba(15,23,42,.08)}
       .fm-contact-close:hover{color:#101828;background:#f8fafc}
-      .fm-contact-fields{display:grid;gap:10px}
-      .fm-contact-field{display:grid;gap:5px}
-      .fm-contact-field label{font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
-      .fm-contact-input{width:100%;box-sizing:border-box;border:1px solid rgba(15,23,42,.14);border-radius:12px;min-height:40px;padding:9px 11px;font-size:13px;font-weight:850;color:#101828;outline:none}
+      .fm-contact-fields{display:grid;flex:0 1 auto;min-height:0;gap:6px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:2px}
+      .fm-contact-field{display:grid;gap:3px}
+      .fm-contact-field label{font-size:10px;font-weight:1000;color:#667085;letter-spacing:.06em;text-transform:uppercase}
+      .fm-contact-input{width:100%;box-sizing:border-box;border:1px solid rgba(15,23,42,.14);border-radius:9px;min-height:34px;padding:6px 9px;font-size:12px;font-weight:850;color:#101828;outline:none}
       .fm-contact-input:focus{border-color:rgba(var(--primary-rgb,217,48,37),.55);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.10)}
       .pac-container{z-index:2147483600!important}
-      .fm-contact-actions{display:flex;gap:8px;margin-top:auto}
+      .fm-contact-actions{display:flex;flex:0 0 auto;gap:8px}
       .fm-contact-actions .fm-contact-btn{flex:1 1 0}
-      .fm-contact-btn{border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#fff;color:#344054;min-height:40px;padding:0 13px;font-size:12px;font-weight:1000;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+      .fm-contact-btn{border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#344054;min-height:36px;padding:0 11px;font-size:11px;font-weight:1000;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px}
       .fm-contact-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
       .fm-contact-btn:disabled{opacity:.58;cursor:not-allowed}
-      .fm-contact-meta{font-size:12px;font-weight:850;color:#667085;line-height:1.4;min-height:18px}
+      .fm-contact-meta{flex:0 0 auto;font-size:11px;font-weight:850;color:#667085;line-height:1.3;min-height:14px}
       .fm-contact-right-head{height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 76px 0 20px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .fm-contact-right-title{font-size:14px;font-weight:1000;color:#101828}
       .fm-contact-count{font-size:12px;font-weight:900;color:#667085}
@@ -209,9 +243,20 @@
       .fm-contact-empty{grid-column:1/-1;align-self:start;border:1px dashed rgba(15,23,42,.16);border-radius:8px;background:#fff;padding:28px;text-align:center;color:#667085;font-size:13px;font-weight:900}
       .fm-contact-new-project{position:absolute;right:22px;bottom:22px;z-index:4;border:0;border-radius:999px;background:var(--primary,#d93025);color:var(--on-primary,#fff);min-height:46px;padding:0 17px;box-shadow:0 18px 34px rgba(var(--primary-rgb,217,48,37),.26),0 14px 32px rgba(15,23,42,.14);display:inline-flex;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:1000;cursor:pointer}
       .fm-contact-new-project:hover{filter:brightness(.96);transform:translateY(-1px)}
+      .fm-contact-tags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+      .fm-contact-tag{display:inline-flex;align-items:center;gap:5px;border:1px solid #e4e7ec;border-radius:999px;background:#f8fafc;color:#344054;font-size:10px;font-weight:900;padding:3px 7px;line-height:1.2}
+      .fm-contact-tag button{border:0;background:none;color:#98a2b3;cursor:pointer;padding:0;margin:0;display:inline-flex;align-items:center;font-size:10px;line-height:1}
+      .fm-contact-tag button:hover{color:#b42318}
+      .fm-contact-tag-input{border:1px dashed rgba(15,23,42,.18);border-radius:999px;background:#fff;min-width:82px;flex:0 1 auto;box-sizing:border-box;font-size:10px;font-weight:900;color:#101828;padding:3px 8px;outline:none}
+      .fm-contact-tag-input:focus{border-color:rgba(var(--primary-rgb,217,48,37),.45);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.08)}
+      .fm-contact-import-meta{font-size:11px;font-weight:850;color:#98a2b3}
+      .fm-contact-todos{display:flex;flex:1 1 180px;min-height:120px;flex-direction:column;gap:4px;overflow:hidden}
+      .fm-contact-todos[hidden]{display:none}
+      .fm-contact-todos>label{flex:0 0 auto;font-size:10px;font-weight:1000;color:#667085;letter-spacing:.06em;text-transform:uppercase}
+      #fmContactTodoList{flex:1 1 auto;min-height:0;overflow:hidden}
       @media(max-width:760px){
         .fm-contact-win{width:100vw;height:100vh;border-radius:0;flex-direction:column}
-        .fm-contact-left{width:100%;max-height:46vh;border-right:0;border-bottom:1px solid rgba(15,23,42,.08)}
+        .fm-contact-left{width:100%;height:52vh;border-right:0;border-bottom:1px solid rgba(15,23,42,.08)}
         .fm-contact-projects{grid-template-columns:1fr;padding:12px}
       }
     `;
@@ -229,30 +274,41 @@
         <section class="fm-contact-left">
           <div class="fm-contact-head">
             <div>
-              <div class="fm-contact-kicker">Contact</div>
-              <h2 class="fm-contact-title" id="fmContactTitle">New Contact</h2>
+              <div class="fm-contact-kicker">${(globalThis.PlatformLanguage?.text("contacts","m_46c8aea84388c3","Contact") ?? "Contact")}</div>
+              <h2 class="fm-contact-title" id="fmContactTitle">${(globalThis.PlatformLanguage?.text("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</h2>
             </div>
             <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="fm-contact-fields">
-            <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>Name</span><span class="fm-contact-required">Required</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
-            <div class="fm-contact-field"><label>Phone</label><input class="fm-contact-input" id="fmContactPhone" type="tel" autocomplete="tel"></div>
-            <div class="fm-contact-field"><label>Email</label><input class="fm-contact-input" id="fmContactEmail" type="email" autocomplete="email"></div>
-            <div class="fm-contact-field"><label>Default Address</label><input class="fm-contact-input" id="fmContactAddress" autocomplete="street-address"></div>
+            <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>${(globalThis.PlatformLanguage?.text("contacts","m_8cf345002184e5","Name") ?? "Name")}</span><span class="fm-contact-required">${(globalThis.PlatformLanguage?.text("contacts","m_db97f048cd99aa","Required") ?? "Required")}</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
+            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.text("contacts","m_ed04c65845180f","Phone") ?? "Phone")}</label><input class="fm-contact-input" id="fmContactPhone" type="tel" autocomplete="tel"></div>
+            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.text("contacts","m_5d2b9327181e33","Email") ?? "Email")}</label><input class="fm-contact-input" id="fmContactEmail" type="email" autocomplete="email"></div>
+            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.text("contacts","m_04774ec8f0f789","Default Address") ?? "Default Address")}</label><input class="fm-contact-input" id="fmContactAddress" autocomplete="street-address"></div>
+            <div id="fmContactCustomFields"></div>
+            <div class="fm-contact-field" id="fmContactTagsField">
+              <label>${(globalThis.PlatformLanguage?.text("contacts","m_562d2cd3a48b8f","Tags") ?? "Tags")}</label>
+              <div class="fm-contact-tags" id="fmContactTags"></div>
+              <div class="fm-contact-import-meta" id="fmContactImportMeta" hidden></div>
+            </div>
+          </div>
+          <div class="fm-contact-todos" id="fmContactTodos" hidden>
+            <label>${(globalThis.PlatformLanguage?.text("contacts","m_a6534938817ec3","To-dos") ?? "To-dos")}</label>
+            <div id="fmContactTodoList"></div>
           </div>
           <div class="fm-contact-meta" id="fmContactMeta"></div>
           <div class="fm-contact-actions">
-            <button type="button" class="fm-contact-btn" id="fmContactPortal" data-fm-tooltip="Copy Customer Portal link"><i class="fas fa-link"></i><span>Portal</span></button>
-            <button type="button" class="fm-contact-btn primary" id="fmContactSave"><i class="fas fa-save"></i><span>Save</span></button>
+            <button type="button" class="fm-contact-btn" id="fmContactCall"><i class="fas fa-phone"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_8d4eaa0da004be","Call") ?? "Call")}</span></button>
+            <button type="button" class="fm-contact-btn" id="fmContactPortal" data-fm-tooltip="Copy Customer Portal link"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_a4cd44bc12f332","Portal") ?? "Portal")}</span></button>
+            <button type="button" class="fm-contact-btn primary" id="fmContactSave"><i class="fas fa-save"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_5bab3e72de1ebf","Save") ?? "Save")}</span></button>
           </div>
         </section>
         <section class="fm-contact-right">
           <div class="fm-contact-right-head">
-            <div class="fm-contact-right-title">Projects</div>
+            <div class="fm-contact-right-title">${(globalThis.PlatformLanguage?.text("contacts","m_19156e80fc8a6e","Projects") ?? "Projects")}</div>
             <div class="fm-contact-count" id="fmContactProjectCount"></div>
           </div>
           <div class="fm-contact-projects" id="fmContactProjects"></div>
-          <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>New Project</span></button>
+          <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_0747045bf3d919","New Project") ?? "New Project")}</span></button>
         </section>
       </div>
     `;
@@ -264,6 +320,11 @@
       overlay.__downBackdrop = false;
     });
     $('#fmContactSave', overlay)?.addEventListener('click', saveContact);
+    $('#fmContactCall', overlay)?.addEventListener('click',async()=>{
+      const phone=window.Portal?.CustomerPhone,button=$('#fmContactCall');if(!phone||!state.contact?.phone)return;
+      button.disabled=true;try{await phone.open({contact_id:firstText(state.contact.id,state.contact.contact_id),customer_name:state.contact.name,customer_number:state.contact.phone});}
+      catch(error){window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("contacts","m_8d4eaa0da004be","Call") ?? "Call"),error.message,false);}finally{button.disabled=false;}
+    });
     $('#fmContactPortal', overlay)?.addEventListener('click', ensureContactPortalLink);
     $('#fmContactNewProject', overlay)?.addEventListener('click', createProjectForContact);
     ['fmContactName','fmContactPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
@@ -274,6 +335,8 @@
         setMeta('Unsaved changes.');
       });
     });
+    $('#fmContactCustomFields', overlay)?.addEventListener('input', () => setMeta('Unsaved changes.'));
+    $('#fmContactCustomFields', overlay)?.addEventListener('change', () => setMeta('Unsaved changes.'));
     $('#fmContactAddress', overlay)?.addEventListener('focus', initAddressAutocomplete);
     $('#fmContactProjects', overlay)?.addEventListener('click', (event) => {
       const card = event.target.closest('[data-contact-project-id]');
@@ -366,6 +429,121 @@
     const title = $('#fmContactTitle');
     if (title) title.textContent = contactTitle(state.contact);
   }
+  function contactTags(){
+    return Array.isArray(state.contact?.tags) ? state.contact.tags.map(cleanText).filter(Boolean) : [];
+  }
+  function addContactTag(value){
+    const tag = cleanText(value).replace(/\s+/g, ' ').slice(0, 80);
+    if (!tag) return;
+    const tags = contactTags();
+    if (tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) return;
+    state.contact = { ...state.contact, tags: [...tags, tag] };
+    renderTags();
+    setMeta('Unsaved changes.');
+  }
+  function removeContactTag(tag){
+    state.contact = { ...state.contact, tags: contactTags().filter((existing) => existing !== tag) };
+    renderTags();
+    setMeta('Unsaved changes.');
+  }
+  function renderTags(){
+    const mount = $('#fmContactTags');
+    if (!mount) return;
+    const tags = contactTags();
+    mount.innerHTML = ("\n      " + String(tags.map((tag) => `
+        <span class="fm-contact-tag" data-contact-tag="${escapeHtml(tag)}">${escapeHtml(tag)}<button type="button" aria-label="Remove tag ${escapeHtml(tag)}"><i class="fas fa-times"></i></button></span>
+      `).join('')) + "\n      <input class=\"fm-contact-tag-input\" id=\"fmContactTagInput\" type=\"text\" autocomplete=\"off\" placeholder=\"" + (globalThis.PlatformLanguage?.text("contacts","m_88e377d325726e","Add tag...") ?? "Add tag...") + "\">\n    ");
+    mount.querySelectorAll('[data-contact-tag] button').forEach((button) => {
+      button.addEventListener('click', () => removeContactTag(button.closest('[data-contact-tag]')?.dataset.contactTag || ''));
+    });
+    const input = $('#fmContactTagInput');
+    input?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ',') {
+        event.preventDefault();
+        addContactTag(input.value);
+        $('#fmContactTagInput')?.focus();
+      } else if (event.key === 'Backspace' && !input.value && tags.length) {
+        removeContactTag(tags[tags.length - 1]);
+        $('#fmContactTagInput')?.focus();
+      }
+    });
+    input?.addEventListener('blur', () => { if (cleanText(input.value)) addContactTag(input.value); });
+    const importMeta = $('#fmContactImportMeta');
+    if (importMeta) {
+      const importedAt = firstText(state.contact?.imported_at);
+      if (importedAt) {
+        const when = Number.isFinite(Date.parse(importedAt))
+          ? new Date(importedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+          : importedAt;
+        importMeta.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("contacts","m_7d397e7213fa4d",`Imported${v0} · ${v1}`,{v0,v1}) ?? `Imported${v0} · ${v1}`)(state.contact?.import_source ? ` from ${state.contact.import_source}` : '',when);
+        importMeta.hidden = false;
+      } else {
+        importMeta.hidden = true;
+      }
+    }
+  }
+  function contactTodosEnabled(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    if (!flags?.current?.()) return false;
+    const hasManagementAccess = window.Portal?.currentUser?.canAccessApplication?.('management') === true;
+    const canViewProjects = window.Portal?.util?.hasPerm?.('view_projects') === true;
+    return hasManagementAccess
+      && canViewProjects
+      && !!flags.has?.('platform', 'left_column_todo_list')
+      && !!window.PlatformActionItems?.renderTodayList;
+  }
+  function destroyTodoController(){
+    state.todoController?.destroy?.();
+    state.todoController = null;
+  }
+  function mountContactTodos(){
+    const section = $('#fmContactTodos');
+    const mount = $('#fmContactTodoList');
+    if (!section || !mount) return;
+    const contactId = firstText(state.contact?.id, state.contact?.contact_id);
+    const oid = orgId();
+    if (!contactTodosEnabled() || !oid || !contactId) {
+      section.hidden = true;
+      destroyTodoController();
+      return;
+    }
+    section.hidden = false;
+    destroyTodoController();
+    state.todoController = window.PlatformActionItems.renderTodayList(mount, {
+      orgId: oid,
+      userId: firstText(cfg.userId, window.__APP?.userId, window.Portal?.currentUser?.id),
+      contactId,
+      contactName: firstText(state.contact?.name),
+      contactEmail: firstText(state.contact?.email),
+      contactPhone: firstText(state.contact?.phone),
+      projectIds: visibleProjects(state.projects || []).map(projectId).filter(Boolean),
+      completedOpen: false,
+      futureOpen: false,
+      dockDeferredSections: true,
+      scrollItemsOnly: true,
+      showUpcoming: true,
+      showFuture: true,
+      showProjectContext: true,
+      query: { includeAll: true, includeFuture: true }
+    });
+  }
+  function projectStageLabel(project = {}){
+    const projection = project.work_projection && typeof project.work_projection === 'object' ? project.work_projection : {};
+    const active = Array.isArray(projection.active_instances)
+      ? projection.active_instances
+      : (Array.isArray(projection.instances) ? projection.instances.filter((instance) => instance && (instance.status === 'active' || instance.status === 'pending')) : []);
+    const primary = active.find((instance) => instance?.kind === 'pipeline') || active[0] || null;
+    const label = firstText(primary?.stage_title, primary?.title);
+    if (label) return label;
+    const lifecycle = projection.lifecycle && typeof projection.lifecycle === 'object'
+      ? projection.lifecycle
+      : (project.lifecycle && typeof project.lifecycle === 'object' ? project.lifecycle : {});
+    const status = firstText(lifecycle.status).toLowerCase();
+    if (status === 'lost') return 'Lost';
+    if (status === 'completed') return 'Completed';
+    if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
+    return '';
+  }
   function renderProjects(){
     const mount = $('#fmContactProjects');
     const count = $('#fmContactProjectCount');
@@ -373,29 +551,41 @@
     const projects = visibleProjects(state.projects || []);
     if (count) count.textContent = state.loading ? 'Loading...' : `${projects.length} project${projects.length === 1 ? '' : 's'}`;
     if (state.loading) {
-      mount.innerHTML = '<div class="fm-contact-empty">Loading projects...</div>';
+      mount.innerHTML = `<div class="fm-contact-empty">${(globalThis.PlatformLanguage?.text("contacts","m_86ecafe542db8d","Loading projects...") ?? "Loading projects...")}</div>`;
       return;
     }
     if (!projects.length) {
-      mount.innerHTML = '<div class="fm-contact-empty">No projects are linked to this contact yet.</div>';
+      mount.innerHTML = `<div class="fm-contact-empty">${(globalThis.PlatformLanguage?.text("contacts","m_3d87fe0f297c41","No projects are linked to this contact yet.") ?? "No projects are linked to this contact yet.")}</div>`;
       return;
     }
     mount.innerHTML = projects.map((project) => {
       const contact = primaryContact(project);
       return `
-        <button type="button" class="fm-contact-project" data-contact-project-id="${escapeHtml(projectId(project))}">
-          <strong>${escapeHtml(projectTitle(project))}</strong>
-          <span>${escapeHtml(firstText(project.address, project.project_type, project.stage, 'No address'))}</span>
-          <span>${escapeHtml(firstText(contact.name, contact.email, contact.phone))}</span>
-          <small>Open project</small>
+        <button type="button" class="fm-contact-project" data-contact-project-id="${String(escapeHtml(projectId(project)))}">
+          <strong>${String(escapeHtml(projectTitle(project)))}</strong>
+          <span>${String(escapeHtml(firstText(project.address, project.project_type, projectStageLabel(project), 'No address')))}</span>
+          <span>${String(escapeHtml(firstText(contact.name, contact.email, contact.phone)))}</span>
+          <small>${(globalThis.PlatformLanguage?.text("contacts","m_27136d1254783a","Open project") ?? "Open project")}</small>
         </button>
       `;
     }).join('');
   }
   function render(){
+    const callButton=$('#fmContactCall');if(callButton){callButton.hidden=!window.Portal?.CustomerPhone;callButton.disabled=!state.contact?.phone;}
     writeContactInputs();
     renderHeader();
     renderProjects();
+    renderTags();
+    const customFields = $('#fmContactCustomFields');
+    if (customFields && window.FirstMateCustomFields?.renderEditor) {
+      window.FirstMateCustomFields.renderEditor(customFields, state.contact || {}, 'contact', {
+        location:'overview',
+        showSave:false,
+        flat:true,
+        fieldClass:'fm-contact-field',
+        inputClass:'fm-contact-input'
+      });
+    }
     const portalButton = $('#fmContactPortal');
     if (portalButton) portalButton.disabled = !!state.portalLoading;
   }
@@ -405,9 +595,15 @@
       ? project.contacts.filter(contactHasContent).map((row) => ({ ...row }))
       : [];
     const nextTokens = contactTokens({ ...contact, id: contactId, contact_id: contactId });
+    const nextSemanticKey = contactSemanticKey(contact);
     let index = contacts.findIndex((row) => {
       const tokens = contactTokens(row || {});
-      return nextTokens.contactId && tokens.contactId === nextTokens.contactId;
+      if (nextTokens.contactId && tokens.contactId === nextTokens.contactId) return true;
+      return !!(
+        nextSemanticKey
+        && nextSemanticKey === contactSemanticKey(row || {})
+        && (!tokens.contactId || !firstText(contact.id, contact.contact_id))
+      );
     });
     const nextContact = {
       id: contactId,
@@ -417,6 +613,14 @@
       email: contact.email || '',
       address: contact.address || '',
       default_address: contact.address || '',
+      ...(contact.company ? { company: contact.company } : {}),
+      ...(contact.notes ? { notes: contact.notes } : {}),
+      ...(contact.birthday ? { birthday: contact.birthday } : {}),
+      ...(Array.isArray(contact.tags) ? { tags: contact.tags.map(cleanText).filter(Boolean) } : {}),
+      ...(contact.imported_at ? { imported_at: contact.imported_at } : {}),
+      ...(contact.import_id ? { import_id: contact.import_id } : {}),
+      ...(contact.import_source ? { import_source: contact.import_source } : {}),
+      custom_field_values: { ...(contact.custom_field_values || {}) },
       primary: true
     };
     const nextContacts = contactHasContent(nextContact) ? contacts : [];
@@ -445,11 +649,26 @@
       contact_address: contact.address || project.contact_address || '',
       customer_address: contact.address || project.customer_address || '',
       primary_contact_address: contact.address || project.primary_contact_address || '',
+      ...(project.workflow_state === 'contact_only' ? { contact_custom_field_values:{ ...(contact.custom_field_values || {}) } } : {}),
       updated_at: new Date().toISOString()
     };
   }
   async function saveContact(){
-    const contact = readContactInputs();
+    let contact = readContactInputs();
+    const customFieldMount = $('#fmContactCustomFields');
+    if (customFieldMount && window.FirstMateCustomFields?.editorValues) {
+      const validation = window.FirstMateCustomFields.validateEditor?.(customFieldMount, contact, 'contact');
+      if (validation && !validation.valid) {
+        setMeta(validation.first?.message || 'Please check the custom fields.');
+        customFieldMount.querySelector(`[data-fm-cf-input="${CSS.escape(validation.first?.key || '')}"]`)?.focus?.();
+        return false;
+      }
+      contact = {
+        ...contact,
+        custom_field_values:validation?.values || window.FirstMateCustomFields.editorValues(customFieldMount, contact, 'contact')
+      };
+      state.contact = contact;
+    }
     if (!validateName({ focus: true })) return false;
     contact.id = ensureContactId(contact);
     state.contact = contact;
@@ -462,8 +681,6 @@
         contacts: Array.isArray(state.contactRecord?.contacts) ? state.contactRecord.contacts : [],
         address: contact.address || '',
         project_type: 'residential',
-        stage: 'contacting',
-        stage_id: 'contacting',
         workflow_state: 'contact_only',
         measurement: {},
         measurement: state.contactRecord?.measurement || {},
@@ -487,6 +704,7 @@
     state.saved = true;
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     render();
+    if (!state.todoController) mountContactTodos();
     setMeta('Saved.');
     return true;
   }
@@ -547,6 +765,9 @@
     state.projects = visibleProjects(await loadContactProjects(state.contact, provided, options).catch(() => dedupeProjects(provided)));
     state.loading = false;
     renderProjects();
+    // The project list feeds the to-do scope (project to-dos union contact
+    // to-dos), so remount once the linked projects are known.
+    if (state.open) mountContactTodos();
   }
   async function openProject(project){
     const contact = readContactInputs();
@@ -560,9 +781,9 @@
     const saved = window.Portal.ProjectStore?.save?.(prepared) || prepared;
     state.projects = visibleProjects([saved, ...state.projects]);
     const context = { contact, projects: visibleProjects(state.projects) };
-    close();
+    close({ skipHistory:true });
     if (window.Portal.modules?.request?.openProject) {
-      window.Portal.modules.request.openProject(saved, { contactContext: context });
+      window.Portal.modules.request.openProject(saved, { contactContext: context, history:'push' });
     } else {
       window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project: saved, contactContext: context } }));
     }
@@ -583,7 +804,7 @@
     const id = `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
     const base = {
       id,
-      title: 'New Project',
+      title: (globalThis.PlatformLanguage?.text("contacts","m_0747045bf3d919","New Project") ?? "New Project"),
       project_title: 'New Project',
       address: savedContact.address || '',
       project_type: 'residential',
@@ -592,8 +813,6 @@
       address_components: savedContact.address_components || {},
       contacts: [],
       project_notes: '',
-      stage: 'contacting',
-      stage_id: 'contacting',
       workflow_state: 'draft',
       measurement: {},
       measurement_project: {},
@@ -620,6 +839,17 @@
     state.loading = false;
     state.open = true;
     overlay.classList.add('active');
+    const routeContactId = firstText(state.contact.id, state.contact.contact_id);
+    if (routeContactId && !options.fromRoute && !window.Portal?.navigation?.applying) {
+      window.Portal?.navigation?.push?.({
+        tab:'contacts',
+        contact:routeContactId,
+        project:null,
+        projectTab:null,
+        photo:null,
+        photoScope:null
+      }, { source:'contact-open', ownedKeys:['contact'] });
+    }
     state.handle?.unregister?.();
     state.handle = window.Portal?.modals?.register?.(overlay, {
       id: 'contact-modal',
@@ -628,6 +858,7 @@
       onClose: close
     }) || null;
     render();
+    mountContactTodos();
     if (projectsComplete && state.projects.length) {
       renderProjects();
     } else if (contactHasLookupIdentity(state.contact) || state.projects.length) {
@@ -643,11 +874,15 @@
       $('#fmContactName')?.focus();
     }, 40);
   }
-  function close(){
+  function close(options = {}){
     state.handle?.unregister?.();
     state.handle = null;
     state.open = false;
+    destroyTodoController();
     $('#fmContactOverlay')?.classList.remove('active');
+    if (!options.skipHistory && !options.fromRoute) {
+      window.Portal?.navigation?.backOrClose?.(['contact'], { contact:null, userTab:null }, { source:'contact-close' });
+    }
   }
 
   window.Portal.modules = window.Portal.modules || {};

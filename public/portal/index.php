@@ -1,9 +1,6 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
-require_once dirname(__DIR__) . '/includes/provider_keys.php';
 portalStartSession();
-
-$GOOGLE_BROWSER_API_KEY = fm_google_provider_key('browser_customer');
 
 // --- LOGIN CHECK ---
 if (!isset($_SESSION['user_email'])) {
@@ -19,6 +16,7 @@ $userBranchId = $_SESSION['platform_branch_id'] ?? ($_SESSION['branch_id'] ?? 'd
 $isImpersonating = !empty($_SESSION['is_impersonating']);
 $impersonatingFromEmail = $_SESSION['impersonating_from_email'] ?? null;
 
+$platformExpandedAssets = ($_SESSION['platform_expanded_access'] ?? false) === true;
 $ver = time(); // Cache busting
 
 // --- TUTORIAL CHECK ---
@@ -30,6 +28,14 @@ if (isset($_GET['tutorial']) || (isset($headers['X-Tutorial-Mode']) && $headers[
 
 // Stripe return params
 $paidFlag = isset($_GET['paid']) ? $_GET['paid'] : null; // "1" or "0"
+$initialProjectRoute = trim((string)($_GET['project'] ?? ''));
+// A global-scope media viewer (the photo feed) keeps `project` in the URL only
+// as context and never opens project chrome, so painting the first-paint shell
+// for it would leave a cover nothing removes.
+if (strtolower(trim((string)($_GET['photoScope'] ?? ''))) === 'feed') {
+    $initialProjectRoute = '';
+}
+$initialProjectTab = trim((string)($_GET['projectTab'] ?? 'map'));
 $showOnboarding = false;
 if (isset($_GET['onboarding'])) {
     $showOnboarding = true;
@@ -117,11 +123,25 @@ session_write_close();
       --radius-xl:16px;
       --radius-lg:12px;
       --radius-md:10px;
-      --sidebar:224px;
+      --sidebar:250px;
+      --sidebar-compact:48px;
       --fm-visual-vh:100vh;
       --fm-visual-vw:100vw;
+      --fm-scrollbar-size:12px;
+      --fm-scrollbar-content-gap:10px;
+      --fm-scrollbar-thumb:rgba(71,84,103,.52);
+      --fm-scrollbar-thumb-hover:rgba(52,64,84,.78);
     }
     *{box-sizing:border-box}
+    @supports not selector(::-webkit-scrollbar){
+      *{scrollbar-color:var(--fm-scrollbar-thumb) transparent}
+    }
+    *::-webkit-scrollbar{width:var(--fm-scrollbar-size);height:var(--fm-scrollbar-size);background:transparent}
+    *::-webkit-scrollbar-button{display:none;width:0;height:0}
+    *::-webkit-scrollbar-track{background:transparent}
+    *::-webkit-scrollbar-thumb{min-width:44px;min-height:44px;border:3px solid transparent;border-radius:999px;background-color:rgba(71,84,103,.52);background-color:var(--fm-scrollbar-thumb);background-clip:padding-box;box-shadow:inset 0 0 0 999px var(--fm-scrollbar-thumb)}
+    *::-webkit-scrollbar-thumb:hover{background-color:rgba(52,64,84,.78);background-color:var(--fm-scrollbar-thumb-hover);background-clip:padding-box;box-shadow:inset 0 0 0 999px var(--fm-scrollbar-thumb-hover)}
+    *::-webkit-scrollbar-corner{background:transparent}
     body{
       margin:0;
       height:var(--fm-visual-vh, 100vh);
@@ -141,6 +161,131 @@ session_write_close();
       flex-direction:column;
       box-shadow:4px 0 16px rgba(0,0,0,0.05);
       z-index:2147483004;
+      margin-right:0;
+      transition:width .2s cubic-bezier(.2,.8,.2,1),margin-right .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease;
+    }
+
+    .sidebar-mini-logo,
+    .sidebar-new-mini-icon,
+    .sidebar-compact-toggle{display:none}
+
+    #newMenuWrap[hidden],
+    #mobNewReqBtn[hidden]{display:none!important}
+
+    @media (min-width:821px){
+      .sidebar.sidebar-compact{width:var(--sidebar-compact)}
+      .sidebar.sidebar-compact:hover,
+      .sidebar.sidebar-compact.sidebar-compact-edge-held,
+      .sidebar.sidebar-compact.sidebar-compact-expanded{width:var(--sidebar)}
+      .sidebar.sidebar-compact.sidebar-compact-overlap:hover:not(.sidebar-compact-expanded),
+      .sidebar.sidebar-compact.sidebar-compact-overlap.sidebar-compact-edge-held:not(.sidebar-compact-expanded){
+        margin-right:calc(var(--sidebar-compact) - var(--sidebar));
+      }
+      .sidebar.sidebar-compact:hover,
+      .sidebar.sidebar-compact.sidebar-compact-edge-held{box-shadow:7px 0 22px rgba(15,23,42,.09)}
+
+      .sidebar-compact-toggle{
+        position:absolute;
+        top:50%;
+        right:-11px;
+        z-index:4;
+        width:22px;
+        height:38px;
+        border:1px solid var(--border);
+        border-radius:0 9px 9px 0;
+        background:#fff;
+        color:#7b8490;
+        align-items:center;
+        justify-content:center;
+        padding:0;
+        box-shadow:3px 2px 8px rgba(15,23,42,.08);
+        cursor:pointer;
+      }
+      .sidebar.sidebar-compact .sidebar-compact-toggle{display:flex}
+      .sidebar-compact-toggle i{font-size:10px;transition:transform .18s ease,color .18s ease}
+      .sidebar.sidebar-compact:hover .sidebar-compact-toggle i,
+      .sidebar.sidebar-compact.sidebar-compact-edge-held .sidebar-compact-toggle i,
+      .sidebar.sidebar-compact.sidebar-compact-expanded .sidebar-compact-toggle i{transform:rotate(180deg)}
+      .sidebar-compact-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}
+
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area{
+        display:flex;
+        height:64px;
+        width:100%;
+        padding:0;
+        align-items:center;
+        justify-content:center;
+        grid-template-columns:none;
+      }
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>.firstmate-color-logo,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>.cobrand-logo-divider,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>img{display:none!important}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mini-logo{
+        display:block;
+        flex:none;
+        width:27px;
+        height:27px;
+        background:var(--primary-readable,var(--primary,#d93025));
+        -webkit-mask:url('/images/logo_square.png') center / contain no-repeat;
+        mask:url('/images/logo_square.png') center / contain no-repeat;
+      }
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-scroll{
+        padding:10px 6px calc(8px + env(safe-area-inset-bottom,0px));
+        gap:5px;
+        overflow:hidden;
+      }
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .new-menu-wrap{display:flex;justify-content:center}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq{
+        width:36px;
+        height:36px;
+        min-height:36px;
+        flex:none;
+        justify-content:center;
+        padding:0;
+        border-radius:12px;
+        box-shadow:0 5px 12px rgba(var(--primary-rgb),.2);
+      }
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq>span,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-full-icon{display:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-mini-icon{display:block}
+
+      /* The midpoint rail control is the sole compact expansion affordance.
+         The Apps / To Do / Channels labels return once the rail expands. */
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mode-tabs{display:none}
+
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarTodoPanel,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarLinks,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarBottomLinks{padding:0;margin-left:0;margin-right:0;gap:2px}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarAppsPanel,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarLinks{min-height:0;overflow:hidden}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks{
+        flex:1 1 auto;
+        min-height:0;
+        overflow-x:hidden;
+        overflow-y:auto;
+        scrollbar-width:none;
+      }
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks::-webkit-scrollbar{display:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link{
+        width:34px;
+        height:32px;
+        justify-content:center;
+        padding:0;
+        flex:none;
+      }
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link .ic{width:auto;font-size:15px}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link .tx{display:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link.bottom{padding-top:0}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-footer{padding:8px 0 0;border-top:1px solid rgba(0,0,0,.06)}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-switcher-trigger{justify-content:center;padding:3px!important}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-trigger-copy,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-trigger-chevron{display:none}
+    }
+
+    @media (prefers-reduced-motion:reduce){
+      .sidebar,.sidebar-compact-toggle i{transition-duration:.01ms!important}
     }
 
     /* TOP LEFT: logo only, no border, preserve aspect ratio */
@@ -223,13 +368,15 @@ session_write_close();
       display:flex;
       flex-direction:column;
       gap:12px;
-      overflow:auto;
-      height:100%;
+      flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
     }
 
     .sidebar-mode-tabs{
       display:none;
-      grid-template-columns:1fr 1fr;
+      grid-auto-flow:column;
+      grid-auto-columns:1fr;
       gap:0;
       padding:0;
       border:1px solid rgba(0,0,0,0.07);
@@ -238,10 +385,14 @@ session_write_close();
       border-radius:0;
     }
 
-    .sidebar.todo-list-enabled .sidebar-mode-tabs{
+    .sidebar.sidebar-modes-switchable .sidebar-mode-tabs{
       display:grid;
-      margin:-16px -14px 0;
+      margin:0 -14px;
     }
+
+    .sidebar:not(.apps-list-enabled) #sidebarAppsTab{display:none}
+    .sidebar:not(.todo-list-enabled) #sidebarTodoTab{display:none}
+    .sidebar:not(.channels-tab-enabled) #sidebarChannelsTab{display:none}
 
     .sidebar-mode-tab{
       border:0;
@@ -277,16 +428,85 @@ session_write_close();
       display:flex;
       flex-direction:column;
       flex:1 1 auto;
+      overflow:hidden;
       gap:14px;
     }
+
+    #sidebarAppsPanel.active{
+      position:relative;
+      gap:0;
+    }
+
+    .sidebar-app-scroll-control{
+      display:none;
+      position:absolute;
+      left:0;
+      z-index:3;
+      width:100%;
+      height:22px;
+      align-items:center;
+      justify-content:center;
+      border:0;
+      border-radius:0;
+      color:#667085;
+      cursor:pointer;
+      font-size:10px;
+      opacity:0;
+      transition:color .14s ease,opacity .16s ease;
+    }
+    #sidebarAppsScrollUp{
+      top:0;
+      align-items:flex-start;
+      padding-top:2px;
+      background:linear-gradient(to bottom,rgba(255,255,255,.96) 0%,rgba(255,255,255,.68) 54%,rgba(255,255,255,0) 100%);
+    }
+    #sidebarAppsScrollDown{
+      bottom:0;
+      align-items:flex-end;
+      padding-bottom:2px;
+      background:linear-gradient(to top,rgba(255,255,255,.96) 0%,rgba(255,255,255,.68) 54%,rgba(255,255,255,0) 100%);
+    }
+    #sidebarAppsPanel.sidebar-apps-can-scroll-up #sidebarAppsScrollUp,
+    #sidebarAppsPanel.sidebar-apps-can-scroll-down #sidebarAppsScrollDown{display:flex;opacity:1}
+    .sidebar-app-scroll-control[hidden]{display:none!important}
+    .sidebar-app-scroll-control:hover{color:var(--primary-readable,var(--primary,#d93025))}
+    .sidebar-app-scroll-control:focus-visible{outline:2px solid rgba(var(--primary-rgb),.28);outline-offset:-2px}
 
     #sidebarTodoPanel.active{
       gap:8px;
     }
 
     #sidebarTodoList{
+      display:flex;
+      flex:1 1 auto;
       min-height:0;
-      overflow:visible;
+      overflow:hidden;
+    }
+
+    #sidebarChannelsPanel.active{
+      gap:8px;
+    }
+
+    #sidebarChannelsList{
+      display:flex;
+      flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
+      margin:0 -6px;
+    }
+
+    #sidebarChannelsList .fm-ch{
+      flex:1;
+      min-width:0;
+    }
+
+    #sidebarBottomLinks{
+      display:flex;
+      flex:0 0 auto;
+      flex-direction:column;
+      gap:10px;
+      margin-top:auto;
+      padding:0 6px;
     }
 
     .btn-primary{
@@ -438,6 +658,14 @@ session_write_close();
       isolation:isolate;
       z-index:2147483000;
     }
+    .platform-topbar-app-left{
+      flex:1 1 auto;
+      min-width:0;
+      display:flex;
+      align-items:center;
+      overflow:hidden;
+    }
+    .platform-topbar-app-left:empty{display:none}
     .platform-search{
       position:relative;
       width:min(440px, 46vw);
@@ -483,6 +711,14 @@ session_write_close();
       z-index:2147483001;
     }
     .ptb-search-results.visible{display:block}
+    .ptb-search-filterbar{position:sticky;top:0;z-index:2;padding:9px 10px;background:#fff;border-bottom:1px solid #e4e7ec}
+    .ptb-search-filters{display:grid;grid-template-columns:repeat(5,max-content);align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:1px}
+    .ptb-search-filters::-webkit-scrollbar{display:none}
+    .ptb-search-filter{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#667085;font-family:inherit;font-size:9.5px;font-weight:850;line-height:1;cursor:pointer;white-space:nowrap}
+    .ptb-search-filter i{position:static;transform:none;font-size:8.5px;color:inherit}
+    .ptb-search-filter:hover{border-color:#98a2b3;color:#344054;background:#f8fafc}
+    .ptb-search-filter.active{border-color:rgba(var(--primary-rgb),.28);background:rgba(var(--primary-rgb),.08);color:var(--primary-readable)}
+    .ptb-search-result-list{padding:4px 0}
     .ptb-search-item{
       width:100%;
       border:0;
@@ -511,6 +747,13 @@ session_write_close();
     }
     .ptb-search-item.project .ptb-search-kind{background:#eef2ff;color:#3730a3}
     .ptb-search-item.contact .ptb-search-kind{background:#ecfdf3;color:#047857}
+    .ptb-search-item.setting .ptb-search-kind{background:#fff4e5;color:#b54708}
+    .ptb-search-item.user .ptb-search-kind{background:#f4f3ff;color:#5925dc}
+    .ptb-search-item.equipment .ptb-search-kind{background:#ecfdf3;color:#067647}
+    .ptb-search-item.event .ptb-search-kind{background:#eff8ff;color:#175cd3}
+    .ptb-search-item.document .ptb-search-kind{background:#eef4ff;color:#3538cd}
+    .ptb-search-item.scope .ptb-search-kind{background:#f0f9ff;color:#026aa2}
+    .ptb-search-item.channel .ptb-search-kind{background:#f8f9fc;color:#363f72}
     .ptb-search-item span{display:flex;flex-direction:column;gap:2px;min-width:0}
     .ptb-search-item strong{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .ptb-search-item small{font-size:11px;font-weight:800;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -549,6 +792,19 @@ session_write_close();
     }
     .ptb-count.visible{display:flex}
     .ptb-count.has-unread{box-shadow:0 0 0 2px #fff, 0 0 0 5px rgba(var(--primary-rgb),.18)}
+    .platform-messages{position:relative}
+    .ptb-menu.ptb-menu--messages{width:400px;max-width:min(92vw,400px);max-height:min(72vh,680px);overflow:auto}
+    .ptb-msg-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;align-items:start}
+    .ptb-msg-row:hover{background:#f8fafc}
+    .ptb-msg-row.unread{background:rgba(var(--primary-rgb,217,48,37),.05)}
+    .ptb-msg-ico{width:30px;height:30px;border-radius:8px;background:#f2f4f7;display:flex;align-items:center;justify-content:center;color:#475467;font-size:12px}
+    .ptb-msg-row.unread .ptb-msg-ico{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+    .ptb-msg-main{min-width:0;display:grid;gap:2px}
+    .ptb-msg-line{font-size:12.5px;color:#101828;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ptb-msg-line b{font-weight:900}
+    .ptb-msg-snippet{font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ptb-msg-meta{font-size:10.5px;color:#98a2b3;font-weight:800;white-space:nowrap;text-align:right;display:grid;gap:4px;justify-items:end}
+    .ptb-msg-dot{width:8px;height:8px;border-radius:50%;background:var(--primary-readable,var(--primary,#d93025))}
     .ptb-menu{
       display:block;
       position:absolute;
@@ -578,7 +834,7 @@ session_write_close();
     }
     .ptb-menu-head{padding:13px 14px;border-bottom:1px solid rgba(15,23,42,.08);font-size:13px;font-weight:1000;color:#101828;display:flex;align-items:center;justify-content:space-between;gap:10px}
     .ptb-menu-head small{font-size:11px;font-weight:900;color:#667085}
-    .ptb-note{padding:12px 14px;border-bottom:1px solid rgba(15,23,42,.06);display:flex;gap:10px;align-items:flex-start;cursor:pointer;position:relative;background:#fff}
+    .ptb-note{padding:12px 14px;border-bottom:1px solid rgba(15,23,42,.06);display:flex;gap:10px;align-items:flex-start;cursor:pointer;position:relative;background:#fff;max-height:140px;overflow:hidden;transition:opacity .18s ease,transform .24s cubic-bezier(.22,1,.36,1),max-height .24s ease,padding .24s ease,border-color .18s ease,background-color .16s ease}
     .ptb-note.unread{background:rgba(var(--primary-rgb),.055)}
     .ptb-note.unread::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:99px;background:var(--primary,#d93025)}
     .ptb-note.seen{opacity:.78}
@@ -587,8 +843,70 @@ session_write_close();
     .ptb-note-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
     .ptb-note-main strong{font-size:13px;color:#101828}
     .ptb-note-main span{font-size:12px;line-height:1.4;color:#667085;font-weight:750}
-    .ptb-note-dismiss{border:1px solid rgba(15,23,42,.12);background:#fff;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950;cursor:pointer;color:#344054}
+    .ptb-note-dismiss{border:1px solid rgba(15,23,42,.18);background:#fff;border-radius:6px;width:26px;height:26px;padding:0;font-size:11px;font-weight:950;cursor:pointer;color:#344054;display:grid;place-items:center;flex:0 0 26px;transition:transform .12s ease,background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}
+    .ptb-note-dismiss:hover{color:#047857;border-color:#6ee7b7;background:#ecfdf3;box-shadow:0 2px 8px rgba(4,120,87,.14)}
+    .ptb-note-dismiss:active{transform:scale(.84)}
+    .ptb-note-dismiss:focus-visible,.ptb-note-restore:focus-visible,.ptb-dismissed-section summary:focus-visible{outline:3px solid rgba(var(--primary-rgb),.22);outline-offset:2px}
+    .ptb-note.is-dismissing{background:#ecfdf3}
+    .ptb-note.is-dismissing .ptb-note-dismiss{color:#fff;border-color:#10b981;background:#10b981;box-shadow:0 0 0 4px rgba(16,185,129,.14)}
+    .ptb-note.is-dismissing .ptb-note-dismiss i{animation:ptb-check-pop .3s cubic-bezier(.22,1,.36,1)}
+    .ptb-note.is-dismissed{opacity:0;transform:translateX(20px);max-height:0;padding-top:0;padding-bottom:0;border-color:transparent;pointer-events:none}
+    .ptb-note-dismiss.is-error,.ptb-note-restore.is-error{animation:ptb-button-error .35s ease;color:#b42318;border-color:#fda29b;background:#fef3f2}
+    .ptb-active-notifications{min-height:51px}
+    .ptb-dismissed-section{border-top:1px solid rgba(15,23,42,.08);background:#f8fafc}
+    .ptb-dismissed-section summary{list-style:none;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;color:#475467;font-size:12px;font-weight:950;user-select:none}
+    .ptb-dismissed-section summary::-webkit-details-marker{display:none}
+    .ptb-dismissed-section summary:hover{background:#f1f5f9;color:#344054}
+    .ptb-dismissed-section summary span{display:flex;align-items:center;gap:8px}
+    .ptb-dismissed-section summary i{font-size:9px;transition:transform .16s ease}
+    .ptb-dismissed-section[open] summary i{transform:rotate(90deg)}
+    .ptb-dismissed-section summary b{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#e2e8f0;color:#475467;display:grid;place-items:center;font-size:10px}
+    .ptb-dismissed-list{border-top:1px solid rgba(15,23,42,.06)}
+    .ptb-note-dismissed{cursor:default;background:#fbfcfd;opacity:.72}
+    .ptb-note-dismissed:hover{background:#fbfcfd}
+    .ptb-note-dismissed.is-restoring{opacity:.35;transform:translateX(-8px);pointer-events:none}
+    .ptb-note-restore{border:1px solid rgba(15,23,42,.14);background:#fff;border-radius:7px;min-height:27px;padding:0 8px;color:#475467;display:flex;align-items:center;gap:5px;flex:0 0 auto;font-size:10px;font-weight:950;cursor:pointer;transition:transform .12s ease,background-color .15s ease,border-color .15s ease,color .15s ease}
+    .ptb-note-restore:hover{color:#175cd3;border-color:#84adff;background:#eff8ff}
+    .ptb-note-restore:active{transform:scale(.92)}
+    .ptb-note-restore[aria-busy="true"] i{animation:ptb-undo-spin .55s ease}
+    @keyframes ptb-check-pop{0%{transform:scale(.45)}65%{transform:scale(1.35)}100%{transform:scale(1)}}
+    @keyframes ptb-undo-spin{to{transform:rotate(-360deg)}}
+    @keyframes ptb-button-error{0%,100%{transform:translateX(0)}35%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
+    @media (prefers-reduced-motion:reduce){.ptb-note,.ptb-note-dismiss,.ptb-note-restore,.ptb-dismissed-section summary i{transition-duration:.01ms!important}.ptb-note.is-dismissing .ptb-note-dismiss i,.ptb-note-dismiss.is-error,.ptb-note-restore.is-error,.ptb-note-restore[aria-busy="true"] i{animation:none!important}}
     .ptb-empty{padding:18px;text-align:center;color:#667085;font-size:12px;font-weight:850}
+    /* Pinned attention rows (PlatformBanners "notification" surface): locked
+       above regular notifications, thinner, tone background, never dismissible. */
+    .ptb-note.ptb-note-pinned{padding:9px 14px;opacity:1;border-left:3px solid transparent}
+    .ptb-note.ptb-note-pinned .ptb-note-main{gap:2px}
+    .ptb-note.ptb-note-pinned .ptb-note-main strong{font-size:12.5px}
+    .ptb-note.ptb-note-pinned .ptb-note-main span{font-size:11.5px}
+    .ptb-note.ptb-note-pinned.tone-orange{background:rgba(240,90,40,.10);border-left-color:#f05a28}
+    .ptb-note.ptb-note-pinned.tone-orange:hover{background:rgba(240,90,40,.16)}
+    .ptb-note.ptb-note-pinned.tone-primary{background:rgba(var(--primary-rgb,217,48,37),.08);border-left-color:var(--primary,#d93025)}
+    .ptb-note.ptb-note-pinned.tone-primary:hover{background:rgba(var(--primary-rgb,217,48,37),.14)}
+    .ptb-note.ptb-note-pinned.tone-danger{background:rgba(217,45,32,.10);border-left-color:#d92d20}
+    .ptb-note.ptb-note-pinned.tone-danger:hover{background:rgba(217,45,32,.16)}
+    .ptb-note.ptb-note-pinned.tone-neutral{background:#f2f4f7;border-left-color:#667085}
+    .ptb-note.ptb-note-pinned.tone-neutral:hover{background:#e9edf2}
+    .ptb-note-pinned-wait{flex:0 0 auto;color:#667085;font-size:11px;align-self:center}
+    /* Sidebar attention card (PlatformBanners "sidebar" surface). */
+    .sidebar-attention-slot{flex:0 0 auto;margin-top:-8px;padding:3px 10px 2px}
+    .sidebar-attention-card{
+      width:100%;display:flex;align-items:center;gap:8px;
+      padding:9px 10px;border-radius:12px;border:1px solid rgba(15,23,42,.10);
+      background:#fff;cursor:pointer;text-align:left;transition:.15s ease;
+      border-left-width:4px;
+    }
+    .sidebar-attention-card:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(15,23,42,.10)}
+    .sidebar-attention-card.tone-orange{border-left-color:#f05a28;background:linear-gradient(90deg, rgba(240,90,40,.10), rgba(245,158,11,.05))}
+    .sidebar-attention-card.tone-primary{border-left-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06)}
+    .sidebar-attention-card.tone-danger{border-left-color:#d92d20;background:rgba(217,45,32,.08)}
+    .sidebar-attention-card.tone-neutral{border-left-color:#667085;background:#f8fafc}
+    .sidebar-attention-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+    .sidebar-attention-copy strong{font-size:12px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sidebar-attention-copy small{font-size:11px;font-weight:800;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sidebar-attention-chevron{flex:0 0 auto;color:#98a2b3;font-size:10px}
+    .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-expanded):not(.sidebar-compact-edge-held) .sidebar-attention-slot{display:none}
     .main-panels{
       flex:1;
       min-height:0;
@@ -620,9 +938,9 @@ session_write_close();
 
       /* --- Mobile top bar --- */
       .mobile-topbar{
-        display:flex;
+        display:grid;
+        grid-template-columns:40px minmax(0,1fr) 40px;
         align-items:center;
-        justify-content:space-between;
         height:56px;
         padding:0 14px;
         background:var(--panel);
@@ -633,8 +951,7 @@ session_write_close();
       }
       .mobile-topbar.topbar-enabled{
         height:104px;
-        flex-wrap:wrap;
-        align-content:center;
+        grid-template-rows:40px 36px;
         gap:8px 10px;
         padding:8px 14px;
       }
@@ -647,13 +964,13 @@ session_write_close();
         transition:.14s ease;
       }
       .mobile-topbar .mob-hamburger:hover{background:rgba(0,0,0,0.05)}
-      .mobile-topbar .mob-logo{min-width:0;text-align:center;display:flex;align-items:center;justify-content:center}
+      .mobile-topbar .mob-logo{grid-column:2;grid-row:1;min-width:0;text-align:center;display:flex;align-items:center;justify-content:center}
       .mobile-topbar .mob-logo img{
-        height:28px; width:auto; display:block;
+        display:none!important;
       }
       .mobile-topbar .mob-tab-title{
-        display:none;
-        max-width:48vw;
+        display:block;
+        max-width:100%;
         overflow:hidden;
         text-overflow:ellipsis;
         white-space:nowrap;
@@ -662,11 +979,14 @@ session_write_close();
         font-weight:1000;
         line-height:1.1;
       }
-      .mobile-topbar.has-tab-title .mob-logo img{display:none!important}
-      .mobile-topbar.has-tab-title .mob-tab-title{display:block}
+      /* Branding belongs in the opened mobile menu; the fixed bar owns the page title. */
+      .mobile-topbar .mob-logo.default-firstmeasure-logo::before{display:none!important}
+      html[data-fm-field-only="true"] .mobile-topbar .mob-new-req{display:none!important}
+      html[data-fm-field-only="true"] .new-menu-wrap{display:none!important}
       .mobile-topbar .mob-new-req{
-        min-width:40px; height:40px;
-        padding:0 12px;
+        grid-column:3;grid-row:1;
+        min-width:40px; width:40px; height:40px;
+        padding:0;
         display:flex; align-items:center; justify-content:center;
         gap:6px;
         background:var(--primary); color:var(--on-primary); border:none;
@@ -676,21 +996,35 @@ session_write_close();
         font-weight:950;
       }
       .mobile-topbar .mob-new-req span{
-        font-size:12px;
-        letter-spacing:.01em;
-        white-space:nowrap;
+        display:none;
       }
       .mobile-topbar .mob-new-req:active{transform:scale(0.95)}
+      /* Mobile consolidates the three topbar actions into one More button.
+         The assistant/messages/notifications slots stay in the DOM only as
+         anchors for their pop-out panels; their own buttons are hidden. */
+      .mobile-topbar{position:relative}
       .mobile-topbar .mob-notifications{
         display:none;
-        position:relative;
+        position:static;
+        grid-column:3;
+        grid-row:1;
       }
       .mobile-topbar.topbar-enabled .mob-new-req{display:none}
       .mobile-topbar.topbar-enabled .mob-notifications{display:block}
+      .mobile-topbar.topbar-enabled .mob-notifications[hidden]{display:none}
+      .mobile-topbar .platform-assistant .ptb-bell,
+      .mobile-topbar .platform-messages .ptb-bell,
+      .mobile-topbar .platform-notifications .ptb-bell{display:none}
+      .mobile-topbar .mob-notifications.platform-more{position:relative}
+      .mobile-topbar .ptb-menu--more{height:auto;max-height:none;width:236px;padding:6px}
+      .mobile-topbar .ptb-more-item{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:11px 12px;border-radius:10px;font:inherit;font-size:13px;font-weight:800;color:#202124;cursor:pointer;text-align:left}
+      .mobile-topbar .ptb-more-item:hover{background:rgba(0,0,0,.05)}
+      .mobile-topbar .ptb-more-item i{width:20px;text-align:center;color:#475467}
+      .mobile-topbar .ptb-more-item .ptb-more-count{margin-left:auto;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-radius:999px;font-size:10px;font-weight:900;padding:2px 7px;font-style:normal}
       .mobile-topbar.topbar-enabled .mobile-platform-search{
         display:block;
-        order:4;
-        flex:0 0 100%;
+        grid-column:1 / -1;
+        grid-row:2;
         width:100%;
       }
       .mobile-platform-search input{
@@ -822,42 +1156,51 @@ session_write_close();
       userEmail: <?= json_encode($userEmail) ?>,
       userCompany: <?= json_encode($userCompany) ?>,
       userOrgId: <?= json_encode($userOrgId) ?>,
+      userId: <?= json_encode((string)($_SESSION['platform_user_id'] ?? '')) ?>,
       userBranchId: <?= json_encode($userBranchId) ?>,
+      platformExpandedAssets: <?= $platformExpandedAssets ? 'true' : 'false' ?>,
       platformSessionCookieName: <?= json_encode(portalPlatformSessionCookieName()) ?>,
       showTutorial: <?= $showTutorial ? 'true' : 'false' ?>,
       stripePaidFlag: <?= ($paidFlag === null ? 'null' : json_encode($paidFlag)) ?>,
       serverEndpoint: (function(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
-          return `${location.protocol}//${location.hostname}:3111/v1/platform/portal-action`;
+          return `${location.origin}/v1/platform/portal-action`;
         }
         return `${location.origin}/v1/platform/portal-action`;
       })(),
       platformApiBase: (function(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
-          return `${location.protocol}//${location.hostname}:3111/v1/platform`;
+          return `${location.origin}/v1/platform`;
         }
         return `${location.origin}/v1/platform`;
       })(),
       emailApiBase: (function(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
-          return `${location.protocol}//${location.hostname}:3111/v1/email`;
+          return `${location.origin}/v1/email`;
         }
         return `${location.origin}/v1/email`;
+      })(),
+      messagingApiBase: (function(){
+        const host = String(location.hostname || '').toLowerCase();
+        if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
+          return `${location.origin}/v1/messaging`;
+        }
+        return `${location.origin}/v1/messaging`;
       })(),
       leadIntakeApiBase: (function(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
-          return `${location.protocol}//${location.hostname}:3111/v1/lead-intake`;
+          return `${location.origin}/v1/lead-intake`;
         }
         return `${location.origin}/v1/lead-intake`;
       })(),
       canvassingApiBase: (function(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
-          return `${location.protocol}//${location.hostname}:3111/v1/canvassing`;
+          return `${location.origin}/v1/canvassing`;
         }
         return `${location.origin}/v1/canvassing`;
       })(),
@@ -1089,6 +1432,33 @@ session_write_close();
         return !(currentIsMigrated && candidateIsLegacy);
       }
 
+      function mergedBranding(...sources){
+        const values = sources.filter((value) => value && typeof value === 'object');
+        return {
+          ...Object.assign({}, ...values),
+          colors: Object.assign({}, ...values.map((value) => value.colors || {}))
+        };
+      }
+
+      async function themeOrgFromAuthenticatedContext(requestedOrgId){
+        if (!window.PlatformAPI?.request) return null;
+        const context = await window.PlatformAPI.request('/me').catch(() => null);
+        if (!context?.authenticated) return null;
+        const membership = context.membership || {};
+        const contextOrgId = String(membership.organization_id || context.organization?.id || requestedOrgId || '').trim();
+        if (requestedOrgId && contextOrgId && requestedOrgId !== contextOrgId) return null;
+        const organization = context.organization || {};
+        const organizationData = organization.data || {};
+        const globalData = context.global?.data || {};
+        const branchData = context.branch?.data || {};
+        return {
+          id: contextOrgId,
+          branch_id: membership.branch_id || context.branch?.id || window.__APP?.userBranchId || 'default',
+          name: branchData.name || organization.name || organizationData.name || window.__APP?.userCompany || '',
+          branding: mergedBranding(organization.branding, organizationData.branding, globalData.branding, branchData.branding)
+        };
+      }
+
       function publishTheme(theme){
         currentTheme = {
           name: theme.companyName || theme.name || '',
@@ -1210,13 +1580,27 @@ session_write_close();
               return cachedThemeMatchesSession(parsed) ? parsed : null;
             } catch(e) { return null; }
           })();
-          const fd = new FormData();
-          fd.append('action','org_get_my');
-          fd.append('actor_email', window.__APP?.userEmail || '');
-          fd.append('actor_name', window.__APP?.userName || '');
-          fd.append('actor_org_id', window.__APP?.userOrgId || '');
-          const res = await fetch(window.__APP.serverEndpoint, { method:'POST', body: fd });
-          let data = res.ok ? await res.json().catch(()=>null) : null;
+          const requestedOrgId = String(window.__APP?.userOrgId || '').trim();
+          let data = null;
+          // /me is application-neutral, so crew-only users receive the same
+          // branch branding as management users without gaining settings access.
+          const contextOrg = await themeOrgFromAuthenticatedContext(requestedOrgId);
+          if (contextOrg) data = { success:true, org:contextOrg };
+          // Retain the older organization reads for pre-context sessions.
+          if (!data && requestedOrgId && window.PlatformAPI?.organizations?.get) {
+            const result = await window.PlatformAPI.organizations.get(requestedOrgId).catch(() => null);
+            const org = result?.organization || result?.document?.data || result?.data || result || null;
+            if (org && typeof org === 'object') data = { success:true, org };
+          }
+          if (!data) {
+            const fd = new FormData();
+            fd.append('action','org_get_my');
+            fd.append('actor_email', window.__APP?.userEmail || '');
+            fd.append('actor_name', window.__APP?.userName || '');
+            fd.append('actor_org_id', requestedOrgId);
+            const res = await fetch(window.__APP.serverEndpoint, { method:'POST', body: fd, credentials:'include' });
+            data = res.ok ? await res.json().catch(()=>null) : null;
+          }
           if ((!data || !data.success || !data.org) && cached && typeof cached === 'object') {
             data = {
               success: true,
@@ -1276,6 +1660,9 @@ session_write_close();
         }
       });
       window.addEventListener('load', () => setTimeout(fetchAndApplyTheme, 0));
+      // The first theme request can precede the authenticated Platform session.
+      // Re-read it once the field/crew identity and organization are resolved.
+      window.addEventListener('fm:platform-session:updated', fetchAndApplyTheme);
       window.addEventListener('fm:app-flags:updated', applySidebarCobrandLogoFlag);
       window.addEventListener('fm:app-flags:failed', applySidebarCobrandLogoFlag);
 
@@ -1295,7 +1682,28 @@ session_write_close();
   gtag('config', 'G-W7MP6MZNMZ');
 </script>
 </head>
-<body>
+<body class="platform-booting">
+  <style>
+    body.platform-booting > :not(script):not(style):not(#fmPlatformBootCover){visibility:hidden!important}
+    #fmPlatformBootCover{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;background:#f5f6f8;color:#64748b;font:500 14px Inter,Arial,sans-serif}
+  </style>
+  <div id="fmPlatformBootCover" role="status" aria-live="polite">Loading your workspace…</div>
+  <script>
+    // Keep a failed bundle or network request recoverable without showing tabs
+    // before account permissions have loaded.
+    setTimeout(function () {
+      var cover = document.getElementById('fmPlatformBootCover');
+      if (!cover) return;
+      var message = document.createElement('div');
+      message.style.cssText = 'text-align:center;padding:24px;line-height:1.8';
+      message.textContent = 'Your workspace is taking longer to load. Please try again.';
+      var retry = document.createElement('button');
+      retry.type = 'button'; retry.textContent = 'Reload workspace';
+      retry.style.cssText = 'display:block;margin:16px auto;padding:10px 18px;cursor:pointer';
+      retry.addEventListener('click', function () { window.location.reload(); });
+      message.appendChild(retry); cover.replaceChildren(message);
+    }, 20000);
+  </script>
   <?php if ($showOnboarding || $paidFlag === '1'): ?>
   <!--
     Instant full-screen cover: prevents the main dashboard from flashing
@@ -1306,6 +1714,95 @@ session_write_close();
     sessionStorage resume flag).
   -->
   <div id="obPrecover" style="position:fixed;inset:0;z-index:2147483600;background:#f5f6f8;"></div>
+  <?php endif; ?>
+  <?php if ($initialProjectRoute !== '' && !$showOnboarding): ?>
+  <!-- First-paint project chrome. The routed project app replaces this shell
+       in place without replaying its entrance animation. -->
+  <?php $projectRouteTabs = ['map'=>['Overview','fa-map'], 'photos'=>['Photos','fa-image'], 'proposal'=>['Proposals','fa-file-signature'], 'docs'=>['Docs','fa-folder'], 'materials'=>['Scope','fa-link'], 'money'=>['Money','fa-dollar-sign'], 'schedule'=>['Schedule','fa-calendar'], 'measurements'=>['Reports','fa-clipboard-list']]; $initialProjectTabMeta = $projectRouteTabs[$initialProjectTab] ?? $projectRouteTabs['map']; ?>
+  <div id="fmProjectRoutePrecover" aria-hidden="true" style="position:fixed;inset:0;z-index:2147483099;background:rgba(11,16,24,.58);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-family:Inter,Arial,sans-serif;color:#172033">
+    <style>
+      #fmProjectRoutePrecover{background:rgba(11,16,24,.58)!important}
+      #fmProjectRoutePrecover>div:not(.fm-pr-shell){display:none!important}
+      #fmProjectRoutePrecover .fm-pr-shell{width:min(1720px,96vw);height:min(1180px,92vh);overflow:hidden;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28)}
+      #fmProjectRoutePrecover .fm-pr-header{height:58px;min-height:58px;display:flex;align-items:stretch;border-bottom:1px solid rgba(15,23,42,.10);background:#fff}
+      #fmProjectRoutePrecover .fm-pr-tabs{min-width:0;display:flex;flex:1;overflow:hidden}
+      #fmProjectRoutePrecover .fm-pr-tab{min-width:0;padding:0 14px;border-right:1px solid rgba(15,23,42,.10);display:inline-flex;align-items:center;justify-content:center;gap:7px;color:#475467;font-size:11px;font-weight:900;white-space:nowrap}
+      #fmProjectRoutePrecover .fm-pr-tab.active{color:var(--primary-readable,#d93025);box-shadow:inset 0 -2px 0 var(--primary,#d93025)}
+      #fmProjectRoutePrecover .fm-pr-close{width:46px;border-left:1px solid rgba(15,23,42,.10);display:grid;place-items:center;color:#667085;font-size:18px}
+      #fmProjectRoutePrecover .fm-pr-title{display:none}
+      #fmProjectRoutePrecover .fm-pr-body{display:grid;grid-template-columns:minmax(230px,360px) minmax(0,1fr);flex:1;min-height:0}
+      #fmProjectRoutePrecover .fm-pr-left{padding:18px;border-right:1px solid rgba(15,23,42,.08);background:#fff}
+      #fmProjectRoutePrecover .fm-pr-shimmer{height:14px;width:58%;margin-bottom:16px;border-radius:999px;background:#eef1f5}
+      #fmProjectRoutePrecover .fm-pr-card{height:74px;margin-bottom:10px;border:1px solid rgba(15,23,42,.07);border-radius:12px;background:#fafbfc}
+      #fmProjectRoutePrecover .fm-pr-content{min-width:0;padding:18px;background:#eef2f6}
+      #fmProjectRoutePrecover .fm-pr-content-card{height:100%;min-height:180px;border:1px solid rgba(15,23,42,.07);border-radius:14px;background:#fff}
+      #fmProjectRoutePrecover .fm-pr-content-card:before{content:'';display:block;width:34%;height:16px;margin:18px;border-radius:999px;background:#eef1f5}
+      @media(max-width:720px){
+        #fmProjectRoutePrecover{align-items:flex-end!important;justify-content:center!important;padding-top:20px!important;box-sizing:border-box;background:rgba(11,16,24,.34)!important;backdrop-filter:blur(2px)!important}
+        #fmProjectRoutePrecover .fm-pr-shell{width:100vw;height:calc(100dvh - 20px);border-radius:18px 18px 0 0;box-shadow:0 -9px 28px rgba(15,23,42,.30)}
+        #fmProjectRoutePrecover .fm-pr-header{height:48px;min-height:48px}
+        #fmProjectRoutePrecover .fm-pr-tabs{display:grid;grid-auto-columns:minmax(44px,1fr);grid-auto-flow:column}
+        #fmProjectRoutePrecover .fm-pr-tab{min-height:48px;padding:0;font-size:0}
+        #fmProjectRoutePrecover .fm-pr-tab i{font-size:16px}
+        #fmProjectRoutePrecover .fm-pr-close{width:48px;min-width:48px;font-size:17px}
+        #fmProjectRoutePrecover .fm-pr-title{height:48px;min-height:48px;padding:0 16px;border-bottom:1px solid rgba(15,23,42,.10);display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;font-size:16px;font-weight:900;color:#475467}
+        #fmProjectRoutePrecover .fm-pr-current{display:inline-flex;align-items:center;gap:9px;min-width:0;overflow:hidden;white-space:nowrap}
+        #fmProjectRoutePrecover .fm-pr-project{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#475467}
+        #fmProjectRoutePrecover .fm-pr-body{display:block;min-height:0;background:#eef2f6}
+        #fmProjectRoutePrecover .fm-pr-left{display:none}
+        #fmProjectRoutePrecover .fm-pr-content{height:100%;padding:12px;box-sizing:border-box;background:#eef2f6}
+        #fmProjectRoutePrecover .fm-pr-content-card{min-height:0;border-radius:12px}
+      }
+    </style>
+    <div class="fm-pr-shell">
+      <div class="fm-pr-header"><div class="fm-pr-tabs"><?php foreach ($projectRouteTabs as $id=>$tab): ?><span class="fm-pr-tab<?= $initialProjectTab === $id ? ' active' : '' ?>"><i class="fas <?= htmlspecialchars($tab[1], ENT_QUOTES, 'UTF-8') ?>"></i><span><?= htmlspecialchars($tab[0], ENT_QUOTES, 'UTF-8') ?></span></span><?php endforeach; ?></div><span class="fm-pr-close">&times;</span></div>
+      <div class="fm-pr-title"><span class="fm-pr-current"><i class="fas <?= htmlspecialchars($initialProjectTabMeta[1], ENT_QUOTES, 'UTF-8') ?>"></i><?= htmlspecialchars($initialProjectTabMeta[0], ENT_QUOTES, 'UTF-8') ?></span><span class="fm-pr-project">Project <i class="fas fa-chevron-left"></i></span></div>
+      <div class="fm-pr-body"><aside class="fm-pr-left"><div class="fm-pr-shimmer"></div><div class="fm-pr-card"></div><div class="fm-pr-card"></div><div class="fm-pr-card"></div></aside><main class="fm-pr-content"><div class="fm-pr-content-card"></div></main></div>
+    </div>
+    <div style="width:min(1720px,96vw);height:min(1180px,92vh);background:#fff;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:grid;grid-template-rows:58px minmax(0,1fr)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid #e5e7eb"><div><strong style="font-size:15px">Project</strong><span style="display:block;margin-top:2px;font-size:10px;color:#667085">Loading project details…</span></div><span style="width:32px;height:32px;border:1px solid #e5e7eb;border-radius:9px;display:grid;place-items:center;color:#667085">×</span></div>
+      <div style="display:grid;grid-template-columns:minmax(230px,360px) minmax(0,1fr);min-height:0">
+        <aside style="padding:16px;border-right:1px solid #e5e7eb;background:#f8fafc"><div style="height:13px;width:58%;border-radius:999px;background:#e4e7ec;margin-bottom:14px"></div><div style="display:grid;gap:9px"><?php foreach (['Overview','Photos','Proposals','Docs','Scope','Money','Schedule','Reports'] as $label): ?><span style="height:34px;border:1px solid #eaecf0;border-radius:9px;background:#fff;padding:0 11px;display:flex;align-items:center;font-size:11px;font-weight:800;color:#667085"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div></aside>
+        <main style="padding:18px;min-width:0"><div style="display:flex;gap:8px;margin-bottom:18px"><?php foreach (['map'=>'Overview','photos'=>'Photos','proposal'=>'Proposals','docs'=>'Docs','materials'=>'Scope','money'=>'Money','schedule'=>'Schedule','measurements'=>'Reports'] as $id=>$label): ?><span style="padding:8px 10px;border-radius:8px;background:<?= $initialProjectTab === $id ? '#172033' : '#f2f4f7' ?>;color:<?= $initialProjectTab === $id ? '#fff' : '#667085' ?>;font-size:10px;font-weight:850"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div><div style="height:18px;width:34%;border-radius:999px;background:#e4e7ec;margin-bottom:14px"></div><div style="height:12px;width:72%;border-radius:999px;background:#f0f2f5;margin-bottom:9px"></div><div style="height:12px;width:58%;border-radius:999px;background:#f0f2f5"></div></main>
+      </div>
+    </div>
+  </div>
+  <script>
+    /* Safety net for the first-paint project shell above.
+     *
+     * The routed project app removes this cover when it opens the real modal.
+     * If that never happens — the route does not actually open project chrome,
+     * the project fails to resolve, or the app script errors — the cover is a
+     * full-screen element with no behaviour behind it and the user is trapped.
+     * Always give them a way out, and clear it once the app has taken over. */
+    (function(){
+      var cover = document.getElementById('fmProjectRoutePrecover');
+      if (!cover) return;
+      var dismiss = function(){
+        cover.remove();
+        document.removeEventListener('keydown', onKey, true);
+      };
+      var onKey = function(event){
+        if (event.key === 'Escape') dismiss();
+      };
+      document.addEventListener('keydown', onKey, true);
+      cover.addEventListener('click', function(event){
+        // Clicking the inert shell should do nothing; the backdrop dismisses.
+        if (event.target === cover) dismiss();
+      });
+      cover.querySelector('.fm-pr-close')?.addEventListener('click', dismiss);
+      var settle = function(){
+        if (!document.body.contains(cover)) return;
+        var overlay = document.getElementById('rOverlay');
+        // The real modal owns the screen now, or nothing ever claimed it.
+        if (overlay && overlay.classList.contains('active')) dismiss();
+        else if (Date.now() - started > 15000) dismiss();
+        else setTimeout(settle, 500);
+      };
+      var started = Date.now();
+      setTimeout(settle, 1500);
+    })();
+  </script>
   <?php endif; ?>
     <?php if ($isImpersonating): ?>
     <div id="impersonationBanner" style="
@@ -1387,8 +1884,23 @@ session_write_close();
     </button>
     <div class="platform-search mobile-platform-search">
       <i class="fas fa-search"></i>
-      <input id="mobilePlatformGlobalSearch" data-platform-search-input type="search" placeholder="Search projects and contacts" autocomplete="off">
+      <input id="mobilePlatformGlobalSearch" data-platform-search-input type="search" placeholder="Search" aria-label="Search" autocomplete="off">
       <div class="ptb-search-results" id="mobilePlatformSearchResults"></div>
+    </div>
+    <div class="mob-notifications platform-assistant" id="mobilePlatformAssistantSlot" hidden>
+      <button type="button" class="ptb-bell" id="mobilePlatformAssistantBtn" data-fm-tooltip="AI Assistant" aria-label="AI Assistant">
+        <i class="fas fa-wand-magic-sparkles"></i>
+      </button>
+    </div>
+    <div class="mob-notifications platform-messages" id="mobilePlatformMessagesSlot" hidden>
+      <button type="button" class="ptb-bell" id="mobilePlatformMessagesBtn" data-fm-tooltip="Messages" aria-label="Messages">
+        <i class="fas fa-comments"></i>
+        <span class="ptb-count" id="mobilePlatformMessagesCount">0</span>
+      </button>
+      <div class="ptb-menu ptb-menu--messages" id="mobilePlatformMessagesMenu">
+        <div class="ptb-menu-head">Messages</div>
+        <div id="mobilePlatformMessagesList"><div class="ptb-empty">Loading...</div></div>
+      </div>
     </div>
     <div class="mob-notifications platform-notifications" id="mobilePlatformNotifications" hidden>
       <button type="button" class="ptb-bell" id="mobilePlatformBell" data-fm-tooltip="Notifications" aria-label="Notifications">
@@ -1400,6 +1912,17 @@ session_write_close();
         <div id="mobilePlatformNotificationList"><div class="ptb-empty">Loading...</div></div>
       </div>
     </div>
+    <div class="mob-notifications platform-more" id="mobilePlatformMoreSlot" hidden>
+      <button type="button" class="ptb-bell" id="mobilePlatformMoreBtn" aria-label="More">
+        <i class="fas fa-ellipsis-vertical"></i>
+        <span class="ptb-count" id="mobilePlatformMoreCount">0</span>
+      </button>
+      <div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu">
+        <button type="button" class="ptb-more-item" id="mobilePlatformMoreAssistant"><i class="fas fa-wand-magic-sparkles"></i><span>AI Assistant</span></button>
+        <button type="button" class="ptb-more-item" id="mobilePlatformMoreMessages"><i class="fas fa-comments"></i><span>Messages</span><b class="ptb-more-count" id="mobilePlatformMoreMessagesCount" hidden>0</b></button>
+        <button type="button" class="ptb-more-item" id="mobilePlatformMoreNotifications"><i class="fas fa-bell"></i><span>Notifications</span><b class="ptb-more-count" id="mobilePlatformMoreNotificationCount" hidden>0</b></button>
+      </div>
+    </div>
   </div>
 
   <!-- ====== SIDEBAR BACKDROP (mobile only) ====== -->
@@ -1407,53 +1930,94 @@ session_write_close();
 
   <aside class="sidebar" id="mainSidebar">
     <div class="logo-area">
+      <span class="sidebar-mini-logo" role="img" aria-label="FirstMate"></span>
       <span class="firstmate-color-logo" role="img" aria-label="FirstMate"></span>
       <span class="cobrand-logo-divider" aria-hidden="true"></span>
       <img id="companyLogoImg" alt="Logo" style="display:none">
     </div>
 
     <div class="sidebar-scroll">
+      <div class="new-menu-wrap" id="newMenuWrap">
+        <button class="btn-primary" id="btnNewReq" aria-haspopup="menu" aria-expanded="false" data-fm-track="new_project_clicked" data-fm-track-source="sidebar">
+          <span>New</span>
+          <i class="fas fa-plus-circle sidebar-new-full-icon"></i>
+          <i class="fas fa-plus sidebar-new-mini-icon" aria-hidden="true"></i>
+        </button>
+        <div class="new-menu-popout" id="newMenuPopout" role="menu" aria-label="Create new">
+          <!-- Items are re-rendered by initNewMenu() from platform.new_button_items
+               + the document type registry; this markup is the pre-flags fallback. -->
+          <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="project"><i class="fas fa-folder-plus"></i><span>Project</span></button>
+          <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="contact"><i class="fas fa-address-book"></i><span>Contact</span></button>
+          <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="report"><i class="fas fa-file-lines"></i><span>New Report</span></button>
+          <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="document"><i class="fas fa-file-medical"></i><span>Document</span></button>
+          <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="payment"><i class="fas fa-money-check-dollar"></i><span>Payment</span></button>
+          <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="appointment"><i class="fas fa-calendar-plus"></i><span>Appointment</span></button>
+        </div>
+      </div>
+
       <div class="sidebar-mode-tabs" role="tablist" aria-label="Sidebar">
         <button type="button" class="sidebar-mode-tab active" id="sidebarAppsTab" role="tab" aria-selected="true" aria-controls="sidebarAppsPanel">Apps</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarTodoTab" role="tab" aria-selected="false" aria-controls="sidebarTodoPanel">To Do</button>
+        <button type="button" class="sidebar-mode-tab" id="sidebarChannelsTab" role="tab" aria-selected="false" aria-controls="sidebarChannelsPanel">Channels</button>
       </div>
 
       <div class="sidebar-panel active" id="sidebarAppsPanel" role="tabpanel" aria-labelledby="sidebarAppsTab">
-        <div class="new-menu-wrap" id="newMenuWrap">
-          <button class="btn-primary" id="btnNewReq" aria-haspopup="menu" aria-expanded="false" data-fm-track="new_project_clicked" data-fm-track-source="sidebar">
-            <span>New</span>
-            <i class="fas fa-plus-circle"></i>
-          </button>
-          <div class="new-menu-popout" id="newMenuPopout" role="menu" aria-label="Create new">
-            <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="project"><i class="fas fa-folder-plus"></i><span>Project</span></button>
-            <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="contact"><i class="fas fa-address-book"></i><span>Contact</span></button>
-            <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="report"><i class="fas fa-file-lines"></i><span>New Report</span></button>
-            <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="proposal"><i class="fas fa-file-signature"></i><span>Proposal</span></button>
-            <button type="button" class="new-menu-item" role="menuitem" data-new-workflow="appointment"><i class="fas fa-calendar-plus"></i><span>Appointment</span></button>
-          </div>
-        </div>
-
+        <button type="button" class="sidebar-app-scroll-control" id="sidebarAppsScrollUp" aria-label="Scroll apps up" title="Scroll apps up" hidden><i class="fas fa-chevron-up" aria-hidden="true"></i></button>
         <div id="sidebarLinks"></div>
+        <button type="button" class="sidebar-app-scroll-control" id="sidebarAppsScrollDown" aria-label="Scroll apps down" title="Scroll apps down" hidden><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
       </div>
 
       <div class="sidebar-panel" id="sidebarTodoPanel" role="tabpanel" aria-labelledby="sidebarTodoTab" hidden>
         <div id="sidebarTodoList"></div>
       </div>
 
+      <div class="sidebar-panel" id="sidebarChannelsPanel" role="tabpanel" aria-labelledby="sidebarChannelsTab" hidden>
+        <div id="sidebarChannelsList"></div>
+      </div>
+
+      <!-- Attention banner sidebar surface. Rendered by PlatformBanners; must
+           stay a SIBLING of #sidebarBottomLinks (that container is wiped and
+           re-rendered by renderSidebarLaunchers on every sidebar render). -->
+      <div id="sidebarAttentionSlot" class="sidebar-attention-slot" hidden></div>
+
+      <div id="sidebarBottomLinks" aria-label="Sidebar settings"></div>
+
       <div class="sidebar-footer">
-        <div class="who" id="whoName"><?= htmlspecialchars($userName) ?></div>
-        <!--<div class="co" id="whoCompany"><?= htmlspecialchars($userCompany) ?></div>-->
-        <div class="em"><strong id="whoEmail"><?= htmlspecialchars($userEmail) ?></strong></div>
+        <button type="button" class="fm-account-switcher-trigger" id="accountSwitcherButton" aria-haspopup="dialog" aria-expanded="false" aria-label="Choose account">
+          <span class="fm-account-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr(trim($userName ?: $userEmail), 0, 1) ?: '?')) ?></span>
+          <span class="fm-account-trigger-copy">
+            <strong class="who" id="whoName"><?= htmlspecialchars($userName) ?></strong>
+            <small class="em" id="whoEmail"><?= htmlspecialchars($userEmail) ?></small>
+          </span>
+          <i class="fas fa-chevron-up fm-account-trigger-chevron" aria-hidden="true"></i>
+        </button>
       </div>
     </div>
+    <button type="button" class="sidebar-compact-toggle" id="sidebarCompactToggle" aria-label="Keep sidebar expanded" aria-pressed="false" title="Keep sidebar expanded"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
   </aside>
 
   <main class="main">
     <div class="platform-topbar" id="platformTopbar">
+      <div class="platform-topbar-app-left" id="platformTopbarAppLeft" data-platform-topbar-left></div>
       <div class="platform-search">
         <i class="fas fa-search"></i>
-        <input id="platformGlobalSearch" data-platform-search-input type="search" placeholder="Search projects and contacts" autocomplete="off">
+        <input id="platformGlobalSearch" data-platform-search-input type="search" placeholder="Search" aria-label="Search" autocomplete="off">
         <div class="ptb-search-results" id="platformSearchResults"></div>
+      </div>
+      <div class="platform-assistant" id="platformAssistantSlot" hidden>
+        <button type="button" class="ptb-bell" id="platformAssistantBtn" data-fm-tooltip="AI Assistant" aria-label="AI Assistant">
+          <i class="fas fa-wand-magic-sparkles"></i>
+        </button>
+      </div>
+      <div class="platform-messages" id="platformMessagesSlot" hidden>
+        <button type="button" class="ptb-bell" id="platformMessagesBtn" data-fm-tooltip="Messages" aria-label="Messages">
+          <i class="fas fa-comments"></i>
+          <span class="ptb-count" id="platformMessagesCount">0</span>
+        </button>
+        <div class="ptb-menu ptb-menu--messages" id="platformMessagesMenu">
+          <div class="ptb-menu-head">Messages</div>
+          <div id="platformMessagesList"><div class="ptb-empty">Loading...</div></div>
+        </div>
       </div>
       <div class="platform-notifications">
         <button type="button" class="ptb-bell" id="platformBell" data-fm-tooltip="Notifications">
@@ -1474,52 +2038,172 @@ session_write_close();
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="../libraries/platform-api/platform-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-ui/platform-ui.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-undo/platform-undo.js?v=<?= $ver ?>"></script>
   <script src="../libraries/proposals-api/proposals-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/materials-api/materials-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/payments-api/payments-api.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/payroll-api/payroll-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/financials-api/financials-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/stats-api/stats-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/assistant-api/assistant-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/agents-api/agents-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/agent-chat/agent-chat.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/insights/firstmate-insights.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-agent/doc-agent.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/crew-api/crew-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/sales-api/sales-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/training-api/training-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/equipment-api/equipment-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/payment-intake/payment-intake.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/email-api/email-api.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/communications-api/communications-api.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
+  <script src="../libraries/platform-realtime/platform-realtime.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/calls-runtime/livekit-client.umd.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/calls-api/calls-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/channels-api/channels-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/audio-notes/audio-notes.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/audio-structure/audio-structure.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/window-manager/window-manager.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/channels-ui/channels-ui.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/project-notes/project-notes.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/lead-intake-api/lead-intake-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-banners/platform-banners.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-action-items/platform-action-items.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-tags/platform-tags.js?v=<?= $ver ?>"></script>
   <script src="../libraries/markup/firstmate-markup.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/video-editor/firstmate-video-editor.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/platform-scheduling/platform-scheduling.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-language/platform-language.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-terminology/platform-terminology.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-schedule-view/platform-schedule-view.js?v=<?= $ver ?>"></script>
   <script src="../libraries/firstmeasure-api/firstmeasure-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/statsig/firstmate-statsig.js?v=<?= $ver ?>"></script>
   <script src="../libraries/settings-pages/firstmate-settings-pages.js?v=<?= $ver ?>"></script>
   <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= $ver ?>"></script>
   <script src="../libraries/app-runtime/firstmate-app-context.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/navigation/portal-navigation.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/setup-wizard/setup-wizard.js?v=<?= $ver ?>"></script>
+  <script src="landing/shared/signup-widget.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/account-switcher/account-switcher.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/custom-fields/firstmate-custom-fields.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/documents-api/documents-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-model/firstmate-doc-model.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-widgets/firstmate-doc-widgets.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-renderer/firstmate-doc-renderer.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-workflow/firstmate-doc-workflow.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-language/firstmate-doc-language.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-editor/firstmate-doc-editor.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/visual-editor/firstmate-visual-editor.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/doc-workflow/firstmate-workflow-editor.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/web-widgets/firstmate-web-widgets.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/portal-widgets/firstmate-portal-widgets.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/websites-api/websites-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/domains-api/domains-api.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/report-units.js?v=<?= $ver ?>"></script>
   <script src="scripts/core.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
+  <?php if ($platformExpandedAssets) { require_once dirname(__DIR__, 2) . '/external-apps/registry.php'; fm_external_render(); } ?>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
+  <script src="../libraries/apps/settings/search.js?v=<?= $ver ?>"></script>
+  <script src="scripts/topbar-artifacts.js?v=<?= $ver ?>"></script>
   <script src="scripts/topbar.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/platform-assistant/platform-assistant.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="scripts/project_viewer.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/tab-promos/project.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/project-map/app.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/customer-portal/project.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/project-schedule/panel.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/comms-api/comms-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/comms/communications-ui.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/comms/calling-runtime.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/comms/workspace.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/communications-templates/communications-templates.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/comms/project.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/apps/measurements/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/firstmeasure/order/exteriors.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/firstmeasure/order/app.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/projects/viewer.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/photos/feed.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/apps/receipts/app.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/apps/photos/project.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/docs/project.js?v=<?= $ver ?>"></script>
   <script src="../libraries/pricebook/firstmate-pricebook.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/pricebook/bridge.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/materials/project.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/proposals/project.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/apps/documents/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/payroll/project.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/apps/money/project.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/apps/checklists/app.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/apps/proposals/global.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/project-request/app.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/contacts/modal.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/contacts/app.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/scheduling/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/calls/app.js?v=<?= $ver ?>"></script>
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/apps/financials/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/invoices/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/stats/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/payroll/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/crew/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/sales/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/signatures/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/training/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/training/studio.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/equipment/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/documents/studio.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/web-editor/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/chat/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/channels/app.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/apps/canvassing/app.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/billing/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/help/app.js?v=<?= $ver ?>"></script>
+  <!-- Floating help widget disabled 2026-07-22: low value and it covered UI (e.g. chat composers). Re-enable by restoring this tag.
+  <script src="../libraries/apps/help/app.js?v=<?= $ver ?>"></script> -->
   <!--<script src="../libraries/apps/tutorial/app.js?v=<?= $ver ?>"></script>-->
+  <?php if ($platformExpandedAssets): ?>
+  <script src="../libraries/apps/settings/crm.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/contacts.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/automations.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/scope-events.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/scope-artifacts.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/feedback.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/equipment.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/live_chat.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/comms.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/channels.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/payroll.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/domains.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
+  <script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= $ver ?>"></script>
   <script src="scripts/dev_overlay.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/promo-inject/app.js?v=<?= $ver ?>"></script>
@@ -1539,6 +2223,10 @@ session_write_close();
   if ($showOnboarding || $paidFlag === '1'): ?>
     <script src="../libraries/apps/onboarding/wizard.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
+
+  <!-- Signup Sandbox dev bar: no-ops unless the logged-in org is a sandbox
+       test org (and /v1/signup-sandbox is dead in production entirely). -->
+  <script src="signup-sandbox/devbar.js?v=<?= $ver ?>" defer></script>
 
   <!-- Mobile sidebar toggle -->
   <script>
@@ -1566,7 +2254,9 @@ session_write_close();
     if (mobNewReq){
       mobNewReq.addEventListener('click', ()=>{
         const mainBtn = document.getElementById('btnNewReq');
-        if ((mainBtn?.dataset?.newButtonMode || 'selector') === 'selector') openSidebar();
+        const mode = mainBtn?.dataset?.newButtonMode || 'selector';
+        if (mode === 'off') return;
+        if (mode === 'selector') openSidebar();
         if (mainBtn) setTimeout(() => mainBtn.click(), 0);
       });
     }
@@ -1581,8 +2271,63 @@ session_write_close();
         project: { label: 'New Project', icon: 'fa-folder-plus', workflow: 'project' },
         contact: { label: 'New Contact', icon: 'fa-address-book', workflow: 'contact' },
         report: { label: 'New Report', icon: 'fa-file-lines', workflow: 'report' },
-        proposal: { label: 'New Proposal', icon: 'fa-file-signature', workflow: 'proposal' },
+        // fa-file-circle-plus needs FA 6.1+; the portal ships FA 6.0.
+        document: { label: 'New Document', icon: 'fa-file-medical', workflow: 'document' },
+        payment: { label: 'New Payment', icon: 'fa-money-check-dollar', workflow: 'payment' },
         appointment: { label: 'New Appointment', icon: 'fa-calendar-plus', workflow: 'appointment' }
+      };
+      /* Data-driven document actions: every registered document type is a
+         "doc:<type_id>" mode ("New Proposal" = start the create wizard with
+         that type picked). Labels/icons come from the documents catalog. */
+      const DOC_TYPE_ICONS = {
+        proposal: 'fa-file-signature',
+        invoice: 'fa-file-invoice-dollar',
+        change_order: 'fa-file-contract',
+        contract: 'fa-file-pen',
+        work_order: 'fa-clipboard-list',
+        completion_certificate: 'fa-award',
+        report: 'fa-file-lines'
+      };
+      let docTypes = [];
+      let docTypesLoading = false;
+      const escText = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+      const documentsEnabled = () => {
+        const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+        if (!flags?.current?.()) return false;
+        return flags.value?.('platform', 'documents', undefined) === true;
+      };
+      const docTypeLabel = (id) => {
+        const type = docTypes.find((entry) => entry.id === id);
+        if (type?.label) return type.label;
+        return String(id || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      };
+      const docTypeIcon = (id) => docTypes.find((entry) => entry.id === id)?.icon || DOC_TYPE_ICONS[id] || 'fa-file-lines';
+      const isDocMode = (mode) => mode === 'document' || String(mode || '').startsWith('doc:');
+      const modeConfig = (mode) => {
+        const raw = String(mode || '');
+        if (raw.startsWith('doc:')) {
+          const typeId = raw.slice(4);
+          return { label: `New ${docTypeLabel(typeId)}`, icon: docTypeIcon(typeId), workflow: 'document', documentType: typeId };
+        }
+        return modes[raw] || null;
+      };
+      const loadDocTypes = () => {
+        if (docTypes.length || docTypesLoading || !documentsEnabled() || !window.DocumentsAPI?.catalog?.get) return;
+        const orgId = String(window.__APP?.userOrgId || window.__APP?.orgId || '').trim();
+        if (!orgId) return;
+        docTypesLoading = true;
+        window.DocumentsAPI.catalog.get(orgId).then((res) => {
+          const data = res?.catalog && Object.keys(res.catalog).length ? res.catalog : (res || {});
+          docTypes = (Array.isArray(data.types) ? data.types : [])
+            .map((type) => ({
+              id: String(type.id || type.type || '').trim(),
+              label: String(type.label || '').trim(),
+              icon: String(type.icon || '').trim()
+            }))
+            .filter((type) => type.id && type.id !== 'generic');
+          renderMenuItems();
+          setButtonMode();
+        }).catch(() => null).finally(() => { docTypesLoading = false; });
       };
       const normalizeMode = (value) => {
         const raw = String(value || '').trim().toLowerCase().replace(/[_\s-]+/g, '_');
@@ -1590,16 +2335,52 @@ session_write_close();
         if (raw === 'new_project') return 'project';
         if (raw === 'new_contact' || raw === 'customer') return 'contact';
         if (raw === 'new_report' || raw === 'roof' || raw === 'measurement') return 'report';
-        if (raw === 'new_proposal') return 'proposal';
+        /* Legacy proposal mode maps onto the document-engine proposal type. */
+        if (raw === 'proposal' || raw === 'new_proposal') return 'doc:proposal';
+        if (raw === 'new_document') return 'document';
+        if (raw.startsWith('doc:')) return raw;
+        if (raw === 'new_payment' || raw === 'payment') return 'payment';
         if (raw === 'new_appointment' || raw === 'schedule' || raw === 'scheduling') return 'appointment';
+        if (raw === 'off' || raw === 'none' || raw === 'hidden' || raw === 'disabled') return 'off';
         return modes[raw] ? raw : 'report';
       };
-      const proposalsEnabled = () => {
+      const DEFAULT_MENU_ITEMS = ['project', 'contact', 'report', 'document', 'payment', 'appointment'];
+      const itemAvailable = (id) => {
+        if (isDocMode(id)) return documentsEnabled();
+        return !!modes[id] && id !== 'selector';
+      };
+      const configuredMenuItems = () => {
         const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-        if (!flags?.current?.()) return false;
-        if (flags.has?.('platform', 'proposals')) return true;
-        const value = flags.value?.('platform', 'proposals', undefined);
-        return typeof value === 'boolean' ? value : false;
+        const raw = String(flags?.value?.('platform', 'new_button_items', '') || '').trim();
+        const ids = raw
+          ? raw.split(',').map((part) => normalizeMode(part)).filter(Boolean)
+          : DEFAULT_MENU_ITEMS;
+        return [...new Set(ids)].filter(itemAvailable);
+      };
+      const renderMenuItems = () => {
+        const items = configuredMenuItems()
+          .map((id) => ({ id, config: modeConfig(id) }))
+          .filter((entry) => entry.config);
+        if (!items.length) return;
+        menu.innerHTML = items.map(({ id, config }) => {
+          const short = config.label.replace(/^New\s+/i, '');
+          return `<button type="button" class="new-menu-item" role="menuitem" data-new-workflow="${escText(id)}"><i class="fas ${escText(config.icon)}"></i><span>${escText(short)}</span></button>`;
+        }).join('');
+      };
+      const isFieldOnlyUser = () => {
+        const access = window.Portal?.currentUser?.applicationAccess || {};
+        return access.field?.enabled === true && access.management?.enabled !== true;
+      };
+      const syncCreateAccess = (mode = '') => {
+        const fieldOnly = isFieldOnlyUser();
+        const unavailable = fieldOnly || mode === 'off';
+        document.documentElement.dataset.fmFieldOnly = fieldOnly ? 'true' : 'false';
+        sidebar?.classList.toggle('new-button-unavailable', unavailable);
+        wrap.hidden = unavailable;
+        const mobileBtn = document.getElementById('mobNewReqBtn');
+        if (mobileBtn) mobileBtn.hidden = unavailable;
+        if (unavailable) closeMenu();
+        return !unavailable;
       };
       const configuredMode = () => normalizeMode(
         window.Portal?.appFlags?.value?.('platform', 'new_button_mode',
@@ -1608,11 +2389,13 @@ session_write_close();
       );
       const setButtonMode = () => {
         let mode = configuredMode();
-        if (mode === 'proposal' && !proposalsEnabled()) mode = 'selector';
-        const config = modes[mode] || modes.selector;
+        btn.dataset.newButtonMode = mode;
+        if (!syncCreateAccess(mode)) return;
+        if (isDocMode(mode) && !documentsEnabled()) mode = 'selector';
+        const config = modeConfig(mode) || modes.selector;
         btn.querySelector('span').textContent = config.label;
         const icon = btn.querySelector('i');
-        if (icon) icon.className = 'fas fa-plus-circle';
+        if (icon) icon.className = 'fas fa-plus-circle sidebar-new-full-icon';
         btn.setAttribute('aria-haspopup', mode === 'selector' ? 'menu' : 'false');
         btn.setAttribute('aria-expanded', mode === 'selector' && wrap.classList.contains('open') ? 'true' : 'false');
         btn.setAttribute('aria-label', 'New');
@@ -1626,9 +2409,8 @@ session_write_close();
           if (mobileLabel) mobileLabel.textContent = 'New';
           if (mobileIcon) mobileIcon.className = 'fas fa-plus';
         }
-        menu.querySelectorAll('[data-new-workflow="proposal"]').forEach((item) => {
-          item.hidden = !proposalsEnabled();
-        });
+        renderMenuItems();
+        loadDocTypes();
       };
       const closeMenu = () => {
         wrap.classList.remove('open');
@@ -1644,30 +2426,211 @@ session_write_close();
         wrap.classList.add('open');
         btn.setAttribute('aria-expanded', 'true');
       };
+      const paymentOrgId = () => String(window.__APP?.userOrgId || window.__APP?.orgId || '').trim();
+      const paymentBranchId = () => String(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || window.__APP?.branchId || 'default').trim() || 'default';
+      const paymentProjectTitle = (project) => String(project?.title || project?.project_title || project?.address || project?.name || project?.id || '').trim();
+      const paymentProjectContact = (project) => {
+        const contacts = Array.isArray(project?.contacts) ? project.contacts : [];
+        return contacts.find((item) => String(item?.name || item?.email || item?.phone || '').trim()) || null;
+      };
+      const printPaymentReceipt = (result = {}, context = {}) => {
+        const amount = Number(result.amount_cents || result.amountCents || context.amountCents || 0) / 100;
+        const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+        const win = window.open('', '_blank', 'width=560,height=720');
+        if (!win) return window.Portal?.ui?.showToast?.('Could not open receipt window.', 'error');
+        win.document.write(`<!doctype html><title>Payment Receipt</title><body style="font-family:Inter,Arial,sans-serif;padding:32px;color:#101828"><h1 style="margin:0 0 8px">Payment Receipt</h1><p style="margin:0 0 24px;color:#667085">${String(result.id || result.payment_id || 'Pending receipt')}</p><div><strong>Customer</strong><br>${String(context.customer || 'Customer payment')}</div><div style="margin-top:16px"><strong>Project</strong><br>${String(context.project || 'Not associated')}</div><div style="margin-top:16px"><strong>Amount</strong><br>${formatter.format(amount)}</div><div style="margin-top:16px"><strong>Date</strong><br>${new Date().toLocaleString()}</div><script>window.print();<\/script></body>`);
+        win.document.close();
+      };
+      const cachedPaymentProjects = () => {
+        const store = window.Portal?.ProjectStore;
+        return (store?.cachedIds?.() || []).map((id) => store.get?.(id)).filter(Boolean);
+      };
+      const loadPaymentProjects = async () => {
+        const projects = cachedPaymentProjects();
+        const orgId = paymentOrgId();
+        if (window.PlatformAPI?.projects?.list && orgId) {
+          const result = await window.PlatformAPI.projects.list(orgId).catch(() => null);
+          (result?.documents || result?.projects || []).forEach((doc) => {
+            const data = doc?.data || doc?.project || doc?.document?.data || doc;
+            const project = window.Portal?.ProjectStore?.cache?.({ ...data, id: data?.id || doc?.id }) || data;
+            if (project?.id && !projects.some((item) => item.id === project.id)) projects.push(project);
+          });
+        }
+        return projects;
+      };
+      const paymentCentsFromAmount = (value) => {
+        const number = Number(String(value || '').replace(/[$,\s]/g, ''));
+        return Number.isFinite(number) ? Math.max(0, Math.round(number * 100)) : 0;
+      };
+      const openNewPaymentModal = () => {
+        if (!window.FirstMatePaymentIntake?.mount || !window.PaymentsAPI?.payments?.create) {
+          window.Portal?.ui?.showToast?.('Payment intake is not available yet.', 'error');
+          return;
+        }
+        const modal = document.createElement('div');
+        modal.className = 'fm-payment-modal';
+        modal.innerHTML = `
+          <style>
+            .fm-payment-modal{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(15,23,42,.58);padding:20px}
+            .fm-payment-shell{width:min(1060px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 24px 80px rgba(15,23,42,.30);padding:18px;display:grid;gap:14px;color:#101828}
+            .fm-payment-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.fm-payment-head h2{margin:0;font-size:20px}.fm-payment-head p{margin:3px 0 0;color:#667085;font-size:13px}.fm-payment-close{border:0;background:#111827;color:#fff;border-radius:7px;width:36px;height:36px;cursor:pointer}
+            .fm-payment-intake{display:grid;grid-template-columns:minmax(320px,.82fr) minmax(380px,1.18fr);gap:16px;align-items:start}.fm-payment-left{display:grid;gap:12px}.fm-payment-card{border:1px solid rgba(15,23,42,.08);border-radius:8px;padding:12px;display:grid;gap:10px;background:#fff}.fm-payment-card h3{margin:0;font-size:13px}.fm-payment-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fm-payment-field{display:grid;gap:4px}.fm-payment-field.wide{grid-column:1/-1}.fm-payment-field span{font-size:10px;text-transform:uppercase;font-weight:1000;color:#667085}.fm-payment-field input{border:1px solid #d0d5dd;border-radius:8px;padding:10px 11px;font:inherit;min-width:0}.fm-payment-results{display:grid;gap:6px;max-height:170px;overflow:auto}.fm-payment-result{border:1px solid #e4e7ec;border-radius:8px;background:#fff;padding:9px;text-align:left;cursor:pointer}.fm-payment-result strong,.fm-payment-selected strong{display:block;font-size:12px}.fm-payment-result small,.fm-payment-selected small{display:block;color:#667085;margin-top:2px}.fm-payment-selected{border:1px solid rgba(6,118,71,.2);background:#f6fef9;border-radius:8px;padding:9px;display:flex;justify-content:space-between;gap:10px}.fm-payment-clear{border:0;background:transparent;color:#067647;font-weight:900;cursor:pointer}.fm-payment-methods{display:grid;gap:8px}.fm-payment-method{display:flex;align-items:center;gap:10px;border:1px solid #e4e7ec;background:#fff;border-radius:8px;padding:10px;text-align:left;cursor:pointer}.fm-payment-method.active{border-color:rgba(6,118,71,.36);box-shadow:0 0 0 3px rgba(6,118,71,.10);background:#f6fef9}.fm-payment-icon{width:30px;height:30px;border-radius:8px;background:rgba(6,118,71,.08);color:#067647;display:grid;place-items:center}.fm-payment-right{border:1px solid rgba(15,23,42,.08);border-radius:8px;padding:14px;min-height:420px;background:#fff}
+            @media(max-width:820px){.fm-payment-intake{grid-template-columns:1fr}.fm-payment-fields{grid-template-columns:1fr}}
+          </style>
+          <div class="fm-payment-shell" role="dialog" aria-modal="true" aria-label="New payment">
+            <div class="fm-payment-head"><div><h2>New payment</h2><p>Take a custom customer payment over the phone.</p></div><button type="button" class="fm-payment-close" data-fm-payment-close aria-label="Close">x</button></div>
+            <div class="fm-payment-intake">
+              <div class="fm-payment-left">
+                <div class="fm-payment-card">
+                  <h3>Project</h3>
+                  <label class="fm-payment-field wide"><span>Search</span><input type="search" data-fm-pay-project-search placeholder="Search project, address, or customer"></label>
+                  <div data-fm-pay-selected></div>
+                  <div class="fm-payment-results" data-fm-pay-results></div>
+                </div>
+                <div class="fm-payment-card">
+                  <h3>Payment</h3>
+                  <label class="fm-payment-field wide"><span>Amount</span><input type="text" inputmode="decimal" data-fm-pay-amount placeholder="0.00"></label>
+                  <div class="fm-payment-methods" data-fm-pay-methods></div>
+                </div>
+              </div>
+              <div class="fm-payment-right" data-fm-pay-mount></div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        const handle = window.Portal?.modals?.register?.(modal, { id: 'new-payment', closeOnBackdrop: true, onClose: () => modal.remove() });
+        const close = () => handle?.close?.('close') || modal.remove();
+        modal.querySelector('[data-fm-payment-close]')?.addEventListener('click', close);
+        const amountInput = modal.querySelector('[data-fm-pay-amount]');
+        const searchInput = modal.querySelector('[data-fm-pay-project-search]');
+        const resultsNode = modal.querySelector('[data-fm-pay-results]');
+        const selectedNode = modal.querySelector('[data-fm-pay-selected]');
+        const methodsNode = modal.querySelector('[data-fm-pay-methods]');
+        const mountNode = modal.querySelector('[data-fm-pay-mount]');
+        let projects = cachedPaymentProjects();
+        let selectedProject = null;
+        let intakeHandle = null;
+        let selectedMethod = 'card';
+        let selectedSavedMethod = '';
+        const contact = () => paymentProjectContact(selectedProject) || null;
+        const renderSelected = () => {
+          selectedNode.innerHTML = selectedProject ? `<div class="fm-payment-selected"><span><strong>${paymentProjectTitle(selectedProject)}</strong><small>${String(paymentProjectContact(selectedProject)?.name || selectedProject.id || '')}</small></span><button type="button" class="fm-payment-clear" data-fm-pay-clear>Clear</button></div>` : '';
+          selectedNode.querySelector('[data-fm-pay-clear]')?.addEventListener('click', () => { selectedProject = null; renderSelected(); renderIntake(); });
+        };
+        const renderSearch = () => {
+          const query = searchInput.value.trim().toLowerCase();
+          if (!query) { resultsNode.innerHTML = ''; return; }
+          const matches = projects.filter((project) => `${paymentProjectTitle(project)} ${paymentProjectContact(project)?.name || ''} ${paymentProjectContact(project)?.email || ''}`.toLowerCase().includes(query)).slice(0, 8);
+          resultsNode.innerHTML = matches.map((project, index) => `<button type="button" class="fm-payment-result" data-fm-pay-project="${index}"><strong>${paymentProjectTitle(project)}</strong><small>${String(paymentProjectContact(project)?.name || project.id || '')}</small></button>`).join('') || '<div style="color:#667085;font-size:12px;font-weight:800">No projects found.</div>';
+          resultsNode.querySelectorAll('[data-fm-pay-project]').forEach((button) => button.addEventListener('click', () => {
+            selectedProject = matches[Number(button.dataset.fmPayProject || 0)] || null;
+            searchInput.value = '';
+            resultsNode.innerHTML = '';
+            renderSelected();
+            renderIntake();
+          }));
+        };
+        const renderMethods = () => {
+          const saved = intakeHandle?.context?.options?.savedMethods || [];
+          const savedHtml = saved.map((method) => `<button type="button" class="fm-payment-method ${selectedSavedMethod === method.id ? 'active' : ''}" data-fm-pay-saved="${method.id}"><span class="fm-payment-icon"><i class="fas ${method.type === 'ach' ? 'fa-building-columns' : 'fa-credit-card'}"></i></span><span><strong>${method.label}</strong><small>${method.detail || 'Saved method'}</small></span></button>`).join('');
+          methodsNode.innerHTML = `
+            <button type="button" class="fm-payment-method ${selectedMethod === 'card' && !selectedSavedMethod ? 'active' : ''}" data-fm-pay-method="card"><span class="fm-payment-icon"><i class="fas fa-credit-card"></i></span><span><strong>Card</strong><small>Credit or debit card</small></span></button>
+            <button type="button" class="fm-payment-method ${selectedMethod === 'ach' && !selectedSavedMethod ? 'active' : ''}" data-fm-pay-method="ach"><span class="fm-payment-icon"><i class="fas fa-building-columns"></i></span><span><strong>ACH</strong><small>Bank transfer</small></span></button>
+            ${savedHtml}
+          `;
+          methodsNode.querySelectorAll('[data-fm-pay-method]').forEach((button) => button.addEventListener('click', () => {
+            selectedMethod = button.dataset.fmPayMethod || 'card';
+            selectedSavedMethod = '';
+            intakeHandle?.setMethod?.(selectedMethod);
+            renderMethods();
+          }));
+          methodsNode.querySelectorAll('[data-fm-pay-saved]').forEach((button) => button.addEventListener('click', () => {
+            selectedSavedMethod = button.dataset.fmPaySaved || '';
+            intakeHandle?.setSavedMethod?.(selectedSavedMethod);
+            renderMethods();
+          }));
+        };
+        const renderIntake = () => {
+          intakeHandle?.close?.();
+          const currentContact = contact();
+          intakeHandle = window.FirstMatePaymentIntake.mount(mountNode, {
+            title: '',
+            amountProvider: () => paymentCentsFromAmount(amountInput.value),
+            amountCents: 0,
+            allowCustomAmount: false,
+            detailsOnly: true,
+            methods: ['card', 'ach'],
+            contact: currentContact.name || currentContact.email || currentContact.phone ? currentContact : null,
+            allowSavedMethods: !!selectedProject && !!(currentContact.name || currentContact.email || currentContact.phone),
+            allowSavePaymentMethod: true,
+            submitLabel: 'Run Payment',
+            successTitle: 'Payment recorded',
+            successActions: [
+              { label: 'Print receipt', onClick: (result) => printPaymentReceipt(result, { amountCents: result?.amountCents, customer: currentContact.name || currentContact.email || 'Customer payment', project: selectedProject ? paymentProjectTitle(selectedProject) : '' }) },
+              { label: 'Email receipt', onClick: () => window.Portal?.ui?.showToast?.('Receipt email is ready for processor wiring.', 'success') },
+              { label: 'Close', primary: true, onClick: close }
+            ],
+            onSubmit: async (payment) => {
+              const methodLabel = payment.savedPaymentMethod?.label || String(payment.method || 'payment').replace(/_/g, ' ');
+              const result = await window.PaymentsAPI.payments.create(paymentOrgId(), {
+                project_id: selectedProject?.id || '',
+                branch_id: paymentBranchId(),
+                amount_cents: payment.amountCents,
+                kind: 'customer_payment',
+                direction: 'inbound',
+                status: 'settled',
+                allocate: !!selectedProject?.id,
+                method: { type: payment.savedPaymentMethodId ? `saved_${payment.method}` : payment.method, label: methodLabel },
+                contact_ref: currentContact,
+                notes: selectedProject?.id ? `Phone payment for ${paymentProjectTitle(selectedProject)}.` : 'Phone payment without project association.'
+              });
+              window.Portal?.ui?.showToast?.('Payment saved.', 'success');
+              return result?.payment || result || {};
+            }
+          });
+          if (selectedSavedMethod && !intakeHandle.context.options.savedMethods.some((method) => method.id === selectedSavedMethod)) selectedSavedMethod = '';
+          if (selectedSavedMethod) intakeHandle.setSavedMethod(selectedSavedMethod);
+          else intakeHandle.setMethod(selectedMethod);
+          renderMethods();
+        };
+        amountInput.addEventListener('input', () => intakeHandle?.updateSubmitState?.());
+        searchInput.addEventListener('input', renderSearch);
+        renderSelected();
+        renderIntake();
+        void loadPaymentProjects().then((loaded) => { projects = loaded; renderSearch(); renderMethods(); });
+      };
+      const runMode = (mode) => {
+        closeMenu();
+        if (sidebar?.classList.contains('mob-open')) closeSidebar();
+        if (mode === 'payment') {
+          openNewPaymentModal();
+          return;
+        }
+        const config = modeConfig(mode) || modes.project;
+        window.dispatchEvent(new CustomEvent('fm:new-project-workflow', {
+          detail: { workflow: config.workflow || 'project', ...(config.documentType ? { documentType: config.documentType } : {}) }
+        }));
+      };
       btn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
         let mode = configuredMode();
-        if (mode === 'proposal' && !proposalsEnabled()) mode = 'selector';
+        if (!syncCreateAccess(mode)) return;
+        if (isDocMode(mode) && !documentsEnabled()) mode = 'selector';
         if (mode !== 'selector') {
-          closeMenu();
-          if (sidebar?.classList.contains('mob-open')) closeSidebar();
-          window.dispatchEvent(new CustomEvent('fm:new-project-workflow', {
-            detail: { workflow: modes[mode]?.workflow || 'project' }
-          }));
+          runMode(mode);
           return;
         }
         wrap.classList.contains('open') ? closeMenu() : openMenu();
       });
       menu.addEventListener('click', (event) => {
+        if (!syncCreateAccess(configuredMode())) return;
         const item = event.target.closest('[data-new-workflow]');
         if (!item) return;
-        if (item.dataset.newWorkflow === 'proposal' && !proposalsEnabled()) return;
-        closeMenu();
-        window.dispatchEvent(new CustomEvent('fm:new-project-workflow', {
-          detail: { workflow: item.dataset.newWorkflow || 'project' }
-        }));
+        const mode = item.dataset.newWorkflow || 'project';
+        if (isDocMode(mode) && !documentsEnabled()) return;
+        runMode(mode);
       });
       document.addEventListener('click', (event) => {
         if (!wrap.contains(event.target)) closeMenu();
@@ -1683,13 +2646,14 @@ session_write_close();
         setButtonMode();
       });
       window.addEventListener('fm:app-flags:failed', setButtonMode);
+      window.addEventListener('fm:platform-session:updated', setButtonMode);
       setButtonMode();
     })();
 
     /* Close sidebar when a sidebar tab link is clicked (mobile UX) */
     document.addEventListener('click', (e)=>{
       if (!sidebar.classList.contains('mob-open')) return;
-      const link = e.target.closest('.fm-link');
+      const link = e.target.closest('.fm-link, .sidebar-launcher-icon[data-tab]');
       if (link && sidebar.contains(link)) setTimeout(closeSidebar, 80);
     });
 
@@ -1703,8 +2667,6 @@ session_write_close();
   })();
   </script>
 
-  <?php if ($GOOGLE_BROWSER_API_KEY !== ''): ?>
-  <script src="https://maps.googleapis.com/maps/api/js?key=<?=htmlspecialchars(rawurlencode($GOOGLE_BROWSER_API_KEY), ENT_QUOTES, 'UTF-8')?>&v=3.64&libraries=places&loading=async" async defer></script>
-  <?php endif; ?>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArWL1FL5W-QHEzbvcYpRl28pW88RKJDBA&v=3.64&libraries=places&loading=async" async defer></script>
 </body>
 </html>

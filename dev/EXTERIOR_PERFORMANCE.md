@@ -83,3 +83,30 @@ The local port-8031 sandbox serves canonical editor assets through its existing
 allowlist. Its separate `scene_3d.js` received only the shared-label disposal guard;
 the same guard is in canonical source. No project geometry or production service
 was changed.
+
+
+## Persistent rendering and frame scheduling (2026-09-17)
+
+Wall redraw now explicitly invalidates the shared renderer. Previously wall mode
+returned before the roof renderer set its dirty flag, leaving edits dependent on
+the 100 ms idle refresh. The new latest-input queue runs pointer preview before
+view preparation and WebGL drawing in the same animation frame. Commit flushes
+pending input; clearing tools cancels it, and project transitions clear old tools.
+
+`exterior_scene_cache.js` retains unchanged face and batched wire render objects.
+Changed faces, openings and selection rebuild from existing geometry routines.
+The cache transaction returns reused objects to the previous scene on failure;
+only obsolete objects are disposed. Grouped sticker divisions deliberately use
+the existing rendering path because their trim ownership spans sections.
+Textured rendering similarly retains unchanged presentation parts and lights,
+including shadow-map resources. Authoritative geometry and undo remain ordered
+and synchronous; this change does not defer correctness checks or add workers.
+
+Validation includes actual WebGL comparison against full rebuilding while moving
+one of 20 windows, switching opacity and cancelling. At least 19 unaffected
+window parts persist between movement samples. Geometry and opening cuts match
+the full-rebuild reference. Textured scene creation and 4K export also pass.
+Synthetic timings are noisy and are not a claimed user-project FPS improvement.
+The localhost smoke check on this run could not connect: port 8031 refused the
+connection. The existing sandbox asset allowlist and template include both new
+modules, ready for its runtime to restart. No project data was saved.

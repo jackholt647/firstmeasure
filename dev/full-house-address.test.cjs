@@ -37,7 +37,8 @@ test('full-house creation uses Google formatted address and exact coordinates', 
   assert.equal(p.elements.create.disabled, false);
   await p.submit();
   assert.deepEqual(JSON.parse(p.requests[0].body), {
-    address: '123 Selected Street, Test City, CA, USA', lat: 37.42, lng: -122.08, measurement_scope: 'full_house'
+    address: '123 Selected Street, Test City, CA, USA', lat: 37.42, lng: -122.08, measurement_scope: 'full_house',
+    measurement_system: 'imperial', report_language: 'en-US'
   });
   assert.equal(p.requests[0].headers['X-Full-House-CSRF'], 'test-csrf');
   assert.match(p.context.location.href, /^editor.php\?folder=fullhouse_/);

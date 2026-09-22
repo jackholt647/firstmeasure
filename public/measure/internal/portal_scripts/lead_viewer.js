@@ -4097,6 +4097,7 @@
         if (!window.jspdf || !window.jspdf.jsPDF) {
           await loadRuntimeScript(jsPdfUrl, "jspdf");
         }
+        if (!window.ReportUnits) await loadRuntimeScript("/libraries/report-units.js", "report-units");
         if (typeof window.generatePDFFromState !== "function") {
           await loadRuntimeScript(pdfRuntimeUrl, "pdfjs");
         }

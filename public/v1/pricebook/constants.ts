@@ -1,9 +1,11 @@
-export const PRICEBOOK_SCHEMA_VERSION = 1;
+export const PRICEBOOK_SCHEMA_VERSION = 2;
 export const DEFAULT_TEMPLATE_KEY = "default";
+export const GLOBAL_MARKET_PRICEBOOK_ID = "global_market";
 
 export const PRICEBOOK_FILE_NAMES = {
   manifest: "manifest.json",
-  catalog: "catalog.json"
+  catalog: "catalog.json",
+  organizationOverlay: "organization-overlay.json"
 } as const;
 
 export const PRICEBOOK_CATEGORIES = [

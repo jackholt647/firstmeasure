@@ -38,7 +38,7 @@ The API accepts opaque org/user references when callers provide them, but never 
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "pb_123",
   "status": "active",
   "name": "Acme Roofing Price Book",
@@ -77,6 +77,31 @@ The API accepts opaque org/user references when callers provide them, but never 
 }
 ```
 
+## Organization Overlay Schema
+
+The organization catalog returned by the API is materialized for convenient reading. Its durable representation is reference-based:
+
+```json
+{
+  "schema_version": 2,
+  "organization_ref": { "id": "org_123" },
+  "global_pricebook_ref": { "id": "global_market", "revision": 8 },
+  "entries": [
+    {
+      "id": "gaf_hd",
+      "global_item_ref": { "pricebook_id": "global_market", "item_id": "gaf_hd" },
+      "link_mode": "live",
+      "overrides": { "unit_price": 425 }
+    },
+    { "id": "custom_labor", "link_mode": "local", "item": {} }
+  ],
+  "settings": {},
+  "metadata": { "storage_model": "global_references_with_sparse_overrides" }
+}
+```
+
+`live` uses the current global item plus sparse organization overrides. `snapshot` uses a captured global source plus overrides. `local` has no global dependency.
+
 ## Item Schema
 
 ```json
@@ -89,6 +114,9 @@ The API accepts opaque org/user references when callers provide them, but never 
   "segment": "all",
   "unit": "sq",
   "unitPrice": 398,
+  "internal_cost": 285,
+  "internal_description": "Purchasing and crew notes",
+  "external_description": "Architectural laminate shingle",
   "formulaConfig": {
     "tokens": [{ "type": "measurement", "value": "shingleSquares" }],
     "includeWaste": true
@@ -108,6 +136,13 @@ The API accepts opaque org/user references when callers provide them, but never 
       ]
     }
   ],
+  "variant_dimensions": [
+    { "id": "color", "label": "Color", "kind": "color", "affects_sku": true, "values": [] },
+    { "id": "pricing_policy", "label": "Price behavior", "kind": "pricing_policy", "affects_sku": false, "values": [] }
+  ],
+  "variant_overrides": {
+    "color=charcoal|pricing_policy=good_for_30_days": { "unit_price": 410 }
+  },
   "sort_order": 120,
   "status": "active",
   "metadata": {}
@@ -145,6 +180,10 @@ If the provided revision does not match the stored manifest revision, the API re
 - `POST /v1/platform/pricebook/echo`
 - `GET /v1/platform/pricebook/templates`
 - `GET /v1/platform/pricebook/templates/:key`
+- `GET /v1/platform/pricebook/global`
+- `PUT /v1/platform/pricebook/global/catalog`
+- `GET /v1/platform/pricebook/organizations/:organizationId`
+- `PUT /v1/platform/pricebook/organizations/:organizationId/catalog`
 - `GET /v1/platform/pricebook/pricebooks`
 - `POST /v1/platform/pricebook/pricebooks`
 - `POST /v1/platform/pricebook/pricebooks/query`
@@ -161,23 +200,6 @@ If the provided revision does not match the stored manifest revision, the API re
 - `GET /v1/platform/pricebook/pricebooks/:id/assets/:assetId`
 - `DELETE /v1/platform/pricebook/pricebooks/:id/assets/:assetId`
 
-## Intended Frontend Linkage Later
+## Artifact-Line Contract
 
-This module is intentionally independent from the org system, but the intended integration point is:
-
-```json
-{
-  "id": "org_123",
-  "name": "Acme Roofing",
-  "pricebook_id": "pb_123"
-}
-```
-
-Suggested flow later:
-
-1. Portal loads org.
-2. If `pricebook_id` exists, portal loads `/v1/platform/pricebook/pricebooks/:id`.
-3. If not, portal creates one from template `default`.
-4. Portal saves returned `pricebook_id` back to the org system.
-
-The `pricebook` API never performs that linkage itself.
+Resolving a catalog item emits a self-contained `pricebook_snapshot`, the selected combination and SKU key, and a `pricing_update_rule`. The rule is stored on every line. A document-level control may update many lines at once, but it is only a front-end wrapper; no contract-wide rule is required for price resolution.

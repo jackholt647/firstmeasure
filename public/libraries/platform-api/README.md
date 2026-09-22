@@ -22,10 +22,10 @@ It creates `window.PlatformAPI`:
 - `PlatformAPI.identities`: identity helpers for authenticated account/profile operations.
 - `PlatformAPI.orgs`: organization/global helpers.
 - `PlatformAPI.notifications`: notification list/create/user-state helpers.
-- `PlatformAPI.actionItems`: action item list/create/status/user-state helpers.
+- `PlatformAPI.actionItems`: compatibility helpers backed by canonical Work API nodes.
 - `PlatformAPI.branches`: branch and branch module helpers.
 - `PlatformAPI.branches.triggers`: branch trigger config and manual event emission helpers.
-- `PlatformAPI.documents`: generic schema-light helpers for `projects`, `users`, `branch`, `notifications`, and `action_items`.
+- `PlatformAPI.documents`: generic schema-light helpers for `projects`, `users`, `branch`, and `notifications`.
 - `PlatformAPI.projects`, `users`: org collection helpers.
 - `PlatformAPI.media`: media metadata, file URL, thumbnail URL, and normalized media reference helpers.
 - `PlatformAPI.media.upload(orgId, file, options)`: multipart upload through `/organizations/:orgId/media`.
@@ -86,7 +86,7 @@ That calls `POST /organizations/:orgId/projects/:projectId/events`, saves the ev
 
 Notification UI should prefer `public/libraries/platform-notifications/platform-notifications.js`, which wraps `PlatformAPI.notifications`. The API stores notification records centrally and user state on the org user record.
 
-Action item UI should prefer `public/libraries/platform-action-items/platform-action-items.js`, which wraps `PlatformAPI.actionItems` and lets frontend libraries register kind handlers. The API stores action item records centrally and per-user UI state on the org user record.
+Action item UI should prefer `public/libraries/platform-action-items/platform-action-items.js`, which wraps `PlatformAPI.actionItems` and lets frontend libraries register kind handlers. Runtime records are canonical Work API nodes; only per-user UI state remains on the org user record.
 
 Celebration effects should use `public/libraries/platform-celebrations/platform-celebrations.js`. Backend triggers create lightweight `kind: "celebration"` notifications; the notifications helper consumes them, calls `PlatformCelebrations`, shows any `celebration.text` toast, marks them completed, and hides them from the bell list. New visible notifications use `PlatformCelebrations.indicator()` for the short alert tone. Branch setting `project_configuration.celebrations_mode` accepts `on`, `small_only`, or `off`.
 
@@ -173,3 +173,37 @@ const url = PlatformAPI.media.fileUrlFromReference(orgId, ref);
 ```
 
 Images use the same system. If thumbnails/compression are not disabled, image uploads may produce variants such as `thumb_320` and `display_2400`; PDFs and other files simply store the original unless future processors are added.
+
+## Users, workforce, and external organizations
+
+Organization users remain the canonical people records. Use
+`PlatformAPI.workforce` to manage their access roles, application entitlements,
+optional compensation profiles, and internal resource-group
+memberships. Important methods include:
+
+- `users()` and `userProfile()` for compensation-enriched user views.
+- `saveUserProfile()` for access roles, `management` / `field` app access,
+  individual overrides, and direct compensation.
+- `resourceGroups()` and its create/update/archive methods for groups composed
+  only of existing organization users.
+- `assignableResources()` for the unified, scope-filterable list of internal
+  groups and external organization connections.
+
+Use `PlatformAPI.connections` for persistent external organizations. The
+default tenant-facing term is “Subcontractor,” but the API object is an
+`organization_connection` and can later link to another FirstMate organization.
+
+Scheduling payloads should persist a typed reference:
+
+```js
+work_resource_ref: {
+  kind: 'resource_group', // or 'organization_connection'
+  id: 'resource_group_123',
+  name: 'North Crew'
+}
+```
+
+Scope availability is independent from template versioning. Read and update it
+with `PlatformAPI.scopes.flags()` / `saveFlags()`; request
+`scopes.list(..., { includeDisabled: true })` when editing settings or resolving
+historical references.

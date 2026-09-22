@@ -1,5 +1,10 @@
 /* public/libraries/apps/proposals/global.js
- * Global Proposals portal tab.
+ *
+ * DEPRECATED (2026-08): legacy global Proposals portal tab, superseded by the
+ * document engine surfaced through the unified project "Docs" tab. The tab is
+ * hidden (visible:false below) but the module stays loadable so historical
+ * proposals remain reachable for debugging — flip visible back to true
+ * locally if you ever need it. Do not build new features here.
  */
 (function(){
   const Portal = window.Portal;
@@ -105,6 +110,10 @@
     return `data-gp-index="${projectIndex}" data-gp-proposal-index="${proposalIndex}" data-gp-proposal-id="${escapeHtml(proposalIdentity(proposal, proposalIndex))}"`;
   }
 
+  function isMobileGlobalProposals(){
+    return !!window.matchMedia?.('(max-width:760px)')?.matches;
+  }
+
   function parseDate(value){
     const text = cleanText(value);
     if (!text) return null;
@@ -184,7 +193,7 @@
 
   function renderProposalRows(proposals = [], projectIndex = 0){
     if (!proposals.length) {
-      return '<div class="gp-empty-proposals">No proposals yet.</div>';
+      return `<div class="gp-empty-proposals">${(globalThis.PlatformLanguage?.text("proposals","m_b0565581a07a57","No proposals yet.") ?? "No proposals yet.")}</div>`;
     }
     return proposals.map((proposal, index) => {
       const attrs = proposalActionAttrs(projectIndex, proposal, index);
@@ -192,26 +201,30 @@
       const menuOpen = window.__globalProposalsMenuKey === key;
       const deleteConfirm = window.__globalProposalsDeleteKey === key;
       return `
-        <div class="gp-proposal-row" ${attrs}>
-          <button type="button" class="gp-proposal-select" data-gp-action="preview" ${attrs}>
+        <div class="gp-proposal-row" ${String(attrs)}>
+          <button type="button" class="gp-proposal-select" data-gp-action="preview" ${String(attrs)}>
             <span class="gp-proposal-main">
               <i class="fas fa-file-signature"></i>
-              <span>${escapeHtml(proposalDisplayName(proposal, index))}</span>
-            </span>
-          </button>
-          <div class="gp-row-actions">
-            <button type="button" class="gp-row-icon" data-gp-action="edit" ${attrs} data-fm-tooltip="Edit"><i class="fas fa-pen"></i></button>
-            <button type="button" class="gp-row-icon" data-gp-action="send" ${attrs} data-fm-tooltip="Send"><i class="fas fa-paper-plane"></i></button>
-            <span class="gp-more-wrap${menuOpen ? ' open' : ''}">
-              <button type="button" class="gp-row-icon" data-gp-action="more-menu" ${attrs} data-fm-tooltip="More actions"><i class="fas fa-ellipsis"></i></button>
-              <span class="gp-more-menu">
-                <button type="button" data-gp-action="download" ${attrs}><i class="fas fa-download"></i><span>Download</span></button>
-                <button type="button" data-gp-action="print" ${attrs}><i class="fas fa-print"></i><span>Print</span></button>
-                <button type="button" data-gp-action="duplicate" ${attrs}><i class="fas fa-copy"></i><span>Duplicate</span></button>
-                <button type="button" class="${deleteConfirm ? 'danger confirm' : 'danger'}" data-gp-action="delete" ${attrs}><i class="fas fa-trash"></i><span>${deleteConfirm ? 'Confirm delete' : 'Delete'}</span></button>
+              <span class="gp-proposal-copy">
+                <span>${String(escapeHtml(proposalDisplayName(proposal, index)))}</span>
+                <small class="gp-mobile-status">${String(escapeHtml(proposalStatus(proposal)))}</small>
               </span>
             </span>
-            <span class="gp-status">${escapeHtml(proposalStatus(proposal))}</span>
+            <i class="fas fa-chevron-right gp-mobile-open" aria-hidden="true"></i>
+          </button>
+          <div class="gp-row-actions">
+            <button type="button" class="gp-row-icon" data-gp-action="edit" ${String(attrs)} data-fm-tooltip="Edit"><i class="fas fa-pen"></i></button>
+            <button type="button" class="gp-row-icon" data-gp-action="send" ${String(attrs)} data-fm-tooltip="Send"><i class="fas fa-paper-plane"></i></button>
+            <span class="gp-more-wrap${String(menuOpen ? ' open' : '')}">
+              <button type="button" class="gp-row-icon" data-gp-action="more-menu" ${String(attrs)} data-fm-tooltip="More actions"><i class="fas fa-ellipsis"></i></button>
+              <span class="gp-more-menu">
+                <button type="button" data-gp-action="download" ${String(attrs)}><i class="fas fa-download"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_871659bb2df660","Download") ?? "Download")}</span></button>
+                <button type="button" data-gp-action="print" ${String(attrs)}><i class="fas fa-print"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_441fd948b74354","Print") ?? "Print")}</span></button>
+                <button type="button" data-gp-action="duplicate" ${String(attrs)}><i class="fas fa-copy"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}</span></button>
+                <button type="button" class="${String(deleteConfirm ? 'danger confirm' : 'danger')}" data-gp-action="delete" ${String(attrs)}><i class="fas fa-trash"></i><span>${String(deleteConfirm ? 'Confirm delete' : 'Delete')}</span></button>
+              </span>
+            </span>
+            <span class="gp-status">${String(escapeHtml(proposalStatus(proposal)))}</span>
           </div>
         </div>
       `;
@@ -223,17 +236,17 @@
       <div class="gp-shell">
         <div class="gp-top">
           <div>
-            <h2>Proposals</h2>
-            <p>Projects grouped by appointment date.</p>
+            <h2>${(globalThis.PlatformLanguage?.text("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals")}</h2>
+            <p>${(globalThis.PlatformLanguage?.text("proposals","m_a5c23bf524dcbc","Projects grouped by appointment date.") ?? "Projects grouped by appointment date.")}</p>
           </div>
-          <button type="button" class="gp-refresh" data-gp-action="refresh" data-fm-tooltip="Refresh"><i class="fas fa-rotate-right"></i></button>
+          <button type="button" class="gp-refresh" data-gp-action="refresh" data-fm-tooltip="Refresh" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_e7cabe14da89bc","Refresh proposals") ?? "Refresh proposals")}"><i class="fas fa-rotate-right"></i></button>
         </div>
         <div class="gp-body">
           <div class="gp-list" data-gp-list>
-            <div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>Loading proposals...</span></div>
+            <div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_5be6a9acc9143d","Loading proposals...") ?? "Loading proposals...")}</span></div>
           </div>
           <div class="gp-preview" data-gp-preview>
-            <div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>Select a proposal to preview it.</span></div>
+            <div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_0bcd54043991da","Select a proposal to preview it.") ?? "Select a proposal to preview it.")}</span></div>
           </div>
         </div>
       </div>
@@ -269,8 +282,10 @@
       .gp-proposal-row:last-child{border-bottom:0}
       .gp-proposal-select{appearance:none;min-width:0;flex:1;border:0;background:transparent;padding:9px 0 9px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer;color:inherit}
       .gp-proposal-main{min-width:0;display:flex;align-items:center;gap:9px;font-size:12px;font-weight:950}
-      .gp-proposal-main span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .gp-proposal-copy{min-width:0;display:block}
+      .gp-proposal-copy>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .gp-proposal-main i{color:var(--primary-readable,var(--primary,#d93025));font-size:13px}
+      .gp-mobile-status,.gp-mobile-open{display:none}
       .gp-status{border:1px solid #e4e7ec;background:#f8fafc;border-radius:999px;padding:3px 7px;color:#667085;font-size:10px;font-weight:1000;flex-shrink:0;margin-left:2px}
       .gp-row-actions{flex:0 0 auto;display:flex;align-items:center;gap:1px;padding-right:7px}
       .gp-row-icon{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:#667085;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
@@ -300,13 +315,36 @@
       .gp-preview-empty{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#667085;font-size:13px;font-weight:900;text-align:center;background:#f6f8fb}
       .gp-preview-empty i{font-size:24px;color:#98a2b3}
       @media (max-width:760px){
-        .gp-top{padding:16px}
-        .gp-body{grid-template-columns:1fr;grid-template-rows:42% 58%}
-        .gp-list{padding:14px 12px 22px;border-right:0;border-bottom:1px solid #e4e7ec}
-        .gp-project-head{align-items:stretch;flex-direction:column}
-        .gp-project-actions{justify-content:flex-end}
-        .gp-preview-head{align-items:stretch;flex-direction:column}
-        .gp-preview-actions{justify-content:flex-end}
+        .gp-top{min-height:58px;padding:10px 14px}
+        .gp-top h2{font-size:19px}
+        .gp-top p{margin-top:2px;font-size:11px}
+        .gp-refresh{width:34px;height:34px}
+        .gp-body{display:block;min-height:0;overflow:hidden}
+        .gp-list{height:100%;box-sizing:border-box;padding:8px 0 calc(18px + env(safe-area-inset-bottom,0px));gap:6px;border:0;background:#f6f8fb}
+        .gp-preview{display:none!important}
+        .gp-day{gap:0}
+        .gp-day-head{top:-8px;z-index:4;padding:8px 14px 6px;background:#f6f8fb;font-size:11px}
+        .gp-day-head:after{background:#dfe3e9}
+        .gp-project{margin:0 10px 10px;border-color:#e1e5eb;border-radius:10px;box-shadow:0 3px 12px rgba(16,24,40,.045);overflow:visible}
+        .gp-project-head{min-height:48px;box-sizing:border-box;align-items:center;padding:9px 10px 9px 12px;gap:8px}
+        .gp-project-title{flex:1}
+        .gp-project-title strong{font-size:13px}
+        .gp-project-title span{margin-top:2px;font-size:10.5px}
+        .gp-project-actions{gap:5px}
+        .gp-project-actions .gp-icon-btn:not(.primary){display:none}
+        .gp-icon-btn{width:30px;height:30px;border-radius:7px}
+        .gp-proposal-row{min-height:50px;gap:0}
+        .gp-proposal-row.active{background:#fff}
+        .gp-proposal-select{min-height:50px;padding:8px 12px;gap:10px}
+        .gp-proposal-main{flex:1;gap:10px;font-size:13px}
+        .gp-proposal-main>i{width:28px;height:28px;border-radius:8px;background:color-mix(in srgb,var(--primary,#d93025) 9%,#fff);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+        .gp-proposal-copy>span{line-height:1.2}
+        .gp-mobile-status{display:block;margin-top:3px;color:#667085;font-size:10px;font-weight:850;line-height:1.1}
+        .gp-mobile-open{display:block;color:#98a2b3;font-size:11px}
+        .gp-row-actions{display:none}
+        .gp-empty-proposals{padding:12px;color:#667085;font-size:11px}
+        .gp-state{min-height:160px;padding:24px;text-align:center}
+        .gp-load-more{margin-top:4px}
       }
     `);
   }
@@ -397,7 +435,7 @@
         state.visibleCount = PAGE_SIZE;
       } catch (error) {
         console.warn('Global proposals load failed', error);
-        showToast('Could not load proposals', error?.message || 'Project list unavailable.', false);
+        showToast((globalThis.PlatformLanguage?.text("proposals","m_7d3a999fe51dc4","Could not load proposals") ?? "Could not load proposals"), error?.message || 'Project list unavailable.', false);
         state.projects = [];
       } finally {
         state.loading = false;
@@ -417,7 +455,7 @@
       const project = state.projects[index];
       if (!project) return;
       if (!Portal.modules?.request?.openProject) {
-        showToast('Project unavailable', 'Project workspace is not ready yet.', false);
+        showToast((globalThis.PlatformLanguage?.text("proposals","m_6c0b3254cc1aac","Project unavailable") ?? "Project unavailable"), (globalThis.PlatformLanguage?.text("proposals","m_4e4cbede2be32c","Project workspace is not ready yet.") ?? "Project workspace is not ready yet."), false);
         return;
       }
       Portal.modules.request.openProject(project, {
@@ -446,6 +484,16 @@
 
     function ensureSelection(){
       if (selectedProposalRef()) return true;
+      const route = window.Portal?.navigation?.read?.() || {};
+      if (route.proposal && route.proposalProject) {
+        const projectIndex = state.projects.findIndex((project) => projectId(project) === route.proposalProject);
+        const proposals = Array.isArray(state.projects[projectIndex]?.proposals) ? state.projects[projectIndex].proposals : [];
+        const proposalIndex = proposals.findIndex((proposal, index) => proposalIdentity(proposal, index) === route.proposal);
+        if (projectIndex >= 0 && proposalIndex >= 0) {
+          state.selected = { projectIndex, proposalIndex, proposalId:route.proposal };
+          return true;
+        }
+      }
       for (let projectIndex = 0; projectIndex < Math.min(state.visibleCount, state.projects.length); projectIndex += 1) {
         const proposals = Array.isArray(state.projects[projectIndex]?.proposals) ? state.projects[projectIndex].proposals : [];
         if (proposals.length) {
@@ -457,7 +505,7 @@
       return false;
     }
 
-    function selectProposal(projectIndex, proposalIndex, proposalId = ''){
+    function selectProposal(projectIndex, proposalIndex, proposalId = '', options = {}){
       const project = state.projects[projectIndex];
       const proposals = Array.isArray(project?.proposals) ? project.proposals : [];
       const proposal = proposals[proposalIndex];
@@ -467,6 +515,7 @@
         proposalIndex,
         proposalId: cleanText(proposalId, proposalIdentity(proposal, proposalIndex))
       };
+      if (!options.fromRoute && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ proposal:state.selected.proposalId, proposalProject:projectId(project) }, { source:'global-proposal-select', ownedKeys:['proposal','proposalProject'] });
       syncSelectedRows();
       renderPreview();
     }
@@ -513,7 +562,7 @@
       const proposal = proposals[current.proposalIndex] || current.proposal;
       const tab = Portal.modules?.proposalsTab || Portal.ProposalsTab || null;
       if (!tab?.invoke) {
-        showToast('Proposal unavailable', 'Proposal tools are not ready yet.', false);
+        showToast((globalThis.PlatformLanguage?.text("proposals","m_24125a1e2c9685","Proposal unavailable") ?? "Proposal unavailable"), (globalThis.PlatformLanguage?.text("proposals","m_050ea65b63e05f","Proposal tools are not ready yet.") ?? "Proposal tools are not ready yet."), false);
         return;
       }
       state.actionBusy = true;
@@ -542,7 +591,7 @@
         }
       } catch (error) {
         console.warn(`Global proposal ${action} failed`, error);
-        showToast('Proposal action failed', error?.message || 'Could not complete this proposal action.', false);
+        showToast((globalThis.PlatformLanguage?.text("proposals","m_14aa30a6c960e2","Proposal action failed") ?? "Proposal action failed"), error?.message || 'Could not complete this proposal action.', false);
       } finally {
         state.actionBusy = false;
       }
@@ -551,9 +600,13 @@
     function renderPreview(){
       const preview = state.root?.querySelector('[data-gp-preview]');
       if (!preview) return;
+      if (isMobileGlobalProposals()) {
+        preview.innerHTML = '';
+        return;
+      }
       const selected = selectedProposalRef();
       if (!selected) {
-        preview.innerHTML = '<div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>Select a proposal to preview it.</span></div>';
+        preview.innerHTML = `<div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_0bcd54043991da","Select a proposal to preview it.") ?? "Select a proposal to preview it.")}</span></div>`;
         return;
       }
       const selectionKey = `${selected.projectIndex}:${selected.proposalId || selected.proposalIndex}`;
@@ -569,11 +622,11 @@
       preview.innerHTML = `
         <div class="gp-preview-head">
           <div class="gp-preview-title">
-            <strong>${escapeHtml(proposalTitle)}</strong>
-            <span>${escapeHtml(subtitle)}</span>
+            <strong>${String(escapeHtml(proposalTitle))}</strong>
+            <span>${String(escapeHtml(subtitle))}</span>
           </div>
           <div class="gp-preview-actions">
-            <button type="button" class="gp-action-btn primary" data-gp-action="edit-selected"><i class="fas fa-pen"></i><span>Edit</span></button>
+            <button type="button" class="gp-action-btn primary" data-gp-action="edit-selected"><i class="fas fa-pen"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_5b9378df7220c1","Edit") ?? "Edit")}</span></button>
           </div>
         </div>
         <div class="gp-preview-stage" data-gp-preview-root></div>
@@ -587,7 +640,7 @@
         proposalIndex: selected.proposalIndex
       }]);
       if (!rendered && previewRoot) {
-        previewRoot.innerHTML = '<div class="gp-preview-empty"><i class="fas fa-eye-slash"></i><span>Preview unavailable for this proposal.</span></div>';
+        previewRoot.innerHTML = `<div class="gp-preview-empty"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_a81e05ccfce6c6","Preview unavailable for this proposal.") ?? "Preview unavailable for this proposal.")}</span></div>`;
       }
     }
 
@@ -616,22 +669,22 @@
         <article class="gp-project">
           <div class="gp-project-head">
             <div class="gp-project-title">
-              <strong>${escapeHtml(title)}</strong>
-              <span>${escapeHtml(subtitle || projectId(project) || 'Project')}</span>
+              <strong>${String(escapeHtml(title))}</strong>
+              <span>${String(escapeHtml(subtitle || projectId(project) || 'Project'))}</span>
             </div>
             <div class="gp-project-actions">
-              <button type="button" class="gp-icon-btn primary" data-gp-action="add" data-gp-index="${index}" data-fm-tooltip="Add proposal"><i class="fas fa-plus"></i></button>
-              <button type="button" class="gp-icon-btn" data-gp-action="open" data-gp-index="${index}" data-fm-tooltip="Open proposals"><i class="fas fa-up-right-from-square"></i></button>
+              <button type="button" class="gp-icon-btn primary" data-gp-action="add" data-gp-index="${String(index)}" data-fm-tooltip="Add proposal" aria-label="${((v3) => globalThis.PlatformLanguage?.text("proposals","m_7ae51545ebb0a7",`Add proposal to ${v3}`,{v3}) ?? `Add proposal to ${v3}`)(escapeHtml(title))}"><i class="fas fa-plus"></i></button>
+              <button type="button" class="gp-icon-btn" data-gp-action="open" data-gp-index="${String(index)}" data-fm-tooltip="Open proposals" aria-label="${((v5) => globalThis.PlatformLanguage?.text("proposals","m_084416014a7d51",`Open ${v5} proposals`,{v5}) ?? `Open ${v5} proposals`)(escapeHtml(title))}"><i class="fas fa-up-right-from-square"></i></button>
             </div>
           </div>
-          <div class="gp-proposals">${renderProposalRows(proposalList, index)}</div>
+          <div class="gp-proposals">${String(renderProposalRows(proposalList, index))}</div>
         </article>
       `;
     }
 
     function renderList(){
-      if (state.loading && !state.projects.length) return '<div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>Loading proposals...</span></div>';
-      if (!state.projects.length) return '<div class="gp-state"><span>No appointment projects found.</span></div>';
+      if (state.loading && !state.projects.length) return `<div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_5be6a9acc9143d","Loading proposals...") ?? "Loading proposals...")}</span></div>`;
+      if (!state.projects.length) return `<div class="gp-state"><span>${(globalThis.PlatformLanguage?.text("proposals","m_534a343ce10dc2","No appointment projects found.") ?? "No appointment projects found.")}</span></div>`;
       const groups = groupedVisibleProjects();
       const body = groups.map((group) => `
         <section class="gp-day">
@@ -640,7 +693,7 @@
         </section>
       `).join('');
       const more = state.visibleCount < state.projects.length
-        ? '<button type="button" class="gp-load-more" data-gp-action="more">Load more</button>'
+        ? `<button type="button" class="gp-load-more" data-gp-action="more">${(globalThis.PlatformLanguage?.text("proposals","m_211d60bfa491e9","Load more") ?? "Load more")}</button>`
         : '';
       return body + more;
     }
@@ -704,6 +757,14 @@
       if (action === 'preview') {
         state.openMenuKey = '';
         state.pendingDeleteKey = '';
+        if (isMobileGlobalProposals()) {
+          openProject(Number(button.dataset.gpIndex || 0), {
+            action: 'open',
+            proposalId: button.dataset.gpProposalId || '',
+            proposalIndex: Number(button.dataset.gpProposalIndex || 0)
+          });
+          return;
+        }
         selectProposal(
           Number(button.dataset.gpIndex || 0),
           Number(button.dataset.gpProposalIndex || 0),
@@ -772,15 +833,37 @@
     }
 
     state.root?.addEventListener('click', onClick);
+    const layoutMedia = window.matchMedia?.('(max-width:760px)');
+    const onLayoutChange = () => render();
+    layoutMedia?.addEventListener?.('change', onLayoutChange);
+    const unregisterRoute = window.Portal?.navigation?.registerHandler?.(`global-proposals:${context.instanceId || 'main'}`, {
+      priority:400,
+      apply:(route) => {
+        if (route.tab !== 'proposals') return;
+        if (!route.proposal || !route.proposalProject) {
+          state.selected = null;
+          ensureSelection();
+          syncSelectedRows();
+          renderPreview();
+          return;
+        }
+        const projectIndex = state.projects.findIndex((project) => projectId(project) === route.proposalProject);
+        const proposals = Array.isArray(state.projects[projectIndex]?.proposals) ? state.projects[projectIndex].proposals : [];
+        const proposalIndex = proposals.findIndex((proposal, index) => proposalIdentity(proposal, index) === route.proposal);
+        if (projectIndex >= 0 && proposalIndex >= 0) selectProposal(projectIndex, proposalIndex, route.proposal, { fromRoute:true });
+      }
+    });
     render();
     loadProjects();
 
     return {
       destroy(){
         state.destroyed = true;
+        unregisterRoute?.();
         const list = state.root?.querySelector('[data-gp-list]');
         if (list) list.onscroll = null;
         state.root?.removeEventListener('click', onClick);
+        layoutMedia?.removeEventListener?.('change', onLayoutChange);
         delete window.__globalProposalsMenuKey;
         delete window.__globalProposalsDeleteKey;
       },
@@ -794,13 +877,14 @@
     id: 'portal.proposals',
     package: 'proposals',
     kind: 'portal_tab',
-    title: 'Proposals',
-    label: 'Proposals',
+    title: (globalThis.PlatformLanguage?.text("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals"),
+    label: (globalThis.PlatformLanguage?.text("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals"),
     icon: 'fa-file-signature',
     order: 25,
     surfaces: ['portal_tab'],
     regions: ['main'],
-    visible: true,
+    // DEPRECATED (see file header): hidden — kept registered for debugging.
+    visible: false,
     fullBleed: true,
     enabled: () => proposalsFeatureEnabled(),
     mount: createApp

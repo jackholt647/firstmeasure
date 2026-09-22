@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import {
@@ -10,7 +10,10 @@ import {
   publicFormConfigById,
   submitPublicFormById
 } from "../lead-intake/api.js";
-import { sendTransactionalEmail } from "./outbound.js";
+import "./instructions.js";
+import { sendPlatformTransactionalEmail } from "./outbound.js";
+import { ensureOrgEmailInbox } from "./engine.js";
+import { inboundEmailSchema, processInboundEmail, type InboundEmailInput } from "./inbound.js";
 import { createPlatformLead } from "../platform/api.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -23,11 +26,11 @@ import {
   type JsonObject
 } from "../platform/storage.js";
 import { env } from "../src/config/env.js";
+import { parseOpenAIJsonOutput, requestOpenAIResponse } from "../src/openai/responses.js";
 
 const objectBodySchema = z.object({}).passthrough();
 const LEAD_IMPORT_MODULE_ID = "lead_import";
 const SCHEDULING_MODULE_ID = "scheduling";
-const STAGES_MODULE_ID = "stages";
 const VARIABLE_MAPPING_MODULE_ID = "variable_mappings";
 const NEW_LEAD_STAGE_ID = "new_lead";
 const DEFAULT_BRANCH_ID = "default";
@@ -96,7 +99,7 @@ function sanitizeDomain(value: unknown, fallback = "1m8.ai") {
 }
 
 function assignedEmail(orgId: string, branchId: string) {
-  const domain = sanitizeDomain(env.emailInboundDomain);
+  const domain = sanitizeDomain(env.firstmateMailDomain, "firstmatemail.com");
   const orgToken = createHash("sha256").update(orgId).digest("hex").slice(0, 8);
   const branchToken = sanitizeToken(branchId || DEFAULT_BRANCH_ID, "default").slice(0, 18);
   const nonce = randomBytes(3).toString("hex");
@@ -202,37 +205,7 @@ async function readBranchModuleDataOrNull(orgId: string, branchId: string, modul
   }
 }
 
-async function ensureNewLeadStage(orgId: string, branchId: string) {
-  const stagesRaw = asObject(await readBranchModuleDataOrNull(orgId, branchId, STAGES_MODULE_ID));
-  const stages = asObject(stagesRaw.stages);
-  const order = Array.isArray(stagesRaw.order) ? stagesRaw.order.map((item) => cleanText(item)).filter(Boolean) : [];
-  if (!stages[NEW_LEAD_STAGE_ID]) {
-    stages[NEW_LEAD_STAGE_ID] = { id: NEW_LEAD_STAGE_ID, status: "active", color: "#0f766e" };
-  }
-  const nextOrder = order.includes(NEW_LEAD_STAGE_ID) ? order : [NEW_LEAD_STAGE_ID, ...order];
-  await saveBranchModule(orgId, branchId, STAGES_MODULE_ID, {
-    data: { schema_version: 1, ...stagesRaw, order: nextOrder, stages },
-    metadata: { kind: "branch_stages", source: "email_lead_import" }
-  }, { replace: true });
-
-  const mappingsRaw = asObject(await readBranchModuleDataOrNull(orgId, branchId, VARIABLE_MAPPING_MODULE_ID));
-  const labels = asObject(mappingsRaw.labels);
-  const stageLabels = asObject(labels.stages);
-  if (!stageLabels[NEW_LEAD_STAGE_ID]) stageLabels[NEW_LEAD_STAGE_ID] = "New Lead";
-  await saveBranchModule(orgId, branchId, VARIABLE_MAPPING_MODULE_ID, {
-    data: {
-      schema_version: 1,
-      ...mappingsRaw,
-      labels: {
-        ...labels,
-        stages: stageLabels
-      }
-    },
-    metadata: { kind: "branch_variable_mappings", source: "email_lead_import" }
-  }, { replace: true });
-}
-
-async function ensureLeadImportSettings(orgId: string, branchId = DEFAULT_BRANCH_ID) {
+export async function ensureLeadImportSettings(orgId: string, branchId = DEFAULT_BRANCH_ID) {
   let existing: JsonObject | null = null;
   try {
     existing = await readBranchModule(orgId, branchId, LEAD_IMPORT_MODULE_ID);
@@ -241,14 +214,21 @@ async function ensureLeadImportSettings(orgId: string, branchId = DEFAULT_BRANCH
   }
   const currentData = asObject(existing?.data);
   const currentEmail = normalizeEmail(currentData.inbound_email);
-  const generated = currentEmail
+  const targetDomain = sanitizeDomain(env.firstmateMailDomain, "firstmatemail.com");
+  const currentUsesFirstMateMail = currentEmail.endsWith(`@${targetDomain}`);
+  const generated = currentUsesFirstMateMail
     ? { email: currentEmail, localPart: currentEmail.split("@")[0], domain: currentEmail.split("@")[1] }
     : assignedEmail(orgId, branchId);
+  const legacyInboundEmails = [...new Set([
+    ...asArray(currentData.legacy_inbound_emails).map(normalizeEmail).filter(Boolean),
+    ...(!currentUsesFirstMateMail && currentEmail ? [currentEmail] : [])
+  ])];
   const now = nowIso();
   const data = {
     schema_version: 1,
     enabled: currentData.enabled !== false,
     inbound_email: generated.email,
+    legacy_inbound_emails: legacyInboundEmails,
     local_part: generated.localPart,
     domain: generated.domain,
     project_stage_id: cleanText(currentData.project_stage_id) || NEW_LEAD_STAGE_ID,
@@ -262,7 +242,6 @@ async function ensureLeadImportSettings(orgId: string, branchId = DEFAULT_BRANCH
     data,
     metadata: { kind: "branch_lead_import", source: "email_api" }
   }, { replace: true });
-  await ensureNewLeadStage(orgId, branchId);
   return { module, data };
 }
 
@@ -558,28 +537,11 @@ function fallbackLeadExtraction(payload: JsonObject) {
   }, payload, {});
 }
 
-function parseOpenAIResponse(data: JsonObject) {
-  const outputText = cleanText(data.output_text)
-    || asArray(data.output).map((item) => asArray(asObject(item).content).map((content) => cleanText(asObject(content).text)).join("\n")).join("\n");
-  if (!outputText) return null;
-  try {
-    return asObject(JSON.parse(outputText));
-  } catch {
-    return null;
-  }
-}
-
 async function extractLead(payload: JsonObject) {
   if (process.env.EMAIL_LEAD_AI_DISABLED === "1" || !env.openaiApiKey) return fallbackLeadExtraction(payload);
   const text = inboundEmailText(payload);
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.openaiApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
+    const result = await requestOpenAIResponse({
         model: env.openaiLeadModel,
         reasoning: { effort: "minimal" },
         max_output_tokens: 1200,
@@ -655,11 +617,10 @@ async function extractLead(payload: JsonObject) {
           },
           { role: "user", content: text }
         ]
-      })
-    });
-    if (!response.ok) return fallbackLeadExtraction(payload);
+      }, { timeoutMs: 45_000 });
+    if (!result.ok) return fallbackLeadExtraction(payload);
     const fallback = fallbackLeadExtraction(payload);
-    const parsed = parseOpenAIResponse(asObject(await response.json()));
+    const parsed = parseOpenAIJsonOutput(result.json);
     return parsed ? normalizeLeadExtraction({ ...parsed, extraction_method: "openai" }, payload, fallback) : fallback;
   } catch {
     return fallbackLeadExtraction(payload);
@@ -684,7 +645,8 @@ async function findLeadAssignment(recipients: string[]): Promise<LeadImportAssig
         const module = await readBranchModule(orgId, branchId, LEAD_IMPORT_MODULE_ID);
         const data = asObject(module.data);
         const email = normalizeEmail(data.inbound_email);
-        if (data.enabled === false || !email || !recipientSet.has(email)) continue;
+        const aliases = asArray(data.legacy_inbound_emails).map(normalizeEmail).filter(Boolean);
+        if (data.enabled === false || !email || ![email, ...aliases].some((address) => recipientSet.has(address))) continue;
         if (!(await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))) continue;
         return { orgId, branchId, module, data, email, localPart: email.split("@")[0] || "" };
       } catch {
@@ -693,6 +655,50 @@ async function findLeadAssignment(recipients: string[]): Promise<LeadImportAssig
     }
   }
   return null;
+}
+
+function normalizedLeadPayload(input: InboundEmailInput): JsonObject {
+  const from = normalizeEmail(input.from.address);
+  return {
+    From: from,
+    FromFull: { Email: from, Name: cleanText(input.from.name) },
+    To: input.to.map((recipient) => normalizeEmail(recipient.address)).filter(Boolean).join(", "),
+    ToFull: input.to.map((recipient) => ({ Email: normalizeEmail(recipient.address), Name: cleanText(recipient.name) })).filter((recipient) => recipient.Email),
+    Subject: cleanText(input.subject),
+    TextBody: cleanText(input.text),
+    HtmlBody: cleanText(input.html),
+    Headers: Object.entries(asObject(input.headers)).map(([Name, Value]) => ({ Name, Value: cleanText(Value) })),
+    MessageID: cleanText(asObject(input.headers).message_id) || cleanText(input.provider_event_id),
+    Date: cleanText(input.occurred_at)
+  };
+}
+
+async function processLeadPayload(payload: JsonObject) {
+  const recipients = postmarkRecipients(payload);
+  if (!recipients.length) return null;
+  const assignment = await findLeadAssignment(recipients);
+  if (!assignment) return null;
+  const extracted = asObject(await extractLead(payload));
+  if (extracted.is_lead === false) {
+    return { accepted: false, reason: "not_a_lead", assignment: { org_id: assignment.orgId, branch_id: assignment.branchId } };
+  }
+  if (!normalizeContacts(extracted, payload).length && !cleanText(extracted.address)) {
+    throw badRequest("lead_missing_contact_data", "The email matched a lead address but did not contain contact or address data.");
+  }
+  const created = await createProjectFromLead(assignment, payload, extracted);
+  return {
+    accepted: true,
+    assignment: { org_id: assignment.orgId, branch_id: assignment.branchId, inbound_email: assignment.email },
+    extraction: extracted,
+    project: created.project,
+    contacts: created.contacts,
+    notification: created.notification
+  };
+}
+
+/** Route a normalized FirstMate Mail event to a dedicated lead inbox. */
+export async function processInboundLeadEmail(input: InboundEmailInput) {
+  return processLeadPayload(normalizedLeadPayload(input));
 }
 
 function normalizeContacts(extracted: JsonObject, payload: JsonObject) {
@@ -711,14 +717,12 @@ function normalizeContacts(extracted: JsonObject, payload: JsonObject) {
 
 async function createProjectFromLead(assignment: LeadImportAssignment, payload: JsonObject, extracted: JsonObject) {
   const contacts = normalizeContacts(extracted, payload);
-  const stageId = cleanText(assignment.data.project_stage_id) || NEW_LEAD_STAGE_ID;
   const address = cleanText(extracted.address);
   const targetRoleIds = Array.isArray(assignment.data.notification_target_role_ids)
     ? assignment.data.notification_target_role_ids.map((role) => cleanText(role)).filter(Boolean)
     : DEFAULT_NOTIFICATION_ROLES;
   return await createPlatformLead(assignment.orgId, {
     branch_id: assignment.branchId,
-    stage_id: stageId,
     source_kind: "email_lead",
     address,
     title: address || cleanText(extracted.summary) || cleanText(payload.Subject) || "New email lead",
@@ -1024,7 +1028,6 @@ async function createProjectFromWebsiteForm(assignment: WebsiteFormAssignment, p
   const preferredStart = normalizePreferredStart(payload.preferred_start_at || payload.preferredStartAt);
   return await createPlatformLead(assignment.orgId, {
     branch_id: assignment.branchId,
-    stage_id: cleanText(assignment.data.project_stage_id) || NEW_LEAD_STAGE_ID,
     source_kind: "website_embed",
     address,
     title: address || name || cleanText(form.name) || "Website lead",
@@ -1110,14 +1113,15 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
       publicWebsiteSubmit: "/v1/email/public/forms/:formId/submit"
     },
     outbound: {
-      transactional: "/v1/email/outbound/transactional"
+      platformTransactional: "/v1/email/outbound/platform-transactional",
+      legacyAlias: "/v1/email/outbound/transactional"
     }
   }));
 
-  app.post("/outbound/transactional", async (request) => {
+  const sendPlatformTransactional = async (request: FastifyRequest) => {
     await requirePlatformAuth(request, { csrf: true, permission: "manage_company_settings|manage_organization|admin" });
     const body = objectBodySchema.parse(request.body ?? {});
-    return await sendTransactionalEmail({
+    return await sendPlatformTransactionalEmail({
       to: cleanText(body.to),
       subject: cleanText(body.subject),
       textBody: cleanText(body.text_body || body.textBody),
@@ -1127,7 +1131,9 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
       tag: cleanText(body.tag),
       metadata: asObject(body.metadata) as Record<string, string>
     });
-  });
+  };
+  app.post("/outbound/platform-transactional", sendPlatformTransactional);
+  app.post("/outbound/transactional", sendPlatformTransactional);
 
   app.get("/organizations/:orgId/branch/:branchId/lead-import", async (request) => {
     const orgId = getParam(request.params, "orgId");
@@ -1188,6 +1194,46 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
     return created;
   });
 
+  // The organization's FirstMate Mail inbox (provisions on first read).
+  app.get("/organizations/:orgId/inbox", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_comms|view_projects|manage_projects|manage_company_settings" });
+    const inbox = await ensureOrgEmailInbox(orgId, ctx.branchId || DEFAULT_BRANCH_ID);
+    return {
+      ok: true,
+      inbox: {
+        address: inbox.address,
+        display_name: inbox.display_name,
+        provider: inbox.provider,
+        delivery_mode: env.emailDeliveryMode
+      }
+    };
+  });
+
+  // Normalized inbound email events for the FirstMate Mail engine. The
+  // Cloudflare Email Worker (and the dev spool replayer) converts provider payloads into this
+  // shape; simulation posts here too. 202 (not 4xx) for unroutable mail so
+  // providers do not retry forever.
+  app.post("/inbound/events", async (request, reply) => {
+    verifyInboundWebhook({ headers: request.headers, query: request.query });
+    const payload = inboundEmailSchema.parse(request.body ?? {});
+    const lead = await processInboundLeadEmail(payload);
+    if (lead) {
+      if (!lead.accepted) reply.code(202);
+      return { ok: true, ...lead };
+    }
+    try {
+      const result = await processInboundEmail(payload);
+      return { ok: true, accepted: true, created: result.created, message_id: asObject(result.message).id };
+    } catch (error) {
+      if (error instanceof PlatformError && error.code === "inbox_not_found") {
+        reply.code(202);
+        return { ok: true, accepted: false, reason: "no_matching_inbox" };
+      }
+      throw error;
+    }
+  });
+
   app.post("/inbound/postmark", async (request, reply) => {
     verifyInboundWebhook({ headers: request.headers, query: request.query });
     const payload = objectBodySchema.parse(request.body ?? {});
@@ -1196,28 +1242,12 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
       reply.code(202);
       return { ok: true, accepted: false, reason: "no_recipients" };
     }
-    const assignment = await findLeadAssignment(recipients);
-    if (!assignment) {
+    const result = await processLeadPayload(payload);
+    if (!result) {
       reply.code(202);
       return { ok: true, accepted: false, reason: "no_matching_lead_import_address", recipients };
     }
-    const extracted = asObject(await extractLead(payload));
-    if (extracted.is_lead === false) {
-      reply.code(202);
-      return { ok: true, accepted: false, reason: "not_a_lead", assignment: { org_id: assignment.orgId, branch_id: assignment.branchId } };
-    }
-    if (!normalizeContacts(extracted, payload).length && !cleanText(extracted.address)) {
-      throw badRequest("lead_missing_contact_data", "The email matched a lead address but did not contain contact or address data.");
-    }
-    const created = await createProjectFromLead(assignment, payload, extracted);
-    return {
-      ok: true,
-      accepted: true,
-      assignment: { org_id: assignment.orgId, branch_id: assignment.branchId, inbound_email: assignment.email },
-      extraction: extracted,
-      project: created.project,
-      contacts: created.contacts,
-      notification: created.notification
-    };
+    if (!result.accepted) reply.code(202);
+    return { ok: true, ...result };
   });
 };

@@ -503,7 +503,7 @@ function perf_render3DFrame() {
         // init3D can replace the scene when deferred DSM or imagery arrives.
         if(enabled&&typeof scene!=='undefined'&&scene&&lastScene!==scene)render3D();
     }
-    function inspect(id) {selected=id;const s=state?.sources.find(s=>s.id===id),setback=stage>=6?state?.rakeCleanupReport?.setbackCorrections?.find(c=>c.sourceIds.includes(id))?.after:undefined;details.textContent=s?`${s.id} · ${s.kind==='return'?'lower wall return':s.type.replaceAll('_',' ')} · ${s.direction==='up'?'up to next roof':'down to roof or ground'} · ${s.joins?`continues straight to ${s.joins}`:`${((setback??s.setback)/G.INCH).toFixed(1)} in setback`}`:'';render2D();}
+    function inspect(id) {selected=id;const s=state?.sources.find(s=>s.id===id),setback=stage>=6?state?.rakeCleanupReport?.setbackCorrections?.find(c=>c.sourceIds.includes(id))?.after:undefined;details.textContent=s?`${s.id} · ${s.kind==='return'?'lower wall return':s.type.replaceAll('_',' ')} · ${s.direction==='up'?'up to next roof':'down to roof or ground'} · ${s.joins?`continues straight to ${s.joins}`:`${window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((setback??s.setback)/G.INCH, 'inch') : ((setback??s.setback)/G.INCH).toFixed(1)+' in'} setback`}`:'';render2D();}
     function render() {
         if(!panel)return;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));
         document.getElementById('wall-lengths-toggle').value=state?.lineLengthMode||(state?.wallLengths===false?'off':'moving');document.getElementById('wall-feature-dimensions')?.setAttribute('aria-pressed',String(state?.featureDimensions!==false));

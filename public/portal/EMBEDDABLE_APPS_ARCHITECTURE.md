@@ -29,6 +29,10 @@ public/libraries/apps/
 
 `firstmate-apps-manifest.js` is the canonical package manifest. Package files own their rendering and runtime registration.
 
+The manifest also owns app eligibility and presentation policy. Hosts must ask
+the runtime for eligible apps; individual tabs must not decide whether to
+inject themselves.
+
 ## Registration
 
 Apps register with `FirstMateEmbeddableApps.registerApp`.
@@ -112,6 +116,7 @@ FirstMateEmbeddableApps.listApps({ surface: 'project_modal', project, host });
 - `calls/app.js`: Calls portal app.
 - `canvassing/app.js`: Canvassing portal app.
 - `settings/company.js`: Settings portal app.
+- `crew/app.js`: Crew global and project apps.
 - `billing/app.js`: billing modal/service app.
 - `help/app.js`: ambient support/help app.
 - `onboarding/wizard.js`: onboarding modal app.
@@ -149,7 +154,13 @@ Every mounted app receives a normalized context:
   store,
   services,
   featureFlags,
-  permissions
+  permissions,
+  applicationAccess,
+  appEntitlements,
+  roleIds,
+  device,
+  presentation,
+  layout
 }
 ```
 
@@ -198,7 +209,32 @@ Load order is:
 5. base app mount,
 6. extensions/hooks.
 
-Feature flags and internal org settings decide which apps/extensions are enabled. Boolean access belongs in feature flags; mutually exclusive or numeric options belong in app/org settings exposed through `context.services` or app API clients.
+Feature flags describe organization capabilities and rollout state. Access
+roles describe data/action permissions. App entitlements describe whether a
+view is relevant enough to inject. These are deliberately separate: a Super
+Administrator may have unrestricted data permissions while inheriting a
+hidden Clock In view.
+
+An app manifest may constrain `applicationsAny`, permissions, roles, user
+types, devices, or feature flags. The resolved entitlement can then override
+visibility, parameters, layout, and the default home app. Both `listApps()` and
+direct `mount()` enforce the same policy.
+
+Project-modal presentation supports per-app left-column and mobile navigation
+rules. Crew project apps use no left region, icon-only tabs on mobile, and an
+always-fullscreen mobile modal without a redundant fullscreen control.
+
+## Crew Apps
+
+`crew/app.js` owns the field experience. Its global apps are Today, Schedule,
+Receipts, and Payouts. Schedule uses the shared `platform-schedule-view`
+calendar for List, Day, short-range, Week, and Month views; Crew intentionally
+does not receive the routing view. Calendar queries use the assigned-work facade
+in `public/v1/workforce/crew_api.ts`. The portal's global search uses the shared
+Crew assignment scope before matching projects or contacts. Its project apps are
+Overview, Materials, Payouts, Payments,
+Change Orders, and Checklist. Field users never receive the general project-
+management API as a shortcut.
 
 ## Rules For Future Work
 

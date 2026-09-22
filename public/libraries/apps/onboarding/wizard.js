@@ -42,13 +42,32 @@
   const { showToast } = window.Portal.ui;
   const APP = window.__APP || {};
   const ME_EMAIL = String(APP.userEmail || '').toLowerCase().trim();
-  const INITIAL_PROFILE_NAME = String(APP.userName || '').trim();
   const ME_NAME  = String(APP.userName || APP.userEmail || '').trim();
   const DEFAULT_LOGO = '/images/logo_red.png';
   const SAMPLE_DIAGRAM = 'media/sample_diagram_cropped.png';
 
+  function onboardingProductMode(){
+    const explicit = String(APP.onboardingProductMode || new URL(window.location.href).searchParams.get('onboardingMode') || '').trim().toLowerCase();
+    if (explicit === 'channels') return 'channels';
+    if (explicit === 'home_improvement') return 'home_improvement';
+    const flags = window.Portal?.appFlags;
+    if (flags?.current?.()
+        && flags.value?.('apps', 'channels', false) === true
+        && flags.value?.('apps', 'projects', true) === false
+        && flags.value?.('platform', 'left_column_apps', true) === false) return 'channels';
+    return 'reports';
+  }
+
+  function channelsBrandingMode(){
+    return onboardingProductMode() === 'channels';
+  }
+  function homeImprovementBrandingMode(){
+    return onboardingProductMode() === 'home_improvement';
+  }
+  window.Portal?.navigation?.registerSchema?.('onboardingMode', { values:['channels', 'home_improvement'], history:'replace' });
+
   /* Org name: not in __APP, but the theme IIFE caches it in localStorage */
-  let ORG_NAME = String(APP.orgName || '').trim();
+  let ORG_NAME = String(APP.orgName || APP.userCompany || '').trim();
   if (!ORG_NAME) {
     try {
       const cached = JSON.parse(localStorage.getItem('fm_org_theme_v1') || '{}');
@@ -60,21 +79,32 @@
     if (el && el.textContent.trim()) ORG_NAME = el.textContent.trim();
   }
 
+  async function resolveOnboardingOrgName(){
+    if (!channelsBrandingMode() && ORG_NAME && !/^default branch$/i.test(ORG_NAME)) return;
+    try {
+      const context = await window.PlatformAPI?.request?.('/me');
+      const organization = context?.organization || {};
+      const organizationData = organization.data || {};
+      const canonical = String(organization.name || organizationData.name || '').trim();
+      if (canonical) ORG_NAME = canonical;
+    } catch(e){ /* keep the best first-paint name */ }
+  }
+
   /* ── Permission / role metadata (mirrors company_settings.js) ── */
   const PERM_META = [
-    { k:'order_reports',                   label:'Order Reports' },
-    { k:'view_reports',                    label:'View Reports' },
-    { k:'manage_billing',                  label:'Manage Billing' },
-    { k:'manage_company_settings',         label:'Manage Company Settings' },
-    { k:'manage_report_settings',          label:'Manage Report Settings' },
-  { k:'manage_company_users',            label:'Manage Users' },
-  { k:'manage_company_user_permissions', label:'Manage User Permissions' },
+    { k:'order_reports',                   label:(globalThis.PlatformLanguage?.text("onboarding","m_a0d673c98d109b","Order Reports") ?? "Order Reports") },
+    { k:'view_reports',                    label:(globalThis.PlatformLanguage?.text("onboarding","m_0cb4deb6e0a11b","View Reports") ?? "View Reports") },
+    { k:'manage_billing',                  label:(globalThis.PlatformLanguage?.text("onboarding","m_707e3bb60aa697","Manage Billing") ?? "Manage Billing") },
+    { k:'manage_company_settings',         label:(globalThis.PlatformLanguage?.text("onboarding","m_3ca553a96e2d57","Manage Company Settings") ?? "Manage Company Settings") },
+    { k:'manage_report_settings',          label:(globalThis.PlatformLanguage?.text("onboarding","m_92a0f4a34883f8","Manage Report Settings") ?? "Manage Report Settings") },
+  { k:'manage_company_users',            label:(globalThis.PlatformLanguage?.text("onboarding","m_3e5cbdf732a7e4","Manage Users") ?? "Manage Users") },
+  { k:'manage_company_user_permissions', label:(globalThis.PlatformLanguage?.text("onboarding","m_4100a91e5391b6","Manage User Permissions") ?? "Manage User Permissions") },
   ];
   const ROLE_PRESETS = [
-    { v:'viewer',  label:'Viewer',  icon:'fa-eye' },
-    { v:'manager', label:'Manager', icon:'fa-briefcase' },
-    { v:'admin',   label:'Admin',   icon:'fa-shield-halved' },
-    { v:'super_admin', label:'Super Admin', icon:'fa-user-shield' },
+    { v:'viewer',  label:(globalThis.PlatformLanguage?.text("onboarding","m_ee8002871331aa","Viewer") ?? "Viewer"),  icon:'fa-eye' },
+    { v:'manager', label:(globalThis.PlatformLanguage?.text("onboarding","m_32263fb2e2d35f","Manager") ?? "Manager"), icon:'fa-briefcase' },
+    { v:'admin',   label:(globalThis.PlatformLanguage?.text("onboarding","m_624b3522fe2950","Admin") ?? "Admin"),   icon:'fa-shield-halved' },
+    { v:'super_admin', label:(globalThis.PlatformLanguage?.text("onboarding","m_1a6b2c0ae6f76c","Super Admin") ?? "Super Admin"), icon:'fa-user-shield' },
   ];
   const ROLE_PERM_DEFAULTS = {
     viewer:  { order_reports:false, view_reports:true },
@@ -345,7 +375,7 @@
       fd.append('actor_name', window.__APP?.userName || '');
       fd.append('actor_org_id', window.__APP?.userOrgId || '');
       fd.append('url', url);
-      const res = await fetch((window.Portal?.cfg?.serverEndpoint || window.__APP?.serverEndpoint), { method:'POST', body: fd });
+      const res = await fetch((window.Portal?.cfg?.serverEndpoint || window.__APP?.serverEndpoint), { method:'POST', body: fd, credentials:'include' });
       const data = await res.json().catch(()=>null);
       if (data?.success && data.data_url) return data.data_url;
     } catch(e){}
@@ -441,7 +471,7 @@
       fd.append('actor_name', window.__APP?.userName || '');
       fd.append('actor_org_id', window.__APP?.userOrgId || '');
       fd.append('url', siteUrl);
-      const res = await fetch((window.Portal?.cfg?.serverEndpoint || window.__APP?.serverEndpoint), { method:'POST', body: fd });
+      const res = await fetch((window.Portal?.cfg?.serverEndpoint || window.__APP?.serverEndpoint), { method:'POST', body: fd, credentials:'include' });
       const data = await res.json().catch(()=>null);
       if (!data?.success || !Array.isArray(data.candidates) || data.candidates.length === 0) {
         return null;
@@ -504,22 +534,6 @@
     } catch(e){
       return null;
     }
-  }
-
-  const logoLookupCache = new Map();
-  function preloadBestLogo(domainValue){
-    const domain = parseDomain(domainValue);
-    if (!domain) return Promise.resolve(null);
-    if (logoLookupCache.has(domain)) return logoLookupCache.get(domain);
-    const lookup = findBestLogo(domain).then((found) => {
-      if (!found) logoLookupCache.delete(domain);
-      return found;
-    }).catch(() => {
-      logoLookupCache.delete(domain);
-      return null;
-    });
-    logoLookupCache.set(domain, lookup);
-    return lookup;
   }
 
   function parseDomain(urlStr){
@@ -687,37 +701,12 @@
     border-color:var(--primary, #d93025);
     box-shadow:0 0 0 3px rgba(var(--primary-rgb, 217,48,37),0.1);
   }
-  .ob-row.ob-row-invalid .ob-lbl{ color:#b3261e; }
-  .ob-input.ob-input-invalid{
-    border-color:#d93025;
-    background:#fff8f7;
-    box-shadow:0 0 0 3px rgba(217,48,37,0.12);
-    animation:ob-field-nudge .24s ease-out;
-  }
-  .ob-field-error{
-    display:flex; align-items:center; gap:5px;
-    margin-top:6px;
-    color:#b3261e;
-    font-size:12px; font-weight:700; line-height:1.3;
-  }
-  @keyframes ob-field-nudge{
-    0%,100%{ transform:translateX(0); }
-    35%{ transform:translateX(-3px); }
-    70%{ transform:translateX(3px); }
-  }
   .ob-lbl{
     font-size:11px; font-weight:700; letter-spacing:.8px;
     text-transform:uppercase; color:rgba(0,0,0,0.4);
     margin-bottom:8px; display:block;
   }
   .ob-row{ margin-bottom:14px; }
-  .ob-profile-row{
-    display:grid;
-    grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-    column-gap:14px;
-  }
-  .ob-profile-row.single{ grid-template-columns:minmax(0, 1fr); }
-  .ob-profile-row .ob-row{ min-width:0; }
 
   /* ── Buttons ─────────────────────────────────────────── */
   .ob-footer{
@@ -1228,6 +1217,77 @@
   }
 
   /* ── Fullscreen preview modal ────────────────────── */
+  /* Channels branding preview: a scaled, static slice of the real portal + Channels UI. */
+  .ob-channels-preview{--ob-ch-primary:var(--primary-readable,var(--primary,#d93025));--ob-ch-primary-rgb:var(--primary-readable-rgb,var(--primary-rgb,217,48,37));aspect-ratio:16 / 10;background:#fff;color:#101828}
+  #obPage0.active .ob-preview-page.ob-channels-preview{width:min(100cqw,calc(100cqh * 16 / 10))}
+  .ob-channels-preview .ob-ch-shell{position:absolute;inset:0;display:grid;grid-template-columns:24% 76%;min-height:0;background:#fff}
+  .ob-channels-preview .ob-ch-org-rail{min-width:0;background:#fff;border-right:1px solid #dfe3e8;display:flex;flex-direction:column}
+  .ob-channels-preview .ob-ch-brand{height:13%;min-height:0;border-bottom:1px solid #dfe3e8;padding:6% 7%;display:flex;align-items:center}
+  .ob-channels-preview .ob-preview-logo{width:58%;height:100%;max-height:none;display:flex;align-items:center;justify-content:flex-start}
+  .ob-channels-preview .ob-preview-logo img{display:block;max-width:100%;max-height:100%;object-fit:contain;object-position:left center}
+  .ob-channels-preview .ob-preview-logo.default-firstmeasure-logo{height:100%}
+  .ob-channels-preview .ob-preview-logo.default-firstmeasure-logo::before{background:var(--ob-ch-primary)}
+  .ob-channels-preview .ob-ch-org-channels{flex:1;min-height:0;padding:5% 4%;background:#f9fafb;display:flex;flex-direction:column;overflow:hidden}
+  .ob-channels-preview .ob-ch-settings{margin:0 8% 10%;height:7%;min-height:16px;border:1px solid #d8dde5;border-radius:7px;display:flex;align-items:center;gap:6%;padding:0 7%;color:#667085;font-size:clamp(4px,1.05cqw,8px);font-weight:650}
+  .ob-channels-preview .ob-ch-account{height:13%;min-height:0;border-top:1px solid #e4e7ec;padding:6% 8%;display:flex;align-items:center;gap:7%;color:#475467;font-size:clamp(4px,1cqw,7.5px)}
+  .ob-channels-preview .ob-ch-account-copy{min-width:0;flex:1}.ob-channels-preview .ob-ch-account-copy strong,.ob-channels-preview .ob-ch-account-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ob-channels-preview .ob-ch-account-copy strong{font-weight:700}.ob-channels-preview .ob-ch-account-copy span{margin-top:2%;font-size:.82em;color:#667085}
+  .ob-channels-preview .ob-ch-avatar{width:clamp(12px,3.4cqw,23px);aspect-ratio:1;border-radius:7px;display:grid;place-items:center;background:#eaf2ff;color:#315f9b;font-size:clamp(4px,1cqw,7px);font-weight:750;flex:0 0 auto}
+  .ob-channels-preview .ob-ch-app{min-width:0;display:flex;flex-direction:column;background:#fff}
+  .ob-channels-preview .ob-ch-topbar{height:10%;min-height:0;border-bottom:1px solid #e4e7ec;display:flex;align-items:center;justify-content:center;padding:0 4%;color:#667085}
+  .ob-channels-preview .ob-ch-search{width:54%;height:54%;border:1px solid #d8dde5;border-radius:999px;background:#f9fafb;display:flex;align-items:center;gap:5%;padding:0 4%;font-size:clamp(4px,1cqw,7.5px)}
+  .ob-channels-preview .ob-ch-top-actions{margin-left:auto;display:flex;align-items:center;gap:clamp(4px,1.5cqw,10px);font-size:clamp(5px,1.15cqw,8.5px)}
+  .ob-channels-preview .ob-ch-workspace{flex:1;min-height:0;display:flex}
+  .ob-channels-preview .ob-ch-quick{display:grid;gap:1%}
+  .ob-channels-preview .ob-ch-nav-item{display:flex;align-items:center;gap:6%;padding:3% 6%;border-radius:6px;font-size:clamp(4px,1.05cqw,8px);font-weight:550;color:#475467;white-space:nowrap}
+  .ob-channels-preview .ob-ch-nav-item i{width:11%;text-align:center;color:#667085;font-size:.88em}
+  .ob-channels-preview .ob-ch-section{margin-top:8%;display:flex;align-items:center;padding:0 6% 2%;color:#667085;font-size:clamp(3.5px,.85cqw,6px);font-weight:900;letter-spacing:.07em;text-transform:uppercase}
+  .ob-channels-preview .ob-ch-section span{flex:1}.ob-channels-preview .ob-ch-section i{margin-left:7%;font-size:.75em}
+  .ob-channels-preview .ob-ch-nav-item.active{background:rgba(var(--ob-ch-primary-rgb),.08);color:var(--ob-ch-primary);font-weight:700;transition:background .25s ease,color .25s ease}
+  .ob-channels-preview .ob-ch-nav-item.active i{color:var(--ob-ch-primary)}
+  .ob-channels-preview .ob-ch-assistant-mark{width:clamp(10px,2.6cqw,18px);aspect-ratio:1;flex:0 0 auto;background:var(--ob-ch-primary);-webkit-mask:url('/images/logo_square.png') center / 82% no-repeat;mask:url('/images/logo_square.png') center / 82% no-repeat;transition:background .25s ease}
+  .ob-channels-preview .ob-ch-main{min-width:0;flex:1;background:#fff;display:flex;flex-direction:column}
+  .ob-channels-preview .ob-ch-head{height:11%;min-height:0;border-bottom:1px solid #e4e7ec;padding:0 4%;display:flex;align-items:center;gap:2.5%}
+  .ob-channels-preview .ob-ch-title{font-size:clamp(6px,1.4cqw,10px);font-weight:900;white-space:nowrap}.ob-channels-preview .ob-ch-title i{color:#667085;font-size:.8em;margin-right:4px}
+  .ob-channels-preview .ob-ch-topic{font-size:clamp(4px,1cqw,7.5px);color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+  .ob-channels-preview .ob-ch-actions{display:flex;gap:clamp(3px,1.1cqw,8px);color:#667085;font-size:clamp(4.5px,1.1cqw,8px)}
+  .ob-channels-preview .ob-ch-tabs{height:8%;min-height:0;border-bottom:1px solid #e4e7ec;display:flex;align-items:stretch;padding:0 3%;gap:1%}
+  .ob-channels-preview .ob-ch-tab{display:flex;align-items:center;padding:0 3%;color:#667085;font-size:clamp(4px,.9cqw,7px);font-weight:700;border-bottom:2px solid transparent}.ob-channels-preview .ob-ch-tab.active{color:var(--ob-ch-primary);border-bottom-color:var(--ob-ch-primary)}
+  .ob-channels-preview .ob-ch-messages{flex:1;min-height:0;padding:4%;display:flex;flex-direction:column;gap:7%;overflow:hidden}
+  .ob-channels-preview .ob-ch-message{display:grid;grid-template-columns:auto 1fr;gap:2.5%;align-items:start}.ob-channels-preview .ob-ch-message-copy{min-width:0}
+  .ob-channels-preview .ob-ch-message-head{display:flex;align-items:baseline;gap:3%;font-size:clamp(4.5px,1cqw,7.5px);font-weight:850}.ob-channels-preview .ob-ch-time{font-size:.75em;color:#98a2b3;font-weight:500}
+  .ob-channels-preview .ob-ch-text{font-size:clamp(4px,.95cqw,7px);line-height:1.4;color:#344054;margin-top:1%}.ob-channels-preview .ob-ch-reaction{display:inline-flex;margin-top:2%;padding:1% 2.5%;border-radius:999px;background:rgba(var(--ob-ch-primary-rgb),.08);color:var(--ob-ch-primary);font-size:clamp(3.5px,.8cqw,6px);font-weight:800;border:1px solid var(--ob-ch-primary)}
+  .ob-channels-preview .ob-ch-composer{margin:0 4% 4%;border:1px solid #e4e7ec;border-radius:7px;background:#fff;overflow:hidden}.ob-channels-preview .ob-ch-formatbar{height:30%;min-height:12px;border-bottom:1px solid #eaecf0;display:flex;align-items:center;gap:5%;padding:0 3%;color:#667085;font-size:clamp(4px,.9cqw,7px)}
+  .ob-channels-preview .ob-ch-compose{padding:3% 3% 2%;display:flex;align-items:center;gap:4%;color:#98a2b3;font-size:clamp(4px,.9cqw,7px)}.ob-channels-preview .ob-ch-compose span{flex:1}.ob-channels-preview .ob-ch-send{padding:2% 4%;border-radius:5px;background:var(--ob-ch-primary);color:#fff;font-weight:800;transition:background .25s ease}
+  .ob-preview-modal-inner.ob-channels-preview-frame{width:min(92vw,calc((100dvh - 48px) * 16 / 10));height:auto;max-height:calc(100dvh - 48px);aspect-ratio:16 / 10}
+  .ob-preview-modal-page.ob-channels-preview{aspect-ratio:16 / 10}
+
+  /* Generic company preview: enough real portal shape to demonstrate branding without implying a configured product. */
+  .ob-workspace-preview{--ob-ws-primary:var(--primary-readable,var(--primary,#d93025));--ob-ws-primary-rgb:var(--primary-readable-rgb,var(--primary-rgb,217,48,37));aspect-ratio:16 / 10;background:#f7f8fa;color:#101828}
+  #obPage0.active .ob-preview-page.ob-workspace-preview{width:min(100cqw,calc(100cqh * 16 / 10))}
+  .ob-workspace-preview .ob-ws-shell{position:absolute;inset:0;display:grid;grid-template-columns:23% 77%;background:#f7f8fa}
+  .ob-workspace-preview .ob-ws-rail{min-width:0;background:#fff;border-right:1px solid #e3e7ed;display:flex;flex-direction:column}
+  .ob-workspace-preview .ob-ws-brand{height:14%;border-bottom:1px solid #e3e7ed;padding:6% 8%;display:flex;align-items:center}
+  .ob-workspace-preview .ob-preview-logo{width:64%;height:100%;max-height:none;display:flex;align-items:center;justify-content:flex-start}
+  .ob-workspace-preview .ob-preview-logo img{display:block;max-width:100%;max-height:100%;object-fit:contain;object-position:left center}
+  .ob-workspace-preview .ob-preview-logo.default-firstmeasure-logo{height:100%}
+  .ob-workspace-preview .ob-preview-logo.default-firstmeasure-logo::before{background:var(--ob-ws-primary)}
+  .ob-workspace-preview .ob-ws-nav{flex:1;padding:9% 7%;display:grid;align-content:start;gap:3%}
+  .ob-workspace-preview .ob-ws-nav-item{height:clamp(16px,4.8cqw,33px);padding:0 8%;border-radius:6px;display:flex;align-items:center;gap:8%;color:#667085;font-size:clamp(4px,1.05cqw,8px);font-weight:650}
+  .ob-workspace-preview .ob-ws-nav-item i{width:12%;text-align:center}.ob-workspace-preview .ob-ws-nav-item.active{background:rgba(var(--ob-ws-primary-rgb),.08);color:var(--ob-ws-primary);font-weight:800}
+  .ob-workspace-preview .ob-ws-profile{height:14%;border-top:1px solid #e4e7ec;padding:7% 8%;display:flex;align-items:center;gap:8%}
+  .ob-workspace-preview .ob-ws-avatar{width:clamp(13px,3.5cqw,24px);aspect-ratio:1;border-radius:8px;background:rgba(var(--ob-ws-primary-rgb),.12);color:var(--ob-ws-primary);display:grid;place-items:center;font-size:clamp(4px,1cqw,7px);font-weight:850}
+  .ob-workspace-preview .ob-ws-profile-lines{flex:1;display:grid;gap:4px}.ob-workspace-preview .ob-ws-line{height:3px;border-radius:99px;background:#d9dee6}.ob-workspace-preview .ob-ws-line.short{width:62%;background:#e8ebef}
+  .ob-workspace-preview .ob-ws-app{min-width:0;display:flex;flex-direction:column}
+  .ob-workspace-preview .ob-ws-topbar{height:11%;border-bottom:1px solid #e4e7ec;background:#fff;padding:0 5%;display:flex;align-items:center;justify-content:space-between;color:#667085;font-size:clamp(5px,1.15cqw,8px)}
+  .ob-workspace-preview .ob-ws-search{width:45%;height:48%;border:1px solid #d8dde5;border-radius:99px;background:#fafbfc;display:flex;align-items:center;gap:5%;padding:0 4%}
+  .ob-workspace-preview .ob-ws-tools{display:flex;gap:clamp(5px,1.5cqw,11px)}
+  .ob-workspace-preview .ob-ws-content{position:relative;flex:1;padding:5%;overflow:hidden}
+  .ob-workspace-preview .ob-ws-page-head{display:flex;align-items:center;justify-content:space-between}.ob-workspace-preview .ob-ws-heading{width:24%;height:7px;border-radius:99px;background:#cfd5de}.ob-workspace-preview .ob-ws-action{width:16%;height:clamp(13px,3.5cqw,24px);border-radius:6px;background:var(--ob-ws-primary)}
+  .ob-workspace-preview .ob-ws-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:3%;margin-top:5%}.ob-workspace-preview .ob-ws-card{height:clamp(34px,10cqw,70px);border:1px solid #e3e7ed;border-radius:8px;background:#fff;padding:9%;display:grid;align-content:start;gap:11%}.ob-workspace-preview .ob-ws-card .ob-ws-line:first-child{width:48%;background:#e2e6eb}.ob-workspace-preview .ob-ws-card .ob-ws-line:last-child{width:70%;height:7px;background:#cfd5de}
+  .ob-workspace-preview .ob-ws-table{margin-top:4%;height:42%;border:1px solid #e3e7ed;border-radius:8px;background:#fff;display:grid;grid-template-rows:repeat(4,1fr);overflow:hidden}.ob-workspace-preview .ob-ws-table-row{border-bottom:1px solid #edf0f3;display:grid;grid-template-columns:1.2fr .7fr .5fr;align-items:center;padding:0 4%;gap:7%}.ob-workspace-preview .ob-ws-table-row:last-child{border-bottom:0}.ob-workspace-preview .ob-ws-table-row .ob-ws-line:nth-child(2){width:75%}.ob-workspace-preview .ob-ws-table-row .ob-ws-line:nth-child(3){width:55%}
+  .ob-workspace-preview .ob-ws-modal{position:absolute;left:23%;right:17%;top:19%;bottom:14%;border:1px solid #dce1e7;border-radius:10px;background:#fff;box-shadow:0 12px 35px rgba(16,24,40,.18);overflow:hidden;display:flex;flex-direction:column}.ob-workspace-preview .ob-ws-modal-head{height:26%;border-bottom:1px solid #e7eaee;padding:0 7%;display:flex;align-items:center;justify-content:space-between}.ob-workspace-preview .ob-ws-modal-title{width:38%;height:6px;border-radius:99px;background:#bcc4cf}.ob-workspace-preview .ob-ws-modal-close{color:#98a2b3;font-size:clamp(5px,1.15cqw,8px)}.ob-workspace-preview .ob-ws-modal-body{flex:1;padding:7%;display:grid;gap:9%;align-content:start}.ob-workspace-preview .ob-ws-field{display:grid;gap:5px}.ob-workspace-preview .ob-ws-field>.ob-ws-line{width:24%;background:#cfd5de}.ob-workspace-preview .ob-ws-input{height:clamp(12px,3.2cqw,22px);border:1px solid #d8dde5;border-radius:5px;background:#fbfcfd}.ob-workspace-preview .ob-ws-modal-footer{height:25%;border-top:1px solid #e7eaee;padding:0 7%;display:flex;align-items:center;justify-content:flex-end;gap:5%}.ob-workspace-preview .ob-ws-modal-btn{width:22%;height:clamp(11px,3cqw,21px);border:1px solid #d8dde5;border-radius:5px}.ob-workspace-preview .ob-ws-modal-btn.primary{border-color:var(--ob-ws-primary);background:var(--ob-ws-primary)}
+  .ob-preview-modal-inner.ob-workspace-preview-frame{width:min(92vw,calc((100dvh - 48px) * 16 / 10));height:auto;max-height:calc(100dvh - 48px);aspect-ratio:16 / 10}.ob-preview-modal-page.ob-workspace-preview{aspect-ratio:16 / 10}
+
   .ob-preview-modal{
     position:fixed; inset:0; z-index:2147483601;
     background:rgba(0,0,0,0.82);
@@ -1714,11 +1774,6 @@
     .ob-h1{ font-size:26px; }
     .ob-h2{ font-size:20px; }
     .ob-sub{ font-size:13px; margin-bottom:10px; }
-    .ob-profile-row,
-    .ob-profile-row.single{
-      grid-template-columns:1fr;
-      column-gap:0;
-    }
 
     /* Footer: always row, skip left, next right */
     .ob-footer{
@@ -1871,32 +1926,6 @@
     colorsExtracted: false,
   };
 
-  const PLACEHOLDER_ORG_NAMES = new Set(['', 'Your Company', 'Untitled Organization', 'Default Branch']);
-  let profileState = {
-    fullName: INITIAL_PROFILE_NAME && INITIAL_PROFILE_NAME.toLowerCase() !== ME_EMAIL ? INITIAL_PROFILE_NAME : '',
-    companyName: '',
-    phone: '',
-  };
-
-  function onboardingPhoneDigits(value){
-    let digits = String(value || '').replace(/\D/g, '');
-    if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);
-    return digits.slice(0, 10);
-  }
-
-  function formatOnboardingPhone(value){
-    const digits = onboardingPhoneDigits(value);
-    if (!digits) return '';
-    if (digits.length <= 3) return `(${digits}`;
-    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-
-  function isValidOnboardingPhone(value){
-    const digits = String(value || '').replace(/\D/g, '');
-    return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
-  }
-
   /* Users state */
   let invites = [];
   let nextInviteId = 1;
@@ -1937,17 +1966,11 @@
    */
   let savedCardInfo = null;
   let brandingSavePromise = null;
-  let brandingSaveError = null;
   let verificationEmail = ME_EMAIL || '';
   let verificationSent = false;
   let verificationBusy = false;
   let verificationMessage = '';
   let trackingFlushTimer = null;
-  let completingStripeCreditPurchase = false;
-
-  function wait(ms){
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
   let currentPageEnteredAt = Date.now();
 
   const TRACKING_SS_KEY = 'ob_tracking_session_id';
@@ -2011,7 +2034,6 @@
     if (!pages.includes(currentPage)) {
       currentPage = pages.find(p => p > currentPage) ?? pages[pages.length - 1] ?? 0;
     }
-    if (currentPage > 0 && !isValidOnboardingPhone(profileState.phone)) currentPage = 0;
   }
 
   function deviceSnapshot(){
@@ -2133,11 +2155,6 @@
 
   function onboardingStateSnapshot(){
     return {
-      profile: {
-        full_name_entered: !!profileState.fullName,
-        company_name_entered: !!profileState.companyName,
-        phone_entered: !!profileState.phone,
-      },
       branding: {
         website_entered: !!brandState.website,
         website_domain: trackingSafeText(brandState.domain || parseDomain(brandState.website || ''), 160),
@@ -2269,6 +2286,11 @@
   const ONBOARDING_STRIPE_HISTORY_POLL_MS = 1000;
   const ONBOARDING_STRIPE_COMPLETED_KEY_BASE = 'ob_stripe_credit_purchase_completed_v1';
   const SIGNUP_OTP_BYPASS_KEY = `ob_signup_otp_bypassed_${String(APP.userOrgId || APP.orgId || ME_EMAIL || 'anon')}`;
+  let completingStripeCreditPurchase = false;
+
+  function wait(ms){
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   function signupOtpBypassRemembered(){
     try { return localStorage.getItem(SIGNUP_OTP_BYPASS_KEY) === '1'; } catch(e) { return false; }
@@ -2282,11 +2304,6 @@
     try {
       sessionStorage.setItem(SS_KEY, JSON.stringify({
         currentPage,
-        profile: {
-          fullName: profileState.fullName,
-          companyName: profileState.companyName,
-          phone: profileState.phone,
-        },
         brand: {
           website:        brandState.website,
           domain:         brandState.domain,
@@ -2341,12 +2358,6 @@
 
       if (typeof s.currentPage === 'number') {
         currentPage = ALL_PAGES.includes(s.currentPage) ? s.currentPage : 0;
-      }
-
-      if (s.profile && typeof s.profile === 'object') {
-        profileState.fullName = String(s.profile.fullName || profileState.fullName || '').trim();
-        profileState.companyName = String(s.profile.companyName || profileState.companyName || '').trim();
-        profileState.phone = formatOnboardingPhone(s.profile.phone || profileState.phone || '');
       }
 
       if (s.brand && typeof s.brand === 'object') {
@@ -2450,7 +2461,6 @@
     } catch(e){}
     return true;
   }
-
 
   function checkoutSessionIdFromResponse(data){
     return String(data?.session?.id || data?.session_id || '').trim();
@@ -2624,21 +2634,7 @@
       try {
         const { data } = await postAction('org_get_my');
         if (data?.success) {
-          const serverOrgName = String(data.org?.name || '').trim();
-          if (serverOrgName) {
-            ORG_NAME = serverOrgName;
-            if (!profileState.companyName || PLACEHOLDER_ORG_NAMES.has(profileState.companyName)) {
-              profileState.companyName = PLACEHOLDER_ORG_NAMES.has(serverOrgName) ? '' : serverOrgName;
-            }
-          }
-          profileState.phone = formatOnboardingPhone(data.user?.phone || profileState.phone || '');
-          const savedWebsite = String(data.org?.contact?.website || data.workspace_website_suggestion || '').trim();
-          if (!brandState.website && !brandState.noWebsite && savedWebsite) {
-            const savedDomain = parseDomain(savedWebsite);
-            brandState.website = savedDomain || savedWebsite;
-            brandState.domain = savedDomain;
-            if (savedDomain) preloadBestLogo(savedDomain);
-          }
+          if (!ORG_NAME && data.org?.name) ORG_NAME = data.org.name;
           if (!savedCardInfo) {
             const s = data.org?.billing?.stripe;
             if (s?.has_payment_method && s?.payment_method_id) {
@@ -2653,8 +2649,6 @@
         }
       } catch(e){}
     }
-
-    if (currentPage > 0 && !isValidOnboardingPhone(profileState.phone)) currentPage = 0;
 
     const overlay = document.createElement('div');
     overlay.id = 'obOverlay';
@@ -2686,11 +2680,6 @@
   function goToPage(idx){
     const pagesInFlow = visiblePages();
     if (!pagesInFlow.includes(idx)) return;
-    if (idx > 0 && !isValidOnboardingPhone(profileState.phone)) {
-      if (currentPage !== 0) goToPage(0);
-      showToast('Phone number required', 'Enter a valid mobile phone number before continuing.', false);
-      return;
-    }
     const previousPage = currentPage;
     const durationMs = Date.now() - currentPageEnteredAt;
     trackOnboarding('step_leave', {
@@ -2755,7 +2744,6 @@
   async function finish(){
     trackOnboarding('finish_attempt', { metadata: { did_purchase: !!didPurchase, did_add_card: !!didAddCard, state: onboardingStateSnapshot() } });
     try {
-      await ensureBrandingSaved();
       const { data } = await postAction('onboarding_complete', {
         did_purchase: didPurchase ? '1' : '0',
         did_add_card: didAddCard ? '1' : '0',
@@ -2771,9 +2759,9 @@
         dismissOnboarding();
         return;
       }
-      showToast('Verification required', data?.error || 'Please verify your email to finish setup.', false);
+      showToast((globalThis.PlatformLanguage?.text("onboarding","m_9607f68840c47e","Verification required") ?? "Verification required"), data?.error || 'Please verify your email to finish setup.', false);
     } catch(e) {
-      showToast('Could not finish setup', 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("onboarding","m_714b747d11634d","Could not finish setup") ?? "Could not finish setup"), (globalThis.PlatformLanguage?.text("onboarding","m_4567836c628fdd","Please try again.") ?? "Please try again."), false);
     }
   }
 
@@ -2813,18 +2801,76 @@
   */
 
   function cleanOnboardingUrl(){
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('onboarding');
-      url.searchParams.delete('force_onboarding');
-      url.searchParams.delete('forceOnboarding');
-      url.searchParams.delete('paid');
-      url.searchParams.delete('session_id');
-      const clean = url.searchParams.toString()
-        ? url.pathname + '?' + url.searchParams.toString()
-        : url.pathname;
-      history.replaceState(null, '', clean);
-    } catch(e){}
+    window.Portal?.navigation?.replace?.({ onboarding:null, onboardingMode:null, force_onboarding:null, forceOnboarding:null, paid:null, session_id:null }, { source:'onboarding-complete' });
+  }
+
+  function channelsPreviewMarkup(surface = 'inline'){
+    const pageClass = surface === 'modal' ? 'ob-preview-modal-page' : 'ob-preview-page';
+    const ownerInitial = esc((ME_NAME || ME_EMAIL || 'Y').slice(0, 1).toUpperCase());
+    return `
+      <div class="${String(pageClass)} ob-channels-preview" style="--ob-ch-primary:${String(esc(readableVariant(brandState.primary)))};--ob-ch-primary-rgb:${String(esc(hexToRgbCsv(readableVariant(brandState.primary)) || '217,48,37'))}">
+        <div class="ob-ch-shell">
+          <aside class="ob-ch-org-rail">
+            <div class="ob-ch-brand"><div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div></div>
+            <div class="ob-ch-org-channels">
+              <div class="ob-ch-quick">
+                <div class="ob-ch-nav-item"><i class="fas fa-inbox"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_e9a006d430a9a6","All Unreads") ?? "All Unreads")}</span></div>
+                <div class="ob-ch-nav-item"><i class="fas fa-bell"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_37fc206eefac3e","Activity") ?? "Activity")}</span></div>
+                <div class="ob-ch-nav-item"><i class="fas fa-comments"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_3201c97f6b38ff","Threads") ?? "Threads")}</span></div>
+              </div>
+              <div class="ob-ch-section"><span>${(globalThis.PlatformLanguage?.text("onboarding","m_dc8b4f6c066b30","Channels") ?? "Channels")}</span><b>+</b><i class="fas fa-chevron-down"></i></div>
+              <div class="ob-ch-nav-item active"><i class="fas fa-hashtag"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_d18c631c8e1203","general") ?? "general")}</span></div>
+              <div class="ob-ch-nav-item"><i class="fas fa-hashtag"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_28c50346c6d5d4","announcements") ?? "announcements")}</span></div>
+              <div class="ob-ch-section"><span>${(globalThis.PlatformLanguage?.text("onboarding","m_f304f7d46421ed","Direct messages") ?? "Direct messages")}</span><b>+</b><i class="fas fa-chevron-down"></i></div>
+              <div class="ob-ch-nav-item"><span class="ob-ch-assistant-mark"></span><span>${(globalThis.PlatformLanguage?.text("onboarding","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant")}</span></div>
+            </div>
+            <div class="ob-ch-settings"><i class="fas fa-gear"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_7d461dc7d355cc","Settings") ?? "Settings")}</span></div>
+            <div class="ob-ch-account"><div class="ob-ch-avatar">${String(ownerInitial)}</div><div class="ob-ch-account-copy"><strong>${String(esc(ME_NAME || 'You'))}</strong><span>${String(esc(ME_EMAIL || 'you@company.com'))}</span></div><i class="fas fa-chevron-up"></i></div>
+          </aside>
+          <section class="ob-ch-app">
+            <header class="ob-ch-topbar"><div class="ob-ch-search"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_874bb2f35611fe","Search channels and messages") ?? "Search channels and messages")}</span></div><div class="ob-ch-top-actions"><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-comment"></i><i class="fas fa-bell"></i></div></header>
+            <div class="ob-ch-workspace">
+              <section class="ob-ch-main">
+                <header class="ob-ch-head"><i class="fas fa-arrow-left"></i><div class="ob-ch-title"><i class="fas fa-hashtag"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_d18c631c8e1203","general") ?? "general")}</div><div class="ob-ch-topic">${(globalThis.PlatformLanguage?.text("onboarding","m_12902fd6e80c3d","Company-wide announcements and chatter.") ?? "Company-wide announcements and chatter.")}</div><div class="ob-ch-actions"><i class="fas fa-bell"></i><i class="fas fa-bolt"></i><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-ellipsis"></i></div></header>
+                <div class="ob-ch-tabs"><div class="ob-ch-tab active">${(globalThis.PlatformLanguage?.text("onboarding","m_820b9cb136d6ed","Messages") ?? "Messages")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_357a58f2b3675d","Files") ?? "Files")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_5d7c7ad6033624","Documents") ?? "Documents")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_4bec39f8fa90dd","To Dos") ?? "To Dos")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_576cd53c8d929f","Pins") ?? "Pins")}</div></div>
+                <div class="ob-ch-messages">
+                  <div class="ob-ch-message"><div class="ob-ch-avatar">A</div><div class="ob-ch-message-copy"><div class="ob-ch-message-head">${(globalThis.PlatformLanguage?.text("onboarding","m_0bbbc46fe72d5d","Alex Morgan ") ?? "Alex Morgan ")}<span class="ob-ch-time">${(globalThis.PlatformLanguage?.text("onboarding","m_f68605820f0efc","9:42 AM") ?? "9:42 AM")}</span></div><div class="ob-ch-text">${((v7) => globalThis.PlatformLanguage?.text("onboarding","m_f942751806fe4a",`Welcome to ${v7}! This channel is for company-wide updates and conversation.`,{v7}) ?? `Welcome to ${v7}! This channel is for company-wide updates and conversation.`)(esc(ORG_NAME || 'the team'))}</div><div class="ob-ch-reaction"><i class="fas fa-thumbs-up"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_e51b7d28a83ccc","&nbsp; 4") ?? "&nbsp; 4")}</div></div></div>
+                  <div class="ob-ch-message"><div class="ob-ch-avatar">J</div><div class="ob-ch-message-copy"><div class="ob-ch-message-head">${(globalThis.PlatformLanguage?.text("onboarding","m_24ef52dbeb1cc7","Jordan Lee ") ?? "Jordan Lee ")}<span class="ob-ch-time">${(globalThis.PlatformLanguage?.text("onboarding","m_d09fb9b7b2a99b","10:08 AM") ?? "10:08 AM")}</span></div><div class="ob-ch-text">${(globalThis.PlatformLanguage?.text("onboarding","m_930e0901f46176","I added the launch notes to the Files tab.") ?? "I added the launch notes to the Files tab.")}</div></div></div>
+                </div>
+                <div class="ob-ch-composer"><div class="ob-ch-formatbar"><b>B</b><i>I</i><i class="fas fa-code"></i><i class="fas fa-list"></i></div><div class="ob-ch-compose"><span>${(globalThis.PlatformLanguage?.text("onboarding","m_182728baf40759","Message general") ?? "Message general")}</span><i class="fas fa-face-smile"></i><i class="fas fa-paperclip"></i><div class="ob-ch-send">${(globalThis.PlatformLanguage?.text("onboarding","m_c23a056552a09f","Send") ?? "Send")}</div></div></div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </div>`;
+  }
+
+  function workspacePreviewMarkup(surface = 'inline'){
+    const pageClass = surface === 'modal' ? 'ob-preview-modal-page' : 'ob-preview-page';
+    return `
+      <div class="${String(pageClass)} ob-workspace-preview" style="--ob-ws-primary:${String(esc(readableVariant(brandState.primary)))};--ob-ws-primary-rgb:${String(esc(hexToRgbCsv(readableVariant(brandState.primary)) || '217,48,37'))}">
+        <div class="ob-ws-shell">
+          <aside class="ob-ws-rail">
+            <div class="ob-ws-brand"><div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div></div>
+            <nav class="ob-ws-nav" aria-label="${(globalThis.PlatformLanguage?.text("onboarding","m_680abe10428803","Sample navigation") ?? "Sample navigation")}">
+              <div class="ob-ws-nav-item active"><i class="fas fa-house"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_b69161f38dacdf","Overview") ?? "Overview")}</span></div>
+              <div class="ob-ws-nav-item"><i class="fas fa-briefcase"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_222066ef57ae0e","Work") ?? "Work")}</span></div>
+              <div class="ob-ws-nav-item"><i class="fas fa-user-group"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_9830fe947c8db6","Customers") ?? "Customers")}</span></div>
+              <div class="ob-ws-nav-item"><i class="fas fa-calendar"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_77882a9c01fabf","Calendar") ?? "Calendar")}</span></div>
+            </nav>
+            <div class="ob-ws-profile"><div class="ob-ws-avatar">${String(esc((ME_NAME || 'Y').slice(0, 1).toUpperCase()))}</div><div class="ob-ws-profile-lines"><span class="ob-ws-line"></span><span class="ob-ws-line short"></span></div></div>
+          </aside>
+          <section class="ob-ws-app">
+            <header class="ob-ws-topbar"><div class="ob-ws-search"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_55524759bb89e3","Search") ?? "Search")}</span></div><div class="ob-ws-tools"><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-bell"></i><i class="fas fa-gear"></i></div></header>
+            <div class="ob-ws-content">
+              <div class="ob-ws-page-head"><span class="ob-ws-heading"></span><span class="ob-ws-action"></span></div>
+              <div class="ob-ws-cards"><div class="ob-ws-card"><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div><div class="ob-ws-card"><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div><div class="ob-ws-card"><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div></div>
+              <div class="ob-ws-table">${String([0,1,2,3].map(() => '<div class="ob-ws-table-row"><span class="ob-ws-line"></span><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div>').join(''))}</div>
+              <div class="ob-ws-modal"><div class="ob-ws-modal-head"><span class="ob-ws-modal-title"></span><i class="fas fa-xmark ob-ws-modal-close"></i></div><div class="ob-ws-modal-body"><div class="ob-ws-field"><span class="ob-ws-line"></span><span class="ob-ws-input"></span></div><div class="ob-ws-field"><span class="ob-ws-line"></span><span class="ob-ws-input"></span></div></div><div class="ob-ws-modal-footer"><span class="ob-ws-modal-btn"></span><span class="ob-ws-modal-btn primary"></span></div></div>
+            </div>
+          </section>
+        </div>
+      </div>`;
   }
 
   /* ── Update live preview ─────────────────────────── */
@@ -2855,6 +2901,18 @@
     document.querySelectorAll('.ob-prev-big').forEach(el => {
       el.style.color = brandState.primary;
     });
+    document.querySelectorAll('.ob-channels-preview').forEach(el => {
+      const accent = readableVariant(brandState.primary);
+      el.style.setProperty('--ob-ch-primary', accent);
+      const rgb = hexToRgbCsv(accent);
+      if (rgb) el.style.setProperty('--ob-ch-primary-rgb', rgb);
+    });
+    document.querySelectorAll('.ob-workspace-preview').forEach(el => {
+      const accent = readableVariant(brandState.primary);
+      el.style.setProperty('--ob-ws-primary', accent);
+      const rgb = hexToRgbCsv(accent);
+      if (rgb) el.style.setProperty('--ob-ws-primary-rgb', rgb);
+    });
   }
 
   function openPreviewModal(){
@@ -2863,28 +2921,30 @@
 
     const modal = document.createElement('div');
     modal.className = 'ob-preview-modal';
+    const channelsMode = channelsBrandingMode();
+    const workspaceMode = homeImprovementBrandingMode();
     modal.innerHTML = `
-      <div class="ob-preview-modal-inner">
+      <div class="ob-preview-modal-inner${channelsMode ? ' ob-channels-preview-frame' : workspaceMode ? ' ob-workspace-preview-frame' : ''}">
         <button class="ob-preview-modal-close" type="button"><i class="fas fa-xmark"></i></button>
-        <div class="ob-preview-modal-page">
-          <div class="ob-preview-bar-p" style="background:${esc(brandState.primary)}"></div>
-          <div class="ob-preview-bar-s" style="background:${esc(brandState.secondary)}"></div>
+        ${channelsMode ? channelsPreviewMarkup('modal') : workspaceMode ? workspacePreviewMarkup('modal') : `<div class="ob-preview-modal-page">
+          <div class="ob-preview-bar-p" style="background:${String(esc(brandState.primary))}"></div>
+          <div class="ob-preview-bar-s" style="background:${String(esc(brandState.secondary))}"></div>
           <div class="ob-preview-inner">
-            <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${esc(brandState.logoUrl || DEFAULT_LOGO)}" alt="Logo"></div>
-            <div class="ob-prev-diagram"><img src="${esc(SAMPLE_DIAGRAM)}" alt="Sample report"></div>
+            <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
+            <div class="ob-prev-diagram"><img src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
             <div class="ob-prev-info">
-              <div class="ob-prev-box left" style="border-left-color:${esc(brandState.primary)}">
-                <div class="ob-prev-label">Prepared for</div>
-                <div class="ob-prev-value ob-prev-orgname">${esc(ORG_NAME || 'Your Company')}</div>
+              <div class="ob-prev-box left" style="border-left-color:${String(esc(brandState.primary))}">
+                <div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div>
+                <div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div>
               </div>
-              <div class="ob-prev-box right" style="border-left-color:${esc(brandState.primary)}">
-                <div class="ob-prev-label">Measurements</div>
-                <div class="ob-prev-value">Squares</div>
-                <div class="ob-prev-big" style="color:${esc(brandState.primary)}">23.5</div>
+              <div class="ob-prev-box right" style="border-left-color:${String(esc(brandState.primary))}">
+                <div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div>
+                <div class="ob-prev-value">${(globalThis.PlatformLanguage?.text("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div>
+                <div class="ob-prev-big" style="color:${String(esc(brandState.primary))}">23.5</div>
               </div>
             </div>
           </div>
-        </div>
+        </div>`}
       </div>
     `;
 
@@ -2910,62 +2970,57 @@
   function renderPage0(){
     const page = document.getElementById('obPage0');
     if (!page) return;
+    const channelsMode = channelsBrandingMode();
+    const workspaceMode = homeImprovementBrandingMode();
+    const inlinePreview = channelsMode ? channelsPreviewMarkup('inline') : workspaceMode ? workspacePreviewMarkup('inline') : `
+      <div class="ob-preview-page">
+        <div class="ob-preview-bar-p" style="background:${String(esc(brandState.primary))}"></div>
+        <div class="ob-preview-bar-s" style="background:${String(esc(brandState.secondary))}"></div>
+        <div class="ob-preview-inner">
+          <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
+          <div class="ob-prev-diagram"><img id="obSampleDiagram" src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
+          <div class="ob-prev-info">
+            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div></div>
+            <div class="ob-prev-box right"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div><div class="ob-prev-value">${(globalThis.PlatformLanguage?.text("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div><div class="ob-prev-big">23.5</div></div>
+          </div>
+        </div>
+      </div>`;
 
     page.innerHTML = `
       <div class="ob-progress"></div>
-      <div class="ob-step-label">${stepLabel(0)}</div>
-      <h1 class="ob-h1">Welcome</h1>
-      <p class="ob-sub">Tell us about you and your company, then set up your branding.</p>
-
-      <div class="ob-profile-row">
-        <div class="ob-row">
-          <label class="ob-lbl" for="obFullName">Full name</label>
-          <input class="ob-input" id="obFullName" name="full_name" placeholder="Your full name" autocomplete="name" value="${esc(profileState.fullName)}">
-        </div>
-
-        <div class="ob-row">
-          <label class="ob-lbl" for="obPhone">Phone number</label>
-          <input class="ob-input" id="obPhone" name="phone" type="tel" inputmode="tel" placeholder="(555) 555-0123" autocomplete="tel" maxlength="14" required value="${esc(formatOnboardingPhone(profileState.phone))}">
-        </div>
+      <div class="ob-step-label">${String(stepLabel(0))}</div>
+      <h1 class="ob-h1">${(globalThis.PlatformLanguage?.text("onboarding","m_2e992f8bee9c08","Welcome") ?? "Welcome")}</h1>
+      <div class="ob-welcome-names">
+        <div class="ob-name-user">${String(esc(ME_NAME || ME_EMAIL))}</div>
+        <div class="ob-name-org">${String(esc(ORG_NAME || 'Your Company'))}</div>
       </div>
 
-      <div class="ob-profile-row">
-        <div class="ob-row">
-          <label class="ob-lbl" for="obCompanyName">Company name</label>
-          <input class="ob-input" id="obCompanyName" name="company_name" placeholder="Your company name" autocomplete="organization" value="${esc(profileState.companyName)}">
-        </div>
-
-        <div class="ob-row">
-          <label class="ob-lbl" for="obWebsite">Company website</label>
-          <div class="ob-website-row">
-            <input class="ob-input" id="obWebsite" placeholder="yourcompany.com" autocomplete="url" spellcheck="false" value="${esc(brandState.website)}">
-            <button class="ob-btn primary ob-btn-icon" id="obWebsiteGo" type="button">
-              <i class="fas fa-arrow-right"></i>
-            </button>
-          </div>
-          <button class="ob-alt-btn ${brandState.noWebsite ? 'active' : ''}" id="obNoWebsiteBtn" type="button">
-            <i class="fas fa-globe"></i>
-            I don't have a website
-              <span class="ob-check-sub">I'll choose my colors manually.</span>
+      <div class="ob-row">
+        <label class="ob-lbl">${(globalThis.PlatformLanguage?.text("onboarding","m_6ab3729e8bcb2e","Company website") ?? "Company website")}</label>
+        <div class="ob-website-row">
+          <input class="ob-input" id="obWebsite" placeholder="${(globalThis.PlatformLanguage?.text("onboarding","m_992a2b48510215","yourcompany.com") ?? "yourcompany.com")}" autocomplete="url" spellcheck="false" value="${String(esc(brandState.website))}">
+          <button class="ob-btn primary ob-btn-icon" id="obWebsiteGo" type="button">
+            <i class="fas fa-arrow-right"></i>
           </button>
         </div>
+        <button class="ob-alt-btn ${String(brandState.noWebsite ? 'active' : '')}" id="obNoWebsiteBtn" type="button">
+          <i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_9cd6f3c7841cbf","\n          I don't have a website\n            ") ?? "\n          I don't have a website\n            ")}<span class="ob-check-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_5aae5f95d8814d","I'll choose my colors manually.") ?? "I'll choose my colors manually.")}</span>
+        </button>
       </div>
 
-      <div class="ob-brand-section ${brandState.logoUrl || brandState.colorsExtracted ? 'open' : ''}" id="obBrandSection">
+      <div class="ob-brand-section ${String(brandState.logoUrl || brandState.colorsExtracted ? 'open' : '')}" id="obBrandSection">
         <div class="ob-brand-copy">
-          <div class="ob-brand-copy-title">Set your colors</div>
-          <div class="ob-brand-copy-sub">These colors will show up in your branded reports and portal.</div>
+          <div class="ob-brand-copy-title">${(globalThis.PlatformLanguage?.text("onboarding","m_427462d62692c7","Set your colors") ?? "Set your colors")}</div>
+          <div class="ob-brand-copy-sub">${String(channelsMode ? 'Preview how your logo and colors will look in Channels.' : workspaceMode ? 'Preview your logo and colors in a sample company workspace.' : 'These colors will show up across your FirstMate workspace.')}</div>
         </div>
         <div class="ob-logo-area" id="obLogoArea">
           <div class="ob-logo-zone" id="obLogoZone">
-            ${brandState.logoUrl
+            ${String(brandState.logoUrl
               ? `<img src="${esc(brandState.logoUrl)}" id="obLogoImg">`
-              : ''}
+              : '')}
             <div class="ob-logo-placeholder" id="obLogoPlaceholder">
-              <i class="fas fa-cloud-arrow-up"></i>
-              Tap to upload your own logo
-            </div>
-            <span class="ob-logo-mini-label"><i class="fas fa-pen" style="font-size:9px;"></i> ${brandState.logoUrl ? 'Tap to change' : 'Tap to upload your own logo'}</span>
+              <i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_eeed03da94eb62","\n              Tap to upload your own logo\n            ") ?? "\n              Tap to upload your own logo\n            ")}</div>
+            <span class="ob-logo-mini-label"><i class="fas fa-pen" style="font-size:9px;"></i> ${String(brandState.logoUrl ? 'Tap to change' : 'Tap to upload your own logo')}</span>
             <input type="file" id="obLogoFile" accept="image/*">
           </div>
           <div class="ob-logo-actions" id="obLogoActions"></div>
@@ -2974,46 +3029,28 @@
         <div class="ob-brand-bottom">
           <div class="ob-colors-zone">
             <div class="ob-color-row">
-              <input type="color" class="ob-color-swatch" id="obPrimary" value="${brandState.primary}">
+              <input type="color" class="ob-color-swatch" id="obPrimary" value="${String(brandState.primary)}">
             </div>
             <div class="ob-color-row">
-              <input type="color" class="ob-color-swatch" id="obSecondary" value="${brandState.secondary}">
+              <input type="color" class="ob-color-swatch" id="obSecondary" value="${String(brandState.secondary)}">
             </div>
           </div>
           <div class="ob-preview-col">
             <div class="ob-preview-wrap" id="obPreviewWrap">
-              <div class="ob-preview-page">
-                <div class="ob-preview-bar-p" style="background:${esc(brandState.primary)}"></div>
-                <div class="ob-preview-bar-s" style="background:${esc(brandState.secondary)}"></div>
-                <div class="ob-preview-inner">
-                  <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${esc(brandState.logoUrl || DEFAULT_LOGO)}" alt="Logo"></div>
-                  <div class="ob-prev-diagram"><img id="obSampleDiagram" src="${esc(SAMPLE_DIAGRAM)}" alt="Sample report"></div>
-                  <div class="ob-prev-info">
-                    <div class="ob-prev-box left">
-                      <div class="ob-prev-label">Prepared for</div>
-                      <div class="ob-prev-value ob-prev-orgname">${esc(ORG_NAME || 'Your Company')}</div>
-                    </div>
-                    <div class="ob-prev-box right">
-                      <div class="ob-prev-label">Measurements</div>
-                      <div class="ob-prev-value">Squares</div>
-                      <div class="ob-prev-big">23.5</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="ob-preview-tap"><i class="fas fa-expand"></i> Expand preview</div>
+              ${String(inlinePreview)}
+              <div class="ob-preview-tap"><i class="fas fa-expand"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_15bd98c986ce3d"," Expand preview") ?? " Expand preview")}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="ob-hint" id="obBrandHint" style="${brandState.noWebsite || brandState.domain ? '' : 'display:none;'}"><i class="fas fa-info-circle"></i> You can adjust your logo and colors anytime from Company Settings.</div>
+      <div class="ob-hint" id="obBrandHint" style="${String(brandState.noWebsite || brandState.domain ? '' : 'display:none;')}"><i class="fas fa-info-circle"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_678738328a6129"," You can adjust your logo and colors anytime from Company Settings.") ?? " You can adjust your logo and colors anytime from Company Settings.")}</div>
 
       <div class="ob-footer">
         <div></div>
         <div class="ob-footer-right">
-          <button class="ob-btn ghost" id="obSkip0" type="button">Skip</button>
-          <button class="ob-btn primary" id="obNext0" type="button">Next <i class="fas fa-arrow-right"></i></button>
+          <button class="ob-btn ghost" id="obSkip0" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
+          <button class="ob-btn primary" id="obNext0" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right"></i></button>
         </div>
       </div>
     `;
@@ -3030,58 +3067,8 @@
     const previewWrap = document.getElementById('obPreviewWrap');
     const noWebsiteBtn = document.getElementById('obNoWebsiteBtn');
     const brandHint = document.getElementById('obBrandHint');
-    const fullNameInput = document.getElementById('obFullName');
-    const phoneInput = document.getElementById('obPhone');
-    const companyNameInput = document.getElementById('obCompanyName');
 
     const obPage0 = document.getElementById('obPage0');
-
-    function clearRequiredField(input){
-      if (!input) return;
-      const row = input.closest('.ob-row');
-      input.classList.remove('ob-input-invalid');
-      input.removeAttribute('aria-invalid');
-      input.removeAttribute('aria-describedby');
-      row?.classList.remove('ob-row-invalid');
-      row?.querySelector('.ob-field-error')?.remove();
-    }
-
-    function markRequiredField(input, message){
-      if (!input) return;
-      clearRequiredField(input);
-      const row = input.closest('.ob-row');
-      const error = document.createElement('div');
-      const errorId = `${input.id}Error`;
-      error.className = 'ob-field-error';
-      error.id = errorId;
-      error.innerHTML = `<i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>${esc(message)}</span>`;
-      row?.appendChild(error);
-      row?.classList.add('ob-row-invalid');
-      input.classList.add('ob-input-invalid');
-      input.setAttribute('aria-invalid', 'true');
-      input.setAttribute('aria-describedby', errorId);
-    }
-
-    function syncProfileState(){
-      profileState.fullName = String(fullNameInput?.value || '').trim();
-      if (phoneInput) profileState.phone = formatOnboardingPhone(phoneInput.value);
-      profileState.companyName = String(companyNameInput?.value || '').trim();
-      if (profileState.companyName) {
-        ORG_NAME = profileState.companyName;
-        document.querySelectorAll('.ob-prev-orgname').forEach(el => {
-          el.textContent = profileState.companyName;
-        });
-      }
-      saveState();
-    }
-
-    fullNameInput?.addEventListener('input', () => { clearRequiredField(fullNameInput); syncProfileState(); });
-    phoneInput?.addEventListener('input', () => {
-      phoneInput.value = formatOnboardingPhone(phoneInput.value);
-      clearRequiredField(phoneInput);
-      syncProfileState();
-    });
-    companyNameInput?.addEventListener('input', () => { clearRequiredField(companyNameInput); syncProfileState(); });
 
     function setLogoPlaceholder(text){
       if (!logoPlaceholder) return;
@@ -3270,7 +3257,7 @@
       });
       if (!brandState.domain) {
         trackOnboarding('website_lookup_error', { metadata: { reason: 'invalid_url', value_length: val.length } });
-        showToast('Invalid URL', 'Please enter a valid website address.', false);
+        showToast((globalThis.PlatformLanguage?.text("onboarding","m_ef860fcc2438d2","Invalid URL") ?? "Invalid URL"), (globalThis.PlatformLanguage?.text("onboarding","m_f9da02942ecaa9","Please enter a valid website address.") ?? "Please enter a valid website address."), false);
         return;
       }
       syncBrandHint();
@@ -3290,11 +3277,11 @@
       /* Show searching spinner */
       const spinner = document.createElement('div');
       spinner.className = 'ob-logo-spinner';
-      spinner.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span class="ob-spinner-text">Searching for logo…</span>';
+      spinner.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span class="ob-spinner-text">${(globalThis.PlatformLanguage?.text("onboarding","m_c3a01404101ce8","Searching for logo…") ?? "Searching for logo…")}</span>`;
       logoZone.appendChild(spinner);
 
       const gen = ++logoSearchGen;
-      const found = await preloadBestLogo(brandState.domain);
+      const found = await findBestLogo(brandState.domain);
       spinner.remove();
 
       /* Bail if user skipped/navigated during the search */
@@ -3325,13 +3312,13 @@
         /* Add question text inside zone */
         const qEl = document.createElement('div');
         qEl.className = 'ob-logo-q';
-        qEl.textContent = 'Is this your logo?';
+        qEl.textContent = (globalThis.PlatformLanguage?.text("onboarding","m_c3da268c6a1793","Is this your logo?") ?? "Is this your logo?");
         logoZone.appendChild(qEl);
 
         /* Buttons OUTSIDE the zone */
         logoActions.innerHTML = `
-          <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i> Yes</button>
-          <button class="ob-logo-action-btn" type="button"><i class="fas fa-xmark"></i> No</button>
+          <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_f01d0e54dfe853"," Yes") ?? " Yes")}</button>
+          <button class="ob-logo-action-btn" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_9b9eae6fc72fdb"," No") ?? " No")}</button>
         `;
 
         const [btnYes, btnNo] = logoActions.querySelectorAll('.ob-logo-action-btn');
@@ -3388,8 +3375,8 @@
         }
         const applyLabel = brandState.logoUrl ? 'Keep this logo' : 'Yes, use this';
         logoActions.innerHTML = `
-          <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i> ${applyLabel}</button>
-          <button class="ob-logo-action-btn" type="button"><i class="fas fa-upload"></i> Upload different</button>
+          <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i> ${String(applyLabel)}</button>
+          <button class="ob-logo-action-btn" type="button"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_79af7cef452dc0"," Upload different") ?? " Upload different")}</button>
         `;
         const [btnKeep, btnChange] = logoActions.querySelectorAll('.ob-logo-action-btn');
         btnKeep.addEventListener('click', () => {
@@ -3494,56 +3481,64 @@
     const skip0 = document.getElementById('obSkip0');
     const next0 = document.getElementById('obNext0');
 
-    function continueWhileBrandingSaves(){
-      const savePromise = saveBranding();
-      renderPage1();
-      goToPage(nextVisiblePage(0));
-      savePromise.catch(() => {
-        showToast('Still saving your setup', 'We could not save your profile yet. We will retry before setup finishes.', false);
-      });
-    }
-
-    function saveBrandingAndContinue(){
+    async function saveBrandingAndContinue(){
       if (skip0.disabled || next0.disabled) return;
-      syncProfileState();
-      const missingFields = [
-        !profileState.fullName ? { input: fullNameInput, message: 'Enter your full name.' } : null,
-        !isValidOnboardingPhone(profileState.phone) ? { input: phoneInput, message: 'Enter a valid ten-digit mobile phone number.' } : null,
-        !profileState.companyName ? { input: companyNameInput, message: 'Enter your company name.' } : null,
-      ].filter(Boolean);
-      if (missingFields.length) {
-        missingFields.forEach(({ input, message }) => markRequiredField(input, message));
-        showToast('Required fields missing', 'Complete the highlighted fields to continue.', false);
-        missingFields[0].input?.focus();
-        return;
-      }
       skip0.disabled = true;
       next0.disabled = true;
-      continueWhileBrandingSaves();
-      queueMicrotask(() => {
+      try {
+        await saveBranding();
+        // A host workflow can take over after the production branding step
+        // without copying its website discovery, uploads, palette extraction,
+        // or preview UI. Normal onboarding has no listener and continues to
+        // the next built-in page exactly as before.
+        const completionEvent = new CustomEvent('fm:onboarding:branding-complete', {
+          cancelable: true,
+          detail: { next_page: pageName(nextVisiblePage(0)), state: onboardingStateSnapshot() }
+        });
+        if (!window.dispatchEvent(completionEvent)) return;
+        goToPage(nextVisiblePage(0));
+      } finally {
         skip0.disabled = false;
         next0.disabled = false;
-      });
+      }
     }
 
-    skip0.addEventListener('click', () => {
-      if (skip0.disabled || next0.disabled) return;
-      syncProfileState();
-      if (!isValidOnboardingPhone(profileState.phone)) {
-        markRequiredField(phoneInput, 'Enter a valid ten-digit mobile phone number.');
-        showToast('Phone number required', 'Enter a valid mobile phone number before continuing.', false);
-        phoneInput?.focus();
-        return;
+    skip0.addEventListener('click', async () => {
+      if (!brandSec.classList.contains('open')) {
+        skipWebsiteAndLogoToColors();
+      } else if (brandSec.classList.contains('logo-expanded')) {
+        /* Still on logo step — skip = don't apply logo, show preview */
+        logoSearchGen++; /* cancel any pending search */
+        /* Clean up any spinners, questions, actions */
+        const spinner = logoZone.querySelector('.ob-logo-spinner');
+        if (spinner) spinner.remove();
+        const q = logoZone.querySelector('.ob-logo-q');
+        if (q) q.remove();
+        logoActions.innerHTML = '';
+        /* Don't apply the logo to branding if not formally accepted */
+        if (!brandSec.classList.contains('logo-accepted')) {
+          /* Keep the image visible in the collapsed bar for reference,
+             but clear it from brandState so it won't be used in reports */
+          brandState.logoUrl = null;
+          brandState.logoFile = null;
+          /* Don't remove the img element — leave it visible */
+          const hasImg = !!logoZone.querySelector('img#obLogoImg');
+          logoZone.classList.toggle('has-logo', hasImg);
+          updatePreview();
+        }
+        /* Update mini-label */
+        const miniLabel = logoZone.querySelector('.ob-logo-mini-label');
+        if (miniLabel) {
+          const hasVisibleImg = !!logoZone.querySelector('img#obLogoImg');
+          miniLabel.innerHTML = hasVisibleImg
+            ? '<i class="fas fa-pen" style="font-size:9px;"></i> Tap to apply'
+            : '<i class="fas fa-cloud-arrow-up" style="font-size:9px;"></i> Tap to upload your own logo';
+        }
+        setLogoCollapsed();
+      } else {
+        /* Already past logo, viewing preview — go to next page */
+        await saveBrandingAndContinue();
       }
-      logoSearchGen++;
-      trackOnboarding('branding_step_skipped', { metadata: { state: onboardingStateSnapshot() } });
-      skip0.disabled = true;
-      next0.disabled = true;
-      continueWhileBrandingSaves();
-      queueMicrotask(() => {
-        skip0.disabled = false;
-        next0.disabled = false;
-      });
     });
 
     next0.addEventListener('click', async () => {
@@ -3570,7 +3565,7 @@
         }
       } else {
         /* Already past logo — save and go to next page */
-        saveBrandingAndContinue();
+        await saveBrandingAndContinue();
       }
     });
 
@@ -3587,44 +3582,8 @@
     syncSkipLogoLabel();
   }
 
-  async function saveOnboardingProfile(payload){
-    let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const { res, data } = await postAction('org_update_my', payload);
-        if (!res?.ok || !data?.success) {
-          throw new Error(data?.error || `Profile save failed (${res?.status || 'unknown status'}).`);
-        }
-        return data;
-      } catch (error) {
-        lastError = error;
-        if (attempt === 0) await wait(400);
-      }
-    }
-    throw lastError || new Error('Profile save failed.');
-  }
-
-  async function ensureBrandingSaved(){
-    if (brandingSavePromise) {
-      try {
-        await brandingSavePromise;
-      } catch(e){ /* retry the critical profile save below */ }
-    }
-    if (brandingSaveError) await saveBranding();
-  }
-
   async function saveBranding(){
     if (brandingSavePromise) return brandingSavePromise;
-    brandingSaveError = null;
-    const profilePayload = {
-      full_name: profileState.fullName,
-      phone: profileState.phone,
-      name: profileState.companyName,
-      website: brandState.website,
-      accent: brandState.primary,
-      secondary: brandState.secondary,
-    };
-    const profileSavePromise = saveOnboardingProfile(profilePayload);
     brandingSavePromise = (async () => {
     /* If the logo came from a URL (web scrape) rather than a file upload,
        fetch it through the proxy and convert to a File so it gets uploaded. */
@@ -3652,12 +3611,17 @@
           fd.append('actor_name', window.__APP?.userName || '');
           fd.append('actor_org_id', window.__APP?.userOrgId || '');
           fd.append('logo', brandState.logoFile);
-          const res = await fetch(APP_CFG.serverEndpoint, { method:'POST', body:fd });
+          const res = await fetch(APP_CFG.serverEndpoint, { method:'POST', body:fd, credentials:'include' });
           const d = await res.json().catch(()=>null);
           if (d?.success) brandState.logoUrl = d.logo || brandState.logoUrl;
         } catch(e){ /* silent */ }
       }
-      await profileSavePromise;
+      try {
+        await postAction('org_update_my', {
+          accent: brandState.primary,
+          secondary: brandState.secondary,
+        });
+      } catch(e){ /* silent */ }
       applyLiveTheme(brandState.primary, brandState.secondary);
 
       /* Refresh the main page theme behind the overlay now, so that by the
@@ -3665,15 +3629,10 @@
       if (typeof window.__refreshTheme === 'function') {
         window.__refreshTheme();   // fire-and-forget — runs in background
       }
-      ORG_NAME = profileState.companyName || ORG_NAME;
-      renderPage1();
       saveState(); // persist finalised logoUrl + colors
     })();
     try {
       await brandingSavePromise;
-    } catch (error) {
-      brandingSaveError = error;
-      throw error;
     } finally {
       brandingSavePromise = null;
     }
@@ -3702,38 +3661,36 @@
     const page = document.getElementById('obPage1');
     if (!page) return;
 
-    const displayName = profileState.fullName || ME_NAME || ME_EMAIL;
-    const initial = displayName ? displayName.charAt(0).toUpperCase() : '?';
+    const initial = ME_NAME ? ME_NAME.charAt(0).toUpperCase() : '?';
 
     page.innerHTML = `
       <div class="ob-progress"></div>
-      <div class="ob-step-label">${stepLabel(1)}</div>
-      <h2 class="ob-h2">Invite your team</h2>
-      <p class="ob-sub">Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.</p>
+      <div class="ob-step-label">${String(stepLabel(1))}</div>
+      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.text("onboarding","m_d7433f84bf9cdf","Invite your team") ?? "Invite your team")}</h2>
+      <p class="ob-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_fb95d611553579","Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.") ?? "Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.")}</p>
 
       <div class="ob-user-me">
-        <div class="ob-avatar">${esc(initial)}</div>
+        <div class="ob-avatar">${String(esc(initial))}</div>
         <div class="ob-user-info">
-          <div class="ob-user-name">${esc(displayName)}</div>
-          <div class="ob-user-email">${esc(ME_EMAIL)}</div>
+          <div class="ob-user-name">${String(esc(ME_NAME || ME_EMAIL))}</div>
+          <div class="ob-user-email">${String(esc(ME_EMAIL))}</div>
         </div>
-        <div class="ob-role-tag"><i class="fas fa-shield-halved"></i> Super Admin</div>
+        <div class="ob-role-tag"><i class="fas fa-shield-halved"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_77d6550d8a0aa9"," Super Admin") ?? " Super Admin")}</div>
       </div>
 
       <div class="ob-invite-list" id="obInviteList"></div>
 
       <button class="ob-add-user-btn" id="obAddUser" type="button">
-        <i class="fas fa-plus"></i> Add a team member
-      </button>
+        <i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_d131ad7aadedbb"," Add a team member\n      ") ?? " Add a team member\n      ")}</button>
 
-      <div class="ob-hint"><i class="fas fa-info-circle"></i> You can manage users anytime from the Users section in Company Settings.</div>
+      <div class="ob-hint"><i class="fas fa-info-circle"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_163c9e8ccdb047"," You can manage users anytime from the Users section in Company Settings.") ?? " You can manage users anytime from the Users section in Company Settings.")}</div>
 
       <div class="ob-footer">
-        <button class="ob-btn ghost" id="obBack1" type="button"><i class="fas fa-arrow-left"></i> Back</button>
+        <button class="ob-btn ghost" id="obBack1" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="ob-footer-right">
-          <button class="ob-btn ghost" id="obSkip1" type="button">Skip</button>
+          <button class="ob-btn ghost" id="obSkip1" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
           <button class="ob-btn primary" id="obNext1" type="button">
-            ${invites.length > 0 ? 'Send invites' : 'Next'} <i class="fas fa-arrow-right"></i>
+            ${String(invites.length > 0 ? 'Send invites' : 'Next')} <i class="fas fa-arrow-right"></i>
           </button>
         </div>
       </div>
@@ -3780,7 +3737,7 @@
           } catch(e){ /* continue */ }
         }
         btn.disabled = false;
-        showToast('Invites sent', `${toSend.length} invite${toSend.length>1?'s':''} sent.`, true);
+        showToast((globalThis.PlatformLanguage?.text("onboarding","m_b982de697abe2d","Invites sent") ?? "Invites sent"), ((v0,v1) => globalThis.PlatformLanguage?.text("onboarding","m_507489a99d1632",`${v0} invite${v1} sent.`,{v0,v1}) ?? `${v0} invite${v1} sent.`)(toSend.length,toSend.length>1?'s':''), true);
       }
       goToPage(nextVisiblePage(1));
     });
@@ -3813,9 +3770,8 @@
           <i class="fas ${rp.icon}"></i> ${rp.label}
         </button>`
       ).join('') +
-      `<button class="ob-role-btn ${inv.role === 'custom' ? 'active' : ''}" data-inv="${inv.id}" data-role="custom" type="button">
-        <i class="fas fa-sliders"></i> Custom
-      </button>`;
+      `<button class="ob-role-btn ${String(inv.role === 'custom' ? 'active' : '')}" data-inv="${String(inv.id)}" data-role="custom" type="button">
+        <i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_2b39214759d91a"," Custom\n      ") ?? " Custom\n      ")}</button>`;
 
       const permButtons = PERM_META.map(pm => {
         const on = !!effectivePerms[pm.k];
@@ -3825,16 +3781,16 @@
       }).join('');
 
       return `
-        <div class="ob-invite-row ${isNew ? 'ob-new' : ''}" data-inv="${inv.id}">
+        <div class="ob-invite-row ${String(isNew ? 'ob-new' : '')}" data-inv="${String(inv.id)}">
           <div class="ob-invite-top">
-            <input class="ob-input" placeholder="Name" data-inv="${inv.id}" data-field="name" value="${esc(inv.name)}">
-            <input class="ob-input" placeholder="email@company.com" data-inv="${inv.id}" data-field="email" value="${esc(inv.email)}" inputmode="email">
-            <button class="ob-invite-remove" data-inv="${inv.id}" type="button"><i class="fas fa-xmark"></i></button>
+            <input class="ob-input" placeholder="${(globalThis.PlatformLanguage?.text("onboarding","m_8cf345002184e5","Name") ?? "Name")}" data-inv="${String(inv.id)}" data-field="name" value="${String(esc(inv.name))}">
+            <input class="ob-input" placeholder="${(globalThis.PlatformLanguage?.text("onboarding","m_83cc567bdd3fa7","email@company.com") ?? "email@company.com")}" data-inv="${String(inv.id)}" data-field="email" value="${String(esc(inv.email))}" inputmode="email">
+            <button class="ob-invite-remove" data-inv="${String(inv.id)}" type="button"><i class="fas fa-xmark"></i></button>
           </div>
-          <div class="ob-role-presets">${roleButtons}</div>
-          <div class="ob-perms-grid" data-inv="${inv.id}">
-            <div class="ob-perms-label">Permissions</div>
-            ${permButtons}
+          <div class="ob-role-presets">${String(roleButtons)}</div>
+          <div class="ob-perms-grid" data-inv="${String(inv.id)}">
+            <div class="ob-perms-label">${(globalThis.PlatformLanguage?.text("onboarding","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
+            ${String(permButtons)}
           </div>
         </div>
       `;
@@ -3929,8 +3885,8 @@
     const loadTiers = activeLoadTiers();
     const bonusMinimum = bonusMinimumLoadAmount();
     const bonusIntroHtml = bonusOfferEnabled()
-      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>As a new customer, we're offering a <strong>one time bonus match</strong> on your first load of more than ${esc(`$${bonusMinimum}`)}. If you are unhappy for any reason, you're always covered by our no-questions-asked money-back guarantee.</p>`
-      : '<p class="ob-sub">Load your account now, then add your card in our secure checkout.</p>';
+      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.text("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.text("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(`$${bonusMinimum}`))}</p>`
+      : `<p class="ob-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_8f203cf0d6d287","Load your account now, then add your card in our secure checkout.") ?? "Load your account now, then add your card in our secure checkout.")}</p>`;
     const tiersHtml = loadTiers.map(t => {
       const bonusText = bonusDollarsText(t.amount);
       return `
@@ -3947,26 +3903,26 @@
     const customSelected = !selectedTier && customAmount;
     const customPreviewAmount = parseInt(customAmount, 10) || 0;
     const customTileHtml = `
-      <div class="ob-tier ob-tier-custom ${customSelected ? 'selected' : ''}" id="obCustomTile">
-        <div class="ob-tier-custom-label">Custom</div>
+      <div class="ob-tier ob-tier-custom ${String(customSelected ? 'selected' : '')}" id="obCustomTile">
+        <div class="ob-tier-custom-label">${(globalThis.PlatformLanguage?.text("onboarding","m_6edcf7d7d41112","Custom") ?? "Custom")}</div>
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:16px;font-weight:900;color:rgba(0,0,0,.35);">$</span>
-          <input class="ob-tier-custom-input" id="obCustomAmount" placeholder="—" inputmode="numeric" value="${esc(customAmount)}">
+          <input class="ob-tier-custom-input" id="obCustomAmount" placeholder="—" inputmode="numeric" value="${String(esc(customAmount))}">
         </div>
-        <div class="ob-tier-custom-preview" id="obCustomPreview" style="${customPreviewAmount ? '' : 'display:none;'}">${customPreviewAmount ? customBonusPreviewHtml(customPreviewAmount) : ''}</div>
+        <div class="ob-tier-custom-preview" id="obCustomPreview" style="${String(customPreviewAmount ? '' : 'display:none;')}">${String(customPreviewAmount ? customBonusPreviewHtml(customPreviewAmount) : '')}</div>
       </div>
     `;
 
     page.innerHTML = `
       <div class="ob-progress"></div>
-      <div class="ob-step-label">${stepLabel(2)}</div>
-      <h2 class="ob-h2">Load your account</h2>
-      ${bonusIntroHtml}
+      <div class="ob-step-label">${String(stepLabel(2))}</div>
+      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.text("onboarding","m_3460e2ac6317dc","Load your account") ?? "Load your account")}</h2>
+      ${String(bonusIntroHtml)}
 
-      <div class="ob-tier-grid" id="obTierGrid">${tiersHtml}${customTileHtml}</div>
+      <div class="ob-tier-grid" id="obTierGrid">${String(tiersHtml)}${String(customTileHtml)}</div>
       <div class="ob-topup-msg" id="obLoadMsg" aria-live="polite"></div>
 
-      ${SIGNUP_AUTO_TOPUP_ENABLED ? `
+      ${String(SIGNUP_AUTO_TOPUP_ENABLED ? `
       <div class="ob-topup-config ob-topup-config-gated ${autoTopupSectionUnlocked || selectedTier || customAmount ? 'is-visible' : ''}" id="obTopupConfig">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
           <div>
@@ -3999,14 +3955,13 @@
         </div>
         <div class="ob-auto-summary" id="obAutoSummary"></div>
       </div>
-      ` : ''}
+      ` : '')}
 
       <div class="ob-footer">
-        <button class="ob-btn ghost" id="obBack2" type="button"><i class="fas fa-arrow-left"></i> Back</button>
+        <button class="ob-btn ghost" id="obBack2" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="ob-footer-right">
-          <button class="ob-btn ghost" id="obSkip2" type="button">Skip</button>
-          <button class="ob-btn primary" id="obNext2" type="button" ${!selectedTier && !customAmount ? 'disabled' : ''}>
-            Checkout <i class="fas fa-arrow-right"></i>
+          <button class="ob-btn ghost" id="obSkip2" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
+          <button class="ob-btn primary" id="obNext2" type="button" ${String(!selectedTier && !customAmount ? 'disabled' : '')}>${(globalThis.PlatformLanguage?.text("onboarding","m_8fd20318945f78","\n            Checkout ") ?? "\n            Checkout ")}<i class="fas fa-arrow-right"></i>
           </button>
         </div>
       </div>
@@ -4055,7 +4010,7 @@
         return;
       }
       autoSummary.style.display = '';
-      autoSummary.textContent = `If your balance falls below $${topupThreshold}, we will automatically add $${topupAmount} to your account.`;
+      autoSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("onboarding","m_f38174b09afe58",`If your balance falls below $${v0}, we will automatically add $${v1} to your account.`,{v0,v1}) ?? `If your balance falls below $${v0}, we will automatically add $${v1} to your account.`)(topupThreshold,topupAmount);
     }
 
     function setLoadMessage(text){
@@ -4265,14 +4220,13 @@
             has_offer_token: !!offerToken,
           });
         } catch(e){}
-        await ensureBrandingSaved();
         const { data } = await postAction('stripe_create_checkout', checkoutPayload);
         if (data?.success && data.url) {
           trackOnboarding('checkout_redirect', {
             metadata: { amount, quote: checkoutQuote, has_offer_token: !!checkoutPayload.offer_token, account_load: accountLoadSnapshot() }
           });
-          saveState();
           const checkoutSessionId = checkoutSessionIdFromResponse(data);
+          saveState();
           saveStateForStripe('credit_purchase', { session_id: checkoutSessionId });
           rememberStripeCheckoutPending({
             session_id: checkoutSessionId,
@@ -4286,10 +4240,10 @@
           return;
         }
         trackOnboarding('checkout_error', { metadata: { amount, error: data?.error || 'unknown', account_load: accountLoadSnapshot() } });
-        showToast('Checkout failed', data?.error || 'Please try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("onboarding","m_5932492ff03dc7","Checkout failed") ?? "Checkout failed"), data?.error || 'Please try again.', false);
       } catch(e){
         trackOnboarding('checkout_error', { metadata: { amount, error: 'request_failed', account_load: accountLoadSnapshot() } });
-        showToast('Error', 'Could not open checkout. Please try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("onboarding","m_77325c78a828d9","Error") ?? "Error"), (globalThis.PlatformLanguage?.text("onboarding","m_1d63b35618bdc9","Could not open checkout. Please try again.") ?? "Could not open checkout. Please try again."), false);
       }
       btn.disabled = false;
       btn.innerHTML = 'Checkout <i class="fas fa-arrow-right"></i>';
@@ -4330,28 +4284,27 @@
     if (!page) return;
     page.innerHTML = `
       <div class="ob-progress"></div>
-      <div class="ob-step-label">${stepLabel(VERIFY_PAGE)}</div>
-      <h2 class="ob-h2">Verify your email</h2>
-      <p class="ob-sub">We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.</p>
+      <div class="ob-step-label">${String(stepLabel(VERIFY_PAGE))}</div>
+      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.text("onboarding","m_f1aa26aee43e0e","Verify your email") ?? "Verify your email")}</h2>
+      <p class="ob-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_8342e19eddc030","We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.") ?? "We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.")}</p>
 
       <div class="ob-verification-card">
-        <label class="ob-label" for="obVerifyEmail">Email address</label>
+        <label class="ob-label" for="obVerifyEmail">${(globalThis.PlatformLanguage?.text("onboarding","m_2fbb4b11eb7b6f","Email address") ?? "Email address")}</label>
         <div class="ob-email-row">
-          <input class="ob-input" id="obVerifyEmail" value="${esc(verificationEmail || ME_EMAIL)}" inputmode="email" autocomplete="email">
+          <input class="ob-input" id="obVerifyEmail" value="${String(esc(verificationEmail || ME_EMAIL))}" inputmode="email" autocomplete="email">
           <button class="ob-btn ghost" id="obSendOtp" type="button">
-            ${verificationSent ? '<i class="fas fa-rotate"></i> Resend' : '<i class="fas fa-paper-plane"></i> Send code'}
+            ${String(verificationSent ? '<i class="fas fa-rotate"></i> Resend' : '<i class="fas fa-paper-plane"></i> Send code')}
           </button>
         </div>
-        <label class="ob-label" for="obVerifyOtp">Verification code</label>
+        <label class="ob-label" for="obVerifyOtp">${(globalThis.PlatformLanguage?.text("onboarding","m_3a7c6bd31cf96e","Verification code") ?? "Verification code")}</label>
         <input class="ob-input ob-otp-input" id="obVerifyOtp" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
-        <div class="ob-topup-msg" id="obVerifyMsg" aria-live="polite">${esc(verificationMessage)}</div>
+        <div class="ob-topup-msg" id="obVerifyMsg" aria-live="polite">${String(esc(verificationMessage))}</div>
       </div>
 
       <div class="ob-footer">
-        <button class="ob-btn ghost" id="obBackVerify" type="button"><i class="fas fa-arrow-left"></i> Back</button>
+        <button class="ob-btn ghost" id="obBackVerify" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="ob-footer-right">
-          <button class="ob-btn primary" id="obVerifyFinish" type="button">
-            Verify &amp; enter portal <i class="fas fa-check"></i>
+          <button class="ob-btn primary" id="obVerifyFinish" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_a455a4668ee54d","\n            Verify &amp; enter portal ") ?? "\n            Verify &amp; enter portal ")}<i class="fas fa-check"></i>
           </button>
         </div>
       </div>
@@ -4397,7 +4350,6 @@
       finishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
       trackOnboarding('otp_verify_attempt', { metadata: { email_changed: email.toLowerCase() !== (ME_EMAIL || '').toLowerCase() } });
       try {
-        await ensureBrandingSaved();
         const { data } = await postAction('onboarding_signup_verification_confirm', {
           email,
           otp,
@@ -4553,7 +4505,7 @@
       }
     }
 
-    await loadAcquisitionBonusOffer();
+    await Promise.all([loadAcquisitionBonusOffer(), resolveOnboardingOrgName()]);
 
     try {
       const url    = new URL(window.location.href);
@@ -4632,5 +4584,9 @@
   window.Portal.modules.onboarding_wizard = {
     show: mount,
     isVisible: () => !!document.getElementById('obOverlay'),
+    goToPage,
+    currentPage: () => currentPage,
+    pageIndexForName: (name) => ({ branding: 0, users: 1, account_load: 2 })[String(name)] ?? null,
+    pageName,
   };
 })();

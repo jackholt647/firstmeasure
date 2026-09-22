@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "apps": [
+    {
+      "id": "geo",
+      "directory": "external-apps/packages/geo",
+      "enabled": true
+    }
+  ]
+}

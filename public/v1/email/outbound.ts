@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { guardDevelopmentEmail } from "../src/environment_safety.js";
+import { env } from "../src/config/env.js";
 
 export type TransactionalEmailInput = {
   to: string;
@@ -12,6 +13,7 @@ export type TransactionalEmailInput = {
   replyTo?: string;
   tag?: string;
   metadata?: Record<string, string>;
+  attachments?: Array<{ Name: string; Content: string; ContentType: string }>;
 };
 
 const API_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -72,13 +74,18 @@ async function readPostmarkToken() {
   return "";
 }
 
-export async function sendTransactionalEmail(input: TransactionalEmailInput) {
+/** FirstMate platform/account mail from 1m8.ai. Customer-facing org mail must use organization_outbound.ts. */
+export async function sendPlatformTransactionalEmail(input: TransactionalEmailInput) {
   const to = normalizeEmail(input.to);
   const subject = cleanText(input.subject);
   const textBody = cleanText(input.textBody);
   if (!to) return { ok: false, success: false, error: "missing_recipient" };
   if (!subject) return { ok: false, success: false, error: "missing_subject" };
   if (!textBody && !cleanText(input.htmlBody)) return { ok: false, success: false, error: "missing_body" };
+  const requestedFrom = normalizeEmail(input.from);
+  if (requestedFrom && requestedFrom.split("@").pop() !== env.platformMailDomain.toLowerCase()) {
+    return { ok: false, success: false, error: "platform_sender_domain_required" };
+  }
   if (process.env.EMAIL_OUTBOUND_DISABLED === "1" || process.env.EMAIL_OUTBOUND_DISABLED === "true") {
     return { ok: false, success: false, skipped: true, reason: "email_outbound_disabled" };
   }
@@ -105,7 +112,8 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput) {
         ...(input.metadata ?? {}),
         ...(guarded.rewritten ? { development_intended_recipient: guarded.original_recipients.join(",") } : {})
       }
-    } : {})
+    } : {}),
+    ...(input.attachments?.length ? { Attachments: input.attachments } : {})
   };
 
   const response = await fetch("https://api.postmarkapp.com/email", {
@@ -132,3 +140,6 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput) {
     postmark
   };
 }
+
+/** @deprecated Use sendPlatformTransactionalEmail; retained for platform-mail callers during migration. */
+export const sendTransactionalEmail = sendPlatformTransactionalEmail;

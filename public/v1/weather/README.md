@@ -38,7 +38,7 @@ None of the tiers claims meteorologist certification.
 ## Example
 
 ```bash
-curl -X POST http://127.0.0.1:3111/v1/weather/reports/reviewed \
+curl -X POST http://127.0.0.1:3101/v1/weather/reports/reviewed \
   -H "Content-Type: application/json" \
   -d '{
     "property": {

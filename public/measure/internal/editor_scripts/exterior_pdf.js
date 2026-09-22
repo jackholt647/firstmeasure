@@ -1,6 +1,10 @@
 /* Shared exterior report rendering. Geometry is metric; measurements are feet. */
 (function(root){
 'use strict';
+const metric=()=>!!root.ReportUnits?.current().metric;
+const measure=(value,kind,legacy,withUnit=true)=>metric()?(withUnit?root.ReportUnits.current().quantity(value,kind):root.ReportUnits.current().number(value,kind)):legacy;
+const unit=(kind,legacy)=>metric()?root.ReportUnits.current().unit(kind):legacy;
+
 const K=typeof module==='object'&&module.exports?require('./exterior_geometry.js'):root.ExteriorGeometry;
 const directions=[['North',0,-1],['Northeast',Math.SQRT1_2,-Math.SQRT1_2],['East',1,0],['Southeast',Math.SQRT1_2,Math.SQRT1_2],['South',0,1],['Southwest',-Math.SQRT1_2,Math.SQRT1_2],['West',-1,0],['Northwest',-Math.SQRT1_2,-Math.SQRT1_2]].map(([name,x,y])=>({name,x,y}));
 // Left/right are as seen while standing outside facing the front entrance.
@@ -144,7 +148,7 @@ function drawDiagram(doc,faces,rect,view,{dimensions=false,iso=false,labels=true
  }
  if(dimensions)for(const face of faces){const ps=face.points.map(at),c=centroid(ps);for(let i=0;i<ps.length;i++){
   const p=ps[i],q=ps[(i+1)%ps.length];if(Math.hypot(q.x-p.x,q.y-p.y)<12)continue;
-  const feet=Math.hypot(...['x','y','z'].map(k=>face.points[i][k]-face.points[(i+1)%ps.length][k]))/.3048,label=number(feet)+"'",mx=(p.x+q.x)/2,my=(p.y+q.y)/2,horizontal=Math.abs(q.x-p.x)>Math.abs(q.y-p.y);doc.setFontSize(6.5);const tw=doc.getTextWidth(label);text(label,mx+(horizontal?-tw/2:mx>c.x?2:-tw-2),my+(horizontal?(my>c.y?3.5:-2):1),6.5);
+  const feet=Math.hypot(...['x','y','z'].map(k=>face.points[i][k]-face.points[(i+1)%ps.length][k]))/.3048,label=measure(feet,"ft",number(feet)+"'"),mx=(p.x+q.x)/2,my=(p.y+q.y)/2,horizontal=Math.abs(q.x-p.x)>Math.abs(q.y-p.y);doc.setFontSize(6.5);const tw=doc.getTextWidth(label);text(label,mx+(horizontal?-tw/2:mx>c.x?2:-tw-2),my+(horizontal?(my>c.y?3.5:-2):1),6.5);
  }}
  return scene;
 }
@@ -158,32 +162,32 @@ function drawRoofElevations(doc,model,settings,begin,colors){
 function drawExteriorReportPages(doc,model,settings,begin,colors){
  const {x,w,bottom,text,note,table,paginate}=writer(doc,colors),material=a=>a.material||'Unassigned';
  begin('Exterior Summary');let y=38;
- [['Net wall area',number(model.totals.net)+' sq ft'],['Gross wall area',number(model.totals.gross)+' sq ft'],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
+ [['Net wall area',measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],['Gross wall area',measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
  drawDiagram(doc,houseFaces(model),{x,y:68,w,h:111},coverView(model),{iso:true});
- table(['Measurement','Quantity'],[['Wall regions',model.walls.length],['Opening area',number(model.totals.openingArea)+' sq ft'],['Opening perimeter',number(model.totals.openingPerimeter)+' ft'],['Horizontal returns',number(model.totals.returns)+' sq ft']],188,[2,1]);note('Wall IDs connect the diagrams, dimensions, opening schedule and notes.',240);
+ table(['Measurement','Quantity'],[['Wall regions',model.walls.length],['Opening area',measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],['Opening perimeter',measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],['Horizontal returns',measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note('Wall IDs connect the diagrams, dimensions, opening schedule and notes.',240);
  for(const direction of houseDirections(settings)){
   begin(direction.name+' Elevation');drawOrientationKey(doc,model,settings,{x:x+w-58,y:31,w:56,h:27});const scene=drawDiagram(doc,model.walls.concat(model.returns||[]),{x,y:63,w,h:85},direction);
   const visible=new Set(scene.surfaces.filter((f,i)=>!f.featureType&&scene.counts[i]>20).map(f=>f.id)),walls=model.walls.filter(a=>visible.has(a.id));
   y=note('Visible walls are listed below. Areas are measured on each wall plane; the diagram is an orthographic projection.',155)+3;let index=0;
   do{if(index){begin(direction.name+' Elevation - continued');y=note('Wall data continued. See the first '+direction.name.toLowerCase()+' elevation page for the diagram.',38)+5;}
-   const count=Math.max(1,Math.floor((bottom-y-9)/8));if(walls.length)table(['Wall','Material','Gross ft2','Open ft2','Net ft2'],walls.slice(index,index+count).map(a=>[a.id,material(a),number(a.gross),number(a.openingArea),number(a.net)]),y,[1,2.1,1.5,1.5,1.5]);else note('No wall surface is visible from this direction.',y+10);index+=count;
+   const count=Math.max(1,Math.floor((bottom-y-9)/8));if(walls.length)table(['Wall','Material',(metric()?'Gross m²':'Gross ft2'),(metric()?'Open m²':'Open ft2'),(metric()?'Net m²':'Net ft2')],walls.slice(index,index+count).map(a=>[a.id,material(a),measure(a.gross,"sf",number(a.gross),false),measure(a.openingArea,"sf",number(a.openingArea),false),measure(a.net,"sf",number(a.net),false)]),y,[1,2.1,1.5,1.5,1.5]);else note('No wall surface is visible from this direction.',y+10);index+=count;
   }while(index<walls.length);
  }
  for(const [heading,faces]of [['Wall Dimensions',model.walls.filter(a=>!isTrim(a))],['Trim Dimensions',model.walls.filter(isTrim)]]){
   dimensionPages(faces).forEach((page,i)=>{begin(heading+(i?' - continued':''));page.forEach(panel=>{
    const a=panel.face,xx=x+panel.x*w+1,yy=36+panel.y*(bottom-36),ww=panel.w*w-3,hh=panel.h*(bottom-36)-4;
-   text(a.id+' / '+relativeSide(a.normal,settings),xx+1,yy+5,ww<60?8:10,true);text(number(a.net)+' sq ft net',xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true});
-   text('W '+number(a.width)+"'  x  H "+number(a.height)+"'",xx+2,yy+hh-5,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,yy+hh,6.5);
+   text(a.id+' / '+relativeSide(a.normal,settings),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+' net',xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true});
+   text('W '+measure(a.width,"ft",number(a.width)+"'")+"  x  H "+measure(a.height,"ft",number(a.height)+"'"),xx+2,yy+hh-5,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,yy+hh,6.5);
   });});
  }
- paginate(begin,'Opening Schedule',['Opening','Type','Wall','W x H (ft)','Area ft2','Trim ft'],model.openings.map(o=>[o.id,o.label,o.wall,number(o.width)+' x '+number(o.height),number(o.area),number(o.perimeter)]),[1.4,1.9,1,2,1.3,1.3],'Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim ft is the opening perimeter.');
+ paginate(begin,'Opening Schedule',['Opening','Type','Wall',(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,o.label,o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),measure(o.perimeter,"ft",number(o.perimeter),false)]),[1.4,1.9,1,2,1.3,1.3],'Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim '+unit('ft','ft')+' is the opening perimeter.');
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
- begin('Exterior Quantities');text('Measured lengths',x,38,12,true);y=table(['Quantity','Feet'],[['Top of walls',number(model.totals.top)],['Bottom of walls',number(model.totals.bottom)],['Inside corners',number(model.totals.inside)],['Outside corners',number(model.totals.outside)],['Opening perimeter',number(model.totals.openingPerimeter)],['Material transitions',number(model.totals.transitions)],['Exposed vertical terminations',number(model.totals.terminations)]],44,[3,1]);
- const materialRows=Object.entries(byMaterial).map(([k,v])=>[k,number(v),number(v/100)]);text('Net area by material',x,y+12,12,true);y+=18;
- for(let i=0;i<materialRows.length;){const count=Math.max(1,Math.floor((bottom-y-9)/8));table(['Material','Area (sq ft)','Squares'],materialRows.slice(i,i+count),y,[2,1,1]);i+=count;if(i<materialRows.length){begin('Exterior Quantities - continued');y=38;}}
+ begin('Exterior Quantities');text('Measured lengths',x,38,12,true);y=table(['Quantity',unit('ft','Feet')],[['Top of walls',measure(model.totals.top,"ft",number(model.totals.top),false)],['Bottom of walls',measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],['Inside corners',measure(model.totals.inside,"ft",number(model.totals.inside),false)],['Outside corners',measure(model.totals.outside,"ft",number(model.totals.outside),false)],['Opening perimeter',measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],['Material transitions',measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],['Exposed vertical terminations',measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]],44,[3,1]);
+ const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);text('Net area by material',x,y+12,12,true);y+=18;
+ for(let i=0;i<materialRows.length;){const count=Math.max(1,Math.floor((bottom-y-9)/8));table(metric()?['Material','Area (m²)']:['Material','Area (sq ft)','Squares'],materialRows.slice(i,i+count),y,[2,1,1]);i+=count;if(i<materialRows.length){begin('Exterior Quantities - continued');y=38;}}
  const waste=[0,5,10,15,20];
- for(const [label,divisor]of [['Area including waste (sq ft)',1],['Squares including waste',100]]){
-  const rows=Object.entries(byMaterial).map(([k,v])=>[k,...waste.map(p=>number(v*(1+p/100)/divisor))]);
+ for(const [label,divisor]of (metric()?[['Area including waste (m²)',1]]:[['Area including waste (sq ft)',1],['Squares including waste',100]])){
+  const rows=Object.entries(byMaterial).map(([k,v])=>[k,...waste.map(p=>measure(v*(1+p/100)/divisor,"sf",number(v*(1+p/100)/divisor),false))]);
   if(divisor===1){begin('Material Allowances');y=38;}if(y+16+rows.length*8>bottom&&y>38){begin('Material Allowances - continued');y=38;}
   text(label,x,y,12,true);y+=7;let i=0;while(i<rows.length){const count=Math.max(1,Math.floor((bottom-y-9)/8));y=table(['Material',...waste.map(v=>v+'%')],rows.slice(i,i+count),y,[2,1,1,1,1,1]);i+=count;if(i<rows.length){begin('Material Allowances - continued');y=38;}}y+=14;
  }
