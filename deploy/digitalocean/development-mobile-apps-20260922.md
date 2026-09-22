@@ -1,6 +1,6 @@
 # Development mobile app release — September 22, 2026
 
-Active development release: `a639aad1132f425ed567aafd03f4d08ffbba5dfe` on web, worker and compatibility. Production was not activated or modified. Source branch: `codex/mobile-platform`.
+Active development release: `af30bfaac0af4d5605a5c00524ebc75c25be1aa5` on web, worker and compatibility. This follows the initial mobile release `a639aad1132f425ed567aafd03f4d08ffbba5dfe`. Production was not activated or modified. Source branch: `codex/mobile-platform`.
 
 The release merges the mobile implementation (`ad4b103`) with the independently deployed wall/plane editor (`18a81ab`). A baseline guard stopped an earlier activation when that editor deployment started. The final 32-file public runtime delta was staged on `18a81ab`, preserving and hashing more than 24,000 unchanged runtime files per host, including all four editor files. The earlier staged `ad4b103` directory was never activated and must not be used as a rollback target.
 
@@ -9,9 +9,16 @@ The release merges the mobile implementation (`ad4b103`) with the independently 
 - Shared HTTPS portal in native Android and iOS hosts; native camera/file selection, sharing, PDF/generated-file exports, haptics, permission settings, audio capture and app lifecycle handling.
 - Versioned, origin-restricted bridge with main-frame checks. Existing desktop controls retain browser behavior.
 - System-browser login handoff with random state, SHA-256 PKCE, a two-minute single-use ticket, live membership revalidation, and normal authenticated app cookies. Both SQLite and PostgreSQL consumption are atomic.
-- Settings → App download, default on and independent of expanded apps. Store URLs remain unset until real listings exist.
+- Settings → App download is now default off in the capability registry and frontend fallback, independently of expanded apps. It is explicitly enabled only for development Test Company (`notifications@1m8.ai`). The category uses `fa-mobile-alt`, present in the portal’s Font Awesome 6.0.0 stylesheet. Store URLs remain unset until real listings exist.
+- The local preview source has the same default-off behavior; the prior local Flow testing flag alone cannot reveal the category.
 - `mobile.developer_downloads` defaults off. It is enabled only for local Flow Roofing (Local review), ID `0a8f8865e3c78d2441e08746`, and development Test Company, ID `3dbf7f79528139e27c491363` (the `notifications@1m8.ai` account).
 - A settings renderer correction handles categories without terminology keys; old organizations need no data repair to render the new category.
+
+## App download opt-in follow-up
+
+The three-file runtime change (`company.js`, capability definitions and their compiled JavaScript) was staged from the exact `a639aad` baseline. More than 24,000 unchanged files per role were hash-checked. All three roles passed development readiness and isolation checks; PHP-FPM was refreshed on both PHP-serving hosts. No native binary rebuild is needed.
+
+The mobile API regression verifies unset flags, explicit opt-in, and rejection when only the developer flag is enabled. A frontend regression covers flag loading, missing values, explicit false and explicit true. TypeScript build and all six focused API/bridge/settings tests passed. The live audit checked all 5,724 development organizations: only Test Company has `mobile.app_download` enabled. Public checks verified the supported icon and default-off script, authenticated APK checksum, anonymous rejection, and browser sign-in exchange.
 
 ## Runtime configuration
 
@@ -42,4 +49,4 @@ The broad FirstMeasure smoke workflow already had five failures before this work
 
 See `native/firstmeasure/README.md` for build commands, emulation, protocol behavior and physical-device acceptance. Public store URLs, Apple team/signing, TestFlight and Play upload signing remain external release setup. No store submission was attempted.
 
-Rollback runtime to verified `18a81abf43bc80ca38ed5f84a2809cfd78fdb3fd`, preserving the editor release. Use the established development activation checks, wait for an idle worker, and restart PHP-FPM on both PHP-serving roles. The mobile environment drop-ins and testing flags can remain inert on that older runtime, or be removed explicitly as part of a full feature rollback. Do not activate the abandoned `ad4b103` staging tree.
+For this follow-up, rollback runtime to `a639aad1132f425ed567aafd03f4d08ffbba5dfe`; note that this restores the former default-on tab behavior. To remove the entire mobile runtime, rollback to verified `18a81abf43bc80ca38ed5f84a2809cfd78fdb3fd`, preserving the editor release. Use the established development activation checks, wait for an idle worker, and restart PHP-FPM on both PHP-serving roles. The mobile environment drop-ins and testing flags can remain inert on that older runtime, or be removed explicitly as part of a full feature rollback. Do not activate the abandoned `ad4b103` staging tree.
