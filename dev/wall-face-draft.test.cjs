@@ -2228,6 +2228,8 @@ test('resoffit uses the merged turret wall rather than inverting a tiny source f
  const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),wall=r.composed.find(w=>w.id==='R49:0');
  const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});f.editor.restoreSelection({lineSelection:[{pair:wall.top}]});
  assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry');for(const line of f.editor.selectionSnapshot().lineSelection)assert.ok(f.editor.soffitEdges().some(c=>W.sharedIntervals(...line.pair,[{points:c.pair}]).length),'selection stays on actual projected edges');
+ assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);
 });
 
 

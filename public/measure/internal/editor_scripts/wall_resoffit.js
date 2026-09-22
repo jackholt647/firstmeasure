@@ -94,7 +94,8 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   try{K.validateFace(next);}catch(e){throw Error('This depth would collapse or overlap a connected face. Select the adjoining soffits together or use a smaller change.');}if(dot(K.normal(f.points),K.normal(next.points))<=0)throw Error('This depth would reverse a neighboring wall. Select the adjoining soffits together or use a smaller change.');affected.push(f.id);return next;
  });
  const followed=W.followTrim(faces,{faces:result,moves,affected},[...requests.keys()],options.keepTrimStatic);
- return {...followed,trimFollowed:true,affected:[...new Set([...affected,...(followed.affected||[])])],pairs:choices.map(c=>c.pair.map(movedPoint)),limited};
+ const selectedPairs=choices.map(c=>{const face=followed.faces.find(f=>f.id===c.faceId);return c.pair.map(p=>{const target=movedPoint(p);return face?face.points.reduce((a,b)=>length(sub(b,target))<length(sub(a,target))?b:a):target;});}).filter(pair=>length(sub(...pair))>.002);
+ return {...followed,trimFollowed:true,affected:[...new Set([...affected,...(followed.affected||[])])],pairs:selectedPairs,limited};
 }
 const api={candidates,apply,COLOR:'#ef633c'};if(node)module.exports=api;else root.WallResoffit=api;
 })(typeof window==='undefined'?globalThis:window);
