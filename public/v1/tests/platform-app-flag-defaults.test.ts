@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { appFlagDefaults, canManageTestAppFlags } from "../platform/app_flags.js";
+import { resolveCapabilities } from "../platform/capabilities.js";
+
+test("co-branding is available by default without enabling expanded apps and respects opt-out", () => {
+  assert.equal(appFlagDefaults().platform?.cobrand_sidebar_logo, true);
+  const defaults = resolveCapabilities({ "platform.expanded_access": false });
+  assert.equal(defaults.values["platform.cobrand_sidebar_logo"], true);
+  assert.equal(defaults.effectiveByKey["apps.crm"], false);
+  assert.equal(resolveCapabilities({ "platform.cobrand_sidebar_logo": false }).values["platform.cobrand_sidebar_logo"], false);
+});
 
 test("new organizations enable the standard FirstMeasure report options by default", () => {
   const defaults = appFlagDefaults();
