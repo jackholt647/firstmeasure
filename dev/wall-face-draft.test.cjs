@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
 function fixture(options={}){const listeners={},state=options.state||{wallEdits:{}},w={id:'w',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:0}],top:[{x:0,y:0,z:4},{x:4,y:0,z:4}]};let history=[],message='';const frames=new Map();let frameId=0;const ctx={console,performance,getVector3:p=>({...p,distanceTo:q=>Math.hypot(p.x-(q.x||0),p.y-(q.y||0),p.z-(q.z||0))}),camera:{position:{x:0,y:-10,z:2}},requestAnimationFrame:fn=>{frames.set(++frameId,fn);return frameId;},cancelAnimationFrame:id=>frames.delete(id),ExteriorGeometry:require('../public/measure/internal/editor_scripts/exterior_geometry.js'),ExteriorModel:require('../public/measure/internal/editor_scripts/exterior_model.js'),WallAxisCuts:require('../public/measure/internal/editor_scripts/wall_axis_cuts.js'),WallTrim:require('../public/measure/internal/editor_scripts/wall_trim.js'),WallSteps:require('../public/measure/internal/editor_scripts/wall_steps.js'),WallFeatures:require('../public/measure/internal/editor_scripts/wall_features.js'),WallSolidGeometry:require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),BaseGeometry:B,BaseSketchGeometry:S,WallGeometry:G,addEventListener:(k,f)=>listeners[k]=e=>{f(e);for(const [id,frame]of [...frames]){frames.delete(id);frame(performance.now());}}};Object.assign(ctx,options.globals||{});ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_face_draft.js','utf8'),ctx);
- if(options.lengthMarker)ctx.wallLengthMarker=options.lengthMarker;if(options.centerMarker)ctx.wallCurveCenterMarker=options.centerMarker;const editor=ctx.createWallFaceDraft({pickVisible:options.pickVisible,pickLineVisible:options.pickLineVisible,state:()=>options.getState?options.getState():state,selectBaseEntities:options.selectBaseEntities,featureHost:options.featureHost,hit:options.hit,toPixel:p=>p,roof:()=>options.roof,walls:()=>options.getWalls?options.getWalls():options.walls||[w],active:()=>options.active!==false,selected:()=>options.selected===null?null:options.selectedId||'w',select:options.select||(()=>{}),screen:options.screen||(p=>({x:p.x*100,y:p.z*100})),projectPoint:options.projectPoint||((d,e)=>d.frame?ctx.WallSolidGeometry.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):{x:e.clientX/100,y:e.clientY/100,z:0}),commit:b=>history.push(b),redraw(){},message:s=>message=s});
+ if(options.lengthMarker)ctx.wallLengthMarker=options.lengthMarker;if(options.centerMarker)ctx.wallCurveCenterMarker=options.centerMarker;const editor=ctx.createWallFaceDraft({pickVisible:options.pickVisible,pickSoffitVisible:options.pickSoffitVisible,pickLineVisible:options.pickLineVisible,state:()=>options.getState?options.getState():state,selectBaseEntities:options.selectBaseEntities,featureHost:options.featureHost,hit:options.hit,toPixel:p=>p,roof:()=>options.roof,walls:()=>options.getWalls?options.getWalls():options.walls||[w],active:()=>options.active!==false,selected:()=>options.selected===null?null:options.selectedId||'w',select:options.select||(()=>{}),screen:options.screen||(p=>({x:p.x*100,y:p.z*100})),projectPoint:options.projectPoint||((d,e)=>d.frame?ctx.WallSolidGeometry.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):{x:e.clientX/100,y:e.clientY/100,z:0}),commit:b=>history.push(b),redraw(){},message:s=>message=s});
  const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
 function planeSelection(f,points){const s=f.editor.selectionSnapshot();s.workingPlane.selection=points;f.editor.restoreSelection(s);}
 test('plane parallel, face creation and subtraction operate in local plane coordinates',()=>{
@@ -2200,4 +2200,56 @@ for(const draft of [false,true])test(`T trims a recessed garage ${draft?'draft':
  f.editor.selectOpeningTrim('garage');if(draft)f.editor.applyOpeningTrim('garage',0);f.listeners.pointermove(f.e(2,1));const snapshot=()=>JSON.stringify(f.state.wallEdits,(key,value)=>key==='drafted'?undefined:value),before=snapshot(),points=JSON.stringify(f.editor.openingTrimItems('garage')[0].points);
  for(const inches of [2,3,4,6,0]){assert.equal(f.editor.key({key:'t'}),true);assert.equal(f.editor.busy(),false,'T never enters Flip');const item=f.editor.openingTrimItems('garage')[0];assert.equal(JSON.stringify(item.points),points);assert.ok(Math.abs((item.f.feature.trim?.width||0)-inches*.0254)<1e-8);}
  assert.deepEqual(JSON.parse(snapshot()),JSON.parse(before),'full cycle changes no geometry');
+});
+
+
+test('Shift-click on empty space preserves selected lines and points',()=>{
+ const f=fixture({selected:null}),pair=[f.w.top[0],f.w.top[1]];
+ f.editor.restoreSelection({lineSelection:[{id:'top',pair}]});
+ f.editor.down(f.e(30,30,true));f.listeners.pointerup(f.e(30,30,true));
+ assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);
+ f.editor.restoreSelection({solidPoints:[require('../public/measure/internal/editor_scripts/wall_solid_geometry').vertexKey(pair[0])]});
+ f.editor.down(f.e(30,30,true));f.listeners.pointerup(f.e(30,30,true));
+ assert.equal(f.editor.selectionSnapshot().solidPoints.length,1);
+});
+
+test('resoffit commits one local edit with attached base, persists and can restore its undo snapshot',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),p=(x,y,z)=>({x,y,z}),roof={faces:[{id:0,points:[p(-2,-2,5),p(8,-2,5),p(8,8,5),p(-2,8,5)]}]};
+ const wall=(id,a,b)=>({id,points:[p(...a,0),p(...b,0),p(...b,5),p(...a,5)]});
+ const state={roof,sources:[{id:'fixture-eave',kind:'perimeter',type:'eave',parentId:0,originalA:p(0,0,5),originalB:p(4,0,5),a:p(0,.6096,5),b:p(4,.6096,5),setback:.6096,sourcePlane:{dx:0,dy:0,k:5}}],base:{faces:[{id:'base',points:[p(0,.6096,0),p(4,.6096,0),p(4,3,0),p(0,3,0)]}]},wallEdits:{$surfaces:[wall('front',[0,.6096],[4,.6096]),wall('left',[0,3],[0,.6096]),wall('right',[4,.6096],[4,3])]}};
+ const f=fixture({state,walls:[],selected:null,globals:{WallResoffit:R}}),before=JSON.stringify(state.wallEdits);
+ f.editor.restoreSelection({lineSelection:[{pair:state.wallEdits.$surfaces[0].points.slice(2)}]});assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);
+ assert.ok(state.wallEdits.$surfaces.find(f=>f.id==='front').points.every(p=>Math.abs(p.y-.1524)<1e-8));assert.ok(state.wallEdits.$base.faces[0].points.some(p=>Math.abs(p.y-.1524)<1e-8));
+ const saved=JSON.parse(JSON.stringify(state)),reloaded=fixture({state:saved,walls:[],selected:null,globals:{WallResoffit:R}});assert.ok(reloaded.editor.soffitEdges().some(c=>Math.abs(c.inset-.1524)<1e-8));
+ state.wallEdits=f.history.pop();assert.equal(JSON.stringify(state.wallEdits),before);
+});
+
+test('resoffit uses the merged turret wall rather than inverting a tiny source fragment',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),wall=r.composed.find(w=>w.id==='R49:0');
+ const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});f.editor.restoreSelection({lineSelection:[{pair:wall.top}]});
+ assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);
+});
+
+
+test('Resoffit picks roof-contact lines despite near-surface occlusion and adds multiple without Shift',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),p=(x,y,z)=>({x,y,z}),wall={id:'w',bottom:[p(0,0,0),p(4,0,0)],top:[p(0,0,4),p(4,0,4)]},roof={faces:[{id:0,points:[p(-1,-1,4),p(8,-1,4),p(8,4,4),p(-1,4,4)]}]};
+ const state={roof,sources:[{id:'fixture-eave',kind:'perimeter',type:'eave',parentId:0,originalA:p(0,-.6,4),originalB:p(4,-.6,4),a:wall.top[0],b:wall.top[1],setback:.6,sourcePlane:{dx:0,dy:0,k:4}}],wallEdits:{}};
+ const f=fixture({state,walls:[wall],selected:null,globals:{WallResoffit:R},pickLineVisible:()=>false,pickSoffitVisible:()=>true});
+ f.editor.setResoffitMode(true);f.editor.restoreSelection({lineSelection:[{id:'other',pair:[p(6,0,4),p(8,0,4)]}]});
+ assert.equal(f.editor.pickLine3D(f.e(2,4)),true);f.listeners.pointerup(f.e(2,4));assert.equal(f.editor.selectionSnapshot().lineSelection.length,2);
+ assert.equal(f.editor.pickLine3D(f.e(2,4)),true);f.listeners.pointerup(f.e(2,4));assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);
+ assert.equal(f.editor.pickLine3D(f.e(2,0)),false,'base edges are excluded');
+});
+
+
+for(const source of ['R134.0','R23.0'])test(`resoffit preserves surveyed junctions and clips intermediate roof vertices at ${source}`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18);
+ const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id===source);assert.ok(line);
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);
+});
+
+test('a soffit depth that inverts a lower-roof return is rejected atomically',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18);
+ const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id==='R112.0'),before=JSON.stringify(r.state.wallEdits);
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),false);assert.equal(f.history.length,0);assert.equal(JSON.stringify(r.state.wallEdits),before);
 });

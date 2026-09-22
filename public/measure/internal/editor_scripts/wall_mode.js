@@ -7,6 +7,8 @@
     const surfaceModes=()=>window.FIRSTMEASURE_MATCH_TEXTURED===true?['translucent','opaque','textured','match-textured']:['translucent','opaque','textured'];
     const surfaceMode=()=>state?.displayMode==='rendered'?'textured':state?.displayMode||(state?.translucent===false?'opaque':'translucent');
     const surfaceLabel=mode=>mode==='match-textured'?'Match textured':mode[0].toUpperCase()+mode.slice(1);
+    let resoffitMode=false;
+    function closeResoffit(){resoffitMode=false;wallEditor?.setResoffitMode?.(false);const menu=document.getElementById('wall-resoffit-menu'),button=document.getElementById('wall-resoffit');if(menu)menu.hidden=true;if(button){button.setAttribute('aria-expanded','false');button.setAttribute('aria-pressed','false');}}
     let gapHighlights=true,gapCacheKey='',gapCache=[];
     let enabled=false, roofVisible=true, state=null, projectId='', stage=1, selected=null, group3D=null, lastScene=null;
     let storageError='', panel, menu, badge, details, status, warning, stageButtons, sourceContext=null;
@@ -265,7 +267,7 @@ function perf_persist(touch=true) {
         const upgraded=upgradeEngine();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
         restoreView(metadata,local);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
     }
-    function beforeProjectLoad() {wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
+    function beforeProjectLoad() {closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     function ensureStage(next) {
         if(!state)return;
         if(state.roofSignature!==roofSignature()&&!generate(state.options.soffit))return;
@@ -273,6 +275,7 @@ function perf_persist(touch=true) {
         stage=next;selected=null;persist();render();
     }
     function generate(soffit,resetBase=false) {
+        closeResoffit();
         let before=null;const beforeSelection=selectionSnapshot();
         try {
             const signature=roofSignature(),captured=captureRoof(true);
@@ -291,7 +294,7 @@ function perf_persist(touch=true) {
     }
     function setEnabled(on) {
         if(on&&!currentId()){alert('Load a project before entering wall mode.');return;}
-        roofTrimEditor?.finish();roofTrimEditor?.reset();if(!on){window.WallFeatures?.closeUI?.();groundEditor?.leave();baseEditor?.leave();wallEditor?.leave();}
+        roofTrimEditor?.finish();roofTrimEditor?.reset();if(!on){closeResoffit();window.WallFeatures?.closeUI?.();groundEditor?.leave();baseEditor?.leave();wallEditor?.leave();}
         const entering=!!on&&!enabled;
         enabled=!!on;
         if(entering)window.ProjectResources?.open?.();
@@ -564,12 +567,12 @@ function perf_render3DFrame() {
         document.getElementById('workspace').appendChild(panel);
         groundEditor=window.createGroundEditor?.({getState:()=>state,ensureState:()=>!!state||generate('auto'),projectId:currentId,enabled:()=>enabled,toPixel,toMetric,changed:groundChanged,onEditing:on=>{editingLayer=on?'grade':'base';baseEditor?.render();},redraw:()=>requestEditorRender()});
         groundEditor?.setup(panel);
-        const setLayer=(value,preserveVisibility=false,deferScene=false)=>{if(value!=='base'){if(baseEditor?.busy())baseEditor.leave();baseEditor?.clearSelection();}if(value!=='walls')wallEditor?.clear();editingLayer=value;if(value==='base'&&state?.base)baseState().base.visible=true;if(value==='walls'&&!preserveVisibility)wallsVisible=true;groundEditor?.setEditing(value==='grade');persist();if(deferScene){groundEditor?.render();baseEditor?.render();}else render();};
+        const setLayer=(value,preserveVisibility=false,deferScene=false)=>{if(value!=='walls'&&resoffitMode)closeResoffit();if(value!=='base'){if(baseEditor?.busy())baseEditor.leave();baseEditor?.clearSelection();}if(value!=='walls')wallEditor?.clear();editingLayer=value;if(value==='base'&&state?.base)baseState().base.visible=true;if(value==='walls'&&!preserveVisibility)wallsVisible=true;groundEditor?.setEditing(value==='grade');persist();if(deferScene){groundEditor?.render();baseEditor?.render();}else render();};
         baseEditor=window.createBaseEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),walls:currentWalls,state:baseState,ensure:()=>!!state||generate('auto'),enabled:()=>enabled,id:currentId,layer:()=>editingLayer,setLayer,
             selectVisibleLayer:()=>setLayer(baseState()?.base?.visible!==false?'base':wallsVisible?'walls':'grade'),handleKey:e=>handleEditorKey(e),position:(...args)=>groundEditor.position(...args),toPixel,
             recordHistory:before=>{if(before.wallEdits?.$base)delete before.base;recordEdit(before);},undo:()=>undoEdit(),canUndo:()=>editHistory.some(e=>state?.undoSelections!==false||!e.selectionOnly),changed:()=>{groundChanged();finishEdit();baseEditor?.render();},redraw:()=>requestEditorRender()});
         baseEditor?.setup(panel);
-        wallEditor=window.createWallEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
+        wallEditor=window.createWallEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pickSoffitVisible:(pair,e)=>window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e,Math.max(.03,state.context.mpp*.2)/state.context.mpp),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
             position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender()});
         const resetWall=document.createElement('button');resetWall.id='wall-reset-position';resetWall.textContent='Reset wall position';resetWall.onclick=()=>wallEditor?.resetPosition();document.getElementById('wall-actions').appendChild(resetWall);
         panel.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
@@ -582,6 +585,15 @@ function perf_render3DFrame() {
         const selectionReadout=document.createElement('p');selectionReadout.id='wall-selection-counts';selectionReadout.setAttribute('aria-label','Selected geometry');selectionReadout.style.cssText='margin:6px 0 10px;color:#f1f3f4;font-size:12px;';panel.prepend?.(selectionReadout);
         for(const b of [document.getElementById('wall-roof-visibility'),wallToggle,document.getElementById('base-visible'),document.getElementById('ground-visible')])registerLayerVisibility(b);
         for(const b of layerVisibilityButtons.values())visibility.appendChild(b);
+        const resoffitControl=document.createElement('div');resoffitControl.id='wall-resoffit-control';
+        resoffitControl.innerHTML='<button id="wall-resoffit" aria-expanded="false" aria-pressed="false" title="Change the depth of selected roof-contact soffits">Resoffit</button><div id="wall-resoffit-menu" hidden><p>Select red-orange roof-contact lines. Click to add or remove; then Apply.</p><label>Soffit depth (ft)<input id="wall-resoffit-depth" type="number" min="0" max="16" step="any" value="2"></label><div id="wall-resoffit-presets"><button data-resoffit="0">0</button><button data-resoffit="0.5">½ ft</button><button data-resoffit="1">1 ft</button><button data-resoffit="1.5">1½ ft</button><button data-resoffit="2">2 ft</button></div><p id="wall-resoffit-count" role="status"></p><button id="wall-resoffit-apply">Apply</button><button id="wall-resoffit-done">Done</button></div>';
+        panel.appendChild(resoffitControl);
+        const resoffitButton=document.getElementById('wall-resoffit'),resoffitMenu=document.getElementById('wall-resoffit-menu');
+        function setResoffit(on){resoffitMode=!!on;wallEditor?.setResoffitMode?.(resoffitMode);resoffitMenu.hidden=!resoffitMode;resoffitButton.setAttribute('aria-expanded',String(resoffitMode));resoffitButton.setAttribute('aria-pressed',String(resoffitMode));if(on){setLayer('walls',true);document.getElementById('base-status').textContent='Select red-orange soffit lines, then choose a depth and Apply.';}}
+        resoffitButton.onclick=()=>{if(!state)return;if(!resoffitMode&&(wallEditor?.busy()||baseEditor?.busy())){status.textContent='Finish the current edit before resoffiting.';return;}setResoffit(!resoffitMode);};
+        document.getElementById('wall-resoffit-done').onclick=()=>setResoffit(false);
+        resoffitMenu.querySelectorAll('[data-resoffit]').forEach(b=>b.onclick=()=>{document.getElementById('wall-resoffit-depth').value=b.dataset.resoffit;});
+        document.getElementById('wall-resoffit-apply').onclick=()=>{const input=document.getElementById('wall-resoffit-depth');if(!input.value.trim()||!input.checkValidity()){input.reportValidity();return;}wallEditor?.resoffit(Number(input.value)*.3048);};
         window.mountExteriorToolbar?.();
         menu=document.getElementById('wall-soffit-menu');badge=document.getElementById('wall-stage-label');status=document.getElementById('wall-status');details=document.getElementById('wall-details');warning=document.getElementById('wall-warning');stageButtons=[...panel.querySelectorAll('[data-stage]')];
         document.getElementById('wall-auto').onclick=e=>{menu.hidden=!menu.hidden;e.currentTarget.setAttribute('aria-expanded',String(!menu.hidden));};
@@ -608,6 +620,7 @@ function perf_render3DFrame() {
         };
         roofTrimEditor=window.createRoofTrimEditor?.({openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);wallEditor?.selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
         function pickPointer(e){
+                    if(resoffitMode){wallEditor?.pickLine?.(e);return true;}
                     if(wallEditor?.planeActive?.())return wallEditor.planeDown(e);
                     // A tool on an inactive layer cannot consume input for the active one.
                     if(baseEditor?.busy()){if(editingLayer==='base')return baseEditor.down(e);baseEditor.leave();}
@@ -677,7 +690,7 @@ function perf_render3DFrame() {
         const planeDisplay=document.createElement('select');planeDisplay.id='plane-other-geometry';planeDisplay.setAttribute('aria-label','Off-plane geometry');
         for(const [value,text]of [['normal','Normal'],['faint','Faint'],['hidden','Hidden']]){const option=document.createElement('option');option.value=value;option.textContent=text;planeDisplay.appendChild(option);}planeDisplay.value='faint';planeDisplay.onchange=()=>wallEditor?.setPlaneDisplay(planeDisplay.value);planeControls.appendChild(planeDisplay);interaction.appendChild(planeControls);
         const updateInteraction=()=>{
-            const counts=selectionCounts();selectionReadout.textContent='Selected: '+counts.points+' points · '+counts.lines+' lines · '+counts.faces+' faces';
+            const counts=selectionCounts();document.getElementById('wall-resoffit-count').textContent=counts.lines+' lines selected';document.getElementById('wall-resoffit-apply').disabled=!counts.lines;selectionReadout.textContent='Selected: '+counts.points+' points · '+counts.lines+' lines · '+counts.faces+' faces';
             const plane=wallEditor?.planeView?.();planeControls.hidden=!plane;cancelButton.textContent=plane?.rotating?'Cancel - Esc':plane?'Exit plane (P)':'Cancel - Esc';if(plane)planeDisplay.value=plane.display;
 
             const toolbar=document.querySelector('#three-container .enh-control-panel');const mainToolbar=document.getElementById('exterior-main-toolbar');if(mainToolbar&&advanced.parentElement!==mainToolbar)mainToolbar.appendChild(advanced);advanced.hidden=!enabled;if(!enabled)advanced.open=false;if(toolbar&&interaction.parentElement!==toolbar)toolbar.appendChild(interaction);
@@ -692,6 +705,7 @@ function perf_render3DFrame() {
             if(e.target.closest?.('#exterior-graphics'))return;
             if(window.ProjectResources?.handleKey(e))return true;
             if(!enabled)return;
+            if(resoffitMode&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key)&&!((e.ctrlKey||e.metaKey)&&['s','c'].includes(e.key.toLowerCase())))setResoffit(false);
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(wallEditor?.planeActive?.()&&(e.ctrlKey||e.metaKey)&&['a','c','v','x'].includes(e.key.toLowerCase())&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){wallEditor.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
@@ -701,7 +715,7 @@ function perf_render3DFrame() {
             if((e.ctrlKey||e.metaKey)&&['c','v'].includes(e.key.toLowerCase())){const copy=e.key.toLowerCase()==='c',selection=copy&&editingLayer==='base'?baseEditor?.chamferSelection?.():null;if(!copy)setLayer('walls',true);wallEditor?.clipboardCommand(copy?'copy':'paste',selection);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey&&['m','r','t','y'].includes(e.key.toLowerCase())){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=3){setLayer('walls',true);wallEditor?.geometryCommand(e.key.toLowerCase(),selection);e.preventDefault();e.stopImmediatePropagation();return true;}}
             if(window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()||baseEditor?.distanceInput()))return;
-            if(e.key==='Escape'){window.WallFeatures?.closeUI?.();cancelInteraction();menu.hidden=true;e.preventDefault();e.stopImmediatePropagation();return true;}
+            if(e.key==='Escape'){setResoffit(false);window.WallFeatures?.closeUI?.();cancelInteraction();menu.hidden=true;e.preventDefault();e.stopImmediatePropagation();return true;}
             if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s')return;
             if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){undoEdit(e.key.toLowerCase()==='y'||e.shiftKey);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&baseEditor?.busy()&&!e.ctrlKey&&!e.metaKey&&['e','c'].includes(e.key.toLowerCase())&&!baseEditor.finishToolForSwitch())return true;

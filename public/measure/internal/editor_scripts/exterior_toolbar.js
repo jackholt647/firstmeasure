@@ -39,7 +39,7 @@ window.mountExteriorToolbar=function(){
  header?.appendChild(left);
  window.updateExteriorHeaderLayout=()=>{const active=document.body.classList.contains('wall-mode-active');for(const item of sections){if(active)left.appendChild(item.section);else if(item.section.parentElement!==item.parent)item.parent.insertBefore(item.section,item.next);}if(active){left.appendChild(main);if(actions)header.appendChild(actions);}else{header?.appendChild(main);if(actions&&actions.parentElement!==actionParent)actionParent.insertBefore(actions,actionNext);}};
  window.updateExteriorHeaderLayout();
- const build=group('Rebuild building');main.appendChild(build);const roof=move('wall-rebuild',build);if(roof)roof.textContent='From Roof';const dropdown=move('wall-auto',build);if(dropdown){dropdown.textContent='▾';dropdown.title='Choose soffit setback';dropdown.setAttribute('aria-label','Choose soffit setback');}move('wall-soffit-menu',build);move('wall-merge-all',build);const base=move('base-rebuild-grade',build);if(base)base.textContent='Reground';
+ const build=group('Rebuild building');main.appendChild(build);const roof=move('wall-rebuild',build);if(roof)roof.textContent='From Roof';const dropdown=move('wall-auto',build);if(dropdown){dropdown.textContent='▾';dropdown.title='Choose soffit setback';dropdown.setAttribute('aria-label','Choose soffit setback');}move('wall-soffit-menu',build);move('wall-resoffit-control',build);move('wall-merge-all',build);const base=move('base-rebuild-grade',build);if(base)base.textContent='Reground';
  const display=group('Display options');
  const icon=(id,label,path)=>{const b=move(id,display);if(!b)return;b.title=label;b.setAttribute('aria-label',label);b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="'+path+'"/></svg>';};
  const surfaceMode=move('wall-translucency-toggle',display);if(surfaceMode)surfaceMode.title='Cycle translucent, opaque and textured surfaces';
@@ -96,6 +96,10 @@ window.mountExteriorToolbar=function(){
  #exterior-main-toolbar .trim-material-heading{display:flex;align-items:center;gap:6px;margin-bottom:6px}#exterior-main-toolbar .trim-material-heading>strong{margin-right:auto}
  #exterior-main-toolbar #trim-material-grid{display:flex;flex-wrap:wrap;gap:5px}#exterior-main-toolbar #trim-material-grid button{font-weight:400;height:28px;min-height:28px;padding:4px 7px}
  #exterior-main-toolbar #trim-material-grid button:before{content:'';width:10px;height:10px;border:1px solid #0002;border-radius:2px;background:var(--material-color)}
+ #wall-resoffit-control{position:relative}#wall-resoffit-menu[hidden]{display:none!important}
+ #wall-resoffit-menu{position:absolute;top:calc(100% + 6px);left:0;width:270px;box-sizing:border-box;padding:10px;background:#fff;color:#394150;border:1px solid #ccd2d9;border-radius:6px;box-shadow:0 5px 18px #0002;z-index:3000}
+ #wall-resoffit-menu p{margin:0 0 8px;line-height:1.4;font-weight:400}#wall-resoffit-menu label{justify-content:space-between;margin:8px 0}#wall-resoffit-presets{display:flex;gap:3px;flex-wrap:wrap;margin:8px 0}#wall-resoffit-presets button{padding:4px 7px;height:28px;min-height:28px}
+ #wall-resoffit[aria-pressed=true]{color:#b44323!important;border-color:#ef633c!important;background:#fff0e9!important}
  #wall-auto-trim{display:none!important}
  `;document.head.appendChild(headerStyle);
  bar.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
