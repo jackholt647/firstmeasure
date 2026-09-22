@@ -14,7 +14,7 @@ function chimneyJunctions(r,soffit=24){
  const edge=roof.connections[104],a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],length=Math.hypot(b.x-a.x,b.y-a.y),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length};
  const walls=r.composed.filter(w=>w.kind==='perimeter'&&w.top.every(p=>p.z>69)&&w.bottom.every(p=>p.z<64.01)&&Math.abs((w.bottom[1].x-w.bottom[0].x)*u.y-(w.bottom[1].y-w.bottom[0].y)*u.x)<.002);
  assert.ok(walls.length,'main upper eave has a supporting wall');
- for(const wall of walls)for(const p of wall.bottom)assert.ok(Math.abs(Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)-soffit*G.INCH)<.002,'small lower caps cannot pull the entire upper wall forward');
+ for(const wall of walls)for(const p of wall.bottom)assert.ok(Math.abs(Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)-soffit*G.INCH)<.02001,'main setback only adjusts within the 2 cm measured flashing contact tolerance');
 }
 for(const soffit of [0,12,18,24,'auto'])test(`layered turrets: closed exterior and exposed chimney supports at ${soffit} inches`,()=>{
  const before=JSON.stringify(fixture),r=build(fixture,soffit);
@@ -64,4 +64,36 @@ test('saved or edited foundation elevations are not replaced by automatic envelo
 });
 test('regeneration is deterministic and does not reintroduce secondary turret shafts',()=>{
  const a=build(fixture),b=build(JSON.parse(JSON.stringify(fixture)));assert.deepEqual(a.composed,b.composed);assert.deepEqual(C.buildingBase(a.state),C.buildingBase(b.state));
+});
+
+function roofMesh(roof){const K=require('../public/measure/internal/editor_scripts/exterior_geometry');return roof.faces.flatMap(f=>{const mesh=K.triangles(f.points,f.holes||[]);return mesh.triangles.map(ids=>({points:ids.map(i=>mesh.points[i])}));}).map(f=>({...f,plane:G.plane(f.points)}));}
+test('generated walls stay below the rendered roof triangles, including hip corners and flashing remnants',()=>{
+ const r=build(fixture),mesh=roofMesh(r.state.roof);
+ for(const w of r.composed.filter(w=>!w.chimney))for(const t of [0,.25,.5,.75,1]){
+  const a=w.top[0],b=w.top[1],p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t},heights=mesh.filter(f=>G.contains(f,p)).map(f=>f.plane.dx*p.x+f.plane.dy*p.y+f.plane.k);
+  if(heights.length)assert.ok(p.z<=Math.max(...heights)+.002,'wall cannot protrude above the actual roof: '+w.id);
+ }
+});
+test('measured chimney flashing and the nearby main wall form one plane without overlapping panels',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture),walls=r.composed.filter(w=>!w.chimney),ring=w=>[w.bottom[0],w.bottom[1],w.top[1],w.top[0]];
+ for(let i=0;i<walls.length;i++)for(let j=i+1;j<walls.length;j++){
+  const a=walls[i],b=walls[j],frame=K.frame({points:ring(a)});if(!frame||ring(b).some(p=>Math.abs(K.local(frame,p).z)>.02))continue;
+  const overlap=K.intersection([{points:ring(a).map(p=>K.local(frame,p))}],[{points:ring(b).map(p=>K.local(frame,p))}]).reduce((sum,f)=>sum+K.area(f),0);
+  assert.ok(overlap<.005,'parallel wall overlap: '+a.id+' / '+b.id);
+ }
+});
+test('both chimney sides remain continuous above each sloping lower cap in the rendered geometry',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture),defs=C.definitions(r.state),geo=G.topology(r.composed),faces=[...geo.faces.filter(f=>f.chimney).flatMap(f=>f.triangles.map(ids=>({...f,points:ids.map(i=>geo.points[i])}))),...r.state.wallEdits.$surfaces.filter(f=>f.chimney&&!f.chimney.cap)];
+ for(const index of [130,131,139,140])for(const fraction of [.2,.5,.8]){
+  const edge=r.state.roof.connections[index],a=r.state.roof.points[edge.startIdx],b=r.state.roof.points[edge.endIdx],sample={x:a.x+(b.x-a.x)*fraction,y:a.y+(b.y-a.y)*fraction,z:a.z+(b.z-a.z)*fraction};let closest;
+  for(const c of defs)for(let i=0;i<c.points.length;i++){
+   const p=c.points[i],q=c.points[(i+1)%c.points.length],dx=q.x-p.x,dy=q.y-p.y,l2=dx*dx+dy*dy,t=((sample.x-p.x)*dx+(sample.y-p.y)*dy)/l2;if(t<0||t>1)continue;
+   const hit={x:p.x+t*dx,y:p.y+t*dy,z:sample.z},distance=Math.hypot(hit.x-sample.x,hit.y-sample.y);if(!closest||distance<closest.distance)closest={hit,distance,c};
+  }
+  assert.ok(closest.distance<.002);
+  const ceiling=index<139?66.3:69.2;
+  for(const z of [sample.z+.03,66,(66+ceiling)/2,ceiling]){
+   const p={...closest.hit,z};assert.ok(faces.some(f=>{if(f.chimney.id!==closest.c.id)return false;const frame=K.frame(f);if(!frame)return false;const local=K.local(frame,p);return Math.abs(local.z)<.002&&G.contains({points:f.points.map(p=>K.local(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},local);}),`missing chimney shell above cap ${index} at ${fraction}, ${z}`);
+  }
+ }
 });

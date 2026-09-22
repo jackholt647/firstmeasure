@@ -115,6 +115,18 @@ function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
  // A small closed dormer loop must not stand in for an open main perimeter.
  const complete=traced.length&&coversWalls(traced,groundWalls(walls,grade));
  let loops=complete?traced:insetRoof(roof,setback,occluders,sources);
+ // A measured flashing and the default inset can describe the same wall a
+ // centimetre apart. Resolve that construction contact before unioning the
+ // supporting bodies, rather than leaving two overlapping wall planes.
+ if(!complete&&sources){
+  loops=loops.map(ring=>{const result=ring.map(p=>({...p}));for(let i=0;i<ring.length;i++){
+   const a=ring[i],b=ring[(i+1)%ring.length],length=dist(a,b);if(length<1)continue;
+   const u={x:(b.x-a.x)/length,y:(b.y-a.y)/length};
+   const candidates=sources.filter(s=>s.kind==='flashing'&&Math.abs((s.b.x-s.a.x)*u.y-(s.b.y-s.a.y)*u.x)<.002&&[s.a,s.b].every(p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)<.02)).filter(s=>{const ts=[s.a,s.b].map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y).sort((a,b)=>a-b);return Math.min(length,ts[1])-Math.max(0,ts[0])>.15;});
+   if(!candidates.length)continue;const s=candidates[0],d={x:s.b.x-s.a.x,y:s.b.y-s.a.y},l2=d.x*d.x+d.y*d.y;
+   for(const j of [i,(i+1)%ring.length]){const p=result[j],t=((p.x-s.a.x)*d.x+(p.y-s.a.y)*d.y)/l2;result[j]={...p,x:s.a.x+t*d.x,y:s.a.y+t*d.y};}
+  }return result;});loops=K.union(loops.map(points=>({points}))).map(f=>f.points);
+ }
  // Boolean roof unions can retain sub-pixel survey drift beside a chimney.
  // Resolve those foundation junctions onto the measured volume boundary so
  // its exposed shell and the generated house wall share the same endpoint.
@@ -137,13 +149,26 @@ function usesRoofEnvelope(base,grade){
  const planes=grade.faces.map(ids=>{const points=ids.map(i=>grade.points[i]);return {points,plane:G.plane(points)};});
  return base.faces.every(f=>f.points.every(p=>planes.some(g=>G.contains(g,p)&&Math.abs(p.z-g.plane.dx*p.x-g.plane.dy*p.y-g.plane.k)<.002)));
 }
+function clipRoofTops(walls,roof){
+ const triangles=roof.faces.flatMap(f=>{const mesh=K.triangles(f.points,f.holes||[]);return mesh.triangles.map(ids=>({id:f.id,points:ids.map(i=>mesh.points[i])}));}).map(f=>({...f,plane:G.plane(f.points)})).filter(f=>f.plane);
+ const mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t}),height=(f,p)=>f.plane.dx*p.x+f.plane.dy*p.y+f.plane.k;
+ return walls.flatMap(w=>{
+  const ts=G.splitParameters(...w.bottom,triangles),out=[];
+  for(let i=1;i<ts.length;i++){
+   const lo=ts[i-1],hi=ts[i],mid=mix(...w.top,(lo+hi)/2),cover=triangles.filter(f=>G.contains(f,mid)).sort((a,b)=>height(b,mid)-height(a,mid))[0];
+   const bottom=[lo,hi].map(t=>mix(...w.bottom,t)),top=[lo,hi].map((t,j)=>{const p=mix(...w.top,t);return {...p,z:Math.max(bottom[j].z,Math.min(p.z,cover?height(cover,p):Infinity))};});
+   if(dist(...bottom)<.002||top.every((p,j)=>p.z-bottom[j].z<.00001))continue;
+   out.push({...w,id:ts.length===2?w.id:w.id+':roof-'+i,bottom,top});
+  }return out;
+ });
+}
 function reconcileRoofWalls(walls,roof,sources,base,grade){
  if(!usesRoofEnvelope(base,grade))return walls;
  const C=typeof module==='object'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;
  const faces=C?C.buildingBase({base}):base.faces,regions=K.union(faces),terrainFaces=grade.faces.map(ids=>({points:ids.map(i=>grade.points[i])}));
  const height=(plane,p)=>plane.dx*p.x+plane.dy*p.y+plane.k;
  const floor=p=>{const f=terrainFaces.find(f=>G.contains(f,p));return f?height(G.plane(f.points),p):height(G.plane(grade.points),p);};
- const remaining=walls.filter(w=>!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02));
+ const remaining=walls.filter(w=>!(w.kind==='perimeter'&&String(w.targetId).startsWith('ground'))&&!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02));
  const perimeters=sources.filter(s=>s.kind==='perimeter'),result=[];
  for(let fi=0;fi<regions.length;fi++)for(const ring of [regions[fi].points,...regions[fi].holes])for(let ei=0;ei<ring.length;ei++){
   const a=ring[ei],b=ring[(ei+1)%ring.length],length=dist(a,b);if(length<.002)continue;
@@ -158,13 +183,16 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
    const ranked=parallel.map(s=>({s,d:score(s)})).sort((a,b)=>a.d-b.d),owner=ranked[0]&&ranked[0].d<=Math.max(.02,4*(ranked[0].s.setback||0))?ranked[0].s:null;
    const roofFace=roof.faces.filter(f=>G.contains({...f,holes:[]},mid)).map(f=>({f,plane:G.plane(f.points)})).filter(f=>f.plane).sort((a,b)=>height(b.plane,mid)-height(a.plane,mid))[0];
    const plane=owner?.sourcePlane||roofFace?.plane;if(!plane)continue;
-   const bottom=[p,q].map(p=>({...p,z:floor(p)})),top=[p,q].map(p=>({...p,z:Math.max(floor(p),height(plane,p))}));if(top.every((p,i)=>p.z-bottom[i].z<.02))continue;
+   // Offset source planes extrapolate a pitch beyond its measured hip seam.
+   // The finite roof face covering this interval caps that extrapolation.
+   const ceiling=point=>Math.min(height(plane,point),roofFace?height(roofFace.plane,point):Infinity);
+   const bottom=[p,q].map(p=>({...p,z:floor(p)})),top=[p,q].map(p=>({...p,z:Math.max(floor(p),ceiling(p))}));if(top.every((p,i)=>p.z-bottom[i].z<.02))continue;
    result.push({id:`envelope-${fi}-${ei}-${i}`,sourceId:owner?.id||`envelope-${fi}-${ei}`,sourceRoofId:owner?.parentId??roofFace?.f.id,kind:'perimeter',type:owner?.type||'wall',targetId:'ground:envelope',bottom,top});
   }
  }
  // The incoming upper walls are already deduplicated. Reapplying survey
  // alignment here would move the exact foundation junctions apart again.
- return G.deduplicate([...remaining,...result],.002,{preserveJunctions:true}).walls;
+ return G.deduplicate(clipRoofTops([...remaining,...result],roof),.002,{preserveJunctions:true}).walls;
 }
 function repairInitial(base,roof,grade,walls){
  if(base?.source!=='Wall perimeter'||base.sketch?.nodes.some(p=>!p.fixed)||base.sketch?.edges.some(e=>!e.fixed))return base;

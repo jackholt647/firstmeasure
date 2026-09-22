@@ -141,7 +141,8 @@ function cutWall(w,c,state){
 // Classify horizontal sections against the edited wall fabric in that case.
 function updateScene(walls,state,cs){
  const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null),edits=state.wallEdits||{},surfaces=(edits.$surfaces||[]).filter(f=>!f.chimney&&!f.deleted&&!f.drafted);
- if(!W||!surfaces.length){scenes.delete(state);return;}
+ const generated=state.options?.roofContacts&&!surfaces.length&&!Object.keys(edits.$drafts||{}).length&&!edits.$base;
+ if(!W||(!surfaces.length&&!generated)){scenes.delete(state);return;}
  const drafts=Object.values(edits.$drafts||{}).filter(d=>!d.chimney&&!d.mergedInto),claimed=new Set(drafts.flatMap(d=>d.members||[]).map(id=>id.split(':chimney-cut-')[0]));
  const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},faces=[...surfaces];
  for(const d of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.boundaryHole||f.solidId||(d.deletedFaces||[]).includes(signature))continue;faces.push({...f,points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))});}
@@ -149,12 +150,17 @@ function updateScene(walls,state,cs){
   // Drafts created on either side of a chimney omit its covered siding.
   // Restore that covered interval solely for the building-inside query.
   for(const c of cs)for(const [lo,hi]of volumeIntervals(...w.bottom,c)){const p=sliceWall(w,lo,hi,w.id);faces.push({points:[p.bottom[0],p.bottom[1],p.top[1],p.top[0]]});}}
- const vertical=faces.map(f=>({f,frame:W.faceFrame(f)})).filter(v=>v.frame&&Math.abs(v.frame.n.z)<1e-5).map(v=>({...v,local:{points:v.f.points.map(p=>W.inFrame(v.frame,p)),holes:(v.f.holes||[]).map(r=>r.map(p=>W.inFrame(v.frame,p)))}}));
- scenes.set(state,{W,faces:vertical,z:[...new Set(vertical.flatMap(v=>v.f.points.map(p=>p.z)))].sort((a,b)=>a-b)});
+ if(generated)faces.push(...(state.roof?.faces||[]).map(f=>({...f,holes:[]})));
+ const vertical=faces.map(f=>({f,frame:W.faceFrame(f)})).filter(v=>v.frame&&(generated||Math.abs(v.frame.n.z)<1e-5)).map(v=>({...v,local:{points:v.f.points.map(p=>W.inFrame(v.frame,p)),holes:(v.f.holes||[]).map(r=>r.map(p=>W.inFrame(v.frame,p)))}}));
+ scenes.set(state,{W,generated,faces:vertical,z:[...new Set(vertical.flatMap(v=>v.f.points.map(p=>p.z)))].sort((a,b)=>a-b)});
 }
 function inBuilding(state,p){const scene=scenes.get(state);if(!scene)return (buildingBase(state)).some(f=>contains(f,p));
+ if(scene.generated&&buildingBase(state).some(f=>contains(f,p))){
+  const ceilings=(state.roof?.faces||[]).filter(f=>G.contains({...f,holes:[]},p)).map(f=>G.plane(f.points)).filter(Boolean).map(f=>f.dx*p.x+f.dy*p.y+f.k);
+  if(ceilings.length&&p.z<Math.min(...ceilings)-EPS)return true;
+ }
  const direction={x:1,y:.3713906763541037,z:0},hits=[];
- for(const {frame,local}of scene.faces){const den=frame.n.x*direction.x+frame.n.y*direction.y;if(Math.abs(den)<1e-8)continue;const t=(frame.n.x*(frame.origin.x-p.x)+frame.n.y*(frame.origin.y-p.y))/den;if(t<=1e-7)continue;const hit={x:p.x+direction.x*t,y:p.y+direction.y*t,z:p.z};if(contains(local,scene.W.inFrame(frame,hit)))hits.push(t);}
+ for(const {frame,local}of scene.faces){if(scene.generated&&Math.abs(frame.n.z)>1e-5)continue;const den=frame.n.x*direction.x+frame.n.y*direction.y;if(Math.abs(den)<1e-8)continue;const t=(frame.n.x*(frame.origin.x-p.x)+frame.n.y*(frame.origin.y-p.y))/den;if(t<=1e-7)continue;const hit={x:p.x+direction.x*t,y:p.y+direction.y*t,z:p.z};if(contains(local,scene.W.inFrame(frame,hit)))hits.push(t);}
  hits.sort((a,b)=>a-b);return hits.filter((t,i)=>!i||t-hits[i-1]>1e-5).length%2===1;
 }
 function exposureBands(a,b,state,offset,bottom,top,other=[]){const scene=scenes.get(state);if(!scene)return null;
@@ -164,6 +170,45 @@ function exposureBands(a,b,state,offset,bottom,top,other=[]){const scene=scenes.
    const previous=result.findLast(b=>Math.abs(b.top-zs[k-1])<EPS&&Math.abs(b.span[0]-span[0])<EPS&&Math.abs(b.span[1]-span[1])<EPS);
    if(previous)previous.top=zs[k];else result.push({span,bottom:zs[k-1],top:zs[k]});
   }}
+ return result;
+}
+// Intersect the generated building with a chimney side in (side distance,
+// elevation). Splitting at actual surface planes preserves sloped roof seams;
+// a lower support only hides masonry below its roof, never the full shaft.
+function generatedSide(c,side,state){
+ if(c.points.every(p=>buildingBase(state).some(f=>contains(f,p))))return [];
+ const scene=scenes.get(state),a=c.points[side],b=c.points[(side+1)%c.points.length],length=dist(a,b),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},n={x:u.y,y:-u.x};
+ const world=p=>({x:a.x+u.x*p.x,y:a.y+u.y*p.x,z:p.y}),lines=[],seen=new Set();
+ for(const {f,frame}of scene.faces){
+  const hits=[];for(let i=0;i<f.points.length;i++){const p=f.points[i],q=f.points[(i+1)%f.points.length],dp=(p.x-a.x)*n.x+(p.y-a.y)*n.y,dq=(q.x-a.x)*n.x+(q.y-a.y)*n.y;
+   if(Math.abs(dp)<.002)hits.push(p);if(dp*dq<0)hits.push(mix(p,q,dp/(dp-dq)));
+  }
+  if(hits.length<2)continue;const xs=hits.map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y);if(Math.max(...xs)<-EPS||Math.min(...xs)>length+EPS)continue;
+  let A=frame.n.x*u.x+frame.n.y*u.y,B=frame.n.z,D=frame.n.x*(a.x-frame.origin.x)+frame.n.y*(a.y-frame.origin.y)-frame.n.z*frame.origin.z;
+  const norm=Math.hypot(A,B);if(norm<1e-8)continue;A/=norm;B/=norm;D/=norm;if(A<0||(Math.abs(A)<EPS&&B<0)){A=-A;B=-B;D=-D;}const key=[A,B,D].map(x=>x.toFixed(6)).join(':');if(!seen.has(key)){seen.add(key);lines.push({A,B,D});}
+ }
+ const clip=(ps,line,sign)=>{const out=[];for(let i=0;i<ps.length;i++){const p=ps[i],q=ps[(i+1)%ps.length],dp=sign*(line.A*p.x+line.B*p.y+line.D),dq=sign*(line.A*q.x+line.B*q.y+line.D);if(dp>=-1e-9)out.push(p);if(dp*dq<0){const t=dp/(dp-dq);out.push({x:p.x+(q.x-p.x)*t,y:p.y+(q.y-p.y)*t});}}return out;};
+ const ts=breaks(a,b,(state.roof?.faces||[]).flatMap(f=>[f.points,...(f.holes||[])])),result=[],visible=[];
+ for(let k=1;k<ts.length;k++){
+  const p=mix(a,b,ts[k-1]),q=mix(a,b,ts[k]);let cells=[[{x:ts[k-1]*length,y:floorAt(state,p)},{x:ts[k]*length,y:floorAt(state,q)},{x:ts[k]*length,y:roofContact(c,q,state)},{x:ts[k-1]*length,y:roofContact(c,p,state)}]];
+  for(const line of lines)cells=cells.flatMap(ps=>{const ds=ps.map(p=>line.A*p.x+line.B*p.y+line.D);return Math.min(...ds)<-1e-8&&Math.max(...ds)>1e-8?[clip(ps,line,1),clip(ps,line,-1)]:[ps];});
+  for(const ps of cells){if(Math.abs(area(ps))<1e-9)continue;const mid=ps.reduce((s,p)=>({x:s.x+p.x/ps.length,y:s.y+p.y/ps.length}),{x:0,y:0}),sample=world(mid);sample.x+=n.x*.00001;sample.y+=n.y*.00001;
+   if(inBuilding(state,sample)||definitions(state).some(o=>o.id!==c.id&&contains({points:o.points},sample)))continue;
+   visible.push({points:ps});
+  }
+ }
+ // Union before panelization so intersection cuts cannot leave doubled seams
+ // or dangling edges when the editor merges a chimney side into one face.
+ for(const region of K.union(visible)){
+  const rings=[region.points,...region.holes],xs=[...new Set(rings.flat().map(p=>p.x))].sort((a,b)=>a-b);
+  for(let j=1;j<xs.length;j++){
+   const lo=xs[j-1],hi=xs[j];if(hi-lo<EPS)continue;const x=(lo+hi)/2,edges=rings.flatMap(ps=>ps.map((p,i)=>[p,ps[(i+1)%ps.length]])).filter(([p,q])=>x>Math.min(p.x,q.x)&&x<Math.max(p.x,q.x)),at=(edge,x)=>edge[0].y+(edge[1].y-edge[0].y)*(x-edge[0].x)/(edge[1].x-edge[0].x);edges.sort((a,b)=>at(a,x)-at(b,x));
+   for(let k=1;k<edges.length;k+=2){
+    const bottom=[lo,hi].map(x=>world({x,y:at(edges[k-1],x)})),top=[lo,hi].map(x=>world({x,y:at(edges[k],x)}));if(top.every((p,i)=>p.z-bottom[i].z<EPS))continue;
+    result.push({id:c.id+':side-'+side+':cell-'+result.length,mergeGroup:c.id+':side-'+side,chimney:{id:c.id,side,inferred:c.inferred,exposureClipped:true},sourceId:c.id,type:'chimney',targetId:'ground:chimney',bottom,top});
+   }
+  }
+ }
  return result;
 }
 // Foundation additions are editable base faces, but must not count as house
@@ -324,6 +369,7 @@ function compose(walls,state){
  for(const w of walls){let pieces=[w];for(const c of chimneys)pieces=pieces.flatMap(p=>cutWall(p,c,state));pieces.forEach((p,i)=>normal.push({...p,id:i?w.id+':chimney-cut-'+i:w.id}));}
  const shell=[];
  for(const c of chimneys.filter(c=>!state.wallEdits?.$chimneyVolumes?.[c.id]||state.wallEdits.$chimneyVolumes[c.id].mode==='upper'))for(let side=0;side<c.points.length;side++){
+  if(scenes.get(state)?.generated){shell.push(...generatedSide(c,side,state));continue;}
   const a=c.points[side],b=c.points[(side+1)%c.points.length],len=dist(a,b),outward={x:(b.y-a.y)/len,y:-(b.x-a.x)/len};
   // Sample just outside the volume so a side coincident with a building edge is exposed.
   const spans=intervals(a,b,[...base,...chimneys.filter(o=>o.id!==c.id).map(o=>({points:o.points}))],false,{x:outward.x*.00001,y:outward.y*.00001});
@@ -356,7 +402,7 @@ function withVisibilitySnapshot(state,fn){
 }
 function visibilityDefinitions(state){const snapshot=visibilitySnapshots.get(state);if(!snapshot)return definitions(state);return snapshot.definitions||(snapshot.definitions=definitions(state));}
 function visibleParts(face,state){
- if(face.chimney?.volume)return [face];
+ if(face.chimney?.volume||(face.chimney?.exposureClipped&&scenes.get(state)?.generated))return [face];
  const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null),cs=visibilityDefinitions(state).filter(c=>!face.joinedChimneys?.includes(c.id));if(!W||!cs.length)return [face];
  const frame=W.faceFrame(face);if(!frame||Math.abs(frame.n.z)>1e-5)return [face];
  const ps=face.points,origin=ps[0],u={x:-frame.n.y,y:frame.n.x},ts=ps.map(p=>(p.x-origin.x)*u.x+(p.y-origin.y)*u.y),lo=Math.min(...ts),hi=Math.max(...ts),bottom=Math.min(...ps.map(p=>p.z))-1,top=Math.max(...ps.map(p=>p.z))+1;
@@ -373,7 +419,7 @@ function visibleParts(face,state){
  return W.joinFragments(pieces).map(f=>({...face,points:f.points.map(p=>W.fromFrame(frame,p)),holes:f.holes.map(r=>r.map(p=>W.fromFrame(frame,p)))}));
 }
 function visibleSegments(a,b,state,chimney,joinedChimneys=[]){
- if(chimney?.volume)return [[a,b]];
+ if(chimney?.volume||(chimney?.exposureClipped&&scenes.get(state)?.generated))return [[a,b]];
  const cs=visibilityDefinitions(state).filter(c=>!joinedChimneys.includes(c.id));if(!cs.length)return [[a,b]];
  const polygons=chimney?[...(buildingBase(state)),...cs.filter(c=>c.id!==chimney.id).map(c=>({points:c.points}))]:cs.map(c=>({points:c.points}));let offset={x:0,y:0};
  if(chimney){const c=cs.find(c=>c.id===chimney.id);if(c){const v=sub(c.points[(chimney.side+1)%c.points.length],c.points[chimney.side]),len=Math.hypot(v.x,v.y);offset={x:v.y/len*.00001,y:-v.x/len*.00001};}}

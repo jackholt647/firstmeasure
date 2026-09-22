@@ -252,7 +252,7 @@ test('18-inch overlap fixture builds the outer overlap footprint without clippin
 
 test('rake cleanup is a sixth stage with reversible wall and foundation comparisons and save/reload',()=>{
  // This historical cleanup fixture relies on flashing-inferred setbacks, not the new fixed Auto preset.
- const legacyGeometry={...G,buildSources:(roof,options)=>{delete options.defaultSoffitInches;return G.buildSources(roof,options);}};
+ const legacyGeometry={...G,buildSources:(roof,options)=>{delete options.defaultSoffitInches;delete options.roofContacts;return G.buildSources(roof,options);}};
  const {ctx,stages,soffits,elements,listeners}=fixture(true,{WallGeometry:legacyGeometry}),input=require('./fixtures/complex-roof-corner.json');
  const key=key=>listeners['window:keydown']({key,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
  const pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
