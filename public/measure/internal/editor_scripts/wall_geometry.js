@@ -51,6 +51,17 @@
             .sort((f,g)=>Math.abs(height(f,mid)-mid.z)-Math.abs(height(g,mid)-mid.z))[0];
     }
     const isFlashing = type => ['head_wall','side_wall','roof_to_wall','headwall','sidewall','roof-to-wall'].includes(type);
+    // A surveyed contact can also have a duplicate rake connection. It is
+    // attached to masonry, not a free roof edge with an overhang. Compare in
+    // 3D so an unrelated edge on another roof layer keeps its own soffit.
+    function chimneyContact(roof,a,b){
+        return (roof.connections||[]).some(e=>{
+            if(!String(e.type).startsWith('chimney'))return false;
+            const p=roof.points[e.startIdx],q=roof.points[e.endIdx];if(!p||!q)return false;
+            const length=distance(p,q);if(length<EPS)return false;
+            return [a,b].every(v=>{const t=((v.x-p.x)*(q.x-p.x)+(v.y-p.y)*(q.y-p.y))/(length*length);return onEdge(v,p,q,.002)&&Math.abs(v.z-mix(p,q,t).z)<.02;});
+        });
+    }
     // Connected roof pitches form one support layer. Flashing and chimney
     // boundaries separate layers even when their measured endpoints coincide.
     function roofLayers(roof,faces) {
@@ -125,6 +136,7 @@
         const flashing=edges.filter(e=>isFlashing(e.type));
         for(const e of edges) {
             if(!isFlashing(e.type) && !['eave','rake'].includes(e.type)) continue;
+            if(options.roofContacts&&chimneyContact(roof,e.a,e.b))continue;
             const parent=parentFace(faces,e.a,e.b);
             if(isFlashing(e.type)) { sources.push({...clone(e),kind:'flashing',direction:'up',parentId:parent?.id,setback:0}); continue; }
             if(!parent) { warnings.push(`${e.id}: no resolved roof face for ${e.type}.`); continue; }
@@ -732,7 +744,7 @@
         }
         return group.map(w=>w.id);
     }
-    const api={layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,plane,contains,onEdge,generatedMoveGroup,INCH};
+    const api={chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,plane,contains,onEdge,generatedMoveGroup,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

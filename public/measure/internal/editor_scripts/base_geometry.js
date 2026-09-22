@@ -75,7 +75,10 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
    const edges=ps.map((a,i)=>{const b=ps[(i+1)%ps.length],length=dist(a,b),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},n={x:-u.y,y:u.x};
     const matches=sources.filter(s=>s.originalA&&[s.originalA,s.originalB].every(p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)<.005)&&Math.abs((s.originalB.x-s.originalA.x)*u.x+(s.originalB.y-s.originalA.y)*u.y)>.01);
     const overlapping=matches.filter(s=>{const ts=[s.originalA,s.originalB].map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y).sort((a,b)=>a-b);return Math.min(length,ts[1])-Math.max(0,ts[0])>.002;});
-    const offsets=overlapping.map(s=>s.setback),d=offsets.length?Math.min(...offsets):setback;
+    // The union has lost roof elevations: a tiny lower cap must not reduce
+    // the entire main eave's setback. Keep the deeper supporting body here;
+    // each narrow layer adds its own reduced footprint below.
+    const offsets=overlapping.map(s=>s.setback),d=offsets.length?Math.max(...offsets):setback;
     return {a:{x:a.x+n.x*d,y:a.y+n.y*d},b:{x:b.x+n.x*d,y:b.y+n.y*d}};
    });
    const points=edges.flatMap((e,i)=>{const prev=edges[(i+edges.length-1)%edges.length],u={x:prev.b.x-prev.a.x,y:prev.b.y-prev.a.y},v={x:e.b.x-e.a.x,y:e.b.y-e.a.y},den=u.x*v.y-u.y*v.x;
@@ -94,7 +97,7 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
   if(limit>=setback-1e-6)continue;
   if(group.length===1&&group[0].points.every((p,i,ps)=>cross(ps[(i+ps.length-1)%ps.length],p,ps[(i+1)%ps.length])*area(ps)>=-1e-8)){
    let parts=[{points:group[0].points}];
-   for(const edge of roof.connections||[]){if(!['eave','rake'].includes(edge.type))continue;const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
+   for(const edge of roof.connections||[]){if(!['eave','rake'].includes(edge.type))continue;const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
     const len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};if(!G.contains(group[0],{x:mid.x+n.x*.02,y:mid.y+n.y*.02})){n.x=-n.x;n.y=-n.y;}
     const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;parts=K.intersection(parts,[{points:[at(-size,limit),at(size,limit),at(size,size),at(-size,size)]}]);
    }
