@@ -33,10 +33,10 @@ php_fpm_service="${FIRSTMEASURE_PHP_FPM_SERVICE:-php8.3-fpm.service}"
 
 restart_release_services() {
   systemctl restart "$service_name" || return 1
-  if [[ "$service_name" == "firstmeasure-legacy.service" ]]; then
-    # The compatibility host serves the PHP staff portal from the `current`
-    # symlink. Restart FPM as part of the release so its realpath/opcache does
-    # not keep executing PHP from the previous release directory.
+  if [[ "$service_name" == "firstmeasure-web.service" || "$service_name" == "firstmeasure-legacy.service" ]]; then
+    # Both web (customer portal) and compatibility (staff portal) serve PHP.
+    # Refresh FPM on activation AND rollback so PHP includes and Node/assets
+    # cannot belong to different releases. Workers do not run PHP.
     systemctl restart "$php_fpm_service" || return 1
   fi
 }

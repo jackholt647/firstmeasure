@@ -74,7 +74,8 @@ server {
     location ~ \.php$ {
         try_files $uri =404;
         include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        # Resolve the immutable release before PHP realpath/opcache lookup.
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         fastcgi_param PROVIDER_KEYS_PATH /etc/firstmeasure/provider-keys.json;
         fastcgi_param FIRSTMEASURE_NODE_BASE_URL http://127.0.0.1:3101/v1/platform;
         fastcgi_param PLATFORM_SESSION_COOKIE_NAME __PLATFORM_SESSION_COOKIE_NAME__;
