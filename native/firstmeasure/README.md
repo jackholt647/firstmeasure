@@ -22,6 +22,8 @@ cd native/firstmeasure/android
 
 On Windows use `gradlew.bat`. The development APK is `app/build/outputs/apk/development/debug/app-development-debug.apk`; it connects only to `https://dev.1m8.ai` and has a separate application ID, so it can coexist with production. Install explicitly on your emulator: `adb -s emulator-5554 install -r <apk>`. For a visible emulator run `emulator -avd FirstMeasure_API35`. Run `../scripts/test-android.ps1 -Serial emulator-5554` from PowerShell, or set `ANDROID_SERIAL` and run `connectedDevelopmentDebugAndroidTest` on other systems. Never let a test runner pick an attached personal phone implicitly.
 
+`scripts/start-android.ps1` opens the configured emulator window, installs the current development APK and launches FirstMeasure for interactive testing. It targets only the selected emulator port.
+
 The production AAB is unsigned. Play distribution requires your account, approved package ID, upload signing key and listing. Keep signing material outside Git. Debug builds use the developer machine's debug key; APKs from a different CI/machine key require uninstall/reinstall and lose that app's local session. Use a stable test signing key before distributing continuous upgrades to a wider pilot.
 
 ## iPhone and iPad

@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 mobile apps: [Development mobile hosts and private downloads](deploy/digitalocean/development-mobile-apps-20260922.md) records `a639aad1132f425ed567aafd03f4d08ffbba5dfe` on all development roles, preserving the concurrent `18a81ab` wall/plane editor release. Android and iPhone simulator CI passed; physical iPhone distribution awaits Apple signing. Production is unchanged.
+
 September 21 PHP release compatibility: [Prevent mixed portal releases](deploy/digitalocean/development-php-release-compatibility-20260921.md) records the development correction for stale PHP pages mixed with new JavaScript. PHP-serving NGINX hosts must use resolved release filenames; refresh PHP-FPM on both web and compatibility activation and rollback. Organization data and flags were unchanged.
 
 September 21 co-branding default: [Standard FirstMeasure sidebar branding](deploy/digitalocean/development-cobrand-default-20260921.md) records `9ee0e68ba5c8671468d121629ac97be00e7336c6` on development. Co-branding is default-on without expanded apps; saved organization opt-outs remain respected. Production is unchanged.

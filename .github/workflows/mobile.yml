@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: ['codex/mobile-platform']
-    paths: ['native/firstmeasure/**', 'public/libraries/phone-features/**', 'public/v1/mobile/**', '.github/workflows/mobile.yml']
+    paths: ['native/firstmeasure/**', 'public/**', '.github/workflows/mobile.yml']
   pull_request:
-    paths: ['native/firstmeasure/**', 'public/libraries/phone-features/**', 'public/v1/mobile/**', '.github/workflows/mobile.yml']
+    paths: ['native/firstmeasure/**', 'public/**', '.github/workflows/mobile.yml']
 permissions:
   contents: read
 concurrency:

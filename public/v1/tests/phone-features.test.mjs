@@ -23,3 +23,9 @@ test('versioned handshake, request matching, errors and close cleanup',async()=>
 test('future native protocol fails safely without activating native layout',async()=>{
   const f=fixture(true);f.reply(f.sent[0].id,{bridgeVersion:99,platform:'ios'});assert.equal(await f.api.ready,null);assert.deepEqual(f.document.documentElement.dataset,{});
 });
+test('settings categories without terminology keys keep their supplied title',()=>{
+  const company=fs.readFileSync(new URL('../../libraries/apps/settings/company.js',import.meta.url),'utf8');
+  const expression=company.match(/const sectionTitle = ([^\n]+);/)?.[1];assert.ok(expression);
+  const title=vm.runInNewContext(expression,{terminologyLabel:(key,fallback)=>{assert.equal(typeof key,'string');return 'Translated '+fallback;}});
+  assert.equal(title({title:'App download'}),'App download');assert.equal(title({title:'Company',term:'settings.company_tab'}),'Translated Company');assert.equal(title(null),'');
+});
