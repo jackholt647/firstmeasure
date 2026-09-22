@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 21 co-branding default: [Standard FirstMeasure sidebar branding](deploy/digitalocean/development-cobrand-default-20260921.md) records `9ee0e68ba5c8671468d121629ac97be00e7336c6` on development. Co-branding is default-on without expanded apps; saved organization opt-outs remain respected. Production is unchanged.
+
 September 21 complete local development sync: [Platform, localization and exterior release](deploy/digitalocean/development-complete-local-20260921.md) records `2325b63c541aec4eb785a8998f2d11a752755d47` on all three development roles. Preserve this complete baseline. Production is unchanged; rollout capabilities remain default-off.
 
 September 18 textured ground imagery: [Flat image ground](deploy/digitalocean/development-image-ground-20260918.md) records `3240bc71374eb13dc65852c81a12f26e033fd8c6`. Enabled imagery remains visible as a lightweight flat ground plane beneath the textured model.
