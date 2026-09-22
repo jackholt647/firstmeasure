@@ -136,3 +136,25 @@ test('clearance requires an overlapping lower layer reaching the same eave',()=>
   assert.equal(s.clearanceRoofIds,undefined);
  }
 });
+
+for(const soffit of [18,24])test(`selecting or materializing a lower wall preserves chimney exposure at ${soffit} inches`,()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture,soffit),initial=C.compose(r.aligned.walls,r.state).filter(w=>w.chimney),w=r.composed.find(w=>w.sourceId==='R134.0'),points=[...w.bottom,w.top[1],w.top[0]],frame=K.frame({points});
+ const initialEdits=structuredClone(r.state.wallEdits);
+ for(const materialized of [false,true]){
+  r.state.wallEdits=structuredClone(initialEdits);
+  r.state.wallEdits.$drafts={selected:{frame,members:[w.id],faces:[{points:points.map(p=>K.local(frame,p)),...(materialized?{solidId:'converted'}:{})}]}};
+  if(materialized)r.state.wallEdits.$surfaces.push({id:'converted',points});
+  const current=C.compose(r.aligned.walls,r.state).filter(w=>w.chimney);
+  assert.deepEqual(current,initial,'selection and equivalent editable geometry cannot change chimney panels');
+  for(const wall of current){const face={...wall,points:[...wall.bottom,wall.top[1],wall.top[0]]};assert.deepEqual(C.visibleParts(face,r.state),[face],'rendering cannot clip the repaired panel a second time');}
+  r.state=JSON.parse(JSON.stringify(r.state));assert.deepEqual(C.compose(r.aligned.walls,r.state).filter(w=>w.chimney),initial,'reload retains exposure');
+ }
+});
+
+for(const roofId of [34,35,36,37])test(`saved house lower roof ${roofId} constrains side-then-front extrusion under the upper layer`,()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=build(fixture,18),roof=C.roofWithOpenings(r.state),scene=r.composed.map(w=>({...w,points:[...w.bottom,w.top[1],w.top[0]],holes:[]}));
+ const sources=r.state.sources.filter(s=>s.parentId===roofId),sideSource=sources.find(s=>s.type==='rake'),frontSource=sources.find(s=>s.type==='eave'),side=scene.find(f=>f.sourceId===sideSource.id),front=scene.find(f=>f.sourceId===frontSource.id),plane=G.plane(r.state.roof.faces.find(f=>f.id===roofId).points);
+ const first=M.createExtrusion({face:side,scene,roof}).preview(sideSource.setback+.008),next=first.replacements.find(r=>r.face.id===front.id)?.pieces[0];assert.ok(next,'the first extrusion extends its front neighbor');
+ const result=M.createExtrusion({face:next,scene:[first.cap,...first.sides],roof}).preview(frontSource.setback-.002);
+ for(const face of [result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)]){K.validateFace(face);for(const p of [...face.points,...(face.retainedPoints||[])])assert.ok(p.z<=plane.dx*p.x+plane.dy*p.y+plane.k+.00001,'lower roof bounds every shared edge after both edits');}
+});

@@ -141,7 +141,10 @@ function cutWall(w,c,state){
 // Classify horizontal sections against the edited wall fabric in that case.
 function updateScene(walls,state,cs){
  const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null),edits=state.wallEdits||{},surfaces=(edits.$surfaces||[]).filter(f=>!f.chimney&&!f.deleted&&!f.drafted);
- const generated=state.options?.roofContacts&&!surfaces.length&&!Object.keys(edits.$drafts||{}).length&&!edits.$base;
+ // Draft creation is selection, not a change to the building envelope. Keep
+ // the roof-plane classifier when drafts or extrusion replacements appear;
+ // otherwise the footprint-only fallback erases exposed chimney shoulders.
+ const generated=!!state.options?.roofContacts,edited=!!(surfaces.length||edits.$base);
  if(!W||(!surfaces.length&&!generated)){scenes.delete(state);return;}
  const drafts=Object.values(edits.$drafts||{}).filter(d=>!d.chimney&&!d.mergedInto),claimed=new Set(drafts.flatMap(d=>d.members||[]).map(id=>id.split(':chimney-cut-')[0]));
  const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},faces=[...surfaces];
@@ -152,10 +155,10 @@ function updateScene(walls,state,cs){
   for(const c of cs)for(const [lo,hi]of volumeIntervals(...w.bottom,c)){const p=sliceWall(w,lo,hi,w.id);faces.push({points:[p.bottom[0],p.bottom[1],p.top[1],p.top[0]]});}}
  if(generated)faces.push(...(state.roof?.faces||[]).map(f=>({...f,holes:[]})));
  const vertical=faces.map(f=>({f,frame:W.faceFrame(f)})).filter(v=>v.frame&&(generated||Math.abs(v.frame.n.z)<1e-5)).map(v=>({...v,local:{points:v.f.points.map(p=>W.inFrame(v.frame,p)),holes:(v.f.holes||[]).map(r=>r.map(p=>W.inFrame(v.frame,p)))}}));
- scenes.set(state,{W,generated,faces:vertical,z:[...new Set(vertical.flatMap(v=>v.f.points.map(p=>p.z)))].sort((a,b)=>a-b)});
+ scenes.set(state,{W,generated,edited,faces:vertical,z:[...new Set(vertical.flatMap(v=>v.f.points.map(p=>p.z)))].sort((a,b)=>a-b)});
 }
 function inBuilding(state,p){const scene=scenes.get(state);if(!scene)return (buildingBase(state)).some(f=>contains(f,p));
- if(scene.generated&&buildingBase(state).some(f=>contains(f,p))){
+ if(scene.generated&&!scene.edited&&buildingBase(state).some(f=>contains(f,p))){
   const ceilings=(state.roof?.faces||[]).filter(f=>G.contains({...f,holes:[]},p)).map(f=>G.plane(f.points)).filter(Boolean).map(f=>f.dx*p.x+f.dy*p.y+f.k);
   if(ceilings.length&&p.z<Math.min(...ceilings)-EPS)return true;
  }

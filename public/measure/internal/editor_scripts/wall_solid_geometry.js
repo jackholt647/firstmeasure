@@ -451,12 +451,43 @@ function planarUnion(faces){
 // Remove the space above finite roof surfaces from a horizontal wall sweep.
 // Include the cutter boundary inside the sweep: this creates the sloped return
 // and the exact first-contact corner, rather than bending a four-point face.
+function roofContactExtensions(source,roof){
+ // A previous side extrusion can carry a wall's roof-contact edge just past
+ // the survey polygon. Continue that same roof there on the next extrusion.
+ // Require a real, coplanar edge interval on the measured roof, and extend
+ // only by its overhanging length; unrelated planes and roof holes stay free.
+ const extensions=[],outer=roof.faces.filter(f=>!f.deleted).map(f=>({...f,holes:[]}));
+ const contactInterval=(a,b,points)=>{let lo=0,hi=1;const side=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x),sign=Math.sign(side(...points));for(let i=0;i<3;i++){const p=points[i],q=points[(i+1)%3],da=sign*side(p,q,a),db=sign*side(p,q,b);if(da<0&&db<0)return null;if(da<0)lo=Math.max(lo,da/(da-db));if(db<0)hi=Math.min(hi,da/(da-db));}return hi-lo>1e-7?[lo,hi]:null;};
+ const hull=ps=>{const sorted=ps.slice().sort((a,b)=>a.x-b.x||a.y-b.y),half=ps=>{const out=[];for(const p of ps){while(out.length>1&&(out.at(-1).x-out.at(-2).x)*(p.y-out.at(-2).y)-(out.at(-1).y-out.at(-2).y)*(p.x-out.at(-2).x)<=1e-12)out.pop();out.push(p);}return out;};return [...half(sorted).slice(0,-1),...half(sorted.slice().reverse()).slice(0,-1)];};
+ for(const face of roof.faces){
+  if(face.deleted||!face.points?.every(K.finite3))continue;
+  const mesh=K.triangles(face.points,face.holes||[]),triangles=mesh.triangles.map(ids=>ids.map(i=>mesh.points[i]));
+  for(const points of triangles){const n=normal(points);if(!n||Math.abs(n.z)<K.CONTACT)continue;const k=dot(n,points[0]),offsets=[];
+   for(const ring of rings(source))for(let i=0;i<ring.length;i++){
+    const a=ring[i],b=ring[(i+1)%ring.length];if([a,b].some(p=>Math.abs(dot(n,p)-k)>K.CONTACT))continue;
+    const interval=contactInterval(a,b,points);if(!interval)continue;const [lo,hi]=interval;
+    const spans=triangles.filter(ps=>ps.every(p=>Math.abs(dot(n,p)-k)<=K.CONTACT)).map(ps=>contactInterval(a,b,ps)).filter(Boolean),first=Math.min(...spans.map(s=>s[0])),last=Math.max(...spans.map(s=>s[1]));
+    // Triangle seams and holes are not outside roof edges.
+    if(lo>K.CONTACT&&Math.abs(lo-first)<1e-7&&!pointInRing(a,face.points))offsets.push(sub(a,mix3(a,b,lo)));
+    if(hi<1-K.CONTACT&&Math.abs(hi-last)<1e-7&&!pointInRing(b,face.points))offsets.push(sub(b,mix3(a,b,hi)));
+   }
+   if(!offsets.length)continue;
+   // Boolean output is rounded to microns. Cover that seam tolerance too,
+   // otherwise the neighboring return can retain a full-height hairline.
+   const boundary=hull([...points,...offsets.flatMap(d=>{const scale=1+4*K.CONTACT/Math.hypot(d.x,d.y);return points.map(p=>({x:p.x+d.x*scale,y:p.y+d.y*scale,z:0}));})]);
+   const covered=outer.filter(f=>f.points.every(p=>Math.abs(dot(n,p)-k)<=K.CONTACT));
+   for(const f of K.difference({points:boundary,holes:[]},covered))extensions.push({...f,points:f.points.map(p=>({...p,z:(k-n.x*p.x-n.y*p.y)/n.z})),holes:f.holes.map(r=>r.map(p=>({...p,z:(k-n.x*p.x-n.y*p.y)/n.z})))});
+  }
+ }
+ return extensions;
+}
 function roofExtrusion(source,amount,shape,roof){
  const n=normal(source.points);if(!roof?.faces?.length||!n||Math.abs(n.z)>K.CONTACT||Math.abs(amount)<K.CONTACT)return shape;
+ const measuredRoof=roof,continuations=roofContactExtensions(source,roof);if(continuations.length)roof={...roof,faces:[...roof.faces,...continuations]};
  // The roof owns its surface. Keep only exposed portions of sweep returns,
  // including when motion is exactly coplanar and never enters a roof cutter.
  const exposed=faces=>faces.flatMap(f=>{const frame=K.frame(f),local=g=>({points:g.points.map(p=>K.local(frame,p)),holes:(g.holes||[]).map(r=>r.map(p=>K.local(frame,p)))});
-  const roofs=roof.faces.filter(r=>!r.deleted&&r.points?.every(K.finite3)&&r.points.every(p=>Math.abs(K.local(frame,p).z)<=K.CONTACT));if(!roofs.length)return [f];
+  const roofs=measuredRoof.faces.filter(r=>!r.deleted&&r.points?.every(K.finite3)&&r.points.every(p=>Math.abs(K.local(frame,p).z)<=K.CONTACT));if(!roofs.length)return [f];
   return K.difference(local(f),roofs.map(local)).map((r,i)=>({...f,id:i?f.id+'-exposed-'+i:f.id,points:r.points.map(p=>K.world(frame,p)),holes:r.holes.map(r=>r.map(p=>K.world(frame,p)))}));});
  const direction={x:n.x*Math.sign(amount),y:n.y*Math.sign(amount),z:0},length=Math.abs(amount),frame=K.frame(source);
  const mesh=source.curvedSurface?.logical?K.surfaceMesh(source):null,triangles=mesh?mesh.triangles.map(t=>t.map(i=>mesh.positions[i])):(()=>{const m=K.triangles(source.points.map(p=>K.local(frame,p)),(source.holes||[]).map(r=>r.map(p=>K.local(frame,p))));return m.triangles.map(t=>t.map(i=>K.world(frame,m.points[i])));})();
@@ -489,7 +520,12 @@ function roofExtrusion(source,amount,shape,roof){
     const edge=region.points.map(p=>({...p,z:(roofPlane.k-rn.x*p.x-rn.y*p.y)/rn.z}));
     const planes=[...prismPlanes(edge,{x:0,y:0,z:1}),...region.ceiling];
     if(!sweepShell.some(f=>f.points.some(p=>dot(roofPlane.n,p)>roofPlane.k+K.CONTACT))||!sweepShell.some(f=>volumeSection(f,planes).length))continue;
-    const bounds=[{points:edge,holes:[],roofContact:true}];for(let i=0;i<edge.length;i++){const a=edge[i],b=edge[(i+1)%edge.length];if(Math.min(a.z,b.z)<zMax)bounds.push({points:[a,b,{...b,z:zMax},{...a,z:zMax}],holes:[]});}
+    const bounds=[{points:edge,holes:[],roofContact:true}],winding=Math.sign(edge.reduce((s,p,i)=>s+p.x*edge[(i+1)%edge.length].y-p.y*edge[(i+1)%edge.length].x,0));
+    for(let i=0;i<edge.length;i++){const a=edge[i],b=edge[(i+1)%edge.length],length=Math.hypot(b.x-a.x,b.y-a.y),outside={x:(a.x+b.x)/2+winding*(b.y-a.y)/length*4*K.CONTACT,y:(a.y+b.y)/2-winding*(b.x-a.x)/length*4*K.CONTACT};
+     // A measured roof and its contact continuation share a boundary, not a
+     // vertical return. Do not panelize that internal cutter seam.
+     const internal=continuations.length&&roof.faces.some(f=>f.points.every(p=>Math.abs(dot(rn,p)-roofPlane.k)<=K.CONTACT)&&pointInRing(outside,f.points)&&!(f.holes||[]).some(r=>pointInRing(outside,r)));
+     if(!internal&&Math.min(a.z,b.z)<zMax)bounds.push({points:[a,b,{...b,z:zMax},{...a,z:zMax}],holes:[]});}
     cutters.push({planes,bounds,ceilingPlanes:region.ceiling});
    }
   }

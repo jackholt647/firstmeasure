@@ -58,3 +58,16 @@ test('after roof contact an extrusion stays constrained past the finite eave',()
 test('saved inner roof corner reaches measured eave elevations without an artificial trim gap',()=>{
  const fixture=require('./fixtures/roof-inner-corner.json');for(const face of fixture.walls){const out=sweep(face,.4572,fixture.roof),edge=fixture.roof.connections.map(c=>[fixture.roof.points[c.startIdx],fixture.roof.points[c.endIdx]]).find(([a,b])=>out.cap.points.filter(p=>p.z>162).filter(p=>Math.abs((b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x))/Math.hypot(b.x-a.x,b.y-a.y)<.00001).length>=2&&Math.abs(a.z-164.49600219726562)<.00001);assert.ok(edge);const [a,b]=edge;for(const p of out.cap.points.filter(p=>p.z>162&&require('../public/measure/internal/editor_scripts/wall_geometry').onEdge(p,a,b,.00001)))assert.ok(Math.abs(p.z-a.z)<.00001,'wall reaches measured eave exactly');}
 });
+
+for(const sideDistance of [.5,.501,.6])for(const angle of [0,.71])test(`side then front extrusion keeps the entire roof contact (${sideDistance}, rotation ${angle})`,()=>{
+ const rotate=p=>({x:p.x*Math.cos(angle)-p.y*Math.sin(angle),y:p.x*Math.sin(angle)+p.y*Math.cos(angle),z:p.z}),unrotate=p=>rotateBack(p),rotateBack=p=>({x:p.x*Math.cos(angle)+p.y*Math.sin(angle),y:-p.x*Math.sin(angle)+p.y*Math.cos(angle),z:p.z});
+ const r={faces:[{points:[p(0,1,4),p(4,1,4),p(4,-2,1),p(0,-2,1)].map(rotate)}]},front={id:'front',points:[p(.5,0,0),p(3,0,0),p(3,0,3),p(.5,0,3)].map(rotate)},left={id:'left',points:[p(.5,1,0),p(.5,0,0),p(.5,0,3),p(.5,1,4)].map(rotate)},before=JSON.stringify({r,front,left});
+ const first=M.createExtrusion({face:left,scene:[front],roof:r}).preview(sideDistance),next=first.replacements.find(r=>r.face.id===front.id).pieces[0];
+ const engine=M.createExtrusion({face:JSON.parse(JSON.stringify(next)),scene:[first.cap,...first.sides],roof:r});
+ for(const distance of [.2,.5,.8]){
+  const result=engine.preview(distance),faces=[result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)];
+  for(const f of faces){K.validateFace(f);for(const point of [...f.points,...(f.retainedPoints||[])].map(unrotate))assert.ok(point.z<=3+point.y+K.CONTACT,'all shared boundary anchors follow the roof');}
+  const top=result.cap.points.filter(p=>p.z>1);assert.ok(top.every(p=>near(p.z,3-distance)),'no upright sliver at the previously moved side');
+ }
+ assert.equal(JSON.stringify({r,front,left}),before,'preview/cancellation does not mutate its inputs');
+});
