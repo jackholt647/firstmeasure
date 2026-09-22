@@ -551,3 +551,9 @@ test('first wall grade is hidden and flat; explicitly chosen slope survives rebu
  elements.get('wall-rebuild').onclick();chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);
  ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...chosen,savedAt:Date.now()+2000}});assert.deepEqual(ctx.WallMode.serialize().ground,chosen.ground);
 });
+
+test('Shift with selected lines never falls through to roof trim, face or layer picking',()=>{
+ const calls=[];let wallHost;const base={cancelPointerGesture(){},setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false},wall={cancelPointerGesture(){},apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,selectionSnapshot:()=>({draft:{lineSelection:[{id:'edge'}]}}),pickPoint:()=>{calls.push('point');return true;},pickLine:()=>{calls.push('line miss');return false;}};
+ const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:h=>{wallHost=h;return wall;},wallNearestSurface:()=>{calls.push('face');return null;}});f.ctx.WallMode.setEnabled(true);wallHost.setLayer('walls');const e={button:0,shiftKey:true,target:{closest:s=>s==='#three-view-wrapper'||s==='#viewport,#three-view-wrapper'},preventDefault(){},stopImmediatePropagation(){}};
+ f.listeners['window:pointerdown'](e);assert.deepEqual(calls,['line miss']);
+});

@@ -626,6 +626,9 @@ function perf_render3DFrame() {
                     // A tool on an inactive layer cannot consume input for the active one.
                     if(baseEditor?.busy()){if(editingLayer==='base')return baseEditor.down(e);baseEditor.leave();}
                     if(wallEditor?.busy()){if(editingLayer==='walls')return wallEditor.down(e);wallEditor.clear();}
+                    // Keep Shift line-selection misses from falling through to
+                    // trim, face, ground, or another editor layer.
+                    if(e.shiftKey&&selectionCounts().lines>0&&e.target.closest?.('#three-view-wrapper')){wallEditor?.pickLine?.(e);return true;}
                     if(roofTrimEditor?.pick(e,group3D,p=>getVector3(toPixel(p))))return true;roofTrimEditor?.finish();if(roofTrimEditor?.hasSelection())roofTrimEditor.clear();
                     if(e.target.closest?.('#three-view-wrapper')&&wallEditor?.pickPoint?.(e))return true;
                     if(e.target.closest?.('#three-view-wrapper')&&wallEditor?.pickLine?.(e))return true;

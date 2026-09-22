@@ -2271,3 +2271,27 @@ test('roof-contact highlights use screen coordinates and render above the roof o
  f.editor.draw3D({add:o=>segments.push(o.material)},p=>p);
  assert.ok(seen.length);assert.ok(seen.every(e=>Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)));assert.ok(segments.some(s=>s.color===R.COLOR&&s.depthTest===false));
 });
+
+for(const solid of [false,true])test(`Shift line miss over ${solid?'materialized':'draft'} face retains the lines`,()=>{
+ const globals=renderGlobals(),f=fixture({globals}),pair=f.w.top;
+ if(solid){f.state.wallEdits.$surfaces=[{id:'panel',points:[...f.w.bottom,f.w.top[1],f.w.top[0]]}];f.editor.draw3D({add(){}},p=>p);}else f.editor.down(f.e(2,2),true);
+ f.editor.restoreSelection({lineSelection:[{id:'top',pair}]});
+ const before=JSON.stringify(f.editor.selectionSnapshot());f.editor.down(f.e(2,2,true));f.listeners.pointerup(f.e(2,2,true));
+ assert.equal(JSON.stringify(f.editor.selectionSnapshot()),before);
+});
+test('Shift empty rectangle with click jitter preserves line selection',()=>{
+ const f=fixture({selected:null}),pair=f.w.top;f.editor.restoreSelection({lineSelection:[{id:'top',pair}]});
+ const before=JSON.stringify(f.editor.selectionSnapshot());f.editor.startBox(f.e(30,30,true),()=>{});f.listeners.pointerup(f.e(30.06,30.06,true));
+ assert.equal(JSON.stringify(f.editor.selectionSnapshot()),before);
+});
+
+test('Shift adds multiple edges and preserves them on face, endpoint and empty misses',()=>{
+ const f=fixture(),click=(x,y)=>{const e=f.e(x,y,true);f.editor.down(e);f.listeners.pointerup(e);};
+ click(2,4);click(0,2);assert.equal(f.editor.selectionSnapshot().lineSelection.length,2);
+ for(const [x,y]of [[2,2],[4,4],[30,30]]){const before=JSON.stringify(f.editor.selectionSnapshot());click(x,y);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),before);}
+});
+test('Shift rectangle adds contained lines without dropping previously selected lines',()=>{
+ const f=fixture({selected:null});f.editor.restoreSelection({lineSelection:[{id:'existing',pair:[{x:8,y:0,z:0},{x:9,y:0,z:0}]}]});
+ f.editor.startBox(f.e(-.2,3.8,true),()=>{});f.listeners.pointerup(f.e(4.2,4.2,true));
+ const lines=f.editor.selectionSnapshot().lineSelection;assert.equal(lines.length,2);assert.equal(lines[0].id,'existing');assert.ok(lines[1].pair.every(p=>p.z===4));
+});

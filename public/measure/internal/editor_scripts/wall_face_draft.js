@@ -390,12 +390,19 @@ function perf_snap(d,e,raw=null){
   const moved=b.moved||Math.hypot((e?.clientX??b.ex)-b.x,(e?.clientY??b.ey)-b.y)>=4;
   if(b.plane&&workingPlane){if(!moved){b.click?.();return;}marqueeCompleted=true;const selected=planeScene().points.filter(p=>{const q=host.screen(p,'3d');return q.visible!==false&&q.x>=Math.min(b.x,e?.clientX??b.ex)&&q.x<=Math.max(b.x,e?.clientX??b.ex)&&q.y>=Math.min(b.y,e?.clientY??b.ey)&&q.y<=Math.max(b.y,e?.clientY??b.ey);}),keys=new Set(selected.map(W.vertexKey));
    workingPlane.selectedLines=[];workingPlane.selectedFaces=[];workingPlane.selection=b.subtract?b.priorPlane.filter(p=>!keys.has(W.vertexKey(p))):[...new Map([...(b.add?b.priorPlane:[]),...selected].map(p=>[W.vertexKey(p),p])).values()];host.redraw();e?.stopImmediatePropagation?.();return;}
-  if(moved||(!b.add&&!b.lineClick&&!b.deferredPick))lineSelection=[];
+  if(!b.add&&(moved||(!b.lineClick&&!b.deferredPick)))lineSelection=[];
   if(!moved){if(!b.add)selectedBasePoints=[];if(!e||viewOf(e)===b.view)b.click?.();return;}
   marqueeCompleted=true;
   b.ex=e?.clientX??b.ex;b.ey=e?.clientY??b.ey;
   const insideCache=new Map(),left=Math.min(b.x,b.ex),right=Math.max(b.x,b.ex),top=Math.min(b.y,b.ey),bottom=Math.max(b.y,b.ey);
   const inside=p=>{const key=W.vertexKey(p);if(insideCache.has(key))return insideCache.get(key);const q=host.screen(p,b.view),inRect=Number.isFinite(q.x)&&Number.isFinite(q.y)&&q.visible!==false&&q.x>=left&&q.x<=right&&q.y>=top&&q.y<=bottom;const result=inRect&&!(b.view==='3d'&&host.state()?.translucent===false&&host.pickVisible?.(p)===false);insideCache.set(key,result);return result;};
+  // Even a few pixels of pointer jitter can become a marquee. Additive line
+  // gestures stay line gestures, and an empty rectangle leaves all state alone.
+  if(b.add&&!b.subtract&&(lineSelection.length||pickedLines.length||solidEdges.length)){
+   const hits=[...sceneLines().lines].filter(([,pair])=>pair.every(inside)&&pickLineVisible(pair,e,.5));
+   if(hits.length){const keys=new Set(lineSelection.map(l=>l.id));for(const [id,pair]of hits)if(!keys.has(id)){lineSelection.push({id,pair});keys.add(id);}host.redraw();}
+   e?.stopImmediatePropagation?.();return;
+  }
   if(host.wallsVisible?.()!==false)for(const w of walls())ensure(w);
   draftSelection={};for(const [key,d]of Object.entries(all())){if(host.wallsVisible?.()===false||!visibleDraft(d))continue;const ids=draftNodes(d).filter(n=>inside(world(d,n))).map(n=>n.id);draftSelection[key]=b.subtract?(b.priorDrafts[key]||[]).filter(id=>!ids.includes(id)):[...new Set([...(b.add?b.priorDrafts[key]||[]:[]),...ids])];}
   solidPoints=[...new Set([...(b.add?b.priorSolids:[]),...(host.wallsVisible?.()===false?[]:wire().nodes.filter(n=>!n.curveSample).filter(inside).map(n=>n.id))])];selectedRegion=null;selectedSolid=null;pickedLines=[];solidEdges=[];selectedBasePoints=[...new Set([...(b.add?b.priorBase:[]),...basePoints().filter(inside).map(W.vertexKey)])];
@@ -415,6 +422,7 @@ function perf_snap(d,e,raw=null){
  function faceChosen(ref){return selectedFaceRefs().some(r=>faceKey(r)===faceKey(ref));}
  function selectRegion(d,e,w,faceId){
   const p=faceId==null?rayPoint(d,e):null,face=faceId!=null?d.faces.find(f=>f.id===faceId&&!deleted(d,f)&&!f.solidId):p&&d.faces.filter(f=>!deleted(d,f)&&!f.solidId&&G.contains(f,p)).sort((a,b)=>Number(!!b.feature)-Number(!!a.feature)||Number(b.opening)-Number(a.opening))[0];
+  if(e.shiftKey&&(lineSelection.length||pickedLines.length||solidEdges.length))return;
   if(!face&&(e.shiftKey||e.ctrlKey||e.metaKey))return;
   selectFaceRef(face?{draft:draftKey(d),face:face.id}:null,e);
   if(w){activeDraftKey=null;host.select(w.id);}draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];
@@ -506,6 +514,11 @@ function perf_snap(d,e,raw=null){
   };return true;
  }
  function pickSolid(e,pointsOnly=false){
+  // Shift extends an existing line selection; a face behind a missed edge is
+  // not a replacement selection (nor is a nearby point).
+  if(!tool&&e.shiftKey&&(lineSelection.length||pickedLines.length||solidEdges.length)&&viewOf(e)==='3d'){
+   if(pickLine3D(e))return true;beginBox(e,current());return true;
+  }
   if(pickVisiblePoint(e))return true;
   if(!tool&&e.button===0&&holdBoundary(e))return down(e,true);
   if(!tool&&e.button===0&&viewOf(e)==='3d'&&pickLine3D(e))return true;
