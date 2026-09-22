@@ -128,6 +128,7 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
    if(o.isMesh&&o.userData?.pickLayer==='grade'){m.polygonOffset=true;m.polygonOffsetFactor=4;m.polygonOffsetUnits=4;}
    if(line){m.depthTest=translucent?saved.depthTest:true;m.depthWrite=false;o.userData.exteriorLineOrder??=o.renderOrder;o.renderOrder=translucent?o.userData.exteriorLineOrder:(o.userData.exteriorSelection||o.userData.exteriorLineOrder>0?999:998);window.wallLineDepthBias(o,!translucent);}
    if(o.userData?.selectedLineDepth){m.depthTest=!translucent;m.depthWrite=false;}
+   if(o.userData?.exteriorSoffit){m.depthTest=false;m.depthWrite=false;m.color?.set?.('#ef633c');m.opacity=1;o.renderOrder=999.5;}
    // Point squares are drafting overlays: a surface must never slice them.
    if(o.isPoints){m.depthTest=false;m.depthWrite=false;o.renderOrder=1000;window.wallPointOcclusion(o,!translucent);}
    // Annotation sprites must remain overlays in every surface display mode.
@@ -358,6 +359,7 @@ window.wallChamferLabelPosition=function(anchor,width,height,viewport,segments,p
  let best=null,score=Infinity;for(const p of candidates){const box={x:p.x-padding,y:p.y-padding,width:width+padding*2,height:height+padding*2};const overlaps=placed.filter(r=>p.x<r.x+r.width+12&&p.x+width+12>r.x&&p.y<r.y+r.height+12&&p.y+height+12>r.y).length,hits=segments.filter(([a,b])=>intersects(a,b,box)).length;const distance=Math.hypot(p.x+width/2-anchor.x,p.y+height/2-anchor.y),value=overlaps*1e9+hits*1e6+distance;if(value<score){score=value;best=p;}}
  return best||clamp(anchor);
 };
+window.wallSoffitLine=function(group,vector,pair){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pair.map(vector)),new THREE.LineBasicMaterial({color:'#ef633c',depthTest:false,depthWrite:false}));line.userData.exteriorSoffit=true;line.renderOrder=999.5;group.add(line);};
 window.wallSelectedLine=function(group,vector,pair){
  if(!THREE.Sprite){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pair.map(vector)),new THREE.LineBasicMaterial({color:'#fff',depthTest:false}));line.userData.exteriorSelection=true;line.renderOrder=1000;group.add(line);return;}
  const [a,b]=pair,sprite=new THREE.Sprite(new THREE.SpriteMaterial({color:'#fff',depthTest:false,depthWrite:false,sizeAttenuation:false}));sprite.userData.exteriorSelection=true;sprite.userData.selectedLineDepth=true;sprite.position.copy(vector({x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2}));sprite.renderOrder=999;

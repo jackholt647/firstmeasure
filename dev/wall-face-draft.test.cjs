@@ -2253,3 +2253,12 @@ test('a soffit depth that inverts a lower-roof return is rejected atomically',()
  const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id==='R112.0'),before=JSON.stringify(r.state.wallEdits);
  f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),false);assert.equal(f.history.length,0);assert.equal(JSON.stringify(r.state.wallEdits),before);
 });
+
+
+test('roof-contact highlights use screen coordinates and render above the roof only when visible',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),p=(x,y,z)=>({x,y,z}),pair=[p(0,0,4),p(4,0,4)],seen=[],segments=[];
+ const state={wallEdits:{},roof:{faces:[{id:0,points:[p(-1,-1,4),p(5,-1,4),p(5,2,4),p(-1,2,4)]}]},sources:[{id:'s',kind:'perimeter',type:'eave',parentId:0,originalA:p(0,-.6,4),originalB:p(4,-.6,4),a:pair[0],b:pair[1],setback:.6,sourcePlane:{dx:0,dy:0,k:4}}]};
+ const f=fixture({state,selected:null,globals:{...renderGlobals(),WallResoffit:R},pickSoffitVisible:(pair,e)=>{seen.push(e);return true;}});
+ f.editor.draw3D({add:o=>segments.push(o.material)},p=>p);
+ assert.ok(seen.length);assert.ok(seen.every(e=>Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)));assert.ok(segments.some(s=>s.color===R.COLOR&&s.depthTest===false));
+});
