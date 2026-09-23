@@ -208,7 +208,7 @@ test('line centers default on and remain independent across reload and From Roof
  elements.get('wall-line-centers-toggle').onclick();assert.equal(ctx.WallMode.serialize().lineCenters,true);
 });
 test('live edge length visibility defaults on and persists independently',()=>{
- const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();assert.notEqual(ctx.WallMode.serialize().wallLengths,false);elements.get('wall-lengths-toggle').onchange({target:{value:'all'}});assert.equal(ctx.WallMode.serialize().lineLengthMode,'all');elements.get('wall-lengths-toggle').onchange({target:{value:'off'}});
+ const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();assert.notEqual(ctx.WallMode.serialize().wallLengths,false);elements.get('wall-lengths-all').onclick();assert.equal(ctx.WallMode.serialize().lineLengthMode,'all');elements.get('wall-lengths-off').onclick();
  const saved=ctx.WallMode.serialize();assert.equal(saved.wallLengths,false);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+10000}});assert.equal(ctx.WallMode.serialize().wallLengths,false);
 });
 test('base owns clicks and double-clicks when selected, including with hidden walls',()=>{

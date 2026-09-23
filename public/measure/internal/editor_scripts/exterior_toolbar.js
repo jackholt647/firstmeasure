@@ -9,6 +9,13 @@ window.mountExteriorToolbar=function(){
  #exterior-toolbar button{height:28px;padding:3px 6px;white-space:nowrap}
  #exterior-toolbar svg{width:18px;height:18px}
  #exterior-toolbar button[data-layer-icon]{width:28px;padding:4px}
+ #exterior-toolbar .exterior-measurements{display:flex;align-items:center;gap:5px}
+ #exterior-toolbar #wall-lengths-toggle{display:inline-flex;flex-wrap:nowrap;gap:0;border:1px solid #63717d;border-radius:5px;overflow:hidden;background:#26313a}
+ #exterior-toolbar #wall-lengths-toggle button{height:26px;min-width:0;margin:0;padding:3px 7px;border:0;border-radius:0;background:transparent;font:11px system-ui;color:#dce3e9}
+ #exterior-toolbar #wall-lengths-toggle button+button{border-left:1px solid #53616d}
+ #exterior-toolbar #wall-lengths-toggle button:hover{background:#3b4854}
+ #exterior-toolbar #wall-lengths-toggle button[aria-pressed=true]{background:#4d4525;color:#ffd84d}
+ #exterior-toolbar #wall-lengths-toggle button:focus-visible{outline:2px solid #ffd84d;outline-offset:-2px}
  #exterior-toolbar select{max-width:125px;height:28px;background:#303b45;color:#fff;border:1px solid #63717d;border-radius:5px;font:11px system-ui}
  #exterior-toolbar [aria-label="Rebuild building"]{position:relative} #exterior-toolbar #wall-soffit-menu{position:absolute;top:calc(100% + 7px);left:0;padding:6px;background:#222b33;border:1px solid #53616d;border-radius:9px;box-shadow:0 10px 28px #0006;z-index:100;width:228px;box-sizing:border-box} #exterior-toolbar #wall-soffit-menu[hidden]{display:none} #exterior-toolbar #wall-rebuild{border-radius:5px 0 0 5px;margin-right:-5px} #exterior-toolbar #wall-auto{border-radius:0 5px 5px 0}
  #exterior-toolbar #wall-soffit-menu .soffit-title{padding:8px 10px 10px;color:#aebac5;font:600 11px system-ui;letter-spacing:.04em;text-transform:uppercase}
