@@ -47,12 +47,22 @@
   const db=await database();try{await new Promise((resolve,reject)=>{const t=db.transaction('runs','readwrite');t.objectStore('runs').put(run);t.oncomplete=resolve;t.onerror=t.onabort=()=>reject(Error('Screenshot storage failed. Export this run before leaving.'));});}finally{db.close();}
  }
  function download(data,name,type){const url=URL.createObjectURL(new Blob([data],{type})),a=node('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ function reusable(){return !!(run?.front&&run.geometry&&run.radius&&run.steps.filter(s=>s.index&&s.image).length===8);}
+ function logResponse(response){
+  console.groupCollapsed(`[Exterior AI] ${response.provider||'Luna'} · ${run.id} · call ${(run.attempts||[]).length}`);
+  console.log('Full model response',JSON.parse(JSON.stringify(response.rawResponse||response)));
+  console.log('Decision',JSON.parse(JSON.stringify(response.result)));
+  if(response.distribution)console.table(response.distribution);
+  console.groupEnd();
+ }
  function draw(){
   if(!panel)return;
   panel.querySelector('[data-start]').disabled=busy;panel.querySelector('[data-stop]').disabled=!busy;panel.querySelector('[data-export]').disabled=!run;
+  panel.querySelector('[data-luna]').disabled=busy||!reusable();
   const log=panel.querySelector('[data-log]');log.replaceChildren();if(!run)return;
   node('p',run.status,log);
-  if(run.response){node('strong',`Luna chose ${choiceLabel(run.response.result)}`,log);node('p',run.response.result.explanation,log);node('small',`Confidence: ${Math.round(run.response.result.confidence*100)}% · closest candidate, not an exact match`,log);}
+  if(run.response){node('strong',`${run.response.provider||'Luna'} chose ${choiceLabel(run.response.result)}`,log);node('p',run.response.result.explanation,log);node('small',`Confidence: ${Math.round(run.response.result.confidence*100)}% · closest candidate, not an exact match`,log);}
+  if(run.attempts?.length){const history=node('details',null,log);node('summary',`${run.attempts.length} AI calls on these captures`,history);for(const a of run.attempts)node('p',`${a.createdAt} · ${a.provider||'Luna'} · ${a.error||choiceLabel(a.result)}`,history);}
   for(const s of run.steps){
    const card=node('section',null,log);if(s.index===run.selectedView&&s.index)card.dataset.selected='true';
    const heading=node('div',null,card);heading.className='ai-view-heading';
@@ -87,11 +97,11 @@
    await new Promise(resolve=>setTimeout(resolve,75));
   }
  }
- async function place(g,p){
+ async function place(g,p,aspect=run.aspect){
   check();const eye=g.toScene(p),target=g.toScene(g.center);
   if(![eye.x,eye.y,eye.z,target.x,target.y,target.z].every(Number.isFinite))throw Error('Camera coordinate conversion failed.');
-  if(Math.abs(renderer.domElement.width/renderer.domElement.height-run.aspect)>.005)throw Error('Viewport resized during capture. Restart to keep all eight views consistent.');
-  camera.fov=FOV;camera.zoom=1;camera.aspect=run.aspect;camera.near=.01;camera.far=Math.max(2000,Math.hypot(eye.x-target.x,eye.y-target.y,eye.z-target.z)*10);camera.up?.set(0,1,0);camera.updateProjectionMatrix();
+  if(Math.abs(renderer.domElement.width/renderer.domElement.height-aspect)>.005)throw Error('Viewport resized during capture. Restart to keep all eight views consistent.');
+  camera.fov=FOV;camera.zoom=1;camera.aspect=aspect;camera.near=.01;camera.far=Math.max(2000,Math.hypot(eye.x-target.x,eye.y-target.y,eye.z-target.z)*10);camera.up?.set(0,1,0);camera.updateProjectionMatrix();
   const start=camera.position.clone(),startTarget=controls.target.clone(),began=performance.now();
   controls.update();
   await new Promise((resolve,reject)=>{
@@ -99,7 +109,7 @@
    requestAnimationFrame(step);
   });
   camera.position.copy(eye);controls.target.copy(target);camera.lookAt(target);camera.updateMatrixWorld();renderTextured();
-  return {position:{...p},scenePosition:{x:eye.x,y:eye.y,z:eye.z},target:{x:target.x,y:target.y,z:target.z},fov:FOV,aspect:run.aspect};
+  return {position:{...p},scenePosition:{x:eye.x,y:eye.y,z:eye.z},target:{x:target.x,y:target.y,z:target.z},fov:FOV,aspect};
  }
  function capture(index){
   renderTextured();const c=document.createElement('canvas'),src=renderer.domElement,s=Math.min(1,1280/Math.max(src.width,src.height));
@@ -107,16 +117,16 @@
   const ctx=c.getContext('2d');ctx.fillStyle='#182531';ctx.fillRect(0,0,c.width,32);ctx.fillStyle='#fff';ctx.font='bold 20px sans-serif';ctx.fillText(`VIEW ${index}`,12,24);ctx.drawImage(src,0,32,c.width,c.height-32);
   return c.toDataURL('image/jpeg',.87);
  }
- async function ask(){
+ async function ask(provider='Luna'){
   check();const context={task:'Choose one front view or the halfway angle between two adjacent views by visual comparison only.',candidates:VIEWS,heightAboveGroundFeet:6,equalOrbitRadius:true,fieldOfViewDegrees:FOV,aspect:run.aspect,rendering:'textured',imageOrder:['Target front photo',...Array.from({length:VIEWS},(_,i)=>`View ${i+1}`)]};
-  const request={mode:'orbit-front-v2',project:run.project,context,images:[run.front,...run.steps.filter(s=>s.index).map(s=>s.image)]};
+  const request={provider,mode:'orbit-front-v2',project:run.project,context,images:[run.front,...run.steps.filter(s=>s.index).map(s=>s.image)]};
   const response=await fetch('exterior_ai.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:controller.signal});
   let data;try{data=await response.json();}catch(e){throw Error(`AI endpoint returned HTTP ${response.status}.`);}
-  if(!response.ok)throw Error(data.error||'AI request failed.');check();validateChoice(data.result);return {context,...data};
+  if(!response.ok)throw Error(data.error||'AI request failed.');check();validateChoice(data.result);return {context,provider,createdAt:new Date().toISOString(),...data};
  }
  async function start(){
   if(busy)return;busy=true;controller=new AbortController();
-  run={id:'orbit-'+Date.now(),project:String(root.currentProjectId),createdAt:new Date().toISOString(),mode:'orbit-front-v2',model:'gpt-6-luna',reasoning:'low',steps:[],status:'Loading front photo…'};draw();
+  run={id:'orbit-'+Date.now(),project:String(root.currentProjectId),createdAt:new Date().toISOString(),mode:'orbit-front-v2',model:'gpt-6-luna',reasoning:'low',steps:[],attempts:[],status:'Loading front photo…'};draw();
   let orbitControls=null,oldEnabled,oldDamping;
   try{
    const g=root.WallMode.aiGeometry();check();
@@ -129,7 +139,7 @@
    run.front=await imageData(front.dataUrl||front.url||('project_resources.php?'+new URLSearchParams({project:run.project,name:front.resourceName})));
    run.steps.push({label:'Front reference',image:run.front});
    run.aspect=renderer.domElement.width/renderer.domElement.height;
-   const views=orbit(g,run.aspect);run.radius=views.radius;run.geometry={min:g.min,max:g.max,center:g.center,width:views.width};
+   const views=orbit(g,run.aspect);run.radius=views.radius;run.optionPositions=Array.from({length:16},(_,i)=>orbitPosition(g,run.radius,i/2));run.geometry={min:g.min,max:g.max,center:g.center,width:views.width};
    await checkpoint('Preparing textured views…');root.WallMode.prepareAICapture();await waitForTextures();
    orbitControls=controls;oldEnabled=controls.enabled;oldDamping=controls.enableDamping;controls.enabled=false;controls.enableDamping=false;controls.update();
    for(let i=0;i<VIEWS;i++){
@@ -138,14 +148,29 @@
     run.steps.push({label:`View ${i+1}`,index:i+1,angle:i*45,...pose,image:capture(i+1)});
     await checkpoint(`View ${i+1} of 8 saved.`);
    }
-   await checkpoint('All eight textured views saved. Asking Luna to choose…');
-   run.response=await ask();run.selectedView=run.response.result.betweenView==null?run.response.result.view:null;
-   const chosen=choiceLabel(run.response.result);
-   await checkpoint(`Luna chose View ${run.selectedView}. Moving to that view…`);
-   const position=orbitPosition(g,run.radius,choiceIndex(run.response.result));
-   run.selectedPose=await place(g,position);
-   await checkpoint(`Finished: ${chosen} selected${run.response.result.confidence<.65?' with low confidence':''}. Compare with the front photo.`);
+   await checkpoint('All eight textured views saved. Choose Ask Luna to run or rerun AI.');
   }catch(e){run.status=e.name==='AbortError'?'Stopped. Completed screenshots retained.':e.message;try{await save();}catch(storage){run.status+=' '+storage.message;}}
+  finally{if(orbitControls){orbitControls.enabled=oldEnabled;orbitControls.enableDamping=oldDamping;}busy=false;draw();}
+ }
+ async function infer(provider='Luna'){
+  if(busy||!reusable())return;busy=true;controller=new AbortController();draw();
+  let orbitControls,oldEnabled,oldDamping;
+  try{
+   check();await checkpoint(`Asking ${provider} using saved captures…`);
+   const response=await ask(provider);run.attempts||=[];run.attempts.push(response);run.response=response;logResponse(response);await save();
+   check();const g=root.WallMode.aiGeometry();
+   const bounds={min:g.min,max:g.max,center:g.center};
+   if(JSON.stringify(bounds)!==JSON.stringify({min:run.geometry.min,max:run.geometry.max,center:run.geometry.center}))throw Error('Model bounds changed. Response saved; capture again before moving to its result.');
+   if(camera.isOrthographicCamera)root.toggleProjection?.();
+   if(camera.isOrthographicCamera)throw Error('Switch to Perspective first.');
+   root.WallMode.prepareAICapture();await waitForTextures();
+   orbitControls=controls;oldEnabled=controls.enabled;oldDamping=controls.enableDamping;controls.enabled=false;controls.enableDamping=false;
+   run.selectedView=response.result.betweenView==null?response.result.view:null;
+   const chosen=choiceLabel(response.result),index=choiceIndex(response.result);
+   const position=run.optionPositions?.[index*2]||orbitPosition(g,run.radius,index);
+   run.selectedPose=await place(g,position,renderer.domElement.width/renderer.domElement.height);
+   await checkpoint(`Finished: ${chosen} selected${response.result.confidence<.65?' with low confidence':''}. Compare with the front photo.`);
+  }catch(e){run.status=e.name==='AbortError'?'Stopped. Captures retained.':e.message;try{await save();}catch(storage){run.status+=' '+storage.message;}}
   finally{if(orbitControls){orbitControls.enabled=oldEnabled;orbitControls.enableDamping=oldDamping;}busy=false;draw();}
  }
  async function rotateTo(step){
@@ -157,8 +182,7 @@
    if(camera.isOrthographicCamera)throw Error('Switch to Perspective first.');
    root.WallMode.prepareAICapture();await waitForTextures();
    orbitControls=controls;oldEnabled=controls.enabled;oldDamping=controls.enableDamping;controls.enabled=false;controls.enableDamping=false;
-   run.aspect=renderer.domElement.width/renderer.domElement.height;
-   await place({...g,center:run.geometry?.center||g.center},step.position);
+   await place({...g,center:run.geometry?.center||g.center},step.position,renderer.domElement.width/renderer.domElement.height);
    await checkpoint(`Viewing ${step.label}.`);
   }catch(e){run.status=e.message;}
   finally{if(orbitControls){orbitControls.enabled=oldEnabled;orbitControls.enableDamping=oldDamping;}busy=false;draw();}
@@ -167,8 +191,8 @@
   if(busy)return;try{const db=await database();const records=await new Promise((resolve,reject)=>{const r=db.transaction('runs').objectStore('runs').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});db.close();run=records.filter(r=>r.project===String(root.currentProjectId)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0]||null;draw();if(!run)panel.querySelector('[data-log]').textContent='No saved run for this project in this browser.';}catch(e){panel.querySelector('[data-log]').textContent=e.message;}
  }
  function mount(target){
-  panel=target;panel.innerHTML='<p>Experimental · GPT-6 Luna · low reasoning</p><button type="button" data-start>Find front from 8 views</button><button type="button" data-stop disabled>Stop</button><button type="button" data-previous>Last saved run</button><button type="button" data-export disabled>Export run</button><p>8 textured views · 45° apart · one fitted distance · 6 ft above grade. Luna chooses a view or the midpoint between neighboring views. Screenshots save in this browser; click one to download.</p><div data-log aria-live="polite"></div>';
-  panel.querySelector('[data-start]').onclick=start;panel.querySelector('[data-stop]').onclick=()=>controller?.abort();panel.querySelector('[data-previous]').onclick=previous;panel.querySelector('[data-export]').onclick=()=>run&&download(JSON.stringify(run,null,2),run.id+'.json','application/json');
+  panel=target;panel.innerHTML='<p>Experimental · GPT-6 Luna · low reasoning</p><button type="button" data-start>Capture 8 views</button><button type="button" data-luna disabled>Ask Luna</button><button type="button" data-stop disabled>Stop</button><button type="button" data-previous>Last saved run</button><button type="button" data-export disabled>Export run</button><p>8 textured views · 45° apart · one fitted distance · 6 ft above grade. Luna chooses a view or the midpoint between neighboring views. Capture once, then rerun AI on the same images. Full responses log in the console and save with this run. Click an image to download.</p><div data-log aria-live="polite"></div>';
+  panel.querySelector('[data-start]').onclick=start;panel.querySelector('[data-luna]').onclick=()=>infer('Luna');panel.querySelector('[data-stop]').onclick=()=>controller?.abort();panel.querySelector('[data-previous]').onclick=previous;panel.querySelector('[data-export]').onclick=()=>run&&download(JSON.stringify(run,null,2),run.id+'.json','application/json');
   const style=node('style',null,document.head);style.textContent='#exterior-debug-ai{overflow-wrap:anywhere}#exterior-debug-ai button{width:100%;margin:3px 0}#exterior-debug-ai .ai-view-heading{display:flex;align-items:center;justify-content:space-between;gap:4px}#exterior-debug-ai .ai-view-heading button{width:26px;flex:0 0 26px;margin:0}#exterior-debug-ai section{border-top:1px solid #53606a;margin-top:10px;padding-top:8px}#exterior-debug-ai section[data-selected]{border:2px solid #64d9a3;padding:5px}#exterior-debug-ai p{font-size:11px;line-height:1.45}';
  }
  root.ExteriorAI={available:root.FIRSTMEASURE_EXTERIOR_AI===true,mount,orbit,orbitPosition,fits,validateChoice,choiceIndex};

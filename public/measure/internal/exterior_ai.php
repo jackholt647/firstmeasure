@@ -52,4 +52,4 @@ foreach ($response['output'] ?? [] as $item) foreach ($item['content'] ?? [] as 
 $result = json_decode($text, true);
 if (($response['status'] ?? '') !== 'completed' || !is_array($result) || !is_int($result['view'] ?? null) || $result['view'] < 1 || $result['view'] > 8 || !is_numeric($result['confidence'] ?? null) || $result['confidence'] < 0 || $result['confidence'] > 1 || !is_string($result['explanation'] ?? null)) ai_fail(502, 'The model did not return a valid view choice.');
 if (!array_key_exists('betweenView', $result) || ($result['betweenView'] !== null && (!is_int($result['betweenView']) || $result['betweenView'] < 1 || $result['betweenView'] > 8 || !in_array(abs($result['betweenView'] - $result['view']), [1,7], true)))) ai_fail(502, 'The model did not return adjacent views.');
-echo json_encode(['result'=>$result,'model'=>'gpt-6-luna','reasoning'=>'low','usage'=>$response['usage'] ?? null,'responseId'=>$response['id'] ?? null]);
+echo json_encode(['rawResponse'=>$response,'provider'=>'Luna','result'=>$result,'model'=>'gpt-6-luna','reasoning'=>'low','usage'=>$response['usage'] ?? null,'responseId'=>$response['id'] ?? null]);

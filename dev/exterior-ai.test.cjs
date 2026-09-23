@@ -23,13 +23,13 @@ test('all eight equal-radius views frame wide/tall models on slopes using indepe
 test('one Luna request compares eight textured captures, selects a saved pose, restores history and rejects stale responses',async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
  try{
-  const page=await browser.newPage();let requests=[];
+  const page=await browser.newPage();let requests=[],logs=[];page.on('console',m=>logs.push(m.text()));
   await page.route('http://localhost/**',async route=>{
-   if(route.request().url().endsWith('exterior_ai.php')){requests.push(route.request().postDataJSON());await route.fulfill({json:{result:{view:6,confidence:.83,explanation:'View 6 has the matching garage and dormer arrangement.'}}});}
+   if(route.request().url().endsWith('exterior_ai.php')){requests.push(route.request().postDataJSON());await route.fulfill({json:{rawResponse:{id:'response-example',output:[{text:'original output'}]},result:{view:6,confidence:.83,explanation:'View 6 has the matching garage and dormer arrangement.'}}});}
    else await route.fulfill({contentType:'text/html',body:'<style>#wall-panel{width:190px}</style><section id="wall-panel">General controls</section>'});
   });
   await page.goto('http://localhost/');await page.evaluate(()=>{
-   window.FIRSTMEASURE_EXTERIOR_AI=true;window.currentProjectId='fullhouse_'+'a'.repeat(32);
+   window.originalToDataURL=HTMLCanvasElement.prototype.toDataURL;window.FIRSTMEASURE_EXTERIOR_AI=true;window.currentProjectId='fullhouse_'+'a'.repeat(32);
    class V{constructor(x=0,y=0,z=0){Object.assign(this,{x,y,z});}clone(){return new V(this.x,this.y,this.z);}copy(v){Object.assign(this,v);return this;}lerpVectors(a,b,t){for(const k of ['x','y','z'])this[k]=a[k]+(b[k]-a[k])*t;return this;}}
    window.camera={position:new V(),fov:20,zoom:2,aspect:1,isOrthographicCamera:true,lookAt(){},updateMatrixWorld(){},updateProjectionMatrix(){}};
    window.toggleProjection=()=>camera.isOrthographicCamera=false;
@@ -42,27 +42,35 @@ test('one Luna request compares eight textured captures, selects a saved pose, r
   });
   await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_ai.js'});await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});await page.evaluate(()=>ExteriorPerf.mount(document.querySelector('#wall-panel')));
   await page.getByRole('tab',{name:'AI',exact:true}).click();assert.equal(await page.locator('#wall-panel').evaluate(e=>e.getBoundingClientRect().width),190);
-  await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('Finished: View 6 selected. Compare with the front photo.',{exact:true}).waitFor();
-  assert.equal(requests.length,1);assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-front-v2');assert.ok(!JSON.stringify(requests[0].context).includes('north'));
+  await page.getByRole('button',{name:'Capture 8 views'}).click();await page.getByText('All eight textured views saved. Choose Ask Luna to run or rerun AI.',{exact:true}).waitFor();await page.getByRole('button',{name:'Ask Luna',exact:true}).click();await page.getByText('Finished: View 6 selected. Compare with the front photo.',{exact:true}).waitFor();
+  assert.equal(requests.length,1);
+  const firstImages=requests[0].images;
+  await page.evaluate(()=>{HTMLCanvasElement.prototype.toDataURL=()=>{throw Error('Replay must not recapture');};});
+  await page.getByRole('button',{name:'Ask Luna',exact:true}).click();await page.getByText('Finished: View 6 selected. Compare with the front photo.',{exact:true}).waitFor();
+  assert.equal(requests.length,2);assert.deepEqual(requests[1],requests[0]);
+  assert.deepEqual(requests[1].images,firstImages);
+  assert.equal(await page.locator('[data-log] img').count(),9);
+assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-front-v2');assert.ok(!JSON.stringify(requests[0].context).includes('north'));
   assert.equal(await page.locator('[data-log] img').count(),9);assert.equal(await page.locator('section[data-selected] strong').innerText(),'View 6 · selected');
   const saved=await page.evaluate(async()=>{const r=indexedDB.open('firstmeasure-exterior-ai',1);const db=await new Promise(resolve=>r.onsuccess=()=>resolve(r.result));const q=db.transaction('runs').objectStore('runs').getAll();return await new Promise(resolve=>q.onsuccess=()=>{db.close();resolve(q.result[0]);});});
-  assert.equal(saved.steps.length,9);const views=saved.steps.slice(1);assert.equal(new Set(views.map(s=>s.angle)).size,8);
+  assert.equal(saved.steps.length,9);assert.equal(saved.attempts.length,2);assert.equal(saved.attempts[1].rawResponse.id,'response-example');assert.equal(logs.filter(m=>m.startsWith('Full model response')).length,2);const views=saved.steps.slice(1);assert.equal(new Set(views.map(s=>s.angle)).size,8);
   assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[5].scenePosition);assert.equal(await page.evaluate(()=>camera.fov),45);assert.equal(await page.evaluate(()=>camera.zoom),1);assert.equal(await page.evaluate(()=>controls.enabled&&controls.enableDamping&&window.texturePrepared),true);
   assert.equal(await page.evaluate(()=>camera.isOrthographicCamera),false);assert.ok(await page.evaluate(()=>window.renderedFrames)>8);
   await page.getByRole('button',{name:'Last saved run'}).click();assert.equal(await page.locator('[data-log] img').count(),9);
   await page.getByRole('button',{name:'Rotate to View 2',exact:true}).click();await page.getByText('Viewing View 2.',{exact:true}).waitFor();
   assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[1].scenePosition);
+  await page.evaluate(()=>HTMLCanvasElement.prototype.toDataURL=window.originalToDataURL);
   await page.route('http://localhost/exterior_ai.php',async route=>route.fulfill({json:{result:{view:8,betweenView:1,confidence:.8,explanation:'Between the neighboring views.'}}}));
-  await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('Finished: halfway between Views 8 and 1 selected. Compare with the front photo.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Capture 8 views'}).click();await page.getByText('All eight textured views saved. Choose Ask Luna to run or rerun AI.',{exact:true}).waitFor();await page.getByRole('button',{name:'Ask Luna',exact:true}).click();await page.getByText('Finished: halfway between Views 8 and 1 selected. Compare with the front photo.',{exact:true}).waitFor();
   const midpoint=await page.evaluate(()=>{const g=WallMode.aiGeometry(),r=ExteriorAI.orbit(g,240/180).radius;return {...g.toScene(ExteriorAI.orbitPosition(g,r,7.5))};});
   assert.deepEqual(await page.evaluate(()=>({...camera.position})),midpoint);
   // A stale model response may not move the camera after the project changes.
   let poseAtResponse;
   await page.route('http://localhost/exterior_ai.php',async route=>{poseAtResponse=await page.evaluate(()=>({...camera.position}));await page.evaluate(()=>window.currentProjectId='fullhouse_'+'b'.repeat(32));await route.fulfill({json:{result:{view:3,confidence:.9,explanation:'stale'}}});});
-  await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('Project or exterior mode changed; run stopped.',{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>({...camera.position})),poseAtResponse);
+  await page.getByRole('button',{name:'Capture 8 views'}).click();await page.getByText('All eight textured views saved. Choose Ask Luna to run or rerun AI.',{exact:true}).waitFor();await page.getByRole('button',{name:'Ask Luna',exact:true}).click();await page.getByText('Project or exterior mode changed; run stopped.',{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>({...camera.position})),poseAtResponse);
   // Missing materials fail before any API request or capture; controls recover.
   await page.evaluate(()=>ExteriorRendered.captureStatus.errors=['roof-albedo.jpg']);
-  await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('A texture failed to load. Reload the editor and retry the capture.',{exact:true}).waitFor();assert.equal(await page.locator('[data-log] img').count(),1);assert.equal(await page.evaluate(()=>controls.enabled),true);
+  await page.getByRole('button',{name:'Capture 8 views'}).click();await page.getByText('A texture failed to load. Reload the editor and retry the capture.',{exact:true}).waitFor();assert.equal(await page.locator('[data-log] img').count(),1);assert.equal(await page.evaluate(()=>controls.enabled),true);
  }finally{await browser.close();}
 });
 
