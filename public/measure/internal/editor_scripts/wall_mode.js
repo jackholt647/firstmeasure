@@ -472,7 +472,7 @@ function perf_render3DFrame() {
     }
     function render3DContent() {
         if(typeof scene==='undefined'||!scene||!window.THREE)return;
-        lastScene=scene;group3D=new THREE.Group();group3D.name='exteriors-wall-preview';
+        lastScene=scene;group3D=new THREE.Group();group3D.name='exteriors-wall-preview';group3D.userData.selectionLayer=editingLayer;
         if(!enabled){syncVisibility();return;}
         if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}
         const vector=p=>getVector3(toPixel(p));
@@ -618,13 +618,21 @@ function perf_render3DFrame() {
             if(value!=='walls'&&resoffitMode)closeResoffit();if(value!=='base'){if(baseEditor?.busy())baseEditor.leave();baseEditor?.clearSelection();}if(value!=='walls')wallEditor?.clear();editingLayer=value;if(value==='base'&&state?.base)baseState().base.visible=true;if(value==='walls'&&!preserveVisibility)wallsVisible=true;groundEditor?.setEditing(value==='grade');
             // Selecting another entity on the same layer is not a model edit.
             // Let its queued highlight redraw handle both views once.
-            if(!changed){baseEditor?.render();requestEditorRender();return;}
+            if(!changed){if(!deferScene){baseEditor?.render();requestEditorRender();}return;}
             persist();if(deferScene){groundEditor?.render();baseEditor?.render();}else render();};
         baseEditor=window.createBaseEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),walls:currentWalls,state:baseState,ensure:()=>!!state||generate('auto'),enabled:()=>enabled,id:currentId,layer:()=>editingLayer,setLayer,
             selectVisibleLayer:()=>setLayer(baseState()?.base?.visible!==false?'base':wallsVisible?'walls':'grade'),handleKey:e=>handleEditorKey(e),position:(...args)=>groundEditor.position(...args),toPixel,
             recordHistory:before=>{if(before.wallEdits?.$base)delete before.base;recordEdit(before);},undo:()=>undoEdit(),canUndo:()=>editHistory.some(e=>state?.undoSelections!==false||!e.selectionOnly),changed:()=>{groundChanged();finishEdit();baseEditor?.render();},redraw:()=>requestEditorRender()});
         baseEditor?.setup(panel);
-        wallEditor=window.createWallEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pickSoffitVisible:(pair,e)=>window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e,Math.max(.03,state.context.mpp*.2)/state.context.mpp),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
+        wallEditor=window.createWallEditor?.({withSelectionPicking:run=>window.wallSelectionPicking(group3D,run),redrawSelection:points=>{
+            if(!group3D||group3D.userData.selectionLayer!==editingLayer||editorRenderFrame!==null||nudgeSettleTimer!==null)return false;
+            const keys=new Set(points.map(window.WallSolidGeometry.vertexKey)),markers=[],covered=new Set();
+            group3D.traverse(o=>{if(o.userData?.updatePointSelection){markers.push(o);for(const key of o.userData.selectionMarkerKeys)covered.add(key);}});
+            if(!markers.length||[...keys].some(key=>!covered.has(key)))return false;
+            for(const o of markers)o.userData.updatePointSelection(keys);
+            for(const marker of document.querySelectorAll('[data-wall-point-key]')){const on=keys.has(marker.dataset.wallPointKey);marker.setAttribute('fill',on?'#fff':marker.dataset.wallPointColor);marker.setAttribute('r',Number(marker.dataset.wallPointRadius)*(on?1.5:1));}
+            window.invalidateScene3D?.();return true;
+        },pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pickSoffitVisible:(pair,e)=>window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e,Math.max(.03,state.context.mpp*.2)/state.context.mpp),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
             position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender()});
         const resetWall=document.createElement('button');resetWall.id='wall-reset-position';resetWall.textContent='Reset wall position';resetWall.onclick=()=>wallEditor?.resetPosition();document.getElementById('wall-actions').appendChild(resetWall);
         panel.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});

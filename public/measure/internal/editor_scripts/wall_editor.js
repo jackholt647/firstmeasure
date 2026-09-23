@@ -416,6 +416,20 @@ window.wallLengthMarker=function(group,vector,edge){
 };
 // Batch plain drafting wire and square markers; meshes and shader labels keep
 // their individual objects for picking and screen-size rendering.
+window.wallSelectablePoints=function(group,vector,entries){
+ if(!entries.length)return;
+ const geometry=new THREE.BufferGeometry().setFromPoints(entries.map(e=>vector(e.p))),colors=[],sizes=[],keys=entries.map(e=>e.key);
+ for(const e of entries){const c=new THREE.Color(e.color);colors.push(c.r,c.g,c.b);sizes.push(e.selected?e.selectedSize:e.size);}
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ geometry.setAttribute('markerSize',new THREE.Float32BufferAttribute(sizes,1));
+ const material=new THREE.PointsMaterial({color:'#ffffff',vertexColors:true,size:1,sizeAttenuation:false,depthTest:false,depthWrite:false});
+ material.onBeforeCompile=shader=>{shader.vertexShader='attribute float markerSize;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('gl_PointSize = size;','gl_PointSize = size * markerSize;');};
+ material.customProgramCacheKey=()=> 'selectable-marker-size-v1';
+ const object=new THREE.Points(geometry,material);object.renderOrder=1000;
+ object.userData.selectionMarkerKeys=keys;
+ object.userData.updatePointSelection=selected=>{const color=geometry.getAttribute('color'),size=geometry.getAttribute('markerSize');for(let i=0;i<entries.length;i++){const e=entries[i],on=selected.has(keys[i]),c=new THREE.Color(on?'#ffffff':e.color);color.setXYZ(i,c.r,c.g,c.b);size.setX(i,on?e.selectedSize:e.size);}color.needsUpdate=true;size.needsUpdate=true;};
+ object.userData.updatePointSelection(new Set(entries.filter(e=>e.selected).map(e=>e.key)));group.add(object);
+};
 window.wallGeometryBatch=function(group){
  const batches=new Map(),colors=new Map();
  const raw=(line,positions,color,size,depthTest)=>{
@@ -444,10 +458,13 @@ window.wallPreferredSurfaceHit=function(hits){
  const epsilon=Math.max(1,front.point?.length?.()||0,front.distance||0)*1e-6;
  return sorted.find(h=>h.object.userData?.exteriorFeature&&Math.abs(h.distance-front.distance)<=epsilon)||front;
 };
+let wallPickSnapshot=null;
+window.wallSelectionPicking=function(group,run){const previous=wallPickSnapshot;wallPickSnapshot={group,meshes:null};try{return run();}finally{wallPickSnapshot=previous;}};
 window.wallNearestSurface=function(group,e){
  if(!group||typeof THREE==='undefined'||!e.target.closest?.('#three-view-wrapper'))return null;
- const visible=o=>{for(let p=o;p;p=p.parent)if(p.visible===false)return false;return true;},meshes=[];
- group.traverse(o=>{const d=o.userData||{},layer=d.pickLayer||(d.baseId!==undefined?'base':d.solidId!==undefined||d.draftKey!==undefined?'walls':null);if(o.isMesh&&layer&&(layer!=='roof'||d.roofTrimId!==undefined)&&visible(o)&&(Array.isArray(o.material)?o.material.some(m=>m.visible!==false):o.material?.visible!==false)){o.updateMatrixWorld(true);meshes.push(o);}});
+ const visible=o=>{for(let p=o;p;p=p.parent)if(p.visible===false)return false;return true;},meshes=wallPickSnapshot?.group===group&&wallPickSnapshot.meshes||[];
+ if(!wallPickSnapshot?.meshes||wallPickSnapshot.group!==group)group.traverse(o=>{const d=o.userData||{},layer=d.pickLayer||(d.baseId!==undefined?'base':d.solidId!==undefined||d.draftKey!==undefined?'walls':null);if(o.isMesh&&layer&&(layer!=='roof'||d.roofTrimId!==undefined)&&visible(o)&&(Array.isArray(o.material)?o.material.some(m=>m.visible!==false):o.material?.visible!==false)){o.updateMatrixWorld(true);meshes.push(o);}});
+ if(wallPickSnapshot?.group===group)wallPickSnapshot.meshes=meshes;
  const r=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,1-(e.clientY-r.top)/r.height*2),camera);
  const hits=ray.intersectObjects(meshes).sort((a,b)=>a.distance-b.distance);let hit=window.wallPreferredSurfaceHit(hits);if(!hit)return null;
  // Grade is a reference surface. At a numerically coincident base, prefer the
@@ -482,7 +499,7 @@ window.createWallEditor=function(host){
  const vertices=w=>[...w.bottom,...w.top],key=w=>w.id;
 
  function record(before){history.push(copy(before));future=[];host.recordHistory?.(copy(before));}
- const draft=window.createWallFaceDraft?.({pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,pickSoffitVisible:host.pickSoffitVisible,pasteHost:host.pasteHost,selectBaseEntities:host.selectBaseEntities,state:host.state,walls:host.walls,wallsVisible:host.visible,hit,roof:()=>host.state()?.boundExtrusionToRoof!==false?(window.WallChimneys?.roofWithOpenings(host.state())||host.state()?.roof):null,active,selected:()=>selected,select:id=>{selected=id;indices=[];host.setLayer?.('walls',false,true);},selectBox:id=>{selected=id;indices=[];host.setLayer?.('walls',true,true);},screen,position:host.position,toPixel:host.toPixel,message:text=>host.message?.(text),redraw:host.redraw,commit:before=>{record(before);host.changed();}});
+ const draft=window.createWallFaceDraft?.({redrawSelection:host.redrawSelection,withSelectionPicking:host.withSelectionPicking,pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,pickSoffitVisible:host.pickSoffitVisible,pasteHost:host.pasteHost,selectBaseEntities:host.selectBaseEntities,state:host.state,walls:host.walls,wallsVisible:host.visible,hit,roof:()=>host.state()?.boundExtrusionToRoof!==false?(window.WallChimneys?.roofWithOpenings(host.state())||host.state()?.roof):null,active,selected:()=>selected,select:id=>{selected=id;indices=[];host.setLayer?.('walls',false,true);},selectBox:id=>{selected=id;indices=[];host.setLayer?.('walls',true,true);},screen,position:host.position,toPixel:host.toPixel,message:text=>host.message?.(text),redraw:host.redraw,commit:before=>{record(before);host.changed();}});
 
  function apply(walls){
 

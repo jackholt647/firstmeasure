@@ -56,3 +56,9 @@ for(const perspective of [false,true])for(const zoom of [.65,1,1.4])for(const se
  f.points.onBeforeRender({info:{render:{frame:Math.random()}},getSize:v=>v.set(400,400)},f.scene,camera);
  assert.equal(f.points.geometry.drawRange.count,0);
 });
+
+test('a rectangle shares one pick-scene traversal and releases it after the query',()=>{
+ const f=fixture();f.ctx.camera=f.camera;f.ctx.renderer={domElement:{getBoundingClientRect:()=>({left:0,top:0,width:400,height:400})}};f.wall.userData.pickLayer='walls';let traversals=0;const group={traverse(fn){traversals++;f.scene.traverse(fn);}};
+ f.ctx.wallSelectionPicking(group,()=>{for(let i=0;i<100;i++){assert.equal(f.ctx.wallPointPickVisible(group,new THREE.Vector3(0,0,0)),true);assert.equal(f.ctx.wallPointPickVisible(group,new THREE.Vector3(0,0,-1)),false);}});
+ assert.equal(traversals,1);f.wall.visible=false;assert.equal(f.ctx.wallPointPickVisible(group,new THREE.Vector3(0,0,-1)),true);assert.equal(traversals,2);
+});
