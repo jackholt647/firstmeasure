@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 wide AI captures: [100-degree orbit FOV](deploy/digitalocean/development-exterior-ai-wide-20260923.md) records `06540fabe7c9d9fba19f4746222a84a7fb92f1d1` on all development roles. New eight-view captures fit at 100° vertical FOV; saved runs preserve their original lens for replay and AI metadata. Four focused checks, public hash and readiness passed. This one-script delta preserves `9dc5476`; production is unchanged.
+
 September 23 plane guides: [Upright grids and selected-line overlays](deploy/digitalocean/development-plane-guide-20260923.md) records `9dc5476ddc1646aab12ffc4c268f1ed3b4cd7ee2` on all development roles. Plane grids align to projected world-up; selected plane lines draw the white selection overlay independently of endpoint selection. All 395 wall-drafting checks passed; public asset hash and role readiness are verified. This one-script delta preserves the complete `be04d36` runtime. Production is unchanged.
 
 September 23 measurement controls: [Compact display buttons](deploy/digitalocean/development-measurement-buttons-20260923.md) records `be04d368ac308b4ea533dbfd1402078fdf43576e` on all development roles. All, Moving and Off are connected dark toolbar buttons with gold selection and descriptive tooltips. All 64 wall-mode checks and an isolated Chrome layout check passed; public hashes and role readiness are verified. This two-script delta preserves the complete `bd46f13` runtime. Production is unchanged.
