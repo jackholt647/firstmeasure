@@ -1,7 +1,8 @@
 /* Development-only eight-view experiment. Captures stay in browser IndexedDB. */
 (function(root){'use strict';
- const EYE=1.8288, VIEWS=8, FOV=45, MARGIN=.90;
+ const EYE=1.8288, VIEWS=8, FOV=100, MARGIN=.90;
  let panel,run,controller,busy=false;
+ const captureFov=()=>run?.fov??run?.steps?.find(s=>s.index&&Number.isFinite(s.fov))?.fov??45;
  const node=(tag,text,parent)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(parent)parent.appendChild(e);return e;};
  const corners=g=>[g.min.x,g.max.x].flatMap(x=>[g.min.y,g.max.y].flatMap(y=>[g.min.z,g.max.z].map(z=>({x,y,z}))));
  const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
@@ -103,11 +104,11 @@
    await new Promise(resolve=>setTimeout(resolve,75));
   }
  }
- async function place(g,p,aspect=run.aspect){
+ async function place(g,p,aspect=run.aspect,fov=captureFov()){
   check();const eye=g.toScene(p),target=g.toScene(g.center);
   if(![eye.x,eye.y,eye.z,target.x,target.y,target.z].every(Number.isFinite))throw Error('Camera coordinate conversion failed.');
   if(Math.abs(renderer.domElement.width/renderer.domElement.height-aspect)>.005)throw Error('Viewport resized during capture. Restart to keep all eight views consistent.');
-  camera.fov=FOV;camera.zoom=1;camera.aspect=aspect;camera.near=.01;camera.far=Math.max(2000,Math.hypot(eye.x-target.x,eye.y-target.y,eye.z-target.z)*10);camera.up?.set(0,1,0);camera.updateProjectionMatrix();
+  camera.fov=fov;camera.zoom=1;camera.aspect=aspect;camera.near=.01;camera.far=Math.max(2000,Math.hypot(eye.x-target.x,eye.y-target.y,eye.z-target.z)*10);camera.up?.set(0,1,0);camera.updateProjectionMatrix();
   const start=camera.position.clone(),startTarget=controls.target.clone(),began=performance.now();
   controls.update();
   await new Promise((resolve,reject)=>{
@@ -115,7 +116,7 @@
    requestAnimationFrame(step);
   });
   camera.position.copy(eye);controls.target.copy(target);camera.lookAt(target);camera.updateMatrixWorld();renderTextured();
-  return {position:{...p},scenePosition:{x:eye.x,y:eye.y,z:eye.z},target:{x:target.x,y:target.y,z:target.z},fov:FOV,aspect};
+  return {position:{...p},scenePosition:{x:eye.x,y:eye.y,z:eye.z},target:{x:target.x,y:target.y,z:target.z},fov,aspect};
  }
  function capture(index){
   renderTextured();const c=document.createElement('canvas'),src=renderer.domElement,s=Math.min(1,1280/Math.max(src.width,src.height));
@@ -124,7 +125,7 @@
   return c.toDataURL('image/jpeg',.87);
  }
  async function ask(provider='Luna'){
-  check();const context={task:'Choose one front view or the halfway angle between two adjacent views by visual comparison only.',candidates:VIEWS,heightAboveGroundFeet:6,equalOrbitRadius:true,fieldOfViewDegrees:FOV,aspect:run.aspect,rendering:'textured',imageOrder:['Target front photo',...Array.from({length:VIEWS},(_,i)=>`View ${i+1}`)]};
+  check();const context={task:'Choose one front view or the halfway angle between two adjacent views by visual comparison only.',candidates:VIEWS,heightAboveGroundFeet:6,equalOrbitRadius:true,fieldOfViewDegrees:captureFov(),aspect:run.aspect,rendering:'textured',imageOrder:['Target front photo',...Array.from({length:VIEWS},(_,i)=>`View ${i+1}`)]};
   const request={provider,mode:'orbit-front-v2',project:run.project,context,images:[run.front,...run.steps.filter(s=>s.index).map(s=>s.image)]};
   const response=await fetch('exterior_ai.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:controller.signal});
   let data;try{data=await response.json();}catch(e){throw Error(`AI endpoint returned HTTP ${response.status}.`);}
@@ -132,7 +133,7 @@
  }
  async function start(){
   if(busy)return;busy=true;controller=new AbortController();
-  run={id:'orbit-'+Date.now(),project:String(root.currentProjectId),createdAt:new Date().toISOString(),mode:'orbit-front-v2',model:'gpt-6-luna',reasoning:'low',steps:[],attempts:[],status:'Loading front photo…'};draw();
+  run={id:'orbit-'+Date.now(),project:String(root.currentProjectId),createdAt:new Date().toISOString(),mode:'orbit-front-v2',model:'gpt-6-luna',reasoning:'low',fov:FOV,steps:[],attempts:[],status:'Loading front photo…'};draw();
   let orbitControls=null,oldEnabled,oldDamping;
   try{
    const g=root.WallMode.aiGeometry();check();
@@ -210,7 +211,7 @@
    if(camera.isOrthographicCamera)throw Error('Switch to Perspective first.');
    root.WallMode.prepareAICapture();await waitForTextures();
    orbitControls=controls;oldEnabled=controls.enabled;oldDamping=controls.enableDamping;controls.enabled=false;controls.enableDamping=false;
-   await place({...g,center:run.geometry?.center||g.center},step.position,renderer.domElement.width/renderer.domElement.height);
+   await place({...g,center:run.geometry?.center||g.center},step.position,renderer.domElement.width/renderer.domElement.height,step.fov??captureFov());
    await checkpoint(`Viewing ${step.label}.`);
   }catch(e){run.status=e.message;}
   finally{if(orbitControls){orbitControls.enabled=oldEnabled;orbitControls.enableDamping=oldDamping;}busy=false;draw();}

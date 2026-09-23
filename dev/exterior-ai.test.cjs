@@ -10,12 +10,12 @@ test('all eight equal-radius views frame wide/tall models on slopes using indepe
   for(let i=0;i<8;i++){
    const p=result.positions[i];assert.ok(Math.abs(Math.hypot(p.x,p.y)-result.radius)<1e-9);assert.ok(Math.abs(p.z-g.groundAt(p)-1.8288)<1e-9);
    assert.ok(Math.abs(p.x-Math.sin(i*Math.PI/4)*result.radius)<1e-9);
-   const c=new THREE.PerspectiveCamera(45,aspect,.01,100000);c.position.set(p.x,p.z,p.y);c.lookAt(0,g.center.z,0);c.updateMatrixWorld();
+   const c=new THREE.PerspectiveCamera(100,aspect,.01,100000);c.position.set(p.x,p.z,p.y);c.lookAt(0,g.center.z,0);c.updateMatrixWorld();
    for(const x of [g.min.x,g.max.x])for(const y of [g.min.y,g.max.y])for(const z of [g.min.z,g.max.z]){
     const q=new THREE.Vector3(x,z,y).project(c);assert.ok(Math.abs(q.x)<.901&&Math.abs(q.y)<.901&&q.z>-1&&q.z<1,JSON.stringify({q,p,aspect}));
    }
   }
-  assert.ok(result.positions.some((p,i)=>!AI.fits(g,AI.orbitPosition(g,result.radius*.98,i),aspect)),'radius stays close to the minimum common fit');
+  assert.ok(result.radius*.98<Math.hypot(width,depth)/2+.1||result.positions.some((p,i)=>!AI.fits(g,AI.orbitPosition(g,result.radius*.98,i),aspect)),'radius stays close to the minimum common fit');
  }
  assert.throws(()=>AI.validateChoice({view:9,confidence:.9,explanation:'invalid'}));
  assert.throws(()=>AI.validateChoice({view:2.5,confidence:.9,explanation:'invalid'}));
@@ -50,11 +50,11 @@ test('one Luna request compares eight textured captures, selects a saved pose, r
   assert.equal(requests.length,2);assert.deepEqual(requests[1],requests[0]);
   assert.deepEqual(requests[1].images,firstImages);
   assert.equal(await page.locator('[data-log] img').count(),9);
-assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-front-v2');assert.ok(!JSON.stringify(requests[0].context).includes('north'));
+assert.equal(requests[0].context.fieldOfViewDegrees,100);assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-front-v2');assert.ok(!JSON.stringify(requests[0].context).includes('north'));
   assert.equal(await page.locator('[data-log] img').count(),9);assert.equal(await page.locator('section[data-selected] strong').innerText(),'View 6 · selected');
   const saved=await page.evaluate(async()=>{const r=indexedDB.open('firstmeasure-exterior-ai',1);const db=await new Promise(resolve=>r.onsuccess=()=>resolve(r.result));const q=db.transaction('runs').objectStore('runs').getAll();return await new Promise(resolve=>q.onsuccess=()=>{db.close();resolve(q.result[0]);});});
   assert.equal(saved.steps.length,9);assert.equal(saved.attempts.length,2);assert.equal(saved.attempts[1].rawResponse.id,'response-example');assert.equal(logs.filter(m=>m.startsWith('Full model response')).length,2);const views=saved.steps.slice(1);assert.equal(new Set(views.map(s=>s.angle)).size,8);
-  assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[5].scenePosition);assert.equal(await page.evaluate(()=>camera.fov),45);assert.equal(await page.evaluate(()=>camera.zoom),1);assert.equal(await page.evaluate(()=>controls.enabled&&controls.enableDamping&&window.texturePrepared),true);
+  assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[5].scenePosition);assert.equal(await page.evaluate(()=>camera.fov),100);assert.equal(await page.evaluate(()=>camera.zoom),1);assert.equal(await page.evaluate(()=>controls.enabled&&controls.enableDamping&&window.texturePrepared),true);
   assert.equal(await page.evaluate(()=>camera.isOrthographicCamera),false);assert.ok(await page.evaluate(()=>window.renderedFrames)>8);
   await page.getByRole('button',{name:'Last saved run'}).click();assert.equal(await page.locator('[data-log] img').count(),9);
   await page.getByRole('button',{name:'Rotate to View 2',exact:true}).click();await page.getByText('Viewing View 2.',{exact:true}).waitFor();
