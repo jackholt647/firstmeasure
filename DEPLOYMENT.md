@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 wall drawing: [Continuous generated edges and drawing beyond outlines](deploy/digitalocean/development-wall-drawing-20260923.md) records `5960ca6257dfadabee2816d68ce7484f130fedce` on all three development roles, based on the consolidated `ac96d0c` runtime. Public assets and readiness are verified. Generated straight runs no longer expose source subdivision points; point and curve drawing can extend beyond face outlines while retaining deliberate anchors. Preserve this runtime baseline.
+
 > **Directory move pending (September 23):** The physical canonical checkout is
 > still `C:/Users/jackh/Code/2026/FirstMeasure`. Windows blocked the move because
 > multiple Codex helpers hold this directory open. `FirstMate Platform` paths
