@@ -1419,9 +1419,23 @@ function build3DControlPanel() {
     const fovGroup = document.createElement('label');
     fovGroup.className = 'enh-crop-group';
     fovGroup.id = 'perspective-fov-controls';
-    fovGroup.title = 'Smaller angles flatten perspective; larger angles give a wider lens. Match the reference photo, then zoom to frame.';
+    fovGroup.style.userSelect = 'none';
+    fovGroup.title = 'Smaller angles flatten perspective; larger angles give a wider lens. Camera distance compensates to keep the orbit target framed at the same size.';
     fovGroup.innerHTML = '<span>FOV</span><input id="perspectiveFovRange" type="range" min="15" max="100" step="1" aria-label="Perspective field of view"><span id="perspectiveFovValue"></span>';
-    fovGroup.querySelector('input').addEventListener('input', e => window.set3DPerspectiveFov(e.target.value));
+    const fovInput = fovGroup.querySelector('input');
+    fovInput.style.touchAction = 'none';
+    fovGroup.querySelector('#perspectiveFovValue').style.cssText = 'display:inline-block;width:4ch;font-variant-numeric:tabular-nums';
+    fovInput.addEventListener('input', e => window.set3DPerspectiveFov(e.target.value));
+    fovInput.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        fovInput.dataset.dragging = 'true';
+        fovInput.setPointerCapture(e.pointerId);
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) fovInput.addEventListener(type, () => {
+        delete fovInput.dataset.dragging;
+        sync3DPerspectiveFovUI();
+    });
+    fovGroup.addEventListener('dragstart', e => e.preventDefault());
     panel.appendChild(fovGroup);
     container.appendChild(panel);
     sync3DPerspectiveFovUI();
@@ -6048,13 +6062,25 @@ function sync3DPerspectiveFovUI() {
     _enh.perspectiveFov = camera.fov;
     const input = document.getElementById('perspectiveFovRange');
     const value = document.getElementById('perspectiveFovValue');
-    if (input && Number(input.value) !== camera.fov) input.value = String(camera.fov);
+    if (input && !input.dataset.dragging && Number(input.value) !== camera.fov) input.value = String(camera.fov);
     const label = Math.round(camera.fov) + '°';
     if (value && value.textContent !== label) value.textContent = label;
 }
 window.set3DPerspectiveFov = function(value) {
     if (typeof camera === 'undefined' || !camera?.isPerspectiveCamera || !Number.isFinite(Number(value))) return;
-    camera.fov = Math.max(15, Math.min(100, Number(value)));
+    const nextFov = Math.max(15, Math.min(100, Number(value)));
+    // Preserve the visible span at the orbit target: distance * tan(FOV / 2).
+    // Move along the existing orbit ray, so heading and target do not change.
+    const ratio = Math.tan(camera.fov * Math.PI / 360) / Math.tan(nextFov * Math.PI / 360);
+    if (typeof controls !== 'undefined' && controls?.target && Number.isFinite(ratio) && ratio > 0) {
+        camera.position.sub(controls.target).multiplyScalar(ratio).add(controls.target);
+        // Keep orbit zoom limits consistent with the compensated distance.
+        if (Number.isFinite(controls.minDistance)) controls.minDistance *= ratio;
+        if (Number.isFinite(controls.maxDistance)) controls.maxDistance *= ratio;
+        camera.far = Math.max(camera.far, camera.position.distanceTo(controls.target) * 4);
+        camera.updateMatrixWorld();
+    }
+    camera.fov = nextFov;
     camera.updateProjectionMatrix();
     _sceneDirty3D = true;
     sync3DPerspectiveFovUI();
