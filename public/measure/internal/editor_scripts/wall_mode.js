@@ -328,9 +328,15 @@ function perf_persist(touch=true) {
         }
         syncVisibility();
     }
-    let wallSceneDepth=0,wallSceneSnapshot=null;
+    let wallSceneDepth=0,wallSceneSnapshot=null,wallSceneKey=null,wallSceneCached=null;
     function withWallScene(fn){const outer=wallSceneDepth++===0;try{return outer&&window.WallChimneys?.withVisibilitySnapshot?window.WallChimneys.withVisibilitySnapshot(state,fn):fn();}finally{wallSceneDepth--;if(outer)wallSceneSnapshot=null;}}
-    function currentWalls(){if(wallSceneDepth&&wallSceneSnapshot)return wallSceneSnapshot;const result=composeCurrentWalls();if(wallSceneDepth)wallSceneSnapshot=result;return result;}
+    function currentWalls(){
+        if(wallSceneDepth&&wallSceneSnapshot)return wallSceneSnapshot;
+        // Selection and camera changes do not alter the composed building. Compare
+        // values, not references: previews and undo can mutate or replace inputs.
+        const key=JSON.stringify([stage,state]);
+        if(key!==wallSceneKey){wallSceneCached=composeCurrentWalls();wallSceneKey=key;}
+        if(wallSceneDepth)wallSceneSnapshot=wallSceneCached;return wallSceneCached;}
     function composeCurrentWalls(...args){if(!window.ExteriorPerf?.enabled)return perf_composeCurrentWalls.apply(this,args);return window.ExteriorPerf.measure('Compose walls',()=>perf_composeCurrentWalls.apply(this,args));}
 function perf_composeCurrentWalls(){const walls=!state||stage===1?[]:stage===2?(state.extruded||[]):stage===3?(state.deduplicated||[]):stage===4?(state.gapRepaired||[]):stage===5?(state.mergedWalls||[]):stage===6?(state.cleanedWalls||[]):(state.alignedWalls||[]);const applied=wallEditor?.apply(walls)||walls;if(!state||stage<2||!window.WallChimneys)return applied;const composed=WallChimneys.compose(applied,state);const final=[...composed.filter(w=>!w.chimney),...(wallEditor?.apply(composed.filter(w=>w.chimney))||composed.filter(w=>w.chimney))];const edits=state.wallEdits||{},protectedIds=[...Object.keys(edits).filter(k=>!k.startsWith('$')),...Object.values(edits.$drafts||{}).flatMap(d=>d.members||[])];return stage>=7?WallChimneyCleanup.compose(final,state.chimneyCleanupReport,protectedIds):final;}
     function currentGaps(){const walls=currentWalls(),ground=wallFloor();const key=JSON.stringify([walls,ground]);if(key!==gapCacheKey){gapCacheKey=key;gapCache=window.WallGaps?.detect(walls,ground)||[];}return gapCache;}
@@ -620,7 +626,8 @@ function perf_render3DFrame() {
             state.options[prop]=value;invalidateWalls();ensureStage(stage);
         };
         roofTrimEditor=window.createRoofTrimEditor?.({openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);wallEditor?.selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
-        function pickPointer(e){
+        function pickPointer(e){return withWallScene(()=>pickPointerInScene(e));}
+        function pickPointerInScene(e){
                     if(resoffitMode){wallEditor?.pickLine?.(e);return true;}
                     if(wallEditor?.planeActive?.())return wallEditor.planeDown(e);
                     // A tool on an inactive layer cannot consume input for the active one.

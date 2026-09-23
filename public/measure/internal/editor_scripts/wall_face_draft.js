@@ -291,6 +291,20 @@ window.createWallFaceDraft=function(host){
  // model inputs. This cache is never used by editing/deletion transactions.
  function beginRenderCache(){for(const d of Object.values(all()))retainSourcePoints(d);renderCacheActive=true;const key=JSON.stringify([host.state(),renderWalls]);if(key!==renderCacheKey){renderCacheKey=key;renderCache=new Map();}}
  function renderDerived(key,build){if(!renderCacheActive||window.EXTERIOR_DISABLE_RENDER_CACHE===true)return build();if(!renderCache.has(key)){const label=key.startsWith('segments:')?'Draft edge preparation':key==='wire'?'Wire graph preparation':key==='support-index'?'Support index':'Support faces';renderCache.set(key,window.ExteriorPerf?.enabled?window.ExteriorPerf.measure(label,build):build());}return renderCache.get(key);}
+ // Picking shares the render-derived topology, but never holds it over a
+ // mutation. A rectangle enters this scope only after materializing its drafts.
+ function withSelectionGeometry(fn){
+  if(renderCacheActive)return fn();
+  const run=()=>{const prior=[renderWalls,renderSegments,supportSnapshot,supportIndex];
+   try{renderWalls=host.walls();renderSegments=new Map();beginRenderCache();
+    supportSnapshot=renderDerived('support',()=>structuralFaces());
+    supportIndex=renderDerived('support-index',()=>W.structuralIndex(supportSnapshot));
+    return fn();
+   }finally{[renderWalls,renderSegments,supportSnapshot,supportIndex]=prior;renderCacheActive=false;}
+  };
+  const query=()=>window.WallChimneys?.withVisibilitySnapshot?window.WallChimneys.withVisibilitySnapshot(host.state(),run):run();
+  return window.ExteriorPerf?.enabled?window.ExteriorPerf.measure('Selection geometry',query):query();
+ }
  const wire=()=>renderDerived('wire',buildWire);
 
  const walls=()=>renderWalls||host.walls();
@@ -394,21 +408,23 @@ function perf_snap(d,e,raw=null){
   if(!moved){if(!b.add)selectedBasePoints=[];if(!e||viewOf(e)===b.view)b.click?.();return;}
   marqueeCompleted=true;
   b.ex=e?.clientX??b.ex;b.ey=e?.clientY??b.ey;
+  if(!(b.add&&!b.subtract&&(lineSelection.length||pickedLines.length||solidEdges.length))&&host.wallsVisible?.()!==false)for(const w of walls())ensure(w);
+  return withSelectionGeometry(()=>{
   const insideCache=new Map(),left=Math.min(b.x,b.ex),right=Math.max(b.x,b.ex),top=Math.min(b.y,b.ey),bottom=Math.max(b.y,b.ey);
   const inside=p=>{const key=W.vertexKey(p);if(insideCache.has(key))return insideCache.get(key);const q=host.screen(p,b.view),inRect=Number.isFinite(q.x)&&Number.isFinite(q.y)&&q.visible!==false&&q.x>=left&&q.x<=right&&q.y>=top&&q.y<=bottom;const result=inRect&&!(b.view==='3d'&&host.state()?.translucent===false&&host.pickVisible?.(p)===false);insideCache.set(key,result);return result;};
   // Even a few pixels of pointer jitter can become a marquee. Additive line
   // gestures stay line gestures, and an empty rectangle leaves all state alone.
   if(b.add&&!b.subtract&&(lineSelection.length||pickedLines.length||solidEdges.length)){
-   const hits=[...sceneLines().lines].filter(([,pair])=>pair.every(inside)&&pickLineVisible(pair,e,.5));
+   const hits=[...sceneLines().lines].filter(([,pair])=>pair.every(inside)&&pickLineVisible(pair,{...e,target:e?.target,clientX:host.screen(pair[0],b.view).x/2+host.screen(pair[1],b.view).x/2,clientY:host.screen(pair[0],b.view).y/2+host.screen(pair[1],b.view).y/2},.5));
    if(hits.length){const keys=new Set(lineSelection.map(l=>l.id));for(const [id,pair]of hits)if(!keys.has(id)){lineSelection.push({id,pair});keys.add(id);}host.redraw();}
    e?.stopImmediatePropagation?.();return;
   }
-  if(host.wallsVisible?.()!==false)for(const w of walls())ensure(w);
   draftSelection={};for(const [key,d]of Object.entries(all())){if(host.wallsVisible?.()===false||!visibleDraft(d))continue;const ids=draftNodes(d).filter(n=>inside(world(d,n))).map(n=>n.id);draftSelection[key]=b.subtract?(b.priorDrafts[key]||[]).filter(id=>!ids.includes(id)):[...new Set([...(b.add?b.priorDrafts[key]||[]:[]),...ids])];}
   solidPoints=[...new Set([...(b.add?b.priorSolids:[]),...(host.wallsVisible?.()===false?[]:wire().nodes.filter(n=>!n.curveSample).filter(inside).map(n=>n.id))])];selectedRegion=null;selectedSolid=null;pickedLines=[];solidEdges=[];selectedBasePoints=[...new Set([...(b.add?b.priorBase:[]),...basePoints().filter(inside).map(W.vertexKey)])];
   if(b.subtract){const nodes=new Map(wire().nodes.map(n=>[n.id,n])),base=new Map(basePoints().map(p=>[W.vertexKey(p),p]));solidPoints=b.priorSolids.filter(id=>!nodes.has(id)||!inside(nodes.get(id)));selectedBasePoints=b.priorBase.filter(id=>!base.has(id)||!inside(base.get(id)));}
   const first=Object.entries(draftSelection).find(([,ids])=>ids.length),w=first?walls().find(w=>all()[first[0]].members.includes(w.id)):walls()[0];(host.selectBox||host.select)(w?.id||null);activeDraftKey=first?.[0]||null;
   picked=draftSelection[draftKey(current())]||[];host.redraw();const count=selectedWorldPoints().length;host.message(count+(count===1?' point selected':' points selected'));e?.stopImmediatePropagation?.();
+  });
 
  }
  let faceSelection=[];
@@ -476,8 +492,11 @@ function perf_snap(d,e,raw=null){
  }
  const pickVisible=(p,e)=>viewOf(e)!=='3d'||host.pickVisible?.(p,e)!==false;
  const pickLineVisible=(pair,e,t=.5)=>viewOf(e)!=='3d'||(host.pickLineVisible?host.pickLineVisible(pair,e):pickVisible({x:pair[0].x+(pair[1].x-pair[0].x)*t,y:pair[0].y+(pair[1].y-pair[0].y)*t,z:pair[0].z+(pair[1].z-pair[0].z)*t},e));
- function pickVisiblePoint(e){if(resoffitMode)return false;if(['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d')return false;
-  if(tool||lineMode()||viewOf(e)!=='3d'||e.button!==0)return false;
+ function pickVisiblePoint(e){
+  if(resoffitMode||tool||lineMode()||viewOf(e)!=='3d'||e.button!==0||['textured','rendered','match-textured'].includes(host.state()?.displayMode))return false;
+  return withSelectionGeometry(()=>pickVisiblePointInScene(e));
+ }
+ function pickVisiblePointInScene(e){
   const candidates=[];
   if(host.wallsVisible?.()!==false){
    for(const d of Object.values(all()))if(visibleDraft(d))for(const n of draftNodes(d))candidates.push({p:world(d,n),d,n});
@@ -554,10 +573,17 @@ function perf_snap(d,e,raw=null){
   return {points,lines,baseSegments,curveGroups};
  }
  function heightPoints(){const state=host.state(),base=state.wallEdits?.$base||state.base;return [...(state.roof?.points||[]),...(base?.faces||[]).filter(f=>!f.deleted).flatMap(f=>[...f.points,...(f.holes||[]).flat(),...(f.retainedPoints||[])])];}
- function pickLine3D(e){const soffits=soffitEdges();const isSoffit=pair=>soffits.some(c=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001));const dividerOnly=['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
-  const {points,lines,baseSegments,curveGroups}=sceneLines(),screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);
+ function pickLine3D(e){return withSelectionGeometry(()=>pickLineInScene(e));}
+ function pickLineInScene(e){let contacts;const soffits=()=>contacts ||= renderDerived('soffit-edges',()=>soffitEdges());const isSoffit=pair=>soffits().some(c=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001));const dividerOnly=['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
+  // Resoffit highlights come from merged support outlines. Those edges need
+  // not exist verbatim in the editable sketch (a turret can have split or
+  // consumed return edges). Pick the same contact lines that we draw.
+  const contactsScene=()=>({points:[],lines:new Map(soffits().map(c=>[c.id,c.pair])),baseSegments:[],curveGroups:new Map()});
+  const scene=resoffitMode?contactsScene():sceneLines();
+  if(!resoffitMode)scene.lines=new Map([...scene.lines,...soffits().map(c=>[c.id,c.pair])]);
+  const {points,lines,baseSegments,curveGroups}=scene,screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);
   if(!resoffitMode&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&pickVisible(p,e);}))return false;
-  let nearest=null,distance=10;for(const [id,pair]of lines){if(resoffitMode&&!isSoffit(pair))continue;if(dividerOnly&&!resoffitMode&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(pickLineVisible(pair,e,t)||(isSoffit(pair)&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair};}}
+  let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!resoffitMode&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(pickLineVisible(pair,e,t)||((resoffitMode||isSoffit(pair))&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair};}}
   if(!nearest)return false;const curved=[...curveGroups.values()].find(g=>g.pairs.some(pair=>W.edgeKey(...pair)===W.edgeKey(...nearest.pair)));if(curved){nearest={...nearest,...curved};}const baseLine=baseSegments.some(pair=>W.sharedIntervals(...nearest.pair,[{points:pair}]).reduce((s,[a,b])=>s+b-a,0)>.99999);const wallLine=host.wallsVisible?.()!==false&&[...solids().filter(f=>!f.deleted&&!f.drafted),...Object.values(all()).flatMap(d=>d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)).map(f=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}))),...walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id))).map(w=>({points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]}))].some(f=>W.sharedIntervals(...nearest.pair,[f]).some(([a,b])=>b-a>1e-6));beginBox(e,current());box.lineClick=true;box.click=()=>{mouse=e;const add=resoffitMode||e.ctrlKey||e.metaKey||e.shiftKey;if(nearest.draftKey){activeDraftKey=nearest.draftKey;pickedLines=[nearest.edgeId];picked=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedSolid=null;selectedRegion=null;host.message('1 curve selected');host.redraw();return;}if(baseLine&&!wallLine&&host.selectBaseEntities&&!lineSelection.some(l=>l.id===nearest.id)){lineSelection=[];host.selectBaseEntities([], [nearest.pair],add,!!(e.ctrlKey||e.metaKey));return;}lineSelection=e.ctrlKey||e.metaKey||resoffitMode&&lineSelection.some(l=>l.id===nearest.id)?lineSelection.filter(l=>l.id!==nearest.id):add?[...lineSelection.filter(l=>l.id!==nearest.id),nearest]:[nearest];draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedRegion=null;selectedSolid=null;host.select(null);host.message(lineSelection.length+' lines selected');host.redraw();};return true;
  }
  function stepStatus(text){host.message(text);const button=typeof document!=='undefined'&&document.getElementById('wall-step');if(button)button.textContent=tool?.kind==='step'?'Auto-step: '+tool.count+' (S)':'Auto-step (S)';}
@@ -1058,7 +1084,7 @@ function perf_previewLineMove(e){
   return !d.faces.some(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)&&G.contains(f,n));
  }
  function draftNodes(d){if(d.mergedInto)return [];const consumed=new Set(d.faces.filter(f=>f.solidId).flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId))),retained=new Set(d.faces.filter(f=>!f.solidId).flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId)));return d.sketch.nodes.filter(n=>!n.generatedBoundary||isPicked(d,n.id)||structuralDraftPoint(d,n)).filter(n=>!(d.removedPoints||[]).includes(n.id)&&(!consumed.has(n.id)||retained.has(n.id))&&!consumedDraftPoint(d,n)).filter(n=>!host.state()?.chimneys?.items?.length||window.WallChimneys.visibleSegments(world(d,n),world(d,n),host.state(),d.chimney,d.joinedChimneys).length||draftSegments(d).some(e=>Math.hypot(e.start.x-n.x,e.start.y-n.y)<.0001||Math.hypot(e.end.x-n.x,e.end.y-n.y)<.0001));}
- function soffitEdges(){const R=window.WallResoffit;if(!R||!host.state()?.roof)return [];return R.candidates(structuralFaces(),host.state().roof,host.state().sources);}
+ function soffitEdges(){const R=window.WallResoffit;if(!R||!host.state()?.roof)return [];return R.candidates(supportSnapshot||structuralFaces(),host.state().roof,host.state().sources);}
  function resoffit(depth){
   if(tool||workingPlane){host.message('Finish the current edit before resoffiting.');return false;}
   const pairs=lineSelection.flatMap(l=>l.pairs||[l.pair]);if(!pairs.length){host.message('Select roof-contact soffit lines first.');return false;}

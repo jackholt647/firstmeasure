@@ -557,3 +557,13 @@ test('Shift with selected lines never falls through to roof trim, face or layer 
  const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:h=>{wallHost=h;return wall;},wallNearestSurface:()=>{calls.push('face');return null;}});f.ctx.WallMode.setEnabled(true);wallHost.setLayer('walls');const e={button:0,shiftKey:true,target:{closest:s=>s==='#three-view-wrapper'||s==='#viewport,#three-view-wrapper'},preventDefault(){},stopImmediatePropagation(){}};
  f.listeners['window:pointerdown'](e);assert.deepEqual(calls,['line miss']);
 });
+
+test('selection wall queries reuse composition and invalidate after mutation, undo and stage changes',()=>{
+ let host,calls=0;
+ const f=fixture(true,{createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>{calls++;return w;},draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false};}});
+ f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ host.walls();calls=0;for(let i=0;i<40;i++)host.walls();assert.equal(calls,0,'no composition for repeated selection queries');
+ host.state().wallEdits ||= {};const before=JSON.parse(JSON.stringify(host.state().wallEdits));host.state().wallEdits.test={offset:1};host.walls();assert.ok(calls>0);calls=0;
+ host.walls();assert.equal(calls,0);host.state().wallEdits=before;host.walls();assert.ok(calls>0);calls=0;
+ f.stages[1].onclick();assert.ok(calls>0);
+});

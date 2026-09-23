@@ -2351,3 +2351,29 @@ for(const initial of [18,24])for(const roofId of [34,35,36,37])test(`zero Resoff
   r.state.wallEdits=JSON.parse(JSON.stringify(r.state.wallEdits));f=fixture({state:r.state,walls,selected:null,globals:{WallResoffit:R}});f.editor.restoreSelection(selection);
  }
 });
+
+test('selection reuses derived roof contacts and invalidates them after in-place geometry changes and undo',()=>{
+ const p=(x,y,z)=>({x,y,z});let calls=0;
+ const state={wallEdits:{},roof:{faces:[]}},walls=[{id:'w',bottom:[p(0,0,0),p(4,0,0)],top:[p(0,0,4),p(4,0,4)]}];
+ const f=fixture({state,walls,selected:null,globals:{WallResoffit:{candidates:()=>{calls++;return [{id:'contact',pair:walls[0].top}];}}}});
+ f.editor.setResoffitMode(true);
+ const click=z=>{const e=f.e(2,z);assert.equal(f.editor.pickLine3D(e),true);f.listeners.pointerup(e);};
+ click(4);click(4);assert.equal(calls,1,'selection changes reuse contacts');
+ walls[0].top.forEach(p=>p.z=5);click(5);assert.equal(calls,2,'in-place wall changes invalidate');
+ walls[0].top.forEach(p=>p.z=4);click(4);assert.equal(calls,3,'undo invalidates');
+ state.roof.faces.push({id:2});click(4);assert.equal(calls,4,'roof changes invalidate');
+});
+
+for(const resoffit of [true,false])test(`Displayed merged contact is selectable with Resoffit ${resoffit} when the sketch lacks that exact edge`,()=>{
+ const pair=[{x:1,y:0,z:3},{x:3,y:0,z:3}];
+ const f=fixture({state:{wallEdits:{},roof:{faces:[]}},selected:null,pickLineVisible:()=>false,pickSoffitVisible:()=>true,globals:{WallResoffit:{candidates:()=>[{id:'merged-contact',pair}]}}});
+ f.editor.setResoffitMode(resoffit);const e=f.e(2,3);assert.equal(f.editor.pickLine3D(e),true);f.listeners.pointerup(e);
+ assert.equal(f.editor.selectionSnapshot().lineSelection[0].id,'merged-contact');
+});
+
+test('rectangle line visibility is evaluated at its line, not the release corner',()=>{
+ const seen=[],f=fixture({selected:null,pickLineVisible:(pair,e)=>{seen.push(e);return e.clientX===200&&e.clientY===400;}});
+ f.editor.restoreSelection({lineSelection:[{id:'existing',pair:[{x:8,y:0,z:0},{x:9,y:0,z:0}]}]});
+ f.editor.startBox(f.e(-.2,3.8,true),()=>{});f.listeners.pointerup(f.e(4.2,4.2,true));
+ assert.equal(f.editor.selectionSnapshot().lineSelection.length,2);assert.ok(seen.length);
+});
