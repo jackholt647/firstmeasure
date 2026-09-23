@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 production curriculum save: [Targeted tutorial directory permission repair](deploy/digitalocean/production-curriculum-save-20260923.md) records the compatibility-role ACL correction. No application release changed.
+
 September 23 spline invariants: [Preserve analytic curves through reconstruction](deploy/digitalocean/development-spline-invariants-20260923.md) records `1291c36f5f38012dad495c6d998e8db5695081f5` on all development roles. Shared curve recognition and guarded sketch/import paths keep evaluated samples out of editable geometry. All 467 focused checks passed; public hashes and role readiness verified. The four-script delta preserves `7138ad6`; production is unchanged.
 
 September 23 AI anchors: [Edge and center placement](deploy/digitalocean/development-exterior-ai-anchors-20260923.md) records `ed6d7ed6957809420ba513791c0107b3ecb904a3` on all three development roles. New placement runs support left/center/right and top/center/bottom anchors with percentage offsets, including exact bottom-zero garage alignment while retaining physical aspect ratio. All 87 focused tests, PHP lint, public hashes and readiness passed. The three-file delta preserves `d1dc861` and the private PHP API override; production is unchanged.

@@ -61,7 +61,7 @@ import { devConsoleRoutes } from "./routes/dev_console.js";
 import { rootRoutes } from "./routes/root.js";
 
 export function legacyProxyReplyOptions(
-  request: Pick<FastifyRequest, "body" | "headers">,
+  request: Pick<FastifyRequest, "body" | "headers" | "raw">,
   options: FastifyReplyFromHooks
 ): FastifyReplyFromHooks {
   const rawContentType = request.headers["content-type"];
@@ -69,6 +69,12 @@ export function legacyProxyReplyOptions(
     .split(";", 1)[0]
     ?.trim()
     .toLowerCase();
+  if (contentType === "multipart/form-data") {
+    // The multipart parser marks the request but leaves the raw stream unread.
+    // reply-from only forwards a request body when Fastify's body is set.
+    request.body = request.raw;
+    return options;
+  }
   if (contentType !== "application/x-www-form-urlencoded") return options;
   if (!request.body || typeof request.body !== "object" || Buffer.isBuffer(request.body)) return options;
 
