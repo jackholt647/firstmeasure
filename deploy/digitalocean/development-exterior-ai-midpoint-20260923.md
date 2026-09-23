@@ -7,3 +7,5 @@ Luna low reasoning still receives the front reference and eight textured candida
 Each captured view now has an accessible Rotate button beside its title. It reuses the saved position and center with textured rendering, restores orbit controls, and keeps image clicks as downloads. Previous saved runs remain inspectable. Controls disable while a capture or move is running.
 
 Validation: all three focused tests pass, including independent frustum checks, single and wraparound midpoint positioning, saved history, manual rotation, stale project responses and missing textures. PHP lint and JavaScript syntax checks pass. Guarded staging verified 24,499 unchanged public files on web/compatibility and 24,513 on worker. Rollout evidence is in ignored output/exterior-ai-midpoint-20260923. The prior complete baseline remains available for rollback using the existing guarded workflow and PHP-FPM refresh.
+
+All three development roles activated and passed readiness/isolation verification. The public AI script hash matches the release. Midpoint behavior was tested with controlled responses; this update does not claim improved Luna accuracy from a new live house trial.
