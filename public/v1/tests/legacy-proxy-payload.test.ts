@@ -2,6 +2,7 @@ import httpProxy from "@fastify/http-proxy";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Fastify from "fastify";
+import multipart from "@fastify/multipart";
 
 import { legacyProxyReplyOptions } from "../src/app.js";
 
@@ -48,4 +49,45 @@ test("cluster proxy forwards parsed URL-encoded legacy actions without a 500", a
       amount: "100"
     }
   });
+});
+
+test("cluster proxy forwards multipart tutorial artifacts", async (t) => {
+  const upstream = Fastify();
+  await upstream.register(multipart);
+  upstream.post("/v1/internal/tutorial-projects/test/artifacts", async (request) => {
+    const file = await request.file();
+    return { uploaded: Boolean(file), contents: file ? (await file.toBuffer()).toString() : "", contentType: request.headers["content-type"], contentLength: request.headers["content-length"] };
+  });
+  await upstream.listen({ host: "127.0.0.1", port: 0 });
+  t.after(async () => upstream.close());
+  const address = upstream.server.address();
+  assert.ok(address && typeof address === "object");
+
+  const proxy = Fastify();
+  await proxy.register(multipart);
+  await proxy.register(httpProxy, {
+    upstream: `http://127.0.0.1:${address.port}`,
+    prefix: "/v1/internal",
+    rewritePrefix: "/v1/internal",
+    handler: (request, reply, destination, options) =>
+      reply.from(destination, legacyProxyReplyOptions(request, options))
+  });
+  await proxy.listen({ host: "127.0.0.1", port: 0 });
+  t.after(async () => proxy.close());
+  const proxyAddress = proxy.server.address();
+  assert.ok(proxyAddress && typeof proxyAddress === "object");
+
+  const body = new FormData();
+  body.append("file", new Blob(["sample artifact"]), "test.txt");
+  const response = await fetch(`http://127.0.0.1:${proxyAddress.port}/v1/internal/tutorial-projects/test/artifacts`, {
+    method: "POST",
+    body
+  });
+  const result = await response.text();
+  assert.equal(response.status, 200, result);
+  const uploaded = JSON.parse(result);
+  assert.equal(uploaded.uploaded, true);
+  assert.equal(uploaded.contents, "sample artifact");
+  assert.match(uploaded.contentType, /^multipart\/form-data; boundary=/);
+  assert.ok(Number(uploaded.contentLength) > 0);
 });
