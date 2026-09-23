@@ -117,6 +117,12 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   const n=K.normal(f.points),request=requests.get(f.id),offset=request?request.value*dot(request.n,n):0;
   const project=p=>{const d=dot(sub(p,f.points[0]),n)-offset;return {...p,x:p.x-n.x*d,y:p.y-n.y*d,z:p.z-n.z*d};};
   next.points=next.points.map(project);next.holes=next.holes.map(r=>r.map(project));
+  // Retained sketch stations are not necessarily topology vertices. They must
+  // follow the wall plane and roof just like the visible boundary corners.
+  next.retainedPoints=(f.retainedPoints||[]).map(p=>{
+   const q=project(movedPoint(p)),supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<.025);
+   if(supports.length)q.z=followRoof(p,q,supports,planes);return q;
+  });
   const roofEdge=(a,b)=>[0,.5,1].every(t=>{const p=mix(a,b,t);return planes.some(f=>G.contains(f,p)&&Math.abs(p.z-f.plane.dx*p.x-f.plane.dy*p.y-f.plane.k)<.025);});
   // A translated edge may cross a hip. Insert the actual pitch transitions,
   // rather than drawing one chord between endpoints on different roof planes.
@@ -145,7 +151,9 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   if(next.points.length<3||K.area(region)<1e-8||collapsedReturn){if(requests.has(f.id))throw Error("This depth leaves no wall between the adjoining boundaries.");affected.push(f.id);return {...f,deleted:true};}
   let pieces;try{const normalized=K.normalizeFace(next,!f.baseId);pieces=Array.isArray(normalized)?normalized:[normalized];for(const piece of pieces)K.validateFace(piece);}catch(e){throw Error('The requested depth cannot form a continuous wall at this junction.');}
   if(pieces.some(piece=>dot(n,K.normal(piece.points))<=0))throw Error('This depth would reverse a neighboring wall. Select the adjoining soffits together or use a smaller change.');affected.push(f.id);
-  return pieces.map((piece,i)=>{if(!i)return piece;let serial=1,id;do{id=f.id+'~resoffit-'+serial++;}while(usedIds.has(id));usedIds.add(id);return {...piece,id,draft:false};});
+  return pieces.map((piece,i)=>{const frame=K.frame(piece),shape={points:piece.points.map(p=>K.local(frame,p)),holes:(piece.holes||[]).map(r=>r.map(p=>K.local(frame,p)))};
+   piece.retainedPoints=(piece.retainedPoints||[]).filter(p=>G.contains(shape,K.local(frame,p)));
+   if(!i)return piece;let serial=1,id;do{id=f.id+'~resoffit-'+serial++;}while(usedIds.has(id));usedIds.add(id);return {...piece,id,draft:false};});
  });
  const followed=W.followTrim(faces,{faces:result,moves,affected},[...requests.keys()],options.keepTrimStatic);
  const selectedSources=new Set(choices.map(c=>c.source.id)),selectedPairs=candidates(followed.faces.filter(f=>requests.has(f.id)||selectedSources.has(f.resoffitSource)),roof,sources).map(c=>c.pair);

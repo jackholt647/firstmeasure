@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),vm=require(
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
 function fixture(options={}){const listeners={},state=options.state||{wallEdits:{}},w={id:'w',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:0}],top:[{x:0,y:0,z:4},{x:4,y:0,z:4}]};let history=[],message='';const frames=new Map();let frameId=0;const ctx={console,performance,getVector3:p=>({...p,distanceTo:q=>Math.hypot(p.x-(q.x||0),p.y-(q.y||0),p.z-(q.z||0))}),camera:{position:{x:0,y:-10,z:2}},requestAnimationFrame:fn=>{frames.set(++frameId,fn);return frameId;},cancelAnimationFrame:id=>frames.delete(id),ExteriorGeometry:require('../public/measure/internal/editor_scripts/exterior_geometry.js'),ExteriorModel:require('../public/measure/internal/editor_scripts/exterior_model.js'),WallAxisCuts:require('../public/measure/internal/editor_scripts/wall_axis_cuts.js'),WallTrim:require('../public/measure/internal/editor_scripts/wall_trim.js'),WallSteps:require('../public/measure/internal/editor_scripts/wall_steps.js'),WallFeatures:require('../public/measure/internal/editor_scripts/wall_features.js'),WallSolidGeometry:require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),BaseGeometry:B,BaseSketchGeometry:S,WallGeometry:G,addEventListener:(k,f)=>listeners[k]=e=>{f(e);for(const [id,frame]of [...frames]){frames.delete(id);frame(performance.now());}}};Object.assign(ctx,options.globals||{});ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_face_draft.js','utf8'),ctx);
  if(options.lengthMarker)ctx.wallLengthMarker=options.lengthMarker;if(options.centerMarker)ctx.wallCurveCenterMarker=options.centerMarker;const editor=ctx.createWallFaceDraft({pickVisible:options.pickVisible,pickSoffitVisible:options.pickSoffitVisible,pickLineVisible:options.pickLineVisible,state:()=>options.getState?options.getState():state,selectBaseEntities:options.selectBaseEntities,featureHost:options.featureHost,hit:options.hit,toPixel:p=>p,roof:()=>options.roof,walls:()=>options.getWalls?options.getWalls():options.walls||[w],active:()=>options.active!==false,selected:()=>options.selected===null?null:options.selectedId||'w',select:options.select||(()=>{}),screen:options.screen||(p=>({x:p.x*100,y:p.z*100})),projectPoint:options.projectPoint||((d,e)=>d.frame?ctx.WallSolidGeometry.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):{x:e.clientX/100,y:e.clientY/100,z:0}),commit:b=>history.push(b),redraw(){},message:s=>message=s});
- const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
+ const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,normalize:()=>ctx.normalizeWallDraftOwnership(state.wallEdits),clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
 function planeSelection(f,points){const s=f.editor.selectionSnapshot();s.workingPlane.selection=points;f.editor.restoreSelection(s);}
 
 test('clicking a generated chimney-support face creates a draft without reopening masonry',()=>{
@@ -821,7 +821,7 @@ test('horizontal base chamfer removes the old three-way endpoints from faces and
 });
 
 test('every saved-house boundary line enters the actual chamfer tool and yields a preview',()=>{
- const faces=require('./fixtures/chamfer-house.json').faces,edges=new Map();for(const face of faces)for(const ring of [face.points,...(face.holes||[])])for(let i=0;i<ring.length;i++)edges.set([ring[i],ring[(i+1)%ring.length]].map(p=>[p.x,p.y,p.z].join(',')).sort().join('|'),[ring[i],ring[(i+1)%ring.length]]);
+ const faces=require('./fixtures/chamfer-house.json').faces,edges=new Map();for(const face of faces)for(const ring of [face.points,...(face.holes||[])])for(let i=0;i<ring.length;i++)edges.set([ring[i],ring[(i+1)%ring.length]].map(p=>[p.x,p.y,p.z].map(v=>v.toFixed(5)).join(',')).sort().join('|'),[ring[i],ring[(i+1)%ring.length]]);
  for(const edge of edges.values()){const state={wallEdits:{$surfaces:JSON.parse(JSON.stringify(faces)).map(f=>({...f,draft:false}))}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});f.editor.chamferCommand({edges:[edge],event:f.e(1,1)});assert.equal(f.editor.interaction(),'Chamfer',f.message());f.editor.distanceInput().set(.05);assert.ok(state.wallEdits.$surfaces.some(f=>f.chamfer),f.message());assert.doesNotMatch(f.message(),/rejected|exactly two|Construction/);f.editor.key({key:'Escape'});}
 });
 
@@ -2376,4 +2376,42 @@ test('rectangle line visibility is evaluated at its line, not the release corner
  f.editor.restoreSelection({lineSelection:[{id:'existing',pair:[{x:8,y:0,z:0},{x:9,y:0,z:0}]}]});
  f.editor.startBox(f.e(-.2,3.8,true),()=>{});f.listeners.pointerup(f.e(4.2,4.2,true));
  assert.equal(f.editor.selectionSnapshot().lineSelection.length,2);assert.ok(seen.length);
+});
+
+for(const initial of [18,24])test(`turret Resoffit consumes old sketch boundaries from ${initial} inches without ghost lines or points`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),initial);
+ const walls=r.composed.filter(w=>Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y)>.005),globals={...renderGlobals(),WallResoffit:R,WallChimneys:C};
+ const manual=[{x:1000,y:1000,z:0},{x:1001,y:1000,z:1}];r.state.wallEdits ||= {};r.state.wallEdits.$loose={points:manual,edges:[manual]};
+ let f=fixture({state:r.state,walls,selected:null,globals});
+ const cyan=()=>{const result=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed')result.push(...o.geometry.points);}},p=>p);return result;};
+ f.editor.startBox(f.e(-500,-500),()=>{});f.listeners.pointerup(f.e(-499,-499));
+ const baseline=new Set(cyan().map(p=>[p.x,p.y,p.z].map(v=>v.toFixed(5)).join(',')));
+ const check=()=>{const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),points=cyan();assert.ok(points.length,'manual loose edge remains');
+  const surfaces=(r.state.wallEdits.$surfaces||[]).filter(f=>!f.deleted&&!f.drafted);
+  const supported=p=>surfaces.some(f=>{const frame=K.frame(f),q=K.local(frame,p);return Math.abs(q.z)<K.CONTACT&&G.contains({points:f.points.map(p=>K.local(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},q);});
+  assert.ok(points.every(p=>baseline.has([p.x,p.y,p.z].map(v=>v.toFixed(5)).join(','))||supported(p)),'retained points stay on actual replacement faces');
+  f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry.points.length===2)assert.ok(o.geometry.points.every(p=>p.x>=1000),'no leftover source edges');}},p=>p);
+ };
+ check();
+ for(const depth of [.1524,.6096,.1524]){
+  const contacts=f.editor.soffitEdges().filter(c=>['R37.0','R38.0','R43.0','R44.0','R46.1'].includes(c.source.id));assert.ok(contacts.length>=5);
+  f.editor.restoreSelection({lineSelection:contacts.map(c=>({pair:c.pair}))});const before=JSON.stringify(r.state.wallEdits);
+  assert.equal(f.editor.resoffit(depth),true,f.message());assert.equal(JSON.stringify(f.history.at(-1)),before);check();
+  const saved=JSON.parse(JSON.stringify(r.state));f=fixture({state:saved,walls,selected:null,globals});f.normalize();r.state=saved;check();
+  assert.deepEqual(JSON.parse(JSON.stringify(saved.wallEdits.$loose.edges)),[manual],'unrelated manually drawn geometry survives');
+ }
+});
+
+test('reload repairs stale consumed Resoffit masks without moving replacement faces',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),24),walls=r.composed.filter(w=>Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y)>.005),globals={...renderGlobals(),WallResoffit:R,WallChimneys:C};
+ let f=fixture({state:r.state,walls,selected:null,globals});
+ f.editor.startBox(f.e(-500,-500),()=>{});f.listeners.pointerup(f.e(-499,-499));
+ const old=JSON.parse(JSON.stringify(r.state.wallEdits.$drafts));
+ f.editor.restoreSelection({lineSelection:f.editor.soffitEdges().filter(c=>['R37.0','R38.0','R43.0','R44.0','R46.1'].includes(c.source.id)).map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(.1524),true,f.message());
+ for(const [key,d]of Object.entries(r.state.wallEdits.$drafts))for(const face of d.faces)if(face.solidId?.startsWith('line-move-')){const source=old[key].faces.find(o=>o.id===face.id);face.points=source.points;face.holes=source.holes;}
+ const saved=JSON.parse(JSON.stringify(r.state));f=fixture({state:saved,walls,selected:null,globals});
+ const ghosts=()=>{let count=0;f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed')count++;}},p=>p);return count;};
+ const stale=ghosts();assert.ok(stale>0,'old persisted bookkeeping reproduces the visible leftovers');const surfaces=JSON.stringify(saved.wallEdits.$surfaces);
+ f.normalize();assert.ok(ghosts()<stale,'stale source wire is removed');const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry.points.length===2)lines.push(o);}},p=>p);assert.equal(lines.length,0);assert.equal(JSON.stringify(saved.wallEdits.$surfaces),surfaces,'only source masks change');
+ const repaired=JSON.stringify(saved.wallEdits);f.normalize();assert.equal(JSON.stringify(saved.wallEdits),repaired,'repair is idempotent');
 });

@@ -1,12 +1,22 @@
 /* Wall drafting uses face-local metres: x along the wall, y vertical. */
 (function(){
 'use strict';
+// Replacement faces own the visible geometry; these local regions only mask
+// their consumed source sketch. Node IDs, not stale positions, track that mask.
+function syncConsumedSketchRegions(d,accept=()=>true){
+ const nodes=new Map((d.sketch?.nodes||[]).map(n=>[n.id,n]));
+ const moved=ring=>ring.map(p=>{const n=nodes.get(p.nodeId);return n&&(n.x!==p.x||n.y!==p.y)?{...p,x:n.x,y:n.y}:p;});
+ for(const f of (d.faces||[]).filter(f=>f.solidId&&accept(f))){f.points=moved(f.points);f.holes=(f.holes||[]).map(moved);}
+}
 // A merged draft owns its source walls even after regeneration changes mergeGroup.
 window.normalizeWallDraftOwnership=function(edits){
  window.ExteriorModel?.restoreDraftFaceOwnership(edits);
  window.WallSolidGeometry?.adoptMergedFaceSources(edits);
  const drafts=edits?.$drafts;if(!drafts)return;
  const S=window.BaseSketchGeometry,G=window.WallGeometry;
+ // Repair drafts saved by earlier line-move/Resoffit commits on reload too.
+ const replacements=new Set((edits.$surfaces||[]).map(f=>f.id));
+ for(const d of Object.values(drafts))syncConsumedSketchRegions(d,f=>f.solidId.startsWith('line-move-')&&replacements.has(f.solidId));
  for(const [key,d]of Object.entries(drafts)){
   if(d.frame||!d.members?.length||d.deletedFaces?.length||d.removedPoints?.length||d.faces.some(f=>f.solidId||f.feature||f.material||!/^wall-(region|hole)-/.test(f.id))||d.sketch?.edges.some(e=>!e.fixed)||d.sketch?.nodes.some(n=>n.userDraftPoint))continue;
   const entry=Object.entries(drafts).filter(([k,o])=>k!==key&&!o.frame&&o.members?.length>d.members.length&&d.members.every(id=>o.members.includes(id))).sort((a,b)=>b[1].members.length-a[1].members.length)[0];
@@ -1029,7 +1039,12 @@ function perf_previewLineMove(e){
   if(edits.$loose&&!t.extrude){const move=p=>({...p,...(result.moves.find(m=>distance3(m.from,p)<1e-5)?.to||{})});edits.$loose={points:edits.$loose.points.map(move),edges:edits.$loose.edges.map(pair=>pair.map(move))};}
    edits.$surfaces=[...(edits.$surfaces||[]).filter(f=>f.drafted),...result.faces.filter(f=>!f.draft&&!f.baseId)];
    for(const f of result.faces.filter(f=>f.draft&&result.affected.includes(f.id))){const region=edits.$drafts[f.draftKey]?.faces.find(r=>r.id===f.regionId);if(region){const id='line-move-'+f.id+'-'+t.op;region.solidId=id;edits.$surfaces.push({...f,id,draft:false});}}
-   if(!t.extrude)for(const [key,d]of Object.entries(edits.$drafts||{}))for(const n of d.sketch.nodes){const p=world(d,n),move=result.moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<1e-5);if(move){const q=d.frame?W.inFrame(d.frame,move.to):{x:(move.to.x-d.origin.x)*d.u.x+(move.to.y-d.origin.y)*d.u.y,y:move.to.z,z:0};Object.assign(n,q);}}
+   if(!t.extrude)for(const [key,d]of Object.entries(edits.$drafts||{})){for(const n of d.sketch.nodes){const p=world(d,n),move=result.moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<1e-5);if(move){const q=d.frame?W.inFrame(d.frame,move.to):{x:(move.to.x-d.origin.x)*d.u.x+(move.to.y-d.origin.y)*d.u.y,y:move.to.z,z:0};Object.assign(n,q);}}
+    // Consumed regions mask the original sketch after their replacement face
+    // is materialized. Keep that mask in the same local coordinates as the
+    // moved sketch nodes, or its former boundary leaks out as loose geometry.
+    syncConsumedSketchRegions(d);
+   }
 
   if(t.extrude){
    // Sketch and loose edges retain their original endpoints. Only the selected
