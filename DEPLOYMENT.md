@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 opening boundaries: [Preserve wires and rebuild closed faces](deploy/digitalocean/development-door-boundary-delete-20260923.md) records `6fce7d7f2cadb8454c154afb86e11fe5796ad160` on all development roles. Deleting an opening edge preserves remaining wire and rebuilds the feature through a closing coplanar curve. All 459 focused checks passed; both public hashes and role readiness are verified. The two-script delta preserves `66c0cd1`; production is unchanged.
+
 September 23 spline previews: [Visible curves during paste](deploy/digitalocean/development-spline-paste-preview-20260923.md) records `66c0cd14f12afa8b8a673bb97530f8ecc98ba071` on all development roles. Paste preview draws analytic curves as well as control points. Both focused renderer checks passed, inside and outside plane mode; public hash and role readiness are verified. This one-script delta preserves `02ccd8a`; production is unchanged.
 
 September 23 AI placements: [Percentage-based editable stickers](deploy/digitalocean/development-exterior-ai-placements-20260923.md) records `02ccd8a43ddd5e056618db2a2fa03be3ed98fb45` on development. Counts + placements returns face-relative rectangles and creates typed stickers in one undoable edit. Both request styles, history, validation and undo/redo pass 85 focused tests. The four-file delta preserves `27b4997`; production is unchanged.
