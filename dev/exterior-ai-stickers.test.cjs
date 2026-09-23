@@ -32,6 +32,11 @@ test('opaque captures exclude occluded faces; both query styles, row selection a
  await page.getByLabel('Ask',{exact:true}).selectOption('each');await page.getByLabel('Model',{exact:true}).selectOption('gpt-6-astra');assert.equal(await page.getByLabel('Thinking').locator('option[value="none"]').evaluate(e=>e.disabled),true);
  await page.getByRole('button',{name:'Run',exact:true}).click();await page.getByText('Finished',{exact:true}).waitFor();assert.equal(requests.length,3);assert.ok(requests.slice(1).every(r=>r.faceIds.length===1&&r.model==='gpt-6-astra'));assert.notEqual(requests[1].images[1],requests[2].images[1]);
  await setup();assert.equal(await page.getByLabel('History',{exact:true}).locator('option').count(),3);assert.equal(await page.getByRole('row',{name:'Select face 2',exact:true}).count(),1);assert.equal(await page.getByText('Finished',{exact:true}).count(),1);
+ // Partial failures stay attached to their face, and invalid identity/count responses are rejected.
+ await page.route('http://stickers.test/exterior_ai.php',async route=>{const d=route.request().postDataJSON();await route.fulfill(d.faceIds[0]===2?{status:502,json:{error:'Test upstream failure'}}:{json:{result:{faces:[{face:1,windows:3,doors:0,garageDoors:0,evidence:'Visible'}]}}});});
+ await page.getByLabel('Ask',{exact:true}).selectOption('each');await page.getByRole('button',{name:'Run',exact:true}).click();await page.getByText('Finished with errors',{exact:true}).waitFor();
+ assert.match(await page.getByRole('row',{name:'Select face 1',exact:true}).innerText(),/3/);assert.match(await page.getByRole('row',{name:'Select face 2',exact:true}).innerText(),/!/);
+ const invalid=await page.evaluate(()=>{let rejected=0;for(const rows of [[{face:8,windows:1,doors:0,garageDoors:0,evidence:'bad'}],[{face:1,windows:-1,doors:0,garageDoors:0,evidence:'bad'}],[]])try{ExteriorAIStickers.validateRows(rows,[1]);}catch{rejected++;}return rejected;});assert.equal(invalid,3);
  assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
