@@ -2,7 +2,7 @@
  * Public links/provider callbacks keep their own token/org validation. */
 const platformApis = new Set([
   "audio-notes", "agents", "appointments", "assistant", "calls", "channels", "chat", "comms",
-  "connections", "documents", "domains", "equipment", "feedback", "financials", "messaging",
+  "connections", "documents", "document-modules", "publication", "domains", "equipment", "feedback", "financials", "messaging",
   "payroll", "scopes", "signup-sandbox", "stats", "training", "websites", "work", "workforce"
 ]);
 const coreCollections = new Set(["users", "projects", "customers", "branch", "notifications", "action_items", "activity"]);

@@ -5,6 +5,7 @@ import { sendCommunicationSchema, type CommunicationChannel } from "../../messag
 import { removeCallListEntry, upsertCallListEntry } from "../../internal/crm/call_lists.js";
 import { readDocument, upsertDocument, type JsonObject } from "../../platform/storage.js";
 import { registerWorkAutomation, type WorkAutomationContext } from "../registry.js";
+import { registerScopeCodeAutomation } from "./code.js";
 import { listNodeRecords } from "../storage.js";
 
 let registered = false;
@@ -763,6 +764,7 @@ async function requestCustomerFeedback(context: WorkAutomationContext, input: Js
 export function registerBuiltinWorkAutomations() {
   if (registered) return;
   registered = true;
+  registerScopeCodeAutomation();
   registerWorkAutomation("project.patch.v1", patchProject, {
     description: "Writes fields onto the project document.",
     input: { values: "Object of fields to set; values support {{template}} interpolation." }

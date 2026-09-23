@@ -564,9 +564,11 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
   };
 }
 
-export async function listChannelsForUser(ctx: PlatformAuthContext, options: { includeArchived?: boolean } = {}) {
-  await ensureGeneralChannel(ctx);
-  await ensureFirstMateAssistantDm(ctx);
+export async function listChannelsForUser(ctx: PlatformAuthContext, options: { includeArchived?: boolean; initialize?: boolean } = {}) {
+  if (options.initialize !== false) {
+    await ensureGeneralChannel(ctx);
+    await ensureFirstMateAssistantDm(ctx);
+  }
   const membershipIds = new Set((await listMembershipChannelIds(ctx.orgId, ctx.userId)));
   const includeArchived = Boolean(options.includeArchived) && (canManageChannels(ctx) || hasPermission(ctx, "manage_company_settings"));
   const all = (await listChannelRecords(ctx.orgId, { includeArchived }));

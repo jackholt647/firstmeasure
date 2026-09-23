@@ -2274,6 +2274,7 @@
             <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · Ordered ${escapeHtml(formatDate(orderedAt))}` : '')}</p>
           </div>
           <div class="r-report-summary-status"><i class="fas fa-ruler-combined"></i>${String(escapeHtml(status))}</div>
+          ${reportComplete && window.FirstMeasureAPI?.roofMeasurements?.import ? '<button type="button" class="r-report-summary-download" data-import-project-measurements>Refresh project measurements</button>' : ''}
         </div>
         <div class="r-report-summary-grid">
           <section class="r-report-summary-section">
@@ -3912,6 +3913,20 @@
     });
     document.querySelectorAll('[data-download-measurements-csv]').forEach((button) => {
       button.addEventListener('click', () => downloadMeasurementsCsv(projectId, cachedAssets || {}));
+    });
+    document.querySelectorAll('[data-import-project-measurements]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await window.FirstMeasureAPI.roofMeasurements.import(activeBaseProject || {});
+          measurementSummaryMetricCache.clear();
+          showToast('Measurements refreshed', 'Report values were refreshed. Manual overrides were preserved.', true);
+          renderMeasurementsPanel();
+        } catch (error) {
+          button.disabled = false;
+          showToast('Measurements unavailable', error?.message || 'The report could not be imported.', false);
+        }
+      });
     });
     document.querySelectorAll('[data-select-upgrade-expedite]').forEach((button) => {
       button.addEventListener('click', () => selectPendingReportExpedite(button.dataset.selectUpgradeExpedite));

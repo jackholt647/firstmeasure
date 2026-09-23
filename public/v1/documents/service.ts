@@ -45,6 +45,7 @@ import { documentType, type DocumentTypeDefinition } from "./types/registry.js";
 import { registerBuiltinDocumentWidgetResolvers, publicDocumentPortalUrl } from "./widgets/builtins.js";
 import {
   resolveDocumentWidgetData,
+  documentWidgetResolver,
   type DocumentWidgetServices,
   type WidgetResolveContext
 } from "./widgets/registry.js";
@@ -623,7 +624,7 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
   };
 }
 
-export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext) {
+export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean } = {}) {
   await ensureDefaultDocumentAssets(orgId).catch(() => null);
   const capabilityState = await documentCapabilityState(orgId);
   const typeDef = typeDefinitionFor(cleanText(input.document_type));
@@ -684,7 +685,7 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     created_at: now,
     updated_at: now
   };
-  const document = await saveDocumentInstance(orgId, id, data);
+  const document = await saveDocumentInstance(orgId, id, data, options);
   await recordDocumentEvent(orgId, document, "document.created", { project_id: projectId }, ctx, { emit: false });
   await syncProjectSignatureRequirements(orgId, projectId).catch(() => null);
   return { document, missing_params: missing };
@@ -771,6 +772,9 @@ export async function patchDocumentInstance(orgId: string, documentId: string, p
   const editsContent = contentKeys.some((key) => Object.prototype.hasOwnProperty.call(patch, key));
   if (editsContent && isLockedSigned(current)) {
     throw conflict("document_locked_signed", "Signed documents cannot be edited. Amend with a change order instead.");
+  }
+  if (cleanText(asObject(current.module_ref).execution_id) && ["params", "overrides", "template_ref", "workflow_ref", "theme_ref", "theme_overrides"].some(key => Object.prototype.hasOwnProperty.call(patch, key))) {
+    throw conflict("document_module_owned", "Update the module inputs, evaluate, and explicitly attach the new result to this draft.");
   }
   const retemplate = await resolveRetemplatePatch(orgId, current, patch);
   // Attach a standalone document to a project (doc-first flows). One-way:
@@ -1518,6 +1522,11 @@ function replaceSourceParamValues(params: JsonObject, sources: Record<string, un
 }
 
 async function templateDefinitionFor(orgId: string, documentValue: JsonObject): Promise<JsonObject> {
+  // Opt-in module materialization stores a validated render result. Reading,
+  // signing and PDF generation never execute tenant code or refresh bindings.
+  if (cleanText(asObject(documentValue.module_ref).execution_id) && Object.keys(asObject(documentValue.module_render)).length) {
+    return cloneJson(asObject(documentValue.module_render));
+  }
   const templateRef = asObject(documentValue.template_ref);
   const templateId = cleanText(templateRef.template_id);
   if (templateId) {
@@ -1553,6 +1562,36 @@ export async function resolveDocumentInstance(
     checkout?: JsonObject;
   } = {}
 ) {
+  if (cleanText(asObject(documentValue.module_ref).execution_id) && Object.keys(asObject(documentValue.module_resolved)).length) {
+    const captured = cloneJson(asObject(documentValue.module_resolved)) as {
+      resolved_definition: JsonObject; widget_data: Record<string, unknown>; theme: JsonObject;
+      theme_ref: JsonObject; theme_vars: Record<string, string>; theme_context: JsonObject;
+      scope: JsonObject; sources: Record<string, unknown>; skipped_overrides: unknown[];
+    };
+    captured.resolved_definition = filterDocumentDefinitionByCapabilities(captured.resolved_definition, await documentCapabilityState(orgId));
+    const refs = FMDocModel.widgetRefs(captured.resolved_definition);
+    const allowedNodes = new Set(refs.map(ref => ref.node_id));
+    captured.widget_data = Object.fromEntries(Object.entries(captured.widget_data).filter(([key]) => allowedNodes.has(key)));
+    // Lifecycle overlays may change signature evidence, due-payment status and
+    // this delivery's portal link. They must not reprice/refetch frozen inputs.
+    const nodes = new Map<string, JsonObject>();
+    const visit = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      if (Array.isArray(value)) { value.forEach(visit); return; }
+      const node = asObject(value); if (cleanText(node.id)) nodes.set(cleanText(node.id), node);
+      Object.values(node).forEach(visit);
+    };
+    visit(captured.resolved_definition);
+    const ctx: WidgetResolveContext = { organizationId: orgId, document: documentValue,
+      params: asObject(captured.scope.params), project: asObject(captured.scope.project),
+      snapshot: options.snapshot || null, target: options.target || "interactive", services: widgetServices() };
+    for (const ref of refs) {
+      if (!["doc.signature", "doc.qr", "doc.pay_now"].includes(ref.id)) continue;
+      const resolver = documentWidgetResolver(ref.id);
+      if (resolver) captured.widget_data[ref.node_id] = await resolver(ctx, asObject(asObject(asObject(nodes.get(ref.node_id)).props).config));
+    }
+    return captured;
+  }
   const capabilityState = await documentCapabilityState(orgId);
   const definition = filterDocumentDefinitionByCapabilities(await templateDefinitionFor(orgId, documentValue), capabilityState);
   const rawWorkflowDefinition = await workflowDefinitionForDocument(orgId, documentValue).catch(() => null);

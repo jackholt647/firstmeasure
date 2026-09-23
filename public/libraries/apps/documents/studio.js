@@ -782,6 +782,7 @@
               <span>${(globalThis.PlatformLanguage?.text("documents","m_267b761027be3d","Design the templates and themes behind every document your team sends") ?? "Design the templates and themes behind every document your team sends")}</span>
             </div>
             <div class="fmdx-top-actions">
+              ${String(capabilityEnabled('documents.advanced_definition_editing') ? '<button type="button" class="fmdx-btn" data-document-modules>Document modules</button>' : '')}
               ${String(isFolderTab()
                 ? '<button type="button" class="fmdx-btn primary" data-new-folder-item><i class="fas fa-plus"></i> New</button>'
                 : state.tab === 'templates'
@@ -827,6 +828,10 @@
       root.querySelector('[data-new-template]')?.addEventListener('click', () => openNewTemplateModal());
       root.querySelector('[data-new-workflow]')?.addEventListener('click', () => openNewWorkflowModal());
       root.querySelector('[data-new-theme]')?.addEventListener('click', () => openNewThemeModal());
+      root.querySelector('[data-document-modules]')?.addEventListener('click', async () => {
+        try { const modules = await import(new URL('./module-editor.js', SCRIPT_URL).href); await modules.openModuleEditor(orgId()); }
+        catch (error) { showToast('Document modules', errorMessage(error), false); }
+      });
       const body = root.querySelector('[data-studio-body]');
       if (state.loading && state.templates === null) {
         body.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_c867f3b4567afc","Loading studio") ?? "Loading studio")}</strong></div>`;

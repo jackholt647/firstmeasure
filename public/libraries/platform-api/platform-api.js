@@ -2922,7 +2922,33 @@
     undo(orgId, importId){ return request(orgPath(orgId, `/contact-imports/${enc(importId)}/undo`), { method:'POST', body:{} }); }
   };
 
+  // Shared discovery, data reads and actions for every app. Domain APIs remain
+  // available while their UI calls migrate; tenant code never registers handlers.
+  const publicationPath = (orgId, suffix) => new URL(
+    `${baseUrl().replace(/\/platform\/?$/, '')}/publication/organizations/${enc(orgId)}${suffix}`,
+    location.href
+  ).href;
+  const publication = {
+    measurements(orgId, projectId){ return request(publicationPath(orgId, `/projects/${enc(projectId)}/measurements`)); },
+    catalog(orgId, options = {}){
+      const query = new URLSearchParams();
+      for (const name of ['scope', 'projectId', 'branchId']) if (options[name]) query.set(name, options[name]);
+      return request(publicationPath(orgId, `/catalog?${query}`));
+    },
+    read(orgId, source){ return request(publicationPath(orgId, '/data/read'), { method: 'POST', body: source }); },
+    list(orgId, source, page = {}){ return request(publicationPath(orgId, '/data/list'), { method: 'POST', body: { source, ...page } }); },
+    invoke(orgId, action, target, input = {}, options = {}){
+      return request(publicationPath(orgId, '/actions/invoke'), { method: 'POST', body: {
+        action, target, input,
+        ...(options.version ? { version: options.version } : {}),
+        ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+        ...(options.expectedImplementation ? { expectedImplementation: options.expectedImplementation } : {})
+      } });
+    }
+  };
+
   const api = {
+    publication,
     configure,
     baseUrl,
     url,

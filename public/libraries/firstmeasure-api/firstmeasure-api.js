@@ -374,6 +374,14 @@
   };
   const roofMeasurements = {
     projectId: measurementProjectId,
+    async import(project = {}) {
+      const projectId = cleanText(project.platform_project_id || project.base_project_id || project.id);
+      const organizationId = cleanText(project.organization_id || window.__APP?.userOrgId);
+      if (!projectId || !organizationId || !window.PlatformAPI?.publication?.invoke) throw new Error('Measurement import is unavailable for this project.');
+      const result = await window.PlatformAPI.publication.invoke(organizationId, 'firstmeasure.measurements.import', { scope: 'project', organizationId, projectId }, {}, { idempotencyKey: `measurement-import:${crypto.randomUUID()}` });
+      roofMeasurements.clear(measurementProjectId(project));
+      return result;
+    },
     fromProject(project = {}, options = {}) {
       const source = sourceFromProject(project, options.reportOrderState || {}, options.source || {});
       return { projectId: measurementProjectId(project, options.reportOrderState || {}), source, measurements: normalizeRoofMeasurements(source), origin: 'project_data' };
@@ -381,6 +389,30 @@
     async load(project = {}, options = {}) {
       const id = measurementProjectId(project, options.reportOrderState || {});
       const local = roofMeasurements.fromProject(project, options);
+      const platformProjectId = cleanText(project.platform_project_id || project.base_project_id || project.id);
+      const organizationId = cleanText(project.organization_id || window.__APP?.userOrgId);
+      if (platformProjectId && organizationId && window.PlatformAPI?.publication?.measurements) {
+        const dataset = await window.PlatformAPI.publication.measurements(organizationId, platformProjectId).catch(error => {
+          if (error?.status === 404) return { status: 'missing', code: 'legacy_project_without_dataset' };
+          throw error;
+        });
+        if (dataset?.status === 'ready') {
+          const values = {};
+          for (const [key, entry] of Object.entries(dataset.value?.measurements || {})) {
+            if (!entry || entry.value == null || !Number.isFinite(Number(entry.value))) continue;
+            const expected = /Squares$/.test(key) ? 'roofing_square' : /Lf$/.test(key) ? 'ft' : /Ea$/.test(key) ? 'count' : '';
+            if (!expected) continue;
+            let value = Number(entry.value);
+            if (entry.unit === 'm' && expected === 'ft') value *= 3.280839895;
+            else if (entry.unit !== expected) continue;
+            values[key] = value;
+          }
+          return { projectId: id, source: dataset, measurements: values, origin: 'project_measurement_dataset', datasetId: dataset.datasetId, revision: dataset.revision };
+        }
+        if (dataset?.status !== 'missing') throw new Error('Project measurement dataset is unavailable.');
+        local.legacyFallback = true;
+        local.legacyFallbackReason = dataset.code || 'measurement_dataset_unselected';
+      }
       if (!id) return local;
       if (!options.force && roofMeasurementCache.has(id)) return roofMeasurementCache.get(id);
       if (!options.force && roofMeasurementLoads.has(id)) return roofMeasurementLoads.get(id);
@@ -391,7 +423,7 @@
             projectId: id,
             source: sourceFromProject(project, options.reportOrderState || {}, { firstmeasure_measurements: canonical }),
             measurements: normalizeRoofMeasurements(canonical.measurements),
-            origin: 'firstmeasure_measurements_api'
+            origin: 'firstmeasure_measurements_api', legacyFallback: true, legacyFallbackReason: local.legacyFallbackReason || 'measurement_dataset_unselected'
           };
           roofMeasurementCache.set(id, result);
           return result;
@@ -409,7 +441,7 @@
           const data = await artifactJson(id, stored).catch(() => null);
           if (data) source[name.replace(/[^a-z0-9]/gi, '_')] = data;
         }));
-        const result = { projectId: id, source, measurements: normalizeRoofMeasurements(source), origin: xml ? 'firstmeasure_artifacts' : 'firstmeasure_project' };
+        const result = { projectId: id, source, measurements: normalizeRoofMeasurements(source), origin: xml ? 'firstmeasure_artifacts' : 'firstmeasure_project', legacyFallback: true, legacyFallbackReason: local.legacyFallbackReason || 'measurement_dataset_unselected' };
         roofMeasurementCache.set(id, result);
         return result;
       })().finally(() => roofMeasurementLoads.delete(id));

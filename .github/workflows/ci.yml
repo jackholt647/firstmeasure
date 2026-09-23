@@ -38,6 +38,10 @@ jobs:
         run: npm run test:platform:postgres:local
       - name: PostgreSQL shared-store integration
         run: npm run test:cluster:postgres:local
+      - name: PostgreSQL publication snapshots and action receipts
+        run: node tests/run-embedded-postgres.mjs tests/publication-postgres.test.ts
+      - name: Publication browser integration syntax
+        run: node --check ../libraries/apps/documents/module-editor.js && node --check ../libraries/platform-api/platform-api.js
       - name: Validate local cluster definition
         working-directory: .
         run: docker compose -f deploy/local-cluster/compose.yml config --quiet

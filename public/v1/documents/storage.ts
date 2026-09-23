@@ -662,7 +662,7 @@ export async function listProjectDocuments(orgId: string, projectId: string) {
     .sort((a, b) => cleanText(b.updated_at).localeCompare(cleanText(a.updated_at)));
 }
 
-export async function saveDocumentInstance(orgId: string, documentId: string, data: JsonObject, options: { expectedRevision?: number } = {}) {
+export async function saveDocumentInstance(orgId: string, documentId: string, data: JsonObject, options: { expectedRevision?: number; createOnly?: boolean } = {}) {
   const next = { ...data };
   delete next.revision;
   const saved = await upsertDocument(orgId, DOCUMENT_COLLECTION, {
@@ -675,7 +675,7 @@ export async function saveDocumentInstance(orgId: string, documentId: string, da
       project_id: cleanText(data.project_id),
       status: cleanText(data.status)
     }
-  }, { replace: true });
+  }, { replace: true, ...(options.createOnly ? { createOnly: true } : {}) });
   return documentView(saved);
 }
 

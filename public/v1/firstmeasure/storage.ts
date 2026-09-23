@@ -481,9 +481,10 @@ export async function patchManifest(
     await writeProjectManifestMirror(projectId, updated).catch((error) => {
       console.error(`PostgreSQL patched project '${projectId}', but its JSON mirror could not be written.`, error);
     });
+    await publishMeasurementCompletion(updated);
     return updated;
   }
-  return serializeProjectMutation(projectId, async () => {
+  const result = await serializeProjectMutation(projectId, async () => {
     const current = await readManifest(projectId);
     const currentStatus = normalizeProjectStatus(current.status);
     const allowTerminalStatusTransition = patch.__allow_terminal_status_transition === true;
@@ -515,6 +516,19 @@ export async function patchManifest(
     await saveManifest(projectId, updated, { backup: options?.backup });
     return updated;
   });
+  await publishMeasurementCompletion(result);
+  return result;
+}
+
+async function publishMeasurementCompletion(manifest: ProjectManifest) {
+  if (manifest.status !== "completed") return;
+  try {
+    const { publishCompletedFirstMeasureDataset } = await import("../platform/publication/firstmeasure-datasets.js");
+    await publishCompletedFirstMeasureDataset(manifest);
+  } catch (error) {
+    // Completion is already committed. A failed projection must not reverse report delivery.
+    console.error("Completed report measurement dataset publication failed", manifest.id, error);
+  }
 }
 
 export async function writeProjectManifestMirror(projectId: string, manifest: ProjectManifest) {
@@ -677,6 +691,7 @@ export async function saveArtifact(projectId: string, fileName: string, content:
       await saveManifest(projectId, refreshed, { artifactFileName: safeName });
     });
   }
+  if (safeName === FIRSTMEASURE_FILE_NAMES.xmlStored) await publishMeasurementCompletion(await readManifest(projectId));
   return {
     name: safeName,
     path: filePath

@@ -1726,7 +1726,7 @@ function referralNewOrgOffer(offerId: string) {
   return null;
 }
 
-async function customerReferralEligibility(orgId: string) {
+export async function customerReferralEligibility(orgId: string) {
   if (!orgId) return { show: false, reason: "no_org", seconds_until_eligible: 0 };
   const global = await readGlobal(orgId).catch(() => null);
   const offers = asObject(asObject(asObject(global?.data).offers).items);

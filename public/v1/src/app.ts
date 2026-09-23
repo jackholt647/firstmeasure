@@ -1,4 +1,6 @@
 import { registerWorkforceApi } from "../workforce/api.js";
+import { registerPublicationApi } from "../platform/publication/api.js";
+import { registerDocumentModuleRoutes } from "../documents/modules/api.js";
 import { registerWorkApi } from "../work/api.js";
 import { registerWebsitesApi } from "../websites/api.js";
 import { registerTrainingApi } from "../training/api.js";
@@ -193,6 +195,8 @@ export async function buildApp() {
 
 
   // Platform APIs use the same host, auth context and runtime boundaries.
+  void app.register(registerPublicationApi, { prefix: "/v1/publication" });
+  void app.register(registerDocumentModuleRoutes, { prefix: "/v1/document-modules" });
   void app.register(registerPublicLinksApi);
   void app.register(registerAudioNotesApi, { prefix: "/v1/audio-notes" });
   void app.register(registerAgentsApi, { prefix: "/v1/agents" });

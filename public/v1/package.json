@@ -144,7 +144,8 @@
     "prepare:platform-indexes": "node --import tsx scripts/prepare-platform-indexes.ts",
     "localization:build": "node scripts/localization-catalogs.mjs",
     "localization:check": "node scripts/localization-catalogs.mjs --check",
-    "test:localization": "node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-localization.test.ts tests/localization-api.test.ts tests/localization-browser.test.mjs tests/report-localization.test.ts"
+    "test:localization": "node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-localization.test.ts tests/localization-api.test.ts tests/localization-browser.test.mjs tests/report-localization.test.ts",
+    "test:publication": "node --experimental-sqlite --import tsx --test --test-force-exit tests/publication-*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1119.0",
@@ -152,6 +153,7 @@
     "@fastify/cors": "^11.1.0",
     "@fastify/http-proxy": "^11.6.1",
     "@fastify/multipart": "^9.0.3",
+    "ajv": "8.20.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.7",
     "fast-xml-parser": "^5.10.1",
@@ -167,10 +169,12 @@
     "pdf-lib": "^1.17.1",
     "pg": "^8.23.0",
     "playwright-core": "^1.59.1",
+    "quickjs-emscripten": "0.32.0",
     "sharp": "^0.35.3",
     "three": "^0.128.0",
     "ws": "^8.21.1",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "3.25.1"
   },
   "devDependencies": {
     "@types/mailparser": "^3.4.6",

@@ -41,3 +41,26 @@ Before data/action publication or document/scope architecture work, read
 [the agreed design and pending audit](docs/architecture/data-actions-continuity.md).
 It links the full-conversation continuation. Audit the canonical integrated
 source before treating earlier checkout findings as current facts.
+
+## Platform publications and programmable modules
+
+Read [publication architecture](docs/architecture/publication-architecture.md)
+before adding cross-app data access, business operations or programmable logic.
+Publish typed data through `platform/publication/providers.ts` and business
+actions through `platform/publication/actions.ts`; register adapters during
+shared bootstrap. Reuse domain services and their resource authorization.
+Do not expose raw collections, credentials, arbitrary HTTP proxies or privileged
+work contexts to module code. Reads must not create or mutate domain records.
+
+Update the application ownership inventory in `publication/coverage.ts` for
+new apps, and add behavior tests for authorization, schemas and effects.
+Run `npm run test:publication` and `npm run check` in `public/v1` for changes to
+these contracts. Custom code uses the bounded document-module sandbox;
+freezing belongs to consumer bindings, with immutable provenance and fresh
+authorization on replay. Never substitute a new action implementation for a
+pinned unavailable version. The architecture guide records migration limits;
+registration coverage alone does not prove every legacy endpoint is migrated.
+
+The concurrently maintained FirstMeasure editor under `public/measure/internal`
+is outside this architecture change. Preserve its work and stage only the files
+owned by the current task when preparing commits or release artifacts.

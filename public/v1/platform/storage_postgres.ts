@@ -10,7 +10,7 @@ import { formatIdentityPhone, identifierLooksLikeEmail, normalizeIdentityPhone }
 export type JsonObject = Record<string, unknown>;
 
 const SCHEMA_VERSION = 1;
-const COLLECTIONS = ["users", "projects", "customers", "branch", "notifications", "attention_banners", "action_items", "activity", "customer_portals", "public_links", "calendar_events", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "recurrence_series", "recurrence_occurrences", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events", "payment_expense_items", "payment_expense_overrides", "payment_receipts", "payment_invoices", "payment_merchant_config", "payment_provider_events", "payment_provider_mock", "payment_payouts", "payment_disputes", "payment_saved_methods", "payment_autopay", "feedback_requests", "document_templates", "document_template_versions", "documents", "document_snapshots", "document_events", "document_themes", "document_theme_versions", "document_workflows", "document_workflow_versions", "document_folders", "document_folder_items", "document_folder_item_versions", "contact_imports", "websites", "website_pages", "website_page_versions", "website_events", "domain_quotes", "domain_registrations", "domain_events"] as const;
+const COLLECTIONS = ["publication_executions","project_datasets","project_dataset_revisions","document_modules","document_module_versions","document_module_instances","document_module_executions","publication_bindings","publication_snapshots","users", "projects", "customers", "branch", "notifications", "attention_banners", "action_items", "activity", "customer_portals", "public_links", "calendar_events", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "recurrence_series", "recurrence_occurrences", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events", "payment_expense_items", "payment_expense_overrides", "payment_receipts", "payment_invoices", "payment_merchant_config", "payment_provider_events", "payment_provider_mock", "payment_payouts", "payment_disputes", "payment_saved_methods", "payment_autopay", "feedback_requests", "document_templates", "document_template_versions", "documents", "document_snapshots", "document_events", "document_themes", "document_theme_versions", "document_workflows", "document_workflow_versions", "document_folders", "document_folder_items", "document_folder_item_versions", "contact_imports", "websites", "website_pages", "website_page_versions", "website_events", "domain_quotes", "domain_registrations", "domain_events"] as const;
 
 type PlatformCollection = typeof COLLECTIONS[number];
 type DbExecutor = Pick<PoolClient, "query">;
@@ -490,16 +490,20 @@ export async function readDocument(orgId: string, collectionValue: string, docum
   const id = await ensureOrg({ query: queryPostgres } as DbExecutor, orgId);
   return documentByQuery({ query: queryPostgres } as DbExecutor, "SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = $2 AND id = $3", [id, collection, sanitizeId(documentId, "document_id")]);
 }
-export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean; createOnly?: boolean } = {}) {
   await ensurePostgresPlatformStorage();
   const collection = assertCollection(collectionValue);
   const organizationId = sanitizeId(orgId, "organization_id");
   const id = input.id ? sanitizeId(input.id, "document_id") : generateId(generatedDocumentPrefix(collection));
   return withPostgresTransaction(async (client) => {
     await ensureOrg(client, organizationId);
+    // A row lock cannot serialize concurrent creates while the row is absent.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`platform-document:${organizationId}:${collection}:${id}`]);
     const result = await client.query<DocumentRow>("SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = $2 AND id = $3 FOR UPDATE", [organizationId, collection, id]);
     const current = result.rows[0] ? asObject(result.rows[0].document) : null;
     const expected = Number(input.expected_revision ?? 0);
+    if (current && options.createOnly) throw conflict("document_exists", "This immutable record already exists.");
+    if (!current && expected) throw conflict("revision_conflict", "The expected document no longer exists.");
     if (current && expected && expected !== Number(current.revision ?? 0)) throw conflict("revision_conflict", "Document revision does not match.");
     const now = nowIso();
     const data = asObject(input.data); const metadata = asObject(input.metadata);

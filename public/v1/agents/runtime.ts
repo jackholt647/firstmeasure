@@ -1,4 +1,6 @@
 import { assertAgentWakeupLease } from "./wakeups.js";
+import { invokeAgentAction, agentRuntimeTools } from "../platform/publication/agent-actions.js";
+import { validateJson } from "../platform/publication/validation.js";
 // The shared agent runtime: ONE implementation of the OpenAI Responses tool
 // loop (history replay, function-call parsing, per-tool permission gates,
 // trace, report_result contract, failure epilogue + revert hook, usage
@@ -64,7 +66,7 @@ function openAIToolDeclarations(tools: AgentTool[]) {
   }));
 }
 
-async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args: JsonObject): Promise<JsonObject> {
+async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args: JsonObject, invocationKey: string): Promise<JsonObject> {
   const tool = tools.find((entry) => entry.name === name);
   if (!tool) return { error: `Unknown tool '${name}'.` };
   // "The agent acts as the user": permission-gated tools require the calling
@@ -86,7 +88,8 @@ async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args
     if (verdict !== true) return { ok: false, errors: [cleanText(verdict) || "This action is turned off."] };
   }
   try {
-    return asObject(await tool.execute(run, args));
+    validateJson(tool.parameters, args, "agent tool input");
+    return asObject(agentRuntimeTools.has(name) ? await tool.execute(run, args) : await invokeAgentAction(run, tool, args, invocationKey));
   } catch (error) {
     return { error: errorMessage(error) };
   }
@@ -109,6 +112,7 @@ async function executeLoop(
   conversation: JsonObject[],
   options: { maxRounds: number; maxOutputTokens: number; retryOnRetryable: boolean; checkLease?: () => void }
 ): Promise<LoopOutcome> {
+  const actionTurnId = randomUUID();
   const model = definition.model();
   const outcome: LoopOutcome = {
     finalText: "",
@@ -171,7 +175,7 @@ async function executeLoop(
         outcome.reported = { status: cleanText(args.status) === "failed" ? "failed" : "success", summary: cleanText(args.summary) };
       }
       outcome.toolCalls += 1;
-      const toolOutput = await executeTool(run, tools, name, args);
+      const toolOutput = await executeTool(run, tools, name, args, `${actionTurnId}:${cleanText(callObject.call_id) || outcome.toolCalls}`);
       run.trace.push({
         tool: name,
         args: traceValue(args, 4_000),

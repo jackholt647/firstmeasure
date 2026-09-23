@@ -324,8 +324,8 @@ export async function computeCourseState(
   };
 }
 
-export async function listMyCourses(orgId: string, viewer: ViewerIdentity) {
-  (await ensureTrainingSeed(orgId));
+export async function listMyCourses(orgId: string, viewer: ViewerIdentity, options: { initialize?: boolean } = {}) {
+  if (options.initialize !== false) (await ensureTrainingSeed(orgId));
   const assignmentsBySubject = (await assignedSubjects(orgId, viewer, "course"));
   const courses: JsonObject[] = [];
   for (const course of (await listCourses(orgId))) {

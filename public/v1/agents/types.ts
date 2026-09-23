@@ -40,6 +40,12 @@ export type AgentRun = {
 export type AgentToolResult = JsonObject;
 
 export type AgentTool = {
+  /** Optional explicit publication metadata; legacy tools default conservatively to a command. */
+  publication?: {
+    version?: string;
+    effect?: import("../platform/publication/contracts.js").Effect;
+    outputSchema?: JsonObject;
+  };
   name: string;
   description: string;
   /** JSON schema for the arguments object. */

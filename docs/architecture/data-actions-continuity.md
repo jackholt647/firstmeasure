@@ -10,8 +10,12 @@
 > records the earlier decision state and is superseded by this update.
 
 
-Status: agreed design direction and pending audit, September 23, 2026. This is
-not an implementation claim or authorization to implement the architecture.
+Current implementation: shared publication contracts, providers, domain actions,
+versioned bindings and document/scope code runtimes are implemented locally.
+See [the implementation guide](publication-architecture.md) for entry points,
+verification and coverage limits. This is not a claim that every legacy endpoint
+has migrated, or that the complete moving-company workflow has been configured.
+The original audit request below is retained as historical context.
 The canonical source is described in [the checkout record](../canonical-checkout.md).
 
 ## Conversation and next owner

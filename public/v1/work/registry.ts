@@ -1,5 +1,7 @@
 import type { JsonObject } from "./storage.js";
 import type { WorkDataResolver } from "./context.js";
+import { publishWorkAutomation } from "../platform/publication/work-actions.js";
+import type { Effect, JsonSchema } from "../platform/publication/contracts.js";
 
 export type WorkAutomationServices = {
   patchProject: (patch: JsonObject) => Promise<JsonObject>;
@@ -28,6 +30,11 @@ export type WorkAutomationContext = {
 export type WorkAutomationHandler = (context: WorkAutomationContext, input: JsonObject) => Promise<unknown> | unknown;
 
 export type WorkAutomationMeta = {
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
+  version?: string;
+  implementation?: string;
+  effect?: Effect;
   // Human/agent-facing documentation: what the automation does and the input
   // fields it understands. Shown to the scope-manager agent and (eventually)
   // the automation editor UI.
@@ -42,7 +49,7 @@ export function registerWorkAutomation(id: string, handler: WorkAutomationHandle
   const key = String(id || "").trim();
   if (!key) throw new Error("A work automation id is required.");
   if (handlers.has(key)) throw new Error(`Work automation '${key}' is already registered.`);
-  handlers.set(key, handler);
+  handlers.set(key, publishWorkAutomation(key, handler, meta));
   metadata.set(key, meta);
 }
 
