@@ -1110,11 +1110,11 @@ function adoptMergedFaceSources(edits){
  const targets=edits.$surfaces.filter(f=>/^line-merge-/.test(f.id)),sources=[];
  if(!targets.length)return false;
  for(const [key,d]of Object.entries(edits.$drafts||{}))for(const f of d.faces||[]){
-  if(f.solidId||!(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))continue;
+  if(f.preserveBoundaryWire||f.solidId||!(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))continue;
   const world=p=>d.frame?fromFrame(d.frame,p):({x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y});
   sources.push({id:'draft:'+key+':'+f.id,record:f,d,face:{points:f.points.map(world),holes:(f.holes||[]).map(r=>r.map(world))}});
  }
- for(const f of edits.$surfaces)if(f.deleted&&!f.replacedBy)sources.push({id:'solid:'+f.id,record:f,face:f});
+ for(const f of edits.$surfaces)if(f.deleted&&!f.replacedBy&&!f.preserveBoundaryWire)sources.push({id:'solid:'+f.id,record:f,face:f});
  let changed=false;
  for(const source of sources){
   const target=targets.find(t=>t!==source.record&&(t.mergedSources?t.mergedSources.includes(source.id):(()=>{
