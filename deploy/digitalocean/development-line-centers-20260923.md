@@ -1,7 +1,8 @@
 # Development: line centers and midpoint snapping
 
 The line-center implementation is commit `2ecb59f6df3fe3958a4b51874ad974b4f0f2e2ac`.
-Deploy its six runtime scripts over the complete development baseline
+Runtime release: `b81e79c92a37d910423e630d8aab110bfad5e95a`.
+Its six runtime scripts were deployed over the complete development baseline
 `eef4fdc683d8c3b068a0688133e278044386cd4b`, preserving the concurrent AI midpoint
 selection release. Production is outside this rollout.
 
@@ -26,3 +27,22 @@ The first staging attempt used the older `f0ec2e4` baseline. Its web-stage guard
 rejected the changed active runtime; no role was activated. Those staged worker
 and compatibility directories are abandoned. Stage a new immutable release from
 the complete `eef4fdc` baseline using the existing guarded delta workflow.
+
+## Completed rollout
+
+All three development roles activated release `b81e79c92a37d910423e630d8aab110bfad5e95a`.
+The guarded copy preserved 24,495 other public files on web/compatibility and
+24,509 on worker. Worker activation required an idle queue, and both PHP roles
+refreshed PHP-FPM. Readiness and outbound isolation passed; all six public scripts
+match their committed hashes. The transient routing 503 cleared without changes
+to infrastructure. Evidence: `output/line-centers-rebased-20260923/`.
+
+Rollback uses the existing guarded workflow to the complete `eef4fdc` baseline,
+including worker idle checks, readiness, outbound isolation and PHP-FPM refresh.
+There is no geometry schema migration; turning the control off changes only
+markers and midpoint snapping.
+
+An authenticated full-house browser smoke check confirmed the Line centers control
+next to Face centers, defaulting on while Face centers was off. No geometry was
+committed and no display setting was changed during this read-only live check.
+Point-placement and off/on interaction behavior were verified by handler tests.
