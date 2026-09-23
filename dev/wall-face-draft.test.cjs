@@ -2447,6 +2447,18 @@ test('survey-noise roof stations form one selectable edge and do not return when
  const loaded=fixture({walls,state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});loaded.editor.draw3D({add(){}},p=>p);assert.equal(loaded.state.wallEdits.$drafts[walls[0].mergeGroup].sketch.nodes.length,5);
 });
 
+for(const setback of [18,24])test(`captured front wall uses the same edge for its outline, soffit highlight and picking at ${setback} inches`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry');
+ const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),setback),walls=r.composed.filter(w=>Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y)>.005),geo=G.topology(walls),front=geo.faces.find(f=>f.mergeGroup?.includes('envelope-0-18-'));
+ const edge=front.boundary.map(ids=>ids.map(i=>geo.points[i])).find(pair=>pair.every(p=>p.z>66)&&Math.hypot(...['x','y','z'].map(k=>pair[1][k]-pair[0][k]))>7.5);assert.ok(edge);
+ const drawn=[],f=fixture({walls,state:r.state,selected:null,globals:{...renderGlobals(),WallResoffit:R,WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys')}});
+ const before=JSON.stringify(r.state),key=W.edgeKey(...edge),contacts=f.editor.soffitEdges().filter(c=>W.edgeKey(...c.pair)===key);assert.equal(contacts.length,1,'one full-length red edge, not subdivided contacts');
+ f.editor.draw3D({add:o=>{if(o.material?.color===R.COLOR)drawn.push(o.geometry.points);}},p=>p);assert.equal(drawn.filter(pair=>W.edgeKey(...pair)===key).length,1);assert.equal(JSON.stringify(r.state),before,'drawing does not duplicate or modify wall geometry');
+ f.editor.setResoffitMode(true);const mid={x:(edge[0].x+edge[1].x)/2,z:(edge[0].z+edge[1].z)/2};assert.equal(f.editor.pickLine3D(f.e(mid.x,mid.z)),true);f.listeners.pointerup(f.e(mid.x,mid.z));
+ assert.equal(W.edgeKey(...f.editor.selectionSnapshot().lineSelection[0].pair),key);
+ assert.equal(f.editor.resoffit(.3048),true,f.message());
+});
+
 test('captured house front wall stays a four-corner outline when selected',()=>{
  const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),walls=r.composed;
  const wall=walls.find(w=>w.mergeGroup?.includes('envelope-0-18-')),f=fixture({walls,state:r.state,globals:{WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys')}});assert.ok(wall);

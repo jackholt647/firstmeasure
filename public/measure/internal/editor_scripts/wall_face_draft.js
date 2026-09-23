@@ -1106,7 +1106,26 @@ function perf_previewLineMove(e){
   return !d.faces.some(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)&&G.contains(f,n));
  }
  function draftNodes(d){if(d.mergedInto)return [];const consumed=new Set(d.faces.filter(f=>f.solidId).flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId))),retained=new Set(d.faces.filter(f=>!f.solidId).flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId)));return d.sketch.nodes.filter(n=>!n.generatedBoundary||isPicked(d,n.id)||structuralDraftPoint(d,n)).filter(n=>!(d.removedPoints||[]).includes(n.id)&&(!consumed.has(n.id)||retained.has(n.id))&&!consumedDraftPoint(d,n)).filter(n=>!host.state()?.chimneys?.items?.length||window.WallChimneys.visibleSegments(world(d,n),world(d,n),host.state(),d.chimney,d.joinedChimneys).length||draftSegments(d).some(e=>Math.hypot(e.start.x-n.x,e.start.y-n.y)<.0001||Math.hypot(e.end.x-n.x,e.end.y-n.y)<.0001));}
- function soffitEdges(){const R=window.WallResoffit;if(!R||!host.state()?.roof)return [];return R.candidates(supportSnapshot||structuralFaces(),host.state().roof,host.state().sources);}
+ function soffitEdges(){
+  const R=window.WallResoffit;if(!R||!host.state()?.roof)return [];
+  const faces=supportSnapshot||structuralFaces(),contacts=R.candidates(faces,host.state().roof,host.state().sources),geo=undraftedWallTopology();
+  const byGroup=new Map(geo.faces.filter(f=>f.mergeGroup).map(f=>[f.mergeGroup,f]));
+  // The contact mesh retains survey stations, while the visible/editable
+  // boundary joins them. Color and pick that same boundary, not a second path.
+  const result=contacts.map(c=>{
+   const group=faces[c.faceId]?.generatedMergeGroup,face=group&&byGroup.get(group);if(!face)return c;
+   let best=null,error=Infinity;
+   for(const ids of face.boundary||[]){
+    const pair=ids.map(i=>geo.points[i]),[a,b]=pair,dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,l2=dx*dx+dy*dy+dz*dz;if(l2<.0004)continue;
+    const projections=c.pair.map(p=>{const t=((p.x-a.x)*dx+(p.y-a.y)*dy+(p.z-a.z)*dz)/l2;return {t,d:Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy,p.z-a.z-t*dz)};});
+    if(projections.some(p=>p.t<-1e-5||p.t>1+1e-5||p.d>.050001))continue;
+    const span=Math.abs(projections[1].t-projections[0].t)*Math.sqrt(l2),length=distance3(...c.pair);if(span<length*Math.cos(5*Math.PI/180))continue;
+    const score=Math.max(...projections.map(p=>p.d));if(score<error){best=pair;error=score;}
+   }
+   return best?{...c,id:W.edgeKey(...best),pair:best}:c;
+  });
+  return [...new Map(result.map(c=>[c.id,c])).values()];
+ }
  function resoffit(depth){
   if(tool||workingPlane){host.message('Finish the current edit before resoffiting.');return false;}
   const pairs=lineSelection.flatMap(l=>l.pairs||[l.pair]);if(!pairs.length){host.message('Select roof-contact soffit lines first.');return false;}
@@ -1361,7 +1380,7 @@ function perf_structuralFaces(includeConsumed=false){
    draftSupportCache.delete(cacheId);draftSupportCache.set(cacheId,{key:cacheKey,faces:draftFaces});if(draftSupportCache.size>512)draftSupportCache.delete(draftSupportCache.keys().next().value);
    faces.push(...draftFaces);
   }
-  for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))faces.push({chimney:w.chimney,points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]});
+  for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))faces.push({chimney:w.chimney,generatedMergeGroup:w.mergeGroup,points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]});
   return faces.flatMap(f=>window.WallChimneys?.visibleParts(f,host.state())||[f]);
  }
  function structuralDraftPoint(d,n){return structuralPoint(world(d,n),supportSnapshot||structuralFaces());}

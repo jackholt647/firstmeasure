@@ -7,6 +7,8 @@ const G=node?require('./wall_geometry.js'):root.WallGeometry;
 const W=node?require('./wall_solid_geometry.js'):root.WallSolidGeometry;
 const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
 const length=v=>Math.hypot(v.x,v.y,v.z),mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
+// Match the maximum deviation of the generated editable roof-contact edge.
+const ROOF_CONTACT=.050001;
 const rings=f=>[f.points,...(f.holes||[])],same=(a,b)=>length(sub(a,b))<.002;
 const on=(p,a,b)=>{const d=sub(b,a),l=dot(d,d),t=l?dot(sub(p,a),d)/l:0;return t>=-1e-5&&t<=1+1e-5&&same(p,mix(a,b,t));};
 // Surveyed wall joins may differ by a few millimetres after projection.
@@ -38,7 +40,11 @@ function candidates(faces,roof,sources){
    const u={x:(b.x-a.x)/len,y:(b.y-a.y)/len};
    const center=f.points.reduce((p,q)=>({x:p.x+q.x/f.points.length,y:p.y+q.y/f.points.length,z:p.z+q.z/f.points.length}),{x:0,y:0,z:0});
    if(center.z>=a.z+((center.x-a.x)*u.x+(center.y-a.y)*u.y)*(b.z-a.z)/len-1e-6)continue;
-   if(![0,.5,1].every(t=>{const p=mix(a,b,t);return planes.some(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<.025);}))continue;
+   // A merged wall can end just inside a hip junction where the roof
+   // rises away from its supporting plane. Validate its interior contact
+   // too, rather than rejecting the entire run at that terminal junction.
+   const contacts=t=>{const p=mix(a,b,t);return planes.some(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<ROOF_CONTACT);};
+   if(![0,.5,1].every(contacts)&&![.1,.5,.9].every(contacts))continue;
    const matching=[];
    for(const s of sources||[]){
     if(f.resoffitSource!=null&&s.id!==f.resoffitSource)continue;
@@ -91,7 +97,7 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   for(const b of bridges)if(rings(b.face).some(r=>r.some((a,i)=>on(p,a,r[(i+1)%r.length]))))for(const f of b.neighbors)if(!owners.includes(f))owners.push(f);
   if(!owners.some(f=>requests.has(f.id)))continue;
   const constraints=[];for(const f of owners){const request=requests.get(f.id),n=K.normal(f.points);if(request)constraints.push({n:request.n,value:request.value-dot(sub(p,f.points[0]),request.n)});else if(n&&!f.trim)constraints.push({n,value:-dot(sub(p,f.points[0]),n)});}
-  const supports=planes.filter(f=>G.contains(f,p)&&Math.abs(p.z-f.plane.dx*p.x-f.plane.dy*p.y-f.plane.k)<.025);
+  const supports=planes.filter(f=>G.contains(f,p)&&Math.abs(p.z-f.plane.dx*p.x-f.plane.dy*p.y-f.plane.k)<ROOF_CONTACT);
   // Solve plan junctions first, then follow the contacted roof at the new point.
   // A corner may cross a hip into another pitch during this edit.
   if(supports.length)constraints.push({n:{x:0,y:0,z:1},value:0});
@@ -120,15 +126,15 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   // Retained sketch stations are not necessarily topology vertices. They must
   // follow the wall plane and roof just like the visible boundary corners.
   next.retainedPoints=(f.retainedPoints||[]).map(p=>{
-   const q=project(movedPoint(p)),supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<.025);
+   const q=project(movedPoint(p)),supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<ROOF_CONTACT);
    if(supports.length)q.z=followRoof(p,q,supports,planes);return q;
   });
-  const roofEdge=(a,b)=>[0,.5,1].every(t=>{const p=mix(a,b,t);return planes.some(f=>G.contains(f,p)&&Math.abs(p.z-f.plane.dx*p.x-f.plane.dy*p.y-f.plane.k)<.025);});
+  const roofEdge=(a,b)=>[0,.5,1].every(t=>{const p=mix(a,b,t);return planes.some(f=>G.contains(f,p)&&Math.abs(p.z-f.plane.dx*p.x-f.plane.dy*p.y-f.plane.k)<ROOF_CONTACT);});
   // A translated edge may cross a hip. Insert the actual pitch transitions,
   // rather than drawing one chord between endpoints on different roof planes.
   const refine=ring=>ring.flatMap((a,i)=>{const b=ring[(i+1)%ring.length];if(Math.hypot(a.x-b.x,a.y-b.y)<.002)return [a];
    const original=rings(f).some(r=>r.some((p,j)=>roofEdge(p,r[(j+1)%r.length])&&on(a,project(movedPoint(p)),project(movedPoint(r[(j+1)%r.length])))&&on(b,project(movedPoint(p)),project(movedPoint(r[(j+1)%r.length])))));
-   if(!original)return [a];const supports=planes.filter(r=>G.contains(r,a)&&Math.abs(a.z-r.plane.dx*a.x-r.plane.dy*a.y-r.plane.k)<.025);if(!supports.length)return [a];
+   if(!original)return [a];const supports=planes.filter(r=>G.contains(r,a)&&Math.abs(a.z-r.plane.dx*a.x-r.plane.dy*a.y-r.plane.k)<ROOF_CONTACT);if(!supports.length)return [a];
    const samples=[];followRoof(a,b,supports,planes,samples);return [a,...samples.map(project)];
   });next.points=refine(next.points);next.holes=next.holes.map(refine);
 
