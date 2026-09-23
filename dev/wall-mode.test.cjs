@@ -666,8 +666,8 @@ test('AI face rows clear other selections, preserve geometry and reject stale fa
  const f=fixture(true,{ExteriorGeometry:require('../public/measure/internal/editor_scripts/exterior_geometry.js'),ExteriorModel:{collect:()=>[face]},
   createBaseSketchEditor:()=>({clear(){baseCleared=true;},restoreSelection(){baseCleared=true;},leave(){},draw2D(){},draw3D(){},busy:()=>false}),
   createWallEditor:()=>({clear(){cleared=true;},restoreSelection(v){selectedValue=v;},leave(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false})});
- f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const geometry=()=>{const s=f.ctx.WallMode.serialize();delete s.editingLayer;return JSON.stringify(s);};const before=geometry();
+ f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const geometry=()=>{const s=f.ctx.WallMode.serialize();delete s.editingLayer;delete s.displayMode;delete s.translucent;return JSON.stringify(s);};const before=geometry();
  const faces=f.ctx.WallMode.aiStickerScene().faces;assert.equal(faces.length,1);f.ctx.WallMode.selectAIFace(face.id,faces[0].signature);
- assert.ok(cleared);assert.equal(selectedValue.draft.selectedRegion.draft,'sample');assert.equal(selectedValue.draft.selectedRegion.face,'front');assert.equal(selectedValue.draft.faceSelection.length,1);assert.equal(geometry(),before);
+ assert.ok(cleared);assert.equal(selectedValue.draft.selectedRegion.draft,'sample');assert.equal(selectedValue.draft.selectedRegion.face,'front');assert.equal(selectedValue.draft.faceSelection.length,1);assert.equal(geometry(),before);assert.equal(f.ctx.WallMode.serialize().displayMode,'opaque');
  face.points[0].z=.1;assert.throws(()=>f.ctx.WallMode.selectAIFace(face.id,faces[0].signature),/changed since/);
 });

@@ -852,7 +852,7 @@ function perf_render3DFrame() {
         if(!f||f.signature!==signature)throw Error('This face has changed since the run. Run again to select it.');
         const ref=f.draft?{draft:f.draftKey,face:f.regionId}:id.startsWith('wall:')?null:{solid:id};
         flushSelectionHistory();baseEditor?.restoreSelection?.({});roofTrimEditor?.clear();wallEditor?.clear();
-        editingLayer='walls';selected=id.startsWith('wall:')?id.slice(5):null;
+        editingLayer='walls';wallsVisible=true;state.displayMode='opaque';state.translucent=false;selected=id.startsWith('wall:')?id.slice(5):null;
         wallEditor?.restoreSelection({selected,indices:[],draft:ref?{selectedSolid:ref.solid||null,selectedRegion:ref.solid?null:ref,faceSelection:[ref],activeDraftKey:ref.draft||null,preferredDraft:ref.draft||null,preferredRegion:ref.face||null,preferredSolid:ref.solid||null}:{}});
         render();flushSelectionHistory();
     }
