@@ -231,8 +231,9 @@ The completion implementation passes TypeScript checking/build, 44 publication
 tests, the separately run PostgreSQL concurrency test, 71 affected domain
 regressions, and headless browser checks for authoring, binding selection,
 instance creation/save/refresh/freeze and scope version preservation. See
-[the completion record](implementation-completion.md) and the development release
-record for the final deployment identity and runtime verification.
+[the completion record](implementation-completion.md) and
+[the development release record](../../deploy/digitalocean/development-publication-architecture-20260923.md)
+for the final deployment identity and runtime verification.
 
 The shared registry is the extension contract for all current app owners, not a
 raw export of every HTTP endpoint. Existing dedicated payment, signature,

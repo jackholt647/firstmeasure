@@ -26,7 +26,7 @@ Latest explicit clarifications:
   configured triggers. Frozen accepted artifacts remain unchanged.
 - Make routine implementation decisions autonomously; the user is unavailable overnight.
 
-## Completion evidence to establish
+## Completion checklist (verified)
 
 1. Review the inherited implementation, repair contract/authorization/lifecycle defects.
 2. Inventory actual domain operations and data exports; expand incomplete adapters
@@ -52,8 +52,8 @@ Latest documented development runtime: ccc45af (editor-only deployment).
 Reverify these identities before packaging; commit ancestry does not establish
 deployed architecture content. No uncommitted changes at initial inspection.
 
-This checklist is a work record, not a declaration of completion. Each item needs
-source and behavior evidence before the final report.
+The local evidence and completed development release below satisfy this checklist.
+The starting checkpoint remains historical context, not the current runtime.
 
 
 ## Implemented and verified locally
@@ -81,12 +81,26 @@ collection writes. Foreground live refresh and configured execution boundaries
 are implemented; no always-running organization-wide invalidation worker is added.
 The moving-company thought experiment is not a deliverable.
 
-## Development release preparation
+## Development release completed
 
-The latest inspected runtime is `974f20e6639bbe4a4a1011bd69d67cd20edf0ef6` on all
-three development roles. Its newer editor changes supersede the starting runtime.
-Package the inherited architecture plus this completion from an immutable commit,
-overlaying only reviewed owned source on that runtime. Confirm source hashes,
-Linux dependency installation/build, development isolation and readiness before
-activation. Runtime identity and authenticated smoke results are recorded in the
-release record once verified; preparation alone is not deployment completion.
+Release `5f1ea338f6ce3707c7374884f79de20f5529bff1` is pushed to the canonical
+branch and active on development web, worker and compatibility services. It
+includes inherited architecture `4a3c46c` and the completion implementation.
+The 77-file source delta was staged over verified runtime `974f20e`, preserving
+all 226 internal editor files byte-for-byte on each server. Linux source hashes,
+dependency installation, check/build, publication tests and compiled sandbox
+verification passed; all servers have the same backend implementation fingerprint.
+
+Authenticated checks through dev.1m8.ai verified capability discovery, dataset
+action replay, transitive workflow/document refresh, unchanged frozen results,
+module commands running once, native template program publication and document
+creation, materialization, tenant isolation and CSRF. A scope saved through the
+live API stamped its actual author and executed a published module action once;
+replay was denied after revoking that author's membership. All disposable test
+organizations, identities, sessions, captures, receipts and scope records were removed.
+
+The public site recovered after the load balancer's restart health transition.
+Final readiness reports development data and enforced outbound isolation; public
+asset checksums match the release. No production activation occurred.
+See [the deployment record](../../deploy/digitalocean/development-publication-architecture-20260923.md)
+for artifact identity, checks and rollback guidance.
