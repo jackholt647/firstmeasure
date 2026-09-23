@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 Resoffit leftovers: [Consumed sketch masks and retained stations](deploy/digitalocean/development-resoffit-ghosts-20260922.md) records `03c76e5d5c4cb02f50940503691e7a640c353720` on development. Resoffit keeps source masks synchronized with moved sketch nodes, repairs stale masks on reload, and keeps retained stations on the replacement faces. All 911 tests pass. Preserve this baseline.
+
 September 22 selection performance: [Cached geometry and turret contact picking](deploy/digitalocean/development-selection-performance-20260922.md) records `59fc259934108ff238d7664d5843a25e1e02058e` on all three development roles. Selection reuses unchanged geometry, avoids duplicate same-layer redraws and saves, and picks the displayed merged roof-contact lines. All 908 tests pass. Preserve this baseline.
 
 September 22 zero-depth Resoffit: [Collapsed chimney returns](deploy/digitalocean/development-resoffit-zero-20260922.md) records `1730b0ea934dfca700e1f246738868f57e10e2e3` on all three development roles. Micrometre-width chimney returns collapse correctly at zero depth instead of triggering a false wall reversal. All 902 tests and a live two-edge zero-depth edit pass. Preserve this baseline.
