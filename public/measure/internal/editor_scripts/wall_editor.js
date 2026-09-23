@@ -6,7 +6,7 @@
 // Apply one display policy to every exterior layer, including depth-only cues.
 // Markers draw as whole overlays only when their anchor is visible. Cache camera/surface state so idle frames do not repeat ray tests.
 const wallPointOcclusionScenes=new WeakMap();
-const wallPointBiasPixels=4,wallLineBiasPixels=10;
+const wallPointBiasPixels=6,wallLineBiasPixels=6;
 function wallOcclusionFrame(renderer,scene,camera){
  let frame=wallPointOcclusionScenes.get(scene);
   if(!frame||frame.frame!==renderer.info.render.frame||frame.camera!==camera){
@@ -75,7 +75,7 @@ window.wallLabelOcclusion=function(object,enabled){
   this.material.opacity=visible?opacity:0;
  };
 };
-// Move drafting wire ten CSS pixels toward the camera in depth only. Keep its
+// Move drafting wire six CSS pixels toward the camera in depth only. Keep its
 // projected position and real geometry unchanged, and retain wall occlusion.
 window.wallLineDepthBias=function(object,enabled){
  const material=object.material;material.userData||={};
