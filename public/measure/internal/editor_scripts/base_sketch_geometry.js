@@ -7,8 +7,11 @@ const G=typeof module!=='undefined'&&module.exports?require('./wall_geometry.js'
 const copy=v=>JSON.parse(JSON.stringify(v)),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
 const area=ps=>ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2;
+const restoredCurveSketches=new WeakSet();
+function restoreCurveGraph(base){const s=base.sketch,curves=[...new Map([...base.faces.flatMap(f=>f.curves||[]),...(s.curves||[])].map(c=>[c.id,c])).values()];if(restoredCurveSketches.has(s))return s;restoredCurveSketches.add(s);if(curves.length){s.curves=curves;K.annotateCurveGraph(s);compactCurves(s);}return s;
+}
 function ensure(base){
- if(base.sketch)return compactCurves(base.sketch);
+ if(base.sketch)return compactCurves(restoreCurveGraph(base));
  const nodes=[],edges=[],seen=new Map();
  const node=p=>{let i=nodes.findIndex(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT);if(i<0){i=nodes.length;nodes.push({...p,id:'p'+i,fixed:false});}return nodes[i].id;};
  for(const f of base.faces){const ids=f.points.map(node);f.points.forEach((p,i)=>p.nodeId=ids[i]);
@@ -16,11 +19,11 @@ function ensure(base){
  }
  for(const e of edges){e.fixed=e.count===1;delete e.count;if(e.fixed)for(const id of [e.a,e.b])nodes.find(n=>n.id===id).fixed=true;}
  base.sketch={version:1,next:Math.max(nodes.length,edges.length),nodes,edges,outlines:B.boundary(base.faces.map(f=>f.points))};
- return base.sketch;
+ return restoreCurveGraph(base);
 }
 const readCache=new WeakMap();
 function read(base){
- if(base.sketch)return compactCurves(base.sketch);
+ if(base.sketch)return compactCurves(restoreCurveGraph(base));
  const signature=JSON.stringify(base.faces),prior=readCache.get(base);
  if(prior?.signature===signature)return prior.sketch;
  const sketch=ensure(copy(base));readCache.set(base,{signature,sketch});return sketch;
@@ -42,12 +45,12 @@ function connect(base,ids){
 
 }
 // One persistent edge per arc. Sampling is a temporary planar-arrangement adapter.
-function curveEdges(s){return s.edges.flatMap(e=>{const c=e.curveId&&s.curves?.find(c=>c.id===e.curveId),byId=id=>s.nodes.find(n=>n.id===id);if(!c)return [{...e,start:byId(e.a),end:byId(e.b)}];const [lo,hi]=e.curveRange||[0,1],samples=K.curveSamples(c).filter(p=>p.curveT>lo&&p.curveT<hi),ps=[{...K.curvePoint(c,lo),id:e.a},...samples.map((p,i)=>({...p,id:e.id+'~sample-'+i,curveSample:true})),{...K.curvePoint(c,hi),id:e.b}];return ps.slice(1).map((p,i)=>({...e,start:ps[i],end:p}));});}
+function curveEdges(s){return s.edges.flatMap(e=>{const c=e.curveId&&s.curves?.find(c=>c.id===e.curveId),byId=id=>s.nodes.find(n=>n.id===id);if(!c){if(e.curveId)throw Error('Curve edge is missing its analytic definition.');return [{...e,start:byId(e.a),end:byId(e.b)}];}const [lo,hi]=e.curveRange||[0,1],samples=K.curveSamples(c).filter(p=>p.curveT>lo&&p.curveT<hi),ps=[{...K.curvePoint(c,lo),id:e.a},...samples.map((p,i)=>({...p,id:e.id+'~sample-'+i,curveSample:true})),{...K.curvePoint(c,hi),id:e.b}];return ps.slice(1).map((p,i)=>({...e,start:ps[i],end:p}));});}
 function compactCurves(s){
  if(!s.curves?.length)return s;
  const derived=new Set(s.edges.filter(e=>e.curveId).flatMap(e=>[e.a,e.b]));
  // Merge tessellation fragments, but never erase a deliberate anchor or junction.
- const anchors=new Set(s.nodes.filter(n=>n.userDraftPoint||n.curveCenter).map(n=>n.id));
+ const anchors=new Set(s.nodes.filter(n=>n.userDraftPoint||n.curveCenter||n.curveControl).map(n=>n.id));
  const incident=new Map();for(const e of s.edges)for(const id of [e.a,e.b]){if(!incident.has(id))incident.set(id,[]);incident.get(id).push(e);}
  for(const [id,edges]of incident)if(edges.length!==2||edges.some(e=>!e.curveId||e.curveId!==edges[0].curveId))anchors.add(id);
  for(const c of s.curves){
@@ -152,7 +155,7 @@ function resolve(base){
  if(!faces.length)throw Error('The base needs at least one closed face.');
  // Preserve every intentional anchor, including points unused by a face.
  for(const n of newNodes)if(!n.curveSample&&!s.nodes.some(p=>p.id===n.id))s.nodes.push(n);
- if(s.curves?.length)for(const f of faces)f.curves=(s.curves||[]).filter(c=>graphEdges.some(e=>e.curveId===c.id&&f.points.some(p=>p.nodeId===e.a)&&f.points.some(p=>p.nodeId===e.b))).map(copy);
+ if(s.curves?.length)for(const f of faces)f.curves=(s.curves||[]).filter(c=>f.points.some((p,i)=>K.curveEdgeRange(c,p,f.points[(i+1)%f.points.length]))).map(copy);
  base.faces=faces;s.outlines=B.boundary(faces.map(f=>f.points));
 }
 
@@ -198,7 +201,7 @@ function rebind(before,after){
   for(let i=1;i<hits.length;i++){const u=hits[i-1].n.id,v=hits[i].n.id;if(u===v)continue;const key=[u,v].sort().join('|');let edge=byPair.get(key);if(!edge){edge={id:fresh('e'),a:u,b:v,fixed:false,owners:new Set()};byPair.set(key,edge);edges.push(edge);}if(e.boundary)edge.owners.add(e.owner);if(e.userConnection)edge.userConnection=true;}
  }
  for(const e of edges){e.fixed=e.owners.size===1;delete e.owners;if(e.fixed){lookup.get(e.a).fixed=true;lookup.get(e.b).fixed=true;}}
- const curves=[...new Map([...(old.curves||[]),...after.faces.flatMap(f=>f.curves||[])].map(c=>[c.id,c])).values()];for(const c of curves){const samples=K.curveSamples(c);for(const e of edges){const a=lookup.get(e.a),b=lookup.get(e.b);for(let j=1;j<samples.length;j++){const p=samples[j-1],q=samples[j],v={x:q.x-p.x,y:q.y-p.y,z:q.z-p.z},l2=v.x*v.x+v.y*v.y+v.z*v.z,parameter=x=>((x.x-p.x)*v.x+(x.y-p.y)*v.y+(x.z-p.z)*v.z)/l2,t=parameter(a),u=parameter(b),tolerance=K.CONTACT/Math.sqrt(l2),snap=t=>Math.abs(t)<tolerance?0:Math.abs(t-1)<tolerance?1:t;if(t>=-tolerance&&t<=1+tolerance&&u>=-tolerance&&u<=1+tolerance&&distance(a,at(p,q,t))<K.CONTACT&&distance(b,at(p,q,u))<K.CONTACT){e.curveId=c.id;e.fixed=original.edges.filter(e=>e.curveId===c.id).every(e=>e.fixed);e.curveRange=[p.curveT+(q.curveT-p.curveT)*snap(t),p.curveT+(q.curveT-p.curveT)*snap(u)];break;}}}}
+ const curves=[...new Map([...(old.curves||[]),...after.faces.flatMap(f=>f.curves||[])].map(c=>[c.id,c])).values()];K.annotateCurveGraph({nodes,edges},curves);for(const e of edges.filter(e=>e.curveId)){const prior=original.edges.filter(v=>v.curveId===e.curveId);if(prior.length)e.fixed=prior.every(v=>v.fixed);}
  after.sketch={version:2,next,nodes,edges,outlines:B.boundary(after.faces.map(f=>f.points)),...(curves.length?{curves:curves.filter(c=>edges.some(e=>e.curveId===c.id))}:{})};compactCurves(after.sketch);return after;
 }
 

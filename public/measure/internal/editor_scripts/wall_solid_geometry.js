@@ -1023,11 +1023,8 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  }
  // Analytic arch boundaries remain one selectable curve. Tessellation vertices
  // are render samples; only interpolation points and real junctions are anchors.
- for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const c of (f.curves||[]).filter(c=>c.type==='spline')){
-  const ps=K.curveSamples(c),id='spline:'+c.id,anchors=new Set(c.controls.map(vertexKey)),matched=new Set();
-  for(const e of edges.values()){const a=nodes.get(e.a),b=nodes.get(e.b);if(ps.slice(1).some((p,i)=>pointOnEdge(a,ps[i],p)&&pointOnEdge(b,ps[i],p))){e.curve=true;e.id=id;e.surfaceId=f.id;matched.add(e.a);matched.add(e.b);}}
-  for(const key of matched)if(!anchors.has(key)&&![...edges.values()].some(e=>(e.a===key||e.b===key)&&e.id!==id))nodes.get(key).curveSample=true;
- }
+ const curves=[...new Map((edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy).flatMap(f=>f.curves||[]).map(c=>[c.id,c])).values()],graph={nodes:[...nodes.values()],edges:[...edges.values()]};
+ K.annotateCurveGraph(graph,curves);for(const e of graph.edges)if(e.curveId){e.curve=true;e.id='spline:'+e.curveId;}
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
 function structuralPoint(p,faces){return faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f)).some(f=>rings(f).some(r=>r.some((q,i)=>{if(vertexKey(q)!==vertexKey(p))return false;const a=sub(r[(i+r.length-1)%r.length],q),b=sub(r[(i+1)%r.length],q),c=cross(a,b);return dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z));})));}
@@ -1187,12 +1184,15 @@ function motionSnap(points,edges,direction,amount,faces,options={}){
 function containedSnap(source,amount,faces){const n=normal(source.points);if(!n)return null;let best=null;
  for(const target of faces){if(target.id===source.id||target.deleted||target.drafted||(target.snapOnly&&!target.restoreFor?.includes(source.id)))continue;const tn=normal(target.points);if(!tn||Math.abs(dot(n,tn))<.99999)continue;const offset=dot(sub(target.points[0],source.points[0]),tn)/dot(n,tn);if(Math.abs(offset)<1e-5)continue;const moved={...source,points:source.points.map(p=>({x:p.x+n.x*offset,y:p.y+n.y*offset,z:p.z+n.z*offset}))};const contained=containedBy(moved,target);if((contained||!target.snapOnly&&coplanarContact(moved,target))&&(!best||Math.abs(offset-amount)<Math.abs(best.amount-amount)))best={amount:offset,targetId:target.id,kind:contained?'contained':'adjacent'};}return best;
 }
-function importDraft(d,loops){
+function importDraft(d,loops,curves=[]){
  const S=typeof module!=='undefined'&&module.exports?require('./base_sketch_geometry.js'):root.BaseSketchGeometry;
+ const sketch=S.ensure(d),authored=new Set(sketch.nodes.filter(n=>n.userDraftPoint).map(n=>n.id));sketch.curves=[...new Map([...(sketch.curves||[]),...curves].map(c=>[c.id,c])).values()];curves=sketch.curves;
  for(const ring of loops){const ids=ring.map(p=>S.add(d,{...p,z:0}));S.connect(d,[...ids,ids[0]]);}
+ if(curves.length){for(const n of d.sketch.nodes)if(!authored.has(n.id)&&curves.some(c=>c.type==='spline'&&!c.controls.some(p=>Math.hypot(...Object.values(sub(p,n)))<=K.CONTACT)&&K.curveSamples(c).some(p=>Math.hypot(...Object.values(sub(p,n)))<=K.CONTACT)))delete n.userDraftPoint;K.annotateCurveGraph(d.sketch);S.compactCurves(d.sketch);}
+
  // Materialize intersections, then split and deduplicate coincident edge fragments.
- for(const f of d.faces)for(const p of f.points)if(!d.sketch.nodes.some(n=>n.id===p.nodeId))d.sketch.nodes.push({...p,id:p.nodeId,fixed:false});
- const unique=new Map();for(const e of d.sketch.edges){const a=d.sketch.nodes.find(n=>n.id===e.a),b=d.sketch.nodes.find(n=>n.id===e.b),u=sub(b,a),l2=dot(u,u);if(l2<1e-10)continue;const ns=d.sketch.nodes.filter(p=>pointOnEdge(p,a,b)).map(p=>({p,t:dot(sub(p,a),u)/l2})).sort((a,b)=>a.t-b.t);for(let i=1;i<ns.length;i++){const x=ns[i-1].p,y=ns[i].p;if(x.id===y.id||ns[i].t-ns[i-1].t<1e-7)continue;const key=[x.id,y.id].sort().join('|'),prior=unique.get(key);if(prior){prior.fixed=prior.fixed||e.fixed;}else unique.set(key,{...e,id:'e'+(++d.sketch.next),a:x.id,b:y.id});if(e.fixed){x.fixed=true;y.fixed=true;}}}
+ for(const f of d.faces)for(const p of f.points)if(!d.sketch.nodes.some(n=>n.id===p.nodeId)&&!S.isCurveSample(d,p))d.sketch.nodes.push({...p,id:p.nodeId,fixed:false});
+ const unique=new Map();for(const e of d.sketch.edges){if(e.curveId){unique.set('curve:'+e.id,e);continue;}const a=d.sketch.nodes.find(n=>n.id===e.a),b=d.sketch.nodes.find(n=>n.id===e.b),u=sub(b,a),l2=dot(u,u);if(l2<1e-10)continue;const ns=d.sketch.nodes.filter(p=>pointOnEdge(p,a,b)).map(p=>({p,t:dot(sub(p,a),u)/l2})).sort((a,b)=>a.t-b.t);for(let i=1;i<ns.length;i++){const x=ns[i-1].p,y=ns[i].p;if(x.id===y.id||ns[i].t-ns[i-1].t<1e-7)continue;const key=[x.id,y.id].sort().join('|'),prior=unique.get(key);if(prior){prior.fixed=prior.fixed||e.fixed;}else unique.set(key,{...e,id:'e'+(++d.sketch.next),a:x.id,b:y.id});if(e.fixed){x.fixed=true;y.fixed=true;}}}
  d.sketch.edges=[...unique.values()];S.resolve(d);return d;
 }
 // Lengths are measured in world metres, not projected screen distances.

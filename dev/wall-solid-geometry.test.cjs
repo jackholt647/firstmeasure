@@ -237,3 +237,7 @@ test('point movement normalizes only incident faces in a large scene',()=>{
 test('edge deletion does not adopt unrelated closed wires or a path on another plane',()=>{
  const face={id:'door',feature:{type:'door'},points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},ring=[p(1,0,1),p(2,0,1),p(2,0,2),p(1,0,2)],lines=ring.map((p,i)=>[p,ring[(i+1)%ring.length]]);lines.push([p(0,1,4),p(2,1,5)],[p(2,1,5),p(4,1,4)]);const result=G.removeFaceEdges([face],[[face.points[2],face.points[3]]],{lines});assert.deepEqual(result.removed,['door']);assert.equal(result.merged.length,0);
 });
+
+test('importing a spline bounded face preserves definitions instead of sampled editable edges',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry'),q=(x,y)=>({x,y,z:0}),c={...K.splineThrough([q(1,3),q(3,3)],[q(2,4)],{x:0,y:0,z:1}),id:'arch'},f=K.archFaces([{id:'opening',points:[q(1,1),q(3,1),q(3,3),q(1,3)],holes:[]}],c).faces[0],d={origin:q(0,0),u:{x:1,y:0},faces:[{id:'wall',points:[q(0,0),q(5,0),q(5,5),q(0,5)]}]};S.ensure(d);G.importDraft(d,[f.points],f.curves);assert.equal(d.sketch.curves.length,1);assert.equal(d.sketch.edges.filter(e=>e.curveId).length,2);assert.equal(d.sketch.curves[0].controls.length,3);assert.ok(d.faces.some(f=>f.curves?.length));assert.ok(d.sketch.nodes.length<12,'render samples must not become persistent anchors');
+});

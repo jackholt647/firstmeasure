@@ -820,7 +820,7 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
    const loose=edits.$loose||={points:[],edges:[]};loose.points.push(...preview.points.filter(p=>!covered(p)));loose.edges.push(...preview.edges.filter(pair=>!edgeCovered(pair)));
    if(preview.curves?.length){const frame=copy(workingPlane?.frame||W.faceFrame({points:t.ref.points})),drafts=edits.$drafts||={},d=drafts[prefix+'-curves']={constructionPlane:true,frame,members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};for(const curve of preview.curves){const c=window.ExteriorGeometry.mapCurve(curve,p=>window.ExteriorGeometry.local(frame,p));delete c.id;S.addCurve(d,c);}}
    if(!t.ref.d&&t.ref.solid&&faces.some(f=>f.points.every(p=>Math.abs(window.ExteriorGeometry.local(W.faceFrame({points:t.ref.points}),p).z)<1e-5)))t.ref=asDraft(t.ref);
-   if(t.ref.d){const d=t.ref.d,planar=faces.filter(f=>f.points.every(p=>Math.abs(window.ExteriorGeometry.local(W.faceFrame({points:t.ref.points}),p).z)<1e-5));for(const f of planar){W.importDraft(d,[f.points,...f.holes].map(r=>r.map(p=>toLocal(d,p))));classify(d);const region=matchingRegion(d,f.points.map(p=>toLocal(d,p)));if(region){region.material=f.material;region.feature=f.feature;edits.$surfaces=edits.$surfaces.filter(s=>s.id!==f.id);}}}
+   if(t.ref.d){const d=t.ref.d,planar=faces.filter(f=>f.points.every(p=>Math.abs(window.ExteriorGeometry.local(W.faceFrame({points:t.ref.points}),p).z)<1e-5));for(const f of planar){W.importDraft(d,[f.points,...f.holes].map(r=>r.map(p=>toLocal(d,p))),(f.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const region=matchingRegion(d,f.points.map(p=>toLocal(d,p)));if(region){region.material=f.material;region.feature=f.feature;edits.$surfaces=edits.$surfaces.filter(s=>s.id!==f.id);}}}
    window.ExteriorModel.validateEdits(edits,t.before);host.commit(t.before);tool=null;if(workingPlane){workingPlane.selection=copy(preview.points);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];lineSelection=[];solidPoints=preview.points.map(W.vertexKey);selectedBasePoints=[];selectedSolid=null;selectedRegion=null;clearGuides();host.message('Geometry pasted.');host.redraw();
   }catch(error){host.state().wallEdits=copy(t.before);host.message(error.message);}return true;
  }
@@ -1272,10 +1272,10 @@ function perf_moveScene(){
  }
  function mergeContained(cap,target){
   const edits=host.state().wallEdits;edits.$drafts=edits.$drafts||{};let key=target.draftKey,d=key&&all()[key];
-  if(!d){key='solid:'+target.id;d=all()[key];if(!d){const frame=W.faceFrame(target);d={frame,solidHost:target.id,members:[],faces:[{id:'surface-'+target.id,points:target.points.map(p=>W.inFrame(frame,p))}]};S.ensure(d);all()[key]=d;for(const hole of target.holes||[])W.importDraft(d,[hole.map(p=>W.inFrame(frame,p))]);}const original=solids().find(f=>f.id===target.id);if(original)original.drafted=true;}
+  if(!d){key='solid:'+target.id;d=all()[key];if(!d){const frame=W.faceFrame(target);d={frame,solidHost:target.id,members:[],faces:[{id:'surface-'+target.id,points:target.points.map(p=>W.inFrame(frame,p)),...window.ExteriorGeometry.mapCurveData(target,p=>W.inFrame(frame,p))}]};S.ensure(d);all()[key]=d;for(const hole of target.holes||[])W.importDraft(d,[hole.map(p=>W.inFrame(frame,p))]);}const original=solids().find(f=>f.id===target.id);if(original)original.drafted=true;}
   const local=p=>d.frame?W.inFrame(d.frame,p):{x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z,z:0},before=copy(d.faces);
   const incoming={points:cap.points.map(local),holes:(cap.holes||[]).map(r=>r.map(local))};
-  W.importDraft(d,[incoming.points,...incoming.holes]);
+  W.importDraft(d,[incoming.points,...incoming.holes],(cap.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,local)));
   // A newly placed face owns its imported boundary, even if those IDs belonged
   // to geometry deleted earlier. Do not revive unrelated deleted regions.
   const restored=d.faces.filter(f=>f.points.every(p=>G.contains(incoming,p))&&G.contains(incoming,B.center(f))),restoredIds=new Set(restored.flatMap(f=>f.points.map(p=>p.nodeId)));
@@ -1291,7 +1291,7 @@ function perf_moveScene(){
   if(sourceDraft===targetDraft)return false;
   const graph=copy(sourceDraft.sketch),local=p=>targetDraft.frame?W.inFrame(targetDraft.frame,p):{x:(p.x-targetDraft.origin.x)*targetDraft.u.x+(p.y-targetDraft.origin.y)*targetDraft.u.y,y:p.z,z:0};
   mergeContained(cap,{...polygon(target),draftKey:id(target)});
-  const ids=new Map(graph.nodes.map(n=>[n.id,S.add(targetDraft,local(world(sourceDraft,n)))]));for(const edge of graph.edges)if(ids.get(edge.a)!==ids.get(edge.b))S.connect(targetDraft,[ids.get(edge.a),ids.get(edge.b)]);W.importDraft(targetDraft,[]);classify(targetDraft);
+  const ids=new Map(graph.nodes.map(n=>[n.id,S.add(targetDraft,local(world(sourceDraft,n)))]));for(const edge of graph.edges)if(!edge.curveId&&ids.get(edge.a)!==ids.get(edge.b))S.connect(targetDraft,[ids.get(edge.a),ids.get(edge.b)]);const curveIds=new Map();for(const c of graph.curves||[]){const next=id(source)+':'+c.id;curveIds.set(c.id,next);(targetDraft.sketch.curves||=[]).push({...window.ExteriorGeometry.mapCurve(c,p=>local(world(sourceDraft,p))),id:next});}for(const edge of graph.edges.filter(e=>e.curveId))targetDraft.sketch.edges.push({...edge,id:'e'+(++targetDraft.sketch.next),a:ids.get(edge.a),b:ids.get(edge.b),curveId:curveIds.get(edge.curveId)});W.importDraft(targetDraft,[]);classify(targetDraft);
   sourceDraft.deletedFaces=sourceDraft.faces.map(signature);sourceDraft.mergedInto=id(target);return true;
  }
  function roofTarget(face,amount,radius){
@@ -1641,7 +1641,7 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   return {faces:faces.map(f=>({...f,points:f.points.map(move),holes:(f.holes||[]).map(r=>r.map(move)),retainedPoints:(f.retainedPoints||[]).map(move)})),move,alignmentTargets,frame};
  }
  function installStickers(ref,faces){const {d}=asDraft(ref),placed=[];
-  for(const source of F.remapDivisionGroups(faces)){const local=source.points.map(p=>toLocal(d,p));F.validate(local,d.sketch.outlines,d.faces.filter(f=>(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(d,f)));W.importDraft(d,[local]);classify(d);const face=matchingRegion(d,local);if(!face)throw Error('The sticker crosses an existing divider.');face.feature=copy(source.feature);if(source.material)face.material=source.material;if(source.finishColor)face.finishColor=source.finishColor;placed.push({draft:draftKey(d),face:face.id});}
+  for(const source of F.remapDivisionGroups(faces)){const local=source.points.map(p=>toLocal(d,p));F.validate(local,d.sketch.outlines,d.faces.filter(f=>(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(d,f)));W.importDraft(d,[local],(source.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const face=matchingRegion(d,local);if(!face)throw Error('The sticker crosses an existing divider.');face.feature=copy(source.feature);if(source.material)face.material=source.material;if(source.finishColor)face.finishColor=source.finishColor;placed.push({draft:draftKey(d),face:face.id});}
   selectFeature(d,d.faces.find(f=>f.id===placed.at(-1).face));faceSelection=placed;return placed;
  }
 function perf_previewFeature(e){if(!F||viewOf(e)!=='3d')return;tool.preview=null;const ref=placementHost(e);if(!ref){host.redraw();return;}try{const frame=F.frame(ref.points),p=rayPoint({frame},e);if(!p)return;const preset={...F.defs.get(tool.type).sizes[tool.index]};if(tool.rotated)[preset.w,preset.h]=[preset.h,preset.w];

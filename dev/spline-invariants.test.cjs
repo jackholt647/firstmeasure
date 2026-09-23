@@ -1,0 +1,5 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+for(const scale of [.1,1,10])test(`rounded spline graph preserves controls and authored junctions at scale ${scale}`,()=>{
+ const p=(x,y)=>({x:x*scale,y:y*scale,z:0}),c={...K.splineThrough([p(0,0),p(2,0)],[p(.7,1.2)],{x:0,y:0,z:1}),id:'spline'},samples=K.curveSamples(c),nodes=samples.map((p,i)=>({x:Math.round(p.x*1e6)/1e6,y:Math.round(p.y*1e6)/1e6,z:0,id:'n'+i})),edges=nodes.slice(1).map((n,i)=>({id:'e'+i,a:nodes[i].id,b:n.id})),junction=nodes[2],authored=nodes[4];authored.userDraftPoint=true;nodes.push({...junction,x:junction.x-.5*scale,id:'branch'});edges.push({id:'branch-edge',a:junction.id,b:'branch'});const graph={nodes,edges,curves:[c]};K.annotateCurveGraph(graph);assert.equal(edges.filter(e=>e.curveId).length,samples.length-1);assert.ok(!junction.curveSample);assert.ok(!authored.curveSample);assert.equal(nodes.filter(n=>!n.curveSample).length,6);const saved=JSON.parse(JSON.stringify(graph));K.annotateCurveGraph(saved);assert.deepEqual(saved,graph);
+});

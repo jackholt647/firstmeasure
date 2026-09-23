@@ -109,3 +109,10 @@ test('planar editing nodes crossings, deduplicates overlaps and keeps stable gra
  const before=JSON.stringify(s);S.nodeLines(b);assert.equal(JSON.stringify(s),before);
  const pair=e=>[e.a,e.b].sort().join('|');assert.equal(new Set(s.edges.map(pair)).size,s.edges.length);
 });
+
+test('rounded spline boundaries restore analytic sketch edges at creation and reload',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry'),p=(x,y)=>({x,y,z:0}),curve={...K.splineThrough([p(0,3),p(2,3)],[p(1,4)],p(0,0)),id:'arch'},face=K.archFaces([{id:'panel',points:[p(0,0),p(2,0),p(2,3),p(0,3)],holes:[]}],curve).faces[0];
+ face.points=face.points.map(p=>({x:Math.round(p.x*1e6)/1e6,y:Math.round(p.y*1e6)/1e6,z:0}));const base={faces:[face]},sketch=S.ensure(base);assert.equal(sketch.curves.length,1);assert.equal(sketch.nodes.length,5);assert.equal(sketch.edges.filter(e=>e.curveId).length,2);assert.ok(sketch.nodes.some(n=>Math.abs(n.y-4)<1e-6));
+ const loaded=JSON.parse(JSON.stringify(base));delete loaded.sketch;const rebuilt=S.ensure(loaded);assert.equal(rebuilt.nodes.length,5);assert.equal(rebuilt.curves[0].controls.length,3);assert.equal(rebuilt.edges.filter(e=>e.curveId).length,2);
+ const corrupt={nodes:rebuilt.nodes,edges:[{...rebuilt.edges.find(e=>e.curveId),curveId:'missing'}],curves:[]};assert.throws(()=>S.curveEdges(corrupt),/analytic definition/);
+});
