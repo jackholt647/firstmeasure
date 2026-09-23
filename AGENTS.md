@@ -46,6 +46,9 @@ source before treating earlier checkout findings as current facts.
 
 Read [publication architecture](docs/architecture/publication-architecture.md)
 before adding cross-app data access, business operations or programmable logic.
+Read [permissions and agents](docs/architecture/permissions-and-agents.md)
+before changing role grants, permission checks, published operation access, or
+agent tools. Preserve FirstMeasure's seven production permission flags.
 Publish typed data through `platform/publication/providers.ts` and business
 actions through `platform/publication/actions.ts`; register adapters during
 shared bootstrap. Reuse domain services and their resource authorization.

@@ -6,6 +6,7 @@
 // do through the UI.
 
 import { env } from "../../src/config/env.js";
+import { hasPermission } from "../../platform/auth.js";
 import { readOrganization, readDocument, listDocuments } from "../../platform/storage.js";
 import {
   createCanonicalActionItem,
@@ -19,7 +20,6 @@ import { emitWorkEvent } from "../../work/engine.js";
 import { listWorkEventDefinitions } from "../../work/events.js";
 import { listEventRecords } from "../../work/storage.js";
 import { createProjectScheduleRequirement } from "../../work/automations/builtins.js";
-import { readWorkConfiguration } from "../../work/config.js";
 import { executeStatsQueries } from "../../stats/metrics.js";
 import { ensureStatsFreshness } from "../../stats/sync.js";
 import { listProjectDocuments, readDocumentInstance } from "../../documents/storage.js";
@@ -27,7 +27,6 @@ import { sendCommunication } from "../../messaging/communications_service.js";
 import { sendCommunicationSchema } from "../../messaging/schemas.js";
 import { ensureProjectChannelRecord, postAgentMessage } from "../../channels/service.js";
 import { channelUserIdForAgent } from "../../agents/participants.js";
-import { listScopeTemplates } from "../../scopes/storage.js";
 import { registerAgent } from "../../agents/registry.js";
 import type { AgentRun, AgentTool } from "../../agents/types.js";
 import {
@@ -138,7 +137,7 @@ function compactDocument(document: JsonObject) {
 const TOOLS: AgentTool[] = [
   {
     name: "get_workspace_context",
-    description: "Read the workspace catalogs: organization and current user, team members (id → name), scope templates (project types/pipelines), org terminology, today's date, and what you are allowed to do. Call this first whenever you need ids, names, or permissions.",
+    description: "Read the current organization, user and date. Use platform_search for authorized records and operations.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     async execute(run) {
       let orgName = "";
@@ -146,40 +145,11 @@ const TOOLS: AgentTool[] = [
         const record = asObject(await readOrganization(run.orgId));
         orgName = cleanText(asObject(record.data).name || record.name);
       } catch {}
-      const users = (await listDocuments(run.orgId, "users").catch(() => []))
-        .map((doc) => {
-          const record = asObject(doc);
-          const data = asObject(record.data);
-          return {
-            id: cleanText(record.id),
-            name: cleanText(data.name || data.full_name || `${cleanText(data.first_name)} ${cleanText(data.last_name)}`),
-            email: cleanText(data.email),
-            role: cleanText(data.role)
-          };
-        })
-        .filter((user) => user.id)
-        .slice(0, 200);
-      const templates = (await listScopeTemplates(run.orgId, run.branchId))
-        .map((template) => ({
-          id: cleanText(asObject(template).id),
-          title: cleanText(asObject(template).title),
-          kind: cleanText(asObject(template).kind)
-        }))
-        .slice(0, 100);
-      const configuration = await readWorkConfiguration(run.orgId, run.branchId).catch(() => null);
       return {
         organization: { id: run.orgId, name: orgName },
         branch_id: run.branchId,
         current_user: { id: run.userId, name: run.userName },
-        today: new Date().toISOString().slice(0, 10),
-        users,
-        scope_templates: templates,
-        terminology: asObject(configuration).terminology ?? {},
-        permissions: {
-          actions: actionsAllowed(run),
-          project_notes: run.scratch.actionsAllowed === true && settings(run).allow_notes,
-          customer_messaging: messagingAllowed(run)
-        }
+        today: new Date().toISOString().slice(0, 10)
       };
     }
   },
@@ -190,10 +160,13 @@ const TOOLS: AgentTool[] = [
     gate: (run) => (dataScope(run).projects || dataScope(run).contacts) ? true : scopeDisabled("projects and contacts"),
     async execute(run, args) {
       const scope = dataScope(run);
-      const types = [scope.projects ? "project" : "", scope.contacts ? "contact" : ""].filter(Boolean).join(",");
+      const allowed = [scope.projects && run.ctx && hasPermission(run.ctx,"view_projects") ? "project" : "", scope.contacts && run.ctx && hasPermission(run.ctx,"view_contacts") ? "contact" : ""].filter(Boolean);
+      const requested = cleanText(args.types).split(",").map(value=>value.trim()).filter(Boolean);
+      const types = (requested.length ? requested.filter(type=>allowed.includes(type)) : allowed).join(",");
+      if (!types) return toolError("No requested search category is available to this user.");
       const result = await searchPlatformProjectsAndContacts(run.orgId, {
         query: cleanText(args.query),
-        types: cleanText(args.types) || types,
+        types,
         limit: Math.min(25, Math.max(1, Number(args.limit || 10)))
       });
       return asObject(result);
@@ -201,6 +174,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "list_projects",
+    permission: "view_projects",
     description: "List projects with compact rows (title, address, customer, lifecycle status, stage). Optional text query and status filter (open, completed, canceled, lost).",
     parameters: { type: "object", properties: { query: { type: "string" }, status: { type: "string" }, limit: { type: "number" } }, required: [], additionalProperties: false },
     gate: (run) => dataScope(run).projects ? true : scopeDisabled("projects"),
@@ -223,6 +197,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "get_project",
+    permission: "view_projects",
     description: "Read one project in full: details, contacts, custom fields, scope instances with current stages, lifecycle, open tasks, documents, schedule events, and recent activity. The workhorse lookup tool.",
     parameters: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"], additionalProperties: false },
     gate: (run) => dataScope(run).projects ? true : scopeDisabled("projects"),
@@ -241,7 +216,7 @@ const TOOLS: AgentTool[] = [
       const tasks = await listCanonicalActionItems(run.orgId, looseCtx(run), { projectId, includeAll: true })
         .then((result) => asArray(asObject(result).items).map((item) => compactTask(asObject(item))))
         .catch(() => []);
-      const documents = scope.documents
+      const documents = scope.documents && run.ctx && hasPermission(run.ctx,"view_documents")
         ? (await listProjectDocuments(run.orgId, projectId).catch(() => [])).map((entry) => compactDocument(asObject(entry))).slice(0, 25)
         : [];
       const activity = scope.activity
@@ -296,6 +271,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "list_tasks",
+    permission: "view_projects",
     description: "List to-dos / action items (optionally for one project, one status, or a due window). Includes follow-ups and workflow tasks.",
     parameters: { type: "object", properties: { project_id: { type: "string" }, status: { type: "string" }, include_completed: { type: "boolean" }, due_before: { type: "string" }, due_after: { type: "string" }, mine_only: { type: "boolean" } }, required: [], additionalProperties: false },
     async execute(run, args) {
@@ -317,6 +293,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "get_schedule",
+    permission: "view_schedule",
     description: "Read calendar events between two dates (YYYY-MM-DD, inclusive).",
     parameters: { type: "object", properties: { from: { type: "string" }, through: { type: "string" } }, required: ["from", "through"], additionalProperties: false },
     gate: (run) => dataScope(run).schedule ? true : scopeDisabled("the schedule"),
@@ -349,6 +326,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "list_activity",
+    permission: "view_projects",
     description: "Read the recent activity/event feed for the org or one project. Optional type_prefix filter (e.g. 'payment.' or 'communication.').",
     parameters: { type: "object", properties: { project_id: { type: "string" }, type_prefix: { type: "string" }, include_system: { type: "boolean" }, limit: { type: "number" } }, required: [], additionalProperties: false },
     gate: (run) => dataScope(run).activity ? true : scopeDisabled("the activity feed"),
@@ -364,6 +342,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "run_stats_queries",
+    permission: "view_stats",
     description: "Run one or more metric-DSL queries against the stats warehouse. Returns rows of {bucket?, group?, group_label?, value, row_count}. Money values are integer cents.",
     parameters: { type: "object", properties: { queries: { type: "string", description: "JSON object mapping names to metric specs." } }, required: ["queries"], additionalProperties: false },
     gate: (run) => dataScope(run).stats ? true : scopeDisabled("stats"),
@@ -380,6 +359,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "read_document",
+    permission: "view_documents",
     description: "Read one document instance (proposal, invoice, contract, report) by id.",
     parameters: { type: "object", properties: { document_id: { type: "string" } }, required: ["document_id"], additionalProperties: false },
     gate: (run) => dataScope(run).documents ? true : scopeDisabled("documents"),

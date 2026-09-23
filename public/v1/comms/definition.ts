@@ -27,6 +27,7 @@ export const COMMS_AGENT_ID = "comms";
 
 const SEND_PERMISSION = "send_comms|send_communications|manage_projects|manage_company_settings";
 const SCHEDULE_PERMISSION = "manage_schedule|manage_projects|manage_company_settings";
+const READ_PERMISSION = "view_comms";
 
 function focusProjectId(run: AgentRun) {
   return cleanText(run.subjectId);
@@ -108,6 +109,8 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "get_comms_feed",
+    permission: READ_PERMISSION,
+    allowSystem: true,
     description: "Read communication history across channels, newest last. Scoped to the focus project when there is one; set all_projects to read the org-wide feed. Optional channel filter: email, sms, webchat.",
     parameters: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number" }, all_projects: { type: "boolean" } }, required: [], additionalProperties: false },
     async execute(run, args) {
@@ -121,6 +124,8 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "search_comms",
+    permission: READ_PERMISSION,
+    allowSystem: true,
     description: "Full-text search this organization's communications. Scoped to the focus project unless all_projects is true.",
     parameters: { type: "object", properties: { query: { type: "string" }, channel: { type: "string" }, all_projects: { type: "boolean" }, limit: { type: "number" } }, required: ["query"], additionalProperties: false },
     async execute(run, args) {
@@ -136,6 +141,8 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "get_email_thread",
+    permission: READ_PERMISSION,
+    allowSystem: true,
     description: "Read one email thread (conversation) in full. project_id is required when the conversation is not focused on one project.",
     parameters: { type: "object", properties: { conversation_id: { type: "string" }, project_id: { type: "string" } }, required: ["conversation_id"], additionalProperties: false },
     async execute(run, args) {

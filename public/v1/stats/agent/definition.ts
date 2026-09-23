@@ -32,8 +32,8 @@ import { buildStatsManifest } from "./manifest.js";
 
 const MAX_RENDERS_PER_TURN = 8;
 
-const READ_PERMISSION = "view_projects|manage_projects|manage_company_settings";
-const WRITE_PERMISSION = "manage_projects|manage_company_settings";
+const READ_PERMISSION = "view_stats";
+const WRITE_PERMISSION = "manage_stats";
 
 // ── Baseline / revert bookkeeping (kept in run.scratch: plain JSON only) ────
 

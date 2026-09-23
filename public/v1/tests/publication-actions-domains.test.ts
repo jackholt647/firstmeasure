@@ -28,18 +28,18 @@ test("media adapter mutates through service; revoked receipt privacy prevents re
   const media=await storage.storeMediaUpload(organizationId,{bytes:Buffer.from("receipt"),fileName:"receipt.txt",contentType:"text/plain",slot:"receipts",metadata:{uploaded_by_user_id:"owner",document_type:"receipt"}});
   const id=String(media.id);
   const ref={action:"media.item.rename",target:{scope:"organization" as const,organizationId,id}};
-  const ctx=context.userPublicationContext(principal("owner"),{mode:"command",executionKind:"module"});
+  const ctx=context.userPublicationContext(principal("owner",{manage_media:true}),{mode:"command",executionKind:"module"});
   const result=await actions.invokeAction(ctx,ref,{name:"renamed.txt"},{idempotencyKey:"rename1"});
   assert.equal((result.value as any).file_name,"renamed.txt");
   assert.equal((await storage.readMediaMetadata(organizationId,id)).file_name,"renamed.txt");
-  const other=context.userPublicationContext(principal("other"),{mode:"command",executionKind:"module"});
+  const other=context.userPublicationContext(principal("other",{manage_media:true}),{mode:"command",executionKind:"module"});
   await assert.rejects(actions.invokeAction(other,ref,{name:"renamed.txt"},{idempotencyKey:"rename1"}),{code:"receipt_media_forbidden"});
   const replay=await actions.invokeAction(ctx,ref,{name:"renamed.txt"},{idempotencyKey:"rename1"});
   assert.equal(replay.receipt.replayed,true);
 });
 test("project context cannot read another project's media even with view permission",async()=>{
   const media=await storage.storeMediaUpload(organizationId,{bytes:Buffer.from("photo"),fileName:"photo.txt",contentType:"text/plain",ownerType:"project",ownerId:"project-b",metadata:{project_id:"project-b"}});
-  const ctx=context.userPublicationContext(principal("reader",{view_projects:true}),{mode:"evaluate",executionKind:"module",projectId:"project-a"});
+  const ctx=context.userPublicationContext(principal("reader",{view_media:true}),{mode:"evaluate",executionKind:"module",projectId:"project-a"});
   await assert.rejects(actions.invokeAction(ctx,{action:"media.item.read",target:{scope:"organization",organizationId,id:String(media.id)}},{}),{code:"publication_project_denied"});
 });
 test("project search all selector invokes real project and contact lookup",async()=>{

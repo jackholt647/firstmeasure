@@ -6,6 +6,7 @@ import { badRequest, forbidden, conflict, notFound } from "../errors.js";
 import type { AccessPolicy, ActionRef, Effect, ExecutionKind, InvocationOptions, JsonSchema, PublicationContext, TargetRef } from "./contracts.js";
 import { authorizePublication } from "./context.js";
 import { contentHash, jsonClone, validateJson } from "./validation.js";
+import { publishedActionPermission } from "./permission-bundles.js";
 
 export type ActionDefinition = {
   id: string; version: string; implementation: string; domain: string; description: string;
@@ -42,6 +43,11 @@ function describe(def: ActionDefinition): ActionDescription {
   return jsonClone({ ...publicFields, policy: publicPolicy });
 }
 export function registerAction(definition: ActionDefinition): void {
+  const bundledPermission = publishedActionPermission(definition.id);
+  if (bundledPermission !== undefined) definition = {
+    ...definition,
+    policy: { ...definition.policy, permissions: bundledPermission ? [bundledPermission] : [] }
+  };
   if (!definition.id || !definition.version || !definition.implementation) throw badRequest("action_identity_required", "An action needs an id, version and implementation identity.");
   if ((definition.effect === "write" || definition.effect === "external") && definition.idempotency === "none") throw badRequest("action_receipt_required", "Mutating actions require an execution receipt strategy.");
   const key = `${definition.id}@${definition.version}`;

@@ -1121,6 +1121,18 @@ export type FactoryPersonaDefinition = {
 // (see persona_templates.ts). Role seeding derives from this data, so a
 // factory template and its seeded system role are always content-identical.
 export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
+  const managerReadPermissions: PermissionMap = Object.fromEntries([
+    "view_contacts", "view_schedule", "view_financials", "view_documents",
+    "view_materials", "view_proposals", "view_stats", "view_websites",
+    "view_pricebook", "view_feedback", "view_canvassing", "view_media",
+    "view_comms", "view_customer_portals", "view_project_data"
+  ].map(key => [key, true]));
+  const managerWritePermissions: PermissionMap = Object.fromEntries([
+    "manage_project_billing", "manage_documents", "issue_documents",
+    "manage_proposals", "send_proposals", "manage_stats", "manage_websites",
+    "request_feedback", "manage_canvassing", "manage_media",
+    "manage_customer_portals", "manage_project_data"
+  ].map(key => [key, true]));
   const adminPermissions: PermissionMap = {
     "*": true,
     order_reports: true,
@@ -1176,7 +1188,7 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
       application_ids: [MANAGEMENT_APPLICATION_ID],
       name: "Viewer",
       description: "Read-only access to the management application.",
-      permissions: { view_reports: true, view_projects: true },
+      permissions: { view_reports: true, view_projects: true, view_contacts: true, view_schedule: true, view_documents: true, view_materials: true, view_proposals: true, view_stats: true, view_pricebook: true, view_feedback: true, view_customer_portals: true, view_project_data: true },
       app_defaults: hiddenFieldAppDefaults(),
       level: 10,
       metadata: {},
@@ -1187,7 +1199,7 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
       application_ids: [MANAGEMENT_APPLICATION_ID],
       name: "Manager",
       description: "Operational management access without company administration.",
-      permissions: { order_reports: true, view_reports: true, view_projects: true, manage_projects: true, manage_schedule: true },
+      permissions: { order_reports: true, view_reports: true, view_projects: true, manage_projects: true, manage_schedule: true, ...managerReadPermissions, ...managerWritePermissions },
       app_defaults: hiddenFieldAppDefaults(),
       level: 20,
       metadata: {},
@@ -1348,7 +1360,7 @@ export async function initializeAccessSchema(orgIdValue?: string) {
   return { schema_version: ACCESS_SCHEMA_VERSION, initialized: true };
 }
 
-const ACCESS_ROLE_PRESET_REVISION = 6;
+const ACCESS_ROLE_PRESET_REVISION = 7;
 
 async function seedDefaultAccessRoles(orgId: string) {
   return (await getWorkforceDatabase().transaction(async () => {

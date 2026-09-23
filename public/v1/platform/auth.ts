@@ -651,10 +651,15 @@ export async function authContextFromRequest(request: FastifyRequest) {
 
 export function hasPermission(ctx: PlatformAuthContext, permission?: string) {
   if (!permission) return true;
-  if (["owner", "admin", "super_admin"].includes(ctx.role)) return true;
+  // FirstMeasure's original seven-permission role behavior remains intact for
+  // accounts outside expanded access. Expanded access uses resolved role grants
+  // and explicit user overrides, including an administrator's denials.
+  if (!ctx.accessProfile && ["owner", "admin", "super_admin"].includes(ctx.role)) return true;
   const permissions = ctx.permissions || {};
-  if (permissions["*"] === true) return true;
-  return String(permission).split("|").some((key) => permissions[key.trim()] === true);
+  return String(permission).split("|").some((key) => {
+    const name = key.trim();
+    return permissions[name] === true || (permissions[name] !== false && permissions["*"] === true);
+  });
 }
 
 /**

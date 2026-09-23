@@ -11,6 +11,7 @@
 // they already live (the editor), while validation stays authoritative here.
 
 import { env } from "../../src/config/env.js";
+import { hasPermission } from "../../platform/auth.js";
 import { registerAgent } from "../../agents/registry.js";
 import { normalizeCommonCore } from "../../agents/settings.js";
 import type { AgentRun, AgentTool } from "../../agents/types.js";
@@ -26,8 +27,8 @@ import { FMDocModel } from "../schemas.js";
 import { workflowDefinitionSchema } from "../workflows/schemas.js";
 import { listWorkflowItemKinds } from "../workflows/kinds.js";
 
-const WRITE_PERMISSION = "manage_projects|manage_company_settings";
-const STUDIO_PERMISSION = "manage_company_settings";
+const WRITE_PERMISSION = "manage_documents|manage_websites";
+const STUDIO_PERMISSION = "manage_documents";
 
 /** Plain-language help per workflow item kind, surfaced to the model. */
 const ITEM_KIND_NOTES: Record<string, string> = {
@@ -137,7 +138,8 @@ const TOOLS: AgentTool[] = [
     permission: WRITE_PERMISSION,
     gate(run) {
       const current = mode(run);
-      if (current === "template" || current === "document" || current === "website") return true;
+      if (current === "website") return run.ctx && hasPermission(run.ctx, "manage_websites") ? true : "Website editing is unavailable to this user.";
+      if (current === "template" || current === "document") return run.ctx && hasPermission(run.ctx, "manage_documents") ? true : "Document editing is unavailable to this user.";
       return "No document, template, or website page is open in the editor right now.";
     },
     execute(run, args) {
@@ -197,6 +199,7 @@ registerAgent({
   title: "Document Designer",
   description: "The document engine copilot: builds and edits workflows, templates, and documents conversationally right inside the editor.",
   capability: "documents.agent",
+  usePermission: "view_documents|view_websites",
   threadScope: "user",
   model: () => ({
     model: env.openaiDocsAgentModel,

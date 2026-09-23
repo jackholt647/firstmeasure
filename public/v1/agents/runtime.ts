@@ -1,5 +1,6 @@
 import { assertAgentWakeupLease } from "./wakeups.js";
 import { invokeAgentAction, agentRuntimeTools } from "../platform/publication/agent-actions.js";
+import { platformAgentTools, platformAgentInstructions } from "./platform_tools.js";
 import { validateJson } from "../platform/publication/validation.js";
 // The shared agent runtime: ONE implementation of the OpenAI Responses tool
 // loop (history replay, function-call parsing, per-tool permission gates,
@@ -13,7 +14,7 @@ import {
   openAIErrorMessage,
   requestOpenAIResponse
 } from "../src/openai/responses.js";
-import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
+import { backgroundAuthContext, hasPermission, type PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, notFound } from "../platform/errors.js";
 import { requireAgentDefinition } from "./registry.js";
 import { loadAgentSettings } from "./settings.js";
@@ -49,7 +50,8 @@ const REPORT_RESULT_TOOL: AgentTool = {
 };
 
 function declaredTools(definition: AgentDefinition, run: AgentRun): AgentTool[] {
-  const tools = typeof definition.tools === "function" ? definition.tools(run) : definition.tools;
+  const local = typeof definition.tools === "function" ? definition.tools(run) : definition.tools;
+  const tools = run.ctx ? [...local, ...platformAgentTools] : local;
   const withReport = definition.loop?.reportResult === false
     ? tools
     : [...tools.filter((tool) => tool.name !== "report_result"), REPORT_RESULT_TOOL];
@@ -66,9 +68,17 @@ function openAIToolDeclarations(tools: AgentTool[]) {
   }));
 }
 
-async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args: JsonObject, invocationKey: string): Promise<JsonObject> {
+async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args: JsonObject, invocationKey: string, usePermission?: string): Promise<JsonObject> {
   const tool = tools.find((entry) => entry.name === name);
   if (!tool) return { error: `Unknown tool '${name}'.` };
+  if (run.ctx) {
+    try {
+      // Recheck the human principal for local editor tools as well as the shared
+      // publication tools. A grant revoked during a model turn cannot linger.
+      run.ctx = await backgroundAuthContext(run.orgId, run.userId);
+    } catch (error) { return { error: errorMessage(error) }; }
+    if (usePermission && !hasPermission(run.ctx, usePermission)) return { error: "This user no longer has access to this agent." };
+  }
   // "The agent acts as the user": permission-gated tools require the calling
   // user to hold the permission, exactly like the equivalent HTTP route.
   if (tool.permission) {
@@ -89,7 +99,7 @@ async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args
   }
   try {
     validateJson(tool.parameters, args, "agent tool input");
-    return asObject(agentRuntimeTools.has(name) ? await tool.execute(run, args) : await invokeAgentAction(run, tool, args, invocationKey));
+    return asObject(agentRuntimeTools.has(name) ? await tool.execute(run, args, invocationKey) : await invokeAgentAction(run, tool, args, invocationKey));
   } catch (error) {
     return { error: errorMessage(error) };
   }
@@ -175,7 +185,7 @@ async function executeLoop(
         outcome.reported = { status: cleanText(args.status) === "failed" ? "failed" : "success", summary: cleanText(args.summary) };
       }
       outcome.toolCalls += 1;
-      const toolOutput = await executeTool(run, tools, name, args, `${actionTurnId}:${cleanText(callObject.call_id) || outcome.toolCalls}`);
+      const toolOutput = await executeTool(run, tools, name, args, `${actionTurnId}:${cleanText(callObject.call_id) || outcome.toolCalls}`, definition.usePermission);
       run.trace.push({
         tool: name,
         args: traceValue(args, 4_000),
@@ -288,7 +298,7 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
   }
 
   const conversation: JsonObject[] = [
-    { role: "system", content: await definition.systemPrompt(run) },
+    { role: "system", content: `${await definition.systemPrompt(run)}${run.ctx ? `\n\n${platformAgentInstructions}` : ""}` },
     ...history
   ];
 
@@ -418,7 +428,7 @@ export async function runAgentOnce(agentId: string, input: AgentOnceInput) {
   const tools = [...declaredTools(definition, run), ...(input.extraTools ?? [])];
   const loop = definition.loop ?? {};
   const conversation: JsonObject[] = [
-    { role: "system", content: await definition.systemPrompt(run) },
+    { role: "system", content: `${await definition.systemPrompt(run)}${run.ctx ? `\n\n${platformAgentInstructions}` : ""}` },
     ...input.messages.map((message) => ({ role: cleanText(message.role) || "user", content: String(message.content ?? "") }))
   ];
 

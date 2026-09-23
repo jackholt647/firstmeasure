@@ -9,7 +9,7 @@ import { backendImplementationDigest } from "./implementation.js";
 
 const invocations = new WeakMap<PublicationContext, { run: AgentRun; tool: AgentTool }>();
 /** Runtime facilities are deliberately absent from the business action inventory. */
-export const agentRuntimeTools = new Set(["report_result", "render_widget", "suggest_navigation"]);
+export const agentRuntimeTools = new Set(["report_result", "render_widget", "suggest_navigation", "platform_search", "platform_describe", "platform_read", "platform_list", "platform_invoke", "platform_resolve_binding"]);
 export async function invokeAgentAction(run: AgentRun, tool: AgentTool, args: Record<string, unknown>, idempotencyKey: string) {
   const id = `agent.${run.agentId}.${tool.name}`;
   const implementation = contentHash({ artifact: backendImplementationDigest(), handler: tool.execute.toString(), gate: tool.gate?.toString() || "", permission: tool.permission || "", allowSystem: tool.allowSystem === true });

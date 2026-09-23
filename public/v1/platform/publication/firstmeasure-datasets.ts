@@ -82,7 +82,7 @@ export async function publishCompletedFirstMeasureDataset(manifest:ProjectManife
 }
 export async function importProjectFirstMeasure(ctx:PublicationContext,projectId:string){
  const target={scope:"project" as const,organizationId:ctx.organizationId,projectId};
- await authorizePublication(ctx,target,{scopes:["project"],permissions:["manage_projects"],systemKinds:["work","module"]},"firstmeasure.measurements.import");
+ await authorizePublication(ctx,target,{scopes:["project"],permissions:["manage_project_data"],systemKinds:["work","module"]},"firstmeasure.measurements.import");
  if(ctx.mode!=="command")throw forbidden("measurement_import_mode","Measurement import requires command execution.");
  const project=await readDocument(ctx.organizationId,"projects",projectId);const reportId=linkedReport(obj(project.data));
  if(!reportId)throw badRequest("measurement_report_unlinked","The project has no linked measurement report.");

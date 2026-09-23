@@ -1939,7 +1939,48 @@ const definitions: CapabilityDefinition[] = [
     audience: ["field"],
     label: "View Team Sales Stats",
     description: "See the team leaderboard across salespeople."
-  }
+  },
+  // Business permissions group published data and actions. These are separate
+  // from the seven FirstMeasure permissions retained for existing accounts.
+  ...([
+    ["view_contacts", "apps.projects", "read", "View Contacts", "Read customer and contact records."],
+    ["view_schedule", "platform.scheduling", "read", "View Schedule", "Read project calendars and availability."],
+    ["view_financials", "platform.money", "read", "View Financials", "Read project finances and the organization ledger."],
+    ["manage_project_billing", "platform.money", "write", "Manage Project Billing", "Create and update project invoices and payments."],
+    ["refund_payments", "platform.money", "write", "Refund Payments", "Issue customer payment refunds."],
+    ["view_documents", "platform.documents", "read", "View Documents", "Read project documents and published document values."],
+    ["manage_documents", "platform.documents", "write", "Manage Documents", "Edit document workflows and generated documents."],
+    ["issue_documents", "platform.documents", "write", "Issue Documents", "Issue documents to customers."],
+    ["view_materials", "platform.materials", "read", "View Materials", "Read project material lists and orders."],
+    ["view_proposals", "platform.proposals", "read", "View Proposals", "Read project proposals."],
+    ["manage_proposals", "platform.proposals", "write", "Manage Proposals", "Create and edit project proposals."],
+    ["send_proposals", "platform.proposals", "write", "Send Proposals", "Send proposals to customers."],
+    ["view_stats", "apps.stats", "read", "View Statistics", "Query statistics and read dashboards."],
+    ["manage_stats", "apps.stats", "write", "Manage Statistics", "Refresh statistics and edit dashboards."],
+    ["view_websites", "apps.web_editor", "read", "View Websites", "Read company website designs."],
+    ["manage_websites", "apps.web_editor", "write", "Manage Websites", "Edit and discard website drafts."],
+    ["publish_websites", "apps.web_editor", "write", "Publish Websites", "Publish website pages."],
+    ["view_pricebook", "platform.pricebook", "read", "View Price Book", "Read published price book items and calculations."],
+    ["view_feedback", "apps.feedback", "read", "View Feedback", "Read customer feedback status."],
+    ["request_feedback", "apps.feedback", "write", "Request Feedback", "Send customer feedback requests."],
+    ["view_canvassing", "canvassing.app", "read", "View Canvassing", "Read canvassing pins."],
+    ["manage_canvassing", "canvassing.app", "write", "Manage Canvassing", "Create and edit canvassing pins."],
+    ["view_media", "platform.photos_feed", "read", "View Media", "Read permitted media metadata."],
+    ["manage_media", "platform.photos_feed", "write", "Manage Media", "Rename permitted project media."],
+    ["view_customer_portals", "platform.customer_portal", "read", "View Customer Portals", "Read customer portal metadata."],
+    ["manage_customer_portals", "platform.customer_portal", "write", "Manage Customer Portals", "Create and configure customer portals."],
+    ["view_project_data", "apps.projects", "read", "View Project Data", "Read published project datasets."],
+    ["manage_project_data", "apps.projects", "write", "Manage Project Data", "Save and select project datasets."],
+    ["manage_training", "apps.training", "write", "Manage Training", "Manage training assignments and course progress."]
+  ] as const).map(([permission_key, parent, access, label, description]) => ({
+    key: `permission.${permission_key}`,
+    kind: "permission" as const,
+    parent,
+    permission_key,
+    access,
+    label,
+    description
+  }))
 ];
 registerCapabilities(definitions);
 

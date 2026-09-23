@@ -2,6 +2,7 @@ import type { AccessPolicy, DataResult, JsonSchema, PublicationContext, SourceRe
 import { authorizePublication } from "./context.js";
 import { badRequest, PlatformError } from "../errors.js";
 import { contentHash, jsonClone, readPointer, validateJson } from "./validation.js";
+import { publishedDataPermission } from "./permission-bundles.js";
 
 export type ProviderValue = { value: unknown; revision?: string; provenance?: Record<string, unknown> } | Exclude<DataResult, {status:"ready"}>;
 export type DataExport = {
@@ -16,6 +17,10 @@ export type DataExport = {
 export type DataProvider = { id:string; version:string; apps: string[]; exports:Record<string,DataExport> };
 const registry = new Map<string,DataProvider>();
 export function registerDataProvider(provider:DataProvider):void {
+  provider={...provider,exports:Object.fromEntries(Object.entries(provider.exports).map(([name,entry])=>{
+    const permission=publishedDataPermission(`${provider.id}.${name}`);
+    return [name,permission===undefined?entry:{...entry,access:{...entry.access,permissions:permission?[permission]:[]}}];
+  }))};
   if (!/^[a-z][a-z0-9_.-]*$/.test(provider.id) || !provider.version || !Object.keys(provider.exports).length) throw badRequest("provider_invalid","Provider identity and exports are required.");
   const key = `${provider.id}@${provider.version}`;
   if (registry.has(key)) throw badRequest("provider_duplicate","Provider version already registered.");

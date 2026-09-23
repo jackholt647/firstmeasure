@@ -63,7 +63,7 @@ export type AgentTool = {
    * customer-readable refusal string the model relays.
    */
   gate?: (run: AgentRun) => true | string;
-  execute: (run: AgentRun, args: JsonObject) => Promise<AgentToolResult> | AgentToolResult;
+  execute: (run: AgentRun, args: JsonObject, invocationKey?: string) => Promise<AgentToolResult> | AgentToolResult;
 };
 
 export type AgentModelConfig = {

@@ -4,6 +4,8 @@ This is the implementation guide for the shared publication architecture. The
 [conversation decisions](data-actions-continuity.md) explain the intent. The
 [data guide](data-publication.md) and [action guide](action-publication.md)
 describe individual adapters and migration limits.
+For business permission bundles, roles, FirstMeasure compatibility and the
+shared agent tools, see [permissions and agents](permissions-and-agents.md).
 
 ## Ownership
 

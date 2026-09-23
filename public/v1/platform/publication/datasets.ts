@@ -13,8 +13,8 @@ const types=new Map<string,DatasetType>();
 export function registerDatasetType(type:DatasetType){const key=`${type.id}@${type.version}`;if(types.has(key))throw badRequest("dataset_type_duplicate","Dataset type already registered.");types.set(key,type);}
 export function listDatasetTypes(){return [...types.values()].map(jsonCloneType);}
 function jsonCloneType(t:DatasetType){return jsonClone(t);}
-const readAccess={scopes:["project"] as const,permissions:["view_projects"],systemKinds:["work","module","agent"] as const};
-const writeAccess={scopes:["project"] as const,permissions:["manage_projects"],systemKinds:["work","module"] as const};
+const readAccess={scopes:["project"] as const,permissions:["view_project_data"],systemKinds:["work","module","agent"] as const};
+const writeAccess={scopes:["project"] as const,permissions:["manage_project_data"],systemKinds:["work","module"] as const};
 type Revision={revision:string;value:unknown;provenance:Obj;createdAt:string;overrides:Obj};
 type Dataset={id:string;projectId:string;name:string;type:string;schemaVersion:string;role:string;head:string;history:Revision[];valueSchema?:JsonSchema};
 function obj(v:unknown):Obj{return v&&typeof v==="object"&&!Array.isArray(v)?v as Obj:{};}

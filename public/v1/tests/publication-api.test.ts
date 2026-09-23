@@ -33,6 +33,11 @@ test("publication API shares auth, CSRF, typed dataset actions and project isola
   const csrf = decodeURIComponent(cookies.find(s => s.startsWith("fm_platform_session_csrf="))!.split("=")[1]!);
   const orgId = response.json().organization.id;
   await enableExpandedPlatformFixture(orgId);
+  const {resolveAccessProfile}=await import("../workforce/access.js");
+  const legacyKeys=["order_reports","view_reports","manage_billing","manage_company_settings","manage_report_settings","manage_company_users","manage_company_user_permissions"];
+  const legacyItems=Object.fromEntries(legacyKeys.map((key,index)=>[key,index%2===0]));
+  const migrated=await resolveAccessProfile(orgId,{id:"legacy-viewer",org_permissions:{level:"custom",items:legacyItems}});
+  for(const key of legacyKeys) assert.equal(migrated.effective_permissions[key],legacyItems[key],`legacy permission ${key}`);
   const storage = await import("../platform/storage.js");
   await storage.upsertDocument(orgId, "projects", { id: "project", data: { name: "Move" } });
   const headers = { cookie: cookies.join("; "), "x-platform-csrf": csrf };
@@ -60,6 +65,24 @@ test("publication API shares auth, CSRF, typed dataset actions and project isola
   const {saveScopeTemplate}=await import("../scopes/storage.js");
   const {executeScopeCode}=await import("../work/automations/code.js");
   const owner=(await storage.listDocuments(orgId,"users"))[0]!;
+  const {backgroundAuthContext}=await import("../platform/auth.js");
+  const {platformAgentTools}=await import("../agents/platform_tools.js");
+  const agentRun={agentId:"stats",orgId,branchId:"default",userId:owner.id,ctx:await backgroundAuthContext(orgId,owner.id),settings:{},scratch:{}} as any;
+  const agentTool=(name:string)=>platformAgentTools.find(tool=>tool.name===name)!;
+  const found=await agentTool("platform_search").execute(agentRun,{query:"datasets.save",kind:"action"});
+  assert.ok((found as any).matches.some((item:any)=>item.id==="datasets.save"));
+  const described=await agentTool("platform_describe").execute(agentRun,{kind:"action",id:"datasets.save"});
+  assert.equal((described as any).available,true);
+  assert.equal(Object.hasOwn(described as any,"policy"),false);
+  const agentRead=await agentTool("platform_read").execute(agentRun,{source});
+  assert.equal((agentRead as any).status,"ready");
+  const agentWrite=await agentTool("platform_invoke").execute(agentRun,{action:"datasets.save",target,input:{name:"Agent dataset",type:"inventory",schemaVersion:"1",value:{items:[]}}},"agent-dataset-create");
+  assert.equal((agentWrite as any).receipt.status,"succeeded");
+  await storage.upsertDocument(orgId,"users",{id:owner.id,data:{permission_overrides:{manage_project_data:false}}});
+  const hidden=await agentTool("platform_search").execute(agentRun,{query:"datasets.save",kind:"action"});
+  assert.equal((hidden as any).matches.length,0);
+  await assert.rejects(async()=>agentTool("platform_invoke").execute(agentRun,{action:"datasets.save",target,input:{name:"Denied dataset",type:"inventory",schemaVersion:"1",value:{items:[]}}},"agent-denied"),/not permitted/);
+  await storage.upsertDocument(orgId,"users",{id:owner.id,data:{permission_overrides:{}}});
   const program={id:"calculate",source:"const value=await api.data.read('inventory');return {outputs:{count:value.items.length}};",mode:"evaluate",inputs:{},inputSchema:{type:"object"},outputSchema:{type:"object"},bindings:{inventory:{kind:"data",policy:"live",source:{...source,target:{...source.target,organizationId:"$organization",projectId:"$project"}}}}};
   const template=await saveScopeTemplate(orgId,"default",{id:"coded",name:"Coded scope",metadata:{publication_author_id:"attacker"},work_plan:{root_nodes:[{id:"root",title:"Root"}],automation_bindings:{onStarted:[{automation:"scope.code.run.v1",input:program}]}}},{publicationAuthorId:owner.id});
   assert.equal((template.definition as any).metadata.publication_author_id,owner.id);
@@ -70,6 +93,7 @@ test("publication API shares auth, CSRF, typed dataset actions and project isola
   const identity=await storage.readIdentity(identityId);
   await storage.patchIdentity(identityId,{memberships:[]});
   await assert.rejects(executeScopeCode(context,program),/no longer belongs/);
+  await assert.rejects(async()=>agentTool("platform_invoke").execute(agentRun,{action:"datasets.save",target,input:{name:"Revoked dataset",type:"inventory",schemaVersion:"1",value:{items:[]}}},"agent-revoked"),/no longer belongs/);
   await storage.patchIdentity(identityId,{memberships:identity.memberships});
 
 });
