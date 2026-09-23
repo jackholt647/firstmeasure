@@ -166,7 +166,31 @@ function groupedStickers(faces){
   }
  }return result;
 }
-const api={divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+// AI boxes use a complete upright face, not its foreshortened screen bounds.
+function percentageFrame(face,screen){
+ if(face.curvedSurface)throw Error('Curved faces support counts only.');
+ const f=frame(face.points),K=kernel();
+ if(face.points.some(p=>Math.abs(K.local(f,p).z)>.002))throw Error('Nonplanar faces support counts only.');
+ const center=face.points.reduce((a,p)=>({x:a.x+p.x/face.points.length,y:a.y+p.y/face.points.length,z:a.z+p.z/face.points.length}),{x:0,y:0,z:0});
+ const a=screen(center),b=screen({x:center.x+f.u.x,y:center.y+f.u.y,z:center.z+f.u.z});
+ if(![a.x,a.y,b.x,b.y].every(Number.isFinite)||Math.abs(b.x-a.x)<1e-7)throw Error('Face is too edge-on for placement.');
+ if(b.x<a.x)f.u={x:-f.u.x,y:-f.u.y,z:-f.u.z};
+ const bounds=api.bounds(face.points.map(p=>W.inFrame(f,p)));
+ if(bounds.right-bounds.left<.01||bounds.top-bounds.bottom<.01)throw Error('Face is too small for placement.');
+ return {...f,bounds};
+}
+function percentageSticker(face,f,box){
+ if(!['window','door','garage'].includes(box.type))throw Error('Unknown sticker type.');
+ if(!['x','y','width','height'].every(k=>Number.isFinite(box[k]))||box.x<0||box.y<0||box.width<=0||box.height<=0||box.x+box.width>100.000001||box.y+box.height>100.000001)throw Error('Invalid percentage rectangle.');
+ const b=f.bounds,w=b.right-b.left,h=b.top-b.bottom,left=b.left+box.x*w/100,top=b.top-box.y*h/100;
+ const local=shape({left,right:left+box.width*w/100,top,bottom:top-box.height*h/100});
+ validate(local,[face.points.map(p=>W.inFrame(f,p))],(face.holes||[]).map(r=>({points:r.map(p=>W.inFrame(f,p))})));
+ let points=local.map(p=>W.fromFrame(f,p));
+ // Screen-left can reverse U. Preserve the host winding for rendering/picking.
+ if(dot(W.normal(points),W.normal(face.points))<0)points.reverse();
+ return {points,feature:{type:box.type,preset:null,shape:'rectangle',axis:{...f.u}}};
+}
+const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 

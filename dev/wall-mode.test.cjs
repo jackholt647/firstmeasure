@@ -689,3 +689,19 @@ test('held arrow repeats coalesce geometry work and flush before undo and pickin
 test('Exit plane button invokes plane exit while rotation retains Escape cancellation',()=>{
  const source=fs.readFileSync('public/measure/internal/editor_scripts/wall_mode.js','utf8'),assignment=source.match(/cancelButton\.onclick=[^;]+;/)[0];let active=true,rotating=false,exits=0,cancels=0;const ctx={cancelButton:{},wallEditor:{planeActive:()=>active,planeView:()=>({rotating}),togglePlane(){active=false;exits++;},keyDown(e){assert.equal(e.key,'Escape');cancels++;}},cancelInteraction(){cancels++;}};vm.runInNewContext(assignment,ctx);ctx.cancelButton.onclick();assert.equal(active,false);assert.equal(exits,1);active=true;rotating=true;ctx.cancelButton.onclick();assert.equal(cancels,1);assert.equal(exits,1);
 });
+
+test('AI percentage placements become persistent typed geometry in one undoable edit',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');
+ const face={id:'test-front',points:[{x:0,y:0,z:0},{x:10,y:0,z:0},{x:10,y:0,z:5},{x:0,y:0,z:5}]};
+ const f=fixture(true,{FIRSTMEASURE_EXTERIOR_AI:true,WallFeatures:{...F,mountUI(){}},WallSolidGeometry:W,ExteriorGeometry:require('../public/measure/internal/editor_scripts/exterior_geometry.js'),ExteriorModel:{collect:state=>[face,...(state.wallEdits?.$surfaces||[])]},createWallEditor:()=>({clear(){},leave(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false})});
+ f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const saved=f.ctx.WallMode.aiStickerScene().faces[0],record={id:'test-run',project:'fixture',faces:[{...saved,number:1,placementFrame:F.percentageFrame(face,p=>({x:p.x,y:-p.z}))}],rows:[{face:1,placements:[{type:'window',x:10,y:20,width:20,height:30},{type:'garage',x:40,y:40,width:30,height:60}]}]};
+ const result=f.ctx.WallMode.applyAIPlacements(record);assert.equal(result.placed,2);assert.equal(result.skipped.length,0);
+ const surfaces=()=>f.ctx.WallMode.serialize().wallEdits?.$surfaces||[];
+ assert.deepEqual(Array.from(surfaces(),f=>f.feature.type),['window','garage']);assert.ok(surfaces().every(f=>f.feature.aiRunId==='test-run'));
+ assert.equal(f.ctx.WallMode.applyAIPlacements(record).placed,0,'rerunning cannot overlap existing stickers');assert.equal(surfaces().length,2);
+ f.flushTimers();const key=(key,extra={})=>f.listeners['window:keydown']({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){},...extra});key('z',{ctrlKey:true});assert.equal(surfaces().length,0);key('z',{ctrlKey:true,shiftKey:true});assert.equal(surfaces().length,2);
+ face.points[0].z=.1;assert.equal(f.ctx.WallMode.applyAIPlacements(record).placed,0);assert.equal(surfaces().length,2);
+ assert.throws(()=>f.ctx.WallMode.applyAIPlacements({...record,project:'different'}),/project/);
+});
+

@@ -83,3 +83,25 @@ test('different sized windows snap center to center independently of trim',()=>{
  const points=F.place(p(local.x+.04,local.y+.06),{w:3,h:4},[boundary,[{...local,alignmentCenter:true,alignmentAxes:['x','y']}]],p=>({x:p.x*100,y:p.y*100}),12,[{points:boundary}]),b=F.bounds(points);
  assert.ok(Math.abs((b.left+b.right)/2-local.x)<1e-8);assert.ok(Math.abs((b.bottom+b.top)/2-local.y)<1e-8);
 });
+
+test('percentage stickers use upright full-face dimensions and screen-left for both windings',()=>{
+ for(const reverse of [false,true])for(const side of [-1,1]){
+  const face={points:[p(0,0,0),p(8,6,0),p(8,6,5),p(0,0,5)]};if(reverse)face.points.reverse();
+  const screen=p=>({x:side*(p.x*.8+p.y*.6),y:-p.z}),frame=F.percentageFrame(face,screen);
+  const result=F.percentageSticker(face,frame,{type:'window',x:20,y:10,width:30,height:40});
+  const local=result.points.map(p=>W.inFrame(frame,p)),b=F.bounds(local),base=frame.bounds;
+  assert.ok(Math.abs(b.left-(base.left+2))<1e-8);assert.ok(Math.abs(b.top-(base.top-.5))<1e-8);
+  assert.ok(Math.abs((b.right-b.left)-3)<1e-8);assert.ok(Math.abs((b.top-b.bottom)-2)<1e-8);
+  assert.ok(result.points.every(p=>Math.abs(p.z-2.5)<1e-8||Math.abs(p.z-4.5)<1e-8));
+  assert.equal(result.feature.type,'window');assert.equal(result.feature.preset,null);
+ }
+});
+test('percentage placement rejects holes, concave overflow, curved faces and invalid boxes',()=>{
+ const face={points:[p(0,0,0),p(10,0,0),p(10,0,5),p(0,0,5)],holes:[[p(4,0,1),p(6,0,1),p(6,0,4),p(4,0,4)]]},screen=p=>({x:p.x,y:-p.z}),frame=F.percentageFrame(face,screen);
+ assert.throws(()=>F.percentageSticker(face,frame,{type:'window',x:40,y:30,width:20,height:20}),/overlap/);
+ assert.throws(()=>F.percentageSticker(face,frame,{type:'window',x:90,y:10,width:20,height:20}),/percentage/);
+ assert.throws(()=>F.percentageFrame({...face,curvedSurface:{logical:true}},screen),/Curved/);
+ const gable={points:[p(0,0,0),p(10,0,0),p(5,0,5)]},g=F.percentageFrame(gable,screen);
+ assert.throws(()=>F.percentageSticker(gable,g,{type:'window',x:0,y:0,width:20,height:20}),/beyond/);
+ const door=F.percentageSticker({...face,holes:[]},frame,{type:'door',x:10,y:40,width:20,height:60});assert.equal(Math.min(...door.points.map(p=>p.z)),0);
+});

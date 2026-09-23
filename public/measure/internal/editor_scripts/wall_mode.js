@@ -877,6 +877,31 @@ function perf_render3DFrame() {
         wallEditor?.restoreSelection({selected,indices:[],draft:ref?{selectedSolid:ref.solid||null,selectedRegion:ref.solid?null:ref,faceSelection:[ref],activeDraftKey:ref.draft||null,preferredDraft:ref.draft||null,preferredRegion:ref.face||null,preferredSolid:ref.solid||null}:{}});
         render();flushSelectionHistory();
     }
-    window.WallMode={aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    function applyAIPlacements(record){
+        if(window.FIRSTMEASURE_EXTERIOR_AI!==true||!enabled||String(record.project)!==String(currentId()))throw Error('Open this experiment’s project before applying placements.');
+        const source=aiStickerScene(),F=window.WallFeatures,W=window.WallSolidGeometry;
+        const current=new Map(source.faces.map(f=>[f.id,f])),captured=new Map(record.faces.map(f=>[f.number,f]));
+        const existing=window.ExteriorModel.collect(state,currentWalls()).filter(f=>f.feature&&!f.deleted),added=[],skipped=[];
+        for(const row of record.rows){
+            const saved=captured.get(row.face),face=saved&&current.get(saved.id);
+            if(!row.placements?.length)continue;
+            if(!face||face.signature!==saved.signature){skipped.push({face:row.face,message:'Face changed since capture; run again.'});continue;}
+            if(!saved.placementFrame){skipped.push({face:row.face,message:saved.placementError||'No placement frame.'});continue;}
+            for(const [index,box]of row.placements.entries())try{
+                const sticker=F.percentageSticker(face,saved.placementFrame,box),frame=saved.placementFrame;
+                const other=[...existing,...added].filter(f=>f.points.every(p=>Math.abs(W.inFrame(frame,p).z)<.002)).map(f=>({points:f.points.map(p=>W.inFrame(frame,p))}));
+                F.validate(sticker.points.map(p=>W.inFrame(frame,p)),[face.points.map(p=>W.inFrame(frame,p))],other);
+                added.push({...sticker,id:'ai-'+record.id+'-'+row.face+'-'+index,feature:{...sticker.feature,aiRunId:record.id,aiFace:face.id,percentages:{...box}}});
+            }catch(e){skipped.push({face:row.face,opening:index+1,message:e.message});}
+        }
+        if(added.length){
+            flushSelectionHistory();recordEdit({wallEdits:state.wallEdits||{}});
+            state.wallEdits||={};state.wallEdits.$surfaces||=[];state.wallEdits.$surfaces.push(...added);
+            state.displayMode='opaque';state.translucent=false;wallsVisible=true;editingLayer='walls';
+            finishEdit();persist();render();
+        }
+        return {placed:added.length,ids:added.map(f=>f.id),skipped};
+    }
+    window.WallMode={applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();
