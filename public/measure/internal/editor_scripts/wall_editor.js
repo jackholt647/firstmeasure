@@ -6,7 +6,7 @@
 // Apply one display policy to every exterior layer, including depth-only cues.
 // Markers draw as whole overlays only when their anchor is visible. Cache camera/surface state so idle frames do not repeat ray tests.
 const wallPointOcclusionScenes=new WeakMap();
-const wallOverlayBiasPixels=4;
+const wallPointBiasPixels=4,wallLineBiasPixels=10;
 function wallOcclusionFrame(renderer,scene,camera){
  let frame=wallPointOcclusionScenes.get(scene);
   if(!frame||frame.frame!==renderer.info.render.frame||frame.camera!==camera){
@@ -46,7 +46,7 @@ window.wallPointOcclusion=function(object,enabled){
    // Test the actual point, not the square's corners: a hidden anchor must
    // not leak through a wall just because its marker overlaps a silhouette.
    const view=p.clone().applyMatrix4(camera.matrixWorldInverse),pixelDepth=2*(camera.isPerspectiveCamera?Math.abs(view.z):1)/(camera.projectionMatrix.elements[5]*Math.max(1,size.y));
-   const epsilon=Math.max(Math.max(1,p.length(),Math.abs(view.z))*2e-6,pixelDepth*wallOverlayBiasPixels);
+   const epsilon=Math.max(Math.max(1,p.length(),Math.abs(view.z))*2e-6,pixelDepth*wallPointBiasPixels);
    ray.setFromCamera(sample.set(projected.x,projected.y),camera);
    const forward=new THREE.Vector3(0,0,-1).transformDirection(camera.matrixWorld);
    ray.far=Math.max(0,p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-epsilon/Math.max(.001,ray.ray.direction.dot(forward)));
@@ -75,7 +75,7 @@ window.wallLabelOcclusion=function(object,enabled){
   this.material.opacity=visible?opacity:0;
  };
 };
-// Move drafting wire four CSS pixels toward the camera in depth only. Keep its
+// Move drafting wire ten CSS pixels toward the camera in depth only. Keep its
 // projected position and real geometry unchanged, and retain wall occlusion.
 window.wallLineDepthBias=function(object,enabled){
  const material=object.material;material.userData||={};
@@ -94,7 +94,7 @@ window.wallLineDepthBias=function(object,enabled){
   };
   material.customProgramCacheKey=()=>cacheKey+'|wall-line-depth-v2';material.needsUpdate=true;
  }
- state.pixels.value=enabled?wallOverlayBiasPixels:0;
+ state.pixels.value=enabled?wallLineBiasPixels:0;
  if(object.userData.wallLineDepthInstalled)return;object.userData.wallLineDepthInstalled=true;
  const previous=object.onBeforeRender;
  object.onBeforeRender=function(renderer,...args){previous?.call(this,renderer,...args);state.height.value=Math.max(1,renderer.domElement.getBoundingClientRect().height);};

@@ -68,7 +68,7 @@ test('dimension labels never regain wall depth clipping when display mode change
 
 test('selected stickers win coplanar depth ties and textured selection outlines remain visible',()=>{
  const ctx=fixture(),feature={isMesh:true,userData:{exteriorFeature:true,exteriorSelected:true},material:{opacity:.5,transparent:true,depthWrite:false}},outline={isLine:true,visible:true,userData:{exteriorSelection:true},material:{depthTest:false,depthWrite:false}};
- for(const mode of ['opaque','textured']){ctx.exteriorSurfaceDisplay({traverse:fn=>[feature,outline].forEach(fn)},mode);assert.equal(feature.renderOrder,2);assert.equal(feature.material.depthTest,true);assert.equal(feature.material.polygonOffsetFactor,-4);assert.equal(outline.material.depthTest,true);assert.equal(outline.material.depthWrite,false);assert.equal(outline.material.userData.wallLineDepthBias.pixels.value,4);}
+ for(const mode of ['opaque','textured']){ctx.exteriorSurfaceDisplay({traverse:fn=>[feature,outline].forEach(fn)},mode);assert.equal(feature.renderOrder,2);assert.equal(feature.material.depthTest,true);assert.equal(feature.material.polygonOffsetFactor,-4);assert.equal(outline.material.depthTest,true);assert.equal(outline.material.depthWrite,false);assert.equal(outline.material.userData.wallLineDepthBias.pixels.value,10);}
  feature.userData.exteriorSelected=false;ctx.exteriorSurfaceDisplay({traverse:fn=>fn(feature)},'opaque');assert.equal(feature.renderOrder,1);assert.equal(feature.material.polygonOffsetFactor,-1);
 });
 
