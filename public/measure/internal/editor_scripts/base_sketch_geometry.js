@@ -59,9 +59,9 @@ function compactCurves(s){
  const used=new Set(s.edges.flatMap(e=>[e.a,e.b]));s.nodes=s.nodes.filter(n=>used.has(n.id)||!n.curveSample&&!derived.has(n.id)||n.userDraftPoint||n.curveCenter);return s;
 }
 function addCurve(base,curve){
- const s=ensure(base),samples=K.curveSamples(curve);if(samples.some(p=>!inside(s,p,base)))throw Error('Keep the curve inside the face.');const id='curve-'+(++s.next),a=add(base,samples[0],K.GRID),b=add(base,samples.at(-1),K.GRID);
+ const s=ensure(base),samples=K.curveSamples(curve);if(samples.some(p=>![p.x,p.y,p.z].every(Number.isFinite)))throw Error('Curve coordinates must be finite.');const id='curve-'+(++s.next),a=add(base,samples[0],K.GRID),b=add(base,samples.at(-1),K.GRID);
  let centerId;if(curve.center){let center=s.nodes.find(n=>Math.hypot(n.x-curve.center.x,n.y-curve.center.y,n.z-curve.center.z)<=K.CONTACT);if(!center){center={...copy(curve.center),id:'p'+(++s.next),fixed:false};s.nodes.push(center);}center.curveCenter=true;centerId=center.id;}
- s.curves||=[];s.curves.push({...copy(curve),id,...(centerId?{centerId}:{})});s.edges.push({id:'e'+(++s.next),a,b,fixed:false,curveId:id,curveRange:[0,1]});resolve(base);return b;
+ s.curves||=[];s.curves.push({...copy(curve),id,...(centerId?{centerId}:{})});s.edges.push({id:'e'+(++s.next),a,b,fixed:false,userConnection:true,curveId:id,curveRange:[0,1]});resolve(base);return b;
 }
 function remove(base,pointIds,lineIds){
  const s=ensure(base),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&!n.fixed).map(n=>n.id));
@@ -72,7 +72,7 @@ function remove(base,pointIds,lineIds){
 // Evaluated face loops are rebuilt from those definitions by resolve().
 function updateCurves(base,curves,moves=[]){
  const s=ensure(base),byId=new Map(curves.map(c=>[c.id,c]));
- for(const c of curves)if(K.curveSamples(c).some(p=>!inside(s,p,base)))throw Error('Keep the curve inside the face.');
+ for(const c of curves)if(K.curveSamples(c).some(p=>![p.x,p.y,p.z].every(Number.isFinite)))throw Error('Curve coordinates must be finite.');
  for(const n of s.nodes){const p=moves.find(m=>m.id===n.id)?.point;if(p)Object.assign(n,p);}
  s.curves=(s.curves||[]).map(c=>byId.get(c.id)||c);
  for(const c of curves){
@@ -95,7 +95,7 @@ function move(base,ids,delta){
    // endpoint, and preserves a smooth curve without promoting any samples.
    if(l2>K.CONTACT*K.CONTACT)map=p=>{const t=((p.x-fixed.x)*v.x+(p.y-fixed.y)*v.y+(p.z-fixed.z)*v.z)/l2;return {x:p.x+(delta.x||0)*t,y:p.y+(delta.y||0)*t,z:p.z+(delta.z||0)*t};};
   }
-  const next=K.mapCurve(c,map);if(K.curveSamples(next).some(p=>!inside(s,p,base)))throw Error('Keep the curve inside the face.');curves.push(next);
+  const next=K.mapCurve(c,map);if(K.curveSamples(next).some(p=>![p.x,p.y,p.z].every(Number.isFinite)))throw Error('Curve coordinates must be finite.');curves.push(next);
  }
  updateCurves(base,curves,movable.map(n=>({id:n.id,point:{...translated(n),...(delta.z?{manualZ:true}:{})}})));
 }

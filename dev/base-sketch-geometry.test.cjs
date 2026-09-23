@@ -89,3 +89,12 @@ test('base follows moved wall bottoms beyond its old outline and keeps exterior 
  assert.ok(result.sketch.edges.some(e=>e.userConnection&&[e.a,e.b].includes(a)));
  assert.ok(result.sketch.nodes.some(n=>n.id===c&&n.x===15));
 });
+
+
+test('analytic curves cross the base boundary and survive rebinding without clipping',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),b=base();
+ const c={type:'ellipse',center:{x:10,y:5,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},radiusX:3,radiusY:2,sweep:Math.PI};
+ S.addCurve(b,c);S.rebind(b,b);const saved=JSON.parse(JSON.stringify(b));S.rebind(saved,saved);
+ assert.equal(saved.sketch.curves.length,1);const curve=saved.sketch.curves[0];assert.equal(curve.sweep,Math.PI);
+ const segments=S.curveEdges(saved.sketch).filter(e=>e.curveId);assert.ok(segments.some(e=>e.start.x>12.9));assert.ok(segments.some(e=>e.end.x<7.1));
+});

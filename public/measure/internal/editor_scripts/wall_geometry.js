@@ -768,8 +768,30 @@
                     for(const id of new Set(segments.flat())){const p=points[id],t=((p.x-a.x)*d.x+(p.y-a.y)*d.y+(p.z-a.z)*d.z)/len;if(t<=1e-6||t>=1-1e-6)continue;if(Math.hypot(p.x-a.x-t*d.x,p.y-a.y-t*d.y,p.z-a.z-t*d.z)<1e-5)cuts.push({t,id});}
                     cuts.sort((a,b)=>a.t-b.t);for(let i=1;i<cuts.length;i++){const ids=[cuts[i-1].id,cuts[i].id],key=ids.slice().sort((a,b)=>a-b).join(':');const entry=pieces.get(key);if(entry)entry.count++;else pieces.set(key,{ids,count:1});}
                 }
-                const outside=[...pieces.values()].filter(p=>p.count===1).map(p=>p.ids);boundary.push(...outside);
-                output.push({...members.find(f=>!f.chimney)||members[0],pointIndices:[...new Set(outside.flat())],boundary:outside,triangles:members.flatMap(f=>f.triangles),area:members.reduce((sum,f)=>sum+f.area,0)});
+                const outside=[...pieces.values()].filter(p=>p.count===1).map(p=>p.ids);
+                // Triangulation and source clipping introduce stations along an
+                // otherwise straight generated boundary. Keep genuine corners
+                // and junctions with other walls, not these internal stations.
+                if(members.every(f=>f.sourceId)){
+                    const junctions=new Set(faces.filter(f=>f.mergeGroup!==group).flatMap(f=>f.pointIndices));
+                    let changed=true;while(changed){changed=false;
+                        for(const id of new Set(outside.flat())){
+                            if(junctions.has(id))continue;const incident=outside.filter(e=>e.includes(id));if(incident.length!==2)continue;
+                            const a=incident[0].find(v=>v!==id),b=incident[1].find(v=>v!==id);if(a===b)continue;
+                            const p=points[a],q=points[b],v=points[id],dx=q.x-p.x,dy=q.y-p.y,dz=q.z-p.z,l2=dx*dx+dy*dy+dz*dz,t=((v.x-p.x)*dx+(v.y-p.y)*dy+(v.z-p.z)*dz)/l2;
+                            if(t<=0||t>=1||Math.hypot(v.x-p.x-t*dx,v.y-p.y-t*dy,v.z-p.z-t*dz)>1e-5)continue;
+                            outside.splice(outside.indexOf(incident[0]),1);outside.splice(outside.indexOf(incident[1]),1);outside.push([a,b]);changed=true;break;
+                        }
+                    }
+                }
+                boundary.push(...outside);
+                let pointIndices=[...new Set(outside.flat())];
+                if(members.every(f=>f.sourceId)&&outside.length){
+                    const ring=[outside[0][0]],used=new Set();let current=ring[0];
+                    while(used.size<outside.length){const i=outside.findIndex((e,i)=>!used.has(i)&&e.includes(current));if(i<0)break;used.add(i);current=outside[i].find(v=>v!==current);if(current===ring[0])break;ring.push(current);}
+                    if(current===ring[0]&&used.size===outside.length)pointIndices=ring;
+                }
+                output.push({...members.find(f=>!f.chimney)||members[0],pointIndices,boundary:outside,triangles:members.flatMap(f=>f.triangles),area:members.reduce((sum,f)=>sum+f.area,0)});
             }
             const ordinary=output.filter(f=>!f.mergeGroup).flatMap(f=>f.pointIndices.map((id,i)=>[id,f.pointIndices[(i+1)%f.pointIndices.length]]));
             const unique=new Map([...ordinary,...boundary].map(ids=>[ids.slice().sort((a,b)=>a-b).join(':'),{startIdx:ids[0],endIdx:ids[1],type:'wall'}]));
