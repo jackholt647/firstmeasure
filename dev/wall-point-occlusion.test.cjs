@@ -41,3 +41,18 @@ for(const nested of [false,true])test(`opaque markers exclude ${nested?'nested t
  f.ctx.wallPointOcclusion(f.points,false);f.points.onBeforeRender({},{},{});f.ctx.wallPointOcclusion(f.points,true);f.camera.position.x=.01;assert.deepEqual(f.render(),[0,2]);assert.equal(calls,0,'mode switches and camera motion do not raycast imagery');
  f.wall.visible=false;assert.deepEqual(f.render(),[0,1,2,3],'imagery does not hide drafting markers');image.geometry.dispose();
 });
+
+for(const perspective of [false,true])for(const zoom of [.65,1,1.4])for(const selected of [false,true])test(`near-surface markers survive grazing angles: perspective=${perspective}, zoom=${zoom}, selected=${selected}`,()=>{
+ const f=fixture(),camera=perspective?new THREE.PerspectiveCamera(45,1,.1,100):new THREE.OrthographicCamera(-4,4,4,-4,.1,100);
+ f.points.geometry.setAttribute('position',new THREE.Float32BufferAttribute([0,0,-.001],3));f.points.material.size=selected?9:5;
+ f.wall.scale.set(20,20,1);camera.zoom=zoom;camera.updateProjectionMatrix();
+ for(const eye of [[0,0,8],[8,7,.5],[-8,7,.5]]){
+  camera.position.set(...eye);camera.lookAt(0,0,0);camera.updateMatrixWorld();f.scene.updateMatrixWorld(true);
+  f.points.onBeforeRender({info:{render:{frame:Math.random()}},getSize:v=>v.set(400,400)},f.scene,camera);
+  assert.equal(f.points.geometry.drawRange.count,1,'contact point must stay visible');
+ }
+ // A genuinely nearer surface still hides the whole marker.
+ f.wall.position.z=.1;f.scene.updateMatrixWorld(true);
+ f.points.onBeforeRender({info:{render:{frame:Math.random()}},getSize:v=>v.set(400,400)},f.scene,camera);
+ assert.equal(f.points.geometry.drawRange.count,0);
+});

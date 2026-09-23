@@ -6,6 +6,7 @@
 // Apply one display policy to every exterior layer, including depth-only cues.
 // Markers draw as whole overlays only when their anchor is visible. Cache camera/surface state so idle frames do not repeat ray tests.
 const wallPointOcclusionScenes=new WeakMap();
+const wallOverlayBiasPixels=4;
 function wallOcclusionFrame(renderer,scene,camera){
  let frame=wallPointOcclusionScenes.get(scene);
   if(!frame||frame.frame!==renderer.info.render.frame||frame.camera!==camera){
@@ -44,9 +45,11 @@ window.wallPointOcclusion=function(object,enabled){
    if(projected.z<-1||projected.z>1)continue;
    // Test the actual point, not the square's corners: a hidden anchor must
    // not leak through a wall just because its marker overlaps a silhouette.
-   const epsilon=Math.max(1,p.length())*2e-6;
+   const view=p.clone().applyMatrix4(camera.matrixWorldInverse),pixelDepth=2*(camera.isPerspectiveCamera?Math.abs(view.z):1)/(camera.projectionMatrix.elements[5]*Math.max(1,size.y));
+   const epsilon=Math.max(Math.max(1,p.length(),Math.abs(view.z))*2e-6,pixelDepth*wallOverlayBiasPixels);
    ray.setFromCamera(sample.set(projected.x,projected.y),camera);
-   ray.far=p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-epsilon;
+   const forward=new THREE.Vector3(0,0,-1).transformDirection(camera.matrixWorld);
+   ray.far=Math.max(0,p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-epsilon/Math.max(.001,ray.ray.direction.dot(forward)));
    const visible=!ray.intersectObjects(frame.meshes,false).length;
    if(visible)indices.push(i);
   }
@@ -72,7 +75,7 @@ window.wallLabelOcclusion=function(object,enabled){
   this.material.opacity=visible?opacity:0;
  };
 };
-// Move drafting wire one CSS pixel toward the camera in depth only. Keep its
+// Move drafting wire four CSS pixels toward the camera in depth only. Keep its
 // projected position and real geometry unchanged, and retain wall occlusion.
 window.wallLineDepthBias=function(object,enabled){
  const material=object.material;material.userData||={};
@@ -85,13 +88,13 @@ window.wallLineDepthBias=function(object,enabled){
    shader.vertexShader='uniform float wallLineViewportHeight;\nuniform float wallLineBiasPixels;\n'+shader.vertexShader;
    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>
     float wallPixelDepth = 2.0 * (isPerspectiveMatrix(projectionMatrix) ? abs(mvPosition.z) : 1.0) / (projectionMatrix[1][1] * wallLineViewportHeight);
-    vec4 wallNearPosition = projectionMatrix * vec4(mvPosition.xy, min(-0.00001, mvPosition.z + wallPixelDepth * wallLineBiasPixels), 1.0);
+    vec4 wallNearPosition = projectionMatrix * vec4(mvPosition.xy, min(-0.00001, mvPosition.z + (wallLineBiasPixels > 0.0 ? max(wallPixelDepth * wallLineBiasPixels, max(1.0, length(mvPosition.xyz)) * 0.000002) : 0.0)), 1.0);
     gl_Position.z = max(-gl_Position.w, wallNearPosition.z / wallNearPosition.w * gl_Position.w);
    `);
   };
-  material.customProgramCacheKey=()=>cacheKey+'|wall-line-depth-v1';material.needsUpdate=true;
+  material.customProgramCacheKey=()=>cacheKey+'|wall-line-depth-v2';material.needsUpdate=true;
  }
- state.pixels.value=enabled?1:0;
+ state.pixels.value=enabled?wallOverlayBiasPixels:0;
  if(object.userData.wallLineDepthInstalled)return;object.userData.wallLineDepthInstalled=true;
  const previous=object.onBeforeRender;
  object.onBeforeRender=function(renderer,...args){previous?.call(this,renderer,...args);state.height.value=Math.max(1,renderer.domElement.getBoundingClientRect().height);};
