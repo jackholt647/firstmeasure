@@ -5,6 +5,55 @@ function fixture(options={}){const listeners={},state=options.state||{wallEdits:
  const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,normalize:()=>ctx.normalizeWallDraftOwnership(state.wallEdits),clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
 function planeSelection(f,points){const s=f.editor.selectionSnapshot();s.workingPlane.selection=points;f.editor.restoreSelection(s);}
 
+test('Q keeps the selected draft point when the host wall has a colliding local point ID',()=>{
+ const p=(x,z)=>({x,y:0,z}),walls=[{id:'left',bottom:[p(0,0),p(4,0)],top:[p(0,4),p(4,4)]},{id:'right',bottom:[p(6,0),p(10,0)],top:[p(6,4),p(10,4)]}],f=fixture({walls,selectedId:'left',globals:{isFreeMove:true},projectPoint:(d,e)=>({x:e.clientX/100-d.origin.x,y:e.clientY/100,z:0})});
+ f.editor.doubleClick(f.e(2,4),walls[0]);f.editor.doubleClick(f.e(8,4),walls[1]);
+ const drafts=f.state.wallEdits.$drafts,right=drafts.right,id=right.sketch.nodes.find(p=>p.x===2&&p.y===4).id;
+ assert.ok(drafts.left.sketch.nodes.some(p=>p.id===id),'draft-local IDs collide');
+ f.editor.restoreSelection({activeDraftKey:'left',draftSelection:{right:[id]},picked:[id]});
+ assert.equal(f.editor.pointSelection()[0].x,8);
+ f.editor.key({key:'q'});assert.equal(f.editor.interaction(),'Draw rectangle',f.message());
+ assert.equal(f.editor.pointSelection().length,1);assert.equal(f.editor.pointSelection()[0].x,8);
+ f.editor.down(f.e(9,2));f.editor.down(f.e(9,2));
+ assert.ok(right.sketch.nodes.some(n=>n.x===3&&n.y===2),f.message());
+ assert.ok(!drafts.left.sketch.nodes.some(n=>n.y===2));
+});
+
+test('multiple selected boundary points nudge together repeatedly in one undo operation',()=>{
+ const f=fixture();for(const x of [1,2,3])f.editor.doubleClick(f.e(x,4),f.w);
+ const ids=f.d().sketch.nodes.filter(n=>[1,2,3].includes(n.x)&&n.y===4).map(n=>n.id);
+ f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});
+ const before=JSON.stringify(f.state.wallEdits),count=f.history.length;
+ for(let i=1;i<=2;i++){
+  f.editor.key({key:'ArrowLeft'});assert.equal(f.history.length,count+i,f.message());
+  const points=f.editor.pointSelection().sort((a,b)=>a.x-b.x);assert.equal(points.length,3);
+  points.forEach((p,j)=>{assert.ok(Math.abs(p.x-(j+1-i*.0254))<1e-6,f.message());assert.equal(p.z,4);});
+ }
+ assert.equal(JSON.stringify(f.history[count]),before);
+});
+
+test('two selected points nudge along their own sloped lines across different faces',()=>{
+ const p=(x,z)=>({x,y:0,z}),points=[p(1,4.25),p(7,3.75)],state={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(4,0),p(4,5),p(0,4)],retainedPoints:[points[0]]},{id:'b',points:[p(6,0),p(10,0),p(10,3),p(6,4)],retainedPoints:[points[1]]}]}},W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=fixture({state,walls:[],selected:null});
+ f.editor.restoreSelection({solidPoints:points.map(W.vertexKey)});f.editor.key({key:'ArrowLeft'});
+ assert.equal(f.history.length,1,f.message());const moved=f.editor.pointSelection().sort((a,b)=>a.x-b.x);assert.equal(moved.length,2);
+ for(let i=0;i<2;i++){assert.ok(moved[i].x<points[i].x);assert.ok(Math.abs(Math.hypot(moved[i].x-points[i].x,moved[i].z-points[i].z)-.0254)<1e-6);}
+ assert.ok(moved[0].z<points[0].z);assert.ok(moved[1].z>points[1].z);
+});
+
+test('two selected points stay selected across separate draft owners after repeated nudges',()=>{
+ const p=(x,z)=>({x,y:0,z}),walls=[{id:'w',bottom:[p(0,0),p(4,0)],top:[p(0,4),p(4,4)]},{id:'right',bottom:[p(6,0),p(10,0)],top:[p(6,4),p(10,4)]}],f=fixture({walls,projectPoint:(d,e)=>({x:e.clientX/100-d.origin.x,y:e.clientY/100,z:0})});
+ for(const [i,w]of walls.entries()){f.editor.doubleClick(f.e(1+i*6,2),w);f.editor.key({key:'n'});f.editor.down(f.e(3+i*6,2));f.editor.key({key:'Escape'});}
+ const drafts=f.state.wallEdits.$drafts,selection=Object.fromEntries(Object.entries(drafts).map(([key,d])=>[key,[d.sketch.nodes.find(n=>n.x===1&&n.y===2).id]]));
+ f.editor.restoreSelection({activeDraftKey:'w',picked:selection.w,draftSelection:selection});const count=f.history.length;
+ for(let i=1;i<=2;i++){f.editor.key({key:'ArrowRight'});assert.equal(f.history.length,count+i,f.message());const selected=f.editor.pointSelection().sort((a,b)=>a.x-b.x);assert.equal(selected.length,2);selected.forEach((p,j)=>assert.ok(Math.abs(p.x-(1+j*6+i*.0254))<1e-6));}
+});
+
+test('multiple selected curve endpoints nudge without flattening the analytic curves',()=>{
+ const f=circleDraftFixture(),d=f.d(),ids=d.sketch.nodes.filter(n=>!n.fixed&&((Math.abs(n.x-3)<1e-6&&Math.abs(n.y-2)<1e-6)||(Math.abs(n.x-2)<1e-6&&Math.abs(n.y-3)<1e-6))).map(n=>n.id);
+ assert.equal(ids.length,2);f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});const count=f.history.length;
+ f.editor.key({key:'ArrowDown'});assert.equal(f.history.length,count+1,f.message());assert.equal(f.editor.pointSelection().length,2);assert.equal(f.d().sketch.curves.length,4);assert.ok(!f.state.wallEdits.$surfaces?.length);
+});
+
 test('clicking a generated chimney-support face creates a draft without reopening masonry',()=>{
  const C=require('../public/measure/internal/editor_scripts/wall_chimneys'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),wall=r.composed.find(w=>w.sourceId==='R134.0'),frame=K.frame({points:[...wall.bottom,wall.top[1],wall.top[0]]}),before=C.compose(r.aligned.walls,r.state).filter(w=>w.chimney);
  const f=fixture({state:r.state,walls:r.composed,selectedId:wall.id,globals:{WallChimneys:C},screen:p=>{const q=K.local(frame,p);return {x:q.x*100,y:q.y*100};},projectPoint:(d,e)=>{const p=K.world(frame,{x:e.clientX/100,y:e.clientY/100,z:0});return {x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z,z:0};}}),center=[...wall.bottom,...wall.top].reduce((a,p)=>({x:a.x+p.x/4,y:a.y+p.y/4,z:a.z+p.z/4}),{x:0,y:0,z:0}),q=K.local(frame,center),event=f.e(q.x,q.y);

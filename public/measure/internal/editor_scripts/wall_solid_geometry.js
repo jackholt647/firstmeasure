@@ -702,7 +702,10 @@ function pointOnEdge(p,a,b){const u=sub(b,a),l2=dot(u,u);if(l2<1e-12)return fals
 function slideLines(faces,pairs,direction,amount,options={}){
  const bound=Math.abs(amount)>1e-12?bindSharedBase(faces):{faces,point:p=>p};faces=bound.faces;pairs=pairs.map(pair=>pair.map(bound.point));
  const selected=p=>pairs.some(([a,b])=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<1e-8?Math.hypot(p.x-a.x,p.y-a.y,p.z-a.z)<1e-5:pointOnEdge(p,a,b)),vertices=[...pairs.flat(),...faces.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])])].filter(selected),moves=[];
- for(const p of vertices)if(!moves.some(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-6))moves.push({from:p,to:{x:p.x+direction.x*amount,y:p.y+direction.y*amount,z:p.z+direction.z*amount}});
+ for(const p of vertices)if(!moves.some(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-6)){
+  const target=options.pointMoves?.find(m=>Math.hypot(...Object.values(sub(bound.point(m.from),p)))<1e-5)?.to;
+  moves.push({from:p,to:target||{x:p.x+direction.x*amount,y:p.y+direction.y*amount,z:p.z+direction.z*amount}});
+ }
  const matching=p=>moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5),affected=[];
  const result=faces.map(f=>{if(f.deleted)return f;
   const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a);expanded.push(a);for(const p of pairs.flat().filter(p=>pointOnEdge(p,a,b)&&Math.hypot(...Object.values(sub(p,a)))>1e-5&&Math.hypot(...Object.values(sub(p,b)))>1e-5).sort((p,q)=>dot(sub(p,a),u)-dot(sub(q,a),u)))if(!expanded.some(q=>Math.hypot(...Object.values(sub(p,q)))<1e-5))expanded.push(p);}const translated=p=>({...p,...(matching(p)?.to||{})});

@@ -408,7 +408,7 @@ function perf_snap(d,e,raw=null){
  // Keep every owning record selected for deletion/edits, but count shared
  // corners in world space using the same contact tolerance as topology.
  function selectedWorldPoints(){
-  const points=[],groups={...draftSelection},d=current();if(d)groups[draftKey(d)]=picked;
+  const points=[],groups={...draftSelection},d=current();if(d&&!Object.values(groups).some(ids=>ids.length))groups[draftKey(d)]=picked;
   const take=p=>{if(p&&!points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT))points.push(p);};
   for(const [key,ids]of Object.entries(groups)){const owner=all()[key];if(owner)for(const n of owner.sketch.nodes)if(ids.includes(n.id))take(world(owner,n));}
   if(solidPoints.length)for(const n of wire().nodes)if(solidPoints.includes(n.id))take(n);
@@ -1024,7 +1024,10 @@ function perf_previewEntity(e){
   if(pairs.length){lineSelection=pairs.map(pair=>({pair:copy(pair),id:W.edgeKey(...pair)}));}
   else{const entries=Object.entries(all()).filter(([,d])=>points.every(p=>draftNodes(d).some(n=>distance3(world(d,n),p)<.001))).sort(([a],[b])=>Number(b===preferredDraft)-Number(a===preferredDraft)),entry=entries[0];
    if(entry){const [key,d]=entry;activeDraftKey=key;preferredDraft=key;picked=[...new Set(points.map(p=>draftNodes(d).find(n=>distance3(world(d,n),p)<.001).id))];draftSelection[key]=picked.slice();}
-   else{const graph=wire();solidPoints=graph.nodes.filter(n=>points.some(p=>distance3(n,p)<.001)).map(n=>n.id);}
+   else{const graph=wire();solidPoints=graph.nodes.filter(n=>points.some(p=>distance3(n,p)<.001)).map(n=>n.id);
+    for(const [key,d]of Object.entries(all())){const ids=draftNodes(d).filter(n=>points.some(p=>distance3(world(d,n),p)<.001)).map(n=>n.id);if(ids.length)draftSelection[key]=ids;}
+    activeDraftKey=Object.keys(draftSelection)[0]||null;picked=draftSelection[activeDraftKey]||[];
+   }
   }
   host.message((points.length||pairs.length)+(points.length?' points selected':' lines selected'));
  }
@@ -1370,12 +1373,16 @@ function perf_moveScene(){
  function finishMultiExtrusion(){flushPreview();const t=tool;if(t.invalid)return true;if(t.changed)host.commit(t.before);else{host.state().wallEdits=copy(t.before);restoreExtrusionSelection(t);}tool=null;clearGuides();host.redraw();return true;}
  function startQuad(){if(tool&&!finishToolForSwitch())return true;
   const before=copy(host.state().wallEdits||{});try{
-   let d=current();if(!picked.length){const groups=Object.entries(draftSelection).filter(([,ids])=>ids.length);if(groups.length===1&&!solidPoints.length){activeDraftKey=groups[0][0];d=all()[activeDraftKey];picked=groups[0][1].slice();}}
+   let d=current();const groups=Object.entries(draftSelection).filter(([,ids])=>ids.length);
+   // IDs such as p4 belong to a particular draft. The host's selected wall
+   // can change independently; never reinterpret those IDs on that wall.
+   if(groups.length===1&&!solidPoints.length){activeDraftKey=groups[0][0];d=all()[activeDraftKey];picked=groups[0][1].slice();}
    if(solidPoints.length){const ps=wire().nodes.filter(n=>solidPoints.includes(n.id));if(ps.length<1||ps.length>2)throw Error('Select one corner or two edge points for Q');
     const owner=solids().find(f=>!f.deleted&&!f.drafted&&(()=>{const fr=W.faceFrame(f);return fr&&ps.every(p=>{const q=W.inFrame(fr,p);return Math.abs(q.z)<1e-5&&G.contains({points:f.points.map(p=>W.inFrame(fr,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(fr,p)))},q);});})());
     if(!owner)throw Error('Select corners on the same editable face.');d=solidDraft(owner);activeDraftKey=draftKey(d);picked=ps.map(p=>add(d,toLocal(d,p)));solidPoints=[];solidEdges=[];draftSelection={};
    }
    if(!d||picked.length<1||picked.length>2||picked.some(id=>!d.sketch.nodes.some(n=>n.id===id)))throw Error('Select one corner or two edge points for Q');
+   activeDraftKey=draftKey(d);draftSelection={[activeDraftKey]:picked.slice()};
    tool={kind:'quad',before};selectedRegion=null;selectedSolid=null;host.message('Q: click the opposite corner, then rotate; double-click it for a rectangle.');host.redraw();
   }catch(e){host.state().wallEdits=before;host.message(e.message);}return true;
  }
@@ -1639,13 +1646,37 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
  // Importing a solid creates a draft AND marks its backing surface drafted.
  // Preview/cycling must restore both together or the unsplit solid covers the cut.
  function previewAxisCut(){const t=tool;host.state().wallEdits=copy(t.preparedEdits);t.lines=[];try{for(const c of t.variants[t.index]){if(c.base){const base=host.state().wallEdits.$base||copy(t.base),start=S.add(base,c.start||t.start,.001);for(const p of c.targets){const end=S.add(base,p,.001);if(end!==start)S.connect(base,[start,end]);t.lines.push([c.start||t.start,p]);}host.state().wallEdits.$base=base;}else{const d=all()[c.key],old=copy(d.faces),start=add(d,toLocal(d,c.start||t.start));for(const p of c.targets){const end=add(d,toLocal(d,p));if(end!==start)S.connect(d,[start,end]);t.lines.push([c.start||t.start,p]);}restoreMovedRegions(d,old);classify(d);}}const normalized=copy(host.state().wallEdits);window.ExteriorModel?.validateEdits(normalized,t.before);host.state().wallEdits=normalized;t.valid=true;const choices=t.variants[t.index];host.message((t.axis==='v'?'Vertical':'Horizontal')+(t.pointCount?' cuts from '+t.pointCount+' points'+(t.skipped?' ('+t.skipped+' without a valid cut)':''): ' cut')+': '+(choices.length>1?'all adjoining faces':choices[0].base?'base face':'wall face')+' · '+t.axis.toUpperCase()+' cycles; click to place; Escape cancels.');}catch(error){host.state().wallEdits=copy(t.before);t.valid=false;tool=null;host.message('Cut not created: '+error.message);}host.redraw();}
- function nudgePoint(e,step){
-  const points=selectedWorldPoints(),source=points.length===1?points[0]:null;
-  if(!source)return false;
+ function pointNudgePlan(source,e,step,lines){
   const sx=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0,sy=e.key==='ArrowDown'?1:e.key==='ArrowUp'?-1:0,a=host.screen(source,'3d'),candidates=[];
-  for(const pair of sceneLines().lines.values())if(onSegment(source,...pair))for(const end of pair){const length=distance3(source,end);if(length<1e-5)continue;const b=host.screen(end,'3d'),pixels=Math.hypot(b.x-a.x,b.y-a.y);if(pixels<1e-5)continue;const score=((b.x-a.x)*sx+(b.y-a.y)*sy)/pixels;if(score>.2)candidates.push({end,length,score});}
-  candidates.sort((a,b)=>b.score-a.score||a.length-b.length);const c=candidates[0];if(!c){host.message('No connected line runs in that screen direction.');return true;}
+  for(const pair of lines)if(onSegment(source,...pair))for(const end of pair){const length=distance3(source,end);if(length<1e-5)continue;const b=host.screen(end,'3d'),pixels=Math.hypot(b.x-a.x,b.y-a.y);if(pixels<1e-5)continue;const score=((b.x-a.x)*sx+(b.y-a.y)*sy)/pixels;if(score>.2)candidates.push({end,length,score});}
+  candidates.sort((a,b)=>b.score-a.score||a.length-b.length);const c=candidates[0];if(!c)return null;
   const direction={x:(c.end.x-source.x)/c.length,y:(c.end.y-source.y)/c.length,z:(c.end.z-source.z)/c.length},amount=Math.min(step,c.length),point={x:source.x+direction.x*amount,y:source.y+direction.y*amount,z:source.z+direction.z*amount};
+  return {source,point,direction,amount};
+ }
+ function nudgePoints(e,step,points){
+  const lines=[...sceneLines().lines.values()],plans=points.map(p=>pointNudgePlan(p,e,step,lines));
+  if(!plans.some(Boolean)){host.message('No connected line runs in that screen direction.');return true;}
+  // Compute every destination before editing, then update shared vertices once.
+  // Sequential nudges can otherwise move a point twice when it lands on another
+  // selected point's old position, and produce multiple undo records.
+  const moving=plans.filter(Boolean),curveMoves=moving.flatMap(plan=>{
+   const owner=Object.entries(all()).find(([,d])=>d.sketch.edges.some(e=>e.curveId&&[e.a,e.b].some(id=>{const n=d.sketch.nodes.find(n=>n.id===id);return n&&distance3(world(d,n),plan.source)<1e-5;})));
+   if(!owner)return [];const [key,d]=owner,n=d.sketch.nodes.find(n=>distance3(world(d,n),plan.source)<1e-5),a=toLocal(d,plan.source),b=toLocal(d,plan.point);
+   return [{plan,key,id:n.id,delta:{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z}}];
+  }),ok=transaction(()=>{
+   for(const move of curveMoves){const d=all()[move.key];S.move(d,[move.id],move.delta);classify(d);}
+   const straight=moving.filter(plan=>!curveMoves.some(m=>m.plan===plan));if(!straight.length)return;
+   const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);
+   if(base)for(const f of base.faces)scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
+   const result=W.slideLines(scene,straight.map(p=>[p.source,p.source]),{x:0,y:0,z:0},1,{pointMoves:straight.map(p=>({from:p.source,to:p.point}))}),edits=copy(host.state().wallEdits);
+   applyLineResult({base,scene,op:Date.now()},result,edits);host.state().wallEdits=edits;
+  });
+  if(ok){selectPlacedEntity({source:points[0],preview:points.map((p,i)=>plans[i]?.point||p)},false);host.redraw();}return true;
+ }
+ function nudgePoint(e,step){
+  const source=selectedWorldPoints()[0];if(!source)return false;
+  const plan=pointNudgePlan(source,e,step,sceneLines().lines.values());if(!plan){host.message('No connected line runs in that screen direction.');return true;}
+  const {point,direction,amount}=plan;
   const owner=Object.entries(all()).find(([,d])=>d.sketch.edges.some(e=>e.curveId&&[e.a,e.b].some(id=>{const n=d.sketch.nodes.find(n=>n.id===id);return n&&distance3(world(d,n),source)<1e-5;})));
   if(owner){const [key,d]=owner,id=d.sketch.nodes.find(n=>distance3(world(d,n),source)<1e-5).id,a=toLocal(d,source),b=toLocal(d,point);const ok=transaction(()=>{const d=all()[key];S.move(d,[id],{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z});classify(d);});if(ok){activeDraftKey=key;picked=[id];draftSelection={[key]:[id]};solidPoints=[];solidEdges=[];lineSelection=[];host.redraw();}return true;}
   const ok=transaction(()=>{const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);if(base)for(const f of base.faces)scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
@@ -1654,7 +1685,13 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   if(ok){selectPlacedEntity({source,preview:[point]},false);host.redraw();}return true;
  }
  function nudge(...args){if(!window.ExteriorPerf?.enabled)return perf_nudge.apply(this,args);return window.ExteriorPerf.measure('Nudge',()=>perf_nudge.apply(this,args));}
-function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const points=selectedWorldPoints();if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length){if(points.length!==1){host.message('Select one point or a complete face to nudge.');return true;}return nudgePoint(e,step);}const selection=featureSelection();
+ function completePointGeometry(points){
+  if(points.length<3)return false;
+  if(curveGeometrySelection(points))return true;
+  const selected=p=>points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);
+  return solids().some(f=>!f.deleted&&!f.drafted&&f.points.every(selected))||Object.values(all()).some(d=>d.faces.some(f=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&f.points.every(p=>selected(world(d,p)))));
+ }
+function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const points=selectedWorldPoints();if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
   if(lineSelection.length){const pairs=copy(lineSelection);return transaction(()=>{
     for(const w of walls())ensure(w);
     const live=(d,f)=>!f.solidId&&!f.boundaryHole&&!deleted(d,f),supports=(face,pair)=>{if(W.sharedIntervals(...pair,[face]).length)return true;const frame=W.faceFrame(face);if(!frame)return false;const local={points:face.points.map(p=>W.inFrame(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))};return pair.every(p=>{const q=W.inFrame(frame,p);return Math.abs(q.z)<1e-5&&G.contains(local,q);});},shape=(d,f)=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}),matches=d=>d&&!d.mergedInto&&pairs.every(l=>d.faces.some(f=>live(d,f)&&supports(shape(d,f),l.pair)));
