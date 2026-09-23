@@ -14,7 +14,8 @@
   root.ExteriorPDF?.initializePhotoSlots(settings,images);
   const names={front:'Front',back:'Back',left:'Left side',right:'Right side','front-left':'Front left','front-right':'Front right','back-left':'Back left','back-right':'Back right',side:'Side'};
   return images.map(p=>{
-   const assigned=Object.entries(settings.photoSlots||{}).filter(([,s])=>s.image&&((p.key&&s.image.key===p.key)||(p.resourceName&&s.image.resourceName===p.resourceName)||(p.url&&s.image.url===p.url))).map(([slot])=>slot);
+   const matches=Object.entries(settings.photoSlots||{}).filter(([,s])=>s.image&&((p.key&&s.image.key===p.key)||(p.resourceName&&s.image.resourceName===p.resourceName)||(p.url&&s.image.url===p.url)));
+   const manual=matches.filter(([,s])=>s.assignment==='manual'),assigned=(manual.length?manual:matches).map(([slot])=>slot);
    const slots=assigned.length?assigned:[p.slot],directions=slots.map(s=>names[s]).filter(Boolean);
    return {...p,slot:assigned[0]||p.slot,label:`${directions.join(' / ')||'Unassigned'} · ${p.label||p.key}`};
   });
