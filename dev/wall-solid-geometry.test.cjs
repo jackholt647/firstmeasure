@@ -212,3 +212,17 @@ test('point range index conservatively retains segment contacts in every orienta
   const expected=points.filter(p=>['x','y','z'].every(k=>p[k]>=Math.min(a[k],b[k])-1e-5&&p[k]<=Math.max(a[k],b[k])+1e-5));assert.deepEqual(new Set(index.segment(a,b)),new Set(expected));
  }
 });
+
+for(const setback of [18,24])test(`captured generated front extrusion keeps its canonical source rim at ${setback} inches`,()=>{
+ const WG=require('../public/measure/internal/editor_scripts/wall_geometry'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),M=require('../public/measure/internal/editor_scripts/exterior_model'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),setback),geo=WG.topology(WG.canonicalGeneratedWalls(r.composed)),front=geo.faces.find(f=>f.mergeGroup?.includes('envelope-0-18-')),face={id:'front',generatedRoofContact:true,points:front.pointIndices.map(i=>geo.points[i])},before=JSON.stringify(r.state.roof);
+ const engine=M.createExtrusion({face,scene:[],supports:[face],roof:r.state.roof});
+ for(const amount of [-.1,-.3,-.6]){const shape=engine.preview(amount);if(setback===18&&amount<0){assert.equal(shape.cap.points.length,4);assert.equal(shape.sides.length,4);assert.ok(shape.sides.every(f=>f.points.length===4),'no old stations, thin roof patches or diagonal repair faces');}
+  const shell=[face,shape.cap,...shape.sides];shell.forEach(K.validateFace);
+  for(const f of shell)for(let i=0;i<f.points.length;i++){const a=f.points[i],b=f.points[(i+1)%f.points.length],covered=G.sharedIntervals(a,b,shell.filter(other=>other!==f)).reduce((sum,[lo,hi])=>sum+hi-lo,0);const onRoof=[.1,.5,.9].every(t=>{const p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t};return r.state.roof.faces.some(f=>{const plane=WG.plane(f.points);return plane&&WG.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.05;});});assert.ok((1-covered)*Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<2*K.CONTACT||onRoof,'Every extrusion boundary meets an adjoining face or the owning roof: '+JSON.stringify({setback,amount,a,b,covered}));}
+ }
+ assert.equal(JSON.stringify(r.state.roof),before,'contact normalization never rewrites the measured roof');
+});
+test('authored nonuniform faces extrude their exact boundary without replacing it with a rectangle',()=>{
+ const face={id:'ragged',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(3,0,4),p(2,0,3.5),p(0,0,4)]},shape=G.extrude(face,.3);assert.equal(shape.cap.points.length,6);assert.equal(shape.sides.length,6);
+ for(let i=0;i<face.points.length;i++){assert.equal(shape.cap.points[i].x,face.points[i].x);assert.equal(shape.cap.points[i].z,face.points[i].z);assert.deepEqual(shape.sides[i].points.slice(0,2),[face.points[i],face.points[(i+1)%face.points.length]]);}
+});

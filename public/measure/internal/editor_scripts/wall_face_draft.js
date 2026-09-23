@@ -338,6 +338,7 @@ window.createWallFaceDraft=function(host){
  }
  function retainSourcePoints(d){
   retainMergedIdentity(d);
+  const generated=walls().filter(w=>d.members?.includes(w.id));if(generated.length&&generated.every(w=>w.sourceId&&w.kind==='perimeter'&&!w.chimney))d.generatedRoofContact=true;
   if(d.sourcePointsVersion===1||d.frame)return;
   const members=walls().filter(w=>d.members.includes(w.id)),junctions=walls().filter(w=>!d.members.includes(w.id)).flatMap(w=>[...w.bottom,...w.top]);
   const candidates=members.flatMap(w=>[...w.bottom,...w.top].filter(p=>!w.sourceId||junctions.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5)));
@@ -1040,9 +1041,8 @@ function perf_previewLineMove(e){
    if(t.normalMode){const move=p=>({x:p.x+t.direction.x*amount,y:p.y+t.direction.y*amount,z:p.z+t.direction.z*amount});result={pairs:t.pairs.map(pair=>pair.map(move))};if(Math.abs(amount)>1e-6){edits.$surfaces||=[];for(const [i,[a,b]]of t.pairs.entries()){const support=t.scene.find(f=>W.sharedIntervals(a,b,[f]).length),face={id:'line-extrude-'+t.op+'-'+i,points:[a,b,move(b),move(a)],...(support?.material?{material:support.material}:{}),...(support?.finishColor?{finishColor:support.finishColor}:{})};window.ExteriorGeometry.validateFace(face);edits.$surfaces.push(face);}}window.ExteriorModel.validateEdits(edits,t.before);}
    else if(t.planarDraftKey&&!t.extrude){
     const previous=host.state().wallEdits;host.state().wallEdits=edits;
-    try{moveDraftLines(edits.$drafts[t.planarDraftKey],t.pairs,{x:t.direction.x*amount,y:t.direction.y*amount,z:t.direction.z*amount});}
+    try{result={pairs:moveDraftLines(edits.$drafts[t.planarDraftKey],t.pairs,{x:t.direction.x*amount,y:t.direction.y*amount,z:t.direction.z*amount})};}
     finally{host.state().wallEdits=previous;}
-    result={pairs:t.pairs.map(pair=>pair.map(p=>({x:p.x+t.direction.x*amount,y:p.y+t.direction.y*amount,z:p.z+t.direction.z*amount})))};
    }else{result=W.slideLines(copy(t.scene),t.pairs,t.direction,amount,{preserveConnections:t.extrude});applyLineResult(t,result,edits);}
    host.state().wallEdits=edits;t.invalid=false;t.changed=Math.abs(amount)>1e-6;t.amount=amount;t.result=result;lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));host.message(t.pathSnap?t.pathSnap.kind+' snap - click to place':'Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - Line offset: '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/.3048), 'ft') : (amount/.3048).toFixed(2)+" ft")+" - M changes face; click to place");
   }catch(error){t.invalid=true;t.pathSnap=null;host.message(error.message);}host.redraw();
@@ -1631,9 +1631,9 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,
     if(!face)throw Error('Select a line on an editable face.');
     const frame=F.viewFrame(face.points.map(p=>world(d,p)),p=>host.screen(p,'3d')),delta={x:frame.u.x*dx+frame.v.x*dy,y:frame.u.y*dx+frame.v.y*dy,z:frame.u.z*dx+frame.v.z*dy};
     const segments=pairs.map(l=>l.pair),scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),owner=planarLineOwner(scene,segments);
-    if(owner===draftKey(d))moveDraftLines(d,segments,delta);
-    else{const result=W.slideLines(scene,segments,delta,1),edits=copy(host.state().wallEdits);applyLineResult({scene,op:Date.now()},result,edits);host.state().wallEdits=edits;}
-    lineSelection=pairs.map(l=>({pair:l.pair.map(p=>({x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}))})).map(l=>({...l,id:W.edgeKey(...l.pair)}));preferredDraft=draftKey(d);
+    let movedPairs;if(owner===draftKey(d))movedPairs=moveDraftLines(d,segments,delta);
+    else{const result=W.slideLines(scene,segments,delta,1),edits=copy(host.state().wallEdits);applyLineResult({scene,op:Date.now()},result,edits);host.state().wallEdits=edits;movedPairs=result.pairs;}
+    lineSelection=movedPairs.map(pair=>({pair,id:W.edgeKey(...pair)}));preferredDraft=draftKey(d);
    });}
   if(!selection)return false;return transaction(()=>{const {d,f,points}=asDraft(selection),frame=F.viewFrame(points,p=>host.screen(p,'3d')),next=points.map(p=>toLocal(d,{x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy}));editRegion(d,f,next);});
  }
@@ -1653,12 +1653,37 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,
  // Planar line editing changes the shared graph once, then derives its faces.
  // Neither movement method clips to the old outline; that outline is an output.
  function moveDraftLines(d,pairs,delta){
-  S.nodeLines(d);const before=copy(d.faces),moves=new Map();
-  for(const n of d.sketch.nodes){const p=world(d,n);if(pairs.some(pair=>onSegment(p,...pair)))moves.set(n.id,toLocal(d,{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}));}
+  S.nodeLines(d);const before=copy(d.faces),moves=new Map(),profileMoves=new Set(),source=new Map(d.sketch.nodes.map(n=>[n.id,{...n}]));
+  const boundaries=d.sketch.edges.filter(e=>e.fixed&&!e.curveId).map(e=>[source.get(e.a),source.get(e.b)]);
+  const heights=x=>boundaries.flatMap(([a,b])=>{if(Math.abs(b.x-a.x)<1e-8)return [];const t=(x-a.x)/(b.x-a.x);return t>=-1e-7&&t<=1+1e-7?[a.y+(b.y-a.y)*t]:[];});
+  for(const n of d.sketch.nodes){const p=world(d,n);if(!pairs.some(pair=>onSegment(p,...pair)))continue;
+   const q=toLocal(d,{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z});
+   // Horizontal divider motion follows its existing wall profile. At a slope
+   // transition the new endpoint is evaluated on that segment, not translated
+   // at the former height. Outside the finite profile, free drawing still works.
+   if(Math.abs(q.y-n.y)<1e-7&&Math.abs(q.x-n.x)>1e-8&&pairs.some(pair=>onSegment(p,...pair)&&Math.abs(pair[0].z-pair[1].z)>1e-5)){
+    const from=heights(n.x),to=heights(q.x);
+    const divider=d.sketch.edges.some(e=>!e.fixed&&[e.a,e.b].includes(n.id)&&pairs.some(pair=>[source.get(e.a),source.get(e.b)].every(p=>onSegment(world(d,p),...pair))));
+    if(divider&&from.length&&to.length){if(Math.abs(n.y-Math.max(...from))<1e-5){q.y=Math.max(...to);profileMoves.add(n.id);}else if(Math.abs(n.y-Math.min(...from))<1e-5){q.y=Math.min(...to);profileMoves.add(n.id);}}
+   }
+   moves.set(n.id,q);
+  }
   if(!moves.size)throw Error('The selected line no longer belongs to this face. Select it again.');
+  // Slide the attachment through the existing boundary graph. Moving its old
+  // incident edges would cut across a roof corner when crossing into the next
+  // segment. Keep real corners; dissolve only the old collinear attachment.
+  for(const id of profileMoves){const incident=d.sketch.edges.filter(e=>e.fixed&&[e.a,e.b].includes(id)),n=source.get(id),ends=incident.map(e=>source.get(e.a===id?e.b:e.a));
+   if(incident.length===2&&Math.abs((ends[0].x-n.x)*(ends[1].y-n.y)-(ends[0].y-n.y)*(ends[1].x-n.x))<1e-7){
+    d.sketch.edges=d.sketch.edges.filter(e=>!incident.includes(e));d.sketch.edges.push({...incident[0],id:'e'+(++d.sketch.next),a:ends[0].id,b:ends[1].id});
+   }else if(incident.length){const anchor={...n,id:'p'+(++d.sketch.next),userDraftPoint:false};d.sketch.nodes.push(anchor);for(const e of incident){if(e.a===id)e.a=anchor.id;if(e.b===id)e.b=anchor.id;}}
+  }
   for(const n of d.sketch.nodes)if(moves.has(n.id))Object.assign(n,moves.get(n.id));
+  if(profileMoves.size)S.nodeLines(d);
   S.resolve(d);restoreMovedRegions(d,before);classify(d);
+  const translate=p=>{const node=[...source.values()].find(n=>distance3(world(d,n),p)<1e-5),q=node&&moves.get(node.id);return q?world(d,q):{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z};};
+  return pairs.map(pair=>pair.map(translate));
  }
+
  function nudgeGeometry(dx,dy){
   if(!geometryCommand('m')||tool?.kind!=='geometryTransform')return false;
   const t=tool,frame=t.clip.mounts[t.mount].frame,view=workingPlane?workingPlane.frame:F.viewFrame(t.clip.faces[0]?.points||t.clip.points,p=>host.screen(p,'3d'));

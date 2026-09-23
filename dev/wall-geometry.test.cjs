@@ -230,3 +230,21 @@ test('flashing alignment retains substantial height differences and unrelated ne
  near(turn.bottom[0].y,-.001);near(turn.top[0].y,-.001);
  assert.ok(result.some(w=>w.kind==='perimeter'&&w.bottom.every(p=>p.z>=4.8)),'a real height step keeps its upper wall portion');
 });
+
+test('canonical generated runs change source coordinates and filled triangle boundaries together',()=>{
+ const heights=[4,3.98,3.975,4.002,3.99,4.01,4.005,4],input=heights.slice(1).map((z,i)=>({id:'part-'+i,sourceId:'roof',kind:'perimeter',bottom:[p(i,0,0),p(i+1,0,0)],top:[p(i,0,heights[i]),p(i+1,0,z)]})),original=structuredClone(input),walls=G.mergeCoplanar(input).walls,geo=G.topology(walls);
+ assert.deepEqual(input,original,'generation never overwrites source measurements');assert.ok(walls.every(w=>w.top.every(p=>Math.abs(p.z-4)<1e-8)));
+ assert.ok(geo.faces[0].triangles.flat().every(i=>geo.points[i].z===0||Math.abs(geo.points[i].z-4)<1e-8));assert.equal(geo.faces[0].pointIndices.length,4);
+ assert.deepEqual(G.canonicalGeneratedWalls(walls),walls,'canonicalization is stable on repeated passes');
+ const protectedWalls=original.map(w=>({...w,mergeGroup:'protected'}));assert.deepEqual(G.canonicalGeneratedWalls(protectedWalls,['part-2']),protectedWalls,'authored owners stay protected');
+});
+
+
+test('merged source overlaps produce one filled region, while holes and disconnected regions stay valid',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),strip=(id,a,b,low,high)=>({id,sourceId:'roof',kind:'perimeter',mergeGroup:'merged',bottom:[p(a,0,low),p(b,0,low)],top:[p(a,0,high),p(b,0,high)]});
+ const overlap=G.topology([strip('a',0,3,0,3),strip('b',2,5,0,3)]);
+ assert.equal(overlap.faces.length,1);assert.equal(overlap.faces[0].area,15);assert.equal(overlap.points.length,4);assert.equal(overlap.connections.length,4);
+ const holed=G.topology([strip('left',0,1,0,4),strip('right',3,4,0,4),strip('bottom',1,3,0,1),strip('top',1,3,3,4),strip('island',6,7,0,1)]);
+ assert.equal(holed.faces.length,2);assert.equal(holed.faces.reduce((a,f)=>a+f.area,0),13);assert.equal(holed.faces.filter(f=>f.holes?.length).length,1);
+ for(const geo of [overlap,holed])for(const face of geo.faces){K.validateFace({points:face.pointIndices.map(i=>geo.points[i]),holes:(face.holes||[]).map(r=>r.map(i=>geo.points[i]))});assert.deepEqual(new Set(face.triangles.flat()),new Set([...face.pointIndices,...(face.holes||[]).flat()]));}
+});

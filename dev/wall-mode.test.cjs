@@ -258,21 +258,21 @@ test('rake cleanup is a sixth stage with reversible wall and foundation comparis
  const pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
  ctx.activeGeometry={points,connections:input.roof.connections.map(c=>({...c,start:points[c.startIdx],end:points[c.endIdx]})),manualFaces:input.roof.faces.map(f=>({...f,points:f.points.map(pixel),holes:(f.holes||[]).map(r=>r.map(pixel))}))};
  ctx.dsmMin=input.options.ground;ctx.WallMode.setEnabled(true);soffits[0].onclick();
- const aligned=ctx.WallMode.serialize();assert.equal(aligned.stage,7);assert.equal(aligned.chimneyCleanupReport.alignments.length,1);assert.equal(aligned.geometry.faces.length,9);
+ const aligned=ctx.WallMode.serialize();assert.equal(aligned.stage,7);assert.equal(aligned.chimneyCleanupReport.alignments.length,1);assert.equal(aligned.geometry.faces.length,10);
  const alignedBase=JSON.stringify(aligned.base);
  stages[4].onclick();stages[6].onclick();assert.equal(JSON.stringify(ctx.WallMode.serialize().base),alignedBase);
  ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...aligned,savedAt:Date.now()+1000}});
  assert.equal(ctx.WallMode.serialize().stage,7);assert.equal(JSON.stringify(ctx.WallMode.serialize().base),alignedBase);
- stages[5].onclick();const cleaned=ctx.WallMode.serialize();assert.equal(cleaned.stage,6);assert.equal(cleaned.rakeCleanupReport.paths.length,1);assert.equal(cleaned.geometry.faces.length,10);
+ stages[5].onclick();const cleaned=ctx.WallMode.serialize();assert.equal(cleaned.stage,6);assert.equal(cleaned.rakeCleanupReport.paths.length,1);assert.equal(cleaned.geometry.faces.length,12);
  assert.ok(cleaned.baseCleanupApplied);const base=JSON.stringify(cleaned.base),roof=JSON.stringify(cleaned.roof);
- stages[4].onclick();const detailed=ctx.WallMode.serialize();assert.equal(detailed.stage,5);assert.equal(detailed.geometry.faces.length,13);assert.notEqual(JSON.stringify(detailed.base),base);
- stages[5].onclick();assert.equal(JSON.stringify(ctx.WallMode.serialize().base),base);assert.equal(ctx.WallMode.serialize().geometry.faces.length,10);
+ stages[4].onclick();const detailed=ctx.WallMode.serialize();assert.equal(detailed.stage,5);assert.equal(detailed.geometry.faces.length,15);assert.notEqual(JSON.stringify(detailed.base),base);
+ stages[5].onclick();assert.equal(JSON.stringify(ctx.WallMode.serialize().base),base);assert.equal(ctx.WallMode.serialize().geometry.faces.length,12);
  ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...cleaned,savedAt:Date.now()+10000}});
  assert.equal(ctx.WallMode.serialize().stage,6);assert.equal(JSON.stringify(ctx.WallMode.serialize().base),base);
  assert.equal(JSON.stringify(ctx.WallMode.serialize().roof),roof);
  stages[4].onclick();elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().stage,7);
  key('z');assert.equal(ctx.WallMode.serialize().stage,5);assert.equal(JSON.stringify(ctx.WallMode.serialize().base),JSON.stringify(detailed.base));
- key('y');assert.equal(ctx.WallMode.serialize().stage,7);assert.equal(ctx.WallMode.serialize().geometry.faces.length,9);
+ key('y');assert.equal(ctx.WallMode.serialize().stage,7);assert.equal(ctx.WallMode.serialize().geometry.faces.length,10);
 });
 test('translucency defaults on and toolbar preference round trips',()=>{const f=fixture(true);f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();assert.notEqual(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();const saved=f.ctx.WallMode.serialize();assert.equal(saved.translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');assert.equal(f.ctx.WallMode.serialize().translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().translucent,true);});
 

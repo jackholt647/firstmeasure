@@ -52,7 +52,7 @@ test('the captured corner removes the small rake/eave return and flashing while 
  assert.equal(r.report.paths.length,1);assert.equal(r.report.paths[0].extendedSource,'R17.1');assert.ok(r.report.paths[0].rakeSource.startsWith('R10.'));
  for(const id of ['R21.0','R22.0','R23','R24'])assert.ok(!r.walls.some(w=>w.sourceId===id),`${id} no longer builds a return`);
  state.base=R.foundation(state.base,r.report);const composed=C.compose(r.walls,state);
- assert.equal(D.detect(composed,state.ground).length,0);assert.equal(G.topology(composed).faces.length,10);assert.equal(composed.filter(w=>w.chimney).length,3);
+ assert.equal(D.detect(composed,state.ground).length,0);assert.equal(G.topology(composed).faces.length,12);assert.equal(composed.filter(w=>w.chimney).length,3);
  assert.equal(JSON.stringify(state.roof),before);assert.ok(state.base.chimneyFoundationParts.length);
  const corrected=r.report.setbackCorrections;assert.equal(corrected.length,1);near(corrected[0].before,.2177728570388219);near(corrected[0].after,18*G.INCH);
  for(const w of r.walls.filter(w=>/^R(17|18)\./.test(w.sourceId))){

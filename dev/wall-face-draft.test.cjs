@@ -2440,7 +2440,7 @@ test('generated collinear wall subdivisions do not become sketch anchors, while 
 test('survey-noise roof stations form one selectable edge and do not return when editing',()=>{
  const heights=[4,3.98,3.975,4.002,3.99,4.01,4.005,4];
  const walls=G.mergeCoplanar(Array.from({length:7},(_,i)=>({id:i?'part-'+i:'w',sourceId:'R1',kind:'perimeter',bottom:[{x:i,y:0,z:0},{x:i+1,y:0,z:0}],top:[{x:i,y:0,z:heights[i]},{x:i+1,y:0,z:heights[i+1]}]}))).walls;
- const before=JSON.stringify(walls),geo=G.topology(walls);assert.equal(geo.faces[0].pointIndices.length,4);assert.equal(geo.faces[0].triangles.length,14,'keep the exact roof-contact mesh');assert.equal(JSON.stringify(walls),before);
+ const before=JSON.stringify(walls),geo=G.topology(walls);assert.equal(geo.faces[0].pointIndices.length,4);assert.equal(geo.faces[0].triangles.length,2,'mesh comes from the canonical outline');assert.ok(walls.every(w=>w.top.every(p=>Math.abs(p.z-4)<1e-9)),'actual source walls must be straight too');assert.ok(geo.points.every(p=>Math.abs(p.z)<1e-9||Math.abs(p.z-4)<1e-9),'filled triangles cannot keep the old ragged edge');assert.equal(JSON.stringify(walls),before);
  const f=fixture({walls});f.editor.pickLine3D(f.e(3.5,4));f.listeners.pointerup(f.e(3.5,4));const pair=f.editor.selectionSnapshot().lineSelection[0].pair;assert.equal(Math.abs(pair[1].x-pair[0].x),7);
  f.editor.beginFace(f.e(.5,2),walls[0]);f.listeners.pointerup(f.e(.5,2));const d=f.state.wallEdits.$drafts[walls[0].mergeGroup];assert.equal(d.sketch.nodes.length,4);
  f.editor.doubleClick(f.e(2,4),walls[0]);assert.ok(d.sketch.nodes.some(n=>n.x===2&&n.y===4&&n.userDraftPoint));
@@ -2525,4 +2525,12 @@ test('moving a planar line away then back creates no undo entry or normalized gh
  const f=slopedBoundaryQuad(),before=JSON.stringify(f.state.wallEdits),count=f.history.length;
  f.listeners.pointermove(f.e(3,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.8,2));f.listeners.pointermove(f.e(3,2));f.editor.down(f.e(3,2));
  assert.equal(f.history.length,count);assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.editor.busy(),false);
+});
+
+test('horizontal divider movement follows a changing roof and sloping floor profile through a corner',()=>{
+ const walls=[{id:'w',sourceId:'a',kind:'perimeter',bottom:[{x:0,y:0,z:0},{x:2,y:0,z:.2}],top:[{x:0,y:0,z:4},{x:2,y:0,z:5}]},{id:'b',sourceId:'b',kind:'perimeter',bottom:[{x:2,y:0,z:.2},{x:4,y:0,z:.4}],top:[{x:2,y:0,z:5},{x:4,y:0,z:3}]}];
+ const merged=G.mergeCoplanar(walls).walls,f=fixture({walls:merged,globals:{isFreeMove:true}});
+ f.editor.doubleClick(f.e(1,.1),merged[0]);f.editor.key({key:'n'});f.editor.down(f.e(1,4.5));f.listeners.pointerup(f.e(1,4.5));f.editor.pickLine3D(f.e(1,2));f.listeners.pointerup(f.e(1,2));
+ let x=1;for(let i=0;i<10;i++){f.editor.key({key:'ArrowRight',shiftKey:true});x+=.1524;const pair=f.editor.selectionSnapshot().lineSelection[0].pair,top=x<=2?4+.5*x:7-x;assert.ok(pair.every(p=>Math.abs(p.x-x)<1e-6));assert.ok(Math.abs(Math.max(...pair.map(p=>p.z))-top)<1e-6,f.message());assert.ok(Math.abs(Math.min(...pair.map(p=>p.z))-.1*x)<1e-6);}
+ const before=JSON.stringify(f.state.wallEdits);f.listeners.pointermove(f.e(x,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.5,2));const pair=f.editor.selectionSnapshot().lineSelection[0].pair;assert.ok(Math.abs(Math.max(...pair.map(p=>p.z))-4.75)<1e-6);assert.ok(Math.abs(Math.min(...pair.map(p=>p.z))-.15)<1e-6);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
 });

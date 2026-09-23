@@ -491,8 +491,33 @@ function roofContactExtensions(source,roof){
  }
  return extensions;
 }
+// Generated wall runs have a canonical contact line. Reconcile a noisy measured
+// roof sheet to that same line for the sweep, rather than cutting the straight
+// source against its obsolete triangle stations and manufacturing thin returns.
+// Only near-planar sheets within the generation tolerance qualify; real roof
+// folds and authored nonuniform wall profiles retain their original geometry.
+function generatedContactRoof(source,roof){
+ if(!source.generatedRoofContact||!roof?.faces?.length)return roof;
+ const G=typeof module==='object'&&module.exports?require('./wall_geometry.js'):root.WallGeometry,tolerance=.05;
+ const edges=source.points.map((a,i)=>[a,source.points[(i+1)%source.points.length]]).filter(([a,b])=>Math.hypot(b.x-a.x,b.y-a.y)>.1).sort((a,b)=>Math.hypot(b[1].x-b[0].x,b[1].y-b[0].y)-Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y));
+ return {...roof,faces:roof.faces.map(face=>{
+  if(face.deleted)return face;const plane=G.plane(face.points);if(!plane)return face;
+  for(const [a,b]of edges){
+   if(![.1,.5,.9].some(t=>G.contains(face,mix3(a,b,t))))continue;
+   if([a,b].some(p=>Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)>tolerance))continue;
+   const length=Math.hypot(b.x-a.x,b.y-a.y),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},v={x:-u.y,y:u.x},along=(b.z-a.z)/length,across=plane.dx*v.x+plane.dy*v.y;
+   const dx=along*u.x+across*v.x,dy=along*u.y+across*v.y,k=a.z-dx*a.x-dy*a.y,points=[face.points,...(face.holes||[])].flat();
+   // Bound measured planarity and contact correction independently. Hole
+   // vertices belong to the roof sheet too, rather than defining new pitches.
+   if(face.points.some(p=>Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)>tolerance)||points.some(p=>Math.abs((dx-plane.dx)*p.x+(dy-plane.dy)*p.y+k-plane.k)>tolerance))continue;
+   const fit=p=>({...p,z:dx*p.x+dy*p.y+k});return {...face,points:face.points.map(fit),holes:(face.holes||[]).map(r=>r.map(fit))};
+  }
+  return face;
+ })};
+}
 function roofExtrusion(source,amount,shape,roof){
  const n=normal(source.points);if(!roof?.faces?.length||!n||Math.abs(n.z)>K.CONTACT||Math.abs(amount)<K.CONTACT)return shape;
+ roof=generatedContactRoof(source,roof);
  const measuredRoof=roof,continuations=roofContactExtensions(source,roof);if(continuations.length)roof={...roof,faces:[...roof.faces,...continuations]};
  // The roof owns its surface. Keep only exposed portions of sweep returns,
  // including when motion is exactly coplanar and never enters a roof cutter.

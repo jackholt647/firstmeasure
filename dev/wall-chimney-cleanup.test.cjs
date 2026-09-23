@@ -57,7 +57,7 @@ test('captured gable aligns to chimney without changing roof or deliberate chimn
  // Previously retained wall strips ran diagonally through the upper shaft,
  // because clipping stopped at roof contact instead of the chimney cap.
  for(const w of composed.filter(w=>!w.chimney))assert.equal(C.intervals(...w.top,[{points:chimney[0].points}],true).length,0,'ordinary wall top ends at the chimney boundary');
- assert.equal(G.topology(merged).faces.length,9);assert.equal(D.detect(merged,s.ground).length,0);
+ assert.equal(G.topology(merged).faces.length,10);assert.equal(D.detect(merged,s.ground).length,0);
  assert.deepEqual(s.roof,roof);assert.deepEqual(C.definitions(s),chimney);
  const side=composed.find(w=>w.chimney?.side===3);side.material='brick';
  const materialSplit=A.compose(composed,r.report);assert.notEqual(materialSplit.find(w=>w.id===side.id).mergeGroup,materialSplit.find(w=>w.sourceId==='R17.1').mergeGroup);

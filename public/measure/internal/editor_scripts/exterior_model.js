@@ -9,7 +9,7 @@ const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.or
 // inherited from its draft. All callers must preserve both when materializing it.
 function draftFace(d,f,overrides={}){
  const map=p=>world(d,p),joinedChimneys=[...new Set([...(d.joinedChimneys||[]),...(f.joinedChimneys||[])])];
- return {...copy(f),...K.mapCurveData(f,map),chimney:(f.chimney||d.chimney)?copy(f.chimney||d.chimney):undefined,...(joinedChimneys.length?{joinedChimneys}:{}),points:f.points.map(map),holes:(f.holes||[]).map(r=>r.map(map)),retainedPoints:overrides.retainedPoints||(d.sketch?.nodes||[]).filter(p=>!(d.removedPoints||[]).includes(p.id)&&G.contains(f,p)).map(p=>({...map(p),anchorId:overrides.draftKey?overrides.draftKey+':'+p.id:undefined})),...overrides};
+ return {...copy(f),...(d.generatedRoofContact?{generatedRoofContact:true}:{}),...K.mapCurveData(f,map),chimney:(f.chimney||d.chimney)?copy(f.chimney||d.chimney):undefined,...(joinedChimneys.length?{joinedChimneys}:{}),points:f.points.map(map),holes:(f.holes||[]).map(r=>r.map(map)),retainedPoints:overrides.retainedPoints||(d.sketch?.nodes||[]).filter(p=>!(d.removedPoints||[]).includes(p.id)&&G.contains(f,p)).map(p=>({...map(p),anchorId:overrides.draftKey?overrides.draftKey+':'+p.id:undefined})),...overrides};
 }
 // Repair the missing ownership field in persisted operation replacements. The
 // stored source IDs prove ancestry; do not guess from proximity or recompute faces.

@@ -60,3 +60,51 @@ vertices before motion. Derived faces must not compete with their source graph.
 Preview from an immutable source, preserve untouched owners, and restore the
 original state on cancel. Test slightly sloped boundaries and repeated mixed-tool
 sequences, not only axis-aligned rectangles or individual geometry functions.
+
+
+## Geometry reconciliation follow-up
+
+The earlier outline cleanup was incomplete: it simplified wire boundaries while
+retaining the unsimplified source triangles. Extrusion and selection therefore
+could read different shapes. This was a source-model inconsistency, not merely
+line rendering or a keyboard focus problem.
+
+Generated wall runs now reconcile source elevations before composition. Merged
+strips use a planar union (including overlaps), and that region supplies both the
+filled triangles and boundary edges. Protected wall junctions are inserted into
+the union boundary. Disconnected regions receive separate valid loops; holes stay
+holes. Unreferenced source stations are omitted from the derived geometry.
+Original strips remain as provenance, not competing visible or editable faces.
+
+Survey cleanup bounds total run deviation to 5 cm, retains protected junctions,
+and preserves short physical corners. Long, nearly level eaves also reconcile
+short steep noise stations. Deliberately edited source owners are excluded from
+automatic coordinate correction. Repeated canonicalization is stable on both
+18-inch and 24-inch captured-house fixtures.
+
+Extrusion of a generated contact uses the same canonical rim. Near-planar roof
+cutters are fitted to that established contact within the survey tolerance, so
+old triangle stations do not reappear as thin extrusion returns. Source roof data
+is not rewritten. Authored nonuniform profiles retain their exact outlines.
+Real finite roof intersections still have their own clipping/continuation faces;
+this is not a general assertion that all roof-adjacent extrusions have four sides.
+
+Horizontal divider movement evaluates its endpoints against the wall's top and
+bottom profiles. Crossing a peak detaches the old attachment without dragging the
+peak, then nodes the divider into the destination segment. Mouse movement and
+keyboard nudges return the actual moved endpoints to selection. Outside the
+finite profile, existing free expansion remains available.
+
+Regression coverage includes actual source elevations and mesh boundaries,
+union area/no duplicate overlap, holes/disconnected regions, captured outward
+extrusions at multiple depths, exact nonuniform extrusion, repeated divider
+movement across a peak and sloping floor, mouse placement and cancel. Historical
+face-count assertions were updated because disconnected regions now have valid
+individual loops rather than one unordered point list. The old test requiring
+ragged triangles was replaced with mesh/outline agreement; measured roof contact
+uses the explicit 5 cm generation tolerance.
+
+Previously committed custom extrusions are not regenerated or discarded on load.
+The corrected generation applies to fresh From Roof output and unedited generated
+owners. Retest old altered geometry from its pre-edit state to avoid retaining an
+already committed bad extrusion.
