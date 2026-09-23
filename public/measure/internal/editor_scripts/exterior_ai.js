@@ -218,10 +218,17 @@
  async function previous(){
   if(busy)return;try{const db=await database();const records=await new Promise((resolve,reject)=>{const r=db.transaction('runs').objectStore('runs').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});db.close();run=records.filter(r=>r.project===String(root.currentProjectId)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0]||null;draw();if(!run)panel.querySelector('[data-log]').textContent='No saved run for this project in this browser.';}catch(e){panel.querySelector('[data-log]').textContent=e.message;}
  }
- function mount(target){
+ function mountRotation(target){
   panel=target;panel.innerHTML='<p>Experimental · GPT-6 Luna · low reasoning</p><button type="button" data-start>Capture 8 views</button><button type="button" data-luna disabled>Ask Luna</button><button type="button" data-batch disabled>Ask Luna ×10</button><button type="button" data-stop disabled>Stop</button><button type="button" data-previous>Last saved run</button><button type="button" data-export disabled>Export run</button><p>8 textured views · 45° apart · one fitted distance · 6 ft above grade. Luna chooses a view or the midpoint between neighboring views. Capture once, then rerun AI on the same images. Full responses log in the console and save with this run. Click an image to download.</p><div data-log aria-live="polite"></div>';
   panel.querySelector('[data-start]').onclick=start;panel.querySelector('[data-luna]').onclick=()=>infer('Luna');panel.querySelector('[data-batch]').onclick=sample;panel.querySelector('[data-stop]').onclick=()=>controller?.abort();panel.querySelector('[data-previous]').onclick=previous;panel.querySelector('[data-export]').onclick=()=>run&&download(JSON.stringify(run,null,2),run.id+'.json','application/json');
   const style=node('style',null,document.head);style.textContent='#exterior-debug-ai{overflow-wrap:anywhere}#exterior-debug-ai button{width:100%;margin:3px 0}#exterior-debug-ai .ai-view-heading{display:flex;align-items:center;justify-content:space-between;gap:4px}#exterior-debug-ai .ai-view-heading button{width:26px;flex:0 0 26px;margin:0}#exterior-debug-ai section{border-top:1px solid #53606a;margin-top:10px;padding-top:8px}#exterior-debug-ai section[data-selected]{border:2px solid #64d9a3;padding:5px}#exterior-debug-ai p{font-size:11px;line-height:1.45}';
  }
- root.ExteriorAI={available:root.FIRSTMEASURE_EXTERIOR_AI===true,mount,orbit,orbitPosition,fits,validateChoice,choiceIndex,distribution};
+ function mount(target){
+  const tabs=node('div',null,target);tabs.className='ai-subtabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','AI passes');
+  const rotation=node('div',null,target),stickers=node('div',null,target);rotation.id='ai-rotation';stickers.id='ai-stickers';
+  mountRotation(rotation);const panes=[rotation,stickers],buttons=[];
+  for(const [i,name]of ['Rotation','Stickers'].entries()){const b=node('button',name,tabs);b.type='button';b.setAttribute('role','tab');b.id='ai-pass-'+i;b.setAttribute('aria-controls',panes[i].id);panes[i].setAttribute('role','tabpanel');panes[i].setAttribute('aria-labelledby',b.id);buttons.push(b);b.onclick=()=>{if(busy||root.ExteriorAIStickers?.busy)return;panes.forEach((p,j)=>p.hidden=i!==j);buttons.forEach((v,j)=>v.setAttribute('aria-selected',String(i===j)));if(i===1)root.ExteriorAIStickers?.mount(stickers);};}buttons[0].click();
+  const style=node('style',null,document.head);style.textContent='#exterior-debug-ai .ai-subtabs{display:flex;gap:3px}#exterior-debug-ai .ai-subtabs button{width:50%;font-size:11px}';
+ }
+ root.ExteriorAI={available:root.FIRSTMEASURE_EXTERIOR_AI===true,mount,get busy(){return busy;},context:()=>run?JSON.parse(JSON.stringify(run)):null,useView:async pose=>{await rotateTo(pose);return run?.status;},orbit,orbitPosition,fits,validateChoice,choiceIndex,distribution};
 })(window);

@@ -821,6 +821,24 @@ function perf_render3DFrame() {
         (state.wallEdits?.$base||state.base).visible=true;
         render();
     }
-    window.WallMode={prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    function aiStickerScene(){
+        const g=aiGeometry();
+        if(selectionBusy()||groundEditor?.sampling?.())throw Error('Finish the active tool first.');
+        const originals=window.ExteriorModel.collect(state,currentWalls());
+        const surfaces=originals.filter(f=>!f.feature&&!f.trim&&!f.deleted).map(f=>({...f,signature:JSON.stringify([f.points,f.holes||[],f.curvedSurface||null])}));
+        const faces=surfaces.filter(f=>Math.abs(window.ExteriorGeometry.normal(f.points)?.z??1)<.8);
+        const parts=surfaces.flatMap(f=>(window.WallChimneys?.visibleParts(f,state)||[f]).map(p=>({...p,id:f.id})));
+        return {toScene:g.toScene,faces:copy(faces),occluders:copy([...parts,...(state.roof.faces||[]),...((state.wallEdits?.$base||state.base).faces||[])])};
+    }
+    function selectAIFace(id,signature){
+        const f=aiStickerScene().faces.find(f=>f.id===id);
+        if(!f||f.signature!==signature)throw Error('This face has changed since the run. Run again to select it.');
+        const ref=f.draft?{draft:f.draftKey,face:f.regionId}:id.startsWith('wall:')?null:{solid:id};
+        flushSelectionHistory();baseEditor?.restoreSelection?.({});roofTrimEditor?.clear();wallEditor?.clear();
+        editingLayer='walls';selected=id.startsWith('wall:')?id.slice(5):null;
+        wallEditor?.restoreSelection({selected,indices:[],draft:ref?{selectedSolid:ref.solid||null,selectedRegion:ref.solid?null:ref,faceSelection:[ref],activeDraftKey:ref.draft||null,preferredDraft:ref.draft||null,preferredRegion:ref.face||null,preferredSolid:ref.solid||null}:{}});
+        render();flushSelectionHistory();
+    }
+    window.WallMode={aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

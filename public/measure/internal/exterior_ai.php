@@ -14,17 +14,22 @@ if (($_SERVER['HTTP_ORIGIN'] ?? '') !== 'https://dev.1m8.ai') ai_fail(403, 'Orig
 if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 24000000) ai_fail(413, 'Images too large.');
 // Permit a ten-request parallel experiment; count under the session lock.
 $recent = array_values(array_filter($_SESSION['exterior_ai_requests'] ?? [], fn($stamp) => $stamp > time() - 60));
-if (count($recent) >= 30) ai_fail(429, 'Experiment limit reached (30 calls per minute). Wait before retrying.');
+if (count($recent) >= 120) ai_fail(429, 'Experiment limit reached (120 calls per minute). Wait before retrying.');
 $recent[] = time();
 $_SESSION['exterior_ai_requests'] = $recent;
 session_write_close();
 $data = json_decode(file_get_contents('php://input', false, null, 0, 24000001), true);
 if (!is_array($data)) ai_fail(400, 'Invalid request.');
-if (($data['mode'] ?? '') !== 'orbit-front-v2') ai_fail(400, 'Refresh the editor to use the eight-view experiment.');
+if (!in_array($data['mode'] ?? '', ['orbit-front-v2','stickers-v1'], true)) ai_fail(400, 'Unknown experiment.');
 $project = (string)($data['project'] ?? '');
 if (!preg_match('/^(?:fullhouse_|exteriors_)?[a-f0-9]{32}$/D', $project)) ai_fail(400, 'Invalid project.');
 $access = fm_api_json('GET', 'projects/' . rawurlencode($project) . '/editor/feedback');
 if (empty($access['ok'])) ai_fail(403, 'Project access denied.');
+if ($data['mode'] === 'stickers-v1') {
+    define('EXTERIOR_AI_AUTHORIZED', true);
+    require __DIR__ . '/exterior_ai_stickers.php';
+    exit;
+}
 $images = $data['images'] ?? [];
 $context = $data['context'] ?? null;
 if (!is_array($images) || !array_is_list($images) || count($images) !== 9 || !is_array($context)
