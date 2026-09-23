@@ -26,7 +26,7 @@ September 22 chimney soffit follow-up: [Attached contacts and layered setbacks](
 
 September 22 layered roof generation: [Chimney, turret and foundation fixes](deploy/digitalocean/development-roof-layers-20260922.md) records `11b13e0e444c7af901381bcf4e6e67e8017f80d8` on all three development roles. The saved house was rebuilt and verified with zero ground gaps; 807 tests pass. Development NGINX temporary-directory ownership was also repaired so saves and large imagery downloads work. Preserve this baseline.
 
-September 22 mobile apps: [Development mobile hosts and private downloads](deploy/digitalocean/development-mobile-apps-20260922.md) records `a639aad1132f425ed567aafd03f4d08ffbba5dfe` on all development roles, preserving the concurrent `18a81ab` wall/plane editor release. Android and iPhone simulator CI passed; physical iPhone distribution awaits Apple signing. Production is unchanged.
+September 22 mobile apps: [Development mobile hosts and private downloads](deploy/digitalocean/development-mobile-apps-20260922.md) records `af30bfaac0af4d5605a5c00524ebc75c25be1aa5` on all development roles (App download defaults off; Test Company is opted in), preserving the concurrent `18a81ab` wall/plane editor release. Android and iPhone simulator CI passed; physical iPhone distribution awaits Apple signing. Production is unchanged.
 
 September 21 PHP release compatibility: [Prevent mixed portal releases](deploy/digitalocean/development-php-release-compatibility-20260921.md) records the development correction for stale PHP pages mixed with new JavaScript. PHP-serving NGINX hosts must use resolved release filenames; refresh PHP-FPM on both web and compatibility activation and rollback. Organization data and flags were unchanged.
 
