@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 AI placements: [Percentage-based editable stickers](deploy/digitalocean/development-exterior-ai-placements-20260923.md) records `02ccd8a43ddd5e056618db2a2fa03be3ed98fb45` on development. Counts + placements returns face-relative rectangles and creates typed stickers in one undoable edit. Both request styles, history, validation and undo/redo pass 85 focused tests. The four-file delta preserves `27b4997`; production is unchanged.
+
 September 23 plane integrity: [Selection, spline controls and line clipboard](deploy/digitalocean/development-plane-integrity-20260923.md) records `27b499736c25dae868743ab10b55f459a922c405` on all development roles. Entering a face plane deselects the source, analytic spline controls remain editable, line copy/paste preserves edges and curves, and Exit Plane works. All 519 focused checks passed; public hashes and role readiness are verified. This four-script delta preserves `06540fa`; production is unchanged.
 
 September 23 wide AI captures: [100-degree orbit FOV](deploy/digitalocean/development-exterior-ai-wide-20260923.md) records `06540fabe7c9d9fba19f4746222a84a7fb92f1d1` on all development roles. New eight-view captures fit at 100° vertical FOV; saved runs preserve their original lens for replay and AI metadata. Four focused checks, public hash and readiness passed. This one-script delta preserves `9dc5476`; production is unchanged.
