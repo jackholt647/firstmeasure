@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 Luna sampling: [Ten parallel calls and grouped choices](deploy/digitalocean/development-exterior-ai-sample-20260923.md) records `b897412d541be2613a23951e0a02b67a191f517f` on development. Ask Luna x10 reuses saved captures, preserves each response and groups equivalent camera choices. The one live ten-call sample returned View 2 ten times with no failures. Five focused tests, PHP lint, public hash and readiness passed. This two-file delta preserves the complete `44a3693` runtime; production is unchanged.
+
 September 23 midpoint styling: [Roof-style blue ticks](deploy/digitalocean/development-line-center-ticks-20260923.md) records `44a3693faeba00222662bfc7dd34f011216eeb4b` on all development roles. Line centers use cyan perpendicular ticks in SVG and 3D, with constant screen size and unchanged snapping. All 389 editor checks pass; public hash and readiness passed. This one-script delta preserves the complete `1762b2a` runtime. Production is unchanged.
 
 September 23 plane nudging: [Upright arrows and grouped undo](deploy/digitalocean/development-plane-nudge-20260923.md) records `1762b2a37b5ee7dd5d4edf6245f557c6cc7f0f58` on all development roles. Plane nudges use upright view directions and consecutive nudges share undo/redo across direction and step changes. All 450 focused checks pass; public hashes and readiness passed. This two-script delta preserves the complete `31f1f62` runtime. Production is unchanged.
