@@ -2665,3 +2665,14 @@ test('queued point preview moves the marker without rebuilding or changing geome
  let objects=[];f.editor.drawNudgePreview({add:o=>objects.push(o)},p=>p,pending);assert.ok(Math.abs(objects[0].geometry.points[0].x-(2+.0508))<1e-7);
  pending.nudgeCount=8;objects=[];f.editor.drawNudgePreview({add:o=>objects.push(o)},p=>p,pending);assert.ok(Math.abs(objects[0].geometry.points[0].x-(2+.2032))<1e-7);assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
+
+test('plane guide stays upright when the supporting frame starts on a diagonal',()=>{
+ const p=(x,z)=>({x,y:0,z}),face={points:[p(1,3),p(0,2),p(0,0),p(2,0),p(2,2)]},f=fixture({globals:renderGlobals(),walls:[],selected:null});f.editor.togglePlane(face);const before=JSON.stringify(f.editor.selectionSnapshot()),objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+ const grid=objects.filter(o=>o.material.color==='#31606b');assert.ok(grid.length>10);for(const o of grid){const [a,b]=o.geometry.points;assert.ok(Math.abs(a.x-b.x)<1e-8||Math.abs(a.z-b.z)<1e-8,'grid is level or vertical');assert.equal(a.y,0);assert.equal(b.y,0);}assert.equal(JSON.stringify(f.editor.selectionSnapshot()),before,'rendering does not rotate drawing coordinates');
+});
+
+test('plane line selection renders an edge highlight distinct from two selected endpoints',()=>{
+ const p=(x,z)=>({x,y:0,z}),left=[p(0,2),p(1,3)],right=[p(1,3),p(2,2)],face={id:'gable',points:[...left,right[1],p(2,0),p(0,0)]},f=fixture({globals:renderGlobals(),state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null});f.editor.togglePlane(face);f.editor.planeDown(f.e(.5,2.5));f.listeners.pointerup(f.e(.5,2.5));
+ assert.equal(f.editor.selectionSnapshot().workingPlane.selectedLines.length,1);let objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);let selected=objects.filter(o=>o.userData.exteriorSelection&&o.userData.planeGuide);assert.equal(selected.length,1);assert.deepEqual(JSON.parse(JSON.stringify(selected[0].geometry.points)),left);assert.equal(selected[0].material.depthTest,false);
+ const snapshot=f.editor.selectionSnapshot();snapshot.workingPlane.selectedLines=[];snapshot.workingPlane.selection=left;f.editor.restoreSelection(snapshot);objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.equal(objects.filter(o=>o.userData.exteriorSelection&&o.userData.planeGuide).length,0,'selecting the endpoints alone does not highlight the line');
+});

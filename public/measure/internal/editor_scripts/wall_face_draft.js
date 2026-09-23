@@ -274,15 +274,20 @@ window.createWallFaceDraft=function(host){
   catch(error){host.message(error.message);}host.redraw();return true;
  }
  function drawWorkingPlane(group,vector){
-  if(!workingPlane)return;const output=group;group={add(o){o.userData||={};o.userData.planeGuide=true;output.add(o);}};const K=window.ExteriorGeometry,plane=workingPlane,scene=planeScene(),points=[...plane.seed,...scene.points.map(p=>K.local(plane.frame,p)),...(plane.hover?[plane.hover]:[])];
+  if(!workingPlane)return;const output=group;group={add(o){o.userData||={};o.userData.planeGuide=true;output.add(o);}};const K=window.ExteriorGeometry,plane=workingPlane,scene=planeScene();
+  // The guide is upright within the supporting plane, independent of which
+  // edge established the drawing coordinates. Keep those coordinates intact.
+  const origin=plane.frame.origin,guide=F.frame([origin,...[plane.frame.u,plane.frame.v].map(a=>({x:origin.x+a.x,y:origin.y+a.y,z:origin.z+a.z}))]);
+  const points=[...plane.seed.map(p=>K.world(plane.frame,p)),...scene.points,...(plane.hover?[K.world(plane.frame,plane.hover)]:[])].map(p=>K.local(guide,p));
   drawPlaneRotation(group,vector);
   const minX=Math.min(...points.map(p=>p.x)),maxX=Math.max(...points.map(p=>p.x)),minY=Math.min(...points.map(p=>p.y)),maxY=Math.max(...points.map(p=>p.y)),span=Math.max(maxX-minX,maxY-minY,4),pad=Math.max(2,span*.3),loX=minX-pad,hiX=maxX+pad,loY=minY-pad,hiY=maxY+pad;
-  const world=(x,y)=>K.world(plane.frame,{x,y,z:0}),corners=[[loX,loY],[hiX,loY],[hiX,hiY],[loX,hiY]].map(([x,y])=>world(x,y));
+  const world=(x,y)=>K.world(guide,{x,y,z:0}),corners=[[loX,loY],[hiX,loY],[hiX,hiY],[loX,hiY]].map(([x,y])=>world(x,y));
   const mesh=new THREE.Mesh(new THREE.BufferGeometry().setFromPoints(corners.map(vector)).setIndex([0,1,2,0,2,3]),new THREE.MeshBasicMaterial({color:'#51bcd6',transparent:true,opacity:.08,side:THREE.DoubleSide,depthWrite:false}));mesh.userData.workingPlane=true;group.add(mesh);
   const step=Math.pow(10,Math.floor(Math.log10(span/10)));const spacing=Math.max(step,span/40);
   for(let x=Math.ceil(loX/spacing)*spacing;x<=hiX;x+=spacing)previewLine(group,vector,world(x,loY),world(x,hiY),'#31606b',true);
   for(let y=Math.ceil(loY/spacing)*spacing;y<=hiY;y+=spacing)previewLine(group,vector,world(loX,y),world(hiX,y),'#31606b',true);
   for(const [a,b]of scene.lines)previewLine(group,vector,a,b,'#70ddeb');
+  for(const pair of plane.selectedLines||[])window.wallSelectedLine(group,vector,pair.pair||pair);
   if(scene.points.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(scene.points.map(vector)),new THREE.PointsMaterial({color:'#70ddeb',size:5,sizeAttenuation:false,depthTest:false})));
   if(plane.hover)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints([vector(K.world(plane.frame,plane.hover))]),new THREE.PointsMaterial({color:'#FFD700',size:9,sizeAttenuation:false,depthTest:false})));
   if(plane.selection.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(plane.selection.map(vector)),new THREE.PointsMaterial({color:'#ffffff',size:9,sizeAttenuation:false,depthTest:false})));
