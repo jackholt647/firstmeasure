@@ -17,3 +17,13 @@ Production deployment requires user authorization; honor authorization already g
 - Its normal account is `dev`; its default project directory is `/home/dev/code`.
 - Connect through the existing SSH configuration. Never expose, print, copy, or transmit a private SSH key.
 - Infer sync paths/direction only from adequate context. Do not infer deletion, mirroring, or overwrite semantics from a generic sync request.
+
+## Canonical source
+
+The active combined platform checkout is `C:/Users/jackh/Code/2026/FirstMate Platform`
+on `codex/consolidated-firstmeasure-20260923`. Read
+[docs/canonical-checkout.md](docs/canonical-checkout.md) before source reconciliation
+or handoff. Older worktrees preserve recovery history; do not silently switch
+to them or reimport their files. Deploy immutable verified commits from the
+canonical branch using the existing deployment workflow. Development deployment
+authorization does not authorize production deployment or topology changes.

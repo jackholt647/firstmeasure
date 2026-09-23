@@ -76,3 +76,12 @@ test('branch API rejects preference changes while customization is disabled',asy
  await assert.rejects(c.assertBranchReportPreferences('org','default',{report_preferences:{measurement_system:'imperial'}}),/disabled/);
  enabled=true;await c.assertBranchReportPreferences('org','default',{data:{report_preferences:{measurement_system:'imperial'}}});
 });
+
+
+test('project preview formats each report range using its own units',()=>{
+ const c={window:{ReportUnits:U}};vm.createContext(c);
+ vm.runInContext(sourceFunction('public/libraries/apps/projects/viewer.js','formatRoofingSquareRange'),c);
+ assert.equal(c.formatRoofingSquareRange(10,{measurement_system:'imperial'}),'8 to 10 Squares');
+ assert.equal(c.formatRoofingSquareRange(10,{measurement_system:'metric',report_language:'en-GB'}),'74.32 to 92.9 m²');
+ assert.equal(c.formatRoofingSquareRange(10,{measurement_system:'imperial'}),'8 to 10 Squares');
+});

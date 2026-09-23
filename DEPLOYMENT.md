@@ -234,16 +234,15 @@ completed in the September 10 promotion record.
 - The SSH alias `dev-sync-droplet` is a separate development/jump host, not the production cluster or the entire development environment.
 - Migration is complete: all 11 frozen SQLite databases passed full integrity checks with zero errors. Production has new writes. Never rerun imports or reconcile live records against frozen source counts during a code deployment.
 
-## First task before another release: consolidate the baseline
+## Canonical source and release baseline
 
 CI, release installation, activation, and verification scripts exist. A fully verified single-command fleet deployment pipeline does **not** yet exist.
 
-The initial live release is `/opt/firstmeasure/releases/preprod-r1-20260907`; `/opt/firstmeasure/current` selects it. Migration-night repairs were applied directly to deployed code and host configuration. The existing main workspace contains substantial uncommitted work, including changes absent from newer worktrees.
-
-Before the next release, compare deployed source with the existing workspace, preserve the fixes listed below, and produce a reviewed commit and complete release bundle. Do not deploy an older clean checkout merely because it builds. Do not reset, clean, or overwrite unrelated workspace changes. This documentation does not mean baseline reconciliation has already been completed.
-
-Existing workspace: `C:\Users\jackh\Code\2026\FirstMeasure`.
-Documentation task worktree: `C:\Users\jackh\.codex\worktrees\f78b\FirstMeasure`.
+The active combined source is `C:/Users/jackh/Code/2026/FirstMate Platform` on
+`codex/consolidated-firstmeasure-20260923`. See [the consolidation record](docs/canonical-checkout.md)
+for lineage, dirty-work recovery and verification. Original worktrees are retained
+as recovery references. Always recheck live source before a release; immutable
+release identity and content verification take precedence over historical notes.
 
 ## The workflow
 

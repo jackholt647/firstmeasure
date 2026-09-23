@@ -1,8 +1,9 @@
 # FirstMeasure handoff to another computer
 
-Prepared September 10, 2026. Start from `codex/september-8-bugfixes`, not the
-older `main` branch. This is a source handoff, not a declaration that every
-committed change is deployed or that production matches Git exactly.
+Updated September 23, 2026. The canonical branch is
+`codex/consolidated-firstmeasure-20260923`; verify its published revision before
+cloning. See [the consolidation record](docs/canonical-checkout.md). This is a
+source handoff, not a declaration that production matches Git exactly.
 
 ## Clone and orient
 
@@ -11,7 +12,7 @@ Install Git and authenticate to GitHub with an account that can access
 authentication; never put a token in a repository URL or a checked-in file.
 
 ```sh
-git clone --branch codex/september-8-bugfixes https://github.com/jackholt647/firstmeasure.git
+git clone --branch codex/consolidated-firstmeasure-20260923 https://github.com/jackholt647/firstmeasure.git
 cd firstmeasure
 git status --short
 git log -5 --oneline
@@ -167,7 +168,7 @@ on a fresh clone or are required for routine application development.
 A starting instruction for the next assistant:
 
 > Clone https://github.com/jackholt647/firstmeasure.git on branch
-> codex/september-8-bugfixes. Read AGENTS.md, NEW_COMPUTER.md, DEPLOYMENT.md,
+> codex/consolidated-firstmeasure-20260923. Read AGENTS.md, NEW_COMPUTER.md, DEPLOYMENT.md,
 > and the linked recent incident/release records. Verify local setup and server
 > access, then carry out my requested change. Preserve live repairs and use the
 > documented release workflow within the deployment authorization I provide.

@@ -1374,7 +1374,7 @@
     return `${Math.ceil(squares).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} ${Math.ceil(squares) === 1 ? 'square' : 'squares'}`;
   }
 
-  function formatRoofingSquareRange(value){
+  function formatRoofingSquareRange(value, project){
     const squares = Number(value);
     if (!Number.isFinite(squares)) return '-';
     const center = Math.ceil(squares);
