@@ -174,12 +174,12 @@ test('draft extrusion reverses with the camera and reanchors after navigation',(
  }
 });
 function renderGlobals(){
- class BufferGeometry{setFromPoints(points){this.points=points;return this;}setIndex(){return this;}}
+ class BufferGeometry{setFromPoints(points){this.points=points;return this;}setIndex(){return this;}setAttribute(name,value){(this.attributes||={})[name]=value;return this;}}
  class Material{constructor(args){Object.assign(this,args);}}
  class Mesh{constructor(g,m){this.geometry=g;this.material=m;this.userData={};}updateMatrixWorld(){}computeLineDistances(){}}
  class Vector2{constructor(x,y){this.x=x;this.y=y;}}
  class Raycaster{setFromCamera(){}intersectObjects(ms){return ms.length?[{object:ms[0]}]:[];}}
- return {getVector3:p=>({...p,distanceTo:q=>Math.hypot(p.x-(q.x||0),p.y-(q.y||0),p.z-(q.z||0))}),THREE:{BufferGeometry,Mesh,Line:Mesh,Points:Mesh,MeshBasicMaterial:Material,LineBasicMaterial:Material,LineDashedMaterial:Material,PointsMaterial:Material,Vector2,Raycaster,ShapeUtils:{triangulateShape:()=>[[0,1,2]]}},renderer:{domElement:{getBoundingClientRect:()=>({left:0,top:0,width:400,height:400})}},camera:{position:{x:0,y:-10,z:2}}};
+ return {getVector3:p=>({...p,distanceTo:q=>Math.hypot(p.x-(q.x||0),p.y-(q.y||0),p.z-(q.z||0))}),THREE:{Float32BufferAttribute:class{constructor(array,itemSize){Object.assign(this,{array,itemSize});}},BufferGeometry,Mesh,Line:Mesh,Points:Mesh,MeshBasicMaterial:Material,LineBasicMaterial:Material,LineDashedMaterial:Material,PointsMaterial:Material,Vector2,Raycaster,ShapeUtils:{triangulateShape:()=>[[0,1,2]]}},renderer:{domElement:{getBoundingClientRect:()=>({left:0,top:0,width:400,height:400})}},camera:{position:{x:0,y:-10,z:2}}};
 }
 test('wall draft rendering supports first entry with no model, followed by generated walls',()=>{
  let current=null;const f=fixture({globals:renderGlobals(),getState:()=>current,getWalls:()=>current?[f.w]:[]});
@@ -1945,7 +1945,7 @@ test('new and pasted doors choose the nearest wall across generated and edited f
  for(const paste of [false,true])for(const depth of [4,-2]){
   const edited={id:'edited',points:[p(0,depth,0),p(4,depth,0),p(4,depth,3),p(0,depth,3)]},door={id:'door',feature:{type:'door'},points:[p(0,0,0),p(.9144,0,0),p(.9144,0,2.032),p(0,0,2.032)]},globals=renderGlobals();globals.THREE.Raycaster=class{constructor(){this.ray={origin:p(2,-10,.05)};}setFromCamera(){}intersectObjects(ms){const m=ms.find(m=>m.userData.solidId==='edited');return m?[{object:m}]:[];}};globals.exteriorGeometryClipboard=W.copyGeometry([door],door.points);
   const f=fixture({state:{wallEdits:{$surfaces:[edited]}},walls:[wall],hit:()=>wall,globals});f.editor.draw3D({add(){}},p=>p);f.listeners.pointermove(f.e(2,.05));if(paste)f.editor.clipboardCommand('paste');else f.editor.featureCommand('door',0,true);f.listeners.pointermove(f.e(2,.05));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
-  const preview=objects.find(o=>o.material?.opacity===.7);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y-(depth<0?depth:0))<1e-7),'closest visible supporting plane wins');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'low pointer places the door on the actual floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
+  const preview=objects.find(o=>o.material?.opacity===.7&&!o.userData?.lineCenters);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y-(depth<0?depth:0))<1e-7),'closest visible supporting plane wins');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'low pointer places the door on the actual floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
  }
 });
 
@@ -1958,7 +1958,7 @@ test('free-mode door placement projects onto the supporting wall through a rende
   globals.THREE.Raycaster=class{constructor(){this.ray={origin:p(2,-10,-10)};}setFromCamera(){}intersectObjects(ms){const m=ms.find(m=>m.userData.solidId==='existing');return m?[{object:m}]:[];}};
   const f=fixture({state:{wallEdits:{$surfaces:[front,door]}},walls:[rear],hit:()=>rear,globals,projectPoint:(d,e)=>{const y=d.frame?.origin.y??d.origin.y,z=e.clientY/100+y;return d.frame?W.inFrame(d.frame,p(e.clientX/100,y,z)):{x:e.clientX/100,y:z,z:0};}});
   f.editor.draw3D({add(){}},p=>p);f.listeners.pointermove(f.e(2,pointerHeight));if(paste)f.editor.clipboardCommand('paste');else f.editor.featureCommand('door',0,true);f.listeners.pointermove(f.e(2,pointerHeight));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
-  const preview=objects.find(o=>o.material?.opacity===.7);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y)<1e-8),'cursor stays on front supporting plane');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'unsnapped low cursor fits to front floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
+  const preview=objects.find(o=>o.material?.opacity===.7&&!o.userData?.lineCenters);assert.ok(preview,f.message());assert.ok(preview.geometry.points.every(p=>Math.abs(p.y)<1e-8),'cursor stays on front supporting plane');assert.ok(Math.abs(Math.min(...preview.geometry.points.map(p=>p.z)))<1e-8,'unsnapped low cursor fits to front floor');assert.equal(f.history.length,0);f.editor.key({key:'Escape'});
  }
 });
 
