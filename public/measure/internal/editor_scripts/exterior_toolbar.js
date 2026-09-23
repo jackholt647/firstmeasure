@@ -44,6 +44,7 @@ window.mountExteriorToolbar=function(){
  const icon=(id,label,path)=>{const b=move(id,display);if(!b)return;b.title=label;b.setAttribute('aria-label',label);b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="'+path+'"/></svg>';};
  const surfaceMode=move('wall-translucency-toggle',display);if(surfaceMode)surfaceMode.title='Cycle translucent, opaque and textured surfaces';
  icon('wall-centers-toggle','Face centers (walls and base)','M4 4h16v16H4z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0');
+ icon('wall-line-centers-toggle','Line centers: show and snap to midpoints','M3 12h6m6 0h6M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0');
  icon('wall-feature-dimensions','Feature dimensions','M4 8V4h16v4M4 6h16M8 20H4V10h4M6 10v10M12 12h8v8h-8z');
  icon('wall-gap-toggle','Highlight open edges','M3 5h7m4 0h7M3 5v14h18V5');
  const lengths=document.getElementById('wall-lengths-toggle');if(lengths){const label=lengths.parentElement;label.textContent='';label.className='exterior-measurements';label.title='Measurements';label.innerHTML='<i class="fas fa-ruler" aria-hidden="true"></i>';label.appendChild(lengths);display.appendChild(label);lengths.title='Measurements';}

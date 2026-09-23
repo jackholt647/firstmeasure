@@ -198,6 +198,15 @@ test('wall face center visibility toggles independently and survives reload',()=
  const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();elements.get('wall-centers-toggle').onclick();
  const saved=ctx.WallMode.serialize();assert.equal(saved.wallCenters,false);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+10000}});assert.equal(ctx.WallMode.serialize().wallCenters,false);
 });
+
+test('line centers default on and remain independent across reload and From Roof',()=>{
+ const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();
+ assert.notEqual(ctx.WallMode.serialize().lineCenters,false);const faceCenters=ctx.WallMode.serialize().wallCenters;
+ elements.get('wall-line-centers-toggle').onclick();assert.equal(ctx.WallMode.serialize().lineCenters,false);assert.equal(ctx.WallMode.serialize().wallCenters,faceCenters);
+ const saved=ctx.WallMode.serialize();ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+10000}});
+ assert.equal(ctx.WallMode.serialize().lineCenters,false);soffits[1].onclick();assert.equal(ctx.WallMode.serialize().lineCenters,false);
+ elements.get('wall-line-centers-toggle').onclick();assert.equal(ctx.WallMode.serialize().lineCenters,true);
+});
 test('live edge length visibility defaults on and persists independently',()=>{
  const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();assert.notEqual(ctx.WallMode.serialize().wallLengths,false);elements.get('wall-lengths-toggle').onchange({target:{value:'all'}});assert.equal(ctx.WallMode.serialize().lineLengthMode,'all');elements.get('wall-lengths-toggle').onchange({target:{value:'off'}});
  const saved=ctx.WallMode.serialize();assert.equal(saved.wallLengths,false);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+10000}});assert.equal(ctx.WallMode.serialize().wallLengths,false);

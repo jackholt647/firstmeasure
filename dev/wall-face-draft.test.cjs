@@ -5,6 +5,26 @@ function fixture(options={}){const listeners={},state=options.state||{wallEdits:
  const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,normalize:()=>ctx.normalizeWallDraftOwnership(state.wallEdits),clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
 function planeSelection(f,points){const s=f.editor.selectionSnapshot();s.workingPlane.selection=points;f.editor.restoreSelection(s);}
 
+test('line centers display virtual midpoints and toggle point-placement snapping',()=>{
+ for(const enabled of [undefined,false,true]){
+  const f=fixture({globals:renderGlobals()});if(enabled!==undefined)f.state.lineCenters=enabled;
+  const before=JSON.stringify(f.state),objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+  const markers=objects.filter(o=>o.userData?.lineCenters);assert.equal(markers.length,enabled===false?0:1);
+  if(markers.length){assert.equal(markers[0].geometry.points.length,4);assert.ok(markers[0].geometry.points.some(p=>p.x===2&&p.z===4));}
+  assert.equal(JSON.stringify(f.state),before,'midpoints are display references, not inserted geometry');
+  f.editor.doubleClick(f.e(1.94,4.03),f.w);const p=f.editor.pointSelection()[0];
+  assert.ok(Math.abs(p.x-(enabled===false?1.94:2))<1e-6);assert.equal(p.z,4);
+ }
+});
+
+test('drawing-plane midpoint snapping respects the line center toggle',()=>{
+ for(const enabled of [true,false]){
+  const p=(x,z)=>({x,y:0,z}),face={id:'face',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},f=fixture({state:{lineCenters:enabled,wallEdits:{$surfaces:[face]}},walls:[],selected:null});
+  f.editor.togglePlane(face);f.editor.doubleClick(f.e(1.94,4.03));
+  const point=f.editor.pointSelection()[0];assert.ok(Math.abs(point.x-(enabled?2:1.94))<1e-6);assert.equal(point.z,4);
+ }
+});
+
 test('Q keeps the selected draft point when the host wall has a colliding local point ID',()=>{
  const p=(x,z)=>({x,y:0,z}),walls=[{id:'left',bottom:[p(0,0),p(4,0)],top:[p(0,4),p(4,4)]},{id:'right',bottom:[p(6,0),p(10,0)],top:[p(6,4),p(10,4)]}],f=fixture({walls,selectedId:'left',globals:{isFreeMove:true},projectPoint:(d,e)=>({x:e.clientX/100-d.origin.x,y:e.clientY/100,z:0})});
  f.editor.doubleClick(f.e(2,4),walls[0]);f.editor.doubleClick(f.e(8,4),walls[1]);

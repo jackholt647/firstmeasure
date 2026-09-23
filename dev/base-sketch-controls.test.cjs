@@ -1,5 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');
+test('2D base point creation snaps to visible line centers and obeys the toggle',()=>{
+ for(const enabled of [true,false]){
+  const base={faces:[{id:'base',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:0,y:4,z:0}]}]},ctx={BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+  const editor=ctx.createBaseSketchEditor({base:()=>base,lineCenters:()=>enabled,active:()=>true,mode:()=>'point',faceAt:()=>base.faces[0],position:e=>({x:e.clientX/100,y:e.clientY/100,z:0}),screen:p=>({x:p.x*100,y:p.y*100}),commit(){},restore:b=>Object.assign(base,b),message(){},redraw(){},isCenter:()=>false});
+  editor.doubleClick({clientX:194,clientY:3,button:0},'2d');assert.ok(base.sketch.nodes.some(p=>Math.abs(p.x-(enabled?2:1.94))<1e-6&&p.y===0));
+ }
+});
 test('3D base drawing snaps onto edges and connects a pitched face into separately editable pieces',()=>{
  const base={faces:[{id:'base',points:[{x:0,y:0,z:0},{x:10,y:0,z:5},{x:10,y:10,z:5},{x:0,y:10,z:0}]}]};let message='';
  const ctx={WallAxisCuts:require('../public/measure/internal/editor_scripts/wall_axis_cuts.js'),BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);

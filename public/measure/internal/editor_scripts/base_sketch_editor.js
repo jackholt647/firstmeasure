@@ -26,7 +26,7 @@ window.createBaseSketchEditor=function(host){
   }
   if(!unbounded&&window.WallSolidGeometry&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){
    const nodes=[...sketch().nodes.map(actual).filter(inScope),...references()],byId=id=>nodes.find(n=>n.id===id),edges=S.curveEdges(sketch()).map(e=>Object.assign([e.start,e.end],{curveId:e.curveId})).filter(pair=>pair.every(p=>p&&inScope(p)));
-   p=window.WallSolidGeometry.draftSnap(p,nodes,edges,selected.map(byId).filter(Boolean),p=>host.screen(plane?{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}:p,v),typeof snapRadius!=='undefined'?snapRadius:20).point;
+   p=window.WallSolidGeometry.draftSnap(p,nodes,edges,selected.map(byId).filter(Boolean),p=>host.screen(plane?{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}:p,v),typeof snapRadius!=='undefined'?snapRadius:20,{lineCenters:host.lineCenters?.()!==false}).point;
    if(plane)p.z=plane.dx*p.x+plane.dy*p.y+plane.k;
   }
   return p;

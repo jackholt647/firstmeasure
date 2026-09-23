@@ -93,7 +93,7 @@ window.createBaseEditor=function(host){
 
   panel.appendChild(box);
 
-  sketchEditor=window.createBaseSketchEditor?.({pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,opaque:()=>host.state()?.translucent===false,base,active,mode:()=>$('selection').value,position,screen,toPixel:host.toPixel,mouse:()=>mouse,
+  sketchEditor=window.createBaseSketchEditor?.({lineCenters:()=>state()?.lineCenters!==false,pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,opaque:()=>host.state()?.translucent===false,base,active,mode:()=>$('selection').value,position,screen,toPixel:host.toPixel,mouse:()=>mouse,
 
    referencePoints:()=>{const W=window.WallSolidGeometry,edits=state()?.wallEdits||{};return [...(host.walls?.()||[]).flatMap(w=>[...w.bottom,...w.top]),...(W?.surfaceWire(edits).nodes||[]).filter(n=>!n.curveSample),...Object.values(edits.$drafts||{}).flatMap(d=>(d.sketch?.nodes||[]).map(n=>d.frame?W.fromFrame(d.frame,n):{x:d.origin.x+d.u.x*n.x,y:d.origin.y+d.u.y*n.x,z:n.y}))];},selectFace:f=>{selectFace(f);render();host.redraw();},faceAt:(e,v)=>hit(e,v)?.f||face(),isCenter:(e,v)=>hit(e,v)?.index===-1,
 

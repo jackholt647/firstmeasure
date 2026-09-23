@@ -913,13 +913,13 @@ function belowBase(face,faces){
  }return cuts.length?{cuts}:null;
 }
 // Face-local roof-style inference, measured in screen pixels under the current camera.
-function draftSnap(raw,nodes,edges,anchors,screen,radius=20){
+function draftSnap(raw,nodes,edges,anchors,screen,radius=20,options={}){
  const cursor=screen(raw),distance=p=>{const q=screen(p);return Math.hypot(q.x-cursor.x,q.y-cursor.y);},guide=(p,u)=>({p1:p,p2:{x:p.x+u.x,y:p.y+u.y}}),guides=[],seen=new Set();
  const addGuide=(p,u)=>{const l=Math.hypot(u.x,u.y);if(l<1e-9)return;u={x:u.x/l,y:u.y/l};if(u.x<0||(Math.abs(u.x)<1e-9&&u.y<0))u={x:-u.x,y:-u.y};const key=[u.x,u.y,p.x*-u.y+p.y*u.x].map(x=>x.toFixed(5)).join(',');if(!seen.has(key)){seen.add(key);guides.push(guide(p,u));}};
  const project=g=>{const dx=g.p2.x-g.p1.x,dy=g.p2.y-g.p1.y,t=((raw.x-g.p1.x)*dx+(raw.y-g.p1.y)*dy)/(dx*dx+dy*dy);return {x:g.p1.x+t*dx,y:g.p1.y+t*dy,z:0};};
  const direct=[];for(const n of nodes)direct.push({point:n,guides:[],kind:'Point'});
  // Curve tessellation supplies finite snap edges, never synthetic midpoints or angle guides.
- for(const pair of edges){if(pair.curveId)continue;const [a,b]=pair,u={x:b.x-a.x,y:b.y-a.y};direct.push({point:{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:0},guides:[guide(a,u)],kind:'Midpoint'});
+ for(const pair of edges){if(pair.curveId)continue;const [a,b]=pair,u={x:b.x-a.x,y:b.y-a.y};if(options.lineCenters!==false)direct.push({point:{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:0},guides:[guide(a,u)],kind:'Midpoint'});
   addGuide(a,u);for(const origin of [a,b,...anchors])for(const angle of [0,Math.PI/4,Math.PI/2,-Math.PI/4])addGuide(origin,{x:u.x*Math.cos(angle)-u.y*Math.sin(angle),y:u.x*Math.sin(angle)+u.y*Math.cos(angle)});
  }
  for(const p of [...nodes,...anchors])for(let i=0;i<4;i++)addGuide(p,{x:Math.cos(i*Math.PI/4),y:Math.sin(i*Math.PI/4)});
@@ -951,10 +951,10 @@ function draftSnap(raw,nodes,edges,anchors,screen,radius=20){
 }
 // Solve snaps through the quadrilateral construction, so fixed corners and the
 // rectangle/circle constraint stay intact while a derived corner finds a guide.
-function quadDraftSnap(raw,corners,nodes,edges,anchors,screen,radius=20){
+function quadDraftSnap(raw,corners,nodes,edges,anchors,screen,radius=20,options={}){
  const initial=corners(raw),origin=screen(raw);let best=null;
  for(let i=0;i<initial.length;i++){
-  const hit=draftSnap(initial[i],nodes,edges,anchors,screen,radius);if(!hit.kind)continue;
+  const hit=draftSnap(initial[i],nodes,edges,anchors,screen,radius,options);if(!hit.kind)continue;
   const guides=hit.guides.length?hit.guides:[{p1:hit.point,p2:{x:hit.point.x+1,y:hit.point.y}},{p1:hit.point,p2:{x:hit.point.x,y:hit.point.y+1}}];
   const equations=guides.map(g=>{const dx=g.p2.x-g.p1.x,dy=g.p2.y-g.p1.y,len=Math.hypot(dx,dy);return p=>{const q=corners(p)[i];return ((q.x-g.p1.x)*dy-(q.y-g.p1.y)*dx)/len;};});
   let p={...raw},movable=false;for(let iteration=0;iteration<20;iteration++)for(const fn of equations){const f=fn(p),h=1e-5,gx=(fn({...p,x:p.x+h})-f)/h,gy=(fn({...p,y:p.y+h})-f)/h,l2=gx*gx+gy*gy;if(l2<1e-10)continue;movable=true;p.x-=f*gx/l2;p.y-=f*gy/l2;}
