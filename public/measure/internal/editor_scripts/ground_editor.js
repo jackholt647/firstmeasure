@@ -3,10 +3,29 @@
     'use strict';
     const T=window.GroundGeometry,COLOR='#67c9ef',copy=v=>JSON.parse(JSON.stringify(v));
     window.createGroundEditor=function(host){
-        let project='',message='',busy=false,surface3D=null,sourceRequest=0;
+        let project='',message='',busy=false,surface3D=null,sourceRequest=0,sampling=false;
         const state=()=>host.getState(),ground=()=>state()?.ground;
         const $=id=>document.getElementById('ground-'+id);
-        function commit(next){state().ground=T.reference(next,state().roof);state().ground.visible=true;state().warnings=(state().warnings||[]).filter(w=>!w.startsWith('Ground:'));host.changed();}
+        function commit(next,fitBase=false){const grade=T.reference(next,state().roof);grade.visible=true;if(host.commitGround)host.commitGround(grade,fitBase);else{state().ground=grade;host.changed();}}
+        function stopSampling(){if(!sampling)return;sampling=false;host.samplingChanged?.(false);host.redraw?.();render();}
+        function startSampling(){
+            if(sampling){message='DSM point selection cancelled.';stopSampling();return;}
+            sourceRequest++;host.prepareSampling?.();sampling=true;
+            window.toggle3DSurfaceMode?.('height');window.toggle3DImage?.(true);
+            message='Click exposed ground on the DSM to set flat grade. Escape cancels.';
+            host.samplingChanged?.(true);host.redraw?.();render();
+        }
+        function down(e){
+            if(!sampling)return false;
+            try{
+                const view=e.target.closest?.('#three-view-wrapper')?'3d':'2d';
+                let pixel;if(view==='2d')pixel=pixelPosition(e);else{const p=position(e,'3d',0,'dsm');if(!p)throw Error('Click on the DSM surface to choose ground height.');pixel=host.toPixel(p);}
+                const p=T.sampleDSMPoint(layerData.dsm?.[0],host.context?.()||state().context,pixel,state().context);
+                const next=planeMesh({dx:0,dy:0,k:p.z},{source:'DSM point',sampledPoint:p,stats:{samples:1,grade:0}});
+                commit(next,true);message='Flat grade set from DSM: '+p.z.toFixed(2)+' m.';stopSampling();
+            }catch(error){reportError(error);}
+            return true;
+        }
         function planeMesh(p,extra){return T.fromPlane(T.bounds(state().roof),p,{visible:true,simpleGrade:1,...extra});}
         function fitDSM(){
             const s=state(),samples=T.sampleDSM(layerData.dsm?.[0],s.context,s.roof),r=T.fit(samples);
@@ -23,10 +42,10 @@
             container.appendChild(box);
             const action=fn=>()=>{try{if(!host.ensureState())return;message='';fn();}catch(e){reportError(e);}};
             $('visible').onclick=action(()=>{ground().visible=ground().visible===false;host.changed(false);});
-            $('dsm').onclick=action(()=>{sourceRequest++;commit(copy(state().groundCandidates?.dsm||fitDSM()));});
-            const flat=()=>{sourceRequest++;const z=Number($('flat-z').value);if(!Number.isFinite(z))throw Error('Enter a finite elevation.');commit(planeMesh({dx:0,dy:0,k:z},{source:'Flat'}));};
+            $('dsm').onclick=action(startSampling);$('dsm').title='Click a DSM ground point to set flat grade';
+            const flat=()=>{stopSampling();sourceRequest++;const z=Number($('flat-z').value);if(!Number.isFinite(z))throw Error('Enter a finite elevation.');commit(planeMesh({dx:0,dy:0,k:z},{source:'Flat'}));};
             $('flat').onclick=action(flat);$('flat-z').onchange=action(flat);
-            $('usgs').onclick=action(()=>{sourceRequest++;const candidate=state().groundCandidates?.usgs;if(candidate)commit(copy(candidate));else void fetchUSGS(sourceRequest);});
+            $('usgs').onclick=action(()=>{stopSampling();sourceRequest++;const candidate=state().groundCandidates?.usgs;if(candidate)commit(copy(candidate));else void fetchUSGS(sourceRequest);});
         }
         async function fetchUSGS(request){
             if(busy)return;const s=state(),original=ground(),b=T.bounds(s.roof),center={x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2};
@@ -55,10 +74,10 @@
         }
         function render(){
             if(!$('status'))return;
-            const s=state(),g=ground(),id=host.projectId();if(id!==project){project=id;sourceRequest++;message='';}
+            const s=state(),g=ground(),id=host.projectId();if(id!==project){project=id;sourceRequest++;sampling=false;host.samplingChanged?.(false);message='';}
             $('visible').setAttribute('aria-pressed',String(g?.visible!==false));
-            for(const name of ['dsm','usgs','flat'])$(name).setAttribute('aria-pressed',String((g?.source||'').toLowerCase().startsWith(name)));
-            $('usgs').disabled=busy;$('flat-control').hidden=g?.source!=='Flat';
+            for(const name of ['dsm','usgs','flat'])$(name).setAttribute('aria-pressed',String(name==='dsm'&&sampling||(g?.source||'').toLowerCase().startsWith(name)));
+            $('usgs').disabled=busy;$('flat-control').hidden=g?.source!=='Flat'&&!g?.sampledPoint;
             const b=s?.roof?T.bounds(s.roof):null,center=b?{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2}:null;
             if(document.activeElement!==$('flat-z'))$('flat-z').value=(center&&g?T.height(g,center):s?.options.ground??0)?.toFixed(2)||'0';
             $('status').textContent=message||(g?`${g.source} · ${(Math.hypot(g.plane?.dx||0,g.plane?.dy||0)*100).toFixed(1)}% grade`:'Flat grade is available when wall mode starts.');
@@ -78,18 +97,19 @@
             const o=getVector3(host.toPixel({x:0,y:0,z:0})),x=getVector3(host.toPixel({x:1,y:0,z:0})).sub(o),y=getVector3(host.toPixel({x:0,y:1,z:0})).sub(o),z=getVector3(host.toPixel({x:0,y:0,z:1})).sub(o);
             const matrix=new THREE.Matrix4().makeBasis(x,y,z);matrix.setPosition(o);return {matrix,inverse:matrix.clone().invert(),normal:x.clone().cross(y).normalize()};
         }
+        function pixelPosition(e){
+            if(typeof screenToImage==='function')return screenToImage(e.clientX,e.clientY);
+            const svg=document.getElementById('geoSvg'),v=svg.createSVGPoint();v.x=e.clientX;v.y=e.clientY;return v.matrixTransform(document.getElementById('geo-rotation-group').getScreenCTM().inverse());
+        }
         function position(e,view,z,onSurface=false){
-            if(view==='2d'){
-                let p;if(typeof screenToImage==='function')p=screenToImage(e.clientX,e.clientY);
-                else {const svg=document.getElementById('geoSvg'),v=svg.createSVGPoint();v.x=e.clientX;v.y=e.clientY;p=v.matrixTransform(document.getElementById('geo-rotation-group').getScreenCTM().inverse());}
-                return host.toMetric({x:p.x,y:p.y,z},state().context);
-            }
+            if(view==='2d'){const p=pixelPosition(e);return host.toMetric({x:p.x,y:p.y,z},state().context);}
             const rect=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster(),b=basis();
             ray.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);
+            if(onSurface==='dsm'){const dsm=window.groundDSMSurface?.();if(!dsm?.visible)return null;dsm.updateMatrixWorld(true);const hit=ray.intersectObject(dsm)[0];if(!hit)return null;const p=hit.point.clone().applyMatrix4(b.inverse);return {x:p.x,y:p.y,z:p.z};}
             if(onSurface&&surface3D){surface3D.updateMatrixWorld(true);const hit=ray.intersectObject(surface3D)[0];if(hit){const p=hit.point.clone().applyMatrix4(b.inverse);return {x:p.x,y:p.y,z:p.z};}}
             const hit=ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(b.normal,new THREE.Vector3(0,0,z).applyMatrix4(b.matrix)),new THREE.Vector3());
             if(!hit)return null;const p=hit.applyMatrix4(b.inverse);return {x:p.x,y:p.y,z};
         }
-        return {setup,render,draw2D,draw3D,down:()=>false,leave(){sourceRequest++;},fitDSM,position,setEditing(){render();}};
+        return {setup,render,draw2D,draw3D,down,sampling:()=>sampling,interaction:()=>sampling?'Pick DSM ground point':null,keyDown(e){if(!sampling)return false;if(e.key==='Escape'||((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z')){message='DSM point selection cancelled.';stopSampling();}e.preventDefault();e.stopImmediatePropagation();return true;},leave(){sourceRequest++;message='';stopSampling();},fitDSM,position,setEditing(){render();}};
     };
 })();

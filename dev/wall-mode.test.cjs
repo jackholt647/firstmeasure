@@ -541,13 +541,13 @@ test('wall mode opens Resources on entry only',()=>{
  f.ctx.WallMode.setEnabled(false);assert.equal(opened,1);f.ctx.WallMode.setEnabled(true);assert.equal(opened,2);
 });
 
-test('first wall grade is hidden and flat; explicitly chosen slope survives rebuild and reload',()=>{
- const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();
+test('missing DSM starts flat; an existing grade survives DSM selection cancellation, rebuild and reload',()=>{
+ const {ctx,elements,soffits,listeners}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();
  let saved=ctx.WallMode.serialize();assert.equal(saved.ground.source,'Flat');assert.equal(saved.ground.visible,false);assert.equal(saved.ground.plane.dx,0);assert.equal(saved.ground.plane.dy,0);
  elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().ground.visible,false);
  const slope=ctx.GroundGeometry.fromPlane(ctx.GroundGeometry.bounds(saved.roof),{dx:.1,dy:.05,k:0},{source:'DSM',visible:true,simpleGrade:1});
- saved=ctx.WallMode.serialize();saved.groundCandidates={dsm:slope};saved.savedAt=Date.now()+1000;ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
- assert.equal(ctx.WallMode.serialize().ground.visible,false);elements.get('ground-dsm').onclick();let chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);assert.ok(Math.abs(chosen.ground.plane.dx-.1)<1e-9);
+ saved=ctx.WallMode.serialize();saved.ground=slope;saved.groundCandidates={dsm:slope};saved.savedAt=Date.now()+1000;ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
+ assert.equal(ctx.WallMode.serialize().ground.visible,true);elements.get('ground-dsm').onclick();listeners['window:keydown']({key:'Escape',target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});let chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);assert.ok(Math.abs(chosen.ground.plane.dx-.1)<1e-9);
  elements.get('wall-rebuild').onclick();chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);
  ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...chosen,savedAt:Date.now()+2000}});assert.deepEqual(ctx.WallMode.serialize().ground,chosen.ground);
 });
@@ -576,4 +576,39 @@ test('selecting the active wall layer does not synchronously rebuild or persist 
  host.setLayer('walls');host.setLayer('walls');
  assert.equal(draws,0,'no synchronous scene redraw on unchanged layer');
  assert.equal(JSON.stringify(host.state()),before,'selection does not update saved model timestamps');
+});
+
+
+test('DSM point selection sets flat grade and attached foundation in one undoable edit',()=>{
+ const data=new Float32Array(100).fill(-9999);data[22]=3.25;
+ let shown=0,mode='',box=0;const f=fixture(true,{layerData:{dsm:[data]},screenToImage:(x,y)=>({x,y}),toggle3DImage:on=>{shown+=on?1:0;},toggle3DSurfaceMode:value=>{mode=value;},createWallEditor:()=>({apply:w=>w,draw2D(){},draw3D(){},leave(){},clear(){},hasDraft:()=>false,busy:()=>false,startBox(){box++;return true;}})}),{ctx,elements,listeners,soffits}=f;
+ ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();const before=ctx.WallMode.serialize(),roof=JSON.stringify(ctx.activeGeometry);
+ const event=(x,y)=>({clientX:x,clientY:y,button:0,target:{closest:s=>s==='#viewport,#three-view-wrapper'||s==='#geoSvg'?{}:null},preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}}),key=(key,ctrlKey=false)=>listeners['window:keydown']({key,ctrlKey,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+ elements.get('ground-dsm').onclick();assert.equal(shown,1);assert.equal(mode,'height');assert.deepEqual(ctx.WallMode.serialize().ground,before.ground,'entering sample mode does not choose a plane');
+ const miss=event(0,0);listeners['window:pointerdown'](miss);assert.ok(miss.stopped);assert.match(elements.get('ground-status').textContent,/No DSM height/);assert.deepEqual(ctx.WallMode.serialize().ground,before.ground);
+ const pick=event(2,2);listeners['window:pointerdown'](pick);const after=ctx.WallMode.serialize();assert.equal(after.ground.source,'DSM point');assert.equal(after.ground.plane.k,3.25);assert.equal(after.ground.plane.dx,0);assert.equal(after.ground.plane.dy,0);assert.ok(after.base.faces.every(f=>f.points.every(p=>p.z===3.25)));assert.equal(after.options.ground,3.25);assert.equal(box,0);assert.equal(JSON.stringify(ctx.activeGeometry),roof);
+ const click=event(2,2);listeners['window:click'](click);assert.ok(click.stopped,'completed sampling consumes its native click too');
+ key('z',true);assert.deepEqual(ctx.WallMode.serialize().ground,before.ground);assert.deepEqual(ctx.WallMode.serialize().base,before.base);key('y',true);assert.deepEqual(ctx.WallMode.serialize().ground,after.ground);
+ elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().ground.sampledPoint.z,3.25);assert.ok(ctx.WallMode.serialize().base.faces.every(f=>f.points.every(p=>p.z===3.25)));
+ const saved=ctx.WallMode.serialize();ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+1000}});assert.deepEqual(ctx.WallMode.serialize().ground,saved.ground);
+ elements.get('ground-dsm').onclick();key('Escape');assert.deepEqual(ctx.WallMode.serialize().ground,saved.ground);assert.match(elements.get('ground-status').textContent,/cancelled/);
+});
+
+test('From Roof uses a supported automatic ground plane when DSM evidence exists',()=>{
+ const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.02*(x-50)+.01*(y-50);
+ const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.02)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.01)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.02*p.x+.01*p.y))<1e-5)));
+});
+
+
+test('3D grade picking raycasts the DSM only and leaves misses in sampling mode',()=>{
+ let hit=null,intersected=null,boxes=0;
+ class V{constructor(x=0,y=0,z=0){Object.assign(this,{x,y,z});}clone(){return new V(this.x,this.y,this.z);}sub(v){this.x-=v.x;this.y-=v.y;this.z-=v.z;return this;}cross(){return this;}normalize(){return this;}applyMatrix4(){return this;}}
+ class Matrix{makeBasis(){return this;}setPosition(){return this;}clone(){return this;}invert(){return this;}}
+ class Ray{setFromCamera(){}intersectObject(object){intersected=object;return hit?[{point:hit}]:[];}}
+ const data=new Float32Array(100).fill(-9999);data[22]=2.75;const mesh={visible:true,updateMatrixWorld(){}};
+ const f=fixture(true,{layerData:{dsm:[data]},groundDSMSurface:()=>mesh,THREE:{Vector3:V,Vector2:V,Matrix4:Matrix,Raycaster:Ray},getVector3:p=>new V(p.x,p.y,p.z),renderer:{domElement:{getBoundingClientRect:()=>({left:0,top:0,width:100,height:100})}},camera:{},createWallEditor:()=>({apply:w=>w,draw2D(){},draw3D(){},leave(){},clear(){},hasDraft:()=>false,busy:()=>false,startBox(){boxes++;return true;}})});
+ f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const before=f.ctx.WallMode.serialize().ground;
+ const e=()=>({clientX:20,clientY:20,button:0,target:{closest:s=>s==='#viewport,#three-view-wrapper'||s==='#three-view-wrapper'?{}:null},preventDefault(){},stopImmediatePropagation(){}});
+ f.elements.get('ground-dsm').onclick();f.listeners['window:pointerdown'](e());assert.equal(intersected,mesh);assert.deepEqual(f.ctx.WallMode.serialize().ground,before);assert.match(f.elements.get('ground-status').textContent,/Click on the DSM/);
+ hit=new V(-3,-3,999);f.listeners['window:pointerdown'](e());const g=f.ctx.WallMode.serialize().ground;assert.equal(g.sampledPoint.z,2.75,'use measured raster elevation, not display Z or the old flat grade');assert.equal(boxes,0);
 });

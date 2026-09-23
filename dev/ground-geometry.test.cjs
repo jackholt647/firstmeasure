@@ -48,3 +48,12 @@ test('legacy detailed grades become a visible four-corner reference without chan
  const ref=T.reference(legacy,roof);assert.equal(ref.points.length,4);assert.equal(ref.visible,true);assert.equal(ref.source,'DSM');for(const q of ref.points)near(q.z,.1*q.x+.1*q.y);assert.equal(JSON.stringify(roof),before);
  ref.visible=false;assert.equal(T.reference(ref,roof).visible,false);const flat=T.reference({...legacy,source:'Manual'},roof);assert.ok(flat.points.every(q=>q.z===flat.points[0].z));
 });
+
+
+test('single DSM samples preserve zero and negative elevations, reject no-data, and map the saved origin',()=>{
+ const data=new Float32Array(16).fill(-9999),ctx={width:4,height:4,mpp:.5,lat:0,lng:0};data[5]=0;data[6]=-2.5;
+ assert.deepEqual(T.sampleDSMPoint(data,ctx,{x:1,y:1}),p(-.5,-.5,0));assert.equal(T.sampleDSMPoint(data,ctx,{x:2,y:1}).z,-2.5);
+ assert.throws(()=>T.sampleDSMPoint(data,ctx,{x:-1,y:0}),/inside/);assert.throws(()=>T.sampleDSMPoint(data,ctx,{x:0,y:0}),/No DSM height/);assert.throws(()=>T.sampleDSMPoint(null,ctx,{x:1,y:1}),/load/);
+ const moved=T.sampleDSMPoint(data,ctx,{x:1,y:1},{...ctx,lng:1/111132,lat:2/111132});near(moved.x,-1.5);near(moved.y,1.5);
+ const roof={faces:[{points:[p(0,0,8),p(1,0,8),p(1,1,8),p(0,1,8)]}]},ground=T.fromPlane(T.bounds(roof),{dx:0,dy:0,k:0},{source:'DSM point',sampledPoint:p(-.5,-.5,0),simpleGrade:1});assert.deepEqual(T.reference(ground,roof).sampledPoint,ground.sampledPoint);assert.equal(T.reference(ground,roof).source,'DSM point');assert.equal(T.initial(null,ctx,roof,NaN).plane.k,0);
+});

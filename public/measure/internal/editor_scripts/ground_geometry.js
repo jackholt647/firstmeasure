@@ -42,14 +42,14 @@
         const b=bounds(roof),source=/usgs/i.test(terrain?.source||'')?'USGS':/dsm/i.test(terrain?.source||'')?'DSM':'Flat';
         const ps=terrain?.points||[],fit=G.plane(ps),center={x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2};
         const z=fit?at(fit,center):(ps[0]?.z||0),plane=source==='Flat'?{dx:0,dy:0,k:z}:fit||{dx:0,dy:0,k:z};
-        return fromPlane(b,plane,{source,stats:terrain?.stats,visible:terrain?.simpleGrade===1?terrain.visible!==false:true,simpleGrade:1});
+        return fromPlane(b,plane,{source:terrain?.sampledPoint?'DSM point':source,...(terrain?.sampledPoint?{sampledPoint:{...terrain.sampledPoint}}:{}),stats:terrain?.stats,visible:terrain?.simpleGrade===1?terrain.visible!==false:true,simpleGrade:1});
     }
     function height(terrain,p){
         for(const ids of terrain.faces){const points=ids.map(i=>terrain.points[i]);if(G.contains({points},p))return at(G.plane(points),p);}
         return null;
     }
     function fit(samples){
-        if(samples.length<12)throw Error('Too few exposed ground samples. Move the ground points manually.');
+        if(samples.length<12)throw Error('Too few exposed ground samples. Click DSM to choose a ground point.');
         let seed=7843;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
         let best=null;
         for(let k=0;k<600;k++){
@@ -63,13 +63,27 @@
             const score=inliers.length-below*.5;
             if(!best||score>best.score)best={p,inliers,score};
         }
-        if(!best||best.inliers.length<Math.max(10,samples.length*.2))throw Error('No consistent exposed ground plane found. Use a flat plane or edit points.');
+        if(!best||best.inliers.length<Math.max(10,samples.length*.2))throw Error('No consistent exposed ground plane found. Click DSM to choose a ground point.');
         let p=G.plane(best.inliers);
         for(let i=0;i<3;i++){const inliers=samples.filter(s=>Math.abs(s.z-at(p,s))<.45);p=G.plane(inliers)||p;}
         const inliers=samples.filter(s=>Math.abs(s.z-at(p,s))<.45),xs=samples.map(s=>s.x),ys=samples.map(s=>s.y);
         const coverage=(Math.max(...inliers.map(s=>s.x))-Math.min(...inliers.map(s=>s.x)))*(Math.max(...inliers.map(s=>s.y))-Math.min(...inliers.map(s=>s.y)))/((Math.max(...xs)-Math.min(...xs))*(Math.max(...ys)-Math.min(...ys)));
-        if(coverage<.25)throw Error('Ground evidence is too localized to infer the site grade. Edit the plane manually.');
+        if(coverage<.25)throw Error('Ground evidence is too localized to infer the site grade. Click DSM to choose a ground point.');
         return {plane:p,stats:{samples:samples.length,inliers:inliers.length,coverage,rmse:Math.sqrt(inliers.reduce((sum,s)=>sum+(s.z-at(p,s))**2,0)/inliers.length),grade:Math.hypot(p.dx,p.dy)*100}};
+    }
+    function sampleDSMPoint(data,ctx,pixel,origin=ctx){
+        if(!data||data.length<ctx.width*ctx.height||!(ctx.mpp>0))throw Error('Wait for the DSM height map to load.');
+        const ix=Math.round(pixel.x),iy=Math.round(pixel.y);
+        if(!Number.isFinite(ix)||!Number.isFinite(iy)||ix<0||iy<0||ix>=ctx.width||iy>=ctx.height)throw Error('Click inside the DSM height map.');
+        const value=data[iy*ctx.width+ix],z=value==null?NaN:Number(value);
+        if(!Number.isFinite(z)||z<=-9000||z>9000)throw Error('No DSM height at that point. Choose another ground point.');
+        const dx=((origin.lng||0)-(ctx.lng||0))*111132*Math.cos((ctx.lat||0)*Math.PI/180),dy=((ctx.lat||0)-(origin.lat||0))*111132;
+        return {x:(ix-ctx.width/2)*ctx.mpp-dx,y:(iy-ctx.height/2)*ctx.mpp-dy,z};
+    }
+    function initial(data,ctx,roof,fallback=0){
+        const b=bounds(roof);
+        try{const r=fit(sampleDSM(data,ctx,roof));return fromPlane(b,r.plane,{source:'DSM',stats:r.stats,visible:false,simpleGrade:1});}
+        catch(e){return fromPlane(b,{dx:0,dy:0,k:Number.isFinite(fallback)?fallback:0},{source:'Flat',visible:false,simpleGrade:1});}
     }
     function sampleDSM(data,ctx,roof){
         if(!data||data.length<ctx.width*ctx.height)throw Error('Wait for the solar height map to load.');
@@ -82,13 +96,14 @@
                 const ix=Math.round(ctx.width/2+x/ctx.mpp),iy=Math.round(ctx.height/2+y/ctx.mpp);
                 if(ix<0||iy<0||ix>=ctx.width||iy>=ctx.height)continue;
                 const z=Number(data[iy*ctx.width+ix]);if(!Number.isFinite(z)||z<=-9000||z>9000)continue;
-                if(roof.faces.some(f=>G.contains(f,{x,y})))continue;
-                cell.push({x,y,z});
+                const point={x:(ix-ctx.width/2)*ctx.mpp,y:(iy-ctx.height/2)*ctx.mpp,z};
+                if(roof.faces.some(f=>G.contains(f,point)))continue;
+                cell.push(point);
             }
             if(cell.length>=6){cell.sort((a,b)=>a.z-b.z);samples.push(cell[Math.floor((cell.length-1)*.1)]);}
         }
         return samples;
     }
-    const api={bounds,triangulate,mesh,fromPlane,reference,height,fit,sampleDSM,at};
+    const api={bounds,triangulate,mesh,fromPlane,reference,height,fit,sampleDSM,sampleDSMPoint,initial,at};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.GroundGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

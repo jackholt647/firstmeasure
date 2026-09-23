@@ -739,6 +739,8 @@ function updateGoogleTileRootTransform(manifest) {
     }
 }
 // Textured presentation uses the image as a flat reference, never the dense DSM.
+// Ground sampling must intersect the measured DSM, never tiles or the flat image overlay.
+window.groundDSMSurface=()=>googleTileState.mode==='height'?mesh:null;
 window.exteriorGroundImageSource=()=>googleTileState.surfaceVisible&&mesh?.material?.map?mesh:null;
 function apply3DSurfaceVisibility() {
     const showHeight = googleTileState.surfaceVisible && googleTileState.mode === 'height';
