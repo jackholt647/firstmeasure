@@ -1159,7 +1159,7 @@ function perf_previewLineMove(e){
   const segments=selectedSegments,faces=[],refs=new Map();
   for(const [key,d]of Object.entries(all()))if(visibleDraft(d))for(const f of d.faces)if(!f.boundaryHole&&!f.solidId&&!deleted(d,f)){const id='draft:'+key+':'+f.id;faces.push(engineFace(d,f,{id}));refs.set(id,{d,f});}
   for(const f of solids())if(!f.deleted&&!f.drafted){const id='solid:'+f.id;faces.push({...f,id});refs.set(id,{f});}
-  const result=W.removeFaceEdges(faces,segments),edits=host.state().wallEdits;
+  const edits=host.state().wallEdits,openDrafts=Object.values(all()).filter(d=>visibleDraft(d)&&d.constructionPlane),lines=[...(edits.$loose?.edges||[]),...openDrafts.flatMap(d=>draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]))],curves=openDrafts.flatMap(d=>(d.sketch.curves||[]).map(c=>({...window.ExteriorGeometry.mapCurve(c,p=>world(d,p)),id:draftKey(d)+':'+c.id}))),result=W.removeFaceEdges(faces,segments,{lines,curves});
   for(const id of result.removed){const {d,f}=refs.get(id);if(d)d.deletedFaces=[...new Set([...(d.deletedFaces||[]),signature(f)])];else f.deleted=true;}
   // Keep any part of the selected edge still on the merged outer boundary
   // (for example the chimney portion above the adjoining roof/wall).

@@ -1023,7 +1023,7 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  }
  // Analytic arch boundaries remain one selectable curve. Tessellation vertices
  // are render samples; only interpolation points and real junctions are anchors.
- for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.deleted))for(const c of (f.curves||[]).filter(c=>c.type==='spline')){
+ for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const c of (f.curves||[]).filter(c=>c.type==='spline')){
   const ps=K.curveSamples(c),id='spline:'+c.id,anchors=new Set(c.controls.map(vertexKey)),matched=new Set();
   for(const e of edges.values()){const a=nodes.get(e.a),b=nodes.get(e.b);if(ps.slice(1).some((p,i)=>pointOnEdge(a,ps[i],p)&&pointOnEdge(b,ps[i],p))){e.curve=true;e.id=id;e.surfaceId=f.id;matched.add(e.a);matched.add(e.b);}}
   for(const key of matched)if(!anchors.has(key)&&![...edges.values()].some(e=>(e.a===key||e.b===key)&&e.id!==id))nodes.get(key).curveSample=true;
@@ -1058,7 +1058,7 @@ function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Se
 }
 // Removing a coplanar divider unions its incident regions. An exterior edge,
 // including a crease shared by different planes, invalidates its incident face.
-function removeFaceEdges(faces,segments){
+function removeFaceEdges(faces,segments,wire={}){
  const parent=faces.map((_,i)=>i),affected=new Set(),invalid=new Set(),find=i=>parent[i]===i?i:(parent[i]=find(parent[i]));
  const samePlane=(a,b)=>{const f=faceFrame(a),n=normal(b.points);return f&&n&&Math.abs(dot(f.n,n))>1-1e-5&&b.points.every(p=>Math.abs(dot(sub(p,f.origin),f.n))<=K.CONTACT);};
  // A displayed seam may be an edge of one face inside another overlapping face.
@@ -1069,7 +1069,7 @@ function removeFaceEdges(faces,segments){
  };
  for(const [a,b] of segments){const boundary=faces.map((f,i)=>({f,i})).filter(({f})=>sharedIntervals(a,b,[f]).some(([lo,hi])=>hi-lo>1e-6));
   const incident=faces.map((f,i)=>({f,i})).filter(v=>boundary.some(b=>b.i===v.i)||(!v.f.feature&&covers(a,b,v.f)&&boundary.some(b=>samePlane(b.f,v.f))));
-  const pairs=[];for(const v of incident)for(const peer of incident)if(v.i<peer.i&&samePlane(v.f,peer.f)){
+  const pairs=[];for(const v of incident)for(const peer of incident)if(v.i<peer.i&&!!v.f.feature===!!peer.f.feature&&samePlane(v.f,peer.f)){
    const frame=faceFrame(v.f),regions=K.union([v.f,peer.f].map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}))).map(f=>({points:f.points.map(p=>fromFrame(frame,p)),holes:f.holes.map(r=>r.map(p=>fromFrame(frame,p)))}));
    // Coincident faces can share an outer edge too. Removing that edge must
    // invalidate them; only an internal seam can disappear into a merged face.
@@ -1083,11 +1083,24 @@ function removeFaceEdges(faces,segments){
   else for(const {i}of boundary){affected.add(i);invalid.add(i);}
  }
  const groups=new Map();for(const i of affected){const k=find(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i);}
+ // Rebuild an invalidated boundary from surviving wires on its own plane.
+ // The supporting wall is not an alternate boundary of a door/window.
+ const repaired=[];
+ for(const i of invalid){const source=faces[i],frame=faceFrame(source);if(!frame)continue;
+  const cuts=segments.map(points=>({points})),pairs=[...rings(source).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),...(wire.lines||[]).filter(pair=>pair.every(p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT))],nodes=[],edges=[];
+  for(const [a,b]of pairs){let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const at=t=>inFrame(frame,mix3(a,b,t)),x={...at(lo),id:'n'+nodes.length},y={...at(start),id:'n'+(nodes.length+1)};nodes.push(x,y);edges.push({id:'e'+edges.length,a:x.id,b:y.id});}lo=Math.max(lo,end);}}
+  const original={points:source.points.map(p=>inFrame(frame,p)),holes:(source.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))},regions=K.partition({nodes,edges}).regions.map(points=>({points,holes:[]})).filter(f=>K.intersection([f],[original]).some(p=>K.area(p)>K.CONTACT*K.CONTACT)&&rings(original).some(r=>r.some((p,i)=>sharedIntervals({...p,z:0},{...r[(i+1)%r.length],z:0},[{points:f.points.map(p=>({...p,z:0}))}]).length)));
+  const holes=original.holes.map(points=>({points}));for(const region of K.union(regions).flatMap(r=>holes.length?K.difference(r,holes):[r])){
+   const face={...source,mergedSources:[source.id],points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p)))};
+   const curves=[...(source.curves||[]),...(wire.curves||[])].filter(c=>{const ps=K.curveSamples(c);return ps.slice(1).every((p,i)=>sharedIntervals(ps[i],p,[face]).reduce((s,[lo,hi])=>s+hi-lo,0)>1-1e-5);});
+   face.curves=[...new Map(curves.map(c=>[c.id,c])).values()];repaired.push(face);
+  }
+ }
  const merged=[];for(const ids of groups.values()){if(ids.some(i=>invalid.has(i)))continue;const members=ids.map(i=>faces[i]),frame=faceFrame(members[0]),B=baseGeometry(),locals=members.map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}));
   const retainedPoints=[...new Map(members.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])]).map(p=>[vertexKey(p),p])).values()];
   for(const region of K.union(locals))merged.push({...members[0],...mergedOwnership(members),mergedSources:members.map(f=>f.id),points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p))),retainedPoints});
  }
- return {removed:[...affected].map(i=>faces[i].id),merged};
+ return {removed:[...affected].map(i=>faces[i].id),merged:[...merged,...repaired]};
 }
 // A merge replaces its source faces; a plain deletion deliberately leaves wire.
 // Older projects recorded both cases as deletion. Recover only sources covered

@@ -233,3 +233,7 @@ test('point movement normalizes only incident faces in a large scene',()=>{
  try{const result=G.slideLines(faces,[[source,source]],p(0,0,-1),.0254);assert.equal(calls,1);assert.deepEqual(result.affected,['wall-0']);assert.equal(result.faces[0].points[3].z,3-.0254);for(let i=1;i<faces.length;i++)assert.deepEqual(result.faces[i].points,faces[i].points);}
  finally{K.normalizeFace=normalize;}
 });
+
+test('edge deletion does not adopt unrelated closed wires or a path on another plane',()=>{
+ const face={id:'door',feature:{type:'door'},points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},ring=[p(1,0,1),p(2,0,1),p(2,0,2),p(1,0,2)],lines=ring.map((p,i)=>[p,ring[(i+1)%ring.length]]);lines.push([p(0,1,4),p(2,1,5)],[p(2,1,5),p(4,1,4)]);const result=G.removeFaceEdges([face],[[face.points[2],face.points[3]]],{lines});assert.deepEqual(result.removed,['door']);assert.equal(result.merged.length,0);
+});
