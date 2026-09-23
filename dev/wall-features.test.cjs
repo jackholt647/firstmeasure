@@ -96,6 +96,19 @@ test('percentage stickers use upright full-face dimensions and screen-left for b
   assert.equal(result.feature.type,'window');assert.equal(result.feature.preset,null);
  }
 });
+test('AI anchors align opening edges and centers with signed center offsets',()=>{
+ const face={points:[p(0,0,0),p(10,0,0),p(10,0,5),p(0,0,5)]},frame=F.percentageFrame(face,p=>({x:p.x,y:-p.z})),b=frame.bounds;
+ const place=(xAnchor,yAnchor,x=0,y=0)=>F.bounds(F.percentageSticker(face,frame,{type:'garage',width:20,aspectRatio:1,xAnchor,yAnchor,x,y}).points.map(p=>W.inFrame(frame,p)));
+ for(const x of ['left','center','right'])for(const y of ['top','center','bottom']){
+  const r=place(x,y);assert.ok(Math.abs(r.left-(x==='left'?b.left:x==='right'?b.right-2:(b.left+b.right-2)/2))<1e-8);
+  assert.ok(Math.abs(r.top-(y==='top'?b.top:y==='bottom'?b.bottom+2:(b.top+b.bottom+2)/2))<1e-8);
+ }
+ const raised=place('right','bottom',10,10);assert.ok(Math.abs(raised.right-(b.right-1))<1e-8);assert.ok(Math.abs(raised.bottom-(b.bottom+.5))<1e-8);
+ const shifted=place('center','center',-10,10);assert.ok(Math.abs((shifted.left+shifted.right)/2-((b.left+b.right)/2-1))<1e-8);assert.ok(Math.abs((shifted.top+shifted.bottom)/2-((b.top+b.bottom)/2-.5))<1e-8);
+ assert.throws(()=>place('left','bottom',-1,0),/anchor/);
+ assert.throws(()=>place('middle','bottom'),/anchor/);
+ assert.throws(()=>place('right','bottom',95,0),/percentage/);
+});
 test('AI opening aspect ratio is independent of face height, including hidden height above it',()=>{
  for(const wallHeight of [4,8]){
   const face={points:[{x:0,y:0,z:0},{x:10,y:0,z:0},{x:10,y:0,z:wallHeight},{x:0,y:0,z:wallHeight}]},frame=F.percentageFrame(face,p=>({x:p.x,y:-p.z}));

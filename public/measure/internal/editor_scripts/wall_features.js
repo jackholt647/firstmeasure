@@ -186,7 +186,11 @@ function percentageSticker(face,f,box){
   if(!Number.isFinite(box.aspectRatio)||box.aspectRatio<.05||box.aspectRatio>20)throw Error('Invalid opening aspect ratio.');
   const b=f.bounds;box={...box,height:box.width*(b.right-b.left)/(b.top-b.bottom)/box.aspectRatio};
  }
- if(!['x','y','width','height'].every(k=>Number.isFinite(box[k]))||box.x<0||box.y<0||box.width<=0||box.height<=0||box.x+box.width>100.000001||box.y+box.height>100.000001)throw Error('Invalid percentage rectangle.');
+ if(box.xAnchor!==undefined||box.yAnchor!==undefined){
+  if(!['left','center','right'].includes(box.xAnchor)||!['top','center','bottom'].includes(box.yAnchor)||(box.xAnchor!=='center'&&box.x<0)||(box.yAnchor!=='center'&&box.y<0))throw Error('Invalid opening anchor.');
+  box={...box,x:box.xAnchor==='right'?100-box.x-box.width:box.xAnchor==='center'?(100-box.width)/2+box.x:box.x,y:box.yAnchor==='bottom'?100-box.y-box.height:box.yAnchor==='center'?(100-box.height)/2+box.y:box.y};
+ }
+ if(!['x','y','width','height'].every(k=>Number.isFinite(box[k]))||box.x< -1e-6||box.y< -1e-6||box.width<=0||box.height<=0||box.x+box.width>100.000001||box.y+box.height>100.000001)throw Error('Invalid percentage rectangle.');
  const b=f.bounds,w=b.right-b.left,h=b.top-b.bottom,left=b.left+box.x*w/100,top=b.top-box.y*h/100;
  const local=shape({left,right:left+box.width*w/100,top,bottom:top-box.height*h/100});
  validate(local,[face.points.map(p=>W.inFrame(f,p))],(face.holes||[]).map(r=>({points:r.map(p=>W.inFrame(f,p))})));

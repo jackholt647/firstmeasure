@@ -5,7 +5,8 @@ $model = $data['model'] ?? '';
 $effort = $data['effort'] ?? '';
 $style = $data['style'] ?? '';
 $output = $data['output'] ?? 'counts';
-$aspectSizing = ($data['placementSizing'] ?? '') === 'width-aspect';
+$anchoredSizing = ($data['placementSizing'] ?? '') === 'width-aspect-anchors';
+$aspectSizing = $anchoredSizing || ($data['placementSizing'] ?? '') === 'width-aspect';
 $ids = $data['faceIds'] ?? [];
 if (!in_array($model, ['gpt-6-luna','gpt-6-sol','gpt-6-astra'], true)
     || !in_array($effort, ['none','low','medium','high','xhigh','max'], true)
@@ -43,6 +44,14 @@ if ($output === 'placements') {
         'type'=>'object','properties'=>['type'=>['type'=>'string','enum'=>['window','door','garage']],
         'x'=>$position,'y'=>$position,'width'=>$size,($aspectSizing ? 'aspectRatio' : 'height')=>($aspectSizing ? ['type'=>'number','minimum'=>0.05,'maximum'=>20] : $size)],
         'required'=>['type','x','y','width',($aspectSizing ? 'aspectRatio' : 'height')],'additionalProperties'=>false]];
+    if ($anchoredSizing) {
+        $item =& $schema['properties']['faces']['items']['properties']['placements']['items'];
+        $item['properties']['x'] = $item['properties']['y'] = ['type'=>'number','minimum'=>-100,'maximum'=>100];
+        $item['properties']['xAnchor'] = ['type'=>'string','enum'=>['left','center','right']];
+        $item['properties']['yAnchor'] = ['type'=>'string','enum'=>['top','center','bottom']];
+        $item['required'][] = 'xAnchor'; $item['required'][] = 'yAnchor';
+        unset($item);
+    }
     $schema['properties']['faces']['items']['required'][] = 'placements';
 }
 $body = ['model'=>$model,'reasoning'=>['effort'=>$effort],'store'=>false,'max_output_tokens'=>16000,
@@ -58,6 +67,13 @@ if ($output === 'placements' && $aspectSizing) {
     $body['instructions'] = str_replace('Width and height are percentages of that same full face width and height. All numbers use 0 to 100, NOT 0 to 1.', 'Width is a percentage of the full face width. x, y and width use 0 to 100, NOT 0 to 1. Do NOT output a height percentage. Output aspectRatio = actual opening WIDTH divided by actual opening HEIGHT, estimated as if viewed straight on: square=1, twice as wide as tall=2, twice as tall as wide=0.5. The application calculates physical height = physical width / aspectRatio, independently of face height. Use a ratio between 0.05 and 20. Infer the opening shape from the photograph and correct for perspective; do not use the screen-pixel ratio of a foreshortened opening. Hidden wall height under a soffit must not change the shape or aspect ratio.', $body['instructions']);
     $body['instructions'] = str_replace('Example: a window centered horizontally, width 20 percent and height 30 percent, with its top 25 percent down, is x=40,y=25,width=20,height=30.', 'Example: a square window centered horizontally, width 20 percent of the face, with its top 25 percent down, is x=40,y=25,width=20,aspectRatio=1. Its physical width and height will be equal regardless of the wall height.', $body['instructions']);
     $body['instructions'] = str_replace('x+width and y+height must not exceed 100. For doors and garages that reach the bottom, y+height is 100.', 'x+width must not exceed 100. The derived physical height must fit below the top position and inside the face. For doors and garages that reach the bottom, choose y so the derived height reaches the bottom; do not distort their aspect ratio to fit.', $body['instructions']);
+}
+if ($output === 'placements' && $anchoredSizing) {
+    $body['text']['format']['name'] = 'face_opening_anchors';
+    $body['instructions'] = str_replace('x, y and width use 0 to 100, NOT 0 to 1.', 'Use percentage units, NOT fractions: width and edge offsets use 0 to 100; center offsets may be signed from -100 to 100.', $body['instructions']);
+    $body['instructions'] = str_replace('Use a single fixed coordinate convention: x is the LEFT edge of the opening as a percentage of the full face width from its LEFT edge; y is the TOP edge as a percentage of the full face height DOWN from its TOP edge.', 'Choose xAnchor (left, center, right) and yAnchor (top, center, bottom). Each aligns that point of the OPENING to the same point of the FACE, with x/y percentage offsets. LEFT: x moves the opening left edge rightward from the face left edge. RIGHT: x moves its right edge leftward from the face right edge. TOP: y moves its top edge downward from the face top edge. BOTTOM: y moves its bottom edge UPWARD from the face bottom edge. Edge offsets are nonnegative, with zero meaning exact alignment. CENTER: zero aligns centers; signed x moves right if positive, left if negative; signed y moves down if positive, up if negative. Offsets use the full face width/height, not the opening dimensions.', $body['instructions']);
+    $body['instructions'] = str_replace('Example: a square window centered horizontally, width 20 percent of the face, with its top 25 percent down, is x=40,y=25,width=20,aspectRatio=1. Its physical width and height will be equal regardless of the wall height. A centered window is NOT x=50 unless its left edge is at the center.', 'Example: centered square window: xAnchor=center,x=0,yAnchor=center,y=0,width=20,aspectRatio=1. Example: garage resting on the face bottom: xAnchor=left,x=20,yAnchor=bottom,y=0,width=30,aspectRatio=2. Use yAnchor=bottom,y=0 for doors and garages visibly meeting the wall base. This anchors the bottom exactly without estimating a top offset. Use positive bottom offsets only when the photograph shows a real raised sill or gap. Do not change the aspect ratio to reach an anchor.', $body['instructions']);
+    $body['instructions'] = str_replace('x+width must not exceed 100. The derived physical height must fit below the top position and inside the face. For doors and garages that reach the bottom, choose y so the derived height reaches the bottom; do not distort their aspect ratio to fit.', 'After applying anchors and deriving height from width/aspectRatio, the complete rectangle must fit inside the face. Do not subtract opening height from y when using the bottom anchor: y=0 already means its bottom touches the face bottom.', $body['instructions']);
 }
 if ($effort !== 'none') $body['reasoning']['summary'] = 'auto';
 $key = trim(file_get_contents('/var/lib/firstmeasure-exterior-ai/api.key'));
@@ -81,8 +97,10 @@ foreach ($rows as $row) {
         $placed = ['window'=>0,'door'=>0,'garage'=>0];
         foreach ($boxes as $box) {
             if (!is_array($box) || !isset($placed[$box['type'] ?? ''])) ai_fail(502, 'Invalid sticker type.');
-            foreach (['x','y','width',($aspectSizing ? 'aspectRatio' : 'height')] as $key) if (!isset($box[$key]) || !(is_float($box[$key]) || is_int($box[$key])) || !is_finite((float)$box[$key]) || $box[$key] < 0 || $box[$key] > 100) ai_fail(502, 'Invalid placement percentage.');
-            if ($box['width'] <= 0 || ($aspectSizing ? ($box['aspectRatio'] < 0.05 || $box['aspectRatio'] > 20) : ($box['height'] <= 0 || $box['y']+$box['height'] > 100.000001)) || $box['x']+$box['width'] > 100.000001) ai_fail(502, 'Placement is outside the face bounds.');
+            foreach (['x','y','width',($aspectSizing ? 'aspectRatio' : 'height')] as $key) if (!isset($box[$key]) || !(is_float($box[$key]) || is_int($box[$key])) || !is_finite((float)$box[$key]) || $box[$key] < ($anchoredSizing && in_array($key, ['x','y'], true) ? -100 : 0) || $box[$key] > 100) ai_fail(502, 'Invalid placement percentage.');
+            if ($box['width'] <= 0 || ($aspectSizing ? ($box['aspectRatio'] < 0.05 || $box['aspectRatio'] > 20) : ($box['height'] <= 0 || $box['y']+$box['height'] > 100.000001)) || (!$anchoredSizing && $box['x']+$box['width'] > 100.000001)) ai_fail(502, 'Placement is outside the face bounds.');
+            if ($anchoredSizing && (!in_array($box['xAnchor'] ?? '', ['left','center','right'], true) || !in_array($box['yAnchor'] ?? '', ['top','center','bottom'], true)
+                || ($box['xAnchor'] !== 'center' && $box['x'] < 0) || ($box['yAnchor'] !== 'center' && $box['y'] < 0))) ai_fail(502, 'Invalid opening anchor.');
             $placed[$box['type']]++;
         }
         foreach (['window'=>'windows','door'=>'doors','garage'=>'garageDoors'] as $type=>$key) if ($placed[$type] > ($row[$key] ?? 0)) ai_fail(502, 'Placements exceed the reported count.');

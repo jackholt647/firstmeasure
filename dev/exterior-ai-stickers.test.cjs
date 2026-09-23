@@ -5,7 +5,7 @@ test('opaque captures exclude occluded faces; both query styles, row selection a
  try{
  const page=await browser.newPage(),requests=[],errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://stickers.test/**',async route=>{
-  if(route.request().url().endsWith('exterior_ai.php')){const d=route.request().postDataJSON();requests.push(d);await route.fulfill({json:{result:{faces:d.faceIds.map(face=>({face,windows:face,doors:0,garageDoors:null,evidence:'Visible openings',...(d.output==='placements'?{placements:[{type:'window',x:20,y:20,width:30,...(d.placementSizing==='width-aspect'?{aspectRatio:1}:{height:40})}]}:{})}))},rawResponse:{output:[{type:'reasoning',summary:[{text:'A short summary'}]}]}}});}
+  if(route.request().url().endsWith('exterior_ai.php')){const d=route.request().postDataJSON();requests.push(d);await route.fulfill({json:{result:{faces:d.faceIds.map(face=>({face,windows:face,doors:0,garageDoors:null,evidence:'Visible openings',...(d.output==='placements'?{placements:[{type:'window',x:20,y:20,width:30,...(d.placementSizing==='width-aspect-anchors'?{aspectRatio:1,xAnchor:'left',yAnchor:'bottom'}:{height:40})}]}:{})}))},rawResponse:{output:[{type:'reasoning',summary:[{text:'A short summary'}]}]}}});}
   else await route.fulfill({contentType:'text/html',body:'<div id="ai-stickers" style="width:190px"></div>'});
  });
  async function setup(){
@@ -43,7 +43,7 @@ test('opaque captures exclude occluded faces; both query styles, row selection a
  // Placement requests keep both query styles and persist their geometry application report.
  await page.getByLabel('Output',{exact:true}).selectOption('placements');await page.getByLabel('Ask',{exact:true}).selectOption('all');
  await page.getByRole('button',{name:'Run',exact:true}).click();await page.waitForFunction(()=>!ExteriorAIStickers.busy);await page.getByText('Finished',{exact:true}).waitFor();
- assert.equal(requests.at(-1).output,'placements');assert.equal(requests.at(-1).placementSizing,'width-aspect');assert.equal(requests.at(-1).faceHints.length,2);assert.ok(requests.at(-1).faceHints.every(f=>f.supported&&f.outline.length===4));
+ assert.equal(requests.at(-1).output,'placements');assert.equal(requests.at(-1).placementSizing,'width-aspect-anchors');assert.equal(requests.at(-1).faceHints.length,2);assert.ok(requests.at(-1).faceHints.every(f=>f.supported&&f.outline.length===4));
  assert.equal(await page.evaluate(()=>applied.length),1);assert.equal(await page.evaluate(()=>applied[0].faces.filter(f=>f.placementFrame).length),2);await page.getByText('2 stickers added · 0 skipped · Ctrl+Z to undo',{exact:true}).waitFor();
  await page.getByLabel('Ask',{exact:true}).selectOption('each');await page.getByRole('button',{name:'Run',exact:true}).click();await page.waitForFunction(()=>!ExteriorAIStickers.busy);await page.getByText('Finished',{exact:true}).waitFor();assert.ok(requests.slice(-2).every(r=>r.faceHints.length===1&&r.output==='placements'));assert.equal(await page.evaluate(()=>applied.length),2);
  await setup();assert.equal(await page.evaluate(()=>applied.length),0,'loading history does not apply again');await page.getByText('2 stickers added · 0 skipped · Ctrl+Z to undo',{exact:true}).waitFor();
