@@ -24,7 +24,13 @@ if (!in_array($data['mode'] ?? '', ['orbit-front-v2','stickers-v1'], true)) ai_f
 $project = (string)($data['project'] ?? '');
 if (!preg_match('/^(?:fullhouse_|exteriors_)?[a-f0-9]{32}$/D', $project)) ai_fail(400, 'Invalid project.');
 $access = fm_api_json('GET', 'projects/' . rawurlencode($project) . '/editor/feedback');
-if (empty($access['ok'])) ai_fail(403, 'Project access denied.');
+if (empty($access['ok'])) {
+    $missingRoute = ($access['json']['error'] ?? '') === 'Not Found'
+        && strpos($access['json']['message'] ?? '', 'Route ') === 0;
+    if ($missingRoute || !$access['status'] || $access['status'] >= 500)
+        ai_fail(503, 'Project service unavailable. The AI request was not sent. Please retry shortly.');
+    ai_fail(403, 'Project access denied. Reopen the project and check your login.');
+}
 if ($data['mode'] === 'stickers-v1') {
     define('EXTERIOR_AI_AUTHORIZED', true);
     require __DIR__ . '/exterior_ai_stickers.php';

@@ -30,6 +30,7 @@
  function show(){
   if(!panel)return;controls();const body=field('results');body.replaceChildren();if(!current)return;
   node('p',current.status,body);node('small',`${current.config.model.replace('gpt-6-','')} · ${current.config.effort} · ${current.config.style==='all'?'All faces':'Per face'} · ${current.config.output==='placements'?'Placements':'Counts'}`,body);
+  for(const error of new Set((current.faces||[]).map(f=>f.error).filter(Boolean))){const e=node('p',error,body);e.setAttribute('role','alert');e.style.color='#ffb9a8';}
   if(current.application)node('p',`${current.application.placed} stickers added · ${current.application.skipped.length} skipped · Ctrl+Z to undo`,body);
   const table=node('table',null,body),head=node('tr',null,node('thead',null,table));
   for(const [key,title,label]of [['face','Face','face number'],['windows','W','windows'],['doors','D','doors'],['garageDoors','G','garage doors']]){
@@ -86,10 +87,22 @@
    if(!faces.length)throw Error('No visible wall faces. Aim the camera at the building.');if(faces.length>60)throw Error('More than 60 visible faces. Move closer or choose a narrower view.');
    const byCode=new Map(faces.map(f=>[f.code,f]));
    // Opaque context; only real visible pixels determine labels and inclusion.
-   for(const mesh of meshes){const edge=new T.LineSegments(new T.EdgesGeometry(mesh.geometry,20),new T.LineBasicMaterial({color:0x34414b}));s.add(edge);}
+   // Offset fills behind their outlines to prevent broken lines from depth fighting.
+   for(const mesh of meshes){mesh.material.polygonOffset=true;mesh.material.polygonOffsetFactor=1;mesh.material.polygonOffsetUnits=1;const edge=new T.LineSegments(new T.EdgesGeometry(mesh.geometry,20),new T.LineBasicMaterial({color:0x34414b}));s.add(edge);}
+   // Visible face-ID transitions retain even coplanar boundaries, without hidden edges.
+   const borders=document.createElement('canvas');borders.width=width;borders.height=height;
+   const borderContext=borders.getContext('2d'),borderData=borderContext.createImageData(width,height);
+   const codeAt=i=>pixels[i*4]+pixels[i*4+1]*256;
+   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=y*width+x,code=codeAt(i);
+    if((x+1<width&&code!==codeAt(i+1))||(y+1<height&&code!==codeAt(i+width))){
+     const j=((height-1-y)*width+x)*4;borderData.data.set([35,49,61,255],j);
+    }
+   }
+   borderContext.putImageData(borderData,0,0);
    function image(highlight=null){
     s.background.set(0xe7edf1);for(const mesh of meshes){const f=byCode.get(mesh.userData.code);mesh.material.color.set(f?(highlight===f.number?0xffbb33:highlight?0xaebcc5:0xc3cfd8):0x7b8794);}
-    r.render(s,c);const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');ctx.drawImage(r.domElement,0,0);ctx.font='bold 17px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    r.render(s,c);const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');ctx.drawImage(r.domElement,0,0);ctx.drawImage(borders,0,0);ctx.font='bold 17px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     for(const f of faces){if(highlight&&f.number!==highlight)continue;const text=String(f.number),w=ctx.measureText(text).width+10;ctx.fillStyle='#142535';ctx.fillRect(f.x-w/2,f.y-12,w,24);ctx.fillStyle='#fff';ctx.fillText(text,f.x,f.y);}
     return canvas.toDataURL('image/jpeg',.9);
    }
