@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import "../platform/capability_defs.js";
 import "../chat/capabilities.js";
 import "../comms/capabilities.js";
@@ -9,6 +12,28 @@ import { initializePublication } from "../platform/publication/bootstrap.js";
 import { listActions } from "../platform/publication/actions.js";
 import { listDataProviders } from "../platform/publication/providers.js";
 import { publishedActionPermission, publishedDataPermission, publishedPermissionBundles } from "../platform/publication/permission-bundles.js";
+import { fingerprintBackendArtifact } from "../platform/publication/implementation.js";
+
+test("action implementation identity ignores line endings but detects code changes", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "publication-fingerprint-"));
+  const write = (name: string, newline: string, body: string) => {
+    const folder = path.join(root, name);
+    mkdirSync(path.join(folder, "dist"), { recursive: true });
+    writeFileSync(path.join(folder, "dist", "action.js"), body.replaceAll("\n", newline));
+    writeFileSync(path.join(folder, "package.json"), '{\n  "name": "fixture"\n}\n'.replaceAll("\n", newline));
+    writeFileSync(path.join(folder, "package-lock.json"), '{\n  "lockfileVersion": 3\n}\n'.replaceAll("\n", newline));
+    return path.join(folder, "dist");
+  };
+  try {
+    const unix = write("unix", "\n", "export const effect = 1;\n");
+    const windows = write("windows", "\r\n", "export const effect = 1;\n");
+    assert.equal(fingerprintBackendArtifact(unix), fingerprintBackendArtifact(windows));
+    writeFileSync(path.join(windows, "action.js"), "export const effect = 2;\r\n");
+    assert.notEqual(fingerprintBackendArtifact(unix), fingerprintBackendArtifact(windows));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("every built-in published operation belongs to one known business permission or explicit subject grant", () => {
   initializePublication();
