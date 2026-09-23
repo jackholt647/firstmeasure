@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 measurement controls: [Compact display buttons](deploy/digitalocean/development-measurement-buttons-20260923.md) records `be04d368ac308b4ea533dbfd1402078fdf43576e` on all development roles. All, Moving and Off are connected dark toolbar buttons with gold selection and descriptive tooltips. All 64 wall-mode checks and an isolated Chrome layout check passed; public hashes and role readiness are verified. This two-script delta preserves the complete `bd46f13` runtime. Production is unchanged.
+
 September 23 FOV compensation: [Stable framing and slider dragging](deploy/digitalocean/development-exterior-fov-compensation-20260923.md) records `bd46f13dda3bfcc183c9cfeecfb224e78275fc49` on all development roles. FOV changes compensate camera distance around the orbit target; slider pointer capture and a fixed-width readout stabilize dragging. Nine focused checks, including a browser drag test, public hash and readiness passed. The one-script delta preserves `52e3e76`; production is unchanged.
 
 September 23 camera FOV: [ISO perspective slider](deploy/digitalocean/development-exterior-fov-20260923.md) records `52e3e76ea4c0af3659e0f98d05dd0ccbc7761278` on all development roles. A 15–100 degree slider at the end of the 3D controls appears on the existing ISO/perspective side. Eight focused checks, public hash and role readiness passed. The one-script delta preserves the complete `a436c5e` runtime. Production is unchanged.
