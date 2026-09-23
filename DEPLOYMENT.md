@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 plane nudging: [Upright arrows and grouped undo](deploy/digitalocean/development-plane-nudge-20260923.md) records `1762b2a37b5ee7dd5d4edf6245f557c6cc7f0f58` on all development roles. Plane nudges use upright view directions and consecutive nudges share undo/redo across direction and step changes. All 450 focused checks pass; public hashes and readiness passed. This two-script delta preserves the complete `31f1f62` runtime. Production is unchanged.
+
 September 23 AI replay: [Saved captures and full-response logging](deploy/digitalocean/development-exterior-ai-replay-20260923.md) records `31f1f62a5b09b48e36415d7b6601f0936a8484e6` on all development roles. Capture once, then Ask Luna repeatedly with identical images/context; full responses are logged and saved in per-capture history. Jev was deferred because it is text-only. Four focused tests, PHP lint, public asset hash and role readiness passed. This two-file delta preserves the complete `d5140bc` runtime; production is unchanged.
 
 September 23 DSM visibility: [Ground picker visibility restoration](deploy/digitalocean/development-dsm-visibility-20260923.md) records `d5140bc5f217cc16f857fa4bfe480c1d4d57b9dc` on all development roles. DSM picking restores prior image visibility on completion or cancellation and explicitly reports completion. All 61 wall-mode checks pass; public asset hashes and readiness passed. This two-script delta preserves the full `b81e79c` runtime. Production is unchanged.
