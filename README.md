@@ -1,5 +1,12 @@
 # FirstMeasure
 
+> **Directory move pending (September 23):** The physical canonical checkout is
+> still `C:/Users/jackh/Code/2026/FirstMeasure`. Windows blocked the move because
+> multiple Codex helpers hold this directory open. `FirstMate Platform` paths
+> below describe the intended destination; it does not exist yet. No alias or
+> duplicate was created. See [rename status and completion](docs/canonical-rename-status.md).
+
+
 ## Canonical working source
 
 Use `C:/Users/jackh/Code/2026/FirstMate Platform` on

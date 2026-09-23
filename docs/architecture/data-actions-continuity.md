@@ -1,5 +1,15 @@
 # Data and action architecture continuity
 
+> **Authorization update:** The full-conversation continuation subsequently
+> authorized implementation of all three layers: data, actions/functions and
+> customizable document/scope code, with shared version binding. Core action/data
+> infrastructure comes first, then all relevant app integrations and specialized
+> runtimes. The naming-only rename blocker does not prevent implementation in
+> the actual canonical `FirstMeasure` directory. No automatic architecture
+> deployment or production change is authorized. Audit-only wording below
+> records the earlier decision state and is superseded by this update.
+
+
 Status: agreed design direction and pending audit, September 23, 2026. This is
 not an implementation claim or authorization to implement the architecture.
 The canonical source is described in [the checkout record](../canonical-checkout.md).

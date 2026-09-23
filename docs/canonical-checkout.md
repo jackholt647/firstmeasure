@@ -1,5 +1,12 @@
 # Canonical combined platform â€” September 23, 2026
 
+> **Directory move pending (September 23):** The physical canonical checkout is
+> still `C:/Users/jackh/Code/2026/FirstMeasure`. Windows blocked the move because
+> multiple Codex helpers hold this directory open. `FirstMate Platform` paths
+> below describe the intended destination; it does not exist yet. No alias or
+> duplicate was created. See [rename status and completion](canonical-rename-status.md).
+
+
 The canonical working directory is `C:/Users/jackh/Code/2026/FirstMate Platform`.
 The branch is `codex/consolidated-firstmeasure-20260923`. It combines FirstMate
 platform apps, FirstMeasure report/exterior tools, and the mobile hosts/native

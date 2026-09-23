@@ -1,5 +1,12 @@
 # FirstMeasure handoff to another computer
 
+> **Directory move pending (September 23):** The physical canonical checkout is
+> still `C:/Users/jackh/Code/2026/FirstMeasure`. Windows blocked the move because
+> multiple Codex helpers hold this directory open. `FirstMate Platform` paths
+> below describe the intended destination; it does not exist yet. No alias or
+> duplicate was created. See [rename status and completion](docs/canonical-rename-status.md).
+
+
 Updated September 23, 2026. The canonical branch is
 `codex/consolidated-firstmeasure-20260923`; verify its published revision before
 cloning. See [the consolidation record](docs/canonical-checkout.md). This is a

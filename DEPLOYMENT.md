@@ -1,5 +1,12 @@
 # FirstMeasure: local development and production deployment
 
+> **Directory move pending (September 23):** The physical canonical checkout is
+> still `C:/Users/jackh/Code/2026/FirstMeasure`. Windows blocked the move because
+> multiple Codex helpers hold this directory open. `FirstMate Platform` paths
+> below describe the intended destination; it does not exist yet. No alias or
+> duplicate was created. See [rename status and completion](docs/canonical-rename-status.md).
+
+
 September 22 Resoffit leftovers: [Consumed sketch masks and retained stations](deploy/digitalocean/development-resoffit-ghosts-20260922.md) records `03c76e5d5c4cb02f50940503691e7a640c353720` on development. Resoffit keeps source masks synchronized with moved sketch nodes, repairs stale masks on reload, and keeps retained stations on the replacement faces. All 911 tests pass. Preserve this baseline.
 
 September 22 selection performance: [Cached geometry and turret contact picking](deploy/digitalocean/development-selection-performance-20260922.md) records `59fc259934108ff238d7664d5843a25e1e02058e` on all three development roles. Selection reuses unchanged geometry, avoids duplicate same-layer redraws and saves, and picks the displayed merged roof-contact lines. All 908 tests pass. Preserve this baseline.
