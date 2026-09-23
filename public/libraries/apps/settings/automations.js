@@ -683,7 +683,7 @@
         <div class="au-right">
           <div class="au-chat-head">
             <div class="au-chat-head-copy"><strong>${(globalThis.PlatformLanguage?.text("settings","m_0c1356b1264417","Automation assistant") ?? "Automation assistant")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_86e45f3db5835c","Describe what should happen automatically — I'll set it up.") ?? "Describe what should happen automatically — I'll set it up.")}</span></div>
-            <button class="au-textbtn" type="button" data-au-newthread>${(globalThis.PlatformLanguage?.text("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}</button>
+            <button class="au-textbtn" type="button" data-au-program>Data & behavior</button><button class="au-textbtn" type="button" data-au-newthread>${(globalThis.PlatformLanguage?.text("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}</button>
           </div>
           <div class="au-messages" data-au-messages></div>
           <div class="au-chips" data-au-chips></div>
@@ -706,6 +706,13 @@
         rootEl.querySelector('.au-left').classList.toggle('open', state.mobileListOpen);
       });
       rootEl.querySelector('[data-au-newthread]').addEventListener('click', startNewThread);
+      rootEl.querySelector('[data-au-program]').addEventListener('click', async () => {
+        try {
+          const { openScopePrograms } = await import('../documents/program-panel.js');
+          const path = `${templatesPath}/${encodeURIComponent(state.template.id)}`;
+          await openScopePrograms({organizationId:orgId,read:async()=> (await api(path)).template,save:async body=>(await api(path,{method:'PUT',body})).template,onSaved:saved=>{state.template.version=saved.version;void refreshInventory();}});
+        } catch(error) { setListStatus(`<p role="alert">${esc(error.message)}</p>`); }
+      });
       bindHeaderEditors();
       bindComposer();
       fitWorkspace();

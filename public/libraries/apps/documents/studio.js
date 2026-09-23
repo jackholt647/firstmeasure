@@ -2395,6 +2395,15 @@
           // Right-tray tabs: Inspect (editor-owned) + Setup + Agent.
           sidePanels: [
             { id: 'setup', label: (globalThis.PlatformLanguage?.text("documents","m_b06faf127e1505","Setup") ?? "Setup"), render: (host) => { state.schemaPanelHost = host; renderSchemaPanel(); } },
+            { id: 'program', label: 'Data & behavior', render: async host => {
+              const { mountProgramPanel } = await import('/libraries/apps/documents/program-panel.js');
+              if (!host.isConnected) return;
+              await mountProgramPanel(host, { organizationId: orgId(), getProgram: () => currentTemplateDefinition().program, onChange(program) {
+                const definition = clone(currentTemplateDefinition()); definition.program = program;
+                state.definition = definition; state.editorHandle?.setDocument?.(definition); state.dirty = true;
+                setTemplateSaveState('Unsaved behavior changes', 'dirty');
+              } });
+            } },
             ...(capabilityEnabled('documents.agent') ? [{ id: 'agent', label: (globalThis.PlatformLanguage?.text("documents","m_b8071e017821d8","Agent") ?? "Agent"), render: (host) => mountTemplateAgent(host) }] : [])
           ],
           onDictate: () => transcribeDocumentDictation(orgId(), state.template?.name),
@@ -2939,6 +2948,14 @@
           collaboration: { actor: editorActor() },
           sidePanels: [
             ...(capabilityEnabled('documents.advanced_definition_editing') ? [{ id: 'definition', label: (globalThis.PlatformLanguage?.text("documents","m_1846607b19e14c","Definition") ?? "Definition"), render: renderWorkflowDefinitionPanel }] : []),
+            { id: 'program', label: 'Data & behavior', render: async host => {
+              const { mountProgramPanel } = await import('/libraries/apps/documents/program-panel.js');
+              if (!host.isConnected) return;
+              await mountProgramPanel(host, { organizationId: orgId(), getProgram: () => currentWorkflowDefinition().program, onChange(program) {
+                const definition = clone(currentWorkflowDefinition()); definition.program = program;
+                state.workflowDef = definition; state.workflowEditorHandle?.setDefinition?.(definition); markWorkflowDirty();
+              } });
+            } },
             ...(capabilityEnabled('documents.agent') ? [{ id: 'agent', label: (globalThis.PlatformLanguage?.text("documents","m_b8071e017821d8","Agent") ?? "Agent"), render: mountWorkflowAgent }] : [])
           ],
           chrome: {

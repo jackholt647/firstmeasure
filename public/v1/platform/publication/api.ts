@@ -38,20 +38,27 @@ export const registerPublicationApi: FastifyPluginAsync = async app => {
     catch (error) { if (error instanceof PlatformError && [400, 403, 404].includes(error.statusCode)) return false; throw error; }
   }
   app.get("/organizations/:orgId/catalog", async request => {
-    const query = z.object({ scope: z.enum(["global", "organization", "project"]).default("organization"), projectId: identity.optional(), branchId: identity.optional() }).parse(request.query);
+    const query = z.object({ scope: z.enum(["global", "organization", "project", "all"]).default("organization"), executionKind: z.enum(["api", "module", "work"]).default("api"), projectId: identity.optional(), branchId: identity.optional() }).parse(request.query);
     const ctx = await context(request);
-    const target: TargetRef = { ...query, organizationId: ctx.organizationId };
+    const target: TargetRef = { ...query, scope: query.scope === "all" ? "organization" : query.scope, organizationId: ctx.organizationId };
+    const visible = async (policy: AccessPolicy, operation: string) => {
+      if (query.scope !== "all") return discoverable(ctx, target, policy, operation);
+      // Schema discovery can precede instance selection. This checks account/app
+      // capabilities only; invocation always rechecks the real resource.
+      for (const scope of policy.scopes) if (await discoverable(ctx, { ...target, scope, ...(scope === "project" ? { projectId: query.projectId || "$project" } : {}) }, policy, operation)) return true;
+      return false;
+    };
     const providers = [];
     for (const provider of listDataProviders()) {
       const exports: Record<string, unknown> = {};
       for (const [name, entry] of Object.entries(provider.exports)) {
-        if (await discoverable(ctx, target, entry.access, `${provider.id}.${name}`)) exports[name] = entry;
+        if (await visible(entry.access, `${provider.id}.${name}`)) exports[name] = entry;
       }
       if (Object.keys(exports).length) providers.push({ ...provider, exports });
     }
     const actions = [];
     for (const action of listActions()) {
-      if (action.executionKinds.includes("api") && await discoverable(ctx, target, action.policy, action.id)) actions.push(action);
+      if (action.executionKinds.includes(query.executionKind) && await visible(action.policy, action.id)) actions.push(action);
     }
     // Discovery is a description, never permission to read or execute a particular resource.
     return { providers, actions, datasetTypes: listDatasetTypes() };

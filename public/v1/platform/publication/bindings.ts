@@ -159,8 +159,10 @@ export function createBindingSession(ctx: PublicationContext, consumerId: string
       const action = await resolveActionBinding(ctx, consumerId, name, binding);
       if (["write", "external"].includes(action.effect) && (!ctx.invocationId || ctx.mode !== "command")) throw forbidden("module_effect_denied", "Effects require an explicit command execution identity.");
       const options = ctx.invocationId ? { idempotencyKey: `${ctx.invocationId}:${name}:${calls++}` } : {};
+      const evidenceKey = `${name}:${calls}`;
+      evidence.set(evidenceKey, { kind: "action", policy: binding.policy, action, status: "attempted", invocationKey: options.idempotencyKey || null });
       const result = await invokeActionBinding(ctx, consumerId, name, binding, input, options);
-      evidence.set(`${name}:${calls}`, { kind: "action", policy: binding.policy, action, receipt: result.receipt });
+      evidence.set(evidenceKey, { kind: "action", policy: binding.policy, action, receipt: result.receipt });
       return result.value;
     },
     manifest() { return jsonClone(Object.fromEntries(evidence)); }

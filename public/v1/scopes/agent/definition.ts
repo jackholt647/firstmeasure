@@ -199,7 +199,7 @@ const TOOLS: AgentTool[] = [
       const saved = (await saveScopeTemplate(run.orgId, run.branchId, {
         ...(validation.definition as JsonObject),
         ...(expectedVersion ? { expected_version: expectedVersion } : {})
-      }));
+      }, { publicationAuthorId: run.userId }));
       markSaved(run, templateId);
       run.changeLog.push(cleanText(args.change_note) || `Updated template ${templateId}.`);
       return { ok: true, template_id: templateId, version: saved.version, warnings: validation.warnings || [] };
@@ -221,7 +221,7 @@ const TOOLS: AgentTool[] = [
         ...(cleanText(args.icon) ? { icon: cleanText(args.icon) } : {}),
         ...(args.description !== undefined ? { description: cleanText(args.description) } : {})
       };
-      const saved = asObject((await saveScopeTemplate(run.orgId, run.branchId, { ...definition, expected_version: template.version })));
+      const saved = asObject((await saveScopeTemplate(run.orgId, run.branchId, { ...definition, expected_version: template.version }, { publicationAuthorId: run.userId })));
       markSaved(run, templateId);
       run.changeLog.push(`Updated appearance of ${templateId}.`);
       return { ok: true, version: saved.version, name: saved.name, color: saved.color, icon: saved.icon };
@@ -280,7 +280,7 @@ const TOOLS: AgentTool[] = [
         ...(args.explainer !== undefined ? { explainer: cleanText(args.explainer) } : {}),
         ...(args.customer_visible !== undefined ? { customer_visible: args.customer_visible === true } : {})
       });
-      const saved = (await saveScopeTemplate(run.orgId, run.branchId, { ...patched, expected_version: template.version }));
+      const saved = (await saveScopeTemplate(run.orgId, run.branchId, { ...patched, expected_version: template.version }, { publicationAuthorId: run.userId }));
       markSaved(run, templateId);
       run.changeLog.push(`Updated automation description in ${templateId}.`);
       return { ok: true, version: saved.version };
@@ -505,7 +505,7 @@ ${inventorySummary || "(none visible yet)"}
           (await saveScopeTemplate(run.orgId, run.branchId, {
             ...baseline.definition,
             expected_version: Number(current.version || 0)
-          }));
+          }, { publicationAuthorId: run.userId }));
           (await setScopeTemplateState(run.orgId, run.branchId, templateId, {
             enabled: baseline.enabled,
             trashed: baseline.trashed

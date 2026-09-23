@@ -63,8 +63,13 @@ and explicitly records the format's feet/ft² convention independently of PDF
 display preferences. Segment counts are never lengths. Invalid/missing numeric
 fields are omitted rather than converted to zero. Geometry/XML/PDF artifacts
 remain in FirstMeasure storage; the dataset retains typed report/XML links.
-This adapter currently covers Roofplan roofing quantities; additional exterior
-schemas and instant-only result types require their own normalizers.
+The shared read-only normalizer also publishes saved exterior report totals
+(`pdf_state.exteriorReport`, version 1, feet) and instant roof-area estimates from
+the existing instant payload builder. Instant square metres are converted using
+0.09290304 m2 per ft2, retain `firstmeasure.instant` attribution, and never invent
+edge lengths. Exterior quantities use the saved report, not a geometry rebuild.
+Unknown exterior versions/units are not guessed. Internal `fullhouse_` trial
+projects are excluded. Provider reads and completion imports share this mapping.
 
 The shared browser roof-measurement loader first requests the selected effective
 project dataset, then supplies compatible numeric keys to existing scope/report

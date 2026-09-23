@@ -866,7 +866,7 @@
         showLabel:true,
         active:state.categoryMenuOpen || state.visibleDocumentCategories.size < DOCUMENT_CATEGORIES.length,
         onClick:() => { state.categoryMenuOpen = !state.categoryMenuOpen; render(); }
-      }, ...(state.engineApi ? [{
+      }, ...(projectId() ? [{id:'programs',label:'Workflows',icon:'fa-diagram-project',showLabel:true,onClick:async()=>{const {openModuleInstances}=await import('../documents/program-panel.js');await openModuleInstances(orgId(),projectId());}}] : []), ...(state.engineApi ? [{
         id:'new_document',
         label:(globalThis.PlatformLanguage?.text("docs","m_96834d2fc9c9a5","New") ?? "New"),
         icon:'fa-plus',

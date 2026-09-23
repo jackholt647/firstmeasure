@@ -1,5 +1,5 @@
 import type { ProjectManifest } from "../../firstmeasure/storage.js";
-import { readStoredXml } from "../../firstmeasure/storage.js";
+import { readStoredXml, readPdfState, readArtifact } from "../../firstmeasure/storage.js";
 import { parseRoofplanMeasurementXml } from "../../public-firstmeasure/measurements.js";
 import { listDocuments, readDocument } from "../storage.js";
 import { systemPublicationContext } from "./context.js";
@@ -7,6 +7,8 @@ import { importMeasurementDataset, listProjectDatasets, readProjectDataset, sele
 import { contentHash } from "./validation.js";
 import type { PublicationContext } from "./contracts.js";
 import { authorizePublication } from "./context.js";
+import { FirstMeasureError } from "../../firstmeasure/errors.js";
+import { buildProjectInstantPayload } from "../../firstmeasure/instant.js";
 import { badRequest, forbidden } from "../errors.js";
 type Obj=Record<string,unknown>;
 const obj=(v:unknown):Obj=>v&&typeof v==="object"&&!Array.isArray(v)?v as Obj:{};
@@ -22,21 +24,58 @@ export function measurementPayloadFromRoofplan(xml:string,reportId:string){
  if(observed){add("roofSquares",roofArea/100,"roofing_square");add("roofArea",roofArea,"ft2");}
  return {measurements,artifacts:[{id:reportId,kind:"firstmeasure.report",sourceRevision:contentHash(xml)},{id:`${reportId}/model_data.xml`,kind:"roofplan.xml",sourceRevision:contentHash(xml)}]};
 }
+/** Saved report quantities are authoritative. Do not rebuild editor geometry here. */
+export function measurementPayloadFromExterior(report: Obj, reportId: string) {
+ const measurements: Record<string,{value:number;unit:string;source:string}> = {};
+ if (report.units !== "ft" || report.version !== 1) return { measurements, artifacts: [] as {id:string;kind:string;sourceRevision:string}[] };
+ const totals=obj(report.totals);
+ const fields:Record<string,[string,string]>={gross:["wallGrossArea","ft2"],net:["wallNetArea","ft2"],openingArea:["wallOpeningArea","ft2"],openingPerimeter:["wallOpeningPerimeter","ft"],top:["wallTopLf","ft"],bottom:["wallBottomLf","ft"],transitions:["wallTransitionsLf","ft"],terminations:["wallTerminationsLf","ft"],inside:["insideCornersLf","ft"],outside:["outsideCornersLf","ft"],returns:["wallReturnsArea","ft2"]};
+ for(const [field,[key,unit]] of Object.entries(fields)) { const value=totals[field]; if(typeof value==='number'&&Number.isFinite(value)&&value>=0) measurements[key]={value,unit,source:"firstmeasure.exterior"}; }
+ return {measurements,artifacts:[{id:`${reportId}/pdf-state`,kind:"exterior.report",sourceRevision:contentHash(report)}]};
+}
+export function measurementPayloadFromInstant(manifest:ProjectManifest,insights:unknown,structureInsights?:unknown) {
+ const payload=buildProjectInstantPayload({manifest,insights,structureInsights,assetUrls:{preview_image_url:null,solar_rgb_url:null,height_map_url:null,mask_url:null,insights_url:null}});
+ const area=payload.roof_area.total_roof_area_meters2;
+ const measurements:Record<string,{value:number;unit:string;source:string}>={};
+ if(typeof area==='number'&&Number.isFinite(area)&&area>=0) {
+  measurements.roofArea={value:area/0.09290304,unit:"ft2",source:"firstmeasure.instant"};
+  measurements.roofSquares={value:area/9.290304,unit:"roofing_square",source:"firstmeasure.instant"};
+ }
+ return {measurements,artifacts:[{id:`${manifest.id}/insights.json`,kind:"instant.estimate",sourceRevision:contentHash({insights,structureInsights:structureInsights||null})}]};
+}
+const optionalArtifact = async (read:()=>Promise<{content:Buffer}>) => {try{return await read();}catch(error){if(error instanceof FirstMeasureError&&error.statusCode===404)return null;throw error;}};
 function linkedReport(project:Obj){const m=obj(project.measurement_project||project.measurement),raw=obj(m.raw);return String(m.id||m.project_id||raw.id||raw.project_id||project.measurement_project_id||project.folder||"");}
+/** Shared read-only normalization for provider exports and completion projection. */
+export async function readFirstMeasureMeasurements(manifest:ProjectManifest) {
+ // Internal trial measurements must never become customer publications.
+ if(manifest.id.startsWith("fullhouse_"))throw forbidden("internal_report_private","Internal draft reports are not customer publications.");
+ const xml=await optionalArtifact(()=>readStoredXml(manifest.id));const text=xml?.content.toString("utf8")||"";
+ const payload=measurementPayloadFromRoofplan(text,manifest.id);
+ if(!text)payload.artifacts=[];
+ const pdfState=obj(await readPdfState(manifest.id));
+ const exterior=measurementPayloadFromExterior(obj(pdfState.exteriorReport),manifest.id);
+ Object.assign(payload.measurements,exterior.measurements);payload.artifacts.push(...exterior.artifacts);
+ if(!payload.measurements.roofArea&&manifest.instant_enabled) {
+  const insights=await optionalArtifact(()=>readArtifact(manifest.id,"insights.json"));
+  const structures=await optionalArtifact(()=>readArtifact(manifest.id,"instant-structures.json"));
+  if(insights) {const instant=measurementPayloadFromInstant(manifest,JSON.parse(insights.content.toString("utf8")),structures?JSON.parse(structures.content.toString("utf8")):undefined);Object.assign(payload.measurements,instant.measurements);payload.artifacts.push(...instant.artifacts);}
+ }
+ return payload;
+ }
 /** Retry-safe completion projection. Report remains authoritative; importer retains local overrides. */
 export async function publishCompletedFirstMeasureDataset(manifest:ProjectManifest,onlyProjectId?:string){
  if(manifest.status!=="completed")return;
  const orgId=String(obj(manifest.organization_ref).id||"");if(!orgId)return;
- const xml=await readStoredXml(manifest.id);const text=xml.content.toString("utf8");if(!text)return;
- const payload=measurementPayloadFromRoofplan(text,manifest.id);if(!Object.keys(payload.measurements).length)return;
- const sourceRevision=contentHash(text);
+ const payload=await readFirstMeasureMeasurements(manifest);
+ if(!Object.keys(payload.measurements).length)return;
+ const sourceRevision=contentHash(payload);
  for(const project of (await listDocuments(orgId,"projects")).filter(p=>(!onlyProjectId||p.id===onlyProjectId)&&linkedReport(obj(p.data))===manifest.id)){
   const target={scope:"project" as const,organizationId:orgId,projectId:project.id};
   const ctx=systemPublicationContext({kind:"work",organizationId:orgId,projectId:project.id,operations:["datasets.save","datasets.value","datasets.select"],mode:"command"});
   const all=await listProjectDatasets(ctx,target);const existing=all.find(d=>d.role===`firstmeasure:${manifest.id}`);
   let current:Awaited<ReturnType<typeof readProjectDataset>>|undefined;
   if(existing)current=await readProjectDataset(ctx,{...target,id:existing.id});
-  const saved=current?.provenance.sourceRevision===sourceRevision?{id:current.id}:await importMeasurementDataset(ctx,target,{...(existing?{id:existing.id,expectedRevision:Number(existing.storeRevision)}:{id:`dataset_${contentHash({orgId,projectId:project.id,reportId:manifest.id}).slice(0,32)}`}),name:"FirstMeasure report",role:`firstmeasure:${manifest.id}`,value:payload,provenance:{producer:"firstmeasure",reportId:manifest.id,sourceRevision,sourceFormat:"roofplan",unitsContract:"roofplan-feet"}});
+  const saved=current?.provenance.sourceRevision===sourceRevision?{id:current.id}:await importMeasurementDataset(ctx,target,{...(existing?{id:existing.id,expectedRevision:Number(existing.storeRevision)}:{id:`dataset_${contentHash({orgId,projectId:project.id,reportId:manifest.id}).slice(0,32)}`}),name:"FirstMeasure report",role:`firstmeasure:${manifest.id}`,value:payload,provenance:{producer:"firstmeasure",reportId:manifest.id,sourceRevision,sourceFormat:"firstmeasure-report",unitsContract:"explicit-per-value"}});
   const latest=await readDocument(orgId,"projects",project.id);
   if(!obj(obj(latest.data).dataset_defaults).measurements)await selectProjectDataset(ctx,target,"measurements",saved.id,Number(latest.revision));
  }

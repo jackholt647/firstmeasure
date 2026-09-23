@@ -56,4 +56,20 @@ test("publication API shares auth, CSRF, typed dataset actions and project isola
   assert.equal(read.json().value.items[0].quantity, 2);
   const denied = await app.inject({ method: "POST", url: `${prefix}/data/read`, headers, payload: { ...source, target: { ...source.target, organizationId: "other" } } });
   assert.equal(denied.json().status, "denied", denied.body);
+  // Scope publication stamps server authority; execution refreshes that author's membership.
+  const {saveScopeTemplate}=await import("../scopes/storage.js");
+  const {executeScopeCode}=await import("../work/automations/code.js");
+  const owner=(await storage.listDocuments(orgId,"users"))[0]!;
+  const program={id:"calculate",source:"const value=await api.data.read('inventory');return {outputs:{count:value.items.length}};",mode:"evaluate",inputs:{},inputSchema:{type:"object"},outputSchema:{type:"object"},bindings:{inventory:{kind:"data",policy:"live",source:{...source,target:{...source.target,organizationId:"$organization",projectId:"$project"}}}}};
+  const template=await saveScopeTemplate(orgId,"default",{id:"coded",name:"Coded scope",metadata:{publication_author_id:"attacker"},work_plan:{root_nodes:[{id:"root",title:"Root"}],automation_bindings:{onStarted:[{automation:"scope.code.run.v1",input:program}]}}},{publicationAuthorId:owner.id});
+  assert.equal((template.definition as any).metadata.publication_author_id,owner.id);
+  const context={event:{organization_id:orgId,project_id:"project",branch_id:"default"},plan:{id:"plan",template_id:"coded",template_version:template.version,branch_id:"default"},node:{id:"root"},project:{id:"project"},scope:{},proposal:{},now:new Date().toISOString(),idempotencyKey:"scope-once",data:{},services:{}} as any;
+  assert.deepEqual(await executeScopeCode(context,program),{count:1});
+  await assert.rejects(executeScopeCode({...context,idempotencyKey:"forged"},{...program,source:"return {outputs:{forged:true}};"}),/does not match/);
+  const identityId=String(owner.data.identity_id);
+  const identity=await storage.readIdentity(identityId);
+  await storage.patchIdentity(identityId,{memberships:[]});
+  await assert.rejects(executeScopeCode(context,program),/no longer belongs/);
+  await storage.patchIdentity(identityId,{memberships:identity.memberships});
+
 });

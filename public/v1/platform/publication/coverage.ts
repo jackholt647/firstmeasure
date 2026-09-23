@@ -25,7 +25,7 @@ export const applicationPublication = {
   equipment: { providers: ["equipment"], domains: ["equipment"] },
   invoices: { providers: ["payments"], domains: ["payments"] },
   financials: { providers: ["financials"], domains: ["payments"] },
-  stats: { providers: ["stats"], domains: [], note: "Published saved-view metadata; querying a view remains its authenticated domain API." },
+  stats: { providers: ["stats"], domains: ["stats"], note: "Saved views, schema and queries are read-only; warehouse refresh is an explicit action." },
   payroll: { providers: ["payroll"], domains: ["payroll"] },
   chat: { providers: ["chat"], domains: ["chat"] },
   channels: { providers: ["channels"], domains: ["channels"] },

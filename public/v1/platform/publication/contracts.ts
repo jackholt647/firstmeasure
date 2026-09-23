@@ -28,6 +28,10 @@ export type PublicationContext = {
   executionKind: ExecutionKind;
   mode: "evaluate" | "command";
   invocationId?: string;
+  /** Internal derived-source authorization path; never accepted from client JSON. */
+  dependencyPath?: readonly string[];
+  /** Server-owned nesting limit for composed programmable consumers. */
+  executionDepth?: number;
   /** Created only by trusted server code; never deserialize this from an HTTP/code payload. */
   system?: SystemGrant;
 };

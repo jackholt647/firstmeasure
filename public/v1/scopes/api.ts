@@ -102,9 +102,9 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
 
   app.put("/organizations/:orgId/branches/:branchId/templates/:templateId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const author = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     const body = saveScopeTemplateSchema.parse({ ...objectSchema.parse(request.body ?? {}), id: getParam(request.params, "templateId") });
-    return { ok: true, template: (await saveScopeTemplate(orgId, getParam(request.params, "branchId") || "default", body)) };
+    return { ok: true, template: (await saveScopeTemplate(orgId, getParam(request.params, "branchId") || "default", body, { publicationAuthorId: author.userId })) };
   });
 
   app.delete("/organizations/:orgId/branches/:branchId/templates/:templateId", async (request) => {
@@ -168,7 +168,7 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
   const artifactWriteSchema = z.object({ expected_version:z.number().int().positive(), artifact_id:z.string().optional(), usage_id:z.string().optional(), type:z.string().optional(), changes:objectSchema.default({}), trigger:objectSchema.default({}) });
   app.patch("/organizations/:orgId/branches/:branchId/templates/:templateId/artifacts", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf:true, permission:"manage_company_settings" });
+    const author = await requirePlatformAuth(request, { orgId, csrf:true, permission:"manage_company_settings" });
     const branchId = getParam(request.params, "branchId");
     const templateId = getParam(request.params, "templateId");
     const template = (await readScopeTemplate(orgId, branchId, templateId)) as Record<string, unknown>;
@@ -178,7 +178,7 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
     const definition = body.artifact_id
       ? patchScopeArtifact(template.definition as Record<string, unknown>, body.artifact_id, body.changes, body.usage_id)
       : createScopeArtifact(template.definition as Record<string, unknown>, body.type || "", body.changes, body.trigger);
-    const saved = (await saveScopeTemplate(orgId, branchId, { ...definition, expected_version:body.expected_version }));
+    const saved = (await saveScopeTemplate(orgId, branchId, { ...definition, expected_version:body.expected_version }, { publicationAuthorId: author.userId }));
     const after = buildScopeArtifactMap(definition).artifacts;
     const original = before.find(item => item.id === body.artifact_id);
     const sourcePath = original?.edit_targets?.find(item => item.id === body.usage_id)?.path || original?.source_path;
@@ -220,7 +220,7 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
 
   app.patch("/organizations/:orgId/branches/:branchId/templates/:templateId/automation-inventory", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const author = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     const body = objectSchema.parse(request.body ?? {});
     const branchId = getParam(request.params, "branchId") || "default";
     const templateId = getParam(request.params, "templateId");
@@ -229,7 +229,7 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
       ...(body.explainer !== undefined ? { explainer: String(body.explainer ?? "") } : {}),
       ...(body.customer_visible !== undefined ? { customer_visible: body.customer_visible === true } : {})
     });
-    const saved = (await saveScopeTemplate(orgId, branchId, { ...patched, expected_version: template.version })) as Record<string, unknown>;
+    const saved = (await saveScopeTemplate(orgId, branchId, { ...patched, expected_version: template.version }, { publicationAuthorId: author.userId })) as Record<string, unknown>;
     return { ok: true, template: { id: saved.id, version: saved.version }, entries: extractAutomationInventory(saved.definition as Record<string, unknown>, { include_hidden: true }) };
   });
 

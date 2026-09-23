@@ -4,6 +4,7 @@ import { FMDocModel } from "../schemas.js";
 import { badRequest } from "../../platform/errors.js";
 import { jsonClone, validateJson } from "../../platform/publication/validation.js";
 import { assertSafeTenantSchema } from "../../platform/publication/tenant-schema.js";
+import { workflowDefinitionSchema } from "../workflows/schemas.js";
 
 const jsonSchema = z.record(z.unknown());
 const key = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/);
@@ -19,7 +20,7 @@ export const moduleDefinitionSchema = z.object({
   inputSchema: jsonSchema, outputSchema: jsonSchema, privateStateSchema: jsonSchema.default({ type: "object" }),
   exports: z.record(key, z.object({ path: z.string().regex(/^\/(outputs|inputs)(\/|$)/), schema: jsonSchema, access: z.enum(["read", "write", "private"]), description: z.string().max(1000).optional() }).strict()),
   bindings: z.record(key, moduleBindingSchema).default({}),
-  source: z.string().min(1).max(128_000), renderer: jsonSchema.optional()
+  source: z.string().min(1).max(128_000), renderer: jsonSchema.optional(), workflow: jsonSchema.optional()
 }).strict();
 export type ModuleDefinition = z.infer<typeof moduleDefinitionSchema>;
 
@@ -36,6 +37,13 @@ export function validateModuleDefinition(value: unknown): ModuleDefinition {
     if (privatePaths.some(privatePath => privatePath === field.path || privatePath.startsWith(`${field.path}/`) || field.path.startsWith(`${privatePath}/`))) throw badRequest("module_export_overlap", "Public exports cannot overlap private fields.");
   }
   if (definition.renderer) validateModuleView(definition.renderer);
+  if (definition.workflow) {
+    if (definition.kind !== "workflow") throw badRequest("module_workflow_kind", "Only workflow modules may define workflow pages.");
+    const workflow = workflowDefinitionSchema.parse(definition.workflow);
+    for (const step of workflow.steps) for (const item of [...(step.items || []), ...(step.sections || []).flatMap(section => section.items || [])]) {
+      if (item.writes && !item.writes.startsWith("params.")) throw badRequest("module_workflow_write", "Programmable workflow controls must write params inputs; calculated outputs are owned by code.");
+    }
+  }
   return definition;
 }
 

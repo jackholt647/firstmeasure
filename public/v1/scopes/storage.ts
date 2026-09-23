@@ -311,8 +311,19 @@ export async function listScopeTemplateVersions(orgId: string, branchId: string,
     AND template_id = ? ORDER BY version DESC`).all(orgId, branchId, templateId)).map(versionView);
 }
 
-export async function saveScopeTemplate(orgId: string, branchId: string, inputValue: JsonObject, options: { systemPreset?: boolean } = {}) {
+export async function saveScopeTemplate(orgId: string, branchId: string, inputValue: JsonObject, options: { systemPreset?: boolean; publicationAuthorId?: string } = {}) {
   const parsedDefinition = scopeTemplateDefinitionSchema.parse(inputValue);
+  const { validateScopeProgram } = await import("../work/automations/code.js");
+  const validatePrograms = (owner: JsonObject) => {
+    for (const entries of Object.values(asObject(owner.automation_bindings))) {
+      if (Array.isArray(entries)) for (const binding of entries) {
+        if (asObject(binding).automation === "scope.code.run.v1") validateScopeProgram(asObject(binding).input);
+      }
+    }
+    for (const child of (Array.isArray(owner.children) ? owner.children : [])) validatePrograms(asObject(child));
+  };
+  validatePrograms(parsedDefinition.work_plan);
+  for (const node of parsedDefinition.work_plan.root_nodes) validatePrograms(node);
   const db = getWorkDatabase();
   const now = nowIso();
   const expectedVersion = Number(inputValue.expected_version || 0);
@@ -335,6 +346,7 @@ export async function saveScopeTemplate(orgId: string, branchId: string, inputVa
         ? asObject(parsedDefinition.metadata)
         : {
             ...asObject(parsedDefinition.metadata),
+            publication_author_id: options.publicationAuthorId || "",
             ...(existingMetadata.preset === true ? { preset: false, based_on_preset: parsedDefinition.id } : {})
           }
     };

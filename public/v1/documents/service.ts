@@ -624,7 +624,7 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
   };
 }
 
-export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean } = {}) {
+export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
   await ensureDefaultDocumentAssets(orgId).catch(() => null);
   const capabilityState = await documentCapabilityState(orgId);
   const typeDef = typeDefinitionFor(cleanText(input.document_type));
@@ -685,9 +685,28 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     created_at: now,
     updated_at: now
   };
+  const program = asObject(definition.program);
+  let renderedModule: { id: string; publication: import("../platform/publication/contracts.js").PublicationContext } | undefined;
+  if (program.enabled === true) {
+    if (!program.moduleId || !program.moduleVersion) throw badRequest("document_program_unpublished", "Publish this design's custom behavior before creating a document.");
+    if (missing.length) throw badRequest("document_program_inputs_required", "Complete the required document inputs before evaluating custom behavior.", { missing_params: missing });
+    const modules = await import("./modules/service.js");
+    const { userPublicationContext } = await import("../platform/publication/context.js");
+    const { initializePublication } = await import("../platform/publication/bootstrap.js");
+    initializePublication();
+    const publication = userPublicationContext(ctx, { projectId, executionKind: "module" });
+    const instance = await modules.createModuleInstance(publication, { moduleId: String(program.moduleId), version: String(program.moduleVersion), projectId, inputs: params }, `document_${id}`);
+    await modules.evaluateModuleInstance(publication, instance.id, { expectedRevision: instance.revision });
+    renderedModule = { id: instance.id, publication };
+  }
   const document = await saveDocumentInstance(orgId, id, data, options);
   await recordDocumentEvent(orgId, document, "document.created", { project_id: projectId }, ctx, { emit: false });
   await syncProjectSignatureRequirements(orgId, projectId).catch(() => null);
+  if (renderedModule) {
+    const modules = await import("./modules/service.js");
+    const result = await modules.materializeModuleDocument(renderedModule.publication, renderedModule.id, { documentId: id, expectedDocumentRevision: Number(document.revision) });
+    return { document: result.document, missing_params: missing };
+  }
   return { document, missing_params: missing };
 }
 

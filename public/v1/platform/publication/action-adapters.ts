@@ -68,7 +68,7 @@ function publish(def: DomainAction) {
     domain: def.id.split(".")[0]!, description: def.description,
     inputSchema: contract?.inputSchema || { type: "object", properties: def.properties || {}, required: def.required || [], additionalProperties: false },
     validateInput: contract?.validateInput,
-    outputSchema: jsonValueSchema, effect, executionKinds: ["api", "module", "agent"],
+    outputSchema: jsonValueSchema, effect, executionKinds: ["api", "module", "agent", "work"],
     idempotency: effect === "read" || effect === "compute" ? "none" : "required",
     policy: { scopes: def.scopes || ["organization"], applications: def.applications ?? (fieldAccessible ? ["management", "field"] : ["management"]), permissions: def.permission ? [def.permission] : [], capabilities: def.capabilities || [], authorize: (ctx,target) => authorizeDomainTarget(def.id,ctx,target) },
     execute: async (ctx, target, input, execution) => JSON.parse(JSON.stringify((await def.execute(ctx, target, input, execution)) ?? null))
@@ -201,8 +201,9 @@ export function registerDomainActions() {
     const principal=auth(c);const service=await import("../../internal/crm/referrals_service.js");
     return service.customerReferralStatus({org_id:c.organizationId,email:String(principal.identity.email || ""),name:String(principal.user.name || ""),company:String(principal.organization.name || "")});
   } });
-  publish({ id:"stats.schema",description:"Read the refreshed metric and dimension catalog.",permission:"view_projects|manage_projects|manage_company_settings",effect:"read",execute:async c=>{await (await import("../../stats/sync.js")).ensureStatsFreshness(c.organizationId);return (await import("../../stats/service.js")).statsSchema(c.organizationId);} });
-  publish({ id:"stats.query",description:"Execute validated named metric queries through the stats warehouse.",permission:"view_projects|manage_projects|manage_company_settings",effect:"read",properties:{queries:object},required:["queries"],execute:async(c,_t,i)=>{await (await import("../../stats/sync.js")).ensureStatsFreshness(c.organizationId);return (await import("../../stats/metrics.js")).executeStatsQueries(c.organizationId,i.queries as Input);} });
+  publish({ id:"stats.refresh",description:"Explicitly refresh the stats warehouse from domain records.",permission:"manage_projects|manage_company_settings",execute:async c=>(await import("../../stats/sync.js")).ensureStatsFreshness(c.organizationId) });
+  publish({ id:"stats.schema",description:"Read the metric and dimension catalog.",permission:"view_projects|manage_projects|manage_company_settings",effect:"read",execute:async c=>{return (await import("../../stats/service.js")).statsSchema(c.organizationId);} });
+  publish({ id:"stats.query",description:"Execute validated named metric queries through the stats warehouse.",permission:"view_projects|manage_projects|manage_company_settings",effect:"read",properties:{queries:object},required:["queries"],execute:async(c,_t,i)=>{return (await import("../../stats/metrics.js")).executeStatsQueries(c.organizationId,i.queries as Input);} });
   publish({ id:"stats.views.list",description:"Read saved dashboards.",permission:"view_projects|manage_projects|manage_company_settings",effect:"read",execute:async c=>(await import("../../stats/service.js")).listStatsViews(c.organizationId) });
   publish({ id:"stats.view.fromPreset",description:"Create a dashboard from an existing validated preset.",permission:"manage_projects|manage_company_settings",properties:{presetId:string},required:["presetId"],execute:async(c,_t,i)=>(await import("../../stats/service.js")).createViewFromPreset(c.organizationId,String(i.presetId),auth(c).userId) });
   registered = true;

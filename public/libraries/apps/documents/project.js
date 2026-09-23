@@ -1278,6 +1278,11 @@
         bindListRows(listEl);
       }
       root.querySelector('[data-fmdx-new]')?.addEventListener('click', () => openCreateModal());
+      if (projectId()) {
+        const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'fmdx-btn'; launch.textContent = 'Documents & workflows';
+        launch.onclick = async () => { try { const { openModuleInstances } = await import('/libraries/apps/documents/program-panel.js'); await openModuleInstances(orgId(), projectId()); } catch(error) { showToast('Documents',errorMessage(error),false); } };
+        root.querySelector('[data-fmdx-new]')?.before(launch);
+      }
       root.querySelector('[data-fmdx-upload]')?.addEventListener('change', (event) => {
         uploadFiles(event.target.files);
         event.target.value = '';

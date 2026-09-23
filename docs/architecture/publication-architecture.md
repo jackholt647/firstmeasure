@@ -45,9 +45,12 @@ HTTP discovery and invocation are under `/v1/publication/organizations/:orgId`:
 
 The browser entry point is `PlatformAPI.publication`. It uses the existing
 session, CSRF and error handling. Document module APIs are under
-`/v1/document-modules/organizations/:orgId`; Document Studio's **Document modules**
-control opens the advanced definition/instance editor. An existing saved document
-does not become a programmable module implicitly.
+`/v1/document-modules/organizations/:orgId`; Both visual builders expose **Data & behavior** for schemas, code, exports and
+bindings. Publishing an enabled design saves an immutable module version alongside
+the native design. The project Documents **Workflows** control manages independent
+instances. The scope builder exposes the same catalog and editor for configured
+plan/task triggers. The advanced module editor remains available for full JSON
+editing. Existing saved artifacts retain their captured result.
 
 ## A concrete binding
 
@@ -179,37 +182,71 @@ The concurrent FirstMeasure editor work remains separate. This architecture
 does not change `public/measure/internal`, deploy another thread's dirty files,
 or authorize production activation.
 
-## Verified implementation checkpoint — September 23, 2026
+## Execution and dependency lifecycle
 
-Type checking and the backend build pass. The publication suite has 36 passing
-tests and one PostgreSQL-only test skipped in its default invocation. That test
-also passed separately against embedded PostgreSQL, exercising concurrent
-create-only writes, snapshot capture and effect receipts. The compiled sandbox
-and dependency fingerprint pass on Node 22. A focused existing-domain regression
-suite passes 61 tests across documents, collaboration, versions, Work, assistant,
-materials, canvassing and media. Module editor browser smoke checks passed.
+Instance bindings resolve `$organization`, `$project` and `$branch` target tokens
+at creation. Arbitrary arguments and source strings are not interpolated.
+`codePolicy` defaults to `frozen` (pin the published module version); `live` opts
+into later compatible published versions. The accepted execution records the
+actual code version, schemas, source revisions, values and action receipts.
+Failed upgrades retain the last accepted version/result.
 
-The integrated tests cover inventory to a separate estimate workflow to a
-separate frozen document, optional-input fallback, overrides, permissions,
-materialization, signed-artifact retention and effect replay prevention. They do
-not assert that the entire moving-company sales/fulfillment scope is configured.
+GET freshness and provider reads never execute code or write domain records.
+Explicit evaluation refreshes upstream live module dependencies in order, with
+cycle detection and a 64-module graph bound. Scope triggers do the same before
+consuming module outputs. The visible instance editor checks every ten seconds
+and refreshes stale live drafts while there are no unsaved edits; it stops when
+closed, hidden, frozen or awaiting command review. There is no continuously
+running organization-wide invalidation worker. API consumers use the freshness
+and refresh endpoints or published refresh action at their execution boundary.
 
-Remaining migration and product work is explicit:
+Data and read/compute action evidence rechecks current permissions, including
+transitive retained module and scope outputs. Frozen values do not retain an
+expired access grant. Effects require command mode; `api.mode` allows a program
+to distinguish calculation from its explicitly requested command. Nested module
+execution is limited to eight levels in addition to each sandbox's own limits.
 
-- Expand narrow data projections and action contracts when additional domain
-  operations are needed; the catalog is not a publication of every HTTP endpoint.
-  Some legacy nested maps and outputs remain flexible JSON contracts.
-- Existing document row sources and Work context resolvers remain supported
-  compatibility paths. New cross-domain consumers should use publications.
-- FirstMeasure normalization currently covers roofing measurements. Exteriors
-  and instant-report structures need their own typed mappings. Import repair is
-  explicit; no background projection retry or bulk backfill was run.
-- Live bindings refresh during explicit evaluation. Automatic downstream
-  invalidation and a reconciliation UI for uncertain effects are not implemented.
-- Frozen action implementations fail closed after backend artifact changes;
-  running archived backend implementations is not supported.
-- Configure and validate the full moving-company scope separately, including
-  signature-plus-deposit booking, staged bill of lading and final settlement.
+Scope definitions stamp their author on the server. At execution, the program
+must match that immutable template version and the author's current membership,
+application access and permissions. Client metadata cannot choose an authority.
+Republish older custom-code scopes lacking that stamp before running them.
 
-Architecture changes have not been deployed. The independent editor development
-release remains the deployed baseline and must be preserved by any later release.
+A command that may have performed an effect retains an uncertain receipt and
+blocks subsequent edits/executions. An administrator can inspect the command,
+verify effects in the owning app, and record a review through the instance UI or
+`POST /instances/:id/reconcile`. This records a note and author, retains the last
+accepted result, and unlocks the instance; it never replays the failed command
+or fabricates a successful output. Process-crash claims that remain actively
+running require operational investigation before recovery.
+
+Published `document-modules.*` actions cover instance creation, refresh, explicit
+commands, freezing, writable exports, generation from workflow exports and portal
+document materialization. Scopes can compose these through ordinary declared
+action bindings. Materialization never executes code and signed artifacts never
+silently adopt a new result.
+
+## Verification and boundaries — September 23, 2026
+
+The completion implementation passes TypeScript checking/build, 44 publication
+tests, the separately run PostgreSQL concurrency test, 71 affected domain
+regressions, and headless browser checks for authoring, binding selection,
+instance creation/save/refresh/freeze and scope version preservation. See
+[the completion record](implementation-completion.md) and the development release
+record for the final deployment identity and runtime verification.
+
+The shared registry is the extension contract for all current app owners, not a
+raw export of every HTTP endpoint. Existing dedicated payment, signature,
+credential, upload and administration flows keep their own authorization and
+protocols. The operation inventory in [action-publication.md](action-publication.md)
+records adapters and remaining endpoint migrations. Some legacy nested maps and
+results intentionally retain flexible JSON schemas. Existing Work context and
+document row-source syntax remain compatibility paths.
+
+Measurement publication normalizes roof XML, saved exterior report totals and
+instant roof-area estimates with explicit units and source attribution. It does
+not rebuild geometry or fabricate unavailable dimensions. Historical import is
+explicit; no bulk data backfill or geometry migration is part of this release.
+
+Historical executable functions are not required. Accepted results and evidence
+are retained; an unavailable pinned action implementation fails rather than
+substituting another implementation. No moving-company product is included.

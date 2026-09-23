@@ -6,6 +6,8 @@ import { PlatformError } from "../../platform/errors.js";
 import { moduleBindingSchema } from "./schemas.js";
 import { createModuleInstance, evaluateModuleInstance, freezeModuleInstance, generateModuleDocument, getModuleExports, listModuleInstances, listModules, moduleDefinition, publishModule, readModuleInstance, updateModuleInputs, moduleInstanceView, materializeModuleDocument, writeModuleExport } from "./service.js";
 import { registerModuleDataProvider } from "./provider.js";
+import { inspectModuleGraph, refreshModuleGraph } from "./dependencies.js";
+import { updateModuleBindings, reconcileModuleCommand } from "./service.js";
 
 const object = z.record(z.unknown());
 const params = (request: FastifyRequest) => request.params as Record<string, string>;
@@ -28,14 +30,26 @@ export const registerDocumentModuleRoutes: FastifyPluginAsync = async app => {
   app.get("/organizations/:orgId/modules/:moduleId", async request => ({ module: await moduleDefinition(await context(request), params(request).moduleId!, (request.query as { version?: string }).version) }));
   app.get("/organizations/:orgId/instances", async request => {
     const ctx = await context(request); const projectId = (request.query as { projectId?: string }).projectId;
-    return { instances: await Promise.all((await listModuleInstances({ ...ctx, projectId })).map(instance => moduleInstanceView(ctx, instance))) };
+    return { instances: (await listModuleInstances({ ...ctx, projectId })).map(instance => ({ id: instance.id, projectId: instance.projectId, moduleId: instance.moduleId, version: instance.version, kind: instance.kind, frozen: !!instance.frozen })) };
   });
   app.post("/organizations/:orgId/instances", async request => {
-    const body = z.object({ moduleId: z.string(), version: z.string().optional(), projectId: z.string(), inputs: object.optional(), bindings: z.record(moduleBindingSchema).optional() }).parse(request.body);
+    const body = z.object({ moduleId: z.string(), version: z.string().optional(), codePolicy: z.enum(["live", "frozen"]).optional(), projectId: z.string(), inputs: object.optional(), bindings: z.record(moduleBindingSchema).optional() }).parse(request.body);
     const ctx = await context(request);
     return { instance: await moduleInstanceView(ctx, await createModuleInstance(ctx, body)) };
   });
   app.get("/organizations/:orgId/instances/:instanceId", async request => { const ctx = await context(request); return { instance: await moduleInstanceView(ctx, await readModuleInstance(ctx, params(request).instanceId!)) }; });
+  app.get("/organizations/:orgId/instances/:instanceId/freshness", async request => inspectModuleGraph(await context(request), params(request).instanceId!));
+  app.post("/organizations/:orgId/instances/:instanceId/refresh", async request => {
+    const body = z.object({ expectedRevision: z.number().int().positive() }).strict().parse(request.body);
+    const ctx = await context(request);
+    const result = await refreshModuleGraph(ctx, params(request).instanceId!, body.expectedRevision);
+    return { instance: await moduleInstanceView(ctx, result.instance), refreshed: result.refreshed };
+  });
+  app.patch("/organizations/:orgId/instances/:instanceId/bindings", async request => {
+    const body = z.object({ bindings: z.record(moduleBindingSchema), expectedRevision: z.number().int().positive() }).strict().parse(request.body);
+    const ctx = await context(request);
+    return { instance: await moduleInstanceView(ctx, await updateModuleBindings(ctx, params(request).instanceId!, body.bindings, body.expectedRevision)) };
+  });
   app.patch("/organizations/:orgId/instances/:instanceId", async request => {
     const body = z.object({ inputs: object, expectedRevision: z.number().int().positive() }).parse(request.body);
     const ctx = await context(request);
@@ -51,6 +65,11 @@ export const registerDocumentModuleRoutes: FastifyPluginAsync = async app => {
     const body = z.object({ expectedRevision: z.number().int().positive() }).parse(request.body);
     const ctx = await context(request);
     return { instance: await moduleInstanceView(ctx, await freezeModuleInstance(ctx, params(request).instanceId!, body.expectedRevision)) };
+  });
+  app.post("/organizations/:orgId/instances/:instanceId/reconcile", async request => {
+    const body = z.object({ expectedRevision: z.number().int().positive(), executionId: z.string().min(1), note: z.string().trim().min(10).max(2000) }).strict().parse(request.body);
+    const ctx = await context(request, true);
+    return { instance: await moduleInstanceView(ctx, await reconcileModuleCommand(ctx, params(request).instanceId!, body.expectedRevision, body.executionId, body.note)) };
   });
   app.post("/organizations/:orgId/instances/:instanceId/generate", async request => {
     const body = z.object({ moduleId: z.string(), bindingName: z.string(), exportName: z.string(), policy: z.enum(["live", "frozen"]), inputs: object.optional() }).parse(request.body);

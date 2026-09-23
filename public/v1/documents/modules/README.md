@@ -111,3 +111,28 @@ Retained render artifacts recheck current capability visibility. Only signature,
 QR/delivery and payment-status widgets receive lifecycle overlays against the
 captured inputs; price and other source widgets stay frozen. Regression tests
 verify new signature evidence and delivery tokens without refreshing prices.
+
+
+## Builder integration and live drafts
+
+The native document and workflow builders mount the shared `program-panel.js`.
+`publishAssetProgram` captures their native layout and program as one published
+version. Creating a legacy document from an enabled template validates and
+evaluates its program before saving a rendered artifact. Independent instances
+are available from the project Documents Workflows control.
+
+Instances default to pinned code; `codePolicy: live` explicitly follows compatible
+published updates. `GET /instances/:id/freshness` is read-only; `POST .../refresh`
+recalculates a bounded dependency graph. Evaluation and configured scope triggers
+also refresh upstream modules. Frozen artifacts are unchanged. Input/binding edits
+invalidate the prior view and outputs. Only public exports cross consumer boundaries.
+
+An uncertain effect blocks subsequent executions until an administrator records
+a review with the current revision and execution ID. The original receipt and
+last accepted result remain intact. This is acknowledgement of external review,
+not an effect retry or automatic rollback. The interactive controls and integration
+tests use these same endpoints.
+
+Programmable workflow controls write `params.*` inputs. Calculated outputs are
+owned by code; publishing a control that writes `outputs.*` is rejected explicitly.
+Every present declared export is validated before an evaluation is accepted.

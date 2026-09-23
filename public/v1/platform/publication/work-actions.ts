@@ -6,6 +6,7 @@ import { registerAction, invokeAction } from "./actions.js";
 import { contentHash } from "./validation.js";
 import { forbidden } from "../errors.js";
 import { backendImplementationDigest } from "./implementation.js";
+import type { PlatformAuthContext } from "../auth.js";
 
 const text = { type: "string" };
 const object = { type: "object", additionalProperties: true };
@@ -39,11 +40,12 @@ const fields: Record<string, Record<string, JsonSchema>> = {
 const contexts = new WeakMap<PublicationContext, WorkAutomationContext>();
 export const legacyWorkActionIds: readonly string[] = Object.freeze(Object.keys(fields));
 /** Server-only bridge for scope code. The guest receives bindings, never this context object. */
-export async function withWorkPublicationContext<T>(context: WorkAutomationContext, operations: string[], callback: (ctx: PublicationContext) => Promise<T>): Promise<T> {
+export async function withWorkPublicationContext<T>(context: WorkAutomationContext, operations: string[], callback: (ctx: PublicationContext) => Promise<T>, principal?: PlatformAuthContext): Promise<T> {
   const organizationId = String(context.event.organization_id || "");
   const projectId = String(context.project.id || context.plan.project_id || context.event.project_id || "");
   const branchId = String(context.event.branch_id || context.plan.branch_id || "default");
   const ctx = systemPublicationContext({ kind: "work", organizationId, ...(projectId ? { projectId } : {}), branchId, operations, mode: "command", invocationId: context.idempotencyKey });
+  if (principal) ctx.auth = principal;
   contexts.set(ctx,context);
   try { return await callback(ctx); } finally { contexts.delete(ctx); }
 }

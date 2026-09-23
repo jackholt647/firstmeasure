@@ -1,3 +1,8 @@
+> Completion continuation: see [implementation and verification](implementation-completion.md)
+> and [the current architecture guide](publication-architecture.md). The agreement
+> below preserves the original discussion; later completion evidence supersedes
+> its checkpoint status.
+
 # Data and action architecture continuity
 
 > **Authorization update:** The full-conversation continuation subsequently

@@ -145,6 +145,7 @@
     "localization:build": "node scripts/localization-catalogs.mjs",
     "localization:check": "node scripts/localization-catalogs.mjs --check",
     "test:localization": "node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-localization.test.ts tests/localization-api.test.ts tests/localization-browser.test.mjs tests/report-localization.test.ts",
+    "test:publication:ui": "node scripts/publication-authoring-uitest.mjs",
     "test:publication": "node --experimental-sqlite --import tsx --test --test-force-exit tests/publication-*.test.ts"
   },
   "dependencies": {

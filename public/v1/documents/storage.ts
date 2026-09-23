@@ -244,7 +244,11 @@ async function publishAsset(orgId: string, asset: VersionedAssetOptions, assetId
     });
   }
   const nextVersion = currentVersion + 1;
-  const definition = asObject(input.definition);
+  let definition = asObject(input.definition);
+  if (asset.kind === "document_template" || asset.kind === "document_workflow") {
+    const { publishAssetProgram } = await import("./modules/authoring.js");
+    definition = await publishAssetProgram(orgId, assetId, cleanText(current.name), asset.kind === "document_template" ? "document" : "workflow", definition, ctx);
+  }
   const now = nowIso();
   const versionId = versionRowId(asset, orgId, assetId, nextVersion);
   await upsertDocument(orgId, asset.versionCollection, {

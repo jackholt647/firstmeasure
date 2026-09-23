@@ -40,8 +40,8 @@ jobs:
         run: npm run test:cluster:postgres:local
       - name: PostgreSQL publication snapshots and action receipts
         run: node tests/run-embedded-postgres.mjs tests/publication-postgres.test.ts
-      - name: Publication browser integration syntax
-        run: node --check ../libraries/apps/documents/module-editor.js && node --check ../libraries/platform-api/platform-api.js
+      - name: Publication builders and instance workflows
+        run: npm run test:publication:ui
       - name: Validate local cluster definition
         working-directory: .
         run: docker compose -f deploy/local-cluster/compose.yml config --quiet

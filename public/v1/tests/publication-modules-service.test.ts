@@ -158,3 +158,142 @@ test("retained module render overlays signature and delivery evidence without re
   assert.deepEqual(output.widget_data.prices, { total: 400 });
   assert.deepEqual(output.sources, { price: 400 });
 });
+
+test("draft dependency refresh is topological, read probes do not write, and frozen results stay fixed", async () => {
+  const { refreshModuleGraph, inspectModuleGraph } = await import("../documents/modules/dependencies.js");
+  cube = { volume: 20 };
+  const upstream = await service.publishModule(ctx, { name: "Source", kind: "workflow", inputSchema: obj, outputSchema: obj,
+    exports: { total: { path: "/outputs/total", schema: { type: "number" }, access: "read" } },
+    bindings: { source: { kind: "data", policy: "live", source: { provider: "cube-test", export: "inventory", target } } },
+    source: "return {outputs:{total:(await api.data.read('source')).volume}};" });
+  let a = await service.createModuleInstance(ctx, { moduleId: String(upstream.id), projectId: "project" });
+  const downstream = await service.publishModule(ctx, { name: "Consumer", kind: "document", inputSchema: obj, outputSchema: obj,
+    exports: { total: { path: "/outputs/total", schema: { type: "number" }, access: "read" } },
+    bindings: { source: { kind: "data", policy: "live", source: { provider: "document-modules", export: "value", args: { exportName: "total" }, target: { ...target, id: a.id } } } },
+    source: "return {outputs:{total:2*await api.data.read('source')}};" });
+  let b = await service.createModuleInstance(ctx, { moduleId: String(downstream.id), projectId: "project" });
+  assert.equal((await inspectModuleGraph(ctx, b.id)).stale, true);
+  assert.equal((await service.readModuleInstance(ctx, a.id)).revision, a.revision);
+  const initial = await refreshModuleGraph(ctx, b.id, b.revision);
+  assert.deepEqual(initial.refreshed, [a.id, b.id]); b = initial.instance;
+  assert.equal(b.outputs.total, 40);
+  assert.deepEqual((await refreshModuleGraph(ctx, b.id, b.revision)).refreshed, []);
+  cube = { volume: 30 };
+  b = (await refreshModuleGraph(ctx, b.id, b.revision)).instance;
+  assert.equal(b.outputs.total, 60);
+  b = await service.freezeModuleInstance(ctx, b.id, b.revision) as typeof b;
+  cube = { volume: 90 };
+  assert.deepEqual((await refreshModuleGraph(ctx, b.id, b.revision)).refreshed, []);
+  assert.equal((await service.getModuleExports(ctx, b.id, "total") as any).value, 60);
+  a = await service.readModuleInstance(ctx, a.id);
+  await service.updateModuleBindings(ctx, a.id, { source: { kind: "data", policy: "live", source: { provider: "document-modules", export: "value", args: { exportName: "total" }, target: { ...target, id: a.id } } } }, a.revision);
+  await assert.rejects(inspectModuleGraph(ctx, a.id), /cycle/);
+});
+
+test("derived live and frozen exports cannot preserve revoked source access", async () => {
+  const { registerDataProvider, readPublishedData } = await import("../platform/publication/providers.js");
+  const { forbidden } = await import("../platform/errors.js");
+  let granted = true;
+  registerDataProvider({ id: "revocable-module-source", version: "1", apps: [], exports: { value: { description: "Protected", schema: obj, schemaVersion: "1",
+    access: { scopes: ["project"], permissions: ["view_projects"], authorize: () => { if (!granted) throw forbidden("revoked", "Source access revoked"); } }, read: async () => ({ value: { n: 7 } }) } } });
+  const module = await service.publishModule(ctx, { name: "Derived", kind: "document", inputSchema: obj, outputSchema: obj,
+    exports: { total: { path: "/outputs/total", schema: { type: "number" }, access: "read" } },
+    bindings: { source: { kind: "data", policy: "frozen", source: { provider: "revocable-module-source", export: "value", target } } },
+    source: "return {outputs:{total:(await api.data.read('source')).n}};" });
+  let instance = await service.createModuleInstance(ctx, { moduleId: String(module.id), projectId: "project" });
+  instance = (await service.evaluateModuleInstance(ctx, instance.id, { expectedRevision: instance.revision })).instance as typeof instance;
+  const ref = { provider: "document-modules", export: "value", args: { exportName: "total" }, target: { ...target, id: instance.id } };
+  const binding = { kind: "data" as const, policy: "frozen" as const, source: ref };
+  assert.equal((await bindings.resolveDataBinding(ctx, "protected-consumer", "n", binding)).status, "ready");
+  granted = false;
+  assert.equal((await readPublishedData(ctx, ref)).status, "denied");
+  await assert.rejects(bindings.resolveDataBinding(ctx, "protected-consumer", "n", binding), /revoked/);
+  await assert.rejects(service.moduleInstanceView(ctx, instance), /revoked/);
+});
+
+
+test("live code adopts compatible versions while pinned code and accepted artifacts retain theirs", async () => {
+  const { refreshModuleGraph, inspectModuleGraph } = await import("../documents/modules/dependencies.js");
+  const definition = { name:"Live calculation",kind:"workflow",inputSchema:obj,outputSchema:obj,exports:{total:{path:"/outputs/total",schema:{type:"number"},access:"read"}},source:"return {outputs:{total:1}};" };
+  const module=await service.publishModule(ctx,definition);
+  let live=await service.createModuleInstance(ctx,{moduleId:String(module.id),projectId:"project",codePolicy:"live"});
+  let pinned=await service.createModuleInstance(ctx,{moduleId:String(module.id),projectId:"project"});
+  live=(await refreshModuleGraph(ctx,live.id,live.revision)).instance;
+  pinned=(await refreshModuleGraph(ctx,pinned.id,pinned.revision)).instance;
+  await service.publishModule(ctx,{...definition,source:"return {outputs:{total:2}};"},String(module.id));
+  assert.equal((await inspectModuleGraph(ctx,live.id)).stale,true);
+  assert.equal((await inspectModuleGraph(ctx,pinned.id)).stale,false);
+  live=(await refreshModuleGraph(ctx,live.id,live.revision)).instance;
+  assert.equal(live.outputs.total,2);assert.equal(pinned.outputs.total,1);
+  const goodVersion=live.version;
+  await service.publishModule(ctx,{...definition,source:"throw new Error('broken update');"},String(module.id));
+  await assert.rejects(refreshModuleGraph(ctx,live.id,live.revision),/broken update/);
+  const retained=await service.readModuleInstance(ctx,live.id);
+  assert.equal(retained.version,goodVersion);assert.equal(retained.outputs.total,2);
+});
+
+test("existing visual builders publish executable designs and legacy create retains their evaluated artifact", async () => {
+  const assets=await import("../documents/storage.js");
+  const docs=await import("../documents/service.js");
+  const {FMDocModel}=await import("../documents/schemas.js");
+  const definition={...FMDocModel.createBlankDocument(),params:{quantity:{type:"number",required:true}},program:{enabled:true,inputSchema:{type:"object",required:["quantity"],properties:{quantity:{type:"number"}}},outputSchema:obj,exports:{total:{path:"/outputs/total",schema:{type:"number"},access:"read"}},bindings:{},source:"return {outputs:{total:inputs.quantity*50}};"}};
+  const template=await assets.createDocumentTemplate(ctx.organizationId,{name:"Calculated template",document_type:"generic",definition},auth);
+  const version=await assets.readDocumentTemplateVersion(ctx.organizationId,String(template.id),1);
+  assert.ok(version);const program=(version.definition as any).program;assert.ok(program.moduleId);assert.ok(program.moduleVersion);
+  const result=await docs.createDocumentInstance(ctx.organizationId,"project",{document_type:"generic",template_id:template.id,workflow_id:null,params:{quantity:3}},auth);
+  assert.equal((result.document.params as any).total,150);assert.ok(result.document.module_resolved);
+  assert.equal((result.document.module_ref as any).version,program.moduleVersion);
+  const before=(await storage.listDocuments(ctx.organizationId,"documents")).length;
+  await assert.rejects(docs.createDocumentInstance(ctx.organizationId,"project",{document_type:"generic",template_id:template.id,workflow_id:null,params:{quantity:"bad"}},auth),/schema/);
+  assert.equal((await storage.listDocuments(ctx.organizationId,"documents")).length,before);
+  const workflow=await assets.createDocumentWorkflow(ctx.organizationId,{name:"Calculated workflow",definition:{schema_version:1,name:"Calculator",steps:[{id:"details",items:[]}],program:{...definition.program}}},auth);
+  const flowVersion=await assets.readDocumentWorkflowVersion(ctx.organizationId,String(workflow.id),1);
+  assert.ok(flowVersion);const flowModule=await service.moduleDefinition(ctx,(flowVersion.definition as any).program.moduleId);
+  assert.equal((flowModule.definition as any).workflow.steps[0].id,"details");
+});
+
+
+test("retained values from read actions recheck resource authorization", async () => {
+  const {registerAction}=await import("../platform/publication/actions.js");
+  const {forbidden}=await import("../platform/errors.js");
+  let permitted=true;
+  registerAction({id:"private-calculation",version:"1",implementation:"1",domain:"test",description:"Protected calculation",inputSchema:obj,outputSchema:obj,effect:"read",executionKinds:["module"],idempotency:"none",policy:{scopes:["project"],permissions:[],authorize:()=>{if(!permitted)throw forbidden("revoked","Calculation access revoked");}},execute:async()=>({amount:5})});
+  const module=await service.publishModule(ctx,{name:"Calculated source",kind:"document",inputSchema:obj,outputSchema:obj,exports:{amount:{path:"/outputs/amount",schema:{type:"number"},access:"read"}},bindings:{calculation:{kind:"action",policy:"live",action:{action:"private-calculation",target}}},source:"return {outputs:await api.actions.invoke('calculation',{})};"});
+  let instance=await service.createModuleInstance(ctx,{moduleId:String(module.id),projectId:"project"});
+  instance=(await service.evaluateModuleInstance(ctx,instance.id,{expectedRevision:instance.revision})).instance as typeof instance;
+  assert.equal((await service.getModuleExports(ctx,instance.id,"amount") as any).value,5);
+  permitted=false;await assert.rejects(service.getModuleExports(ctx,instance.id,"amount"),/revoked/);
+});
+
+
+test("an uncertain command is retained for explicit review and never automatically repeated",async()=>{
+ const {registerAction}=await import("../platform/publication/actions.js");let calls=0;
+ registerAction({id:"uncertain-effect",version:"1",implementation:"1",domain:"test",description:"Effect fails after acceptance",inputSchema:obj,outputSchema:obj,effect:"write",executionKinds:["module"],idempotency:"required",policy:{scopes:["project"],permissions:[]},execute:async()=>{calls++;throw new Error("Remote outcome unknown");}});
+ const module=await service.publishModule(ctx,{name:"Uncertain",kind:"workflow",inputSchema:obj,outputSchema:obj,exports:{},bindings:{effect:{kind:"action",policy:"live",action:{action:"uncertain-effect",target}}},source:"await api.actions.invoke('effect',{});return {outputs:{}};"});
+ let instance=await service.createModuleInstance(ctx,{moduleId:String(module.id),projectId:"project"});
+ await assert.rejects(service.evaluateModuleInstance(ctx,instance.id,{mode:"command",expectedRevision:instance.revision,idempotencyKey:"uncertain"}),/unknown/);
+ instance=await service.readModuleInstance(ctx,instance.id);assert.ok(instance.uncertainExecution);
+ const view=await service.moduleInstanceView(ctx,instance);assert.equal(view.lastAttempt?.status,"uncertain");
+ await assert.rejects(service.evaluateModuleInstance(ctx,instance.id,{mode:"command",expectedRevision:instance.revision,idempotencyKey:"new"}),/Review/);
+ await assert.rejects(service.updateModuleInputs(ctx,instance.id,{},instance.revision),/Review/);
+ const viewer={...ctx,auth:{...auth,role:"member",permissions:{view_projects:true,manage_projects:true}} as typeof auth};
+ await assert.rejects(service.reconcileModuleCommand(viewer,instance.id,instance.revision,String(instance.uncertainExecution),"Reviewed external outcome"),/permitted/);
+ await service.reconcileModuleCommand(ctx,instance.id,instance.revision,String(instance.uncertainExecution),"Verified external record; retained prior result.");
+ instance=await service.readModuleInstance(ctx,instance.id);assert.equal(instance.uncertainExecution,null);assert.equal(calls,1);
+});
+
+
+test("scope action registry composes independent module instances with project isolation and stable effects",async()=>{
+ const {invokeAction}=await import("../platform/publication/actions.js");
+ const module=await service.publishModule(ctx,{name:"Scope calculator",kind:"workflow",inputSchema:obj,outputSchema:obj,exports:{total:{path:"/outputs/total",schema:{type:"number"},access:"read"}},source:"return {outputs:{total:inputs.quantity*10}};"});
+ const work={...ctx,executionKind:"work" as const,mode:"command" as const};
+ const create={action:"document-modules.instance.create",target};
+ const input={moduleId:String(module.id),inputs:{quantity:4}};
+ const first=await invokeAction(work,create,input,{idempotencyKey:"scope-instance"});
+ const replay=await invokeAction(work,create,input,{idempotencyKey:"scope-instance"});
+ assert.deepEqual(first.value,replay.value);
+ const instance=first.value as {id:string;revision:number};
+ const refresh=await invokeAction(work,{action:"document-modules.instance.refresh",target:{...target,id:instance.id}},{expectedRevision:instance.revision},{idempotencyKey:"scope-refresh"});
+ assert.equal((refresh.value as any).exports.total,40);
+ await assert.rejects(invokeAction(work,{action:"document-modules.instance.refresh",target:{...target,projectId:"other",id:instance.id}},{expectedRevision:(refresh.value as any).revision},{idempotencyKey:"wrong-project"}),/outside/);
+});

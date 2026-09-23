@@ -71,6 +71,14 @@ export async function authorizeAction(ctx: PublicationContext, ref: ActionRef): 
   return describe(def);
 }
 
+/** Reading retained calculation evidence never executes the action. Read/compute
+ * actions are data dependencies and must retain their current resource access. */
+export async function authorizeActionResult(ctx: PublicationContext, ref: ActionRef) {
+  const def = definitions.get(`${ref.action}@${ref.version || latest.get(ref.action)}`);
+  if (!def) throw notFound("action_not_found", "The requested action version is unavailable.");
+  if (def.effect === "read" || def.effect === "compute") await authorizePublication(ctx, ref.target, def.policy, def.id);
+}
+
 export async function invokeAction(ctx: PublicationContext, ref: ActionRef, input: unknown, options: InvocationOptions = {}) {
   const def = definitions.get(`${ref.action}@${ref.version || latest.get(ref.action)}`);
   if (!def) throw notFound("action_not_found", "The requested action version is unavailable.");

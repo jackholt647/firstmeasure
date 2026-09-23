@@ -32,7 +32,7 @@ const bridge = context.newFunction("capability", (kind, name, json) => {
 });
 context.setProp(context.global, "__capability", bridge);
 bridge.dispose();
-const argument = context.newString(JSON.stringify({ inputs: input.inputs, state: input.state, now: input.now }));
+const argument = context.newString(JSON.stringify({ inputs: input.inputs, state: input.state, now: input.now, mode: input.mode }));
 context.setProp(context.global, "__input", argument);
 argument.dispose();
 port.on("message", message => {
@@ -53,7 +53,7 @@ try {
     globalThis.api = Object.freeze({
       data: Object.freeze({ read: async name => JSON.parse(await __capability('read', name, 'null')) }),
       actions: Object.freeze({ invoke: async (name, value) => JSON.parse(await __capability('invoke', name, JSON.stringify(value))) }),
-      now: __runInput.now
+      now: __runInput.now, mode: __runInput.mode
     });
     globalThis.Date = undefined; Math.random = () => { throw new Error('Use captured inputs instead of ambient randomness.'); };
   `);

@@ -135,3 +135,22 @@ Backend publishers can serve several UI packages. A package entry therefore neve
 permission by itself: action policy, enabled application, capability and target checks
 still apply. New mutating adapters must use service-level invariants and stable receipts,
 not invoke the listed Work-only compatibility handlers outside a trusted Work context.
+
+
+## Programmable consumers and execution boundaries
+
+The `document-modules` domain now publishes `instance.create`, `instance.refresh`,
+`instance.command`, `instance.freeze`, `export.write`, `document.generate` and
+`document.materialize` under the `document-modules.` prefix. These enforce the
+same project and instance lifecycle rules as their HTTP/UI services. Scopes use
+them with an authenticated, currently authorized template author. Registered
+read actions may also serve as calculation dependencies; retained derived output
+reauthorizes their resource policy without reexecuting them.
+
+`stats.schema` and `stats.query` are read-only. `stats.refresh` explicitly updates
+the warehouse. Warehouse synchronization is not a side effect of discovery/query.
+
+Historical action executables are not archived by this architecture. Accepted
+receipts/results remain retained, and unavailable pinned implementations fail.
+Module commands with uncertain effects have an explicit administrator review
+flow; review never implies that an external side effect was rolled back.
