@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 finite tower junctions: [Roof-plane-constrained soffits](deploy/digitalocean/development-soffit-plane-junction-20260922.md) records `9aa47ca76f3411dc2f6b5c69e9078177f970310a` on all three development roles. From Roof reconciles the tower side contacts, limits adjoining setbacks at measured roof ends, and removes unsupported flashing wings. All 894 tests and live editor verification pass. Preserve this baseline.
+
 September 22 turret Resoffit follow-up: [Adjoining depths and roof-sheet continuity](deploy/digitalocean/development-resoffit-turrets-20260922.md) records `20b08ab6a68df26ef5521244fd4bcbb2f27ce3a3` on all three development roles. Turret edits reconcile adjacent planes, remove consumed short returns, retain lower roof contacts and render continuous roof-contact highlights. All 887 tests, 75 saved-house depth cases and live editor checks pass. Preserve this baseline.
 
 September 22 additive line selection: [Shift miss and rectangle preservation](deploy/digitalocean/development-shift-selection-20260922.md) records `6e0163edef2db805c2d618dc2312cec870df03b7` on all three development roles. Shift line misses no longer fall through to faces or other layers, and additive rectangles preserve existing lines. All 862 editor and geometry tests pass. Preserve this baseline.
