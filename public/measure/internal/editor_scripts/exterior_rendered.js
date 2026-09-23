@@ -191,5 +191,5 @@ function mountHUD(){
  const advanced=document.getElementById('wall-advanced'),main=document.getElementById('exterior-main-toolbar')||document.getElementById('global-toolbar')||document.body;
  if(advanced?.parentElement===main)advanced.insertAdjacentElement('afterend',graphics);else main.appendChild(graphics);status();
 }
-root.ExteriorRendered={update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
+root.ExteriorRendered={get captureStatus(){return {active:!!active,pending,errors:[...errors]};},update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
 })(window);

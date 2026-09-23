@@ -803,7 +803,7 @@ function perf_render3DFrame() {
     function aiGeometry(){
         if(!enabled||!state?.base||!state?.ground)throw Error('Generate the exterior model and ground first.');
         const faces=window.ExteriorModel.collect(state,currentWalls()).flatMap(f=>window.WallChimneys?.visibleParts(f,state)||[f]);
-        const points=faces.flatMap(f=>f.points||[]).concat(state.roof.points||[]);
+        const points=[...faces,...(state.roof.faces||[]),...((state.wallEdits?.$base||state.base).faces||[])].flatMap(f=>f.points||[]);
         if(!points.length)throw Error('The exterior model has no points.');
         const min={},max={};for(const k of ['x','y','z']){min[k]=Math.min(...points.map(p=>p[k]));max[k]=Math.max(...points.map(p=>p[k]));}
         const center=Object.fromEntries(['x','y','z'].map(k=>[k,(min[k]+max[k])/2]));
@@ -811,6 +811,13 @@ function perf_render3DFrame() {
             toScene:p=>getVector3(toPixel(p)),
             groundAt:p=>{const g=state.ground;const z=g.plane?GroundGeometry.at(g.plane,p):GroundGeometry.height(g,p);if(!Number.isFinite(z))throw Error('No ground elevation at the proposed camera position.');return z;}};
     }
-    window.WallMode={aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    function prepareAICapture(){
+        if(!enabled||!state?.base||!state?.ground)throw Error('Generate the exterior model and ground first.');
+        if(selectionBusy()||groundEditor?.sampling?.())throw Error('Finish the active editing tool before capturing AI views.');
+        state.displayMode='textured';state.translucent=false;roofVisible=true;wallsVisible=true;
+        (state.wallEdits?.$base||state.base).visible=true;
+        render();
+    }
+    window.WallMode={prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();
