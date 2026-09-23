@@ -4155,8 +4155,9 @@
       const testIdx = String(target).startsWith('test') ? (String(target).split(':')[1] || '0') : null;
       const btn = document.getElementById(testIdx !== null ? `btnGenerateTestBatch-${testIdx}` : 'btnGenerateBatch');
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Saving...'; }
-      await this.saveCurriculum(true);
+      const saved = await this.saveCurriculum(true);
       if (btn) { btn.disabled = false; btn.innerHTML = testIdx !== null ? '<i class="fas fa-check"></i> Add and Validate Test Pool' : '<i class="fas fa-check"></i> Add and Validate Project IDs'; }
+      if (!saved) return alert("Project IDs could not be saved. Please try again.");
       alert("Project IDs saved.");
       this.renderEditor();
     },
@@ -4399,7 +4400,7 @@
         action:'save_curriculum',
         curriculum: JSON.stringify(curr, null, 2)
       }));
-      if (result && result.error) throw new Error(result.error);
+      if (!result?.success) throw new Error(result?.error || 'Curriculum save failed.');
     },
 
     syncVisibleCourseFromManager(courseId){
@@ -4604,17 +4605,24 @@
     async saveCurriculum(silent=false){
       this.stashResourceDrafts();
       this.flushPendingResourceDrafts(this.currentEditorPage);
-      await Portal.apiPost(cfg().endpoints.server, {
-        action:'save_curriculum',
-        curriculum: JSON.stringify(this.curriculum, null, 2),
-        course_id: tutorialCourseId()
-      }).catch(()=>{});
+      try {
+        const result = await Portal.apiPost(cfg().endpoints.server, {
+          action:'save_curriculum',
+          curriculum: JSON.stringify(this.curriculum, null, 2),
+          course_id: tutorialCourseId()
+        });
+        if (!result?.success) throw new Error(result?.error || 'Curriculum save failed.');
+      } catch (error) {
+        if (!silent) alert(`Curriculum could not be saved: ${error?.message || 'Please try again.'}`);
+        return false;
+      }
 
       if (!silent) {
         alert("Curriculum Saved");
         Portal.closeModal('editorModal');
         this.fetchTutorials();
       }
+      return true;
     }
   };
 
