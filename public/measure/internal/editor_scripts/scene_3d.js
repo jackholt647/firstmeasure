@@ -110,6 +110,7 @@ window.toggle3DSystem = function (isEnabled) {
 // Enhancement state
 let _enh = {
     isOrthographic: false,
+    perspectiveFov: 45,
     orthoCam: null,
     showPitchLabels: false,
     pitchOverlayContainer: null,
@@ -1414,7 +1415,16 @@ function build3DControlPanel() {
     pitchBtn.textContent = 'PITCH'; pitchBtn.title = 'Toggle pitch labels on faces';
     pitchBtn.addEventListener('click', e => { e.stopPropagation(); window.togglePitchLabels(); });
     panel.appendChild(pitchBtn);
+    // ISO is the perspective side of the existing toggle.
+    const fovGroup = document.createElement('label');
+    fovGroup.className = 'enh-crop-group';
+    fovGroup.id = 'perspective-fov-controls';
+    fovGroup.title = 'Smaller angles flatten perspective; larger angles give a wider lens. Match the reference photo, then zoom to frame.';
+    fovGroup.innerHTML = '<span>FOV</span><input id="perspectiveFovRange" type="range" min="15" max="100" step="1" aria-label="Perspective field of view"><span id="perspectiveFovValue"></span>';
+    fovGroup.querySelector('input').addEventListener('input', e => window.set3DPerspectiveFov(e.target.value));
+    panel.appendChild(fovGroup);
     container.appendChild(panel);
+    sync3DPerspectiveFovUI();
     window.mountExteriorToolbar?.();
     update3DSurfaceButtons();
     updateGoogleTileYOffsetUI();
@@ -1573,7 +1583,8 @@ function init3D() {
     const h = (metrics && metrics.height) || 400;
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202124);
-    camera = new THREE.PerspectiveCamera(45, w/h, 0.01, 2000);
+    camera = new THREE.PerspectiveCamera(_enh.perspectiveFov, w/h, 0.01, 2000);
+    _enh.isOrthographic = false;
     camera.position.set(0, 80, 100);
     renderer = new THREE.WebGLRenderer({ antialias:true, alpha:window.FIRSTMEASURE_FULL_HOUSE === true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -5925,6 +5936,7 @@ function _animate3D() {
     if(_geomDirty3D&&now-_lastGeomRebuild>GEOM_REBUILD_INTERVAL_MS){_geomDirty3D=false;_lastGeomRebuild=now;renderGeometry3D();}
     const shouldRender=_sceneDirty3D||now-_lastSceneRender3D>=IDLE_SCENE_RENDER_INTERVAL_MS;
     if(shouldRender&&typeof renderer!=='undefined'&&renderer&&typeof scene!=='undefined'&&scene&&typeof camera!=='undefined'&&camera){
+        if (typeof sync3DPerspectiveFovUI === 'function') sync3DPerspectiveFovUI();
         const draw=()=>{if(!window.ExteriorRendered?.render(renderer,scene,camera))renderer.render(scene,camera);};
         if(window.ExteriorPerf?.enabled)window.ExteriorPerf.measure('WebGL render (CPU)',draw);else draw();
         window.ExteriorPerf?.rendered(renderer.info);
@@ -6028,10 +6040,30 @@ window.toggle3DImage = function(forceState=null) {
 // =========================================================
 // §19  PROJECTION TOGGLE (Iso / Tri)
 // =========================================================
+function sync3DPerspectiveFovUI() {
+    const group = document.getElementById('perspective-fov-controls');
+    if (!group || typeof camera === 'undefined' || !camera) return;
+    group.style.display = camera.isPerspectiveCamera ? '' : 'none';
+    if (!camera.isPerspectiveCamera) return;
+    _enh.perspectiveFov = camera.fov;
+    const input = document.getElementById('perspectiveFovRange');
+    const value = document.getElementById('perspectiveFovValue');
+    if (input && Number(input.value) !== camera.fov) input.value = String(camera.fov);
+    const label = Math.round(camera.fov) + '°';
+    if (value && value.textContent !== label) value.textContent = label;
+}
+window.set3DPerspectiveFov = function(value) {
+    if (typeof camera === 'undefined' || !camera?.isPerspectiveCamera || !Number.isFinite(Number(value))) return;
+    camera.fov = Math.max(15, Math.min(100, Number(value)));
+    camera.updateProjectionMatrix();
+    _sceneDirty3D = true;
+    sync3DPerspectiveFovUI();
+};
 window.toggleProjection = function() {
     if(typeof scene==='undefined'||!scene||typeof camera==='undefined'||!camera) return;
     _enh.isOrthographic=!_enh.isOrthographic;
     if(_enh.isOrthographic){
+        _enh.perspectiveFov = camera.fov;
         const container=document.getElementById('three-container');
         const aspect=container?container.clientWidth/container.clientHeight:1.5;
         const dist=camera.position.length();
@@ -6040,7 +6072,7 @@ window.toggleProjection = function() {
         oc.position.copy(camera.position);oc.quaternion.copy(camera.quaternion);oc.zoom=1;oc.updateProjectionMatrix();
         if(controls){controls.object=oc;controls.update();} camera=oc; _enh.orthoCam=oc;
     } else {
-        const pc=new THREE.PerspectiveCamera(45,1,0.01,2000);
+        const pc=new THREE.PerspectiveCamera(_enh.perspectiveFov,1,0.01,2000);
         const container=document.getElementById('three-container');
         if(container) pc.aspect=container.clientWidth/container.clientHeight;
         pc.position.copy(camera.position);pc.quaternion.copy(camera.quaternion);pc.updateProjectionMatrix();
@@ -6048,6 +6080,7 @@ window.toggleProjection = function() {
     }
     const track=document.getElementById('projectionToggle');
     if(track) track.setAttribute('data-state',_enh.isOrthographic?'right':'left');
+    sync3DPerspectiveFovUI();
 };
 // =========================================================
 // §20  CAMERA PRESETS
