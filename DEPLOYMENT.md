@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 overlay depth: [Roof-contact lines and markers](deploy/digitalocean/development-overlay-depth-20260923.md) records `8a322e205537b165ef2d99f44a8bb898e26d590d` on all development roles. Lines and point-anchor visibility use a four-pixel camera-depth allowance with normal occlusion retained. All 52 focused checks passed, including Chrome WebGL tests and regressions that fail against the previous code. Public hash/readiness verified; the one-script delta preserves `a66efdc`. Production is unchanged.
+
 September 23 production curriculum save: [Targeted tutorial directory permission repair](deploy/digitalocean/production-curriculum-save-20260923.md) records the compatibility-role ACL correction. No application release changed.
 
 September 23 spline invariants: [Preserve analytic curves through reconstruction](deploy/digitalocean/development-spline-invariants-20260923.md) records `1291c36f5f38012dad495c6d998e8db5695081f5` on all development roles. Shared curve recognition and guarded sketch/import paths keep evaluated samples out of editable geometry. All 467 focused checks passed; public hashes and role readiness verified. The four-script delta preserves `7138ad6`; production is unchanged.
