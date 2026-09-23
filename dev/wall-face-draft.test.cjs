@@ -2336,3 +2336,18 @@ for(const source of ['R37.0','R46.1','R57.0','R66.1','R77.0','R86.1'])test(`deep
  assert.ok(r.state.wallEdits.$surfaces.some(f=>f.deleted),'consumed face is removed');
  for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
 });
+// Use the same minimum wall span as wall_editor.apply before building drafts.
+for(const initial of [18,24])for(const roofId of [34,35,36,37])test(`zero Resoffit reconciles chimney cap ${roofId} from ${initial} inches and survives repeated edits`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),initial),walls=r.composed.filter(w=>Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y)>.005);
+ let f=fixture({state:r.state,walls,selected:null,globals:{WallResoffit:R}});
+ for(const depth of [0,0,.1524,0]){
+  const lines=f.editor.soffitEdges().filter(c=>c.source.parentId===roofId);assert.ok(lines.length>=2,'both roof-contact sides remain selectable');
+  f.editor.restoreSelection({lineSelection:lines.map(c=>({pair:c.pair}))});const before=JSON.stringify(r.state.wallEdits);
+  assert.equal(f.editor.resoffit(depth),true,f.message());assert.equal(JSON.stringify(f.history.at(-1)),before,'one complete undo snapshot');
+  const selected=f.editor.soffitEdges().filter(c=>c.source.parentId===roofId);assert.ok(selected.length>=2);assert.ok(selected.every(c=>Math.abs(c.inset-depth)<.002),'zero is a real absolute depth');
+  for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
+  for(const face of r.state.wallEdits.$base.faces.filter(f=>!f.deleted))K.validateFace(face);
+  const selection=f.editor.selectionSnapshot();assert.ok(selection.lineSelection.length>=2);
+  r.state.wallEdits=JSON.parse(JSON.stringify(r.state.wallEdits));f=fixture({state:r.state,walls,selected:null,globals:{WallResoffit:R}});f.editor.restoreSelection(selection);
+ }
+});

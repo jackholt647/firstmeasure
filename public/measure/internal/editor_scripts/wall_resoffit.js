@@ -138,7 +138,11 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   // A return legitimately disappears when its two boundaries meet (for
   // example zero overhang). Keep a tombstone so editable drafts are consumed.
   const frame=K.frame(f),region={points:next.points.map(p=>K.local(frame,p)),holes:next.holes.map(r=>r.map(p=>K.local(frame,p)))};
-  if(next.points.length<3||K.area(region)<1e-8){if(requests.has(f.id))throw Error("This depth leaves no wall between the adjoining boundaries.");affected.push(f.id);return {...f,deleted:true};}
+  // Area alone misses tall, near-zero-width returns: micrometre survey
+  // drift can leave a reversed strip when zero depth meets the chimney.
+  // Use the shared contact tolerance for the width of a vertical return.
+  const spans=next.points.map(p=>p.x*n.y-p.y*n.x),collapsedReturn=Math.abs(n.z)<.02&&Math.max(...spans)-Math.min(...spans)<K.CONTACT;
+  if(next.points.length<3||K.area(region)<1e-8||collapsedReturn){if(requests.has(f.id))throw Error("This depth leaves no wall between the adjoining boundaries.");affected.push(f.id);return {...f,deleted:true};}
   let pieces;try{const normalized=K.normalizeFace(next,!f.baseId);pieces=Array.isArray(normalized)?normalized:[normalized];for(const piece of pieces)K.validateFace(piece);}catch(e){throw Error('The requested depth cannot form a continuous wall at this junction.');}
   if(pieces.some(piece=>dot(n,K.normal(piece.points))<=0))throw Error('This depth would reverse a neighboring wall. Select the adjoining soffits together or use a smaller change.');affected.push(f.id);
   return pieces.map((piece,i)=>{if(!i)return piece;let serial=1,id;do{id=f.id+'~resoffit-'+serial++;}while(usedIds.has(id));usedIds.add(id);return {...piece,id,draft:false};});
