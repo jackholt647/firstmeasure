@@ -4,6 +4,7 @@
  let linkedRunId=null;
  const copy=x=>JSON.parse(JSON.stringify(x));
  let panel,project,photos=[],runs=[],current=null,busy=false,aborter;
+ let sortKey='face',sortDirection=1;
  const field=name=>panel.querySelector(`[data-${name}]`);
  const sameProject=()=>String(root.currentProjectId)===project&&root.WallMode?.enabled;
  function check(){if(aborter?.signal.aborted)throw new DOMException('Stopped','AbortError');if(!sameProject())throw Error('Project or exterior mode changed.');}
@@ -18,9 +19,20 @@
  function show(){
   if(!panel)return;controls();const body=field('results');body.replaceChildren();if(!current)return;
   node('p',current.status,body);node('small',`${current.config.model.replace('gpt-6-','')} · ${current.config.effort} · ${current.config.style==='all'?'All faces':'Per face'}`,body);
-  const table=node('table',null,body),head=node('tr',null,node('thead',null,table));for(const title of ['Face','W','D','G'])node('th',title,head);
+  const table=node('table',null,body),head=node('tr',null,node('thead',null,table));
+  for(const [key,title,label]of [['face','Face','face number'],['windows','W','windows'],['doors','D','doors'],['garageDoors','G','garage doors']]){
+   const th=node('th',null,head),active=sortKey===key;th.scope='col';th.setAttribute('aria-sort',active?(sortDirection===1?'ascending':'descending'):'none');
+   const button=node('button',title+(active?(sortDirection===1?' ↑':' ↓'):''),th);button.type='button';button.dataset.sort=key;button.setAttribute('aria-label',`Sort by ${label}`);button.title=`Sort by ${label}`;button.style.cssText='margin:0;padding:2px;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer';
+   button.onclick=()=>{sortDirection=sortKey===key?-sortDirection:key==='face'?1:-1;sortKey=key;show();panel.querySelector(`[data-sort="${key}"]`).focus();};
+  }
   const rows=node('tbody',null,table);table.setAttribute('aria-label','Sticker counts by face');
-  for(const f of current.faces||[]){const result=current.rows?.find(r=>r.face===f.number),tr=node('tr',null,rows);tr.tabIndex=0;tr.setAttribute('aria-label',`Select face ${f.number}`);if(current.selected===f.number)tr.dataset.selected='true';
+  const results=new Map((current.rows||[]).map(r=>[r.face,r]));
+  const faces=[...(current.faces||[])].sort((a,b)=>{
+   const av=sortKey==='face'?a.number:results.get(a.number)?.[sortKey],bv=sortKey==='face'?b.number:results.get(b.number)?.[sortKey];
+   const ak=Number.isFinite(av),bk=Number.isFinite(bv);if(ak!==bk)return ak?-1:1;
+   return (ak?(av-bv)*sortDirection:0)||a.number-b.number;
+  });
+  for(const f of faces){const result=results.get(f.number),tr=node('tr',null,rows);tr.tabIndex=0;tr.setAttribute('aria-label',`Select face ${f.number}`);if(current.selected===f.number)tr.dataset.selected='true';
    for(const value of [f.number,...['windows','doors','garageDoors'].map(k=>result?result[k]??'?':f.error?'!':'…')])node('td',String(value),tr);
    tr.title=result?.evidence||f.error||'Click to select this face';tr.onclick=()=>{try{if(!sameProject()||current.project!==project)throw Error('Open this run’s project first.');root.WallMode.selectAIFace(f.id,f.signature);current.selected=f.number;show();}catch(e){field('notice').textContent=e.message;}};tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tr.click();}};
   }
