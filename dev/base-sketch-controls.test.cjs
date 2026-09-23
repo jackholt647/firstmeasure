@@ -90,3 +90,15 @@ test('base line arch captures A, supports multiple points, and replaces the grap
  editor.down(e(2,4),'2d');editor.up();const before=JSON.stringify(base);editor.keyDown({key:'a'});editor.move(e(2,5),'2d');editor.down(e(2,5),'2d');editor.keyDown({key:'Escape'});assert.equal(JSON.stringify(base),before);assert.equal(commits.length,0);
  editor.keyDown({key:'a'});editor.down(e(2,5),'2d');editor.keyDown({key:'Enter'});assert.equal(editor.busy(),false,message);assert.equal(commits.length,1);assert.ok(base.faces[0].points.some(p=>p.y===5));assert.equal(base.sketch.curves[0].type,'spline');assert.ok(!S.curveEdges(base.sketch).some(e=>e.start.y===4&&e.end.y===4&&Math.abs(e.start.x-e.end.x)>3.9));
 });
+
+
+test('repeated M preserves a base point height move until click or Escape',()=>{
+ let base={faces:[{id:'base',points:[[0,0],[4,0],[4,4],[0,4]].map(([x,y])=>({x,y,z:0}))}]},commits=[];
+ const ctx={BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+ const e=y=>({clientX:200,clientY:y,button:0,buttons:0}),editor=ctx.createBaseSketchEditor({base:()=>base,active:()=>true,mode:()=>'point',faceAt:()=>base.faces[0],position:(e,v,z)=>({x:e.clientX/100,y:e.clientY/100,z}),screen:p=>({x:p.x*100,y:p.y*100}),mouse:()=>({e:e(200),v:'3d'}),commit:b=>commits.push(b),restore:b=>base=b,message(){},redraw(){},isCenter:()=>false});
+ editor.doubleClick(e(200),'3d');const before=JSON.stringify(base),count=commits.length;
+ editor.keyDown({key:'m'});editor.move(e(180),'3d');assert.notEqual(JSON.stringify(base),before);const preview=JSON.stringify(base);
+ editor.keyDown({key:'m'});editor.keyDown({key:'m',repeat:true});assert.equal(JSON.stringify(base),preview);assert.equal(commits.length,count);
+ editor.move(e(160),'3d');editor.keyDown({key:'Escape'});assert.equal(JSON.stringify(base),before);assert.equal(commits.length,count);
+ editor.keyDown({key:'m'});editor.move(e(180),'3d');editor.keyDown({key:'m'});editor.move(e(160),'3d');editor.down(e(160),'3d');assert.equal(commits.length,count+1);assert.equal(JSON.stringify(commits.at(-1)),before);
+});

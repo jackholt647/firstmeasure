@@ -107,6 +107,7 @@ window.createBaseSketchEditor=function(host){
  function keyDown(e){
   if(!active())return false;const k=e.key.toLowerCase();
   if(curveTool?.kind==='arch'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){cancel();report();}else if((k==='a'||k==='enter')&&!e.repeat)finishArch();else if(k==='f'&&!e.repeat&&typeof isFreeMove!=='undefined')isFreeMove=!isFreeMove;return true;}if(k==='a'&&!e.ctrlKey&&!e.metaKey&&!e.repeat&&!curveTool)return startArch();
+  if(k==='m'&&!e.ctrlKey&&!e.metaKey&&drag?.height)return true;
   if(k==='escape'){cancel();return false;}if(curveTool){if(k==='f'&&typeof isFreeMove!=='undefined')isFreeMove=!isFreeMove;return true;}if(drag&&!e.ctrlKey&&!e.metaKey&&['m','h','n','c','u','delete','backspace'].includes(k)){if(e.repeat||!finishToolForSwitch())return true;}if(axisPreview){if(k==='h'&&!e.repeat)perpendicularCut();else if(k==='z'&&(e.ctrlKey||e.metaKey))cancel();return true;}if(k==='h'&&selected.length===1){if(!e.repeat)perpendicularCut();return true;}
   if(k==='s'&&!e.ctrlKey&&!e.metaKey&&selected.length===1){const start={...actual(node(selected[0]))},face=support()||host.base().faces.find(f=>onFace(start,f));curveTool={start,face,normal:window.WallSolidGeometry.normal(face.points),track:{}};armed=false;preview=null;host.message('Curve: click the center, then sweep to the endpoint; Escape cancels.');return true;}
   if(k==='n'){armed=true;preview=null;host.message(selected.length===1?'Click an endpoint on this base face; Escape cancels.':'Click the base to place a starting point.');host.redraw();return true;}

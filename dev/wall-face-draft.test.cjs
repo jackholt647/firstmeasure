@@ -25,6 +25,16 @@ test('drawing-plane midpoint snapping respects the line center toggle',()=>{
  }
 });
 
+test('repeated M never commits or rebases point moves before placement',()=>{
+ for(const z of [2,4]){
+  const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,z),f.w);f.listeners.pointermove(f.e(2,z));const before=JSON.stringify(f.state.wallEdits),count=f.history.length;
+  f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.4,z));assert.notEqual(JSON.stringify(f.state.wallEdits),before,f.message());
+  for(let i=0;i<3;i++){const preview=JSON.stringify(f.state.wallEdits);f.editor.key({key:'m',repeat:i===2});assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.equal(f.history.length,count);}
+  f.listeners.pointermove(f.e(2.7,z));f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,count);
+  f.listeners.pointermove(f.e(2,z));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.4,z));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.7,z));f.editor.down(f.e(2.7,z));assert.equal(f.history.length,count+1);assert.equal(JSON.stringify(f.history.at(-1)),before);
+ }
+});
+
 test('Q keeps the selected draft point when the host wall has a colliding local point ID',()=>{
  const p=(x,z)=>({x,y:0,z}),walls=[{id:'left',bottom:[p(0,0),p(4,0)],top:[p(0,4),p(4,4)]},{id:'right',bottom:[p(6,0),p(10,0)],top:[p(6,4),p(10,4)]}],f=fixture({walls,selectedId:'left',globals:{isFreeMove:true},projectPoint:(d,e)=>({x:e.clientX/100-d.origin.x,y:e.clientY/100,z:0})});
  f.editor.doubleClick(f.e(2,4),walls[0]);f.editor.doubleClick(f.e(8,4),walls[1]);
