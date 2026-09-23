@@ -23,8 +23,13 @@ test('base pseudo-selection mounts shared wall points and N splits the selected 
 test('Shift-selected wall/base points connect with C and upper step points stay off the base',()=>{
  const f=sharedBaseFixture();assert.equal(f.editor.canHit(f.e(.4,3),'3d'),false);f.editor.down(f.e(0,2),'3d');f.editor.up();f.editor.down({...f.e(4,2),shiftKey:true},'3d');f.editor.up();f.editor.keyDown({key:'c'});assert.equal(f.base().faces.length,3,f.message());assert.ok(!f.base().sketch.nodes.some(n=>n.x===0&&n.y===3));
 });
-test('base line previews cancel without mutation and cannot jump across another base plane',()=>{
- const f=sharedBaseFixture();f.editor.down(f.e(0,2),'3d');f.editor.up();const before=JSON.stringify(f.base());f.editor.keyDown({key:'n'});f.editor.move(f.e(7,2),'3d');f.editor.down(f.e(7,2),'3d');assert.equal(JSON.stringify(f.base()),before);assert.match(f.message(),/selected base face/);assert.equal(f.editor.busy(),true);f.editor.keyDown({key:'Escape'});assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.base()),before);
+test('base line previews cancel and exterior endpoints stay on the selected supporting plane',()=>{
+ const f=sharedBaseFixture();f.editor.down(f.e(0,2),'3d');f.editor.up();const before=JSON.stringify(f.base());
+ f.editor.keyDown({key:'n'});f.editor.move(f.e(7,2),'3d');f.editor.keyDown({key:'Escape'});assert.equal(JSON.stringify(f.base()),before);
+ f.editor.keyDown({key:'n'});f.editor.down(f.e(7,2),'3d');assert.equal(f.editor.busy(),false);
+ assert.ok(f.base().sketch.nodes.some(n=>n.x===7&&n.y===2&&n.z===0));
+ assert.ok(f.base().faces.find(f=>f.id==='right').points.some(p=>p.z===2));
+ S.rebind(f.base(),f.base());assert.equal(f.editor.canPick(f.e(7,2),'3d'),true);
 });
 
 test('H cycles perpendicular cuts across pitched base candidates and reuses an existing far endpoint',()=>{const f=sharedBaseFixture();f.editor.down(f.e(0,2),'3d');f.editor.up();const original=JSON.stringify(f.base());f.editor.keyDown({key:'h'});assert.equal(f.base().faces.length,3,f.message());assert.equal(f.base().sketch.nodes.filter(n=>n.x===4&&n.y===2).length,1);f.editor.keyDown({key:'Escape'});assert.equal(JSON.stringify(f.base()),original);f.editor.keyDown({key:'h'});f.editor.down(f.e(2,2),'3d');assert.equal(f.editor.busy(),false);});

@@ -22,7 +22,7 @@ test('multi-segment connection divides the base and moving a bend rebuilds both 
 test('fixed points cannot move and invalid connections are rejected',()=>{
  const b=base(),s=S.ensure(b),before=JSON.stringify(s.nodes);
  S.move(b,s.nodes.map(n=>n.id),{x:2,y:2,z:2});assert.equal(JSON.stringify(s.nodes),before);
- assert.throws(()=>S.add(b,{x:20,y:0,z:0}),/inside/);
+ assert.throws(()=>S.add(b,{x:NaN,y:0,z:0}),/finite/);
 });
 test('crossing user lines resolve four faces',()=>{
  const b=base(),a=S.add(b,{x:5,y:0,z:0}),c=S.add(b,{x:5,y:10,z:0}),d=S.add(b,{x:0,y:5,z:0}),e=S.add(b,{x:10,y:5,z:0});
@@ -57,4 +57,35 @@ test('dividing a sticker retains its type and orientation with custom child dime
  S.ensure(b);const a=S.add(b,{x:5,y:0,z:0}),c=S.add(b,{x:5,y:10,z:0});S.connect(b,[a,c]);assert.equal(b.faces.length,2);
  for(const f of b.faces){assert.equal(f.feature.type,type);assert.equal(f.feature.preset,null);assert.deepEqual(f.feature.axis,{x:1,y:0,z:0});assert.equal(Math.max(...f.points.map(p=>p.x))-Math.min(...f.points.map(p=>p.x)),5);}
  S.resolve(b);assert.ok(b.faces.every(f=>f.feature.type===type));}
+});
+
+
+test('exterior connections survive commit, reload and movement without filling open wires',()=>{
+ const b=base(),a=S.add(b,{x:5,y:5,z:0}),c=S.add(b,{x:15,y:5,z:0});
+ S.connect(b,[a,c]);S.rebind(b,b);
+ const loaded=JSON.parse(JSON.stringify(b));S.move(loaded,[c],{x:3});S.rebind(loaded,loaded);
+ assert.equal(loaded.faces.length,1);
+ assert.ok(loaded.sketch.nodes.some(n=>n.id===c&&n.x===18));
+ assert.ok(loaded.sketch.edges.some(e=>e.userConnection&&[e.a,e.b].includes(c)));
+});
+
+test('connections bridge concave outlines and retain the closed exterior region',()=>{
+ for(const local of [false,true]){
+ const b={faces:[{id:'concave',points:[[0,0],[10,0],[10,3],[3,3],[3,10],[0,10]].map(([x,y])=>({x,y,z:0}))}]};
+ if(local)b.origin={x:0,y:0,z:0};
+ const a=S.add(b,{x:10,y:3,z:0}),c=S.add(b,{x:3,y:10,z:0});S.connect(b,[a,c]);
+ assert.equal(b.faces.length,2);S.rebind(b,b);S.resolve(b);assert.equal(b.faces.length,2);
+ }
+});
+
+test('base follows moved wall bottoms beyond its old outline and keeps exterior connections attached',()=>{
+ const B=require('../public/measure/internal/editor_scripts/base_geometry.js'),b=base();
+ const a=S.add(b,{x:10,y:0,z:0}),c=S.add(b,{x:15,y:-3,z:0});S.connect(b,[a,c]);S.rebind(b,b);
+ const before=[{id:'wall',targetId:'ground',bottom:[{x:10,y:0,z:0},{x:10,y:10,z:0}]}];
+ const after=[{...before[0],bottom:[{x:12,y:0,z:0},{x:12,y:10,z:0}]}];
+ const result=B.followWalls(b,before,after);
+ assert.equal(Math.max(...result.faces.flatMap(f=>f.points.map(p=>p.x))),12);
+ const n=result.sketch.nodes.find(n=>n.id===a);assert.equal(n.x,12);
+ assert.ok(result.sketch.edges.some(e=>e.userConnection&&[e.a,e.b].includes(a)));
+ assert.ok(result.sketch.nodes.some(n=>n.id===c&&n.x===15));
 });
