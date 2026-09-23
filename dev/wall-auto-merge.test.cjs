@@ -48,3 +48,12 @@ test('generated floor corners weld even when fitted roof heights differ',()=>{
  const next=G.deduplicate([a,stepped]).walls;assert.deepEqual(next[0].bottom[1],next[1].bottom[0]);assert.equal(next[1].top[0].z,3.1,'real roof step remains');
  const floor=structuredClone(b);floor.bottom.forEach(p=>p.z=.1);const separate=G.deduplicate([a,floor]).walls;assert.equal(separate[1].bottom[0].z,.1,'real floor step remains');
 });
+
+
+test('generated straight walls expose only corners while preserving a perpendicular junction',()=>{
+ const strips=Array.from({length:7},(_,i)=>({...w('s'+i,i,i+1,0,4),sourceId:'R1'}));
+ const geo=G.topology(G.mergeCoplanar(strips).walls);assert.equal(geo.faces[0].pointIndices.length,4);assert.equal(geo.connections.length,4);assert.equal(geo.faces[0].area,28);
+ const cross={id:'cross',sourceId:'R2',kind:'perimeter',bottom:[{x:3,y:0,z:0},{x:3,y:2,z:0}],top:[{x:3,y:0,z:4},{x:3,y:2,z:4}]};
+ const joined=G.topology(G.mergeCoplanar([...strips,cross]).walls),front=joined.faces.find(f=>f.mergeGroup);
+ assert.equal(front.pointIndices.length,6);assert.ok(front.pointIndices.some(i=>joined.points[i].x===3&&joined.points[i].z===4));
+});

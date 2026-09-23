@@ -339,7 +339,8 @@ window.createWallFaceDraft=function(host){
  function retainSourcePoints(d){
   retainMergedIdentity(d);
   if(d.sourcePointsVersion===1||d.frame)return;
-  const candidates=walls().filter(w=>d.members.includes(w.id)).flatMap(w=>[...w.bottom,...w.top]);
+  const members=walls().filter(w=>d.members.includes(w.id)),junctions=walls().filter(w=>!d.members.includes(w.id)).flatMap(w=>[...w.bottom,...w.top]);
+  const candidates=members.flatMap(w=>[...w.bottom,...w.top].filter(p=>!w.sourceId||junctions.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5)));
   for(const p of candidates){const q={x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z,z:0};
    if(d.sketch.nodes.some(n=>Math.hypot(n.x-q.x,n.y-q.y)<.0001)||(d.removedPoints||[]).length||!d.faces.some(f=>!deleted(d,f)&&G.contains(f,q)))continue;
    const n={...q,id:'p'+(++d.sketch.next),fixed:false,sourceSplit:true};d.sketch.nodes.push(n);
@@ -358,7 +359,7 @@ window.createWallFaceDraft=function(host){
   const origin={...w.bottom[0]},len=Math.hypot(w.bottom[1].x-origin.x,w.bottom[1].y-origin.y),u={x:(w.bottom[1].x-origin.x)/len,y:(w.bottom[1].y-origin.y)/len};
   const members=walls().filter(v=>id(v)===id(w)),local=p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,y:p.z,z:0});
   const filled=members.map(v=>[v.bottom[0],v.bottom[1],v.top[1],v.top[0]].map(local)),union=W.unionPlanar(filled),loops=union.map(f=>f.points),holes=union.flatMap(f=>f.holes);if(!loops.length)throw Error("Could not build the merged wall outline.");
-  const d={origin,u,chimney:w.chimney&&copy(w.chimney),members:members.map(v=>v.id),faces:loops.map((points,i)=>({id:'wall-region-'+i,points:points.map(p=>({...p,z:0}))}))};d.faces.push(...holes.map((points,i)=>({id:'wall-hole-'+i,boundaryHole:true,points:points.map(p=>({...p,z:0}))})));S.ensure(d);for(const p of filled.flat())if(!d.sketch.nodes.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<.0001)){const nodeId=S.add(d,p,.0001);if(d.chimney)d.sketch.nodes.find(n=>n.id===nodeId).generatedBoundary=true;}retainSourcePoints(d);classify(d);drafts[id(w)]=d;return d;
+  const d={origin,u,chimney:w.chimney&&copy(w.chimney),members:members.map(v=>v.id),faces:loops.map((points,i)=>({id:'wall-region-'+i,points:points.map(p=>({...p,z:0}))}))};d.faces.push(...holes.map((points,i)=>({id:'wall-hole-'+i,boundaryHole:true,points:points.map(p=>({...p,z:0}))})));S.ensure(d);for(const p of members.filter(v=>!v.sourceId).flatMap(v=>[...v.bottom,...v.top].map(local)))if(!d.sketch.nodes.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<.0001)){const nodeId=S.add(d,p,.0001);if(d.chimney)d.sketch.nodes.find(n=>n.id===nodeId).generatedBoundary=true;}retainSourcePoints(d);classify(d);drafts[id(w)]=d;return d;
  }
  function rayPoint(d,e){
   if(host.projectPoint)return host.projectPoint(d,e);
@@ -489,11 +490,10 @@ function perf_snap(d,e,raw=null){
   // projecting onto whichever drawing plane happened to be active previously.
   transaction(()=>{
    const boundary=holdBoundary(e),ref=!boundary&&viewOf(e)==='3d'?placementHost(e,true):null;
-   const fallback=!ref&&(boundary?current():w?ensure(w):null);
+   const fallback=!ref&&(boundary?current():w?ensure(w):current());
    if(!ref&&!fallback)throw Error('Double-click a visible face to place a point.');
    const d=ref?asDraft(ref).d:fallback,p=snap(d,e);
    if(!p)throw Error('Could not locate the point on this face.');
-   if(!d.faces.some(f=>!f.solidId&&!deleted(d,f)&&G.contains(f,p)))throw Error('Place the point inside or on the face boundary.');
    draftSelection={};solidPoints=[];solidEdges=[];selectedBasePoints=[];pickedLines=[];lineSelection=[];selectedRegion=null;selectedSolid=null;
    activeDraftKey=draftKey(d);preferredDraft=activeDraftKey;preferredSolid=null;preferredRegion=null;
    host.select(walls().find(w=>d.members.includes(w.id))?.id||null);
@@ -506,12 +506,14 @@ function perf_snap(d,e,raw=null){
   if(resoffitMode||tool||lineMode()||viewOf(e)!=='3d'||e.button!==0||['textured','rendered','match-textured'].includes(host.state()?.displayMode))return false;
   return withSelectionGeometry(()=>pickVisiblePointInScene(e));
  }
+ function undraftedWallTopology(){return renderDerived('undrafted-wall-topology',()=>G.topology(walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id)))));}
  function pickVisiblePointInScene(e){
   const candidates=[];
   if(host.wallsVisible?.()!==false){
    for(const d of Object.values(all()))if(visibleDraft(d))for(const n of draftNodes(d))candidates.push({p:world(d,n),d,n});
    for(const n of wire().nodes.filter(n=>!n.curveSample))candidates.push({p:n,solid:n.id});
-   for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))for(const p of [...w.bottom,...w.top])candidates.push({p,w});
+   const topology=undraftedWallTopology(),visible=new Set(topology.faces.flatMap(f=>f.pointIndices.map(i=>W.vertexKey(topology.points[i]))));
+   for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))for(const p of [...w.bottom,...w.top])if(!w.sourceId||visible.has(W.vertexKey(p)))candidates.push({p,w});
   }
   if(host.selectBaseEntities)for(const p of basePoints())candidates.push({p,base:true});
   let best=null,dist=12;for(const c of candidates){const q=host.screen(c.p,'3d'),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible!==false&&r<dist&&pickVisible(c.p,e)){dist=r;best=c;}}
@@ -578,7 +580,7 @@ function perf_snap(d,e,raw=null){
   for(const d of Object.values(all()))for(const e of draftSegments(d).filter(e=>e.curveId)){const id=draftKey(d)+':'+e.id;if(!curveGroups.has(id))curveGroups.set(id,{id,draftKey:draftKey(d),edgeId:e.id,pairs:[]});curveGroups.get(id).pairs.push([world(d,e.start),world(d,e.end)]);}
   const base=host.state()?.wallEdits?.$base||host.state()?.base,baseSegments=[];if(base&&base.visible!==false){const sketch=S.read(base),nodes=new Map(sketch.nodes.map(n=>[n.id,n]));baseSegments.push(...S.curveEdges(sketch).map(e=>[e.start,e.end]).filter(pair=>pair.every(Boolean)));points.push(...sketch.nodes);segments.push(...baseSegments);}
   for(const d of Object.values(all()))if(visibleDraft(d)){segments.push(...draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]));points.push(...draftNodes(d).map(n=>world(d,n)));}
-  for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id))){const ring=[w.bottom[0],w.bottom[1],w.top[1],w.top[0]];points.push(...ring);segments.push(...ring.map((p,i)=>[p,ring[(i+1)%ring.length]]));}
+  const topology=undraftedWallTopology();points.push(...[...new Set(topology.faces.flatMap(f=>f.pointIndices))].map(i=>topology.points[i]));segments.push(...topology.connections.map(e=>[topology.points[e.startIdx],topology.points[e.endIdx]]));
   const pointIndex=W.pointRangeIndex(points),lines=new Map();for(const [a,b] of segments){const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,l2=dx*dx+dy*dy+dz*dz;if(l2<1e-12)continue;const ts=[0,1];for(const p of pointIndex.segment(a,b)){const t=((p.x-a.x)*dx+(p.y-a.y)*dy+(p.z-a.z)*dz)/l2;if(t>1e-6&&t<1-1e-6&&Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy,p.z-a.z-t*dz)<1e-5)ts.push(t);}ts.sort((a,b)=>a-b);const at=t=>({x:a.x+dx*t,y:a.y+dy*t,z:a.z+dz*t});for(let i=1;i<ts.length;i++)if(ts[i]-ts[i-1]>1e-6){const pair=[at(ts[i-1]),at(ts[i])];lines.set(W.edgeKey(...pair),pair);}}
   return {points,lines,baseSegments,curveGroups};
  }
@@ -794,7 +796,7 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
   if(!d)return false;activeDraftKey=draftKey(d);let start=d.sketch.nodes.find(n=>W.vertexKey(world(d,n))===W.vertexKey(p));if(!start){const id=add(d,toLocal(d,p));start=d.sketch.nodes.find(n=>n.id===id);}picked=[start.id];draftSelection={[activeDraftKey]:picked};solidPoints=[];solidEdges=[];lineSelection=[];
   tool={kind:'curve',before,start:copy(start),track:{}};host.message('Curve: click the center, then sweep to the endpoint; Escape cancels.');host.redraw();return true;
  }
- function previewCurve(e){const t=tool,d=current(),raw=rayPoint(d,e);if(!raw)return;const K=window.ExteriorGeometry,enabled=!(typeof isFreeMove!=='undefined'&&isFreeMove);t.snap=K.curveDrawSnap({start:t.start,center:t.center,point:raw,normal:{x:0,y:0,z:1},points:d.sketch.nodes,curves:d.sketch.curves||[],screen:p=>host.screen(world(d,p),viewOf(e)||'3d'),snap:enabled,radius:typeof snapRadius!=='undefined'?snapRadius:20});const q=t.snap.point;t.pointer=q;t.track.close=t.snap.close;if(t.center){try{t.curve=window.ExteriorGeometry.arcPreview(t.start,t.center,q,{x:0,y:0,z:1},t.track,false);t.samples=window.ExteriorGeometry.curveSamples(t.curve);t.pointer=t.samples.at(-1);t.valid=Math.abs(t.curve.sweep)>1e-5&&t.samples.every(p=>d.sketch.outlines.some(points=>G.contains({points},p)));host.message((t.valid?'Curve':'Curve outside face')+' · '+(t.curve.radiusX===t.curve.radiusY?'Circle':'Ellipse')+' · '+(t.curve.sweep*180/Math.PI).toFixed(1)+'° · click endpoint; Shift-click continues; Escape cancels.');}catch(error){t.valid=false;host.message(error.message);}}t.guides=K.curveDrawGuides({start:t.start,center:t.center,pointer:t.pointer,snap:t.snap,normal:{x:0,y:0,z:1}});host.redraw();}
+ function previewCurve(e){const t=tool,d=current(),raw=rayPoint(d,e);if(!raw)return;const K=window.ExteriorGeometry,enabled=!(typeof isFreeMove!=='undefined'&&isFreeMove);t.snap=K.curveDrawSnap({start:t.start,center:t.center,point:raw,normal:{x:0,y:0,z:1},points:d.sketch.nodes,curves:d.sketch.curves||[],screen:p=>host.screen(world(d,p),viewOf(e)||'3d'),snap:enabled,radius:typeof snapRadius!=='undefined'?snapRadius:20});const q=t.snap.point;t.pointer=q;t.track.close=t.snap.close;if(t.center){try{t.curve=window.ExteriorGeometry.arcPreview(t.start,t.center,q,{x:0,y:0,z:1},t.track,false);t.samples=window.ExteriorGeometry.curveSamples(t.curve);t.pointer=t.samples.at(-1);t.valid=Math.abs(t.curve.sweep)>1e-5;host.message((t.valid?'Curve':'Invalid curve')+' · '+(t.curve.radiusX===t.curve.radiusY?'Circle':'Ellipse')+' · '+(t.curve.sweep*180/Math.PI).toFixed(1)+'° · click endpoint; Shift-click continues; Escape cancels.');}catch(error){t.valid=false;host.message(error.message);}}t.guides=K.curveDrawGuides({start:t.start,center:t.center,pointer:t.pointer,snap:t.snap,normal:{x:0,y:0,z:1}});host.redraw();}
  function placeCurve(e){
   previewCurve(e);const t=tool;if(!t.center){if(t.pointer&&Math.hypot(t.pointer.x-t.start.x,t.pointer.y-t.start.y)>1e-5){t.center=copy(t.pointer);t.track={};host.message('Sweep around the center, then click the endpoint. Shift-click continues another arc.');host.redraw();}return true;}
   if(t.valid){const d=current();if(transaction(()=>{picked=[S.addCurve(d,t.curve)];},t.before)){clearGuides();if(e.shiftKey){const start=d.sketch.nodes.find(n=>n.id===picked[0]);tool={kind:'curve',before:copy(host.state().wallEdits),start:copy(start),center:copy(t.center),track:{}};draftSelection={[draftKey(d)]:picked};host.message('Continue around the same center. Shift-click adds another arc; click finishes; Escape cancels the pending arc.');}else{tool=null;host.message('Curve placed.');}host.redraw();}}return true;
@@ -1793,7 +1795,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
   const d=current();if(!d)return;
   if(tool.navigation){tool.navigation=false;tool.start=rayPoint(d,e);tool.reference=copy(host.state().wallEdits);if(tool.kind==='move')tool.anchor=copy(d.sketch.nodes.find(n=>n.id===tool.ids[0]));if(['scale','rotate'].includes(tool.kind))tool.originals=tool.originals.map(o=>copy(d.sketch.nodes.find(n=>n.id===o.id)));return;}
   e.stopImmediatePropagation();e.preventDefault();let raw=rayPoint(d,e);if(!raw)return;if(tool.kind==='move'&&tool.start)raw={x:tool.anchor.x+raw.x-tool.start.x,y:tool.anchor.y+raw.y-tool.start.y,z:0};const p=['scale','rotate'].includes(tool.kind)?raw:snap(d,e,raw);if(!p)return;
-  if(['scale','rotate'].includes(tool.kind)){const t=tool,c=t.center,angle=Math.atan2(p.y-c.y,p.x-c.x)-Math.atan2(t.start.y-c.y,t.start.x-c.x),step=Math.PI/4,nearest=Math.round(angle/step)*step,a=!(typeof isFreeMove!=='undefined'&&isFreeMove)&&Math.abs(angle-nearest)<Math.PI/36?nearest:angle,scale=Math.hypot(p.x-c.x,p.y-c.y)/Math.max(.001,Math.hypot(t.start.x-c.x,t.start.y-c.y));host.state().wallEdits=copy(t.reference||t.before);const next=current();try{for(const o of t.originals){const n=next.sketch.nodes.find(n=>n.id===o.id),dx=o.x-c.x,dy=o.y-c.y,q=t.kind==='scale'?{x:c.x+dx*scale,y:c.y+dy*scale}:{x:c.x+dx*Math.cos(a)-dy*Math.sin(a),y:c.y+dx*Math.sin(a)+dy*Math.cos(a)};if(!next.sketch.outlines.some(points=>G.contains({points},q)))throw Error('Editable points must stay inside the face.');Object.assign(n,q);}S.resolve(next);classify(next);clearGuides();if(t.kind==='rotate'&&a===nearest){snapGuides=[{p1:c,p2:{x:c.x+Math.cos(a),y:c.y+Math.sin(a)}}];showGuides(next,e);}host.message(t.kind==='scale'?'Scale: '+scale.toFixed(2):'Rotation: '+(a*180/Math.PI).toFixed(1)+'°');}catch(error){host.state().wallEdits=copy(t.before);host.message(error.message);}}
+  if(['scale','rotate'].includes(tool.kind)){const t=tool,c=t.center,angle=Math.atan2(p.y-c.y,p.x-c.x)-Math.atan2(t.start.y-c.y,t.start.x-c.x),step=Math.PI/4,nearest=Math.round(angle/step)*step,a=!(typeof isFreeMove!=='undefined'&&isFreeMove)&&Math.abs(angle-nearest)<Math.PI/36?nearest:angle,scale=Math.hypot(p.x-c.x,p.y-c.y)/Math.max(.001,Math.hypot(t.start.x-c.x,t.start.y-c.y));host.state().wallEdits=copy(t.reference||t.before);const next=current();try{for(const o of t.originals){const n=next.sketch.nodes.find(n=>n.id===o.id),dx=o.x-c.x,dy=o.y-c.y,q=t.kind==='scale'?{x:c.x+dx*scale,y:c.y+dy*scale}:{x:c.x+dx*Math.cos(a)-dy*Math.sin(a),y:c.y+dx*Math.sin(a)+dy*Math.cos(a)};Object.assign(n,q);}S.resolve(next);classify(next);clearGuides();if(t.kind==='rotate'&&a===nearest){snapGuides=[{p1:c,p2:{x:c.x+Math.cos(a),y:c.y+Math.sin(a)}}];showGuides(next,e);}host.message(t.kind==='scale'?'Scale: '+scale.toFixed(2):'Rotation: '+(a*180/Math.PI).toFixed(1)+'°');}catch(error){host.state().wallEdits=copy(t.before);host.message(error.message);}}
   else if(tool.kind==='move'&&tool.start){const key=currentDraftId();host.state().wallEdits=copy(tool.reference||tool.before);try{S.move(all()[key],tool.ids,{x:p.x-tool.anchor.x,y:p.y-tool.anchor.y});classify(all()[key]);}catch(error){host.message(error.message);}}
   else tool.preview=p;host.redraw();
  }

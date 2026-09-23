@@ -2415,3 +2415,37 @@ test('reload repairs stale consumed Resoffit masks without moving replacement fa
  f.normalize();assert.ok(ghosts()<stale,'stale source wire is removed');const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry.points.length===2)lines.push(o);}},p=>p);assert.equal(lines.length,0);assert.equal(JSON.stringify(saved.wallEdits.$surfaces),surfaces,'only source masks change');
  const repaired=JSON.stringify(saved.wallEdits);f.normalize();assert.equal(JSON.stringify(saved.wallEdits),repaired,'repair is idempotent');
 });
+
+
+test('Q crosses the top and side of a wall without discarding existing draft points',()=>{
+ const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,4),f.w);
+ f.editor.doubleClick(f.e(1,1),f.w);const original=JSON.parse(JSON.stringify(f.d().sketch.nodes));
+ f.editor.key({key:'q'});f.editor.down(f.e(5,5));f.editor.down(f.e(5,5));
+ assert.equal(f.editor.busy(),false,f.message());assert.equal(f.history.length,3);
+ for(const n of original)assert.ok(f.d().sketch.nodes.some(p=>p.id===n.id&&p.x===n.x&&p.y===n.y),'preserve existing point');
+ assert.ok(f.d().faces.some(face=>face.points.some(p=>p.x===5&&p.y===5)),'extend face beyond original bounds');
+ assert.ok(f.d().faces.some(face=>G.contains(face,{x:4.5,y:4.5})&&!face.opening),'exterior region is wall material');
+});
+
+
+test('generated collinear wall subdivisions do not become sketch anchors, while drawn points persist',()=>{
+ const walls=G.mergeCoplanar(Array.from({length:7},(_,i)=>({id:i?'part-'+i:'w',sourceId:'R1',kind:'perimeter',bottom:[{x:i,y:0,z:0},{x:i+1,y:0,z:0}],top:[{x:i,y:0,z:4},{x:i+1,y:0,z:4}]}))).walls;
+ const f=fixture({walls});f.editor.pickLine3D(f.e(3.5,4));f.listeners.pointerup(f.e(3.5,4));const pair=f.editor.selectionSnapshot().lineSelection[0].pair;assert.equal(Math.abs(pair[1].x-pair[0].x),7,'select the full displayed edge');f.editor.beginFace(f.e(.5,2),walls[0]);f.listeners.pointerup(f.e(.5,2));
+ const d=f.state.wallEdits.$drafts[walls[0].mergeGroup];assert.equal(d.sketch.nodes.length,4);
+ f.editor.doubleClick(f.e(2,4),walls[0]);assert.ok(d.sketch.nodes.some(n=>n.x===2&&n.y===4&&n.userDraftPoint));
+ const loaded=fixture({walls,state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});loaded.editor.draw3D({add(){}},p=>p);
+ assert.equal(loaded.state.wallEdits.$drafts[walls[0].mergeGroup].sketch.nodes.length,5);
+});
+
+test('point drawing continues outside the active wall plane outline',()=>{
+ const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(1,1),f.w);f.editor.doubleClick(f.e(5,6));
+ assert.ok(f.d().sketch.nodes.some(p=>p.x===5&&p.y===6),f.message());
+});
+
+
+test('wall arc can sweep outside the original wall outline',()=>{
+ const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(4,2),f.w);f.editor.key({key:'s'});
+ f.editor.down(f.e(3,2));f.listeners.pointermove(f.e(3,5));f.editor.down(f.e(3,5));
+ assert.equal(f.editor.busy(),false,f.message());assert.equal(f.d().sketch.curves.length,1);
+ assert.ok(S.curveEdges(f.d().sketch).some(e=>e.start.y>4||e.end.y>4));
+});
