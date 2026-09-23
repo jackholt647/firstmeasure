@@ -27,7 +27,7 @@ function read(base){
 }
 function inside(s,p,base){if(base?.constructionPlane)return true;return base&&!base.origin&&!base.frame?base.faces.some(f=>G.contains(f,p)):s.outlines.some(points=>G.contains({points},p));}
 function add(base,p,tolerance=.01){
- const s=ensure(base);if(![p.x,p.y,p.z].every(Number.isFinite)||!inside(s,p,base))throw Error('Create points inside or on the house base.');
+ const s=ensure(base);if(![p.x,p.y,p.z].every(Number.isFinite))throw Error('Point coordinates must be finite.');
  const found=s.nodes.find(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<tolerance);if(found){found.userDraftPoint=true;delete found.curveSample;return found.id;}
  const n={...p,id:'p'+(++s.next),fixed:false,userDraftPoint:true};delete n.curveSample;s.nodes.push(n);return n.id;
 }
@@ -35,8 +35,8 @@ function connect(base,ids){
  const s=ensure(base);if(ids.length<2)throw Error('Select two or more points to connect.');
  const proposed=[];
  for(let i=1;i<ids.length;i++){const a=s.nodes.find(n=>n.id===ids[i-1]),b=s.nodes.find(n=>n.id===ids[i]);if(!a||!b||a===b)continue;
-  for(let t=0;t<=20;t++){const p={x:a.x+(b.x-a.x)*t/20,y:a.y+(b.y-a.y)*t/20};if(!inside(s,p,base))throw Error('Connections must stay inside the base outline.');}
-  if(!s.edges.some(e=>!e.curveId&&[e.a,e.b].includes(a.id)&&[e.a,e.b].includes(b.id)))proposed.push({id:'e'+(++s.next),a:a.id,b:b.id,fixed:false});
+  if(![a,b].every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Point coordinates must be finite.');
+  if(!s.edges.some(e=>!e.curveId&&[e.a,e.b].includes(a.id)&&[e.a,e.b].includes(b.id)))proposed.push({id:'e'+(++s.next),a:a.id,b:b.id,fixed:false,userConnection:true});
  }
  s.edges.push(...proposed);resolve(base);
 
@@ -85,7 +85,7 @@ function updateCurves(base,curves,moves=[]){
 }
 function move(base,ids,delta){
  const s=ensure(base),movable=s.nodes.filter(n=>ids.includes(n.id)&&!n.fixed),selected=new Set(movable.map(n=>n.id)),translated=p=>({x:p.x+(delta.x||0),y:p.y+(delta.y||0),z:p.z+(delta.z||0)});
- for(const n of movable)if(!inside(s,translated(n),base))throw Error('Editable points must stay inside the fixed wall outline.');
+ for(const n of movable)if(!Object.values(translated(n)).every(Number.isFinite))throw Error('Point coordinates must be finite.');
  const curves=[];
  for(const c of s.curves||[]){const edges=s.edges.filter(e=>e.curveId===c.id),ends=[...new Set(edges.flatMap(e=>[e.a,e.b]))],changed=ends.filter(id=>selected.has(id));if(!changed.length&&!selected.has(c.centerId))continue;
   let map=translated;
@@ -113,7 +113,7 @@ function resolve(base){
   const nodes=group.nodes||graphNodes.filter(onPlane),ids=new Set(nodes.map(p=>p.id));
   const graph=K.partition({nodes,edges:group.edges||graphEdges.filter(e=>ids.has(e.a)&&ids.has(e.b))});
   for(const ps of graph.regions){
-  const center=B.center({points:ps});if(group.plane?!group.faces.some(f=>G.contains(f,center)||G.contains(f,ps[0])):!inside(s,center,base)&&!inside(s,ps[0],base))continue;
+  const center=B.center({points:ps});
   const original=group.faces.find(f=>G.contains(f,center))||group.faces[0],plane=G.plane(original.points);
   const points=ps.map(p=>({x:p.x,y:p.y,z:p.manualZ?p.z:plane.dx*p.x+plane.dy*p.y+plane.k,nodeId:p.id}));
   B.validate({points});const signature=ps.map(p=>p.id).sort().join('|'),match=old.find(f=>f.points.map(p=>p.nodeId).sort().join('|')===signature);
@@ -135,7 +135,7 @@ function resolve(base){
  // Preserve every intentional anchor, including points unused by a face.
  for(const n of newNodes)if(!n.curveSample&&!s.nodes.some(p=>p.id===n.id))s.nodes.push(n);
  if(s.curves?.length)for(const f of faces)f.curves=(s.curves||[]).filter(c=>graphEdges.some(e=>e.curveId===c.id&&f.points.some(p=>p.nodeId===e.a)&&f.points.some(p=>p.nodeId===e.b))).map(copy);
- base.faces=faces;
+ base.faces=faces;s.outlines=B.boundary(faces.map(f=>f.points));
 }
 
 // Rebuild the editable graph from face ownership after a footprint or plane edit.
@@ -154,11 +154,17 @@ function rebind(before,after){
  const targets=f=>{const matching=after.faces.filter(q=>q.id===f.id||String(q.id).startsWith(f.id+'-extrusion-'));return matching.length?matching:after.faces;};
  const lift=(p,f)=>{const pl=G.plane(f.points);return {...p,z:pl.dx*p.x+pl.dy*p.y+pl.k};};
  for(const p of old.nodes)for(const support of supports.filter(s=>on(p,s)))for(const f of targets(support.f))if(G.contains(f,p)&&(p.userDraftPoint||!onBoundary(p,support.f)||onBoundary(p,f)))node(lift(p,f),p.id);
+ // Deliberate exterior anchors are not clipped to the previous footprint.
+ for(const p of old.nodes)if(p.userDraftPoint&&!supports.some(s=>on(p,s))&&!nodes.some(n=>n.id===p.id))node(p,p.id);
  const oldNode=new Map(old.nodes.map(n=>[n.id,n]));
  for(const e of old.edges){if(e.fixed||e.chimneyFoundation)continue;const a=oldNode.get(e.a),b=oldNode.get(e.b);if(!a||!b)continue;
   // Rebuild geometric boundaries from faces, never copy an obsolete shared
   // boundary back as a construction line merely because fixed was false.
   if(supports.some(s=>{if(!on(a,s)||!on(b,s))return false;const ts=G.splitParameters(a,b,[s.f]);return ts.slice(1).every((hi,i)=>onBoundary(at(a,b,(ts[i]+hi)/2),s.f));}))continue;
+  if(e.userConnection){
+   const endpoint=p=>nodes.find(n=>n.id===p.id)?.id||node(p,p.id);
+   const u=endpoint(a),v=endpoint(b);if(u!==v)segments.push({...e,a:u,b:v,boundary:false});continue;
+  }
   for(const support of supports.filter(s=>s.plane&&[a,b].every(p=>Math.abs(p.z-s.plane.dx*p.x-s.plane.dy*p.y-s.plane.k)<=K.CONTACT))){for(const f of targets(support.f)){
    const ts=G.splitParameters(a,b,[support.f,f]);
    for(let i=1;i<ts.length;i++){const mid=at(a,b,(ts[i-1]+ts[i])/2);if(!G.contains(support.f,mid)||!G.contains(f,mid))continue;
@@ -171,7 +177,7 @@ function rebind(before,after){
  const lookup=new Map(nodes.map(n=>[n.id,n]));
  for(const e of segments){const a=lookup.get(e.a),b=lookup.get(e.b),len=distance(a,b);if(len<=K.CONTACT)continue;
   const hits=nodes.map(n=>({n,t:((n.x-a.x)*(b.x-a.x)+(n.y-a.y)*(b.y-a.y)+(n.z-a.z)*(b.z-a.z))/(len*len)})).filter(h=>h.t>=-1e-8&&h.t<=1+1e-8&&distance(h.n,at(a,b,h.t))<=K.CONTACT).sort((a,b)=>a.t-b.t);
-  for(let i=1;i<hits.length;i++){const u=hits[i-1].n.id,v=hits[i].n.id;if(u===v)continue;const key=[u,v].sort().join('|');let edge=byPair.get(key);if(!edge){edge={id:fresh('e'),a:u,b:v,fixed:false,owners:new Set()};byPair.set(key,edge);edges.push(edge);}if(e.boundary)edge.owners.add(e.owner);}
+  for(let i=1;i<hits.length;i++){const u=hits[i-1].n.id,v=hits[i].n.id;if(u===v)continue;const key=[u,v].sort().join('|');let edge=byPair.get(key);if(!edge){edge={id:fresh('e'),a:u,b:v,fixed:false,owners:new Set()};byPair.set(key,edge);edges.push(edge);}if(e.boundary)edge.owners.add(e.owner);if(e.userConnection)edge.userConnection=true;}
  }
  for(const e of edges){e.fixed=e.owners.size===1;delete e.owners;if(e.fixed){lookup.get(e.a).fixed=true;lookup.get(e.b).fixed=true;}}
  const curves=[...new Map([...(old.curves||[]),...after.faces.flatMap(f=>f.curves||[])].map(c=>[c.id,c])).values()];for(const c of curves){const samples=K.curveSamples(c);for(const e of edges){const a=lookup.get(e.a),b=lookup.get(e.b);for(let j=1;j<samples.length;j++){const p=samples[j-1],q=samples[j],v={x:q.x-p.x,y:q.y-p.y,z:q.z-p.z},l2=v.x*v.x+v.y*v.y+v.z*v.z,parameter=x=>((x.x-p.x)*v.x+(x.y-p.y)*v.y+(x.z-p.z)*v.z)/l2,t=parameter(a),u=parameter(b),tolerance=K.CONTACT/Math.sqrt(l2),snap=t=>Math.abs(t)<tolerance?0:Math.abs(t-1)<tolerance?1:t;if(t>=-tolerance&&t<=1+tolerance&&u>=-tolerance&&u<=1+tolerance&&distance(a,at(p,q,t))<K.CONTACT&&distance(b,at(p,q,u))<K.CONTACT){e.curveId=c.id;e.fixed=original.edges.filter(e=>e.curveId===c.id).every(e=>e.fixed);e.curveRange=[p.curveT+(q.curveT-p.curveT)*snap(t),p.curveT+(q.curveT-p.curveT)*snap(u)];break;}}}}
