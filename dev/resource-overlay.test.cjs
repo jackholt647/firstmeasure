@@ -15,7 +15,7 @@ test('photo controls work while wall mode captures model clicks', async () => {
     const start = wall.indexOf("        for(const type of ['pointerdown','mousedown','dblclick','click'])");
     const end = wall.indexOf('        function cancelInteraction()', start);
     assert.ok(start > 0 && end > start);
-    await page.addScriptTag({ content: `(() => { let nudgeEpoch=0,nudgeKey=null; const enabled=true,editingLayer='walls',baseEditor=null,wallEditor=null; ${wall.slice(start, end)} })();` });
+    await page.addScriptTag({ content: `(() => { let nudgeEpoch=0,nudgeKey=null; const settleNudges=()=>{}; const enabled=true,editingLayer='walls',baseEditor=null,wallEditor=null; ${wall.slice(start, end)} })();` });
     await page.evaluate(async () => {
       window.currentProjectId = 'fixture';
       const image = document.createElement('canvas'); image.width = 400; image.height = 200;
@@ -23,6 +23,22 @@ test('photo controls work while wall mode captures model clicks', async () => {
     });
     const state = () => page.locator('.resource-3d-background img').evaluate(el => ({ left: parseFloat(el.style.left), top: parseFloat(el.style.top), width: parseFloat(el.style.width), opacity: Number(el.style.opacity) }));
     const initial = await state();
+    await page.evaluate(()=>{window.modelWheels=0;document.getElementById('three-container').addEventListener('wheel',()=>window.modelWheels++);});
+    const container=await page.locator('#three-container').boundingBox();
+    await page.mouse.move(container.x+100,container.y+300);await page.mouse.wheel(0,-100);
+    await page.waitForFunction(()=>parseFloat(document.querySelector('.resource-3d-background img').style.width)>800);
+    const zoomed=await state(),ratio=zoomed.width/initial.width;
+    assert.ok(Math.abs(zoomed.left-(100-(100-initial.left)*ratio))<.01,'keep the photo coordinate beneath the cursor');
+    assert.equal(await page.evaluate(()=>window.modelWheels),0,'photo zoom does not reach model controls');
+    await page.locator('[data-photo="fit"]').click();
+    await page.mouse.move(container.x+100,container.y+20);await page.mouse.wheel(0,100);
+    await page.waitForFunction(()=>window.modelWheels===1);assert.equal((await state()).width,initial.width,'outside photo keeps model zoom');
+    await page.locator('#resource-3d-controls header').hover();await page.mouse.wheel(0,-100);
+    await page.waitForFunction(()=>parseFloat(document.querySelector('.resource-3d-background img').style.width)>800);
+    assert.equal((await state()).left,initial.left,'controls zoom around the photo center');
+    assert.equal(await page.evaluate(()=>window.modelWheels),1);
+    await page.locator('[data-photo="fit"]').click();
+
     for (const [direction, axis, delta] of [['right','left',10],['left','left',-10],['up','top',-10],['down','top',10]]) {
       const before = await state();
       await page.locator(`[data-photo="${direction}"]`).click();
