@@ -746,7 +746,7 @@ function perf_render3DFrame() {
         advanced.addEventListener('keydown',e=>{if(e.key==='Escape'){advanced.open=false;advanced.querySelector('summary')?.focus();e.preventDefault();e.stopPropagation();}});
         const interaction=document.createElement('div');interaction.id='wall-interaction-status';interaction.hidden=true;
         interaction.style.cssText='display:none;align-items:center;gap:8px;max-width:100%;color:#ffe29a;font:12px system-ui';
-        const interactionText=document.createElement('span'),cancelButton=document.createElement('button');cancelButton.type='button';cancelButton.className='enh-btn';cancelButton.textContent='Cancel · Esc';cancelButton.onclick=()=>wallEditor?.planeActive?.()?wallEditor.keyDown({key:'Escape'}):cancelInteraction();interaction.append(interactionText,cancelButton);
+        const interactionText=document.createElement('span'),cancelButton=document.createElement('button');cancelButton.type='button';cancelButton.className='enh-btn';cancelButton.textContent='Cancel · Esc';cancelButton.onclick=()=>wallEditor?.planeActive?.()?wallEditor.planeView()?.rotating?wallEditor.keyDown({key:'Escape'}):wallEditor.togglePlane():cancelInteraction();interaction.append(interactionText,cancelButton);
         const planeControls=document.createElement('label');planeControls.textContent='Other geometry ';planeControls.hidden=true;
         const planeDisplay=document.createElement('select');planeDisplay.id='plane-other-geometry';planeDisplay.setAttribute('aria-label','Off-plane geometry');
         for(const [value,text]of [['normal','Normal'],['faint','Faint'],['hidden','Hidden']]){const option=document.createElement('option');option.value=value;option.textContent=text;planeDisplay.appendChild(option);}planeDisplay.value='faint';planeDisplay.onchange=()=>wallEditor?.setPlaneDisplay(planeDisplay.value);planeControls.appendChild(planeDisplay);interaction.appendChild(planeControls);
@@ -757,7 +757,8 @@ function perf_render3DFrame() {
             const toolbar=document.querySelector('#three-container .enh-control-panel');const mainToolbar=document.getElementById('exterior-main-toolbar');if(mainToolbar&&advanced.parentElement!==mainToolbar)mainToolbar.appendChild(advanced);advanced.hidden=!enabled;if(!enabled)advanced.open=false;if(toolbar&&interaction.parentElement!==toolbar)toolbar.appendChild(interaction);
             const name=enabled&&(groundEditor?.interaction?.()||wallEditor?.interaction()||baseEditor?.interaction());
             interaction.hidden=!name;interaction.style.display=name?'flex':'none';
-            if(name){const detail=document.getElementById(groundEditor?.sampling?.()?'ground-status':'base-status')?.textContent||'';const text=name+' · '+(name==='Rectangle selection'?'drag and release':detail||'Click to place; Escape cancels');if(interactionText.textContent!==text)interactionText.textContent=text;}
+            interactionText.hidden=name==='Drawing plane';
+            if(name&&name!=='Drawing plane'){const detail=document.getElementById(groundEditor?.sampling?.()?'ground-status':'base-status')?.textContent||'';const text=name+' · '+(name==='Rectangle selection'?'drag and release':detail||'Click to place; Escape cancels');if(interactionText.textContent!==text)interactionText.textContent=text;}
         };
         setInterval(updateInteraction,150);
         window.addEventListener('blur',cancelInteraction);

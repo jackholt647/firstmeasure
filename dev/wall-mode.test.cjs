@@ -685,3 +685,7 @@ test('held arrow repeats coalesce geometry work and flush before undo and pickin
   key('ArrowRight');key('ArrowRight',{repeat:true});f.listeners['window:pointerdown']({target:{closest:()=>false}});assert.equal(host.state().wallEdits.value,2,'picking first publishes the pending move');
  }
 });
+
+test('Exit plane button invokes plane exit while rotation retains Escape cancellation',()=>{
+ const source=fs.readFileSync('public/measure/internal/editor_scripts/wall_mode.js','utf8'),assignment=source.match(/cancelButton\.onclick=[^;]+;/)[0];let active=true,rotating=false,exits=0,cancels=0;const ctx={cancelButton:{},wallEditor:{planeActive:()=>active,planeView:()=>({rotating}),togglePlane(){active=false;exits++;},keyDown(e){assert.equal(e.key,'Escape');cancels++;}},cancelInteraction(){cancels++;}};vm.runInNewContext(assignment,ctx);ctx.cancelButton.onclick();assert.equal(active,false);assert.equal(exits,1);active=true;rotating=true;ctx.cancelButton.onclick();assert.equal(cancels,1);assert.equal(exits,1);
+});

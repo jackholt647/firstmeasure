@@ -276,7 +276,8 @@ function copyGeometry(scene,selected,lines=[]){
  if(!mounts.length){const frame=faces.length?faceFrame(faces[0]):sources.map(faceFrame).find(Boolean);mounts.push({frame:clipboardFrame(centroid,frame?.n||{x:0,y:0,z:1}),count:points.length,fallback:true});}
  mounts.sort((a,b)=>b.count-a.count);
  const clean=f=>({...K.mapCurveData(f,p=>({...p})),points:f.points.map(p=>({x:p.x,y:p.y,z:p.z})),holes:(f.holes||[]).map(r=>r.map(p=>({x:p.x,y:p.y,z:p.z}))),...(f.material?{material:f.material}:{}),...(f.finishColor?{finishColor:f.finishColor}:{}),...(f.trim?{trim:true}:{}),...(f.feature?{feature:JSON.parse(JSON.stringify(f.feature))}:{}),retainedPoints:(f.retainedPoints||[]).filter(chosen).map(p=>({x:p.x,y:p.y,z:p.z}))});
- return {points,edges,faces:faces.map(clean),mounts};
+ const curves=[...new Map(sources.flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
+ return {points:curves.length&&!faces.length?points.filter(p=>!onCurve(p)||curves.some(c=>c.controls.some(q=>Math.hypot(...Object.values(sub(p,q)))<=K.CONTACT))):points,edges:curves.length?edges.filter(pair=>!samples.some(ps=>ps.slice(1).some((q,i)=>pair.every(p=>pointOnEdge(p,ps[i],q))))):edges,faces:faces.map(clean),mounts,...(curves.length?{curves:curves.map(c=>K.mapCurve(c,p=>({...p})))}:{})};
 }
 // Rigid plane edits retain depth; reflections reverse face winding as well.
 function transformGeometry(clip,index,change={}){
@@ -342,6 +343,19 @@ function snapGeometryOnPlane(clip,index,targets,edges,screen,radius=10,pointer=n
  if(!delta)for(const [a,b]of clip.edges){const v=sub(b,a),l2=dot(v,v);for(const q of targets){const t=l2?Math.max(0,Math.min(1,dot(sub(q,a),v)/l2)):0;offer(mix3(a,b,t),q);}}
  const snapped=delta?transformGeometry(clip,index,{delta}):clip;const alignment=planeAlignment(snapped.points,targets,frame,screen,radius,['u','v'],pointer);return Math.hypot(alignment.x,alignment.y)>1e-10?transformGeometry(snapped,index,{delta:alignment}):snapped;
 }
+// Spline interpolation points are the editable geometry; face samples follow
+// a changed definition instead of turning one tessellation vertex into a kink.
+function reshapeSplineFace(face,map){
+ const changed=(face.curves||[]).filter(c=>c.type==='spline').flatMap(c=>{
+  const controls=c.controls.map(map);if(controls.every((p,i)=>Math.hypot(...Object.values(sub(p,c.controls[i])))<1e-10))return [];
+  return [{old:c,next:{...c,...K.splineThrough([controls[0],controls.at(-1)],controls.slice(1,-1))},samples:K.curveSamples(c)}];
+ });if(!changed.length)return null;
+ const move=p=>{for(const {old,next,samples}of changed)for(let i=1;i<samples.length;i++)if(pointOnEdge(p,samples[i-1],samples[i])){
+   const a=samples[i-1],b=samples[i],v=sub(b,a),t=a.curveT+(b.curveT-a.curveT)*dot(sub(p,a),v)/dot(v,v),j=Math.max(0,old.knots.findIndex((k,i)=>i&&k>=t-1e-8)-1),lo=old.knots[j],hi=old.knots[j+1],u=next.knots[j]+(next.knots[j+1]-next.knots[j])*(t-lo)/(hi-lo);
+   return {...p,...K.curvePoint(next,u)};
+  }return map(p);};
+ return {...face,curves:face.curves.map(c=>changed.find(v=>v.old===c)?.next||c),points:face.points.map(move),holes:(face.holes||[]).map(r=>r.map(move)),retainedPoints:(face.retainedPoints||[]).map(move)};
+}
 function transformSelection(scene,original,preview,options={}){
  const moves=original.points.map((from,i)=>({from,to:preview.points[i]}));
  const find=p=>moves.find(m=>Math.hypot(p.x-m.from.x,p.y-m.from.y,p.z-m.from.z)<=K.CONTACT);
@@ -355,6 +369,7 @@ function transformSelection(scene,original,preview,options={}){
  const mapped=p=>({...p,...(find(p)?.to||{})}),affected=[];
  const faces=scene.map(f=>{if(![...rings(f).flat(),...(f.retainedPoints||[])].some(find))return f;affected.push(f.id);const whole=rings(f).flat().every(find),copied=whole&&original.faces.findIndex(g=>g.points.length===f.points.length&&g.points.every(p=>f.points.some(q=>vertexKey(p)===vertexKey(q))));
   const transformed=whole&&copied>=0?preview.faces[copied]:null;
+  if(!transformed){const reshaped=reshapeSplineFace(f,mapped);if(reshaped)return reshaped;}
   return {...f,...(transformed?K.mapCurveData(transformed,p=>({...p})):{}),points:transformed?transformed.points:f.points.map(mapped),holes:transformed?transformed.holes:(f.holes||[]).map(r=>r.map(mapped)),retainedPoints:(f.retainedPoints||[]).map(mapped),...(transformed?.feature?{feature:transformed.feature}:{})};
  });return followTrim(scene,{faces,moves,affected},scene.filter(f=>f.points.every(p=>original.points.some(q=>vertexKey(p)===vertexKey(q)))).map(f=>f.id),options.keepTrimStatic);
 }

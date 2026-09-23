@@ -61,7 +61,7 @@ function compactCurves(s){
 function addCurve(base,curve){
  const s=ensure(base),samples=K.curveSamples(curve);if(samples.some(p=>![p.x,p.y,p.z].every(Number.isFinite)))throw Error('Curve coordinates must be finite.');const id='curve-'+(++s.next),a=add(base,samples[0],K.GRID),b=add(base,samples.at(-1),K.GRID);
  let centerId;if(curve.center){let center=s.nodes.find(n=>Math.hypot(n.x-curve.center.x,n.y-curve.center.y,n.z-curve.center.z)<=K.CONTACT);if(!center){center={...copy(curve.center),id:'p'+(++s.next),fixed:false};s.nodes.push(center);}center.curveCenter=true;centerId=center.id;}
- s.curves||=[];s.curves.push({...copy(curve),id,...(centerId?{centerId}:{})});s.edges.push({id:'e'+(++s.next),a,b,fixed:false,userConnection:true,curveId:id,curveRange:[0,1]});resolve(base);return b;
+ s.curves||=[];s.curves.push({...copy(curve),id,...(centerId?{centerId}:{})});const controls=curve.type==='spline'?curve.controls.map(p=>add(base,p,K.GRID)):[a,b],knots=curve.type==='spline'?curve.knots:[0,1];for(let i=1;i<controls.length;i++)s.edges.push({id:'e'+(++s.next),a:controls[i-1],b:controls[i],fixed:false,userConnection:true,curveId:id,curveRange:[knots[i-1],knots[i]]});resolve(base);return b;
 }
 function remove(base,pointIds,lineIds){
  const s=ensure(base),deleted=new Set(s.nodes.filter(n=>pointIds.includes(n.id)&&!n.fixed).map(n=>n.id));
@@ -74,6 +74,9 @@ function updateCurves(base,curves,moves=[]){
  const s=ensure(base),byId=new Map(curves.map(c=>[c.id,c]));
  for(const c of curves)if(K.curveSamples(c).some(p=>![p.x,p.y,p.z].every(Number.isFinite)))throw Error('Curve coordinates must be finite.');
  for(const n of s.nodes){const p=moves.find(m=>m.id===n.id)?.point;if(p)Object.assign(n,p);}
+ for(const prior of s.curves||[]){const next=byId.get(prior.id);if(prior.type!=='spline'||!next||prior.knots.length!==next.knots.length)continue;
+  for(const e of s.edges.filter(e=>e.curveId===prior.id))e.curveRange=(e.curveRange||[0,1]).map(t=>{const i=prior.knots.findIndex(k=>Math.abs(k-t)<1e-7);return i<0?t:next.knots[i];});
+ }
  s.curves=(s.curves||[]).map(c=>byId.get(c.id)||c);
  for(const c of curves){
   for(const e of s.edges.filter(e=>e.curveId===c.id))for(const [id,t]of [[e.a,(e.curveRange||[0,1])[0]],[e.b,(e.curveRange||[0,1])[1]]]){const n=s.nodes.find(n=>n.id===id);if(n)Object.assign(n,K.curvePoint(c,t));}
