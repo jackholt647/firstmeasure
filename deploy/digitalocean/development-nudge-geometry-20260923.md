@@ -15,3 +15,5 @@ Validation:
 - Saved layered-turret fixture (113 faces), five runs of 20 slide operations: before 22.1–26.5 ms; after 5.6–9.9 ms. This measures the slide operation, not end-to-end browser latency or the user's unsaved model.
 
 Deployment evidence is in `output/nudge-geometry-20260923/`: immutable four-script delta, baseline guards, unchanged runtime-file verification, role readiness and public asset hashes. No production activation or topology changes.
+
+Verified on web, worker and legacy: exact release, development environment and full-house readiness. All four public asset SHA-256 hashes match the immutable commit. The public editor URL redirects to login; this is not an authenticated live-model interaction test.
