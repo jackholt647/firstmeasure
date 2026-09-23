@@ -26,17 +26,14 @@ test('photo controls work while wall mode captures model clicks', async () => {
     await page.evaluate(()=>{window.modelWheels=0;document.getElementById('three-container').addEventListener('wheel',()=>window.modelWheels++);});
     const container=await page.locator('#three-container').boundingBox();
     await page.mouse.move(container.x+100,container.y+300);await page.mouse.wheel(0,-100);
-    await page.waitForFunction(()=>parseFloat(document.querySelector('.resource-3d-background img').style.width)>800);
-    const zoomed=await state(),ratio=zoomed.width/initial.width;
-    assert.ok(Math.abs(zoomed.left-(100-(100-initial.left)*ratio))<.01,'keep the photo coordinate beneath the cursor');
-    assert.equal(await page.evaluate(()=>window.modelWheels),0,'photo zoom does not reach model controls');
-    await page.locator('[data-photo="fit"]').click();
+    await page.waitForFunction(()=>window.modelWheels===1);
+    assert.deepEqual(await state(),initial,'scrolling over the photo image leaves its alignment unchanged');
     await page.mouse.move(container.x+100,container.y+20);await page.mouse.wheel(0,100);
-    await page.waitForFunction(()=>window.modelWheels===1);assert.equal((await state()).width,initial.width,'outside photo keeps model zoom');
+    await page.waitForFunction(()=>window.modelWheels===2);assert.equal((await state()).width,initial.width,'outside photo keeps model zoom');
     await page.locator('#resource-3d-controls header').hover();await page.mouse.wheel(0,-100);
     await page.waitForFunction(()=>parseFloat(document.querySelector('.resource-3d-background img').style.width)>800);
     assert.equal((await state()).left,initial.left,'controls zoom around the photo center');
-    assert.equal(await page.evaluate(()=>window.modelWheels),1);
+    assert.equal(await page.evaluate(()=>window.modelWheels),2);
     await page.locator('[data-photo="fit"]').click();
 
     for (const [direction, axis, delta] of [['right','left',10],['left','left',-10],['up','top',-10],['down','top',10]]) {

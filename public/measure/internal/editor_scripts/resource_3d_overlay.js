@@ -61,19 +61,13 @@
  window.addEventListener('pointerdown',e=>{if(!e.target.closest?.('#resource-3d-controls'))return;if(e.target.closest('[data-photo="drag"]')&&e.button===0){drag={id:e.pointerId,cx:e.clientX,cy:e.clientY,x,y};e.target.setPointerCapture(e.pointerId);e.preventDefault();}e.stopImmediatePropagation();},true);
  window.addEventListener('pointermove',e=>{if(!drag){if(e.target.closest?.('#resource-3d-controls'))e.stopImmediatePropagation();return;}if(e.pointerId!==drag.id)return;x=drag.x+e.clientX-drag.cx;y=drag.y+e.clientY-drag.cy;layout();saveSettings();e.preventDefault();e.stopImmediatePropagation();},true);
  const finish=e=>{if(drag&&e.pointerId===drag.id){drag=null;e.stopImmediatePropagation();}};window.addEventListener('pointerup',finish,true);window.addEventListener('pointercancel',finish,true);window.addEventListener('blur',()=>drag=null);
- // The image is behind a pointer-transparent model canvas, so hit-test its
- // rotated bounds rather than relying on the event target being the image.
+ // Wheel zoom belongs only to the controls; the entire model canvas stays free.
  window.addEventListener('wheel',e=>{
-  if(!source||layer?.hidden)return;
-  const controls=!!e.target.closest?.('#resource-3d-controls'),c=layer.parentNode;
-  if(!controls&&(!c.contains(e.target)||e.target!==c&&!e.target.closest?.('canvas,.resource-3d-background')))return;
-  const r=c.getBoundingClientRect(),cx=r.left+c.clientWidth/2+x,cy=r.top+c.clientHeight/2+y,dx=e.clientX-cx,dy=e.clientY-cy,angle=rotation*Math.PI/180;
-  const fit=Math.min(c.clientWidth/width,c.clientHeight/height),u=dx*Math.cos(angle)+dy*Math.sin(angle),v=-dx*Math.sin(angle)+dy*Math.cos(angle);
-  if(!controls&&(Math.abs(u)>width*fit*scale/2||Math.abs(v)>height*fit*scale/2))return;
+  if(!source||panel?.hidden||!e.target.closest?.('#resource-3d-controls'))return;
+  const c=layer.parentNode;
   e.preventDefault();e.stopImmediatePropagation();
   const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?c.clientHeight:1);if(!Number.isFinite(delta)||!delta)return;
-  const next=Math.max(.1,Math.min(5,scale*Math.exp(-Math.max(-500,Math.min(500,delta))*.0015))),ratio=next/scale;
-  if(!controls){x+=dx*(1-ratio);y+=dy*(1-ratio);}scale=next;layout();saveSettings();
+  scale=Math.max(.1,Math.min(5,scale*Math.exp(-Math.max(-500,Math.min(500,delta))*.0015)));layout();saveSettings();
  },{capture:true,passive:false});
  for(const type of ['keydown','keyup','dblclick'])window.addEventListener(type,e=>{if(e.target.closest?.('#resource-3d-controls'))e.stopImmediatePropagation();},true);
  setInterval(()=>{const project=String(window.currentProjectId||'');if(project===seenProject)return;if(source)remove(false);seenProject=project;if(project)restoreProject(project);},500);
