@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 planar editing: [Shared sketch movement](deploy/digitalocean/development-planar-editing-20260923.md) records `ccc45af009b25a99af8ce46315f624dc42442c1b` on all development roles. Connected sketch intersections prevent diagonal remnants after Q; ordinary line M/nudge share planar ownership and allow outline expansion. All 1,032 relevant checks pass, with public assets/readiness verified. This is a two-file editor delta; architecture `4a3c46c` remains undeployed. Preserve this runtime baseline.
+
 September 23 soffit highlight correction: [One shared contact line](deploy/digitalocean/development-soffit-line-alignment-20260923.md) records `90c6a3c9831c4935bc9b0d64a5f67e995e26146a` on all development roles. Red highlights and picking now use the continuous wall boundary; 1,026 relevant checks pass. This was a two-file editor delta; architecture commit `4a3c46c` remains undeployed. Preserve this runtime baseline.
 
 September 23 generated boundary follow-up: [Near-straight roof-contact edges](deploy/digitalocean/development-wall-boundary-noise-20260923.md) records `0dbd848b4684350e1735b62ba116df65cbd152cd` on all development roles. The captured-house front edge no longer exposes roof-triangle clipping stations; roof-contact meshes and deliberate points are retained. 1,024 relevant checks and live browser/HTTP verification passed. Preserve this runtime baseline.
