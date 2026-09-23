@@ -2390,7 +2390,7 @@ for(const initial of [18,24])test(`turret Resoffit consumes old sketch boundarie
   const surfaces=(r.state.wallEdits.$surfaces||[]).filter(f=>!f.deleted&&!f.drafted);
   const supported=p=>surfaces.some(f=>{const frame=K.frame(f),q=K.local(frame,p);return Math.abs(q.z)<K.CONTACT&&G.contains({points:f.points.map(p=>K.local(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},q);});
   assert.ok(points.every(p=>baseline.has([p.x,p.y,p.z].map(v=>v.toFixed(5)).join(','))||supported(p)),'retained points stay on actual replacement faces');
-  f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry.points.length===2)assert.ok(o.geometry.points.every(p=>p.x>=1000),'no leftover source edges');}},p=>p);
+  f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry.points.length===2)assert.ok(o.geometry.points.every(p=>p.x>=1000),'no leftover source edges: '+JSON.stringify(o.geometry.points));}},p=>p);
  };
  check();
  for(const depth of [.1524,.6096,.1524]){
@@ -2435,6 +2435,23 @@ test('generated collinear wall subdivisions do not become sketch anchors, while 
  f.editor.doubleClick(f.e(2,4),walls[0]);assert.ok(d.sketch.nodes.some(n=>n.x===2&&n.y===4&&n.userDraftPoint));
  const loaded=fixture({walls,state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});loaded.editor.draw3D({add(){}},p=>p);
  assert.equal(loaded.state.wallEdits.$drafts[walls[0].mergeGroup].sketch.nodes.length,5);
+});
+
+test('survey-noise roof stations form one selectable edge and do not return when editing',()=>{
+ const heights=[4,3.98,3.975,4.002,3.99,4.01,4.005,4];
+ const walls=G.mergeCoplanar(Array.from({length:7},(_,i)=>({id:i?'part-'+i:'w',sourceId:'R1',kind:'perimeter',bottom:[{x:i,y:0,z:0},{x:i+1,y:0,z:0}],top:[{x:i,y:0,z:heights[i]},{x:i+1,y:0,z:heights[i+1]}]}))).walls;
+ const before=JSON.stringify(walls),geo=G.topology(walls);assert.equal(geo.faces[0].pointIndices.length,4);assert.equal(geo.faces[0].triangles.length,14,'keep the exact roof-contact mesh');assert.equal(JSON.stringify(walls),before);
+ const f=fixture({walls});f.editor.pickLine3D(f.e(3.5,4));f.listeners.pointerup(f.e(3.5,4));const pair=f.editor.selectionSnapshot().lineSelection[0].pair;assert.equal(Math.abs(pair[1].x-pair[0].x),7);
+ f.editor.beginFace(f.e(.5,2),walls[0]);f.listeners.pointerup(f.e(.5,2));const d=f.state.wallEdits.$drafts[walls[0].mergeGroup];assert.equal(d.sketch.nodes.length,4);
+ f.editor.doubleClick(f.e(2,4),walls[0]);assert.ok(d.sketch.nodes.some(n=>n.x===2&&n.y===4&&n.userDraftPoint));
+ const loaded=fixture({walls,state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});loaded.editor.draw3D({add(){}},p=>p);assert.equal(loaded.state.wallEdits.$drafts[walls[0].mergeGroup].sketch.nodes.length,5);
+});
+
+test('captured house front wall stays a four-corner outline when selected',()=>{
+ const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),walls=r.composed;
+ const wall=walls.find(w=>w.mergeGroup?.includes('envelope-0-18-')),f=fixture({walls,state:r.state,globals:{WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys')}});assert.ok(wall);
+ f.editor.beginFace(f.e(0,65),wall);f.listeners.pointerup(f.e(0,65));
+ const d=f.state.wallEdits.$drafts[wall.mergeGroup];assert.ok(d);assert.equal(d.sketch.nodes.length,4);
 });
 
 test('point drawing continues outside the active wall plane outline',()=>{

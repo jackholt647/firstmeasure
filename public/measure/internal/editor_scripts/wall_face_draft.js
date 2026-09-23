@@ -358,7 +358,12 @@ window.createWallFaceDraft=function(host){
   const edits=host.state().wallEdits={...host.state().wallEdits},drafts=edits.$drafts||={};if(drafts[id(w)]&&(drafts[id(w)].faces.length||drafts[id(w)].sketch?.nodes.length||drafts[id(w)].deletedFaces?.length)){retainSourcePoints(drafts[id(w)]);return drafts[id(w)];}
   const origin={...w.bottom[0]},len=Math.hypot(w.bottom[1].x-origin.x,w.bottom[1].y-origin.y),u={x:(w.bottom[1].x-origin.x)/len,y:(w.bottom[1].y-origin.y)/len};
   const members=walls().filter(v=>id(v)===id(w)),local=p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,y:p.z,z:0});
-  const filled=members.map(v=>[v.bottom[0],v.bottom[1],v.top[1],v.top[0]].map(local)),union=W.unionPlanar(filled),loops=union.map(f=>f.points),holes=union.flatMap(f=>f.holes);if(!loops.length)throw Error("Could not build the merged wall outline.");
+  const filled=members.map(v=>[v.bottom[0],v.bottom[1],v.top[1],v.top[0]].map(local)),union=W.unionPlanar(filled);
+  if(members.every(v=>v.sourceId&&v.kind==='perimeter'&&!v.chimney)){
+   const junctions=walls().filter(v=>!members.includes(v)).flatMap(v=>[...v.bottom,...v.top]).filter(p=>Math.abs((p.x-origin.x)*u.y-(p.y-origin.y)*u.x)<1e-5).map(local);
+   for(const face of union){face.points=G.simplifyGeneratedRing(face.points.map(p=>({...p,z:0})),junctions);face.holes=(face.holes||[]).map(r=>G.simplifyGeneratedRing(r.map(p=>({...p,z:0})),junctions));}
+  }
+  const loops=union.map(f=>f.points),holes=union.flatMap(f=>f.holes);if(!loops.length)throw Error("Could not build the merged wall outline.");
   const d={origin,u,chimney:w.chimney&&copy(w.chimney),members:members.map(v=>v.id),faces:loops.map((points,i)=>({id:'wall-region-'+i,points:points.map(p=>({...p,z:0}))}))};d.faces.push(...holes.map((points,i)=>({id:'wall-hole-'+i,boundaryHole:true,points:points.map(p=>({...p,z:0}))})));S.ensure(d);for(const p of members.filter(v=>!v.sourceId).flatMap(v=>[...v.bottom,...v.top].map(local)))if(!d.sketch.nodes.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<.0001)){const nodeId=S.add(d,p,.0001);if(d.chimney)d.sketch.nodes.find(n=>n.id===nodeId).generatedBoundary=true;}retainSourcePoints(d);classify(d);drafts[id(w)]=d;return d;
  }
  function rayPoint(d,e){

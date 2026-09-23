@@ -211,6 +211,18 @@ test('flashing alignment requires the same roof and a sub-five-millimetre plane 
   assert.deepEqual(flash.bottom,input[0].bottom,scenario);assert.deepEqual(flash.top,input[0].top,scenario);
  }
 });
+test('generated boundary cleanup keeps junctions, real corners and cumulative curvature',()=>{
+ const ring=[{x:0,y:0,z:0},{x:1,y:0,z:.01},{x:2,y:0,z:0},{x:2,y:0,z:3},{x:0,y:0,z:3}];
+ assert.equal(G.simplifyGeneratedRing(ring).length,4);
+ assert.equal(G.simplifyGeneratedRing(ring,[ring[1]]).length,5,'adjoining wall endpoints are not disposable stations');
+ const corner=[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1.01,y:0,z:.01},{x:1.01,y:0,z:3},{x:0,y:0,z:3}];
+ assert.equal(G.simplifyGeneratedRing(corner).length,5,'small physical turns survive');
+ const curve=Array.from({length:21},(_,i)=>({x:i,y:0,z:.002*i*i}));
+ const simplified=G.simplifyGeneratedRing([...curve,{x:20,y:0,z:5},{x:0,y:0,z:5}]);
+ assert.ok(simplified.length>4,'local near-collinearity cannot accumulate into flattening a curved boundary');
+ assert.equal(G.simplifyGeneratedRing([{x:0,y:0,z:0},{x:2,y:0,z:.001},{x:4,y:0,z:0}]).length,3,'never collapse a face into a line');
+});
+
 test('flashing alignment retains substantial height differences and unrelated nearby returns',()=>{
  const input=driftedFlashing();for(const p of input[0].top)p.z=4.8;input[2].sourceRoofId='unrelated';
  const result=G.deduplicate(input).walls,flash=result.find(w=>w.kind==='flashing'),turn=result.find(w=>w.id==='return');

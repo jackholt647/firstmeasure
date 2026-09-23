@@ -2,6 +2,14 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {build}=require('./roof-generation-fixture.cjs'),fixture=require('./fixtures/layered-turrets-roof.json');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry'),B=require('../public/measure/internal/editor_scripts/base_geometry'),C=require('../public/measure/internal/editor_scripts/wall_chimneys');
 const upper=new Set([10,11,12,13,14,15,16,17,18,21,22,23,24,25,26,38,39]);
+test('captured house front eave has one editable top edge despite roof mesh noise',()=>{
+ const r=build(fixture,18),before=JSON.stringify(r.composed),geo=G.topology(r.composed);
+ const face=geo.faces.find(f=>f.mergeGroup?.includes('envelope-0-18-'));
+ assert.ok(face,'front wall beside the turret');assert.equal(face.pointIndices.length,4,'no roof triangulation stations on the editable boundary');
+ const top=face.boundary.filter(e=>e.every(i=>geo.points[i].z>66));assert.equal(top.length,1);
+ assert.ok(Math.hypot(...['x','y','z'].map(k=>geo.points[top[0][1]][k]-geo.points[top[0][0]][k]))>7.6,'entire front top is one line');
+ assert.ok(face.triangles.length>2,'retain the original roof-clipped surface');assert.equal(JSON.stringify(r.composed),before);
+});
 function chimneyJunctions(r,soffit=24){
  const roof=r.state.roof;
  // These four independent caps are attached to the two exterior chimneys.

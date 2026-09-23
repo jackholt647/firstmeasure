@@ -744,6 +744,36 @@
         const groups=new Map();walls.forEach((w,i)=>{const key=find(i);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(w.id);});
         return {walls:walls.map((w,i)=>{const ids=groups.get(find(i));return ids.length>1?{...w,mergeGroup:ids.slice().sort().join('|')}:clone(w);}),removed:[...groups.values()].reduce((s,g)=>s+g.length-1,0)};
     }
+    // Measured roof triangles are not perfectly coplanar. Their clipping
+    // stations belong to the contact mesh, not to the editable wall outline.
+    // Bound the total deviation of a joined run (not just each local bend),
+    // and retain actual turns and shared wall junctions.
+    function simplifyGeneratedEdges(points,edges,junctions=new Set(),tolerance=.05) {
+        const result=edges.map(e=>({ids:e.slice(),samples:e.slice()}));
+        const distance3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+        let changed=true;
+        while(changed){changed=false;
+            for(const id of new Set(result.flatMap(e=>e.ids))){
+                if(junctions.has(id))continue;
+                const incident=result.filter(e=>e.ids.includes(id));if(incident.length!==2)continue;
+                const a=incident[0].ids.find(v=>v!==id),b=incident[1].ids.find(v=>v!==id);if(a===b)continue;
+                if(result.some(e=>e.ids.includes(a)&&e.ids.includes(b)))continue;
+                const p=points[a],q=points[b],v=points[id],l=distance3(p,q),la=distance3(p,v),lb=distance3(v,q);
+                if(l<1e-8||la<1e-8||lb<1e-8)continue;
+                const cosine=((v.x-p.x)*(q.x-v.x)+(v.y-p.y)*(q.y-v.y)+(v.z-p.z)*(q.z-v.z))/(la*lb);
+                if(cosine<Math.cos(5*Math.PI/180))continue;
+                const samples=[...new Set(incident.flatMap(e=>e.samples))];
+                if(samples.some(i=>{const s=points[i],t=((s.x-p.x)*(q.x-p.x)+(s.y-p.y)*(q.y-p.y)+(s.z-p.z)*(q.z-p.z))/(l*l);return t<-1e-8||t>1+1e-8||distance3(s,mix(p,q,t))>tolerance;}))continue;
+                result.splice(result.indexOf(incident[0]),1);result.splice(result.indexOf(incident[1]),1);result.push({ids:[a,b],samples});changed=true;break;
+            }
+        }
+        return result.map(e=>e.ids);
+    }
+    function simplifyGeneratedRing(points,junctions=[]) {
+        const protectedIds=new Set(points.flatMap((p,i)=>junctions.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5)?[i]:[]));
+        const edges=simplifyGeneratedEdges(points,points.map((p,i)=>[i,(i+1)%points.length]),protectedIds),kept=new Set(edges.flat());
+        return points.filter((p,i)=>kept.has(i));
+    }
     function topology(walls) {
         const points=[],connections=[],faces=[],index=new Map(),edges=new Set();
         const add=p=>{const key=[p.x,p.y,p.z].map(v=>v.toFixed(5)).join('|');if(!index.has(key)){index.set(key,points.length);points.push({...p});}return index.get(key);};
@@ -768,21 +798,13 @@
                     for(const id of new Set(segments.flat())){const p=points[id],t=((p.x-a.x)*d.x+(p.y-a.y)*d.y+(p.z-a.z)*d.z)/len;if(t<=1e-6||t>=1-1e-6)continue;if(Math.hypot(p.x-a.x-t*d.x,p.y-a.y-t*d.y,p.z-a.z-t*d.z)<1e-5)cuts.push({t,id});}
                     cuts.sort((a,b)=>a.t-b.t);for(let i=1;i<cuts.length;i++){const ids=[cuts[i-1].id,cuts[i].id],key=ids.slice().sort((a,b)=>a-b).join(':');const entry=pieces.get(key);if(entry)entry.count++;else pieces.set(key,{ids,count:1});}
                 }
-                const outside=[...pieces.values()].filter(p=>p.count===1).map(p=>p.ids);
+                let outside=[...pieces.values()].filter(p=>p.count===1).map(p=>p.ids);
                 // Triangulation and source clipping introduce stations along an
                 // otherwise straight generated boundary. Keep genuine corners
                 // and junctions with other walls, not these internal stations.
                 if(members.every(f=>f.sourceId)){
                     const junctions=new Set(faces.filter(f=>f.mergeGroup!==group).flatMap(f=>f.pointIndices));
-                    let changed=true;while(changed){changed=false;
-                        for(const id of new Set(outside.flat())){
-                            if(junctions.has(id))continue;const incident=outside.filter(e=>e.includes(id));if(incident.length!==2)continue;
-                            const a=incident[0].find(v=>v!==id),b=incident[1].find(v=>v!==id);if(a===b)continue;
-                            const p=points[a],q=points[b],v=points[id],dx=q.x-p.x,dy=q.y-p.y,dz=q.z-p.z,l2=dx*dx+dy*dy+dz*dz,t=((v.x-p.x)*dx+(v.y-p.y)*dy+(v.z-p.z)*dz)/l2;
-                            if(t<=0||t>=1||Math.hypot(v.x-p.x-t*dx,v.y-p.y-t*dy,v.z-p.z-t*dz)>1e-5)continue;
-                            outside.splice(outside.indexOf(incident[0]),1);outside.splice(outside.indexOf(incident[1]),1);outside.push([a,b]);changed=true;break;
-                        }
-                    }
+                    outside=simplifyGeneratedEdges(points,outside,junctions,members.every(f=>f.kind==='perimeter'&&!f.chimney)?.05:1e-5);
                 }
                 boundary.push(...outside);
                 let pointIndices=[...new Set(outside.flat())];
@@ -821,7 +843,7 @@
         }
         return group.map(w=>w.id);
     }
-    const api={chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,plane,contains,onEdge,generatedMoveGroup,INCH};
+    const api={chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,plane,contains,onEdge,generatedMoveGroup,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
