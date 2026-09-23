@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 shared overlay allowance: [Six pixels for lines and points](deploy/digitalocean/development-overlay-depth-six-20260923.md) records `9ca524208bd8d86826ffac40405065fdd108b3ba` on all development roles. Both use six pixels, with point markers retaining higher drawing order. All 52 focused checks and public verification passed. The one-script delta preserves `9d132fa`; production is unchanged.
+
 September 23 production tutorial submission: [Multipart upload proxy repair](deploy/digitalocean/production-tutorial-multipart-20260923.md) records the targeted `3fa1f34b865983953ab0024c92bfca45be2747e3` web hotfix. All six production web nodes passed local readiness and a 100-request public fleet check; compatibility and worker roles retain the previous release.
 
 September 23 line depth adjustment: [Ten-pixel line allowance](deploy/digitalocean/development-line-depth-ten-20260923.md) records `9d132fad68ba53563d172c24224305c156380d81` on all development roles. Lines use ten pixels; points retain four. All 52 focused checks and public hash/readiness verification passed. The one-script delta preserves `8a322e2`; production is unchanged.
