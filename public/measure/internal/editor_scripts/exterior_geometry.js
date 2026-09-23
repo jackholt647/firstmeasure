@@ -160,14 +160,43 @@ function partition(sketch){
 }
 // Exact conic definitions are persisted; sampling is only an evaluation cache.
 const curvePoint=(c,t)=>{
+ if(c.type==='spline'){t=Math.max(0,Math.min(1,t));let i=c.knots.findIndex((v,i)=>i&&v>=t)-1;if(i<0)i=c.segments.length-1;const q=c.segments[i],u=(t-c.knots[i])/(c.knots[i+1]-c.knots[i]),v=1-u;return Object.fromEntries(['x','y','z'].map(k=>[k,v*v*v*q[0][k]+3*v*v*u*q[1][k]+3*v*u*u*q[2][k]+u*u*u*q[3][k]]));}
+
  if(c.type==='surface-boundary'){const path=c.path||[c.from,c.to],at=Math.min(path.length-1,Math.max(0,t)*(path.length-1)),i=Math.min(path.length-2,Math.floor(at)),a=path[i],b=path[i+1],v=at-i;return surfacePoint(c.surface,a.x+(b.x-a.x)*v,a.y+(b.y-a.y)*v);}
  if(c.type==='conic'){const a=(1-t)*(1-t),b=2*c.weight*t*(1-t),d=t*t,w=a+b+d;return {x:(a*c.start.x+b*c.control.x+d*c.end.x)/w,y:(a*c.start.y+b*c.control.y+d*c.end.y)/w,z:(a*c.start.z+b*c.control.z+d*c.end.z)/w};}
  const angle=c.sweep*t;return {x:c.center.x+c.u.x*c.radiusX*Math.cos(angle)+c.v.x*c.radiusY*Math.sin(angle),y:c.center.y+c.u.y*c.radiusX*Math.cos(angle)+c.v.y*c.radiusY*Math.sin(angle),z:c.center.z+c.u.z*c.radiusX*Math.cos(angle)+c.v.z*c.radiusY*Math.sin(angle)};
 };
-function curveSamples(c,tolerance=.001){
- const out=[{...curvePoint(c,0),curveT:0}],split=(a,b,pa,pb,depth)=>{const m=(a+b)/2,pm=curvePoint(c,m),linear={x:(pa.x+pb.x)/2,y:(pa.y+pb.y)/2,z:(pa.z+pb.z)/2};if(depth<14&&(distance(pm,linear)>tolerance||b-a>.125)){split(a,m,pa,pm,depth+1);split(m,b,pm,pb,depth+1);}else out.push({...pb,curveT:b});};split(0,1,out[0],curvePoint(c,1),0);return out;
+const archScale=(v,k)=>({x:v.x*k,y:v.y*k,z:v.z*k});
+function splineThrough(pair,controls=[],n){
+ const [a,b]=pair,v=sub(b,a),l2=dot(v,v);if(l2<1e-10)throw Error('Select a line with distinct endpoints.');
+ const projected=controls.map(p=>{const t=dot(sub(p,a),v)/l2,q=n?sub(p,archScale(n,dot(sub(p,a),n))):p;return {t,p:q};}).filter(q=>q.t>1e-6&&q.t<1-1e-6).sort((a,b)=>a.t-b.t),inside=[];
+ for(const q of projected){if(inside.length&&q.t-inside.at(-1).t<1e-6)inside[inside.length-1]=q;else inside.push(q);}
+ const ps=[a,...inside.map(q=>q.p),b].map(p=>({x:p.x,y:p.y,z:p.z})),knots=[0,...inside.map(q=>q.t),1],count=ps.length,h=knots.slice(1).map((t,i)=>t-knots[i]),second=ps.map(()=>({x:0,y:0,z:0}));
+ for(const k of ['x','y','z']){const upper=[],rhs=[];for(let i=1;i<count-1;i++){const den=2*(h[i-1]+h[i])-h[i-1]*(upper[i-1]||0);upper[i]=h[i]/den;rhs[i]=(6*((ps[i+1][k]-ps[i][k])/h[i]-(ps[i][k]-ps[i-1][k])/h[i-1])-h[i-1]*(rhs[i-1]||0))/den;}for(let i=count-2;i>0;i--)second[i][k]=rhs[i]-(upper[i]||0)*second[i+1][k];}
+ const segments=h.map((d,i)=>{const c1={},c2={};for(const k of ['x','y','z']){const slope=(ps[i+1][k]-ps[i][k])/d;c1[k]=ps[i][k]+d/3*(slope-d*(2*second[i][k]+second[i+1][k])/6);c2[k]=ps[i+1][k]-d/3*(slope+d*(second[i][k]+2*second[i+1][k])/6);}return [ps[i],c1,c2,ps[i+1]];});
+ return {type:'spline',controls:ps,knots,segments};
 }
-function mapCurve(c,map){if(c.type==='surface-boundary')return {...c,surface:mapCurveData({curvedSurface:c.surface},map).curvedSurface};if(c.type==='conic')return {...c,start:map(c.start),control:map(c.control),end:map(c.end)};const center=map(c.center),axis=(v,r)=>sub(map({x:c.center.x+v.x*r,y:c.center.y+v.y*r,z:c.center.z+v.z*r}),center),a=axis(c.u,c.radiusX),b=axis(c.v,c.radiusY),rx=Math.hypot(a.x,a.y,a.z),ry=Math.hypot(b.x,b.y,b.z);return {...c,center,u:{x:a.x/rx,y:a.y/rx,z:a.z/rx},v:{x:b.x/ry,y:b.y/ry,z:b.z/ry},radiusX:rx,radiusY:ry};}
+function archSnap(pair,controls,raw,{normal:n,points=[],screen=p=>p,radius=20,snap=true}={}){
+ const [a,b]=pair,v=sub(b,a),l2=dot(v,v),u=archScale(v,1/Math.sqrt(l2)),side=cross(n,u),station=p=>dot(sub(p,a),v)/l2,height=p=>dot(sub(p,a),side),at=(t,h)=>({x:a.x+t*v.x+h*side.x,y:a.y+t*v.y+h*side.y,z:a.z+t*v.z+h*side.z});
+ let t=station(raw),h=height(raw),kind='',guides=[];if(!snap)return {point:at(t,h),kind,guides};
+ const ps=controls.map(p=>({t:station(p),h:height(p)})),ts=[0,...ps.map(p=>p.t),1].sort((a,b)=>a-b),stations=[{t:.5,kind:'Center'},...ps.map(p=>({t:1-p.t,h:p.h,kind:'Symmetric'})),...ts.slice(1).map((x,i)=>({t:(x+ts[i])/2,kind:'Segment midpoint'}))];
+ const near=points.filter(p=>Math.abs(dot(sub(p,a),n))<.002);for(const p of near)stations.push({t:station(p),kind:'Alignment'});
+ const pixel=p=>{const q=screen(p),r=screen(raw);return Math.hypot(q.x-r.x,q.y-r.y);};
+ let best=null;for(const c of stations){if(c.t<=1e-6||c.t>=1-1e-6)continue;const d=pixel(at(c.t,h));if(d<radius&&(!best||d<best.d-1e-4))best={...c,d};}if(best){t=best.t;kind=best.kind;if(best.h!==undefined&&pixel(at(t,best.h))<radius)h=best.h;guides.push({points:[at(t,0),at(t,h)],color:'#72ffb0',role:'arch-station'});}
+ const levels=[{h:0},...ps,...near.map(p=>({h:height(p)}))];let bestHeight=null;for(const c of levels){const d=pixel(at(t,c.h));if(d<radius&&(!bestHeight||d<bestHeight.d))bestHeight={...c,d};}if(bestHeight){h=bestHeight.h;kind=kind||'Alignment';guides.push({points:[at(0,h),at(1,h)],color:'#72ffb0',role:'arch-height'});}
+ return {point:at(t,h),kind,guides};
+}
+function archFaces(faces,c){
+ const a=curvePoint(c,0),b=curvePoint(c,1),v=sub(b,a),l2=dot(v,v),param=p=>dot(sub(p,a),v)/l2,on=p=>{const t=param(p);return distance(p,{x:a.x+v.x*t,y:a.y+v.y*t,z:a.z+v.z*t})<1e-6;},samples=curveSamples(c),affected=[];
+ const mapped=p=>on(p)&&param(p)>1e-7&&param(p)<1-1e-7?{...p,...curvePoint(c,param(p))}:p;
+ const ring=ps=>ps.flatMap((p,i)=>{const q=ps[(i+1)%ps.length],t=param(p),u=param(q),out=[mapped(p)];if(on(p)&&on(q)&&Math.abs(t-u)>1e-8){const lo=Math.max(0,Math.min(t,u)),hi=Math.min(1,Math.max(t,u));if(hi>lo){const values=[lo,...samples.map(p=>p.curveT).filter(x=>x>lo+1e-8&&x<hi-1e-8),hi].filter(x=>x>Math.min(t,u)+1e-8&&x<Math.max(t,u)-1e-8);if(t>u)values.reverse();out.push(...values.map(t=>({...curvePoint(c,t),curveSample:!c.knots.some(k=>Math.abs(k-t)<1e-8),...(c.knots.some(k=>Math.abs(k-t)<1e-8)?{userDraftPoint:true}:{})})));}}return out;});
+ const result=faces.map(f=>{if(f.deleted||f.snapOnly)return f;const points=ring(f.points),holes=(f.holes||[]).map(ring),retainedPoints=(f.retainedPoints||[]).map(mapped);if(JSON.stringify([points,holes,retainedPoints])===JSON.stringify([f.points,f.holes||[],f.retainedPoints||[]]))return f;const next={...f,points,holes,retainedPoints,curves:[...(f.curves||[]),c],...(f.feature?{feature:{...f.feature,preset:null,shape:'custom'}}:{})};validateFace(next);affected.push(f.id);return next;});
+ return {faces:result,affected};
+}
+function curveSamples(c,tolerance=.001){
+ const out=[{...curvePoint(c,0),curveT:0}],split=(a,b,pa,pb,depth)=>{const m=(a+b)/2,pm=curvePoint(c,m),linear={x:(pa.x+pb.x)/2,y:(pa.y+pb.y)/2,z:(pa.z+pb.z)/2};if(depth<14&&(distance(pm,linear)>tolerance||b-a>.125)){split(a,m,pa,pm,depth+1);split(m,b,pm,pb,depth+1);}else out.push({...pb,curveT:b});};if(c.type==='spline'){for(let i=1;i<c.knots.length;i++)split(c.knots[i-1],c.knots[i],out.at(-1),curvePoint(c,c.knots[i]),0);}else split(0,1,out[0],curvePoint(c,1),0);return out;
+}
+function mapCurve(c,map){if(c.type==='spline')return {...c,controls:c.controls.map(map),segments:c.segments.map(s=>s.map(map))};if(c.type==='surface-boundary')return {...c,surface:mapCurveData({curvedSurface:c.surface},map).curvedSurface};if(c.type==='conic')return {...c,start:map(c.start),control:map(c.control),end:map(c.end)};const center=map(c.center),axis=(v,r)=>sub(map({x:c.center.x+v.x*r,y:c.center.y+v.y*r,z:c.center.z+v.z*r}),center),a=axis(c.u,c.radiusX),b=axis(c.v,c.radiusY),rx=Math.hypot(a.x,a.y,a.z),ry=Math.hypot(b.x,b.y,b.z);return {...c,center,u:{x:a.x/rx,y:a.y/rx,z:a.z/rx},v:{x:b.x/ry,y:b.y/ry,z:b.z/ry},radiusX:rx,radiusY:ry};}
 function curveSvg(c,project,lo=0,hi=1){if(c.type!=='ellipse'){const ps=[curvePoint(c,lo),...curveSamples(c).filter(p=>p.curveT>lo&&p.curveT<hi),curvePoint(c,hi)].map(project);return {d:ps.map((p,i)=>(i?'L ':'M ')+p.x+' '+p.y).join(' '),'vector-effect':'non-scaling-stroke'};}const o=project(c.center),a=project({x:c.center.x+c.u.x,y:c.center.y+c.u.y,z:c.center.z+c.u.z}),b=project({x:c.center.x+c.v.x,y:c.center.y+c.v.y,z:c.center.z+c.v.z}),x=c.radiusX*Math.cos(c.sweep*hi),y=c.radiusY*Math.sin(c.sweep*hi);return {d:'M '+(c.radiusX*Math.cos(c.sweep*lo))+' '+(c.radiusY*Math.sin(c.sweep*lo))+' A '+c.radiusX+' '+c.radiusY+' 0 '+(Math.abs(c.sweep*(hi-lo))>Math.PI?1:0)+' '+(c.sweep>0?1:0)+' '+x+' '+y,transform:'matrix('+[a.x-o.x,a.y-o.y,b.x-o.x,b.y-o.y,o.x,o.y].join(' ')+')','vector-effect':'non-scaling-stroke'};}
 function mapCurveData(f,map){const out={};if(f.joinedChimneys)out.joinedChimneys=[...f.joinedChimneys];if(f.trimData)out.trimData={...f.trimData,layers:f.trimData.layers.map(l=>{const pair=l.pair.map(map);return {...l,pair,id:'trim:'+edgeKey(...pair)};})};if(f.curves?.length)out.curves=f.curves.map(c=>mapCurve(c,map));if(f.curvedSurface){const c=f.curvedSurface,origin=c.curve&&curvePoint(c.curve,0);out.curvedSurface={...c,...(c.type==='quadric-corner'?{origin:map(c.origin),shoulders:c.shoulders.map(map)}:c.start?{start:mapCurve(c.start,map),finish:mapCurve(c.finish,map)}:{curve:mapCurve(c.curve,map),offset:sub(map({x:origin.x+c.offset.x,y:origin.y+c.offset.y,z:origin.z+c.offset.z}),map(origin))})};}return out;}
 
@@ -288,6 +317,6 @@ function arcPreview(start,center,p,normal0,track={},snap=true){
  const priorSweep=track.sweep||0;let delta=angle-(track.angle||0);while(delta>Math.PI)delta-=2*Math.PI;while(delta< -Math.PI)delta+=2*Math.PI;let sweep=(track.sweep||0)+delta;if(Math.abs(sweep)>=Math.PI*2)sweep%=Math.PI*2;if(track.close&&Math.abs(priorSweep)>Math.PI)sweep=Math.sign(priorSweep)*Math.PI*2;track.angle=angle;track.sweep=sweep;
  return {type:'ellipse',version:1,center:{...center},u,v,radiusX,radiusY,sweep};
 }
-const api={normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
+const api={splineThrough,archSnap,archFaces,normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.ExteriorGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

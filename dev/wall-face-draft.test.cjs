@@ -2534,3 +2534,24 @@ test('horizontal divider movement follows a changing roof and sloping floor prof
  let x=1;for(let i=0;i<10;i++){f.editor.key({key:'ArrowRight',shiftKey:true});x+=.1524;const pair=f.editor.selectionSnapshot().lineSelection[0].pair,top=x<=2?4+.5*x:7-x;assert.ok(pair.every(p=>Math.abs(p.x-x)<1e-6));assert.ok(Math.abs(Math.max(...pair.map(p=>p.z))-top)<1e-6,f.message());assert.ok(Math.abs(Math.min(...pair.map(p=>p.z))-.1*x)<1e-6);}
  const before=JSON.stringify(f.state.wallEdits);f.listeners.pointermove(f.e(x,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.5,2));const pair=f.editor.selectionSnapshot().lineSelection[0].pair;assert.ok(Math.abs(Math.max(...pair.map(p=>p.z))-4.75)<1e-6);assert.ok(Math.abs(Math.min(...pair.map(p=>p.z))-.15)<1e-6);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
+
+test('A arches a window edge through clicked points and commits one edit with no old chord',()=>{
+ const p=(x,z)=>({x,y:0,z}),windowFace={id:'window',points:[p(1,1),p(3,1),p(3,3),p(1,3)],holes:[],feature:{type:'window',preset:0}},state={wallEdits:{$surfaces:[windowFace]}},f=fixture({state,globals:{isFreeMove:true}}),pair=[p(1,3),p(3,3)];
+ f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,3));const before=JSON.stringify(state.wallEdits);f.editor.key({key:'a'});assert.equal(f.editor.busy(),true,f.message());
+ f.listeners.pointermove(f.e(2,3.7));f.editor.down(f.e(2,3.7));assert.equal(f.history.length,0);f.editor.key({key:'Enter'});assert.equal(f.editor.busy(),false,f.message());assert.equal(f.history.length,1);const face=state.wallEdits.$surfaces.find(f=>f.id==='window');assert.equal(face.feature.shape,'custom');assert.equal(face.curves[0].type,'spline');assert.ok(face.points.some(p=>Math.abs(p.x-2)<1e-8&&Math.abs(p.z-3.7)<1e-8));assert.ok(!face.points.some((p,i)=>Math.abs(p.x-face.points[(i+1)%face.points.length].x)>1.9&&p.z===3&&face.points[(i+1)%face.points.length].z===3));assert.equal(JSON.stringify(f.history[0]),before);
+});
+for(const finish of ['a','double'])test('arch '+finish+' finishes multiple points; Escape restores all geometry',()=>{
+ const p=(x,z)=>({x,y:0,z}),state={wallEdits:{$surfaces:[{id:'panel',points:[p(0,0),p(4,0),p(4,3),p(0,3)],holes:[]}]}},f=fixture({state,globals:{isFreeMove:true}}),pair=[p(0,3),p(4,3)],before=JSON.stringify(state.wallEdits);
+ f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,3));f.editor.key({key:'a'});f.editor.down(f.e(.8,3.5));f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+ f.editor.key({key:'a'});f.editor.down(f.e(.8,3.5));f.editor.down(f.e(3.2,3.5));if(finish==='a')f.editor.key({key:'a'});else{f.editor.down(f.e(3.2,3.5));f.editor.doubleClick(f.e(3.2,3.5));}assert.equal(f.editor.busy(),false,f.message());assert.equal(f.history.length,1);assert.equal(state.wallEdits.$surfaces[0].curves[0].controls.length,4);
+});
+test('arching a generated face rewrites its editable draft boundary instead of leaving a straight support line',()=>{
+ const f=fixture({globals:{isFreeMove:true}}),pair=[{x:0,y:0,z:4},{x:4,y:0,z:4}];f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,4));f.editor.key({key:'a'});f.editor.down(f.e(2,5));f.editor.key({key:'Enter'});assert.equal(f.editor.busy(),false,f.message());assert.equal(f.history.length,1);const d=Object.values(f.state.wallEdits.$drafts)[0];assert.ok(d.faces[0].points.some(p=>p.y===5));assert.equal(d.sketch.curves.length,1);assert.ok(!S.curveEdges(d.sketch).some(e=>e.start.y===4&&e.end.y===4&&Math.abs(e.start.x-e.end.x)>3.9));
+});
+
+test('drawing-plane A replaces a loose straight segment with a persisted spline',()=>{
+ const p=(x,z)=>({x,y:0,z}),pair=[p(1,2),p(3,2)],state={wallEdits:{$loose:{points:pair,edges:[pair]}}},f=fixture({state,globals:{isFreeMove:true}});f.editor.key({key:'p'});const snapshot=f.editor.selectionSnapshot();snapshot.workingPlane.selectedLines=[pair];snapshot.workingPlane.selection=pair;f.editor.restoreSelection(snapshot);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'a'});f.editor.planeDown(f.e(2,3));f.editor.key({key:'Enter'});assert.equal(f.editor.busy(),false,f.message());assert.equal(state.wallEdits.$loose.edges.length,0);assert.ok(Object.values(state.wallEdits.$drafts).some(d=>d.sketch.curves?.some(c=>c.type==='spline')));assert.equal(f.history.length,1);
+});
+test('finishing A with only on-line points does not manufacture geometry or history',()=>{
+ const f=fixture({globals:{isFreeMove:true}}),pair=[{x:0,y:0,z:4},{x:4,y:0,z:4}],before=JSON.stringify(f.state.wallEdits);f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,4));f.editor.key({key:'a'});f.editor.down(f.e(2,4));f.editor.key({key:'Enter'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);
+});

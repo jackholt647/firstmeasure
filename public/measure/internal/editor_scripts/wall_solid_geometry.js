@@ -992,6 +992,13 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
   for(const [id,e]of edges)if(onBoundary(nodes.get(e.a))&&onBoundary(nodes.get(e.b)))edges.delete(id);
   for(const [index,ps]of mesh.boundaries.entries()){const id=f.id+'~curve-'+index;for(let i=0;i<ps.length;i++){const p=ps[i],key=vertexKey(p);nodes.set(key,{...p,id:key,curveSample:!anchors.has(key)});if(i){const a=vertexKey(ps[i-1]);edges.set(id+':'+i,{id,a,b:key,curve:true,surfaceId:f.id});}}}
  }
+ // Analytic arch boundaries remain one selectable curve. Tessellation vertices
+ // are render samples; only interpolation points and real junctions are anchors.
+ for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.deleted))for(const c of (f.curves||[]).filter(c=>c.type==='spline')){
+  const ps=K.curveSamples(c),id='spline:'+c.id,anchors=new Set(c.controls.map(vertexKey)),matched=new Set();
+  for(const e of edges.values()){const a=nodes.get(e.a),b=nodes.get(e.b);if(ps.slice(1).some((p,i)=>pointOnEdge(a,ps[i],p)&&pointOnEdge(b,ps[i],p))){e.curve=true;e.id=id;e.surfaceId=f.id;matched.add(e.a);matched.add(e.b);}}
+  for(const key of matched)if(!anchors.has(key)&&![...edges.values()].some(e=>(e.a===key||e.b===key)&&e.id!==id))nodes.get(key).curveSample=true;
+ }
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
 function structuralPoint(p,faces){return faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f)).some(f=>rings(f).some(r=>r.some((q,i)=>{if(vertexKey(q)!==vertexKey(p))return false;const a=sub(r[(i+r.length-1)%r.length],q),b=sub(r[(i+1)%r.length],q),c=cross(a,b);return dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z));})));}

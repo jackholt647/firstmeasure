@@ -89,7 +89,7 @@ window.createBaseEditor=function(host){
 
  function setup(panel){
 
-  const box=document.createElement('div');box.innerHTML='<hr><h3>Editing</h3><div class="wall-row"><button id="base-visible">Base visible</button><button id="base-undo">Undo base</button><button id="base-rebuild-grade" title="Fit the base and attached wall bottoms to the current reference grade">Reground</button></div><div class="wall-fields"><label>Layer<select id="base-layer"><option value="base">Base</option><option value="walls">Walls</option></select></label><label>Selection<select id="base-selection"><option value="point">Points</option><option value="line">Lines</option><option value="face">Faces</option></select></label></div><div class="wall-row"><button id="base-connect">U · Connect</button><button id="base-new">N · Draw line</button><button id="base-curve" title="Draw a circular or elliptical arc from a selected point on a face">S · Draw curve</button><button id="base-delete">Delete</button><button id="base-move">M · Height</button><button id="base-chamfer" title="Bevel selected corner edges or corner points">C &#183; Chamfer</button><button id="base-fillet" title="Round selected wall edges or corner points">R · Fillet</button><button id="base-extrude">E · Extrude</button><button id="base-flat">H · Horizontal</button><button id="base-pitch">Y · Pitch</button></div><p id="base-status"></p>';
+  const box=document.createElement('div');box.innerHTML='<hr><h3>Editing</h3><div class="wall-row"><button id="base-visible">Base visible</button><button id="base-undo">Undo base</button><button id="base-rebuild-grade" title="Fit the base and attached wall bottoms to the current reference grade">Reground</button></div><div class="wall-fields"><label>Layer<select id="base-layer"><option value="base">Base</option><option value="walls">Walls</option></select></label><label>Selection<select id="base-selection"><option value="point">Points</option><option value="line">Lines</option><option value="face">Faces</option></select></label></div><div class="wall-row"><button id="base-connect">U · Connect</button><button id="base-new">N · Draw line</button><button id="base-curve" title="Draw a circular or elliptical arc from a selected point on a face">S · Draw curve</button><button id="base-arch" title="Curve a selected line through spline points; Enter, double-click or A finishes; Escape cancels">A · Arch line</button><button id="base-delete">Delete</button><button id="base-move">M · Height</button><button id="base-chamfer" title="Bevel selected corner edges or corner points">C &#183; Chamfer</button><button id="base-fillet" title="Round selected wall edges or corner points">R · Fillet</button><button id="base-extrude">E · Extrude</button><button id="base-flat">H · Horizontal</button><button id="base-pitch">Y · Pitch</button></div><p id="base-status"></p>';
 
   panel.appendChild(box);
 
@@ -120,7 +120,7 @@ window.createBaseEditor=function(host){
 
   $('undo').onclick=action(()=>{if(host.undo){host.undo();return;}sketchEditor?.clear();if(history.length){restoreHistory();select(null);changed(false);}});
 
-  for(const [id,key]of [['connect','u'],['chamfer','c'],['fillet','r'],['curve','s'],['new','n'],['delete','delete'],['move','m'],['extrude','e'],['flat','h'],['pitch','y']])$(id).onclick=()=>{const e={key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}};if(!host.handleKey?.(e))keyDown(e);};
+  for(const [id,key]of [['connect','u'],['chamfer','c'],['fillet','r'],['curve','s'],['arch','a'],['new','n'],['delete','delete'],['move','m'],['extrude','e'],['flat','h'],['pitch','y']])$(id).onclick=()=>{const e={key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}};if(!host.handleKey?.(e))keyDown(e);};
 
   window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true);
 
@@ -256,7 +256,7 @@ window.createBaseEditor=function(host){
 
   if(!active())return false;
 
-  const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['f','c','u','n','m','h','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
+  const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['a','f','c','u','n','m','h','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
 
   e.preventDefault();e.stopImmediatePropagation();
 
@@ -265,6 +265,7 @@ window.createBaseEditor=function(host){
    message='';
    if(!e.ctrlKey&&!e.metaKey&&tool&&['m','y','n','h','c','u','s'].includes(k)&&!(tool.kind==='step'&&k==='s')&&!(tool.kind==='path'&&k==='c')&&!finishToolForSwitch())return true;
 
+   if(sketchEditor?.interaction()==='Arch line')return sketchEditor.keyDown(e);
    if(k==='escape'){cancel();return true;}
    if(k==='s'&&!e.ctrlKey&&!e.metaKey){if(!tool&&(sketchEditor?.singlePoint()||sketchEditor?.interaction()==='Draw curve'))return sketchEditor.keyDown(e);if(!e.repeat)stepCommand();return true;}
    if(tool?.kind==='step'){if(k==='enter')placeStep();return true;}

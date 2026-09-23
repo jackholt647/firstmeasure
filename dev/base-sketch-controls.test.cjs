@@ -75,3 +75,11 @@ test('base drawings remain rendered when another layer is active and snapping fo
  active=false;const marks=[];editor.draw2D({},(tag,attrs)=>marks.push({tag,attrs}),1);assert.ok(marks.some(m=>m.tag==='path'),'persistent base curve stays visible while editing walls');
  active=true;editor.doubleClick({clientX:500,clientY:792,button:0},'2d');const point=editor.singlePoint();assert.ok(Math.hypot(point.x-5,point.y-8)<.005,'snap to the curved edge, not its invisible chord: '+JSON.stringify(point));
 });
+
+test('base line arch captures A, supports multiple points, and replaces the graph boundary',()=>{
+ let base={faces:[{id:'base',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:0,y:4,z:0}]}]},message='',commits=[];
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),ctx={BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W,ExteriorGeometry:K,isFreeMove:true};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+ const editor=ctx.createBaseSketchEditor({base:()=>base,active:()=>true,mode:()=>'line',faceAt:()=>base.faces[0],position:(e,v,z)=>({x:e.clientX/100,y:e.clientY/100,z}),screen:p=>({x:p.x*100,y:p.y*100}),commit:b=>commits.push(b),restore:b=>base=b,message:m=>message=m,redraw(){},isCenter:()=>false}),e=(x,y)=>({clientX:x*100,clientY:y*100,button:0,buttons:0});
+ editor.down(e(2,4),'2d');editor.up();const before=JSON.stringify(base);editor.keyDown({key:'a'});editor.move(e(2,5),'2d');editor.down(e(2,5),'2d');editor.keyDown({key:'Escape'});assert.equal(JSON.stringify(base),before);assert.equal(commits.length,0);
+ editor.keyDown({key:'a'});editor.down(e(2,5),'2d');editor.keyDown({key:'Enter'});assert.equal(editor.busy(),false,message);assert.equal(commits.length,1);assert.ok(base.faces[0].points.some(p=>p.y===5));assert.equal(base.sketch.curves[0].type,'spline');assert.ok(!S.curveEdges(base.sketch).some(e=>e.start.y===4&&e.end.y===4&&Math.abs(e.start.x-e.end.x)>3.9));
+});
