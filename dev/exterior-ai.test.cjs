@@ -21,5 +21,8 @@ test('AI remains narrow, bounds positions, saves every view, caps refinements, r
  // A change of project during an outstanding response must never move the camera.
  await page.route('http://localhost/exterior_ai.php',async route=>{await page.evaluate(()=>window.currentProjectId='fullhouse_'+'b'.repeat(32));await route.fulfill({json:{result:{x:35,y:10,matched:false,confidence:.6,explanation:'stale'}}});});
  const old=await page.evaluate(()=>({...camera.position}));await page.getByRole('button',{name:'Jump to front with AI'}).click();await page.getByText('Project or exterior mode changed; run stopped.',{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>({...camera.position})),old);
+ await page.route('http://localhost/exterior_ai.php',route=>route.fulfill({json:{result:{x:25,y:10,matched:true,confidence:.32,explanation:'Exact match uncertain.'}}}));
+ await page.evaluate(()=>{camera.isOrthographicCamera=true;window.toggleProjection=()=>{camera.isOrthographicCamera=false;window.switchedProjection=true;};});
+ await page.getByRole('button',{name:'Jump to front with AI'}).click();await page.getByText('Finished: AI stopped at low confidence. Visual match is unverified.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.switchedProjection),true);
  }finally{await browser.close();}
 });
