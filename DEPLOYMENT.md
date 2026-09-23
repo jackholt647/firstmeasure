@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 soffit highlight correction: [One shared contact line](deploy/digitalocean/development-soffit-line-alignment-20260923.md) records `90c6a3c9831c4935bc9b0d64a5f67e995e26146a` on all development roles. Red highlights and picking now use the continuous wall boundary; 1,026 relevant checks pass. This was a two-file editor delta; architecture commit `4a3c46c` remains undeployed. Preserve this runtime baseline.
+
 September 23 generated boundary follow-up: [Near-straight roof-contact edges](deploy/digitalocean/development-wall-boundary-noise-20260923.md) records `0dbd848b4684350e1735b62ba116df65cbd152cd` on all development roles. The captured-house front edge no longer exposes roof-triangle clipping stations; roof-contact meshes and deliberate points are retained. 1,024 relevant checks and live browser/HTTP verification passed. Preserve this runtime baseline.
 
 September 23 wall drawing: [Continuous generated edges and drawing beyond outlines](deploy/digitalocean/development-wall-drawing-20260923.md) records `5960ca6257dfadabee2816d68ce7484f130fedce` on all three development roles, based on the consolidated `ac96d0c` runtime. Public assets and readiness are verified. Generated straight runs no longer expose source subdivision points; point and curve drawing can extend beyond face outlines while retaining deliberate anchors. Preserve this runtime baseline.
