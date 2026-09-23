@@ -98,3 +98,14 @@ test('analytic curves cross the base boundary and survive rebinding without clip
  assert.equal(saved.sketch.curves.length,1);const curve=saved.sketch.curves[0];assert.equal(curve.sweep,Math.PI);
  const segments=S.curveEdges(saved.sketch).filter(e=>e.curveId);assert.ok(segments.some(e=>e.start.x>12.9));assert.ok(segments.some(e=>e.end.x<7.1));
 });
+
+test('planar editing nodes crossings, deduplicates overlaps and keeps stable graph IDs',()=>{
+ const b=base();b.origin={x:0,y:0,z:0};S.ensure(b);
+ const p=(x,y)=>S.add(b,{x,y,z:0}),a=p(3,0),c=p(3,12),left=p(0,5),right=p(10,5);S.connect(b,[a,c]);S.connect(b,[left,right]);
+ const extra=p(8,11);S.nodeLines(b);const s=b.sketch;
+ const cross=s.nodes.find(n=>n.x===3&&n.y===5),upper=s.nodes.find(n=>n.x===3&&n.y===10);
+ assert.ok(cross&&upper);assert.equal(s.edges.filter(e=>[e.a,e.b].includes(cross.id)).length,4);assert.equal(s.edges.filter(e=>[e.a,e.b].includes(upper.id)).length,4);
+ assert.ok(s.nodes.some(n=>n.id===extra&&n.userDraftPoint));
+ const before=JSON.stringify(s);S.nodeLines(b);assert.equal(JSON.stringify(s),before);
+ const pair=e=>[e.a,e.b].sort().join('|');assert.equal(new Set(s.edges.map(pair)).size,s.edges.length);
+});

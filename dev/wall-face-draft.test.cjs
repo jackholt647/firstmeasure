@@ -516,9 +516,9 @@ test('clicking near a selected face edge selects only the line and M slides its 
  f.editor.beginFace(f.e(2,.5),f.w);f.listeners.pointerup(f.e(2,.5));assert.equal(f.editor.pickSolid(f.e(2,1.06)),true);f.listeners.pointerup(f.e(2,1.06));assert.equal(f.message(),'1 lines selected');
  const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material.color==='#fff'&&o.material.depthTest===false&&o.renderOrder===1000));
  f.listeners.pointermove(f.e(2,1));const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'m'});assert.equal(f.editor.busy(),true);f.listeners.pointermove(f.e(2,1.5));
- const surfaces=f.state.wallEdits.$surfaces;assert.equal(surfaces.length,2,f.message());assert.ok(surfaces.every(s=>s.points.filter(p=>Math.abs(p.z-1.5)<1e-6).length===2));
+ const regions=f.d().faces;assert.equal(regions.length,2,f.message());assert.ok(regions.every(s=>s.points.filter(p=>Math.abs(p.y-1.5)<1e-6).length===2));assert.ok(!f.state.wallEdits.$surfaces?.length,'Planar edits stay in their owning sketch');
  f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
- f.listeners.pointermove(f.e(2,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2,1.8));f.editor.down(f.e(2,1.8));assert.equal(f.editor.busy(),false);assert.ok(f.state.wallEdits.$surfaces.every(s=>s.points.some(p=>Math.abs(p.z-1.8)<1e-6)));
+ f.listeners.pointermove(f.e(2,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2,1.8));f.editor.down(f.e(2,1.8));assert.equal(f.editor.busy(),false);assert.ok(f.d().faces.every(s=>s.points.some(p=>Math.abs(p.y-1.8)<1e-6)));
 });
 test('M slides an interior construction line without replacing its supporting face',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=fixture({projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});
@@ -538,7 +538,7 @@ test('line M snaps to a retained edge point with a yellow cue and commits the ex
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=fixture({globals:renderGlobals(),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});
  f.editor.doubleClick(f.e(0,1),f.w);f.editor.key({key:'n'});f.editor.down(f.e(4,1));f.listeners.pointerup(f.e(4,1));f.editor.doubleClick(f.e(0,2),f.w);f.editor.clear();
  f.editor.pickSolid(f.e(2,1));f.listeners.pointerup(f.e(2,1));f.listeners.pointermove(f.e(2,1));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2,1.96));assert.match(f.message(),/Point snap/);
- const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material?.color==='#FFD700'));assert.ok(f.state.wallEdits.$surfaces.every(s=>s.points.some(p=>Math.abs(p.z-2)<1e-6)));
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material?.color==='#FFD700'));assert.ok(f.d().faces.every(s=>s.points.some(p=>Math.abs(p.y-2)<1e-6)));
  const preview=JSON.stringify(f.state.wallEdits);f.editor.down(f.e(2,1.96));assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.equal(f.editor.busy(),false);
 });
 test('window labeling, size cycling, nudging and metadata survive resolve and reload',()=>{
@@ -2477,4 +2477,52 @@ test('wall arc can sweep outside the original wall outline',()=>{
  f.editor.down(f.e(3,2));f.listeners.pointermove(f.e(3,5));f.editor.down(f.e(3,5));
  assert.equal(f.editor.busy(),false,f.message());assert.equal(f.d().sketch.curves.length,1);
  assert.ok(S.curveEdges(f.d().sketch).some(e=>e.start.y>4||e.end.y>4));
+});
+
+
+function slopedBoundaryQuad(){
+ const w={id:'w',bottom:[{x:0,y:0,z:0},{x:4,y:0,z:0}],top:[{x:0,y:0,z:4.04},{x:4,y:0,z:4}]};
+ const f=fixture({walls:[w],globals:{isFreeMove:true}});f.editor.doubleClick(f.e(1,4.03),w);f.editor.key({key:'q'});f.editor.down(f.e(3,0));f.editor.down(f.e(3,0));
+ f.editor.pickSolid(f.e(3,2));f.listeners.pointerup(f.e(3,2));return f;
+}
+function assertQuadDivider(f,x){
+ const d=f.d(),pair=f.editor.selectionSnapshot().lineSelection[0].pair;
+ assert.ok(pair.every(p=>Math.abs(p.x-x)<1e-7),f.message());
+ assert.ok(d.faces.filter(f=>!f.solidId).some(f=>f.points.some((p,i)=>{const q=f.points[(i+1)%f.points.length];return Math.abs(p.x-x)<1e-7&&Math.abs(q.x-x)<1e-7&&Math.abs(p.y-q.y)>3.9;})),'Displayed divider has both moved endpoints');
+ const nodes=new Map(d.sketch.nodes.map(n=>[n.id,n]));
+ assert.ok(!d.sketch.edges.some(e=>{const a=nodes.get(e.a),b=nodes.get(e.b);return Math.abs(a.y-b.y)>3.9&&Math.abs(a.x-b.x)>1e-7;}),'No diagonal source edge remains');
+ assert.equal(new Set(d.sketch.edges.map(e=>[e.a,e.b].sort().join('|'))).size,d.sketch.edges.length,'No duplicate sketch edges');
+ assert.equal(d.faces.length,4,'No extra face is spawned');
+ assert.ok(!f.state.wallEdits.$surfaces?.length,'Ordinary planar edits keep one owner');
+}
+test('sloped boundary Q divider nudges both ways before M without clipping or diagonal remnants',()=>{
+ const f=slopedBoundaryQuad();let x=3;
+ for(const key of ['ArrowRight','ArrowLeft','ArrowLeft','ArrowRight']){assert.equal(f.editor.key({key}),true);x+=key==='ArrowRight'?.0254:-.0254;assertQuadDivider(f,x);}
+ assert.equal(f.history.length,6);
+});
+test('sloped Q mouse and keyboard movement agree, cancel restores state and selection, and reload can move again',()=>{
+ const f=slopedBoundaryQuad(),before=JSON.stringify(f.state.wallEdits),selection=JSON.stringify(f.editor.selectionSnapshot().lineSelection);
+ f.listeners.pointermove(f.e(3,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.8,2));assertQuadDivider(f,2.8);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(JSON.stringify(f.editor.selectionSnapshot().lineSelection),selection);
+ f.editor.key({key:'m'});f.editor.key({key:'ArrowLeft'});assert.equal(f.editor.busy(),false);assertQuadDivider(f,2.9746);assert.equal(JSON.stringify(f.history.at(-1)),before);
+ const moved=JSON.stringify(f.state.wallEdits),g=fixture({state:JSON.parse(JSON.stringify(f.state)),walls:[{...f.w,top:[{x:0,y:0,z:4.04},{x:4,y:0,z:4}]}],globals:{isFreeMove:true}});
+ g.editor.restoreSelection(f.editor.selectionSnapshot());g.editor.key({key:'ArrowRight'});assertQuadDivider(g,3);assert.equal(JSON.stringify(g.history.at(-1)),moved);
+});
+test('sloped Q repeated mixed mouse and keyboard edits do not accumulate points, lines, or faces',()=>{
+ const f=slopedBoundaryQuad();f.editor.key({key:'ArrowLeft'});const counts=()=>[f.d().sketch.nodes.length,f.d().sketch.edges.length,f.d().faces.length],initial=counts();let x=2.9746;
+ for(let i=0;i<20;i++){
+  if(i%2){f.listeners.pointermove(f.e(x,2));f.editor.key({key:'m'});const next=x+.0254;f.listeners.pointermove(f.e(next,2));f.editor.down(f.e(next,2));x=next;}
+  else{f.editor.key({key:'ArrowLeft'});x-=.0254;}
+  assertQuadDivider(f,x);assert.deepEqual(counts(),initial);
+ }
+});
+test('ordinary outer boundary lines can nudge beyond the old wall outline',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(2,4),f.w);f.editor.pickSolid(f.e(4,2));f.listeners.pointerup(f.e(4,2));f.editor.key({key:'ArrowRight'});
+ assert.ok(f.d().faces.some(r=>r.points.some(p=>p.x>4)),f.message());assert.ok(f.d().sketch.outlines.flat().some(p=>p.x>4));
+});
+
+test('moving a planar line away then back creates no undo entry or normalized ghost geometry',()=>{
+ const f=slopedBoundaryQuad(),before=JSON.stringify(f.state.wallEdits),count=f.history.length;
+ f.listeners.pointermove(f.e(3,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2.8,2));f.listeners.pointermove(f.e(3,2));f.editor.down(f.e(3,2));
+ assert.equal(f.history.length,count);assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.editor.busy(),false);
 });

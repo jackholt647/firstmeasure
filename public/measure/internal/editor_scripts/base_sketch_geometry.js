@@ -83,6 +83,21 @@ function updateCurves(base,curves,moves=[]){
  }
  resolve(base);
 }
+// Materialize intersections in the editable graph before changing coordinates.
+// Face partitioning alone is not enough: an unsplit source edge would otherwise
+// keep its old endpoint and regenerate a diagonal after moving a visible cut.
+function nodeLines(base){
+ const s=ensure(base),straight=s.edges.filter(e=>!e.curveId),graph=K.partition({nodes:s.nodes,edges:straight}),pair=e=>[e.a,e.b].sort().join('|'),old=new Map(straight.map(e=>[pair(e),e]));
+ const aliases=new Map();
+ for(const n of s.nodes){const target=graph.nodes.find(p=>Math.hypot(n.x-p.x,n.y-p.y)<=K.CONTACT);aliases.set(n.id,target.id);for(const flag of ['fixed','userDraftPoint','curveCenter'])if(n[flag])target[flag]=true;if(target.userDraftPoint)delete target.curveSample;}
+ const edges=graph.edges.map(e=>({...e,id:old.get(pair(e))?.id||'e'+(++s.next)}));
+ // Preserve isolated deliberate anchors and analytic curves; their evaluation
+ // samples are not new editable vertices. Shared endpoint aliases are unified.
+ s.nodes=graph.nodes;s.edges=[...edges,...s.edges.filter(e=>e.curveId).map(e=>({...e,a:aliases.get(e.a)||e.a,b:aliases.get(e.b)||e.b}))];
+ for(const c of s.curves||[])if(c.centerId)c.centerId=aliases.get(c.centerId)||c.centerId;
+ for(const f of base.faces)for(const p of [f.points,...(f.holes||[])].flat())if(p.nodeId)p.nodeId=aliases.get(p.nodeId)||p.nodeId;
+ return s;
+}
 function move(base,ids,delta){
  const s=ensure(base),movable=s.nodes.filter(n=>ids.includes(n.id)&&!n.fixed),selected=new Set(movable.map(n=>n.id)),translated=p=>({x:p.x+(delta.x||0),y:p.y+(delta.y||0),z:p.z+(delta.z||0)});
  for(const n of movable)if(!Object.values(translated(n)).every(Number.isFinite))throw Error('Point coordinates must be finite.');
@@ -201,6 +216,6 @@ function upgrade(base){
  for(const f of before.faces){const points=f.points.map(p=>nodes.has(p.nodeId)?{...p,z:nodes.get(p.nodeId).z}:p);if(G.plane(points))f.points=points;}
  rebind(before,base);return true;
 }
-const api={updateCurves,syncSurfaceBoundaries,isCurveSample,curveEdges,compactCurves,addCurve,read,ensure,rebind,upgrade,add,connect,remove,move,resolve};
+const api={nodeLines,updateCurves,syncSurfaceBoundaries,isCurveSample,curveEdges,compactCurves,addCurve,read,ensure,rebind,upgrade,add,connect,remove,move,resolve};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseSketchGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
