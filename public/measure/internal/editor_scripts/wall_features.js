@@ -181,6 +181,11 @@ function percentageFrame(face,screen){
 }
 function percentageSticker(face,f,box){
  if(!['window','door','garage'].includes(box.type))throw Error('Unknown sticker type.');
+ // New runs derive physical height from width. Legacy saved boxes retain their height percentage.
+ if(box.aspectRatio!==undefined){
+  if(!Number.isFinite(box.aspectRatio)||box.aspectRatio<.05||box.aspectRatio>20)throw Error('Invalid opening aspect ratio.');
+  const b=f.bounds;box={...box,height:box.width*(b.right-b.left)/(b.top-b.bottom)/box.aspectRatio};
+ }
  if(!['x','y','width','height'].every(k=>Number.isFinite(box[k]))||box.x<0||box.y<0||box.width<=0||box.height<=0||box.x+box.width>100.000001||box.y+box.height>100.000001)throw Error('Invalid percentage rectangle.');
  const b=f.bounds,w=b.right-b.left,h=b.top-b.bottom,left=b.left+box.x*w/100,top=b.top-box.y*h/100;
  const local=shape({left,right:left+box.width*w/100,top,bottom:top-box.height*h/100});

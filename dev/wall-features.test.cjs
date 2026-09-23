@@ -96,6 +96,18 @@ test('percentage stickers use upright full-face dimensions and screen-left for b
   assert.equal(result.feature.type,'window');assert.equal(result.feature.preset,null);
  }
 });
+test('AI opening aspect ratio is independent of face height, including hidden height above it',()=>{
+ for(const wallHeight of [4,8]){
+  const face={points:[{x:0,y:0,z:0},{x:10,y:0,z:0},{x:10,y:0,z:wallHeight},{x:0,y:0,z:wallHeight}]},frame=F.percentageFrame(face,p=>({x:p.x,y:-p.z}));
+  for(const aspectRatio of [1,2,.5]){
+   const sticker=F.percentageSticker(face,frame,{type:'window',x:20,y:0,width:20,aspectRatio});
+   const b=F.bounds(sticker.points.map(p=>W.inFrame(frame,p)));
+   assert.ok(Math.abs(b.right-b.left-2)<1e-8);
+   assert.ok(Math.abs(b.top-b.bottom-2/aspectRatio)<1e-8);
+  }
+  assert.throws(()=>F.percentageSticker(face,frame,{type:'window',x:20,y:0,width:20,aspectRatio:0}),/aspect ratio/);
+ }
+});
 test('percentage placement rejects holes, concave overflow, curved faces and invalid boxes',()=>{
  const face={points:[p(0,0,0),p(10,0,0),p(10,0,5),p(0,0,5)],holes:[[p(4,0,1),p(6,0,1),p(6,0,4),p(4,0,4)]]},screen=p=>({x:p.x,y:-p.z}),frame=F.percentageFrame(face,screen);
  assert.throws(()=>F.percentageSticker(face,frame,{type:'window',x:40,y:30,width:20,height:20}),/overlap/);

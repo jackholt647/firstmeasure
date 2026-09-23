@@ -54,7 +54,7 @@
   for(const [label,src]of [['Photo',current.photo],['Numbered faces',current.image]])if(src){node('small',label,details);const a=node('a',null,details);a.href=src;a.download=`${current.id}-${label}.jpg`;const img=node('img',null,a);img.src=src;img.alt=label;}
   for(const f of current.faces||[]){const r=current.rows?.find(r=>r.face===f.number);node('p',`Face ${f.number}: ${f.error||r?.evidence||'Pending'}`,details);}
   for(const item of current.application?.skipped||[])node('p',`Face ${item.face}${item.opening?' / opening '+item.opening:''}: ${item.message}`,details);
-  for(const row of current.rows||[])for(const p of row.placements||[])node('p',`Face ${row.face} ${p.type}: left ${p.x}%, top ${p.y}%, width ${p.width}%, height ${p.height}%`,details);
+  for(const row of current.rows||[])for(const p of row.placements||[])node('p',`Face ${row.face} ${p.type}: left ${p.x}%, top ${p.y}%, width ${p.width}%, ${p.aspectRatio!==undefined?'width:height '+p.aspectRatio+':1':'height '+p.height+'%'}`,details);
   for(const response of current.responses||[]){const text=summaryText(response);if(text)node('p',text,details);}
   const exportLink=node('a','Export run JSON',details);exportLink.href='#';exportLink.onclick=e=>{e.preventDefault();const url=URL.createObjectURL(new Blob([JSON.stringify(current,null,2)],{type:'application/json'})),a=node('a');a.href=url;a.download=current.id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
  }
@@ -109,25 +109,25 @@
    const imageAll=image();return {faces,image:imageAll,highlights:Object.fromEntries(faces.map(f=>[f.number,image(f.number)])),pose:{position:c.position.toArray(),quaternion:c.quaternion.toArray(),projection:c.projectionMatrix.toArray(),aspect:c.aspect}};
   }finally{s.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});target.dispose();r.dispose();r.forceContextLoss();}
  }
- function validateRows(value,ids,output='counts'){
+ function validateRows(value,ids,output='counts',sizing='percent-height'){
   if(!Array.isArray(value)||value.length!==ids.length)throw Error('Model returned the wrong face count.');const seen=new Set();
   for(const r of value){if(!ids.includes(r.face)||seen.has(r.face)||typeof r.evidence!=='string')throw Error('Model returned unknown or duplicate faces.');seen.add(r.face);for(const k of ['windows','doors','garageDoors'])if(r[k]!==null&&(!Number.isInteger(r[k])||r[k]<0||r[k]>100))throw Error('Invalid opening count.');}
   if(output==='placements')for(const r of value){
    if(!Array.isArray(r.placements)||r.placements.length>100)throw Error('Invalid placement list.');
    const counts={window:0,door:0,garage:0};
-   for(const p of r.placements){if(!Object.hasOwn(counts,p.type)||!['x','y','width','height'].every(k=>Number.isFinite(p[k]))||p.x<0||p.y<0||p.width<=0||p.height<=0||p.x+p.width>100.000001||p.y+p.height>100.000001)throw Error('Invalid placement percentages.');counts[p.type]++;}
+   for(const p of r.placements){if(!Object.hasOwn(counts,p.type)||!['x','y','width'].every(k=>Number.isFinite(p[k]))||p.x<0||p.y<0||p.y>100||p.width<=0||p.x+p.width>100.000001||(sizing==='width-aspect'?(!Number.isFinite(p.aspectRatio)||p.aspectRatio<.05||p.aspectRatio>20):(!Number.isFinite(p.height)||p.height<=0||p.y+p.height>100.000001)))throw Error('Invalid placement percentages.');counts[p.type]++;}
    for(const [type,key]of [['window','windows'],['door','doors'],['garage','garageDoors']])if(counts[type]>(r[key]??0))throw Error('Placements exceed the reported count.');
   }
   return value;
  }
  async function ask(record,faces,image){
-  check();const response=await fetch('exterior_ai.php',{method:'POST',headers:{'Content-Type':'application/json'},signal:aborter.signal,body:JSON.stringify({mode:'stickers-v1',project,model:record.config.model,effort:record.config.effort,style:record.config.style,output:record.config.output||'counts',faceHints:record.config.output==='placements'?faces.map(f=>f.placementHint):undefined,faceIds:faces.map(f=>f.number),images:[record.photo,image]})});
-  const data=await response.json();if(!response.ok)throw Error(data.error||'AI request failed.');check();validateRows(data.result?.faces,faces.map(f=>f.number),record.config.output);console.groupCollapsed(`[Exterior stickers] ${record.id} · ${record.config.model} · faces ${faces.map(f=>f.number)}`);console.log('Full response',copy(data));console.table(data.result.faces);console.groupEnd();return data;
+  check();const response=await fetch('exterior_ai.php',{method:'POST',headers:{'Content-Type':'application/json'},signal:aborter.signal,body:JSON.stringify({mode:'stickers-v1',project,model:record.config.model,effort:record.config.effort,style:record.config.style,output:record.config.output||'counts',placementSizing:record.config.placementSizing,faceHints:record.config.output==='placements'?faces.map(f=>f.placementHint):undefined,faceIds:faces.map(f=>f.number),images:[record.photo,image]})});
+  const data=await response.json();if(!response.ok)throw Error(data.error||'AI request failed.');check();validateRows(data.result?.faces,faces.map(f=>f.number),record.config.output,record.config.placementSizing);console.groupCollapsed(`[Exterior stickers] ${record.id} · ${record.config.model} · faces ${faces.map(f=>f.number)}`);console.log('Full response',copy(data));console.table(data.result.faces);console.groupEnd();return data;
  }
  async function run(){
   if(busy||root.ExteriorAI?.busy)return;busy=true;aborter=new AbortController();controls();field('notice').textContent='Preparing visible faces…';let record;
   try{
-   check();const config={model:field('model').value,effort:field('effort').value,style:field('style').value,output:field('output').value,photo:field('photo').value,view:field('view').value};
+   check();const config={model:field('model').value,effort:field('effort').value,style:field('style').value,output:field('output').value,placementSizing:'width-aspect',photo:field('photo').value,view:field('view').value};
    const rotation=root.ExteriorAI.context();if(config.view!=='current'){const pose=config.view==='rotation'?rotation?.selectedPose:rotation?.steps.find(f=>String(f.index)===config.view);if(!pose)throw Error('Choose a current or saved rotation view.');const status=await root.ExteriorAI.useView({...pose,label:'sticker input'});if(!status?.startsWith('Viewing'))throw Error(status||'Unable to set the selected view.');}
    check();let photo;if(config.photo==='upload'){const file=field('upload').files[0];if(!file)throw Error('Choose a photo file.');const url=URL.createObjectURL(file);try{photo=await imageData(url);}finally{URL.revokeObjectURL(url);}}else if(config.photo==='rotation'){if(!rotation?.front)throw Error('Choose a project photo or run Rotation first.');photo=rotation.front;}else{const p=photos.find(p=>p.key===config.photo);if(!p)throw Error('Choose a photograph.');photo=await imageData(p.url);}
    check();const source=root.WallMode.aiStickerScene(),aspect=renderer.domElement.width/renderer.domElement.height,width=Math.min(1280,renderer.domElement.width),height=Math.round(width/aspect),captured=captureFaces(source,camera,width,height,config.output==='placements');
