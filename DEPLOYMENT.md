@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 line depth adjustment: [Ten-pixel line allowance](deploy/digitalocean/development-line-depth-ten-20260923.md) records `9d132fad68ba53563d172c24224305c156380d81` on all development roles. Lines use ten pixels; points retain four. All 52 focused checks and public hash/readiness verification passed. The one-script delta preserves `8a322e2`; production is unchanged.
+
 September 23 overlay depth: [Roof-contact lines and markers](deploy/digitalocean/development-overlay-depth-20260923.md) records `8a322e205537b165ef2d99f44a8bb898e26d590d` on all development roles. Lines and point-anchor visibility use a four-pixel camera-depth allowance with normal occlusion retained. All 52 focused checks passed, including Chrome WebGL tests and regressions that fail against the previous code. Public hash/readiness verified; the one-script delta preserves `a66efdc`. Production is unchanged.
 
 September 23 production curriculum save: [Targeted tutorial directory permission repair](deploy/digitalocean/production-curriculum-save-20260923.md) records the compatibility-role ACL correction. No application release changed.
