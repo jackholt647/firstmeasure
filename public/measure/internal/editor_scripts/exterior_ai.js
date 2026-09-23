@@ -55,12 +55,18 @@
   if(response.distribution)console.table(response.distribution);
   console.groupEnd();
  }
+ function distribution(attempts){
+  const counts=new Map();
+  for(const a of attempts){if(!a.result)continue;const index=choiceIndex(validateChoice(a.result));counts.set(index,(counts.get(index)||0)+1);}
+  return [...counts].map(([index,count])=>({index,label:choiceLabel({view:Math.floor(index)+1,betweenView:Number.isInteger(index)?null:(Math.floor(index)+1)%8+1}),count})).sort((a,b)=>b.count-a.count||a.index-b.index);
+ }
  function draw(){
   if(!panel)return;
   panel.querySelector('[data-start]').disabled=busy;panel.querySelector('[data-stop]').disabled=!busy;panel.querySelector('[data-export]').disabled=!run;
-  panel.querySelector('[data-luna]').disabled=busy||!reusable();
+  panel.querySelector('[data-luna]').disabled=busy||!reusable();panel.querySelector('[data-batch]').disabled=busy||!reusable();
   const log=panel.querySelector('[data-log]');log.replaceChildren();if(!run)return;
   node('p',run.status,log);
+  for(const batch of run.batches||[]){const summary=node('section',null,log);summary.dataset.batch=batch.id;node('strong',`Luna sample · ${batch.attempts.length}/${batch.size} completed`,summary);for(const d of distribution(batch.attempts))node('p',`${d.label}: ${d.count}/${batch.size} (${Math.round(d.count/batch.size*100)}%)`,summary);const failures=batch.attempts.filter(a=>a.error).length;if(failures)node('p',`${failures} failed or stopped · excluded from choices`,summary);}
   if(run.response){node('strong',`${run.response.provider||'Luna'} chose ${choiceLabel(run.response.result)}`,log);node('p',run.response.result.explanation,log);node('small',`Confidence: ${Math.round(run.response.result.confidence*100)}% · closest candidate, not an exact match`,log);}
   if(run.attempts?.length){const history=node('details',null,log);node('summary',`${run.attempts.length} AI calls on these captures`,history);for(const a of run.attempts)node('p',`${a.createdAt} · ${a.provider||'Luna'} · ${a.error||choiceLabel(a.result)}`,history);}
   for(const s of run.steps){
@@ -152,6 +158,28 @@
   }catch(e){run.status=e.name==='AbortError'?'Stopped. Completed screenshots retained.':e.message;try{await save();}catch(storage){run.status+=' '+storage.message;}}
   finally{if(orbitControls){orbitControls.enabled=oldEnabled;orbitControls.enableDamping=oldDamping;}busy=false;draw();}
  }
+ async function sample(){
+  if(busy||!reusable())return;busy=true;controller=new AbortController();
+  const batch={id:'sample-'+Date.now(),createdAt:new Date().toISOString(),size:10,attempts:[]};
+  run.batches||=[];run.batches.push(batch);run.attempts||=[];
+  let persistence=Promise.resolve(),storageError=null;
+  try{
+   check();await checkpoint('Asking Luna 10 times in parallel using the same saved captures…');
+   await Promise.all(Array.from({length:10},async(_,i)=>{
+    let attempt;const startedAt=new Date().toISOString();
+    try{attempt={...await ask('Luna'),batchId:batch.id,sample:i+1,startedAt};}
+    catch(e){attempt={provider:'Luna',batchId:batch.id,sample:i+1,startedAt,createdAt:new Date().toISOString(),error:e.name==='AbortError'?'Stopped':e.message};}
+    batch.attempts.push(attempt);run.attempts.push(attempt);
+    if(attempt.result)logResponse(attempt);
+    run.status=`Luna sample: ${batch.attempts.length}/10 completed.`;draw();
+    persistence=persistence.then(()=>save()).catch(e=>{storageError=e;});
+   }));
+   await persistence;batch.completedAt=new Date().toISOString();batch.distribution=distribution(batch.attempts);
+   console.groupCollapsed(`[Exterior AI] ${batch.id} · 10-call distribution`);console.table(batch.distribution);console.log('All attempts',JSON.parse(JSON.stringify(batch.attempts)));console.groupEnd();
+   await checkpoint(`Sample complete: ${batch.attempts.filter(a=>a.result).length}/10 successful. Camera unchanged.${storageError?' '+storageError.message:''}`);
+  }catch(e){run.status=e.message;}
+  finally{busy=false;draw();}
+ }
  async function infer(provider='Luna'){
   if(busy||!reusable())return;busy=true;controller=new AbortController();draw();
   let orbitControls,oldEnabled,oldDamping;
@@ -191,9 +219,9 @@
   if(busy)return;try{const db=await database();const records=await new Promise((resolve,reject)=>{const r=db.transaction('runs').objectStore('runs').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});db.close();run=records.filter(r=>r.project===String(root.currentProjectId)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0]||null;draw();if(!run)panel.querySelector('[data-log]').textContent='No saved run for this project in this browser.';}catch(e){panel.querySelector('[data-log]').textContent=e.message;}
  }
  function mount(target){
-  panel=target;panel.innerHTML='<p>Experimental · GPT-6 Luna · low reasoning</p><button type="button" data-start>Capture 8 views</button><button type="button" data-luna disabled>Ask Luna</button><button type="button" data-stop disabled>Stop</button><button type="button" data-previous>Last saved run</button><button type="button" data-export disabled>Export run</button><p>8 textured views · 45° apart · one fitted distance · 6 ft above grade. Luna chooses a view or the midpoint between neighboring views. Capture once, then rerun AI on the same images. Full responses log in the console and save with this run. Click an image to download.</p><div data-log aria-live="polite"></div>';
-  panel.querySelector('[data-start]').onclick=start;panel.querySelector('[data-luna]').onclick=()=>infer('Luna');panel.querySelector('[data-stop]').onclick=()=>controller?.abort();panel.querySelector('[data-previous]').onclick=previous;panel.querySelector('[data-export]').onclick=()=>run&&download(JSON.stringify(run,null,2),run.id+'.json','application/json');
+  panel=target;panel.innerHTML='<p>Experimental · GPT-6 Luna · low reasoning</p><button type="button" data-start>Capture 8 views</button><button type="button" data-luna disabled>Ask Luna</button><button type="button" data-batch disabled>Ask Luna ×10</button><button type="button" data-stop disabled>Stop</button><button type="button" data-previous>Last saved run</button><button type="button" data-export disabled>Export run</button><p>8 textured views · 45° apart · one fitted distance · 6 ft above grade. Luna chooses a view or the midpoint between neighboring views. Capture once, then rerun AI on the same images. Full responses log in the console and save with this run. Click an image to download.</p><div data-log aria-live="polite"></div>';
+  panel.querySelector('[data-start]').onclick=start;panel.querySelector('[data-luna]').onclick=()=>infer('Luna');panel.querySelector('[data-batch]').onclick=sample;panel.querySelector('[data-stop]').onclick=()=>controller?.abort();panel.querySelector('[data-previous]').onclick=previous;panel.querySelector('[data-export]').onclick=()=>run&&download(JSON.stringify(run,null,2),run.id+'.json','application/json');
   const style=node('style',null,document.head);style.textContent='#exterior-debug-ai{overflow-wrap:anywhere}#exterior-debug-ai button{width:100%;margin:3px 0}#exterior-debug-ai .ai-view-heading{display:flex;align-items:center;justify-content:space-between;gap:4px}#exterior-debug-ai .ai-view-heading button{width:26px;flex:0 0 26px;margin:0}#exterior-debug-ai section{border-top:1px solid #53606a;margin-top:10px;padding-top:8px}#exterior-debug-ai section[data-selected]{border:2px solid #64d9a3;padding:5px}#exterior-debug-ai p{font-size:11px;line-height:1.45}';
  }
- root.ExteriorAI={available:root.FIRSTMEASURE_EXTERIOR_AI===true,mount,orbit,orbitPosition,fits,validateChoice,choiceIndex};
+ root.ExteriorAI={available:root.FIRSTMEASURE_EXTERIOR_AI===true,mount,orbit,orbitPosition,fits,validateChoice,choiceIndex,distribution};
 })(window);

@@ -12,8 +12,11 @@ if (strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]) !== 'dev.1m8.ai'
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') ai_fail(405, 'POST required.');
 if (($_SERVER['HTTP_ORIGIN'] ?? '') !== 'https://dev.1m8.ai') ai_fail(403, 'Origin rejected.');
 if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 24000000) ai_fail(413, 'Images too large.');
-if (time() - (int)($_SESSION['exterior_ai_last'] ?? 0) < 2) ai_fail(429, 'Wait two seconds before retrying.');
-$_SESSION['exterior_ai_last'] = time();
+// Permit a ten-request parallel experiment; count under the session lock.
+$recent = array_values(array_filter($_SESSION['exterior_ai_requests'] ?? [], fn($stamp) => $stamp > time() - 60));
+if (count($recent) >= 30) ai_fail(429, 'Experiment limit reached (30 calls per minute). Wait before retrying.');
+$recent[] = time();
+$_SESSION['exterior_ai_requests'] = $recent;
 session_write_close();
 $data = json_decode(file_get_contents('php://input', false, null, 0, 24000001), true);
 if (!is_array($data)) ai_fail(400, 'Invalid request.');

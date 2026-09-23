@@ -59,6 +59,20 @@ assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-f
   await page.getByRole('button',{name:'Last saved run'}).click();assert.equal(await page.locator('[data-log] img').count(),9);
   await page.getByRole('button',{name:'Rotate to View 2',exact:true}).click();await page.getByText('Viewing View 2.',{exact:true}).waitFor();
   assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[1].scenePosition);
+  // All ten requests must be dispatched before any response is released.
+  const batchRoutes=[];let batchImages=[];
+  await page.route('http://localhost/exterior_ai.php',async route=>{
+   batchRoutes.push(route);batchImages.push(route.request().postDataJSON());
+   if(batchRoutes.length===10)await Promise.all(batchRoutes.map((r,i)=>r.fulfill(i===9?{status:502,json:{error:'test failure'}}:{json:{result:{view:i<5?2:i<8?(i%2?8:1):3,betweenView:i<5?null:i<8?(i%2?1:8):null,confidence:.8,explanation:'sample'}}})));
+  });
+  const beforeBatch=await page.evaluate(()=>({...camera.position}));
+  await page.getByRole('button',{name:'Ask Luna ×10',exact:true}).click();
+  await page.getByText('Sample complete: 9/10 successful. Camera unchanged.',{exact:true}).waitFor();
+  assert.equal(batchRoutes.length,10);for(const r of batchImages)assert.deepEqual(r,requests[0]);
+  assert.deepEqual(await page.evaluate(()=>({...camera.position})),beforeBatch);
+  assert.match(await page.locator('[data-batch="'+await page.locator('section[data-batch]').getAttribute('data-batch')+'"]').innerText(),/View 2: 5\/10/);
+  assert.match(await page.locator('section[data-batch]').innerText(),/halfway between Views 8 and 1: 3\/10/);
+  assert.match(await page.locator('section[data-batch]').innerText(),/1 failed or stopped/);
   await page.evaluate(()=>HTMLCanvasElement.prototype.toDataURL=window.originalToDataURL);
   await page.route('http://localhost/exterior_ai.php',async route=>route.fulfill({json:{result:{view:8,betweenView:1,confidence:.8,explanation:'Between the neighboring views.'}}}));
   await page.getByRole('button',{name:'Capture 8 views'}).click();await page.getByText('All eight textured views saved. Choose Ask Luna to run or rerun AI.',{exact:true}).waitFor();await page.getByRole('button',{name:'Ask Luna',exact:true}).click();await page.getByText('Finished: halfway between Views 8 and 1 selected. Compare with the front photo.',{exact:true}).waitFor();
@@ -77,4 +91,10 @@ assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-f
 test('midpoint choices wrap around and reject non-adjacent candidates',()=>{
  for(const [view,betweenView,index] of [[1,2,.5],[2,1,.5],[8,1,7.5],[1,8,7.5],[4,null,3]]){const r={view,betweenView,confidence:.8,explanation:'test'};AI.validateChoice(r);assert.equal(AI.choiceIndex(r),index);}
  for(const betweenView of [1,3,0,9,1.5])assert.throws(()=>AI.validateChoice({view:1,betweenView,confidence:.8,explanation:'invalid'}));
+});
+
+test('distribution clusters reversed midpoint pairs and keeps failures out of choice counts',()=>{
+ const result=(view,betweenView)=>({result:{view,betweenView,confidence:.8,explanation:'test'}});
+ const d=AI.distribution([result(8,1),result(1,8),result(2,null),{error:'failed'}]);
+ assert.equal(d.length,2);assert.equal(d[0].index,7.5);assert.equal(d[0].count,2);assert.equal(d[1].count,1);
 });
