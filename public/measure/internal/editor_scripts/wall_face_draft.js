@@ -1770,7 +1770,11 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,
 
  function nudgeGeometry(dx,dy){
   if(!geometryCommand('m')||tool?.kind!=='geometryTransform')return false;
-  const t=tool,frame=t.clip.mounts[t.mount].frame,view=workingPlane?workingPlane.frame:F.viewFrame(t.clip.faces[0]?.points||t.clip.points,p=>host.screen(p,'3d'));
+  const t=tool,frame=t.clip.mounts[t.mount].frame,plane=workingPlane?.frame;
+  // A construction frame can begin on any edge (or diagonal). Reorient movement
+  // upright on that plane and toward the viewed side, without changing its geometry.
+  const points=plane?[plane.origin,...[plane.u,plane.v].map(axis=>({x:plane.origin.x+axis.x,y:plane.origin.y+axis.y,z:plane.origin.z+axis.z}))]:t.clip.faces[0]?.points||t.clip.points;
+  const view=F.viewFrame(points,p=>host.screen(p,'3d'));
   const delta={x:view.u.x*dx+view.v.x*dy,y:view.u.y*dx+view.v.y*dy,z:view.u.z*dx+view.v.z*dy};
   const dot=axis=>delta.x*axis.x+delta.y*axis.y+delta.z*axis.z;
   previewGeometry(mouse||{clientX:0,clientY:0,buttons:0},false,{x:dot(frame.u),y:dot(frame.v)});

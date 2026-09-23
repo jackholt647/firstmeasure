@@ -744,12 +744,13 @@ function perf_render3DFrame() {
             if(e.target.closest?.('#exterior-graphics'))return;
             if(window.ProjectResources?.handleKey(e))return true;
             if(!enabled)return;
+            // Plane mode consumes keys early, but shares the same undo gesture as other layers.
+            if(e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))nudgeKey=String(nudgeEpoch);else if(!['Shift','Alt','Control','Meta'].includes(e.key)){nudgeEpoch++;nudgeKey=null;}
             if(groundEditor?.sampling?.()&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))return groundEditor.keyDown(e);
             if(resoffitMode&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key)&&!((e.ctrlKey||e.metaKey)&&['s','c'].includes(e.key.toLowerCase())))setResoffit(false);
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(wallEditor?.planeActive?.()&&(e.ctrlKey||e.metaKey)&&['a','c','v','x'].includes(e.key.toLowerCase())&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){wallEditor.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
-            if(e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey)nudgeKey=nudgeEpoch+':'+e.key+':'+!!e.shiftKey+':'+!!e.altKey;else if(!['Shift','Alt','Control','Meta'].includes(e.key)){nudgeEpoch++;nudgeKey=null;}
             if(e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;
             if(e.key!=='Escape'&&e.target.closest?.('.enh-control-panel,.controls-3d-actions,.pane-swap-button'))return;
             if((e.ctrlKey||e.metaKey)&&['c','v'].includes(e.key.toLowerCase())){const copy=e.key.toLowerCase()==='c',selection=copy&&editingLayer==='base'?baseEditor?.chamferSelection?.():null;if(!copy)setLayer('walls',true);wallEditor?.clipboardCommand(copy?'copy':'paste',selection);e.preventDefault();e.stopImmediatePropagation();return true;}

@@ -310,13 +310,17 @@ test('advanced roof bound setting defaults on and persists independently of roof
  toggle.onchange({target:{checked:true}});assert.equal(f.ctx.WallMode.serialize().boundExtrusionToRoof,true);
 });
 
-test('consecutive identical nudges share undo, while direction and modifier changes split it',()=>{
- let host;const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},hasDraft:()=>false,busy:()=>false,keyDown(e){if(!e.key.startsWith('Arrow'))return false;const state=host.state(),before=JSON.parse(JSON.stringify(state.wallEdits||{}));host.recordHistory(before);state.wallEdits={value:(state.wallEdits?.value||0)+(e.shiftKey?6:1)};host.changed();return true;}};
+test('consecutive nudges share undo across directions and step sizes in ordinary and plane mode',()=>{
+ for(const plane of [false,true]){
+ let host;const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},hasDraft:()=>false,busy:()=>false,planeActive:()=>plane,keyDown(e){if(!e.key.startsWith('Arrow'))return false;const state=host.state(),before=JSON.parse(JSON.stringify(state.wallEdits||{}));host.recordHistory(before);state.wallEdits={value:(state.wallEdits?.value||0)+(e.shiftKey?6:1)};host.changed();return true;}};
  const f=fixture(true,{createWallEditor:h=>{host=h;return wall;}});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
  const key=(key,extra={})=>f.listeners['window:keydown']({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){},...extra});
  for(let i=0;i<50;i++)key('ArrowLeft');assert.equal(host.state().wallEdits.value,50);key('ArrowUp');assert.equal(host.state().wallEdits.value,51);
- key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,50);key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,undefined);key('y',{ctrlKey:true});assert.equal(host.state().wallEdits.value,50);
- key('ArrowLeft',{shiftKey:true});key('ArrowLeft');key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,56);key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,50);
+ key('ArrowRight',{shiftKey:true});key('ArrowDown',{altKey:true});assert.equal(host.state().wallEdits.value,58);
+ key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,undefined);key('y',{ctrlKey:true});assert.equal(host.state().wallEdits.value,58);
+ key('ArrowLeft');key('ArrowLeft');key('Escape');key('ArrowRight');key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,60);key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,58);
+ key('y',{ctrlKey:true});assert.equal(host.state().wallEdits.value,60);key('y',{ctrlKey:true});assert.equal(host.state().wallEdits.value,61);
+ }
 });
 
 
