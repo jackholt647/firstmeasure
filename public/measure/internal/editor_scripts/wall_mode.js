@@ -274,7 +274,7 @@ function perf_persist(touch=true) {
 
     function valid(s) {return s?.schemaVersion===1 && s.roof?.points?.length && Array.isArray(s.sources) && Number.isFinite(s.options?.ground) && s.context?.mpp>0;}
     function restore(id,metadata,history=null) {
-        if(nudgeSettleTimer!==null){clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;nudgeBackupPending=false;}clearNudgePreview();
+        if(nudgeSettleTimer!==null){clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;nudgeBackupPending=false;}pendingNudge=null;clearNudgePreview();
         editHistory=[];editFuture=[];pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         roofTrimEditor?.reset();roofTrimHistory=[];roofTrimFuture=[];projectId=String(id||'');roofTrimOnly=copy(metadata?.exteriorsRoofTrim||{});try{const localTrim=JSON.parse(localStorage.getItem(key(projectId)+':roof-trim')||'null');if(localTrim&&(localTrim.savedAt||0)>(roofTrimOnly.savedAt||0))roofTrimOnly=localTrim;}catch(e){}state=null;sourceContext=null;selected=null;stage=1;
         let local=null;try{local=JSON.parse(localStorage.getItem(key(projectId))||'null');}catch(e){storageError='Local wall backup could not be read.';}
@@ -311,6 +311,7 @@ function perf_persist(touch=true) {
         }catch(e){if(before){state=before.state;stage=before.stage;sourceContext=state?.context||null;baseTerrainKey='';persist();render();}status.textContent=`Could not rebuild walls: ${e.message}`;return false;}
     }
     function setEnabled(on) {
+        settleNudges();
         if(on&&!currentId()){alert('Load a project before entering wall mode.');return;}
         roofTrimEditor?.finish();roofTrimEditor?.reset();if(!on){closeResoffit();window.WallFeatures?.closeUI?.();groundEditor?.leave();baseEditor?.leave();wallEditor?.leave();}
         const entering=!!on&&!enabled;
@@ -428,14 +429,18 @@ function perf_render2DContent() {
     function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
     // Compatibility hook for the roof renderer: exterior trim only renders in wall mode.
     function renderRoofTrim3D(){if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimEditor?.update();}
-    let editorRenderFrame=null,editorRenderFull=false,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null;
+    let editorRenderFrame=null,editorRenderFull=false,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null,pendingNudge=null,nudgeInputFrame=null;
     function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
     function drawNudgePreview(){
         clearNudgePreview();if(typeof scene==='undefined'||!scene||!window.THREE?.Group)return;
-        nudgePreviewGroup=new THREE.Group();wallEditor?.drawNudgePreview?.(nudgePreviewGroup,p=>getVector3(toPixel(p)));scene.add(nudgePreviewGroup);window.invalidateScene3D?.();
+        nudgePreviewGroup=new THREE.Group();wallEditor?.drawNudgePreview?.(nudgePreviewGroup,p=>getVector3(toPixel(p)),pendingNudge);scene.add(nudgePreviewGroup);window.invalidateScene3D?.();
+    }
+    function flushNudgeInput(){
+        if(nudgeInputFrame!==null){cancelAnimationFrame(nudgeInputFrame);nudgeInputFrame=null;}
+        const pending=pendingNudge;pendingNudge=null;if(pending)wallEditor?.keyDown(pending);
     }
     function settleNudges(immediate=false){
-        if(nudgeSettleTimer===null)return;clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;clearNudgePreview();finishEdit();
+        if(nudgeSettleTimer===null)return;flushNudgeInput();clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;clearNudgePreview();finishEdit();
         if(nudgeBackupPending){nudgeBackupPending=false;persist();}
         if(immediate){window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;render();}
         else requestEditorRender(true);
@@ -724,7 +729,7 @@ function perf_render3DFrame() {
             }
         },true);
         function cancelInteraction(){
-            if(!enabled)return;if(groundEditor?.sampling?.())groundEditor.leave();
+            if(!enabled)return;settleNudges();if(groundEditor?.sampling?.())groundEditor.leave();
             if(roofTrimEditor?.busy())roofTrimEditor.cancel();else if(roofTrimEditor?.hasSelection())roofTrimEditor.clear();if(!enabled)return;
             if(baseEditor?.busy())baseEditor.leave();
             if(wallEditor?.busy())wallEditor.clear();
@@ -761,6 +766,20 @@ function perf_render3DFrame() {
             if(e.target.closest?.('#exterior-graphics'))return;
             if(window.ProjectResources?.handleKey(e))return true;
             if(!enabled)return;
+            // Key repeat is input, not a queue of complete geometry rebuilds.
+            // Keep its distance and publish one edit once the burst settles.
+            const arrow=e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true],.enh-control-panel,.controls-3d-actions,.pane-swap-button');
+            if(arrow&&!wallEditor?.busy()&&(editingLayer==='walls'||wallEditor?.planeActive?.())){
+                if(pendingNudge&&(pendingNudge.key!==e.key||pendingNudge.shiftKey!==e.shiftKey||pendingNudge.altKey!==e.altKey))flushNudgeInput();
+                if(e.repeat){
+                    if(pendingNudge)pendingNudge.nudgeCount++;
+                    else pendingNudge={key:e.key,altKey:e.altKey,shiftKey:e.shiftKey,ctrlKey:false,metaKey:false,nudgeCount:1,target:e.target,preventDefault(){},stopImmediatePropagation(){}};
+                    nudgeKey=String(nudgeEpoch);deferNudgeWork();
+                    if(nudgeInputFrame===null)nudgeInputFrame=requestAnimationFrame(()=>{nudgeInputFrame=null;drawNudgePreview();});
+                    e.preventDefault();e.stopImmediatePropagation();return true;
+                }
+                flushNudgeInput();
+            }
             // Plane mode consumes keys early, but shares the same undo gesture as other layers.
             if(e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){nudgeKey=String(nudgeEpoch);deferNudgeWork();}else if(!['Shift','Alt','Control','Meta'].includes(e.key)){settleNudges();nudgeEpoch++;nudgeKey=null;}
             if(groundEditor?.sampling?.()&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))return groundEditor.keyDown(e);
@@ -795,6 +814,7 @@ function perf_render3DFrame() {
             if((editingLayer==='base'?baseEditor:wallEditor)?.stepWheel(e)){e.preventDefault();e.stopImmediatePropagation();}
         },{capture:true,passive:false});
         window.addEventListener('keydown',handleEditorKey,true);
+        window.addEventListener('keyup',e=>{if(e.key.startsWith('Arrow')&&pendingNudge)flushNudgeInput();},true);
         document.getElementById('wall-step').onclick=()=>{if(editingLayer==='base')baseEditor?.stepCommand();else{if(editingLayer!=='walls')setLayer('walls');wallEditor?.stepCommand();}};
         window.WallFeatures?.mountUI((...args)=>{if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();return wallEditor?.featureCommand(...args);},()=>wallEditor?.featureSelection(),()=>wallEditor?.busy(),{
             color(color){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.colorCommand(color);},paint(type){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.materialCommand(type);},

@@ -98,8 +98,8 @@ function nodeLines(base){
  for(const f of base.faces)for(const p of [f.points,...(f.holes||[])].flat())if(p.nodeId)p.nodeId=aliases.get(p.nodeId)||p.nodeId;
  return s;
 }
-function move(base,ids,delta){
- const s=ensure(base),movable=s.nodes.filter(n=>ids.includes(n.id)&&!n.fixed),selected=new Set(movable.map(n=>n.id)),translated=p=>({x:p.x+(delta.x||0),y:p.y+(delta.y||0),z:p.z+(delta.z||0)});
+function move(base,ids,delta,options={}){
+ const s=ensure(base),movable=s.nodes.filter(n=>ids.includes(n.id)&&(!n.fixed||options.boundary)),selected=new Set(movable.map(n=>n.id)),translated=p=>({x:p.x+(delta.x||0),y:p.y+(delta.y||0),z:p.z+(delta.z||0)});
  for(const n of movable)if(!Object.values(translated(n)).every(Number.isFinite))throw Error('Point coordinates must be finite.');
  const curves=[];
  for(const c of s.curves||[]){const edges=s.edges.filter(e=>e.curveId===c.id),ends=[...new Set(edges.flatMap(e=>[e.a,e.b]))],changed=ends.filter(id=>selected.has(id));if(!changed.length&&!selected.has(c.centerId))continue;

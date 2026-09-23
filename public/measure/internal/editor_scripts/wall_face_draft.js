@@ -235,7 +235,7 @@ window.createWallFaceDraft=function(host){
   if(tool?.kind==='geometryTransform'||tool?.kind==='paste')return geometryKey(e);
   if((e.ctrlKey||e.metaKey)&&['c','v','x'].includes(k)){if(e.repeat)return true;if(k==='x'){clipboardCommand('copy');return deletePlaneSelection();}return clipboardCommand(k==='c'?'copy':'paste');}
   if((e.ctrlKey||e.metaKey)&&k!=='a')return false;
-  if(k.startsWith('arrow')){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12;return nudgeGeometry(k==='arrowright'?step:k==='arrowleft'?-step:0,k==='arrowup'?step:k==='arrowdown'?-step:0);}
+  if(k.startsWith('arrow')){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1);return nudgeGeometry(k==='arrowright'?step:k==='arrowleft'?-step:0,k==='arrowup'?step:k==='arrowdown'?-step:0);}
   if(e.repeat)return true;
   if(['m','r','t','y'].includes(k)&&!plane.action&&!plane.drawing)return geometryCommand(k);
   if(['delete','backspace'].includes(k))return deletePlaneSelection();
@@ -1702,7 +1702,7 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
    if(!owner)return [];const [key,d]=owner,n=d.sketch.nodes.find(n=>distance3(world(d,n),plan.source)<1e-5),a=toLocal(d,plan.source),b=toLocal(d,plan.point);
    return [{plan,key,id:n.id,delta:{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z}}];
   }),ok=transaction(()=>{
-   for(const move of curveMoves){const d=all()[move.key];S.move(d,[move.id],move.delta);classify(d);}
+   for(const move of curveMoves){const d=all()[move.key];S.move(d,[move.id],move.delta,{boundary:true});classify(d);}
    const straight=moving.filter(plan=>!curveMoves.some(m=>m.plan===plan));if(!straight.length)return;
    const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);
    if(base)for(const f of base.faces)scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
@@ -1716,7 +1716,7 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   const plan=pointNudgePlan(source,e,step,sceneLines().lines.values());if(!plan){host.message('No connected line runs in that screen direction.');return true;}
   const {point,direction,amount}=plan;
   const owner=Object.entries(all()).find(([,d])=>d.sketch.edges.some(e=>e.curveId&&[e.a,e.b].some(id=>{const n=d.sketch.nodes.find(n=>n.id===id);return n&&distance3(world(d,n),source)<1e-5;})));
-  if(owner){const [key,d]=owner,id=d.sketch.nodes.find(n=>distance3(world(d,n),source)<1e-5).id,a=toLocal(d,source),b=toLocal(d,point);const ok=transaction(()=>{const d=all()[key];S.move(d,[id],{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z});classify(d);});if(ok){activeDraftKey=key;picked=[id];draftSelection={[key]:[id]};solidPoints=[];solidEdges=[];lineSelection=[];host.redraw();}return true;}
+  if(owner){const [key,d]=owner,id=d.sketch.nodes.find(n=>distance3(world(d,n),source)<1e-5).id,a=toLocal(d,source),b=toLocal(d,point);const ok=transaction(()=>{const d=all()[key];S.move(d,[id],{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},{boundary:true});classify(d);});if(ok){selectPlacedEntity({source,preview:[point]},false);host.redraw();}return true;}
   const ok=transaction(()=>{const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);if(base)for(const f of base.faces)scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
    const result=W.slideLines(scene,[[source,source]],direction,amount),edits=copy(host.state().wallEdits);applyLineResult({base,scene,op:Date.now()},result,edits);host.state().wallEdits=edits;
   });
@@ -1729,7 +1729,7 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   const selected=p=>points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);
   return solids().some(f=>!f.deleted&&!f.drafted&&f.points.every(selected))||Object.values(all()).some(d=>d.faces.some(f=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&f.points.every(p=>selected(world(d,p)))));
  }
-function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12,dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const points=selectedWorldPoints();if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
+function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const points=selectedWorldPoints();if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
   if(lineSelection.length){const pairs=copy(lineSelection);return transaction(()=>{
     for(const w of walls())ensure(w);
     const live=(d,f)=>!f.solidId&&!f.boundaryHole&&!deleted(d,f),supports=(face,pair)=>{if(W.sharedIntervals(...pair,[face]).length)return true;const frame=W.faceFrame(face);if(!frame)return false;const local={points:face.points.map(p=>W.inFrame(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))};return pair.every(p=>{const q=W.inFrame(frame,p);return Math.abs(q.z)<1e-5&&G.contains(local,q);});},shape=(d,f)=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}),matches=d=>d&&!d.mergedInto&&pairs.every(l=>d.faces.some(f=>live(d,f)&&supports(shape(d,f),l.pair)));
@@ -2127,8 +2127,17 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
    resolveMovedDraft(d);restoreMovedRegions(d,old.faces);classify(d);
   }
  }
- function drawNudgePreview(group,vector){
-  const points=workingPlane?workingPlane.selection:selectedWorldPoints(),pairs=lineSelection.flatMap(l=>l.pairs||[l.pair]);
+ function drawNudgePreview(group,vector,pending){
+  let points=pending?.preview?.points||copy(workingPlane?workingPlane.selection:selectedWorldPoints());const pairs=lineSelection.flatMap(l=>l.pairs||[l.pair]);
+  if(pending){
+   if(!pending.preview){
+    const plane=workingPlane?.frame,axes=plane&&[plane.origin,...[plane.u,plane.v].map(a=>({x:plane.origin.x+a.x,y:plane.origin.y+a.y,z:plane.origin.z+a.z}))];
+    const lines=!plane&&points.length?[...sceneLines().lines.values()]:[];
+    pending.preview={points,view:axes&&F.viewFrame(axes,p=>host.screen(p,'3d')),plans:!plane&&points.map(p=>pointNudgePlan(p,pending,Infinity,lines))};
+   }
+   const {view,plans}=pending.preview,step=(pending.altKey?.25:pending.shiftKey?6:1)*F.FT/12*pending.nudgeCount,dx=pending.key==='ArrowRight'?step:pending.key==='ArrowLeft'?-step:0,dy=pending.key==='ArrowUp'?step:pending.key==='ArrowDown'?-step:0;
+   points=points.map((p,i)=>{if(view)return {x:p.x+view.u.x*dx+view.v.x*dy,y:p.y+view.u.y*dx+view.v.y*dy,z:p.z+view.u.z*dx+view.v.z*dy};const plan=plans?.[i];if(!plan)return p;const amount=Math.min(step,plan.amount);return {x:p.x+plan.direction.x*amount,y:p.y+plan.direction.y*amount,z:p.z+plan.direction.z*amount};});
+  }
   if(points.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(points.map(vector)),new THREE.PointsMaterial({color:'#ffffff',size:7,sizeAttenuation:false,depthTest:false,depthWrite:false})));
   for(const pair of pairs)window.wallSelectedLine?.(group,vector,pair);
  }

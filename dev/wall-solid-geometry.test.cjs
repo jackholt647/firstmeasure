@@ -226,3 +226,10 @@ test('authored nonuniform faces extrude their exact boundary without replacing i
  const face={id:'ragged',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(3,0,4),p(2,0,3.5),p(0,0,4)]},shape=G.extrude(face,.3);assert.equal(shape.cap.points.length,6);assert.equal(shape.sides.length,6);
  for(let i=0;i<face.points.length;i++){assert.equal(shape.cap.points[i].x,face.points[i].x);assert.equal(shape.cap.points[i].z,face.points[i].z);assert.deepEqual(shape.sides[i].points.slice(0,2),[face.points[i],face.points[(i+1)%face.points.length]]);}
 });
+
+test('point movement normalizes only incident faces in a large scene',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),faces=Array.from({length:500},(_,i)=>({id:'wall-'+i,points:[p(i*3,0,0),p(i*3+2,0,0),p(i*3+2,0,3),p(i*3,0,3)]})),source=faces[0].points[3],normalize=K.normalizeFace;let calls=0;
+ K.normalizeFace=(...args)=>{calls++;return normalize(...args);};
+ try{const result=G.slideLines(faces,[[source,source]],p(0,0,-1),.0254);assert.equal(calls,1);assert.deepEqual(result.affected,['wall-0']);assert.equal(result.faces[0].points[3].z,3-.0254);for(let i=1;i<faces.length;i++)assert.deepEqual(result.faces[i].points,faces[i].points);}
+ finally{K.normalizeFace=normalize;}
+});

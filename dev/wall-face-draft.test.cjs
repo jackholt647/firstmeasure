@@ -2645,3 +2645,23 @@ test('drawing-plane A replaces a loose straight segment with a persisted spline'
 test('finishing A with only on-line points does not manufacture geometry or history',()=>{
  const f=fixture({globals:{isFreeMove:true}}),pair=[{x:0,y:0,z:4},{x:4,y:0,z:4}],before=JSON.stringify(f.state.wallEdits);f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,4));f.editor.key({key:'a'});f.editor.down(f.e(2,4));f.editor.key({key:'Enter'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);
 });
+
+test('nudging a solid curve endpoint moves its definition and retains selection',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),p=(x,z)=>({x,y:0,z});
+ const c={id:'arc',type:'ellipse',center:p(1,1),u:p(-1,0),v:p(0,1),radiusX:1,radiusY:1,sweep:Math.PI/2},source=K.curvePoint(c,0),face={id:'curved-wall',curves:[c],points:[p(0,0),...K.curveSamples(c),p(2,2),p(2,0)]};
+ const f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,screen:p=>({x:p.x*100,y:-p.z*100})});
+ f.editor.restoreSelection({solidPoints:[W.vertexKey(source)]});assert.equal(f.editor.pointSelection().length,1);
+ for(let i=1;i<=3;i++){f.editor.key({key:'ArrowDown'});const selected=f.editor.pointSelection();assert.equal(selected.length,1,f.message());assert.ok(Math.abs(selected[0].z-(1-i*.0254))<1e-7,JSON.stringify(selected));const live=f.state.wallEdits.$surfaces.filter(f=>!f.deleted&&!f.drafted);assert.ok(live.some(f=>f.curves?.some(c=>Math.abs(K.curvePoint(c,0).z-selected[0].z)<1e-7)),'analytic endpoint follows selection');}
+});
+
+test('fixed curve endpoints remain selected after nudging their analytic boundary',()=>{
+ const f=circleDraftFixture(),n=f.d().sketch.nodes.find(n=>Math.abs(n.x-3)<1e-7&&Math.abs(n.y-2)<1e-7);n.fixed=true;
+ f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:[n.id]},picked:[n.id]});const before=f.editor.pointSelection()[0];
+ f.editor.key({key:'ArrowDown'});const after=f.editor.pointSelection();assert.equal(after.length,1,f.message());assert.ok(Math.hypot(after[0].x-before.x,after[0].z-before.z)>.02,'fixed means boundary ownership, not an immovable curve control');
+});
+
+test('queued point preview moves the marker without rebuilding or changing geometry',()=>{
+ const globals=renderGlobals(),f=fixture({globals,screen:p=>({x:p.x*100,y:-p.z*100})});f.editor.doubleClick(f.e(2,4),f.w);const before=JSON.stringify(f.state.wallEdits),pending={key:'ArrowRight',nudgeCount:2};
+ let objects=[];f.editor.drawNudgePreview({add:o=>objects.push(o)},p=>p,pending);assert.ok(Math.abs(objects[0].geometry.points[0].x-(2+.0508))<1e-7);
+ pending.nudgeCount=8;objects=[];f.editor.drawNudgePreview({add:o=>objects.push(o)},p=>p,pending);assert.ok(Math.abs(objects[0].geometry.points[0].x-(2+.2032))<1e-7);assert.equal(JSON.stringify(f.state.wallEdits),before);
+});

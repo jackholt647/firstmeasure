@@ -708,12 +708,23 @@ function slideLines(faces,pairs,direction,amount,options={}){
  }
  const matching=p=>moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5),affected=[];
  const result=faces.map(f=>{if(f.deleted)return f;
-  const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a);expanded.push(a);for(const p of pairs.flat().filter(p=>pointOnEdge(p,a,b)&&Math.hypot(...Object.values(sub(p,a)))>1e-5&&Math.hypot(...Object.values(sub(p,b)))>1e-5).sort((p,q)=>dot(sub(p,a),u)-dot(sub(q,a),u)))if(!expanded.some(q=>Math.hypot(...Object.values(sub(p,q)))<1e-5))expanded.push(p);}const translated=p=>({...p,...(matching(p)?.to||{})});
+  // Only incident faces can change. Normalizing every other polygon makes a
+  // one-point edit pay the triangulation cost of the entire building.
+  if(![...rings(f).flat(),...(f.retainedPoints||[])].some(matching)&&!rings(f).some(r=>r.some((a,i)=>pairs.flat().some(p=>pointOnEdge(p,a,r[(i+1)%r.length])))))return f;
+  const curveChanges=(f.curves||[]).flatMap(c=>{
+   const a=K.curvePoint(c,0),b=K.curvePoint(c,1),ma=matching(a),mb=matching(b);if(!ma&&!mb)return [];
+   const u=sub(b,a),l2=dot(u,u);if(l2<1e-12)return [];
+   const da=ma?sub(ma.to,a):{x:0,y:0,z:0},db=mb?sub(mb.to,b):{x:0,y:0,z:0};
+   const map=p=>{const t=dot(sub(p,a),u)/l2;return {...p,x:p.x+da.x+(db.x-da.x)*t,y:p.y+da.y+(db.y-da.y)*t,z:p.z+da.z+(db.z-da.z)*t};};
+   return [{curve:c,next:K.mapCurve(c,map),map,samples:K.curveSamples(c)}];
+  });
+  const translated=p=>{const move=matching(p);if(move)return {...p,...move.to};const curve=curveChanges.find(c=>c.samples.some((a,i)=>i&&pointOnEdge(p,c.samples[i-1],a)));return curve?curve.map(p):p;};
+  const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a);expanded.push(a);for(const p of pairs.flat().filter(p=>pointOnEdge(p,a,b)&&Math.hypot(...Object.values(sub(p,a)))>1e-5&&Math.hypot(...Object.values(sub(p,b)))>1e-5).sort((p,q)=>dot(sub(p,a),u)-dot(sub(q,a),u)))if(!expanded.some(q=>Math.hypot(...Object.values(sub(p,q)))<1e-5))expanded.push(p);}
    // Extruding a boundary keeps transverse neighbor edges fixed and inserts
    // a connecting segment; edges parallel to the motion can shorten normally.
    const keep=(a,b)=>{if(!options.preserveConnections||!!matching(a)===!!matching(b))return false;const u=sub(b,a),d={x:direction.x*amount,y:direction.y*amount,z:direction.z*amount};return Math.hypot(u.y*d.z-u.z*d.y,u.z*d.x-u.x*d.z,u.x*d.y-u.y*d.x)>1e-7;};
    const moved=expanded.flatMap((p,i)=>{const prev=expanded[(i+expanded.length-1)%expanded.length],next=expanded[(i+1)%expanded.length];return [keep(prev,p)?p:translated(p),keep(p,next)?p:translated(p)];});return moved.filter((p,i)=>Math.hypot(...Object.values(sub(p,moved[(i+moved.length-1)%moved.length])))>1e-6);};
-  const next=K.normalizeFace({...f,points:replace(f.points),holes:(f.holes||[]).map(replace),retainedPoints:(f.retainedPoints||[]).map(p=>({...p,...(matching(p)?.to||{})}))});
+  const next=K.normalizeFace({...f,...(curveChanges.length?{curves:f.curves.map(c=>curveChanges.find(change=>change.curve===c)?.next||c)}:{}),points:replace(f.points),holes:(f.holes||[]).map(replace),retainedPoints:(f.retainedPoints||[]).map(translated)});
   if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[])&&JSON.stringify(next.retainedPoints)===JSON.stringify(f.retainedPoints||[]))return f;
   const frame=faceFrame(next);if(!frame||rings(next).flat().some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>1e-5))throw Error('That position would bend an adjoining face out of plane.');
   for(const ring of rings(next))baseGeometry().validate({points:ring.map(p=>inFrame(frame,p))});if(JSON.stringify(next.points)!==JSON.stringify(f.points)||JSON.stringify(next.holes)!==JSON.stringify(f.holes||[]))affected.push(f.id);return next;

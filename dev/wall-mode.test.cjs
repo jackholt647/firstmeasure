@@ -314,7 +314,8 @@ test('consecutive nudges share undo across directions and step sizes in ordinary
  for(const plane of [false,true]){
  let host;const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},hasDraft:()=>false,busy:()=>false,planeActive:()=>plane,keyDown(e){if(!e.key.startsWith('Arrow'))return false;const state=host.state(),before=JSON.parse(JSON.stringify(state.wallEdits||{}));host.recordHistory(before);state.wallEdits={value:(state.wallEdits?.value||0)+(e.shiftKey?6:1)};host.changed();return true;}};
  const f=fixture(true,{createWallEditor:h=>{host=h;return wall;}});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
- const key=(key,extra={})=>f.listeners['window:keydown']({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){},...extra});
+ host.setLayer('walls');
+  const key=(key,extra={})=>f.listeners['window:keydown']({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){},...extra});
  for(let i=0;i<50;i++)key('ArrowLeft');assert.equal(host.state().wallEdits.value,50);key('ArrowUp');assert.equal(host.state().wallEdits.value,51);
  key('ArrowRight',{shiftKey:true});key('ArrowDown',{altKey:true});assert.equal(host.state().wallEdits.value,58);
  key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,undefined);key('y',{ctrlKey:true});assert.equal(host.state().wallEdits.value,58);
@@ -670,4 +671,17 @@ test('AI face rows clear other selections, preserve geometry and reject stale fa
  const faces=f.ctx.WallMode.aiStickerScene().faces;assert.equal(faces.length,1);f.ctx.WallMode.selectAIFace(face.id,faces[0].signature);
  assert.ok(cleared);assert.equal(selectedValue.draft.selectedRegion.draft,'sample');assert.equal(selectedValue.draft.selectedRegion.face,'front');assert.equal(selectedValue.draft.faceSelection.length,1);assert.equal(geometry(),before);assert.equal(f.ctx.WallMode.serialize().displayMode,'opaque');
  face.points[0].z=.1;assert.throws(()=>f.ctx.WallMode.selectAIFace(face.id,faces[0].signature),/changed since/);
+});
+
+test('held arrow repeats coalesce geometry work and flush before undo and picking',()=>{
+ for(const plane of [false,true]){
+  let host,calls=0;const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,planeActive:()=>plane,keyDown(e){if(!e.key.startsWith('Arrow'))return false;calls++;host.recordHistory(JSON.parse(JSON.stringify(host.state().wallEdits||{})));host.state().wallEdits={value:(host.state().wallEdits?.value||0)+(e.nudgeCount||1)};host.changed();return true;}};
+  const f=fixture(true,{requestAnimationFrame:()=>1,cancelAnimationFrame(){},createWallEditor:h=>{host=h;return wall;}});f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+  host.setLayer('walls');
+  const key=(key,extra={})=>f.listeners['window:keydown']({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){},...extra});
+  key('ArrowRight');for(let i=0;i<50;i++)key('ArrowRight',{repeat:true});assert.equal(calls,1,'no geometry work for queued repeats');
+  f.listeners['window:keyup']({key:'ArrowRight'});assert.equal(calls,2);assert.equal(host.state().wallEdits.value,51,'release publishes all requested distance');f.flushTimers();assert.equal(calls,2,'settling does not replay the move');
+  key('ArrowRight',{repeat:true});key('z',{ctrlKey:true});assert.equal(host.state().wallEdits.value,undefined,'undo flushes and undoes the entire burst');
+  key('ArrowRight');key('ArrowRight',{repeat:true});f.listeners['window:pointerdown']({target:{closest:()=>false}});assert.equal(host.state().wallEdits.value,2,'picking first publishes the pending move');
+ }
 });
