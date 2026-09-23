@@ -15,6 +15,7 @@ test('From Roof resolves chimney heights once, shares them with the base, and pr
  const f=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,layerData:{dsm:[data]},activeGeometry,WallChimneys:{...C,detect(...args){detections++;return C.detect(...args);}},BaseGeometry:{...B,fromRoof(...args){baseChimneys=args[4];return B.fromRoof(...args);}}});
  f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();const saved=f.ctx.WallMode.serialize();
  assert.equal(detections,1);assert.equal(saved.chimneys.items[0].extension.rays,5);assert.equal(baseChimneys.items[0].extension.distance,saved.chimneys.items[0].extension.distance);
+ const chimney=saved.chimneys.items[0],top=saved.wallEdits.$surfaces.find(f=>f.chimney?.id===chimney.id&&f.chimney.cap);assert.ok(Number.isFinite(chimney.dsmTop));assert.ok(top.points.every(p=>p.z===chimney.dsmTop),'From Roof uses the footprint DSM maximum for the entire cap');
  f.stages[1].onclick();f.stages[6].onclick();assert.equal(detections,1,'stage changes reuse the inferred footprint');
  const fresh=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
  assert.equal(fresh.ctx.WallMode.serialize().chimneys.items[0].extension.distance,saved.chimneys.items[0].extension.distance,'saved inference survives without a loaded height map');

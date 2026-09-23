@@ -20,7 +20,21 @@ function breaks(a,b,rings){const v=sub(b,a),l2=v.x*v.x+v.y*v.y,ts=[0,1];if(l2<EP
 function heightSampler(data,ctx,origin=ctx){
  if(!ctx||!origin||!(ctx.mpp>0)||!Number.isInteger(ctx.width)||!Number.isInteger(ctx.height)||!data||data.length!==ctx.width*ctx.height)return null;
  const dx=((origin.lng||0)-(ctx.lng||0))*111132*Math.cos((ctx.lat||0)*Math.PI/180),dy=((ctx.lat||0)-(origin.lat||0))*111132;
- return p=>{const x=Math.round(ctx.width/2+(p.x+dx)/ctx.mpp),y=Math.round(ctx.height/2+(p.y+dy)/ctx.mpp);if(x<0||y<0||x>=ctx.width||y>=ctx.height)return null;const z=data[y*ctx.width+x];return Number.isFinite(z)&&z>-9000&&z<9000?z:null;};
+ const sample=p=>{const x=Math.round(ctx.width/2+(p.x+dx)/ctx.mpp),y=Math.round(ctx.height/2+(p.y+dy)/ctx.mpp);if(x<0||y<0||x>=ctx.width||y>=ctx.height)return null;const z=data[y*ctx.width+x];return Number.isFinite(z)&&z>-9000&&z<9000?z:null;};
+ // Inspect actual pixel centers, not a resampled grid that can miss a peak
+ // or round an interior query onto a tree pixel outside the footprint.
+ sample.maximumInside=points=>{
+  const xs=points.map(p=>ctx.width/2+(p.x+dx)/ctx.mpp),ys=points.map(p=>ctx.height/2+(p.y+dy)/ctx.mpp);
+  const x0=Math.max(0,Math.ceil(Math.min(...xs))),x1=Math.min(ctx.width-1,Math.floor(Math.max(...xs))),y0=Math.max(0,Math.ceil(Math.min(...ys))),y1=Math.min(ctx.height-1,Math.floor(Math.max(...ys)));
+  let highest=null;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+   const z=data[y*ctx.width+x];if(!Number.isFinite(z)||z<=-9000||z>=9000)continue;
+   const p={x:(x-ctx.width/2)*ctx.mpp-dx,y:(y-ctx.height/2)*ctx.mpp-dy};
+   if(contains({points},p)&&(highest===null||z>highest))highest=z;
+  }
+  return highest;
+ };
+ return sample;
 }
 function heightExtension(roof,path,options){
  const {sampleHeight,resolution}=options;
@@ -82,7 +96,8 @@ function detect(roof,options={}){
   }
   if(points.length<3||Math.abs(area(points))<.0004||!convex(points)){warnings.push('A chimney outline must enclose a simple convex footprint.');continue;}
   if(area(points)<0)points.reverse();
-  chimneys.push({id:'roof-chimney-'+component.map(i=>edges[i].index).sort((a,b)=>a-b).join('-'),points:copy(points),inferred,roofCrossing,...(extension?{extension}:{}),sourceConnections:component.map(i=>edges[i].index).sort((a,b)=>a-b)});
+  const dsmTop=options.sampleHeight?.maximumInside?.(points);
+  chimneys.push({id:'roof-chimney-'+component.map(i=>edges[i].index).sort((a,b)=>a-b).join('-'),points:copy(points),...(Number.isFinite(dsmTop)?{dsmTop}:{}),inferred,roofCrossing,...(extension?{extension}:{}),sourceConnections:component.map(i=>edges[i].index).sort((a,b)=>a-b)});
  }
  return {version:1,items:chimneys,warnings};
 }
@@ -348,7 +363,7 @@ function syncVolumes(state){
   }
   const footprint={points:c.points},contacts=c.points.map(p=>roofContact(c,p,state));
   for(const face of state.roof?.faces||[]){const plane=G.plane(face.points);if(!plane)continue;for(const piece of K.intersection([face],[footprint]))for(const p of piece.points)contacts.push(plane.dx*p.x+plane.dy*p.y+plane.k);}
-  const height=Math.max(...contacts)+.3048,top=c.points.map(p=>({...p,z:height}));
+  const roofTop=Math.max(...contacts),height=Number.isFinite(c.dsmTop)&&c.dsmTop>roofTop+EPS?c.dsmTop:roofTop+.3048,top=c.points.map(p=>({...p,z:height}));
   for(let side=0;side<c.points.length;side++)edits.$surfaces.push({id:c.id+':volume-side-'+side,chimney:{id:c.id,side,volume:true,drivesFootprint:true},points:upperSide(c,side,height,state),holes:[]});
   edits.$surfaces.push({id:c.id+':cap',material:'chimney-top',chimney:{id:c.id,volume:true,cap:true},points:top,holes:[]});edits.$chimneyVolumes[c.id]={version:2,mode:'upper'};
  }
