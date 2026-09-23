@@ -480,6 +480,23 @@ test('persistent selection readout reports points lines and grouped faces indepe
  snapshot={};points=[{}, {}, {}];assert.equal(read(),'Selected: 3 points · 0 lines · 0 faces');points=[];assert.equal(read(),'Selected: 0 points · 0 lines · 0 faces');
 });
 
+test('rapid nudges refresh 2D but settle one latest 3D rebuild and backup',()=>{
+ for(const plane of [false,true]){
+  const frames=new Map(),counts={};let next=0,host,writes=[],snapshots=0;
+  const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,planeActive:()=>plane,keyDown(e){if(!e.key.startsWith('Arrow'))return false;host.recordHistory(JSON.parse(JSON.stringify(host.state().wallEdits||{})));host.state().wallEdits={value:(host.state().wallEdits?.value||0)+1};host.changed();host.redraw();return true;}};
+  const f=fixture(true,{requestAnimationFrame:fn=>{frames.set(++next,fn);return next;},cancelAnimationFrame:id=>frames.delete(id),EditorHistory:{share(previous,value){snapshots++;return value;}},ExteriorPerf:{mount(){},enabled:true,measure(label,fn){counts[label]=(counts[label]||0)+1;return fn();}},createWallEditor:h=>{host=h;return wall;}});
+  f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();frames.clear();snapshots=0;for(const key in counts)counts[key]=0;
+  const save=f.ctx.localStorage.setItem;f.ctx.localStorage.setItem=(key,value)=>{writes.push(value);save(key,value);};
+  const frame=()=>{for(const [id,fn] of [...frames]){frames.delete(id);fn();}},key=k=>f.listeners['window:keydown']({key:k,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+  for(let i=0;i<20;i++){key('ArrowRight');frame();}
+  assert.equal(host.state().wallEdits.value,20,'every requested step is applied');assert.equal(counts['3D scene rebuild']||0,0);assert.equal(writes.length,0);assert.equal(counts['2D redraw'],20);assert.equal(snapshots,1,'capture the original history state once during the burst');
+  f.flushTimers();frame();assert.equal(counts['3D scene rebuild'],1);assert.equal(writes.length,1);assert.equal(JSON.parse(writes[0]).wallEdits.value,20);assert.equal(snapshots,2,'capture only the final history state after settling');
+  key('ArrowRight');frame();f.listeners['window:keydown']({key:'z',ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});f.flushTimers();frame();assert.equal(host.state().wallEdits.value,undefined,'settling does not split the nudge undo group');
+  key('ArrowRight');frame();const builds=counts['3D scene rebuild'];f.listeners['window:pointerdown']({target:{closest:()=>false}});assert.equal(counts['3D scene rebuild'],builds+1,'picking sees the latest mesh immediately');
+  key('ArrowRight');frame();f.ctx.WallMode.beforeProjectLoad();const saved=JSON.parse(writes.at(-1));assert.equal(saved.wallEdits.value,2,'project exit flushes the latest backup');const finalBuilds=counts['3D scene rebuild'];f.flushTimers();frame();assert.equal(counts['3D scene rebuild'],finalBuilds,'no stale nudge render survives project exit');
+ }
+});
+
 test('editor redraw requests coalesce and a commit upgrades the pending render',()=>{
  const frames=[];let host;const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false};
  const f=fixture(true,{requestAnimationFrame:fn=>{frames.push(fn);return frames.length;},createWallEditor:h=>{host=h;return wall;}});

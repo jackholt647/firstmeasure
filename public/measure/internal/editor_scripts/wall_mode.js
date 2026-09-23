@@ -39,7 +39,7 @@
     // stable selection remains the pre-tool selection until its edit commits.
     function flushSelectionHistory(){
         if(selectionTimer!==null){clearTimeout(selectionTimer);selectionTimer=null;}
-        if(!enabled||!state||restoringHistory)return;
+        if(!enabled||!state||restoringHistory||pendingEdit&&nudgeSettleTimer!==null)return;
         const after=selectionSnapshot();if(!stableSelection){stableSelection=after;return;}
         if(pendingSelection){pendingSelection.afterSelection=after;stableSelection=after;pendingSelection=null;gestureSelection=null;return;}
         if(selectionBusy()){gestureSelection??=copy(['pointerdown','mousedown'].includes(selectionInputType)?after:stableSelection);return;}
@@ -53,10 +53,10 @@
         if(!enabled||!state)return;flushSelectionHistory();selectionInputType=event?.type||'';
         selectionTimer=setTimeout(()=>{selectionTimer=null;flushSelectionHistory();},0);
     }
-    function recordEdit(before){if(!state)return;pendingEdit={...editSnapshot(),...JSON.parse(JSON.stringify(before))};}
+    function recordEdit(before){if(!state||pendingEdit&&nudgeSettleTimer!==null)return;pendingEdit={...editSnapshot(),...JSON.parse(JSON.stringify(before))};}
     function finishEdit(...args){if(!window.ExteriorPerf?.enabled)return perf_finishEdit.apply(this,args);return window.ExteriorPerf.measure('Undo commit',()=>perf_finishEdit.apply(this,args));}
 function perf_finishEdit(){
-        if(!pendingEdit)return;const before=pendingEdit;pendingEdit=null;const after=editSnapshot();if(JSON.stringify(before)===JSON.stringify(after))return;
+        if(!pendingEdit||nudgeSettleTimer!==null)return;const before=pendingEdit;pendingEdit=null;const after=editSnapshot();if(JSON.stringify(before)===JSON.stringify(after))return;
         const beforeSelection=copy(gestureSelection||stableSelection||selectionSnapshot()),afterSelection=selectionSnapshot(),last=editHistory.at(-1);
         if(nudgeKey&&last?.nudgeKey===nudgeKey&&!last.selectionOnly&&last.selectionRevision===selectionRevision&&JSON.stringify(last.after)===JSON.stringify(before)){
             last.after=after;last.afterSelection=afterSelection;pendingSelection=last;
@@ -244,6 +244,7 @@ function perf_finishEdit(){
     }
     function persist(...args){if(!window.ExteriorPerf?.enabled)return perf_persist.apply(this,args);return window.ExteriorPerf.measure('Save backup',()=>perf_persist.apply(this,args));}
 function perf_persist(touch=true) {
+        if(nudgeSettleTimer!==null){nudgeBackupPending=true;return;}
         if(!projectId)return;
         if(!state){try{localStorage.setItem(key(projectId),'null');}catch(e){}return;}
         if(touch)state.savedAt=Date.now();
@@ -252,7 +253,7 @@ function perf_persist(touch=true) {
     }
     function exportState() {return projectId===currentId()?snapshot():null;}
     function serializeHistory(){
-        finishEdit();flushSelectionHistory();
+        settleNudges();finishEdit();flushSelectionHistory();
         return {version:1,undo:editHistory.map(e=>({...e})),redo:editFuture.map(e=>({...e})),selection:selectionSnapshot(),trimUndo:roofTrimHistory.slice(),trimRedo:roofTrimFuture.slice()};
     }
     function restoreHistory(history,serverState){
@@ -273,6 +274,7 @@ function perf_persist(touch=true) {
 
     function valid(s) {return s?.schemaVersion===1 && s.roof?.points?.length && Array.isArray(s.sources) && Number.isFinite(s.options?.ground) && s.context?.mpp>0;}
     function restore(id,metadata,history=null) {
+        if(nudgeSettleTimer!==null){clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;nudgeBackupPending=false;}clearNudgePreview();
         editHistory=[];editFuture=[];pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         roofTrimEditor?.reset();roofTrimHistory=[];roofTrimFuture=[];projectId=String(id||'');roofTrimOnly=copy(metadata?.exteriorsRoofTrim||{});try{const localTrim=JSON.parse(localStorage.getItem(key(projectId)+':roof-trim')||'null');if(localTrim&&(localTrim.savedAt||0)>(roofTrimOnly.savedAt||0))roofTrimOnly=localTrim;}catch(e){}state=null;sourceContext=null;selected=null;stage=1;
         let local=null;try{local=JSON.parse(localStorage.getItem(key(projectId))||'null');}catch(e){storageError='Local wall backup could not be read.';}
@@ -283,7 +285,7 @@ function perf_persist(touch=true) {
         const upgraded=upgradeEngine();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
         restoreView(metadata,local);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
     }
-    function beforeProjectLoad() {closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
+    function beforeProjectLoad() {settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     function ensureStage(next) {
         if(!state)return;
         if(state.roofSignature!==roofSignature()&&!generate(state.options.soffit))return;
@@ -419,23 +421,38 @@ function perf_render2DContent() {
     }
     const sceneParts=window.ExteriorSceneCache?new window.ExteriorSceneCache():null;
     function renderChunk(key,input,parent,build){return sceneParts?.pending?sceneParts.part(key,input,parent,build):build(parent);}
-    function disposeGroup() {sceneParts?.clear();window.ExteriorRendered?.stop();if(group3D){disposeObject3D(group3D);group3D.parent?.remove(group3D);group3D=null;}lastScene=null;}
+    function disposeGroup() {clearNudgePreview();sceneParts?.clear();window.ExteriorRendered?.stop();if(group3D){disposeObject3D(group3D);group3D.parent?.remove(group3D);group3D=null;}lastScene=null;}
     function roofTrimVisible(){return enabled&&roofVisible;}
     function persistRoofTrim(){const value=state?.roofTrim||roofTrimOnly;value.savedAt=Date.now();if(projectId)try{localStorage.setItem(key(projectId)+':roof-trim',JSON.stringify(value));}catch(e){} }
     function roofTrimPickGroup(){return {traverse(fn){roofTrimGroup?.traverse(fn);if(typeof facesGroup!=='undefined')facesGroup?.traverse(o=>{if(o.isMesh){o.userData.pickLayer='roof';}fn(o);});}};}
     function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
     // Compatibility hook for the roof renderer: exterior trim only renders in wall mode.
     function renderRoofTrim3D(){if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimEditor?.update();}
-    let editorRenderFrame=null,editorRenderFull=false;
+    let editorRenderFrame=null,editorRenderFull=false,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null;
+    function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
+    function drawNudgePreview(){
+        clearNudgePreview();if(typeof scene==='undefined'||!scene||!window.THREE?.Group)return;
+        nudgePreviewGroup=new THREE.Group();wallEditor?.drawNudgePreview?.(nudgePreviewGroup,p=>getVector3(toPixel(p)));scene.add(nudgePreviewGroup);window.invalidateScene3D?.();
+    }
+    function settleNudges(immediate=false){
+        if(nudgeSettleTimer===null)return;clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;clearNudgePreview();finishEdit();
+        if(nudgeBackupPending){nudgeBackupPending=false;persist();}
+        if(immediate){window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;render();}
+        else requestEditorRender(true);
+    }
+    function deferNudgeWork(){
+        if(nudgeSettleTimer!==null)clearTimeout(nudgeSettleTimer);
+        nudgeSettleTimer=setTimeout(()=>settleNudges(),180);
+    }
     function requestEditorRender(full=false){
         editorRenderFull ||= full;
         if(editorRenderFrame!==null)return;
-        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull;editorRenderFull=false;withWallScene(()=>{if(full)render();else{render2D();render3D();}});};
+        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull;if(nudgeSettleTimer!==null){render2D();drawNudgePreview();return;}editorRenderFull=false;withWallScene(()=>{if(full)render();else{render2D();render3D();}});};
         if(window.ExteriorFramePipeline){editorRenderFrame=true;window.ExteriorFramePipeline.enqueue('wall-view',flush,20);return;}
         if(typeof requestAnimationFrame==='undefined'){flush();return;}
         editorRenderFrame=requestAnimationFrame(flush);
     }
-    function render3D(){return withWallScene(render3DFrame);}
+    function render3D(){if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();return withWallScene(render3DFrame);}
     function render3DFrame(...args){if(!window.ExteriorPerf?.enabled)return perf_render3DFrame.apply(this,args);return window.ExteriorPerf.measure('3D scene rebuild',()=>perf_render3DFrame.apply(this,args));}
 function perf_render3DFrame() {
         if(typeof scene==='undefined'||!scene||!window.THREE)return;
@@ -683,7 +700,7 @@ function perf_render3DFrame() {
         // Capture before roof/plugin handlers. Panning, wheel zoom and orbit remain available.
         let groundSampleClick=false;
         for(const type of ['pointerdown','mousedown','dblclick','click'])window.addEventListener(type,e=>{
-            if(type==='pointerdown'){nudgeEpoch++;nudgeKey=null;}
+            if(type==='pointerdown'){settleNudges(true);nudgeEpoch++;nudgeKey=null;}
             if(!enabled)return;if(e.target.closest?.('#exterior-graphics,#resource-3d-controls,#roof-trim-control,#wall-panel,#exterior-toolbar,#axis-gizmo-container,.enh-control-panel,.controls-3d-actions,.exterior-sticker-bar,.exterior-sticker-menu'))return;
             if(e.target.closest?.('#viewport,#three-view-wrapper') && e.button===0){
                 if(groundSampleClick&&type!=='pointerdown'){if(type==='click')groundSampleClick=false;e.stopImmediatePropagation();e.preventDefault();return;}
@@ -745,7 +762,7 @@ function perf_render3DFrame() {
             if(window.ProjectResources?.handleKey(e))return true;
             if(!enabled)return;
             // Plane mode consumes keys early, but shares the same undo gesture as other layers.
-            if(e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))nudgeKey=String(nudgeEpoch);else if(!['Shift','Alt','Control','Meta'].includes(e.key)){nudgeEpoch++;nudgeKey=null;}
+            if(e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){nudgeKey=String(nudgeEpoch);deferNudgeWork();}else if(!['Shift','Alt','Control','Meta'].includes(e.key)){settleNudges();nudgeEpoch++;nudgeKey=null;}
             if(groundEditor?.sampling?.()&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))return groundEditor.keyDown(e);
             if(resoffitMode&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key)&&!((e.ctrlKey||e.metaKey)&&['s','c'].includes(e.key.toLowerCase())))setResoffit(false);
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
