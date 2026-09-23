@@ -3,14 +3,15 @@
     'use strict';
     const T=window.GroundGeometry,COLOR='#67c9ef',copy=v=>JSON.parse(JSON.stringify(v));
     window.createGroundEditor=function(host){
-        let project='',message='',busy=false,surface3D=null,sourceRequest=0,sampling=false;
+        let project='',message='',busy=false,surface3D=null,sourceRequest=0,sampling=false,samplingImageVisible=null;
         const state=()=>host.getState(),ground=()=>state()?.ground;
         const $=id=>document.getElementById('ground-'+id);
         function commit(next,fitBase=false){const grade=T.reference(next,state().roof);grade.visible=true;if(host.commitGround)host.commitGround(grade,fitBase);else{state().ground=grade;host.changed();}}
-        function stopSampling(){if(!sampling)return;sampling=false;host.samplingChanged?.(false);host.redraw?.();render();}
+        function restoreSamplingImage(){const visible=samplingImageVisible;samplingImageVisible=null;if(typeof visible==='boolean')window.toggle3DImage?.(visible);}
+        function stopSampling(){if(!sampling)return;sampling=false;restoreSamplingImage();host.samplingChanged?.(false);host.redraw?.();render();}
         function startSampling(){
             if(sampling){message='DSM point selection cancelled.';stopSampling();return;}
-            sourceRequest++;host.prepareSampling?.();sampling=true;
+            sourceRequest++;host.prepareSampling?.();samplingImageVisible=window.get3DImageVisible?.()??null;sampling=true;
             window.toggle3DSurfaceMode?.('height');window.toggle3DImage?.(true);
             message='Click exposed ground on the DSM to set flat grade. Escape cancels.';
             host.samplingChanged?.(true);host.redraw?.();render();
@@ -22,7 +23,7 @@
                 let pixel;if(view==='2d')pixel=pixelPosition(e);else{const p=position(e,'3d',0,'dsm');if(!p)throw Error('Click on the DSM surface to choose ground height.');pixel=host.toPixel(p);}
                 const p=T.sampleDSMPoint(layerData.dsm?.[0],host.context?.()||state().context,pixel,state().context);
                 const next=planeMesh({dx:0,dy:0,k:p.z},{source:'DSM point',sampledPoint:p,stats:{samples:1,grade:0}});
-                commit(next,true);message='Flat grade set from DSM: '+p.z.toFixed(2)+' m.';stopSampling();
+                commit(next,true);message='Ground height set to '+p.z.toFixed(2)+' m from DSM. Selection complete.';stopSampling();
             }catch(error){reportError(error);}
             return true;
         }
@@ -74,9 +75,10 @@
         }
         function render(){
             if(!$('status'))return;
-            const s=state(),g=ground(),id=host.projectId();if(id!==project){project=id;sourceRequest++;sampling=false;host.samplingChanged?.(false);message='';}
+            const s=state(),g=ground(),id=host.projectId();if(id!==project){project=id;sourceRequest++;sampling=false;restoreSamplingImage();host.samplingChanged?.(false);message='';}
             $('visible').setAttribute('aria-pressed',String(g?.visible!==false));
             for(const name of ['dsm','usgs','flat'])$(name).setAttribute('aria-pressed',String(name==='dsm'&&sampling||(g?.source||'').toLowerCase().startsWith(name)));
+            $('dsm').textContent=sampling?'Picking DSM…':'DSM';
             $('usgs').disabled=busy;$('flat-control').hidden=g?.source!=='Flat'&&!g?.sampledPoint;
             const b=s?.roof?T.bounds(s.roof):null,center=b?{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2}:null;
             if(document.activeElement!==$('flat-z'))$('flat-z').value=(center&&g?T.height(g,center):s?.options.ground??0)?.toFixed(2)||'0';

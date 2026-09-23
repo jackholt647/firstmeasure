@@ -6019,6 +6019,7 @@ window.toggle3DSurfaceMode = async function(forceMode=null) {
     apply3DSurfaceVisibility();
     update3DSurfaceButtons();
 };
+window.get3DImageVisible = () => googleTileState.surfaceVisible;
 window.toggle3DImage = function(forceState=null) {
     googleTileState.surfaceVisible = (forceState!==null) ? !!forceState : !googleTileState.surfaceVisible;
     apply3DSurfaceVisibility();

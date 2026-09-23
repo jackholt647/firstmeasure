@@ -604,6 +604,22 @@ test('DSM point selection sets flat grade and attached foundation in one undoabl
  elements.get('ground-dsm').onclick();key('Escape');assert.deepEqual(ctx.WallMode.serialize().ground,saved.ground);assert.match(elements.get('ground-status').textContent,/cancelled/);
 });
 
+test('DSM sampling restores image visibility on completion, cancellation and leaving',()=>{
+ for(const initiallyVisible of [false,true]){
+  let visible=initiallyVisible;
+  const data=new Float32Array(100).fill(-9999);data[22]=3.25;
+  const {ctx,elements,listeners,soffits}=fixture(true,{layerData:{dsm:[data]},screenToImage:(x,y)=>({x,y}),get3DImageVisible:()=>visible,toggle3DImage:on=>{visible=on;}});
+  ctx.WallMode.setEnabled(true);soffits[1].onclick();
+  const start=()=>{elements.get('ground-dsm').onclick();assert.equal(visible,true);assert.equal(elements.get('ground-dsm').textContent,'Picking DSM…');};
+  const pick=(x,y)=>listeners['window:pointerdown']({clientX:x,clientY:y,button:0,target:{closest:s=>s==='#viewport,#three-view-wrapper'||s==='#geoSvg'?{}:null},preventDefault(){},stopImmediatePropagation(){}});
+  start();pick(0,0);assert.equal(visible,true,'a miss keeps the image available');assert.equal(elements.get('ground-dsm').textContent,'Picking DSM…');
+  pick(2,2);assert.equal(visible,initiallyVisible);assert.equal(elements.get('ground-dsm').textContent,'DSM');assert.match(elements.get('ground-status').textContent,/Ground height set to 3.25 m.*Selection complete/);
+  start();listeners['window:keydown']({key:'Escape',target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});assert.equal(visible,initiallyVisible);
+  start();elements.get('ground-dsm').onclick();assert.equal(visible,initiallyVisible);
+  start();ctx.WallMode.beforeProjectLoad();assert.equal(visible,initiallyVisible);
+ }
+});
+
 test('From Roof uses a supported automatic ground plane when DSM evidence exists',()=>{
  const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.02*(x-50)+.01*(y-50);
  const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.02)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.01)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.02*p.x+.01*p.y))<1e-5)));
