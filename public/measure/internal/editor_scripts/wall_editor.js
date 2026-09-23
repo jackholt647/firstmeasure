@@ -479,7 +479,7 @@ window.createWallEditor=function(host){
  const vertices=w=>[...w.bottom,...w.top],key=w=>w.id;
 
  function record(before){history.push(copy(before));future=[];host.recordHistory?.(copy(before));}
- const draft=window.createWallFaceDraft?.({pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,pickSoffitVisible:host.pickSoffitVisible,pasteHost:host.pasteHost,selectBaseEntities:host.selectBaseEntities,state:host.state,walls:host.walls,wallsVisible:host.visible,hit,roof:()=>host.state()?.boundExtrusionToRoof!==false?(window.WallChimneys?.roofWithOpenings(host.state())||host.state()?.roof):null,active,selected:()=>selected,select:id=>{selected=id;indices=[];host.setLayer?.('walls');},selectBox:id=>{selected=id;indices=[];host.setLayer?.('walls',true,true);},screen,position:host.position,toPixel:host.toPixel,message:text=>host.message?.(text),redraw:host.redraw,commit:before=>{record(before);host.changed();}});
+ const draft=window.createWallFaceDraft?.({pickVisible:host.pickVisible,pickLineVisible:host.pickLineVisible,pickSoffitVisible:host.pickSoffitVisible,pasteHost:host.pasteHost,selectBaseEntities:host.selectBaseEntities,state:host.state,walls:host.walls,wallsVisible:host.visible,hit,roof:()=>host.state()?.boundExtrusionToRoof!==false?(window.WallChimneys?.roofWithOpenings(host.state())||host.state()?.roof):null,active,selected:()=>selected,select:id=>{selected=id;indices=[];host.setLayer?.('walls',false,true);},selectBox:id=>{selected=id;indices=[];host.setLayer?.('walls',true,true);},screen,position:host.position,toPixel:host.toPixel,message:text=>host.message?.(text),redraw:host.redraw,commit:before=>{record(before);host.changed();}});
 
  function apply(walls){
 

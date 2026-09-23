@@ -567,3 +567,13 @@ test('selection wall queries reuse composition and invalidate after mutation, un
  host.walls();assert.equal(calls,0);host.state().wallEdits=before;host.walls();assert.ok(calls>0);calls=0;
  f.stages[1].onclick();assert.ok(calls>0);
 });
+
+test('selecting the active wall layer does not synchronously rebuild or persist the model',()=>{
+ let host,draws=0;
+ const f=fixture(true,{createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){draws++;},draw3D(){draws++;},hasDraft:()=>false,busy:()=>false};}});
+ f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();host.setLayer('walls');
+ const before=JSON.stringify(host.state());draws=0;
+ host.setLayer('walls');host.setLayer('walls');
+ assert.equal(draws,0,'no synchronous scene redraw on unchanged layer');
+ assert.equal(JSON.stringify(host.state()),before,'selection does not update saved model timestamps');
+});

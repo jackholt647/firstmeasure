@@ -574,7 +574,13 @@ function perf_render3DFrame() {
         document.getElementById('workspace').appendChild(panel);
         groundEditor=window.createGroundEditor?.({getState:()=>state,ensureState:()=>!!state||generate('auto'),projectId:currentId,enabled:()=>enabled,toPixel,toMetric,changed:groundChanged,onEditing:on=>{editingLayer=on?'grade':'base';baseEditor?.render();},redraw:()=>requestEditorRender()});
         groundEditor?.setup(panel);
-        const setLayer=(value,preserveVisibility=false,deferScene=false)=>{if(value!=='walls'&&resoffitMode)closeResoffit();if(value!=='base'){if(baseEditor?.busy())baseEditor.leave();baseEditor?.clearSelection();}if(value!=='walls')wallEditor?.clear();editingLayer=value;if(value==='base'&&state?.base)baseState().base.visible=true;if(value==='walls'&&!preserveVisibility)wallsVisible=true;groundEditor?.setEditing(value==='grade');persist();if(deferScene){groundEditor?.render();baseEditor?.render();}else render();};
+        const setLayer=(value,preserveVisibility=false,deferScene=false)=>{
+            const changed=editingLayer!==value||(value==='walls'&&!preserveVisibility&&!wallsVisible)||(value==='base'&&state?.base&&baseState().base.visible===false);
+            if(value!=='walls'&&resoffitMode)closeResoffit();if(value!=='base'){if(baseEditor?.busy())baseEditor.leave();baseEditor?.clearSelection();}if(value!=='walls')wallEditor?.clear();editingLayer=value;if(value==='base'&&state?.base)baseState().base.visible=true;if(value==='walls'&&!preserveVisibility)wallsVisible=true;groundEditor?.setEditing(value==='grade');
+            // Selecting another entity on the same layer is not a model edit.
+            // Let its queued highlight redraw handle both views once.
+            if(!changed){baseEditor?.render();requestEditorRender();return;}
+            persist();if(deferScene){groundEditor?.render();baseEditor?.render();}else render();};
         baseEditor=window.createBaseEditor?.({pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),walls:currentWalls,state:baseState,ensure:()=>!!state||generate('auto'),enabled:()=>enabled,id:currentId,layer:()=>editingLayer,setLayer,
             selectVisibleLayer:()=>setLayer(baseState()?.base?.visible!==false?'base':wallsVisible?'walls':'grade'),handleKey:e=>handleEditorKey(e),position:(...args)=>groundEditor.position(...args),toPixel,
             recordHistory:before=>{if(before.wallEdits?.$base)delete before.base;recordEdit(before);},undo:()=>undoEdit(),canUndo:()=>editHistory.some(e=>state?.undoSelections!==false||!e.selectionOnly),changed:()=>{groundChanged();finishEdit();baseEditor?.render();},redraw:()=>requestEditorRender()});
