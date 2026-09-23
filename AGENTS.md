@@ -27,3 +27,10 @@ or handoff. Older worktrees preserve recovery history; do not silently switch
 to them or reimport their files. Deploy immutable verified commits from the
 canonical branch using the existing deployment workflow. Development deployment
 authorization does not authorize production deployment or topology changes.
+
+## Architecture continuity
+
+Before data/action publication or document/scope architecture work, read
+[the agreed design and pending audit](docs/architecture/data-actions-continuity.md).
+It links the full-conversation continuation. Audit the canonical integrated
+source before treating earlier checkout findings as current facts.

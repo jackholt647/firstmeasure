@@ -1,4 +1,4 @@
-# Canonical combined platform — September 23, 2026
+# Canonical combined platform â€” September 23, 2026
 
 The canonical working directory is `C:/Users/jackh/Code/2026/FirstMate Platform`.
 The branch is `codex/consolidated-firstmeasure-20260923`. It combines FirstMate
@@ -65,6 +65,9 @@ still applies. Git worktree back-references must be repaired after the move.
   71 and 78 reproduce unchanged in the unmodified latest exterior worktree.
   They concern eave curtains during curved extrusion and predate consolidation.
 - The report-range regression passes inside the full suite.
+- Navigation/settings contract checks pass 46/50; all four failures reproduce
+  in the unchanged latest exterior worktree (invoice UI, Docs gallery, sharing
+  feedback and Money settings expectations).
 
 This is not a claim that every inherited platform contract is green. Earlier
 platform/mobile deployment records document unrelated broader-suite failures.
@@ -96,4 +99,11 @@ worktrees and production retain their existing branch identities.
 
 The original function/action and data-publication architecture audit is a
 separate pending read-only deliverable against this consolidated baseline.
-No publication architecture was implemented during consolidation.
+No publication architecture was implemented during consolidation. See the
+[architecture continuity record](architecture/data-actions-continuity.md) for
+agreed decisions, acceptance scenarios and the full-conversation continuation.
+
+The renamed directory is the only physical canonical checkout. When necessary
+for existing Codex task attachments, the former `FirstMeasure` path is retained
+as a directory junction to `FirstMate Platform`; it is not a second checkout.
+Use the new path for future projects and commands.
