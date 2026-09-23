@@ -9,6 +9,16 @@
  const sameProject=()=>String(root.currentProjectId)===project&&root.WallMode?.enabled;
  function check(){if(aborter?.signal.aborted)throw new DOMException('Stopped','AbortError');if(!sameProject())throw Error('Project or exterior mode changed.');}
  function option(select,value,label){const o=node('option',label,select);o.value=value;return o;}
+ function labelPhotos(images){
+  const settings=copy(root.currentProjectLoadedAppMetadata?.pdfConfig?.exteriorSettings||{});
+  root.ExteriorPDF?.initializePhotoSlots(settings,images);
+  const names={front:'Front',back:'Back',left:'Left side',right:'Right side','front-left':'Front left','front-right':'Front right','back-left':'Back left','back-right':'Back right',side:'Side'};
+  return images.map(p=>{
+   const assigned=Object.entries(settings.photoSlots||{}).filter(([,s])=>s.image&&((p.key&&s.image.key===p.key)||(p.resourceName&&s.image.resourceName===p.resourceName)||(p.url&&s.image.url===p.url))).map(([slot])=>slot);
+   const slots=assigned.length?assigned:[p.slot],directions=slots.map(s=>names[s]).filter(Boolean);
+   return {...p,slot:assigned[0]||p.slot,label:`${directions.join(' / ')||'Unassigned'} · ${p.label||p.key}`};
+  });
+ }
  function select(parent,key,title,values){const label=node('label',title,parent),s=node('select',null,label);s.dataset[key]='';s.setAttribute('aria-label',title);for(const [v,t]of values)option(s,v,t);return s;}
  async function db(){return new Promise((resolve,reject)=>{const q=indexedDB.open('firstmeasure-exterior-stickers',1);q.onupgradeneeded=()=>q.result.createObjectStore('runs',{keyPath:'id'});q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(Error('Cannot open sticker history.'));});}
  async function store(record){const d=await db();try{await new Promise((resolve,reject)=>{const t=d.transaction('runs','readwrite');t.objectStore('runs').put(copy(record));t.oncomplete=resolve;t.onerror=t.onabort=()=>reject(Error('History storage failed; export this run.'));});}finally{d.close();}}
@@ -120,7 +130,7 @@
   const r=root.ExteriorAI.context();if(!r||r.project!==project)return;
   const v=field('view'),p=field('photo'),oldView=v.value,oldPhoto=p.value;
   v.replaceChildren();option(v,'current','Current camera');if(r.selectedPose)option(v,'rotation','Rotation result');for(const f of r.steps.filter(f=>f.index))option(v,String(f.index),f.label);
-  if(r.front&&!Array.from(p.options).some(o=>o.value==='rotation'))option(p,'rotation','Rotation photo');
+  if(r.front&&!Array.from(p.options).some(o=>o.value==='rotation'))option(p,'rotation','Front · rotation photo');
   v.value=oldView;if(!v.value)v.value='current';p.value=oldPhoto;
   if(r.id!==linkedRunId){if(r.selectedPose)v.value='rotation';if(r.front)p.value='rotation';linkedRunId=r.id;}p.onchange();
  }
@@ -132,13 +142,13 @@
   select(panel,'style','Ask',[['all','All faces · one call'],['each','Each face · parallel']]);
   select(panel,'output','Output',[['counts','Counts only'],['placements','Counts + placements']]);
   const view=select(panel,'view','View',[['current','Current camera']]);if(linked&&rotation.selectedPose)option(view,'rotation','Rotation result');if(linked)for(const f of rotation.steps.filter(f=>f.index))option(view,String(f.index),f.label);if(linked&&rotation.selectedPose)view.value='rotation';
-  const photo=select(panel,'photo','Photo',[]);if(linked&&rotation.front)option(photo,'rotation','Rotation photo');option(photo,'upload','Upload photo…');
+  const photo=select(panel,'photo','Photo',[]);if(linked&&rotation.front)option(photo,'rotation','Front · rotation photo');option(photo,'upload','Upload photo…');
   const upload=node('input',null,panel);upload.type='file';upload.accept='image/*';upload.dataset.upload='';upload.setAttribute('aria-label','Upload sticker reference photo');upload.hidden=photo.value!=='upload';photo.onchange=()=>upload.hidden=photo.value!=='upload';
   const actions=node('div',null,panel);actions.className='sticker-actions';const go=node('button','Run',actions);go.type='button';go.dataset.run='';go.onclick=run;const stop=node('button','Stop',actions);stop.type='button';stop.dataset.stop='';stop.onclick=()=>aborter?.abort();stop.disabled=true;
   const h=select(panel,'history','History',[]);h.onchange=()=>{current=runs.find(r=>r.id===h.value)||null;field('notice').textContent='';show();};const notice=node('p',null,panel);notice.dataset.notice='';notice.setAttribute('role','status');const results=node('div',null,panel);results.dataset.results='';results.setAttribute('aria-live','polite');
   if(!document.getElementById('sticker-ai-style')){const style=node('style',null,document.head);style.id='sticker-ai-style';style.textContent='#ai-stickers label{display:block;font-size:11px;margin:5px 0}#ai-stickers select,#ai-stickers input{width:100%;min-width:0;box-sizing:border-box;font-size:11px}#ai-stickers .sticker-actions{display:flex;gap:4px}#ai-stickers table{width:100%;border-collapse:collapse;font-size:12px}#ai-stickers td,#ai-stickers th{text-align:center;padding:5px 2px;border-bottom:1px solid #ffffff25}#ai-stickers tbody tr{cursor:pointer}#ai-stickers tr[data-selected],#ai-stickers tbody tr:hover{background:#436082}#ai-stickers small{font-size:10px}#ai-stickers details{margin-top:8px;font-size:11px}#ai-stickers img{width:100%}#ai-stickers [hidden]{display:none!important}';}
   controls();const activeProject=project;
-  try{const [images,saved]=await Promise.all([root.ProjectResources.reportImages(project),load()]);if(project!==activeProject||String(root.currentProjectId)!==activeProject)return;photos=images;runs=saved.filter(r=>r.project===project).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));for(const p of photos)option(photo,p.key,p.label);if(!linked||!rotation.front){const front=photos.find(p=>p.slot==='front')||photos[0];if(front)photo.value=front.key;}photo.onchange();history();if(runs.length){current=runs[0];h.value=current.id;}show();}catch(e){notice.textContent=e.message;}
+  try{const [images,saved]=await Promise.all([root.ProjectResources.reportImages(project),load()]);if(project!==activeProject||String(root.currentProjectId)!==activeProject)return;photos=labelPhotos(images);runs=saved.filter(r=>r.project===project).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));for(const p of photos)option(photo,p.key,p.label);if(!linked||!rotation.front){const front=photos.find(p=>p.slot==='front')||photos[0];if(front)photo.value=front.key;}photo.onchange();history();if(runs.length){current=runs[0];h.value=current.id;}show();}catch(e){notice.textContent=e.message;}
  }
  root.ExteriorAIStickers={mount,captureFaces,validateRows,get busy(){return busy;}};
 })(window);
