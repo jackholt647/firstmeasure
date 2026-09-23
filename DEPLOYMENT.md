@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 sticker sorting: [Sortable face counts](deploy/digitalocean/development-exterior-ai-stickers-sort-20260923.md) records `ebcfb8b3af3f0d96bc02a122c706ba3f6384ea60` on all development roles. W/D/G headers sort highest first, toggle direction, and keep unknown counts last. Browser tests, public asset hash and role readiness passed. This one-script delta preserves the complete `df21902` runtime. Production is unchanged.
+
 September 23 photo wheel correction: [Controls-only photo zoom](deploy/digitalocean/development-photo-wheel-controls-20260923.md) records `df21902fb2cdd4a2db1b27f7829aaf8ba617360c` on all development roles. Only hovering the Photo reference control panel routes wheel input to the photo; scrolling over the image or model canvas zooms the model. Both browser checks, public hash and readiness passed. This one-script delta preserves the complete `b7b759c` runtime. Production is unchanged.
 
 September 23 photo wheel zoom: [Hover to zoom the reference](deploy/digitalocean/development-photo-wheel-20260923.md) records `ad5c325fc4406ed4db71c56f2e7ef3037cb1a073` on all development roles. Wheel over the photo or its panel zooms the reference, preserving cursor anchoring and model zoom elsewhere. Both browser checks, public hash and readiness passed. This one-script delta preserves the complete `55e5497` runtime. Production is unchanged.
