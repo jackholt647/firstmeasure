@@ -181,6 +181,34 @@
             const shifted=p=>{const q={x:p.x+n.x*setback,y:p.y+n.y*setback};return {...q,z:height({plane:sourcePlane},q)};};
             sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(clearance?.roofIds.length?{clearanceRoofIds:clearance.roofIds}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
         }
+        // A measured side wall ending at the lower roof's eave is a finite
+        // junction. Keep the adjoining upper wall at that end plane instead of
+        // insetting past it and leaving an unsupported flashing wing outside.
+        const junctions=[];
+        if(options.roofContacts)for(const s of sources.filter(s=>s.kind==='perimeter'&&s.contactSetback!==undefined)){
+            const len=distance(s.originalA,s.originalB),u={x:(s.originalB.x-s.originalA.x)/len,y:(s.originalB.y-s.originalA.y)/len},n=normalFor(faces.find(g=>g.id===s.parentId),s.originalA,s.originalB);
+            const contactPoint={x:s.originalA.x+n.x*s.contactSetback,y:s.originalA.y+n.y*s.contactSetback};
+            for(const f of sources.filter(f=>f.kind==='flashing'&&['side_wall','sidewall'].includes(f.type))){
+                if(Math.abs(cross(u,sub(f.b,f.a)))>distance(f.a,f.b)*.002||[f.a,f.b].some(p=>Math.abs(cross(u,sub(p,contactPoint)))>.005))continue;
+                const lower=faces.find(g=>g.id===f.parentId);if(!lower)continue;
+                for(const end of [f.a,f.b]){
+                    const boundary=edges.some(e=>['eave','rake'].includes(e.type)&&onEdge(end,e.a,e.b,.005)&&Math.abs(mix(e.a,e.b,Math.max(0,Math.min(1,((end.x-e.a.x)*(e.b.x-e.a.x)+(end.y-e.a.y)*(e.b.y-e.a.y))/distance(e.a,e.b)**2))).z-end.z)<.02&&parentFace(faces,e.a,e.b)?.id===lower.id);
+                    if(!boundary)continue;
+                    for(const t of sources.filter(t=>t.kind==='perimeter'&&t!==s&&[t.originalA,t.originalB].some(p=>[s.originalA,s.originalB].some(q=>distance(p,q)<.005&&Math.abs(p.z-q.z)<.02)))){
+                        const n=normalFor(faces.find(g=>g.id===t.parentId),t.originalA,t.originalB);if(!n||Math.abs(cross(u,sub(t.originalB,t.originalA)))/distance(t.originalA,t.originalB)<.02)continue;
+                        const limit=(end.x-t.originalA.x)*n.x+(end.y-t.originalA.y)*n.y;
+                        if(limit<0||limit>=t.setback-.002||t.clearanceRoofIds?.length)continue;
+                        junctions.push({source:t,limit,n,flashingId:f.id});
+                    }
+                    s.boundaryReference=true;s.setback=s.contactSetback;
+                    for(const [k,original]of [['a','originalA'],['b','originalB']]){const p=s[original],q={x:p.x+n.x*s.setback,y:p.y+n.y*s.setback};s[k]={...q,z:height({plane:s.sourcePlane},q)};}
+                }
+            }
+        }
+        for(const {source:s,limit,n,flashingId}of junctions){
+            if(limit>=s.setback)continue;s.setback=limit;s.junctionSetback={maximum:limit,flashingId};
+            for(const [k,original]of [['a','originalA'],['b','originalB']]){const p=s[original],q={x:p.x+n.x*limit,y:p.y+n.y*limit};s[k]={...q,z:height({plane:s.sourcePlane},q)};}
+        }
         // A short return/flashing/return chain inside two overlapping exterior
         // edges is an overlap seam, not a recess in the building. Resolve it
         // from measured roof edges before inset miters can invert the chain.
@@ -357,8 +385,9 @@
         };
         for(const s of sources) {
             if(s.kind==='flashing'){const ts=envelopeCuts(s),parts=[];for(let i=1;i<ts.length;i++)if(!hiddenByEnvelope(s,mix(s.a,s.b,(ts[i-1]+ts[i])/2)))parts.push({...s,a:mix(s.a,s.b,ts[i-1]),b:mix(s.a,s.b,ts[i])});clipped.push(...parts.map((p,i)=>({...p,id:i?s.id+'.envelope'+i:s.id})));continue;}
-            if(distance(s.a,s.b)<.005)continue;
-            if(options.roofContacts&&!s.envelopeReturn&&!s.soffitAlignment&&!s.overlapSeam&&(s.b.x-s.a.x)*(s.originalB.x-s.originalA.x)+(s.b.y-s.a.y)*(s.originalB.y-s.originalA.y)<=0)continue;
+            const reference=()=>{if(s.boundaryReference)clipped.push({...s,id:s.id+'.0',referenceOnly:true});};
+            if(distance(s.a,s.b)<.005){reference();continue;}
+            if(options.roofContacts&&!s.envelopeReturn&&!s.soffitAlignment&&!s.overlapSeam&&(s.b.x-s.a.x)*(s.originalB.x-s.originalA.x)+(s.b.y-s.a.y)*(s.originalB.y-s.originalA.y)<=0){reference();continue;}
             const f=faces.find(f=>f.id===s.parentId);
             // A setback near a hip can enter the neighboring face before reaching
             // flashing. Restrict support to faces sharing a roof edge at this
@@ -394,6 +423,7 @@
             if(s.overlapSeam&&pieces.length){
                 for(const [piece,key]of [[pieces[0],'a'],[pieces[pieces.length-1],'b']])if(distance(piece[key],s[key])<.005)piece[key]=clone(s[key]);
             }
+            if(!pieces.length)reference();
             clipped.push(...pieces.map(({supportPlane,...p})=>p));
         }
         if(options.soffit==='auto' && perimeters.some(s=>!s.inferred)) warnings.push('Auto uses 18 in where no parallel flashing gives a soffit depth.');
@@ -412,6 +442,7 @@
         const terrain=typeof ground==='object'?surfaces({faces:ground.faces.map((ids,i)=>({id:`ground:${i}`,points:ids.map(id=>ground.points[id]),terrain:true}))}):[];
         const flat=typeof ground==='number'?ground:null;
         for(const s of sources) {
+            if(s.referenceOnly)continue;
             // Ignore planes outside this wall's footprint; their infinite extensions
             // can cross thousands of times without changing the actual wall.
             // Along a measured roof boundary, use its actual slope instead of

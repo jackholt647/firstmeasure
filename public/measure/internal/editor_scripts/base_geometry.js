@@ -202,7 +202,19 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
  }
  // The incoming upper walls are already deduplicated. Reapplying survey
  // alignment here would move the exact foundation junctions apart again.
- return G.deduplicate(clipRoofTops([...remaining,...result],roof),.002,{preserveJunctions:true}).walls;
+ // A grounded roof body cannot leave a flashing wing outside its outline.
+ // Clip those returns at the connected wall plane, while roof-mounted dormer
+ // walls remain independent of the footprint below them.
+ const layers=G.roofLayers(roof),grounded=new Set(result.flatMap(w=>(layers.get(w.sourceRoofId)||[]).map(f=>f.id)));
+ const supported=remaining.flatMap(w=>{
+  if(w.kind!=='flashing'||!grounded.has(w.targetId))return [w];
+  const ts=G.splitParameters(...w.bottom,regions),mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t}),parts=[];
+  for(let i=1;i<ts.length;i++){
+   if(!regions.some(f=>G.contains(f,mix(...w.bottom,(ts[i-1]+ts[i])/2))))continue;
+   parts.push({...w,id:ts.length===2?w.id:w.id+':body-'+i,bottom:[ts[i-1],ts[i]].map(t=>mix(...w.bottom,t)),top:[ts[i-1],ts[i]].map(t=>mix(...w.top,t))});
+  }return parts;
+ });
+ return G.deduplicate(clipRoofTops([...supported,...result],roof),.002,{preserveJunctions:true}).walls;
 }
 function repairInitial(base,roof,grade,walls){
  if(base?.source!=='Wall perimeter'||base.sketch?.nodes.some(p=>!p.fixed)||base.sketch?.edges.some(e=>!e.fixed))return base;

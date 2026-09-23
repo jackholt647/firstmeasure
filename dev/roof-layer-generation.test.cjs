@@ -173,3 +173,27 @@ for(const roofId of [34,35,36,37])test(`snapped side then front extrusion keeps 
  for(const p of ps)assert.ok(p.z<=plane.dx*p.x+plane.dy*p.y+plane.k+K.CONTACT,'no shared corner or return protrudes above the contacted lower roof');
  for(const f of [result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)])K.validateFace(f);
 });
+
+
+function finiteTowerJunctions(r,soffit){
+ const limits=[];
+ for(const [flashingId,eaveId]of [['R128','R112'],['R130','R115']]){
+  const flashing=r.state.sources.find(s=>s.id===flashingId),source=r.state.sources.find(s=>s.id.startsWith(eaveId+'.'));assert.ok(flashing&&source);
+  const a=source.originalA,b=source.originalB,len=Math.hypot(b.x-a.x,b.y-a.y),n={x:-(b.y-a.y)/len,y:(b.x-a.x)/len};
+  if((source.a.x-a.x)*n.x+(source.a.y-a.y)*n.y<0){n.x=-n.x;n.y=-n.y;}
+  const limit=(flashing.a.x-a.x)*n.x+(flashing.a.y-a.y)*n.y;limits.push(limit);
+  assert.ok(Math.abs(source.setback-Math.min(soffit*G.INCH,limit))<.002,'adjoining setback stops at the finite lower roof end');
+  assert.ok(r.state.base.faces.some(f=>f.points.some((p,i)=>{const q=f.points[(i+1)%f.points.length],dx=flashing.b.x-flashing.a.x,dy=flashing.b.y-flashing.a.y,l=Math.hypot(dx,dy),ts=[p,q].map(p=>((p.x-flashing.a.x)*dx+(p.y-flashing.a.y)*dy)/l).sort((a,b)=>a-b);return [p,q].every(p=>Math.abs((p.x-flashing.a.x)*dy-(p.y-flashing.a.y)*dx)/l<.005)&&Math.min(l,ts[1])-Math.max(0,ts[0])>=(soffit===0?-.005:.005);})),'supporting wall meets the measured roof junction on one plane');
+  const walls=r.composed.filter(w=>w.sourceId===flashingId);assert.ok(walls.length,'measured roof-to-wall contact is retained');
+ }
+ for(const w of r.composed.filter(w=>w.kind==='flashing'&&[19,20].includes(w.targetId)))for(const p of [...w.top,...w.bottom])assert.ok(r.state.base.faces.some(f=>G.contains(f,p)),'no unsupported flashing wing: '+w.id);
+ for(const id of ['R113','R114']){const s=r.state.sources.find(s=>s.id.startsWith(id+'.'));assert.ok(s);assert.ok(Math.abs(s.setback-G.layerSetback(G.roofLayers(r.state.roof).get(s.parentId),soffit*G.INCH))<.002,'unconstrained front soffits retain the chosen depth');}
+ assert.equal(r.open.length,0,'junctions stay closed down to the foundation');
+}
+for(const soffit of [0,6,12,18,24,36])test(`finite roof-end planes reconcile both tower sides at ${soffit} inches`,()=>finiteTowerJunctions(build(fixture,soffit),soffit));
+
+test('finite tower contacts do not depend on compass direction or face ordering',()=>{
+ const f=structuredClone(fixture),angle=.71,c=Math.cos(angle),s=Math.sin(angle),point=p=>({...p,x:c*p.x-s*p.y+20,y:s*p.x+c*p.y-10});
+ f.roof.points=f.roof.points.map(point);for(const face of f.roof.faces){face.points=face.points.map(point);face.holes=(face.holes||[]).map(r=>r.map(point));}f.roof.faces.reverse();f.ground.points=f.ground.points.map(point);f.ground.plane=G.plane(f.ground.points);delete f.chimneys;
+ finiteTowerJunctions(build(f,24),24);
+});

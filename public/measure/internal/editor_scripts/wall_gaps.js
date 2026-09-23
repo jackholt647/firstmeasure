@@ -118,7 +118,9 @@
             if(w.bottom.some(p=>dist(p,corner)>width*2))continue;
             const spans=[a,b].map(n=>{const t=projection(corner,...n.w.bottom);return {bottom:mix(...n.w.bottom,t).z,top:mix(...n.w.top,t).z};});
             if(Math.abs(spans[0].bottom-spans[1].bottom)>heightTolerance||Math.abs(spans[0].top-spans[1].top)>heightTolerance)continue;
-            const bottom=(spans[0].bottom+spans[1].bottom)/2,top=(spans[0].top+spans[1].top)/2;if(top-bottom<HEIGHT)continue;
+            // Reconcile beneath both roof pitches; averaging lifts the lower
+            // side through its roof even when the plan corner is correct.
+            const bottom=(spans[0].bottom+spans[1].bottom)/2,top=Math.min(spans[0].top,spans[1].top);if(top-bottom<HEIGHT)continue;
             if([a,b].some(n=>dist(n.w.bottom[1-n.j],corner)<=width))continue;
             for(const n of [a,b]){n.w.bottom[n.j]={x:corner.x,y:corner.y,z:bottom};n.w.top[n.j]={x:corner.x,y:corner.y,z:top};}
             result=result.filter(v=>v!==w);removed.push(w.id);
@@ -143,7 +145,7 @@
                 if(spans.some(v=>Math.abs(v.lo-z)>.02)||Math.abs(spans[0].hi-spans[1].hi)>.002)continue;
                 // Do not move a junction belonging to another wall.
                 if(result.some(w=>w!==a&&w!==b&&[p,q].some(v=>{const s=spanAt(w,v,.002);return s&&s.lo<Math.min(...spans.map(t=>t.hi))-.02&&s.hi>z+.02;})))continue;
-                const bottom={x:mid.x,y:mid.y,z},top={x:mid.x,y:mid.y,z:(spans[0].hi+spans[1].hi)/2};
+                const bottom={x:mid.x,y:mid.y,z},top={x:mid.x,y:mid.y,z:Math.min(spans[0].hi,spans[1].hi)};
                 a.bottom[ai]={...bottom};b.bottom[bi]={...bottom};a.top[ai]={...top};b.top[bi]={...top};
             }
         }

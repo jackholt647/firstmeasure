@@ -2257,10 +2257,11 @@ for(const source of ['R134.0','R23.0'])test(`resoffit preserves surveyed junctio
  f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);
 });
 
-test('a soffit depth that inverts a lower-roof return is rejected atomically',()=>{
+test('the reconciled lower-tower junction remains editable with Resoffit',()=>{
  const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18);
  const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id==='R112.0'),before=JSON.stringify(r.state.wallEdits);
- f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),false);assert.equal(f.history.length,0);assert.equal(JSON.stringify(r.state.wallEdits),before);
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ const contacts=f.editor.soffitEdges().filter(c=>c.source.id===line.source.id);assert.ok(contacts.length);assert.ok(contacts.every(c=>Math.abs(c.inset-.1524)<.002));
 });
 
 
