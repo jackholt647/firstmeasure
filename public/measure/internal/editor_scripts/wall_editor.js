@@ -128,7 +128,7 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
    if(o.isMesh&&o.userData?.pickLayer==='grade'){m.polygonOffset=true;m.polygonOffsetFactor=4;m.polygonOffsetUnits=4;}
    if(line){m.depthTest=translucent?saved.depthTest:true;m.depthWrite=false;o.userData.exteriorLineOrder??=o.renderOrder;o.renderOrder=translucent?o.userData.exteriorLineOrder:(o.userData.exteriorSelection||o.userData.exteriorLineOrder>0?999:998);window.wallLineDepthBias(o,!translucent);}
    if(o.userData?.selectedLineDepth){m.depthTest=!translucent;m.depthWrite=false;}
-   if(o.userData?.exteriorSoffit){m.depthTest=false;m.depthWrite=false;m.color?.set?.('#ef633c');m.opacity=1;o.renderOrder=999.5;}
+   if(o.userData?.exteriorSoffit){m.depthTest=!translucent;m.depthWrite=false;m.color?.set?.('#ef633c');m.opacity=1;o.renderOrder=999.5;}
    // Point squares are drafting overlays: a surface must never slice them.
    if(o.isPoints){m.depthTest=false;m.depthWrite=false;o.renderOrder=1000;window.wallPointOcclusion(o,!translucent);}
    // Annotation sprites must remain overlays in every surface display mode.

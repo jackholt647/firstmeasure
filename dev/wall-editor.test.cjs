@@ -79,8 +79,8 @@ test('coplanar stickers win surface picking without selecting through nearer geo
 });
 
 
-test('soffit contact color and visibility survive opaque and textured material setup',()=>{
+test('soffit contacts use depth testing and a one-pixel bias only in solid modes',()=>{
  const THREE=require('../public/v1/node_modules/three'),ctx={THREE,addEventListener(){}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
  const group=new THREE.Group();ctx.wallSoffitLine(group,p=>new THREE.Vector3(p.x,p.y,p.z),[{x:0,y:0,z:0},{x:1,y:0,z:0}]);
- for(const mode of ['opaque','textured','translucent']){ctx.exteriorSurfaceDisplay(group,mode);const line=group.children[0];assert.equal(line.material.depthTest,false);assert.equal(line.material.transparent,true);assert.equal(line.material.color.getHex(),0xef633c);assert.equal(line.renderOrder,999.5);assert.equal(line.visible,true);}
+ for(const mode of ['opaque','textured','translucent']){ctx.exteriorSurfaceDisplay(group,mode);const line=group.children[0];assert.equal(line.material.depthTest,mode!=='translucent');assert.equal(line.material.userData.wallLineDepthBias.pixels.value,mode==='translucent'?0:1);assert.equal(line.material.depthWrite,false);assert.equal(line.material.transparent,true);assert.equal(line.material.color.getHex(),0xef633c);assert.equal(line.renderOrder,999.5);assert.equal(line.visible,true);}
 });
