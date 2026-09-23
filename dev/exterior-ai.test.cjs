@@ -43,13 +43,19 @@ test('one Luna request compares eight textured captures, selects a saved pose, r
   await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_ai.js'});await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});await page.evaluate(()=>ExteriorPerf.mount(document.querySelector('#wall-panel')));
   await page.getByRole('tab',{name:'AI',exact:true}).click();assert.equal(await page.locator('#wall-panel').evaluate(e=>e.getBoundingClientRect().width),190);
   await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('Finished: View 6 selected. Compare with the front photo.',{exact:true}).waitFor();
-  assert.equal(requests.length,1);assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-front-v1');assert.ok(!JSON.stringify(requests[0].context).includes('north'));
+  assert.equal(requests.length,1);assert.equal(requests[0].images.length,9);assert.equal(requests[0].mode,'orbit-front-v2');assert.ok(!JSON.stringify(requests[0].context).includes('north'));
   assert.equal(await page.locator('[data-log] img').count(),9);assert.equal(await page.locator('section[data-selected] strong').innerText(),'View 6 · selected');
   const saved=await page.evaluate(async()=>{const r=indexedDB.open('firstmeasure-exterior-ai',1);const db=await new Promise(resolve=>r.onsuccess=()=>resolve(r.result));const q=db.transaction('runs').objectStore('runs').getAll();return await new Promise(resolve=>q.onsuccess=()=>{db.close();resolve(q.result[0]);});});
   assert.equal(saved.steps.length,9);const views=saved.steps.slice(1);assert.equal(new Set(views.map(s=>s.angle)).size,8);
   assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[5].scenePosition);assert.equal(await page.evaluate(()=>camera.fov),45);assert.equal(await page.evaluate(()=>camera.zoom),1);assert.equal(await page.evaluate(()=>controls.enabled&&controls.enableDamping&&window.texturePrepared),true);
   assert.equal(await page.evaluate(()=>camera.isOrthographicCamera),false);assert.ok(await page.evaluate(()=>window.renderedFrames)>8);
   await page.getByRole('button',{name:'Last saved run'}).click();assert.equal(await page.locator('[data-log] img').count(),9);
+  await page.getByRole('button',{name:'Rotate to View 2',exact:true}).click();await page.getByText('Viewing View 2.',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>({...camera.position})),views[1].scenePosition);
+  await page.route('http://localhost/exterior_ai.php',async route=>route.fulfill({json:{result:{view:8,betweenView:1,confidence:.8,explanation:'Between the neighboring views.'}}}));
+  await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('Finished: halfway between Views 8 and 1 selected. Compare with the front photo.',{exact:true}).waitFor();
+  const midpoint=await page.evaluate(()=>{const g=WallMode.aiGeometry(),r=ExteriorAI.orbit(g,240/180).radius;return {...g.toScene(ExteriorAI.orbitPosition(g,r,7.5))};});
+  assert.deepEqual(await page.evaluate(()=>({...camera.position})),midpoint);
   // A stale model response may not move the camera after the project changes.
   let poseAtResponse;
   await page.route('http://localhost/exterior_ai.php',async route=>{poseAtResponse=await page.evaluate(()=>({...camera.position}));await page.evaluate(()=>window.currentProjectId='fullhouse_'+'b'.repeat(32));await route.fulfill({json:{result:{view:3,confidence:.9,explanation:'stale'}}});});
@@ -58,4 +64,9 @@ test('one Luna request compares eight textured captures, selects a saved pose, r
   await page.evaluate(()=>ExteriorRendered.captureStatus.errors=['roof-albedo.jpg']);
   await page.getByRole('button',{name:'Find front from 8 views'}).click();await page.getByText('A texture failed to load. Reload the editor and retry the capture.',{exact:true}).waitFor();assert.equal(await page.locator('[data-log] img').count(),1);assert.equal(await page.evaluate(()=>controls.enabled),true);
  }finally{await browser.close();}
+});
+
+test('midpoint choices wrap around and reject non-adjacent candidates',()=>{
+ for(const [view,betweenView,index] of [[1,2,.5],[2,1,.5],[8,1,7.5],[1,8,7.5],[4,null,3]]){const r={view,betweenView,confidence:.8,explanation:'test'};AI.validateChoice(r);assert.equal(AI.choiceIndex(r),index);}
+ for(const betweenView of [1,3,0,9,1.5])assert.throws(()=>AI.validateChoice({view:1,betweenView,confidence:.8,explanation:'invalid'}));
 });
