@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 DSM visibility: [Ground picker visibility restoration](deploy/digitalocean/development-dsm-visibility-20260923.md) records `d5140bc5f217cc16f857fa4bfe480c1d4d57b9dc` on all development roles. DSM picking restores prior image visibility on completion or cancellation and explicitly reports completion. All 61 wall-mode checks pass; public asset hashes and readiness passed. This two-script delta preserves the full `b81e79c` runtime. Production is unchanged.
+
 September 23 line centers: [Midpoint markers and snapping](deploy/digitalocean/development-line-centers-20260923.md) records `b81e79c92a37d910423e630d8aab110bfad5e95a` on all development roles. Line centers defaults on beside Face centers and controls virtual markers plus midpoint snapping for wall, base and drawing-plane editing. 1,095 of 1,097 checks pass; the two known curved-eave failures remain. Public asset hashes and readiness passed. This six-script delta preserves the complete `eef4fdc` AI midpoint runtime. Production is unchanged.
 
 September 23 AI midpoint selection: [Adjacent views and manual rotation](deploy/digitalocean/development-exterior-ai-midpoint-20260923.md) records `eef4fdc683d8c3b068a0688133e278044386cd4b` on all development roles. Luna can select one of eight views or the exact midpoint between adjacent views; each saved view has a rotate button. Focused tests, PHP lint, public asset hash and role readiness passed. This two-file delta preserves the complete `f0ec2e4` runtime; production is unchanged.
