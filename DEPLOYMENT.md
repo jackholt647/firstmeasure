@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 22 selection performance: [Cached geometry and turret contact picking](deploy/digitalocean/development-selection-performance-20260922.md) records `59fc259934108ff238d7664d5843a25e1e02058e` on all three development roles. Selection reuses unchanged geometry, avoids duplicate same-layer redraws and saves, and picks the displayed merged roof-contact lines. All 908 tests pass. Preserve this baseline.
+
 September 22 zero-depth Resoffit: [Collapsed chimney returns](deploy/digitalocean/development-resoffit-zero-20260922.md) records `1730b0ea934dfca700e1f246738868f57e10e2e3` on all three development roles. Micrometre-width chimney returns collapse correctly at zero depth instead of triggering a false wall reversal. All 902 tests and a live two-edge zero-depth edit pass. Preserve this baseline.
 
 September 22 finite tower junctions: [Roof-plane-constrained soffits](deploy/digitalocean/development-soffit-plane-junction-20260922.md) records `9aa47ca76f3411dc2f6b5c69e9078177f970310a` on all three development roles. From Roof reconciles the tower side contacts, limits adjoining setbacks at measured roof ends, and removes unsupported flashing wings. All 894 tests and live editor verification pass. Preserve this baseline.
