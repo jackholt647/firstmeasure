@@ -2110,7 +2110,8 @@
       .r-overlay.mobile-order.mobile-order-location .r-right{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
-      .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:4px 4px 6px}
+      .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
+      .r-overlay.mobile-order.mobile-order-location #rAddress:focus{box-shadow:inset 0 0 0 3px rgba(217,48,37,.12);transform:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-shell{transition:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-body{gap:9px;padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location #rStepType{margin-bottom:2px}
@@ -2129,12 +2130,12 @@
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypeGroup{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType:not(.is-condensed) #rTypePill{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypePill{display:flex!important}
-      .r-overlay.mobile-order.mobile-order-location #rTypePill .r-order-select{height:42px;box-sizing:border-box;border-radius:13px}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill .r-order-select{height:28px;box-sizing:border-box;border-radius:999px}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypePill.has-confirmed-pin{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch;width:100%}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypePill.has-confirmed-pin:has(#rScopeSelect){grid-template-columns:repeat(3,minmax(0,1fr))}
-      .r-overlay.mobile-order.mobile-order-location #rTypePill.has-confirmed-pin .r-order-select{width:100%;height:42px;box-sizing:border-box;border-radius:13px}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill.has-confirmed-pin .r-order-select{width:100%}
       .r-overlay.mobile-order.mobile-order-location #rTypePill.has-confirmed-pin .r-order-select select{width:100%;padding-left:23px;padding-right:18px;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
-      .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm{width:100%;height:42px;min-width:0;box-sizing:border-box;margin:0;padding:0 7px;border-radius:13px;gap:5px;white-space:nowrap}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm{width:100%;height:28px;min-width:0;box-sizing:border-box;margin:0;padding:0 7px;border-radius:999px;gap:5px;white-space:nowrap}
       .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm .ic{font-size:13px}
       .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm .tx{font-size:10px;line-height:1.1;white-space:nowrap}
       .r-overlay.mobile-order.mobile-order-location .r-type-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:9px 5px;min-height:62px;min-width:0;gap:3px;box-sizing:border-box}
