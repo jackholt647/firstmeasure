@@ -111,6 +111,7 @@ test('capture fills the screen, keeps three navigation buttons anchored and uses
  assert.equal((await page.locator('.ext-guide-footer').boundingBox()).y,bottom.y);
  await page.screenshot({path:process.env.TEMP+'/firstmate-capture-layout.png'});
  await page.click('[data-guide-forward]');
+ const remove=await page.locator('.ext-view .ext-remove').first().boundingBox();assert.equal(remove.width,32);assert.equal(remove.height,32);
  const extra=page.locator('[data-extra-upload]');const box=await extra.boundingBox();assert.ok(box.width>350&&box.height>=170);
  assert.equal(await page.locator('[data-extra-camera]').count(),0);
  const chooserPromise=page.waitForEvent('filechooser');await extra.click();const chooser=await chooserPromise;
@@ -120,4 +121,45 @@ test('capture fills the screen, keeps three navigation buttons anchored and uses
  await page.click('[data-view="0:front"]');await page.setViewportSize({width:320,height:640});
  const small=await page.locator('.ext-guide-footer').boundingBox();assert.ok(small.y+small.height<=640&&small.y+small.height>625);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+});
+
+test('captures appear before encoding or upload; primary selection, scrolling and removal work while pending',async t=>{
+ const page=await setup(t);
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.evaluate(()=>{
+  const encode=HTMLCanvasElement.prototype.toBlob;
+  window.encodes=[];window.uploads=[];
+  HTMLCanvasElement.prototype.toBlob=function(...args){window.encodes.push(()=>encode.apply(this,args));};
+  window.fetch=()=>new Promise(resolve=>window.uploads.push(()=>resolve({ok:true,json:async()=>({success:true,media_id:crypto.randomUUID()})})));
+ });
+ const before=await page.locator('.ext-shutter-control').boundingBox();
+ await page.click('[data-guide-capture]');
+ assert.equal(await page.locator('.ext-photo-tile').count(),1);
+ assert.equal(await page.locator('[data-guide-capture]').isEnabled(),true);
+ assert.equal(await page.evaluate(()=>uploads.length),0,'thumbnail precedes encoding and upload');
+ assert.equal(await page.locator('.ext-thumb-busy').isVisible(),true);
+ assert.ok(await page.locator('.ext-capture-flight').count()>0);
+ await page.evaluate(()=>window.firstTile=document.querySelector('.ext-photo-tile'));
+ for(let i=0;i<4;i++)await page.click('[data-guide-capture]');
+ assert.equal(await page.locator('.ext-photo-tile').count(),5);
+ assert.equal((await page.locator('.ext-shutter-control').boundingBox()).y,before.y);
+ const upload=await page.locator('[data-guide-upload]').boundingBox();
+ await page.locator('.ext-angle-photos').evaluate(e=>e.scrollLeft=0);
+ await page.locator('[data-guide-primary]').first().click();
+ assert.equal(await page.locator('.ext-photo-tile.primary').evaluate(e=>e===firstTile),true);
+ await page.locator('.ext-angle-photos').evaluate(e=>e.scrollLeft=e.scrollWidth);
+ assert.equal((await page.locator('[data-guide-upload]').boundingBox()).x,upload.x);
+ assert.equal(await page.locator('.ext-angle-photos').textContent().then(s=>s.includes('Saved')),false);
+ await page.locator('[data-guide-remove]').last().click();
+ await page.evaluate(()=>encodes.splice(0).forEach(f=>f()));
+ await page.waitForFunction(()=>uploads.length===3);
+ await page.evaluate(()=>uploads.splice(0).forEach(f=>f()));
+ await page.waitForFunction(()=>uploads.length===1);
+ await page.evaluate(()=>uploads.splice(0).forEach(f=>f()));
+ await page.waitForFunction(()=>[...Portal.test.files.values()].every(f=>f.media_id));
+ assert.equal(await page.locator('.ext-photo-tile').count(),4);
+ assert.equal(await page.locator('.ext-photo-tile.primary').evaluate(e=>e===firstTile),true);
+ assert.equal(await page.locator('.ext-thumb-busy:visible').count(),0);
+ for(const tile of await page.locator('.ext-photo-tile').all()){const box=await tile.boundingBox();assert.equal(box.width,box.height);}
+ await page.screenshot({path:process.env.TEMP+'/firstmate-instant-thumbnails.png'});
 });
