@@ -1,0 +1,9 @@
+# Compact sidebar motion and header height — September 24, 2026
+
+Development web release `2c233eae103e3fcb62d0ab3b6299f4d5a6979ac0` is active on both serving nodes. It overlays only `public/portal/index.php` on the prior `3dc59abd3edadbc211ba3e00433d377bb943b1d3` runtime, then applies the reduced-motion follow-up from `965910745ce08ca2332a84eb32061dec73ccb11d`. The served portal file outside the sidebar CSS matched the local source before rollout, preserving concurrent platform, payment, and registry work. Production and the historical development autoscale image were unchanged.
+
+At a 1200 × 700 desktop viewport, the prior Apps panel shrank the logo row to about 71 px; switching to To Do restored it to 92 px. The logo now has a fixed 92 px flex basis on desktop, and the New button row remains 46 px in Apps, To Do, and Channels. Compact app links keep a 32 px row height. Their icons retain the same DOM element and vertical position while padding moves them about 8 px to the right; labels expand and fade into the widened rail. The logo artwork crossfades in its fixed row and the New button keeps one height. Reduced-motion users get near-instant changes.
+
+PHP lint and Git whitespace checks passed. Chrome verified identical 92 px logo, 46 px New, and 29 px tab rows in all three tabs at the short viewport. In compact and expanded states, the first app icon stayed at the same vertical coordinate while moving horizontally from about 14 px to 22 px. Screenshots showed the compact rail and expanded list aligned. The browser viewport override was reset. Both nodes passed local exact-release readiness and public readiness reported the final release ID. The deployed portal file SHA-256 is `905207baecd568cba8758b0e37fad48eee69622bfd2e01cdfd3ebe320622f7b4`.
+
+Rollback target on both development web nodes: `3dc59abd3edadbc211ba3e00433d377bb943b1d3` for the full motion change, or `965910745ce08ca2332a84eb32061dec73ccb11d` for the reduced-motion rule alone.
