@@ -94,7 +94,7 @@
     { title:(globalThis.PlatformLanguage?.text("settings","m_383c27662b667a","Lead sources") ?? "Lead sources"), view:'email', keywords:'inbound capture' }
   ]);
   add('billing', 'Billing', ['Subscription plan', 'Billing balance', 'Automatic top-ups', 'Payment method', 'Billing history']);
-  add('platform_billing', 'Platform Billing', ['Platform subscriptions', 'Usage charges', 'Storage charges', 'Pricing catalog', 'Platform invoices']);
+  add('billing', 'Billing', ['Platform subscriptions', 'Usage charges', 'Storage charges', 'Pricing catalog', 'Platform invoices'].map(title=>({title,platformBilling:true})));
 
   function normalize(value){
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -112,6 +112,7 @@
         return { ...item, title:titles[item.title] || item.title, view:'' };
       })
       .filter((item) => !allowed || allowed.has(item.section))
+      .filter((item) => !item.platformBilling || root.FirstMatePlatformBilling?.isEnabled() === true)
       .map((item) => {
         const title = normalize(item.title);
         const tab = normalize(item.tab);

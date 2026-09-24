@@ -4,6 +4,14 @@
   const money=c=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(Number(c)/100);
   const date=v=>v?new Date(v).toLocaleString():'—';
   const priceText=p=>`${money(p.monthly_cents)} / month${p.rates.length?' + usage':''}`;
+  function isEnabled(options={}){
+    const flags=root.PlatformAPI?.appFlags;
+    const has=options.has||((group,flag)=>flags?.has?.(group,flag)===true);
+    const definitions=options.definitions||flags?.current?.()?.definitions||root.Portal?.appFlags?.current?.()?.definitions||[];
+    return has('platform','expanded_access') && has('platform','platform_billing') && definitions.some(d=>
+      d.type==='boolean' && d.key!=='platform.platform_billing' && d.key!=='platform.expanded_access' &&
+      d.requires?.includes('platform.expanded_access') && has(d.group,d.flag));
+  }
   function styles(){
     if(document.getElementById('platform-billing-css'))return;
     const style=document.createElement('style');style.id='platform-billing-css';style.textContent=`
@@ -24,7 +32,7 @@
     function render(){
       const latest=new Map();for(const p of data.prices)if(p.published && (!latest.has(p.product_id)||latest.get(p.product_id).version<p.version))latest.set(p.product_id,p);
       const subscriptions=data.subscriptions.filter(s=>!s.ends_at||s.ends_at>new Date().toISOString());
-      host.innerHTML=`<div class="pb" data-settings-autosave="off"><header class="pb-head"><div><h2>Platform Billing</h2><p>Subscriptions, usage and storage for your organization.</p></div><button data-refresh>Refresh usage & payments</button></header>
+      host.innerHTML=`<div class="pb" data-settings-autosave="off"><header class="pb-head"><div><h2>Subscriptions & usage</h2><p>Subscriptions, usage and storage for your organization.</p></div><button data-refresh>Refresh usage & payments</button></header>
         <div class="pb-status" role="status" aria-live="polite"></div>
         <nav aria-label="Billing views">${[['overview','Overview'],['subscriptions','Subscriptions'],['invoices','Invoices'],...(data.operator?[['catalog','Pricing catalog'],['account','Account controls']]:[])].map(([id,label])=>`<button data-view="${id}" class="${view===id?'active':''}">${label}</button>`).join('')}</nav>
         ${view==='overview'?`<div class="pb-row"><h3>Current charges</h3><label>Billing month<input type="month" data-period value="${period}"></label></div><p>Monthly subscriptions renew until cancelled. Charges accrue in arrears; the first month is prorated. All periods use UTC.</p>
@@ -69,5 +77,5 @@
     host.innerHTML='<div class="pb-empty">Loading platform billing…</div>';
     try{await load();}catch(e){if(active())host.innerHTML=`<div class="pb-status" role="alert">${esc(e.message)}</div>`;}
   }
-  root.FirstMatePlatformBilling={mount};
+  root.FirstMatePlatformBilling={mount,isEnabled};
 })(window);

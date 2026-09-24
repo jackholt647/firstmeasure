@@ -1,9 +1,14 @@
 # Platform billing
 
-Platform Billing is a separate Company Settings section for expanded platform
-organizations. FirstMeasure's Billing tab, seven production permissions, report
-credits, auto top-up and monthly statement keep their existing contracts.
-The new section uses `platform.platform_billing`, `view_platform_billing` and
+Company Settings has one **Billing** tab. It contains the existing FirstMeasure
+credit, auto top-up and monthly statement controls, plus a **Subscriptions &
+usage** section when the user has an enabled expanded-platform feature and
+platform billing permission. With all platform features disabled, only the
+original FirstMeasure view is rendered. The billing switch itself and numeric
+configuration values do not count as enabled platform features. Search uses
+the single Billing destination; old `sub=platform_billing` links remain aliases.
+FirstMeasure's seven production permissions and billing contracts are preserved.
+The additional section uses `platform.platform_billing`, `view_platform_billing` and
 `manage_platform_billing`. Its backend is `/v1/platform-billing/organizations/:orgId`.
 
 ## Catalog and access
@@ -126,6 +131,7 @@ node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-
 node tests/run-embedded-postgres.mjs tests/platform-billing.test.ts
 npm run test:publication
 node --test tests/billing-resume-project.test.mjs tests/settings-autosave-optout.test.mjs
+node --test tests/unified-billing.test.mjs
 ```
 
 The billing API test includes a real headless browser against its isolated API:

@@ -2223,8 +2223,9 @@
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
     const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
+    const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
-    if (!canMySettings && !canCompany && !canPayments && !canCustomFields && !canUsers && !canPayroll && !canReports && !canBilling && !canForms && !canPricebook && !canProposalSettings && !canDocuments && !canConfiguration && !canScheduling && !canTerminology && !canCrews && !canScopeFlags && !canCallWorkflows && !canStorage && !canSmsSettings && !canDomains && !canAssistant && !canAppFlags) {
+    if (!canMySettings && !canCompany && !canPayments && !canCustomFields && !canUsers && !canPayroll && !canReports && !canBilling && !canPlatformBilling && !canForms && !canPricebook && !canProposalSettings && !canDocuments && !canConfiguration && !canScheduling && !canTerminology && !canCrews && !canScopeFlags && !canCallWorkflows && !canStorage && !canSmsSettings && !canDomains && !canAssistant && !canAppFlags) {
       panel.innerHTML = `<div style="padding:20px; text-align:center; color:#666; font-weight:800;">${(globalThis.PlatformLanguage?.text("settings","m_3d547d220b69f5","Access Denied") ?? "Access Denied")}</div>`;
       return;
     }
@@ -2259,21 +2260,22 @@
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
       { id:'proposals', allowed:canProposalSettings, icon:'fas fa-file-signature', term:'proposals.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_3129f3f0e39249","Proposals") ?? "Proposals"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_5f72a4f87b9f6a","Set branch defaults for new proposals.") ?? "Set branch defaults for new proposals."), tabId:'csTabProposals', paneId:'csPaneProposals' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
-      { id:'billing', allowed:canBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
+      { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
       { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
     ];
-    settingsSections.push({ id:'platform_billing', allowed:appFlag('platform','platform_billing') && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags), icon:'fas fa-file-invoice-dollar', title:'Platform Billing', subtitle:'Platform subscriptions, usage, storage charges and invoices.', tabId:'csTabPlatformBilling', paneId:'csPanePlatformBilling' });
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
     const sectionTitle = (section) => section ? (section.term ? terminologyLabel(section.term, section.title) : section.title) : '';
     const defaultActiveTab = sectionFor('my_settings')?.id || availableSettingsSections[0]?.id || 'my_settings';
     if (viewState.activeTab === 'lead_import') viewState.activeTab = 'forms';
+    if (viewState.activeTab === 'platform_billing') viewState.activeTab = 'billing';
     if (viewState.activeTab === 'crm' || viewState.activeTab === 'custom_fields' || viewState.activeTab === 'terminology') viewState.activeTab = 'configuration';
     if (['automations', 'scope_templates', 'scope_flags'].includes(viewState.activeTab)) viewState.activeTab = 'project_scopes';
     if (viewState.activeTab === 'call_workflows') viewState.activeTab = 'calls';
     const tabAllowed = (tab) => !!sectionFor(tab);
     const normalizeSettingsLocation = (location = {}) => {
       const normalized = { ...location };
+      if (normalized.sub === 'platform_billing') normalized.sub = 'billing';
       if (normalized.sub === 'call_workflows') { normalized.sub = 'calls'; normalized.settingsView = ''; }
       if (normalized.sub === 'crm') {
         if (normalized.settingsView === 'calls') { normalized.sub = 'calls'; normalized.settingsView = ''; }
@@ -4749,7 +4751,15 @@
     const panePricebook = $('#csPanePricebook', panel);
     const paneProposals = $('#csPaneProposals', panel);
     const paneForms = $('#csPaneForms', panel);
-    const paneBilling = $('#csPaneBilling', panel);
+    const billingPane = $('#csPaneBilling', panel);
+    if (billingPane && canPlatformBilling) {
+      billingPane.innerHTML = `${canBilling?'<h2 style="margin:0 0 16px">FirstMeasure</h2><div data-firstmeasure-billing></div>':''}<section data-platform-billing style="${canBilling?'margin-top:28px;padding-top:24px;border-top:1px solid #e4e7ec':''}"></section>`;
+    }
+    const paneBilling = canPlatformBilling ? billingPane?.querySelector('[data-firstmeasure-billing]') : billingPane;
+    function renderPlatformBilling(){
+      const host = billingPane?.querySelector('[data-platform-billing]');
+      if (canPlatformBilling && host && !host._billingMount) window.FirstMatePlatformBilling?.mount(host, {orgId:currentOrgId()});
+    }
     const tabCompany  = $('#csTabCompany', panel);
     const tabMySettings = $('#csTabMySettings', panel);
     const tabPayments = $('#csTabPayments', panel);
@@ -14024,7 +14034,7 @@
       if (which === 'proposals' && canProposalSettings) renderProposalSettings();
       if (which === 'forms' && canForms) renderForms();
       if (which === 'billing' && canBilling) renderBilling();
-      if (which === 'platform_billing' && sectionFor('platform_billing')) window.FirstMatePlatformBilling?.mount(panel.querySelector('#csPanePlatformBilling'), {orgId:currentOrgId()});
+      if (which === 'billing') renderPlatformBilling();
       scheduleSettingsSubtabsSync();
     }
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
@@ -19554,7 +19564,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       if (canProposalSettings && activeTab === 'proposals') renderProposalSettings();
       if (canForms && activeTab === 'forms') renderForms();
       if (canBilling) renderBilling();
-      if (activeTab === 'platform_billing' && sectionFor('platform_billing')) window.FirstMatePlatformBilling?.mount(panel.querySelector('#csPanePlatformBilling'), {orgId:currentOrgId()});
+      if (activeTab === 'billing') renderPlatformBilling();
       if (canUsers && activeTab === 'users') refreshUsers();
     })();
   }
