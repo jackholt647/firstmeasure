@@ -1,5 +1,23 @@
 # Mobile report order controls — September 24, 2026
 
+## Compact pill follow-up
+
+Source commit `7818dc5706e3b163469a36e767a40b4a5f52ac99` returns the
+Residential, report scope, and Pin confirmed controls to 28 px pill height.
+The address input now shares their 12 px horizontal inset. Its focus highlight
+is drawn inside the field, preserving the complete border at the screen edge.
+Chrome layout checks at 320 px and 390 px showed matching address and pill
+edges and three equal-height pills. The changed script passed `node --check`.
+
+Both development web nodes run release
+`7edfbc71e5c5c17ae1aae4f0add559b4e1532e4b`, copied from the common
+`d754760eea47a19e6f33af5a72a3ea47a18f5c8d` baseline. Only
+`project-request/app.js` and `release.env` changed. Local readiness reported
+the exact release, development data, and enforced outbound isolation on both
+nodes. The public script SHA-256 matched the staged file:
+`7edbb28a4cbb99383f9011599bb4c0a641b4647206ca32ddeacb5e2fcef232a7`.
+Rollback is the retained `d754760` release. Production was not changed.
+
 Source commit `25b27ad96075a73e793ef855dfb1cfba4ff27abc` changes the
 development mobile New Report location step. Address focus spacing is symmetric.
 The opening shell and step transitions no longer repaint repeatedly, the map
