@@ -195,7 +195,7 @@ async function expire(org:string,p:Purchase) {await billingStore().transaction(a
 async function saveInvoice(org:string,invoice:any) {
   if(!invoice?.id || typeof invoice!=="object")return;
   mode(invoice);
-  await put(org,"stripe-invoice",invoice.id,{id:invoice.id,status:invoice.status,total_cents:invoice.total,amount_paid_cents:invoice.amount_paid,created_at:iso(invoice.created),url:invoice.hosted_invoice_url,lines:(invoice.lines?.data||[]).map((l:any)=>({label:l.description,amount_cents:l.amount}))});
+  await put(org,"stripe-invoice",invoice.id,{id:invoice.id,status:invoice.status,total_cents:invoice.total,amount_paid_cents:invoice.amount_paid,amount_remaining_cents:invoice.amount_remaining,created_at:iso(invoice.created),url:invoice.hosted_invoice_url,lines:(invoice.lines?.data||[]).map((l:any)=>({label:l.description,amount_cents:l.amount}))});
 }
 export async function reconcileSubscriptions(org:string,actor:string) {
   for(const p of await records<Purchase>(org,"purchase")) if(pending(p)) {

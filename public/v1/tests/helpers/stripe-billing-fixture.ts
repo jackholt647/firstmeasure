@@ -3,7 +3,7 @@ let counter=0;const prices=new Map<string,any>();
 export function stripeBillingFixture() {
   const sessions=new Map<string,any>(),subscriptions=new Map<string,any>(),invoices=new Map<string,any>(),requests=new Map<string,any>();
   const original=globalThis.fetch;
-  const control={paid:true,loseResponse:false,proration:1500,creates:0,mutations:0,prices,sessions,subscriptions,invoices,calls:[] as {route:string;fields:URLSearchParams;key:string}[],restore:()=>{globalThis.fetch=original;}};
+  const control={credit:0,paid:true,loseResponse:false,proration:1500,creates:0,mutations:0,prices,sessions,subscriptions,invoices,calls:[] as {route:string;fields:URLSearchParams;key:string}[],restore:()=>{globalThis.fetch=original;}};
   const timestamp=()=>Math.floor(Date.now()/1000), id=(prefix:string)=>`${prefix}_${++counter}`;
   function invoice(sub:any,amount:number,paid=control.paid) {
     const value={id:id("in"),customer:sub.customer,parent:{subscription_details:{subscription:sub.id,metadata:sub.metadata}},status:paid?"paid":"open",currency:"usd",livemode:false,amount_due:amount,amount_paid:paid?amount:0,total:amount,subtotal:amount,created:timestamp(),hosted_invoice_url:"https://invoice.stripe.com/i/fixture",lines:{data:[{description:"Added subscription",amount}]}};
@@ -50,7 +50,7 @@ export function stripeBillingFixture() {
     } else if(route==="invoiceitems") {
       const inv=invoices.get(fields.get("invoice")!);inv.total+=Number(fields.get("amount"));value={id:id("ii")};
     } else if(route.endsWith("/finalize")) {
-      value=invoices.get(route.split("/").at(-2)!);value.status=control.paid?"paid":"open";value.hosted_invoice_url="https://invoice.stripe.com/i/usage";
+      value=invoices.get(route.split("/").at(-2)!);value.status=control.paid?"paid":"open";value.amount_paid=control.paid?Math.max(0,value.total-control.credit):0;value.amount_remaining=control.paid?0:Math.max(0,value.total-control.credit);value.hosted_invoice_url="https://invoice.stripe.com/i/usage";
     } else if(route.startsWith("invoices/")&&!route.endsWith("/void")) {
       value=invoices.get(route.split("/").at(-1)!);value.default_payment_method=fields.get("default_payment_method");
     } else if(route==="billing_portal/configurations") {value={id:id("bpc"),livemode:false};

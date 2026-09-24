@@ -55,6 +55,8 @@ export async function collectInvoice(org:string,id:string) {
   await billingStore().transaction(async()=>{
     local=(await record<Invoice>(org,'invoice',id))!;
     local.checkout_url=invoice.hosted_invoice_url;
+    local.amount_paid_cents=invoice.amount_paid;local.amount_remaining_cents=invoice.amount_remaining;
+    if(invoice.status==='void')local.status='void';
     if(invoice.status==='paid'&&local.status!=='paid'){
       local.status='paid';local.paid_at=new Date((invoice.status_transitions?.paid_at||Math.floor(Date.now()/1000))*1000).toISOString();local.payment_id=invoice.id;
       await audit(org,'invoice.automatically_paid','stripe',{id,stripe_id:invoice.id});

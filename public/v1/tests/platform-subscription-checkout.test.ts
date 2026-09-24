@@ -114,6 +114,7 @@ test("usage auto-collection survives a lost response, cannot duplicate charges a
   f.paid=false;await collectInvoice("auto_usage","2020-02");assert.equal((await store.record<any>("auto_usage","invoice","2020-02")).status,"open");
   const pending=(await store.record<any>("auto_usage","automatic-invoice","2020-02"));f.invoices.get(pending.stripe_id).status="paid";
   await collectInvoice("auto_usage","2020-02");assert.equal((await store.record<any>("auto_usage","invoice","2020-02")).status,"paid");
+  f.paid=true;f.credit=500;await store.put("auto_usage","invoice","2020-03",{id:"2020-03",period:"2020-03",currency:"USD",total_cents:500,status:"open",lines:[]});await collectInvoice("auto_usage","2020-03");const credited=await store.record<any>("auto_usage","invoice","2020-03");assert.equal(credited.status,"paid");assert.equal(credited.amount_paid_cents,0);assert.equal(credited.amount_remaining_cents,0);
  }finally{f.restore();}
 });
 test("storage limits serialize uploads, credit replaced bytes, and retain files after cancellation",async()=>{

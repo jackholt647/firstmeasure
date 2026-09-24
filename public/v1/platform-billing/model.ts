@@ -26,7 +26,7 @@ export type Subscription = { id:string; product_id:string; price:Price; starts_a
   stripe_subscription_id?:string; stripe_item_id?:string; paid_through?:string; period_start?:string; payment_status?:string };
 export type Account = { enforce:boolean; automatic_collection?:boolean; created_at:string; updated_at:string; actor:string };
 export type Line = { subscription_id:string; product_id:string; price_id:string; label:string; meter:string|null; quantity:string; included:number; amount_cents:number };
-export type Invoice = { id:string; period:string; currency:"USD"; lines:Line[]; total_cents:number; status:"open"|"paid"|"void"; created_at:string; actor:string; payment_id?:string; checkout_id?:string; checkout_url?:string; paid_at?:string };
+export type Invoice = { id:string; period:string; currency:"USD"; lines:Line[]; total_cents:number; status:"open"|"paid"|"void"; created_at:string; actor:string; payment_id?:string; checkout_id?:string; checkout_url?:string; paid_at?:string; amount_paid_cents?:number; amount_remaining_cents?:number };
 export function monthBounds(month:string) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Use a YYYY-MM billing period.");
   const start = new Date(`${month}-01T00:00:00.000Z`);
