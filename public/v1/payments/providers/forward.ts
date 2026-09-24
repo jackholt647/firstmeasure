@@ -608,6 +608,7 @@ export function createForwardBoardingAdapter(options: ForwardClientOptions = {})
     ...(input.address ? { address: forwardAddress(input.address) } : {}),
     ...(input.owners ? { owners: input.owners.map(forwardOwner) } : {}),
     ...(input.volumes ? { ...forwardVolumes(input.volumes) } : {}),
+    ...(input.partner_data ? { partner_data: asObject(input.partner_data) } : {}),
     // Forward's application wire format has no documented bank-account slot
     // (bank accounts are a separate post-approval resource), so the wizard's
     // payout account rides along under user_fields.bank_account.
@@ -651,6 +652,9 @@ export function createForwardBoardingAdapter(options: ForwardClientOptions = {})
         ...patch,
         ...(patch.user_fields !== undefined
           ? { user_fields: { ...asObject(current.user_fields), ...asObject(patch.user_fields) } }
+          : {}),
+        ...(patch.partner_data !== undefined
+          ? { partner_data: { ...asObject(current.partner_data), ...asObject(patch.partner_data) } }
           : {})
       };
       return mapApplication(unwrap(await call("PUT", `/applications/${encodeURIComponent(applicationId)}`, { body }), "application"));
