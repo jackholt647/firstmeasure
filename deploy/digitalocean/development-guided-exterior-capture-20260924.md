@@ -136,3 +136,40 @@ nodes use guarded activation and local exact-release readiness. Final script
 SHA-256 is `0deefae56249bd808ec036c003bd3aeb78d257b04bee3e168210d59f9e984754`.
 Compatibility, worker, production and APK settings are unchanged. Rollback is
 the retained `b274a07` runtime.
+
+
+## Immediate photo feedback and square thumbnails
+
+Source `9731254`, integrated into canonical release
+`f36e58a18dec70c473cfcad3a10ae4481c9daabe`, reserves each captured photo and
+renders a small local preview synchronously before asynchronous JPEG encoding
+and upload. Encoding and upload are per-photo pending states and continue to
+gate final submission; neither locks the shutter. Pending photos can be
+selected as primary or removed, and delayed results cannot resurrect removals.
+
+Thumbnail DOM nodes remain keyed to their photo across status and primary
+changes. Tiles are square, with a top-right remove circle, darkened spinner
+while pending, and a colored outline/Primary label only for the selected tile.
+Selecting a tile directly makes it primary. Saved labels and separate Make
+primary buttons are removed. The pinned Upload tile sits outside the horizontal
+strip; its adjacent edge masks scrolling thumbnails with a short fade.
+Capture feedback flies to the strip and pulses the shutter. Angle changes
+animate the heading and strip alongside the rotating house. Capture/angle
+transitions respect reduced-motion preference.
+
+Back, centered Take photo, and Next angle now share one bottom row. On empty
+angles the last control still offers Skip for now; the final angle leads to
+review. Review remove buttons are explicitly 32 by 32 pixels. The previous
+summary min-height rule now targets only view buttons, not the remove button.
+
+All 15 browser/state tests passed. The new delayed-encoding/delayed-upload test
+checks immediate thumbnails, a usable shutter, five captures, stable layout,
+primary switching while pending, pinned Upload during horizontal scroll,
+removal before encoding completes, and absence of Saved text. Review remove
+button dimensions are measured in the layout test. Browser visual checks use
+simulated video frames, not a physical camera.
+
+The single-script web delta preserves `582b498` as rollback. Both web nodes
+use guarded activation and exact-release readiness. Script SHA-256:
+`9c9699b00741e21c161923338cb9b67cf8f134eca08d9430bfb13162179b37df`.
+No native APK, backend, worker, compatibility, or production changes.
