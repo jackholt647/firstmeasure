@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 FirstMeasure billing fit: [History-only scrolling and visible monthly statement](deploy/digitalocean/development-billing-scroll-20260924.md) records `0068a9616c31d82ad74f3f3d1e58771a49ad308c` on development web and compatibility. Five deployed viewport checks confirmed no outer page overflow, independently scrolling history, and visible statement actions. Public readiness and asset hashes passed; production is unchanged.
+
 September 24 cohesive Billing: [Unified billing workspace and monthly statement](deploy/digitalocean/development-billing-workspace-20260924.md) records `3dc59abd3edadbc211ba3e00433d377bb943b1d3` on both development web nodes and compatibility. One responsive customer UI integrates credits, subscriptions, usage, auto-top-up, history and CSV; the FirstMeasure-only fallback is preserved. Fourteen focused checks, deployed browser checks and public hashes/readiness passed. Production is unchanged.
 
 September 24 subscription checkout: [Stripe checkout and prorated add-ons](deploy/digitalocean/development-subscription-checkout-20260924.md) records release `f48e7b2ae384aa162caab106f7dc978913a368b0` on all four development roles. Shared Billing/SMS/Assistant review, immediate incremental payment, recurring collection and verified activation passed browser, PostgreSQL and Stripe sandbox checks. The existing dev webhook now receives subscription/invoice events. Test Company remains on its concurrently reset FirstMeasure defaults; production is unchanged.
