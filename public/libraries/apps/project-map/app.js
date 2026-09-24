@@ -330,6 +330,7 @@
       .r-overview-map-frame{position:relative;height:456px;min-height:320px;background:#dbe3ec}
       .r-overview-map-frame #rMap{position:absolute;inset:0}
       .r-overview-map-frame #rMapHint{top:14px}
+      .r-overlay.mobile-order .r-overview-map-frame #rMapHint{top:0}
       .r-overview-panel{display:flex;flex-direction:column;min-height:520px}
       .r-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}
       .r-overview-card{width:100%;border:1px solid rgba(15,23,42,.08);border-radius:8px;background:#fff;text-align:left;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:138px;color:#344054;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
