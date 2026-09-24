@@ -160,7 +160,9 @@
             if([a.originalA,a.originalB].some(p=>[b.originalA,b.originalB].some(q=>same(p,q)))){neighbors.get(a).push(b);neighbors.get(b).push(a);}
         }
         const point=(s,p,depth)=>{const n=normalFor(faces.find(f=>f.id===s.parentId),s.originalA,s.originalB),q={x:p.x+n.x*depth,y:p.y+n.y*depth};return {...q,z:height({plane:s.sourcePlane},q)};};
-        for(const s of runs)if(s.inferred||s.boundaryReference||s.junctionSetback||Number.isFinite(s.contactSetback)&&Math.abs(s.setback-s.contactSetback)<.002){
+        // A finite junction is a maximum depth, not a measured anchor. Allow
+        // shallower measured neighbors to drive it while retaining that limit.
+        for(const s of runs)if(s.inferred||s.boundaryReference||Number.isFinite(s.contactSetback)&&Math.abs(s.setback-s.contactSetback)<.002){
             if(s.clearanceRoofIds?.length)continue;
             const h=(s.a.z+s.b.z)/2;resolved.set(s,{height:h,root:s.id});s.drivenSoffit={anchor:true,referenceHeight:h,sourceId:s.id};
         }
@@ -170,7 +172,7 @@
             const next=[];
             for(const s of runs){if(resolved.has(s)||s.clearanceRoofIds?.length)continue;const adjacent=neighbors.get(s).filter(n=>resolved.has(n));if(!adjacent.length)continue;
                 const choices=adjacent.flatMap(n=>{const ref=resolved.get(n);return [...new Set([s.setback,n.setback])].map(depth=>{
-                    depth=layerSetback(layers.get(s.parentId),depth);const a=point(s,s.originalA,depth),b=point(s,s.originalB,depth);
+                    depth=layerSetback(layers.get(s.parentId),Math.min(depth,s.junctionSetback?.maximum??Infinity));const a=point(s,s.originalA,depth),b=point(s,s.originalB,depth);
                     return {depth,a,b,ref,score:Math.max(Math.abs(a.z-ref.height),Math.abs(b.z-ref.height)),default:Math.abs(depth-s.setback)<.000001};
                 });});
                 choices.sort((a,b)=>Math.abs(a.score-b.score)>.001?a.score-b.score:Number(b.default)-Number(a.default)||a.depth-b.depth||a.ref.height-b.ref.height);

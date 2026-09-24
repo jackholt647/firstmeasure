@@ -206,8 +206,16 @@ test('finite tower contacts do not depend on compass direction or face ordering'
  finiteTowerJunctions(build({...f,options:{...f.options,drivenSoffits:false}},24),24);
 });
 
-test('driven soffits flatten the captured tower front while preserving closed foundations and measured sides',()=>{
+test('driven soffits flatten both tower sides and front from measured contacts rather than junction limits',()=>{
  const on=build({...fixture,options:{...fixture.options,drivenSoffits:true}},24),off=build({...fixture,options:{...fixture.options,drivenSoffits:false}},24),front=r=>r.state.sources.filter(s=>/^R11[34][.]/.test(s.id)),span=ss=>{const z=ss.flatMap(s=>[s.a.z,s.b.z]);return Math.max(...z)-Math.min(...z);};
  assert.ok(span(front(off))>.1);assert.ok(span(front(on))<.002);assert.equal(on.open.length,0);assert.ok(front(on).every(s=>s.drivenSoffit&&!s.drivenSoffit.anchor));
- for(const prefix of ['R112.','R115.']){const a=on.state.sources.find(s=>s.id.startsWith(prefix)),b=off.state.sources.find(s=>s.id.startsWith(prefix));assert.ok(Math.abs(a.setback-b.setback)<.002);}
+ const tower=r=>r.state.sources.filter(s=>/^R11[2-7][.]/.test(s.id));
+ assert.ok(span(tower(off))>.1);assert.ok(span(tower(on))<.002,'both sides and the front stay level through roof support clipping');
+ for(const [side,anchor] of [['R112.','R116.'],['R115.','R117.']]){
+  const pieces=on.state.sources.filter(s=>s.id.startsWith(side)),measured=on.state.sources.find(s=>s.id.startsWith(anchor));
+  assert.equal(pieces.length,1,'junction no longer produces a sloping support fragment');
+  assert.ok(pieces.every(s=>!s.drivenSoffit.anchor&&Math.abs(s.setback-measured.setback)<.002&&s.setback<=s.junctionSetback.maximum));
+  const previous=off.state.sources.find(s=>s.id.startsWith(anchor));assert.ok(Math.abs(measured.setback-previous.setback)<.002,'actual measured depth stays fixed');
+ }
+ for(const wall of on.composed.filter(w=>/^R11[2-5][.]/.test(w.sourceId)))assert.ok(Math.abs(wall.top[0].z-wall.top[1].z)<.002,'final wall tops retain the level source geometry');
 });
