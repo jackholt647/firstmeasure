@@ -1,4 +1,5 @@
 import { registerWorkforceApi } from "../workforce/api.js";
+import { registerPlatformBillingApi } from "../platform-billing/api.js";
 import { registerPublicationApi } from "../platform/publication/api.js";
 import { registerDocumentModuleRoutes } from "../documents/modules/api.js";
 import { registerWorkApi } from "../work/api.js";
@@ -94,6 +95,7 @@ export async function buildApp() {
     }
   });
   installFullHouseAccess(app);
+  void app.register(registerPlatformBillingApi, { prefix: "/v1/platform-billing" });
   installDiagnostics(app);
   installPricingContext(app);
   installStaffTracking(app);

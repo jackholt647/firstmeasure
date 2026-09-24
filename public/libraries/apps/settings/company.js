@@ -2262,6 +2262,7 @@
       { id:'billing', allowed:canBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
       { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
     ];
+    settingsSections.push({ id:'platform_billing', allowed:appFlag('platform','platform_billing') && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags), icon:'fas fa-file-invoice-dollar', title:'Platform Billing', subtitle:'Platform subscriptions, usage, storage charges and invoices.', tabId:'csTabPlatformBilling', paneId:'csPanePlatformBilling' });
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
     const sectionTitle = (section) => section ? (section.term ? terminologyLabel(section.term, section.title) : section.title) : '';
@@ -14023,6 +14024,7 @@
       if (which === 'proposals' && canProposalSettings) renderProposalSettings();
       if (which === 'forms' && canForms) renderForms();
       if (which === 'billing' && canBilling) renderBilling();
+      if (which === 'platform_billing' && sectionFor('platform_billing')) window.FirstMatePlatformBilling?.mount(panel.querySelector('#csPanePlatformBilling'), {orgId:currentOrgId()});
       scheduleSettingsSubtabsSync();
     }
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
@@ -19552,6 +19554,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       if (canProposalSettings && activeTab === 'proposals') renderProposalSettings();
       if (canForms && activeTab === 'forms') renderForms();
       if (canBilling) renderBilling();
+      if (activeTab === 'platform_billing' && sectionFor('platform_billing')) window.FirstMatePlatformBilling?.mount(panel.querySelector('#csPanePlatformBilling'), {orgId:currentOrgId()});
       if (canUsers && activeTab === 'users') refreshUsers();
     })();
   }

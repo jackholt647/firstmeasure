@@ -31,7 +31,7 @@ export const applicationPublication = {
   channels: { providers: ["channels"], domains: ["channels"] },
   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
   feedback: { providers: ["feedback"], domains: ["feedback"] },
-  settings: { providers: ["organization", "scopes"], domains: [], note: "Settings are selectively published; credentials and platform administration are never generic data exports." },
+  settings: { providers: ["organization", "scopes"], domains: [], note: "Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
   crew: { providers: ["work", "workforce"], domains: ["work", "workforce"] },
   sales: { providers: ["work", "workforce"], domains: ["work", "workforce"] },
   field_visit: { providers: ["work"], domains: ["work"] },

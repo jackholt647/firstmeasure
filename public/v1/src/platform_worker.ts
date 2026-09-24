@@ -30,6 +30,7 @@ calls.startCallWorker(app);
 sms.startSmsDeliveryWorker();
 
 const jobs: Array<{ name: string; interval: number; run: () => Promise<unknown> }> = [
+  { name: "platform-billing", interval: 3600000, run: async () => (await import("../platform-billing/metering.js")).sweepBilling() },
   { name: "payroll-outbox", interval: 2000, run: () => payroll.drainPayrollWorkEvents() },
   { name: "work-scheduler", interval: 5000, run: () => work.runWorkSchedulerTick() },
   { name: "scheduled-messages", interval: 15000, run: () => channels.deliverAllDueScheduledMessages() },

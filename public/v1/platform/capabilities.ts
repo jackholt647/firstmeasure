@@ -527,7 +527,10 @@ export async function readPlatformRollout(orgId: string) {
 
 /** An organization is the feature ceiling. An operator can restrict its audience. */
 export async function capabilityValuesForUser(orgId: string, userId?: string, raw?: Record<string, CapabilityValue>) {
-  const values = raw || await rawCapabilityValues(orgId);
+  let values = raw || await rawCapabilityValues(orgId);
+  if (values["platform.expanded_access"] === true) {
+    values = await (await import("../platform-billing/service.js")).applyEntitlements(orgId, values);
+  }
   if (!userId || values["platform.expanded_access"] !== true) return values;
   const rollout = await readPlatformRollout(orgId);
   return rollout.mode === "selected" && !rollout.user_ids.includes(userId)

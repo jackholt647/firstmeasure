@@ -41,6 +41,9 @@ const NEW_BUTTON_ITEM_OPTIONS: Array<[string, string]> = [
  */
 
 const definitions: CapabilityDefinition[] = [
+  { key: "platform.platform_billing", kind: "feature", label: "Platform Billing", description: "Platform subscriptions, usage, storage charges and invoices.", default: true },
+  { key: "permission.view_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "view_platform_billing", access: "read", label: "View Platform Billing", description: "View platform subscriptions, usage and invoices." },
+  { key: "permission.manage_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "manage_platform_billing", access: "write", label: "Manage Platform Billing", description: "Accept platform pricing, cancel subscriptions and pay platform invoices." },
   { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings.", default: false },
   { key: "mobile.developer_downloads", kind: "feature", label: "Mobile Test Downloads", description: "Allow private test builds on development deployments only.", requires: ["mobile.app_download"], default: false },
   { key: "firstmeasure.metric_measurements", kind: "feature", label: "Metric Measurements", description: "Default new reports to metric measurements.", default: false },

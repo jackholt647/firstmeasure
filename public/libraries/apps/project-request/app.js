@@ -2094,7 +2094,8 @@
       .r-overlay.mobile-order #rRoofReportFields{display:flex!important}
       .r-overlay.mobile-order #rSubmit,
       .r-overlay.mobile-order #rExpediteSubmit{display:none!important}
-      .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:8px;right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
+      .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
+      html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-close{top:8px}
       .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
       html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-pager{padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end;background:transparent;border:0;box-shadow:none;pointer-events:none}

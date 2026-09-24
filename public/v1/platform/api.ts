@@ -4773,6 +4773,9 @@ function startPlatformHeartbeat(app: { log?: { warn: (value: unknown, message?: 
   heartbeatStarted = true;
   const timer = setInterval(() => {
     void runPlatformHeartbeat(app);
+    void import("./worker_tasks.js").then(({runPlatformTask}) => runPlatformTask("platform-billing", 3600000,
+      async () => (await import("../platform-billing/metering.js")).sweepBilling()))
+      .catch(error => app.log?.warn({err:error}, "Platform billing sweep failed."));
   }, HEARTBEAT_INTERVAL_MS);
   timer.unref?.();
 }

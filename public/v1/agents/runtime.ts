@@ -264,6 +264,9 @@ export async function runAgentTurn(agentId: string, turn: AgentTurnInput): Promi
 
 async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkLease: () => void): Promise<AgentTurnResult> {
   const definition = requireAgentDefinition(agentId);
+  if (definition.capability && !(await (await import("../platform/capabilities.js")).isCapabilityEnabled(turn.orgId, definition.capability))) {
+    throw badRequest("agent_capability_disabled", "This agent is not available for this organization.");
+  }
   const startedAt = Date.now();
   const thread = (await readAgentThread(agentId, turn.orgId, turn.threadId));
   if (!thread) throw notFound("agent_thread_not_found", "This conversation was not found.");
@@ -417,6 +420,9 @@ export type AgentOnceInput = {
  */
 export async function runAgentOnce(agentId: string, input: AgentOnceInput) {
   const definition = requireAgentDefinition(agentId);
+  if (definition.capability && !(await (await import("../platform/capabilities.js")).isCapabilityEnabled(input.orgId, definition.capability))) {
+    throw badRequest("agent_capability_disabled", "This agent is not available for this organization.");
+  }
   const startedAt = Date.now();
   const branchId = cleanText(input.branchId || "default") || "default";
   const settings = input.settings ?? await loadAgentSettings(agentId, input.orgId, branchId);
