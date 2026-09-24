@@ -107,7 +107,7 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
             }
             authentication?.presentationContextProvider = self
             if authentication?.start() == true { reply(id, result: true) } else { reply(id, error: "authentication_unavailable") }
-        case "info": reply(id, result: ["bridgeVersion": 1, "platform": "ios", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0", "environment": Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development", "capabilities": ["files", "camera", "share", "download", "haptic", "settings"]])
+        case "info": reply(id, result: ["bridgeVersion": 1, "platform": "ios", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0", "environment": Bundle.main.object(forInfoDictionaryKey: "AppEnvironment") as? String ?? "development", "capabilities": ["files", "camera", "liveCamera", "share", "download", "haptic", "settings"]])
         case "haptic": UIImpactFeedbackGenerator(style: .light).impactOccurred(); reply(id, result: true)
         case "settings": if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }; reply(id, result: true)
         case "share":

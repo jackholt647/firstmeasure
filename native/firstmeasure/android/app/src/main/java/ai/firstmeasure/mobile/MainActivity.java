@@ -32,6 +32,12 @@ public class MainActivity extends ComponentActivity {
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
     private PermissionRequest audioRequest;
+    private PermissionRequest cameraRequest;
+    private final ActivityResultLauncher<String> cameraPermission = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+        PermissionRequest request=cameraRequest;cameraRequest=null;
+        if(request==null)return;
+        if(granted && policy.trusted(request.getOrigin().toString()) && policy.trusted(web.getUrl()))request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});else request.deny();
+    });
     private final ActivityResultLauncher<String> microphone = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
         PermissionRequest request=audioRequest;audioRequest=null;
         if(request==null)return;
@@ -114,10 +120,14 @@ public class MainActivity extends ComponentActivity {
                 ((WebView.WebViewTransport)message.obj).setWebView(popup);message.sendToTarget();return true;
             }
             @Override public void onPermissionRequest(PermissionRequest request){
-                if(!policy.trusted(request.getOrigin().toString()) || !policy.trusted(web.getUrl()) || audioRequest!=null || !Arrays.equals(request.getResources(),new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE})){request.deny();return;}
-                audioRequest=request;microphone.launch(android.Manifest.permission.RECORD_AUDIO);
+                if(!policy.trusted(request.getOrigin().toString()) || !policy.trusted(web.getUrl()) || audioRequest!=null || cameraRequest!=null){request.deny();return;}
+                if(Arrays.equals(request.getResources(),new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE})){
+                    cameraRequest=request;cameraPermission.launch(android.Manifest.permission.CAMERA);
+                }else if(Arrays.equals(request.getResources(),new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE})){
+                    audioRequest=request;microphone.launch(android.Manifest.permission.RECORD_AUDIO);
+                }else request.deny();
             }
-            @Override public void onPermissionRequestCanceled(PermissionRequest request){if(audioRequest==request)audioRequest=null;}
+            @Override public void onPermissionRequestCanceled(PermissionRequest request){if(audioRequest==request)audioRequest=null;if(cameraRequest==request)cameraRequest=null;}
         });
         web.setDownloadListener((url,ua,disposition,mime,length)->{
             if(policy.trusted(url)) download(url,null,null); else showMessage("Open this download in your browser.");
@@ -135,6 +145,7 @@ public class MainActivity extends ComponentActivity {
         try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(Exception e){showMessage("No app is available to open this link.");}
     }
     private Intent cameraIntent(){
+        if(androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.CAMERA)!=android.content.pm.PackageManager.PERMISSION_GRANTED)return null;
         Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if(intent.resolveActivity(getPackageManager())==null)return null;
         try {
@@ -159,7 +170,7 @@ public class MainActivity extends ComponentActivity {
                     getPreferences(MODE_PRIVATE).edit().putString("auth_state",authState).putString("auth_verifier",authVerifier).putLong("auth_expires",System.currentTimeMillis()+600000).apply();
                     String challenge=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(authVerifier.getBytes(java.nio.charset.StandardCharsets.UTF_8)),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);
                     startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/browser?challenge="+challenge+"&state="+authState)));respond(reply,id,true,null);break;
-                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","share","download","haptic","settings"))),null);break;
+                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","share","download","haptic","settings"))),null);break;
                 case "haptic": web.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK);respond(reply,id,true,null);break;
                 case "settings":startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));respond(reply,id,true,null);break;
                 case "share":
