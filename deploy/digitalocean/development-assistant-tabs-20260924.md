@@ -1,0 +1,7 @@
+# Visible assistant settings tabs — September 24, 2026
+
+Development web release `a72c2765173e1573a256d02cb307e13e3599e45f` applies assistant source commits `315a3db2f83011ccbec103663345a2e3c1e8c72b` and `1c98455` from `codex/consolidated-firstmeasure-20260923`. It overlays only `public/libraries/platform-assistant/platform-assistant.js` on the exact live baseline `50e1bcaf56c2397d908f653c5c924e7644dd7813` on both serving web nodes (`do-598520065`, `do-603124965`). The baseline assistant file SHA-256 was `88836e0aadf9f6baca847e3a33e47f7b25e68b970ee33004062c0b28001f1f86`; the deployed and publicly served SHA-256 is `a4e663caab9fcd3188ed6e3d5a1b6d09dacaddf8005e6475d4d72c58a23965c6`.
+
+The settings pane's long flex section was shrinking the tab row to its scrollbar. The tab row and sections now retain their height, and tabs wrap in narrow layouts. `npm run test:assistant:frontend` and JavaScript syntax checks passed. Both nodes passed local readiness with development data and outbound isolation; public readiness reported the release. Live Chrome checks confirmed that all five tab headings fit within the docked settings panel on two rows, and within the full-screen panel on one row, without horizontal overflow.
+
+Rollback target on both development web nodes: `50e1bcaf56c2397d908f653c5c924e7644dd7813`. Production was not changed. The development autoscale image remains historical; replacement nodes need this release to retain the behavior.
