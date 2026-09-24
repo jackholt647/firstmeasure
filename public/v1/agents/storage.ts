@@ -42,7 +42,7 @@ export function getAgentsDatabase() {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   void closeAgentsDatabase();
-  database = openSqlStore({ id: "agents", schemaVersion: 3, filename: nextPath, initialize: initializeSchema });
+  database = openSqlStore({ id: "agents", schemaVersion: 5, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -85,6 +85,23 @@ async function initializeSchema(db: SqlStore) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS agent_messages_thread_idx ON agent_messages(thread_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS assistant_profiles (
+      organization_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      instructions TEXT NOT NULL DEFAULT '', memory_enabled INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (organization_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS assistant_organization_instructions (
+      organization_id TEXT PRIMARY KEY, instructions TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS assistant_memories (
+      id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS assistant_memories_owner_idx
+      ON assistant_memories(organization_id, user_id, created_at);
 
     CREATE TABLE IF NOT EXISTS agent_runs (
       id TEXT PRIMARY KEY,
@@ -250,10 +267,19 @@ export async function appendAgentMessage(agentId: string, orgId: string, threadI
 export async function listAgentMessages(agentId: string, orgId: string, threadId: string, options: JsonObject = {}) {
   const limit = Math.min(500, Math.max(1, Number(options.limit || 200)));
   return (await getAgentsDatabase()
-    .prepare(`SELECT * FROM agent_messages WHERE agent_id=? AND organization_id=? AND thread_id=?
-      ORDER BY created_at ASC LIMIT ?`)
+    .prepare(`SELECT * FROM (SELECT * FROM agent_messages WHERE agent_id=? AND organization_id=? AND thread_id=?
+      ORDER BY created_at DESC, id DESC LIMIT ?) recent ORDER BY created_at ASC, id ASC`)
     .all(cleanText(agentId), orgId, cleanText(threadId), limit))
     .map((row) => ({ ...asObject(row), data: parseJson(asObject(row).data_json) }));
+}
+
+export async function searchAgentHistory(agentId: string, orgId: string, userId: string, query: string) {
+  const term = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  return (await getAgentsDatabase().prepare(`SELECT m.thread_id,m.role,m.content,m.created_at
+    FROM agent_messages m JOIN agent_threads t ON t.id=m.thread_id
+    WHERE m.agent_id=? AND m.organization_id=? AND t.created_by_user_id=?
+      AND m.content LIKE ? ESCAPE '\\' ORDER BY m.created_at DESC LIMIT 20`)
+    .all(agentId, orgId, userId, term)).map((row) => asObject(row));
 }
 
 // ── Usage / audit ──────────────────────────────────────────────────────────

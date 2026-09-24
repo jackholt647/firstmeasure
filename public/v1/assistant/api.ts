@@ -19,6 +19,13 @@ import {
   runAgentTurn
 } from "../agents/runtime.js";
 import { ASSISTANT_AGENT_ID } from "./agent/definition.js";
+import { readInternalUser } from "../internal/storage.js";
+import { forbidden } from "../platform/errors.js";
+import {
+  clearAssistantMemories, deleteAssistantMemory, globalAssistantInstructions,
+  listAssistantMemories, readAssistantProfile, saveAssistantMemory,
+  saveAssistantProfile, saveGlobalAssistantInstructions
+} from "./personalization.js";
 import {
   listAssistantMessages as listLegacyMessages,
   listAssistantThreads as listLegacyThreads
@@ -28,6 +35,20 @@ const objectSchema = z.object({}).passthrough();
 
 const USE_PERMISSION = "use_assistant|view_projects|manage_projects|manage_company_settings";
 const SETTINGS_PERMISSION = "manage_company_settings";
+const profileSchema = z.object({ instructions: z.string().max(4000), memory_enabled: z.boolean() });
+const memorySchema = z.object({ content: z.string().trim().min(1).max(500) });
+
+async function platformInstructionAdmin(ctx: { user?: unknown }) {
+  const user = (ctx.user && typeof ctx.user === "object" ? ctx.user : {}) as Record<string, unknown>;
+  const email = cleanText(user.email).toLowerCase();
+  const internal = email ? await readInternalUser(email).catch(() => null) : null;
+  const permissions = (internal?.permissions && typeof internal.permissions === "object" ? internal.permissions : {}) as Record<string, unknown>;
+  if (!internal || !(["admin", "system_admin"].includes(cleanText(internal.role).toLowerCase())
+    || internal.is_admin === true || permissions.is_admin_legacy === true || permissions.platform_admin === true)) {
+    throw forbidden("platform_admin_required", "Only a verified platform administrator can edit global assistant instructions.");
+  }
+  return email;
+}
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -70,6 +91,8 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     endpoints: {
       context: "/organizations/:orgId/context",
       settings: "/organizations/:orgId/settings",
+      profile: "/organizations/:orgId/profile",
+      memories: "/organizations/:orgId/memories",
       threads: "/organizations/:orgId/threads"
     }
   }));
@@ -98,6 +121,71 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const body = objectSchema.parse(request.body ?? {});
     const settings = await saveAgentSettings(ASSISTANT_AGENT_ID, orgId, ctx.branchId || "default", body.settings ?? body);
     return { ok: true, settings };
+  });
+
+  app.get("/organizations/:orgId/global-instructions", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: SETTINGS_PERMISSION });
+    let can_edit = false;
+    try { await platformInstructionAdmin(ctx); can_edit = true; } catch {}
+    return { ok: true, instructions: await globalAssistantInstructions(), can_edit };
+  });
+
+  app.put("/organizations/:orgId/global-instructions", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: SETTINGS_PERMISSION });
+    const actor = await platformInstructionAdmin(ctx);
+    const { instructions } = z.object({ instructions: z.string().max(8000) }).parse(request.body);
+    return { ok: true, instructions: await saveGlobalAssistantInstructions(instructions, actor), can_edit: true };
+  });
+
+  app.get("/organizations/:orgId/profile", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
+    return { ok: true, profile: await readAssistantProfile(orgId, ctx.userId) };
+  });
+
+  app.put("/organizations/:orgId/profile", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    return { ok: true, profile: await saveAssistantProfile(orgId, ctx.userId, profileSchema.parse(request.body)) };
+  });
+
+  app.get("/organizations/:orgId/memories", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
+    return { ok: true, memories: await listAssistantMemories(orgId, ctx.userId) };
+  });
+
+  app.post("/organizations/:orgId/memories", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const profile = await readAssistantProfile(orgId, ctx.userId);
+    if (!profile.memory_enabled) throw forbidden("memory_disabled", "Turn on memory before adding memories.");
+    const { content } = memorySchema.parse(request.body);
+    const id = await saveAssistantMemory(orgId, ctx.userId, content);
+    return { ok: true, id, memories: await listAssistantMemories(orgId, ctx.userId) };
+  });
+
+  app.put("/organizations/:orgId/memories/:memoryId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const { content } = memorySchema.parse(request.body);
+    const id = await saveAssistantMemory(orgId, ctx.userId, content, getParam(request.params, "memoryId"));
+    return { ok: true, id, memories: await listAssistantMemories(orgId, ctx.userId) };
+  });
+
+  app.delete("/organizations/:orgId/memories/:memoryId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    return { ok: true, deleted: await deleteAssistantMemory(orgId, ctx.userId, getParam(request.params, "memoryId")) };
+  });
+
+  app.delete("/organizations/:orgId/memories", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    await clearAssistantMemories(orgId, ctx.userId);
+    return { ok: true };
   });
 
   app.get("/organizations/:orgId/threads", async (request) => {

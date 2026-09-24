@@ -2221,7 +2221,7 @@
     const canStorage = canCompany && storageLimitsEnabled();
     const canSmsSettings = canCompany && appFlag('platform', 'sms_settings');
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
-    const canAssistant = canCompany && appFlag('apps', 'assistant');
+    const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     let floatingMenu = null;
     if (!canMySettings && !canCompany && !canPayments && !canCustomFields && !canUsers && !canPayroll && !canReports && !canBilling && !canForms && !canPricebook && !canProposalSettings && !canDocuments && !canConfiguration && !canScheduling && !canTerminology && !canCrews && !canScopeFlags && !canCallWorkflows && !canStorage && !canSmsSettings && !canDomains && !canAssistant && !canAppFlags) {
@@ -14357,6 +14357,11 @@
         paneAssistant.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_509d484132439c","Assistant settings failed to load.") ?? "Assistant settings failed to load.")}</div>`;
         return;
       }
+      if (!canCompany) {
+        paneAssistant.innerHTML = '';
+        renderAssistantPersonalization(paneAssistant);
+        return;
+      }
       paneAssistant.innerHTML = `<div class="cs-note" style="padding:18px;">${(globalThis.PlatformLanguage?.text("settings","m_0637168da6416c","Loading assistant settings...") ?? "Loading assistant settings...")}</div>`;
       const toggleRow = (key, label, hint, checked) => `
         <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f2f4f7;cursor:pointer;">
@@ -14372,14 +14377,14 @@
         paneAssistant.innerHTML = `
           <div class="cs-card">
             <h3 style="display:flex;align-items:center;gap:10px;margin-top:0;"><i class="fas fa-wand-magic-sparkles" style="color:var(--primary-readable, var(--primary,#175cd3));"></i>${(globalThis.PlatformLanguage?.text("settings","m_4c5192272146ed"," AI Assistant") ?? " AI Assistant")}</h3>
-            <div class="cs-note" style="margin-bottom:14px;">${(globalThis.PlatformLanguage?.text("settings","m_63549169e61d4f","The company-wide assistant in the top bar. Powered by GPT-5.6 Sol. Turn the whole app on/off (and the Actions / Customer Messaging features) under Features &amp; Apps; the switches here shape day-to-day behavior.") ?? "The company-wide assistant in the top bar. Powered by GPT-5.6 Sol. Turn the whole app on/off (and the Actions / Customer Messaging features) under Features &amp; Apps; the switches here shape day-to-day behavior.")}</div>
+            <div class="cs-note" style="margin-bottom:14px;">The company-wide assistant in the top bar. Powered by GPT-6 Luna. Its published data and actions follow each user's permissions.</div>
             ${String(toggleRow('enabled', 'Assistant enabled', 'Master switch — when off, the assistant refuses to run for everyone.', s.enabled !== false))}
             <div class="cs-field" style="margin:14px 0;">
               <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">${(globalThis.PlatformLanguage?.text("settings","m_809927621a5934","Assistant name") ?? "Assistant name")}</label>
               <input type="text" data-assistant-field="assistant_name" value="${String(escapeHtml(s.assistant_name || ''))}" maxlength="80" style="width:100%;max-width:360px;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;font:inherit;box-sizing:border-box;">
             </div>
             <div class="cs-field" style="margin:14px 0;">
-              <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">${(globalThis.PlatformLanguage?.text("settings","m_bc5d173815594c","Company instructions") ?? "Company instructions")}</label>
+              <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">Organization instructions</label>
               <textarea data-assistant-field="custom_instructions" rows="4" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_8c9dc285156665","Anything the assistant should always know or do for your company...") ?? "Anything the assistant should always know or do for your company...")}" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;font:inherit;box-sizing:border-box;resize:vertical;">${String(escapeHtml(s.custom_instructions || ''))}</textarea>
             </div>
           </div>
@@ -14402,8 +14407,12 @@
               <span class="cs-note" data-assistant-status></span>
             </div>
           </div>
+          <div data-assistant-global></div>
+          <div data-assistant-personal></div>
           <div data-agents-list></div>
         `;
+        renderAssistantGlobal(paneAssistant.querySelector('[data-assistant-global]'));
+        renderAssistantPersonalization(paneAssistant.querySelector('[data-assistant-personal]'));
         renderOtherAgents(paneAssistant.querySelector('[data-agents-list]'));
         const readSettings = () => {
           const value = (key) => paneAssistant.querySelector(`[data-assistant-key="${key}"]`)?.checked;
@@ -14443,6 +14452,61 @@
       }).catch((error) => {
         paneAssistant.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${escapeHtml(error?.message || 'Assistant settings failed to load.')}</div>`;
       });
+    }
+
+    async function renderAssistantGlobal(host){
+      if (!host) return;
+      try {
+        const result = await window.AssistantAPI.globalInstructions.load(currentOrgId());
+        host.innerHTML = `<div class="cs-card"><h3>Platform-wide instructions</h3><p class="cs-note">These apply to the global assistant in every company. Only a platform administrator can edit them.</p><textarea data-global-instructions rows="4" maxlength="8000" ${result.can_edit ? '' : 'readonly'} style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(result.instructions || '')}</textarea>${result.can_edit ? '<button type="button" class="cs-btn primary" data-global-save>Save platform instructions</button>' : ''}<span class="cs-note" data-global-status></span></div>`;
+        host.querySelector('[data-global-save]')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try {
+            await window.AssistantAPI.globalInstructions.save(currentOrgId(), host.querySelector('[data-global-instructions]').value);
+            host.querySelector('[data-global-status]').textContent = 'Saved.';
+          } catch (error) { host.querySelector('[data-global-status]').textContent = error?.message || 'Save failed.'; }
+          finally { button.disabled = false; }
+        });
+      } catch (error) { host.textContent = error?.message || 'Platform instructions could not be loaded.'; }
+    }
+
+    async function renderAssistantPersonalization(host){
+      if (!host) return;
+      host.innerHTML = '<div class="cs-card">Loading your assistant preferences...</div>';
+      try {
+        const [profileResult, memoryResult] = await Promise.all([
+          window.AssistantAPI.profile.load(currentOrgId()),
+          window.AssistantAPI.memories.list(currentOrgId())
+        ]);
+        const profile = profileResult.profile || {};
+        const memories = Array.isArray(memoryResult.memories) ? memoryResult.memories : [];
+        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;"><input type="checkbox" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}>Use saved memories in my conversations</label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
+        host.querySelector('[data-profile-save]')?.addEventListener('click', async () => {
+          const status = host.querySelector('[data-profile-status]');
+          try { await window.AssistantAPI.profile.save(currentOrgId(), { instructions:host.querySelector('[data-user-instructions]').value, memory_enabled:host.querySelector('[data-memory-enabled]').checked }); status.textContent = 'Saved.'; }
+          catch (error) { status.textContent = error?.message || 'Save failed.'; }
+        });
+        host.querySelector('[data-memory-add]')?.addEventListener('click', async () => {
+          const status = host.querySelector('[data-memory-status]');
+          try { await window.AssistantAPI.memories.add(currentOrgId(), host.querySelector('[data-memory-new]').value); renderAssistantPersonalization(host); }
+          catch (error) { status.textContent = error?.message || 'Could not save memory.'; }
+        });
+        host.querySelectorAll('[data-memory-update]').forEach((button) => button.addEventListener('click', async () => {
+          const id = button.dataset.memoryUpdate;
+          try { await window.AssistantAPI.memories.update(currentOrgId(), id, host.querySelector(`[data-memory-text="${id}"]`).value); renderAssistantPersonalization(host); }
+          catch (error) { host.querySelector('[data-memory-status]').textContent = error?.message || 'Could not update memory.'; }
+        }));
+        host.querySelectorAll('[data-memory-delete]').forEach((button) => button.addEventListener('click', async () => {
+          try { await window.AssistantAPI.memories.remove(currentOrgId(), button.dataset.memoryDelete); renderAssistantPersonalization(host); }
+          catch (error) { host.querySelector('[data-memory-status]').textContent = error?.message || 'Could not delete memory.'; }
+        }));
+        host.querySelector('[data-memory-clear]')?.addEventListener('click', async () => {
+          if (!window.confirm('Delete all your saved assistant memories?')) return;
+          try { await window.AssistantAPI.memories.clear(currentOrgId()); renderAssistantPersonalization(host); }
+          catch (error) { host.querySelector('[data-memory-status]').textContent = error?.message || 'Could not clear memories.'; }
+        });
+      } catch (error) { host.textContent = error?.message || 'Your assistant preferences could not be loaded.'; }
     }
 
     // Cards for every OTHER registered agent (stats, scope, comms, live chat,

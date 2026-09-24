@@ -37,6 +37,9 @@ authorization does not authorize production deployment or topology changes.
 
 ## Architecture continuity
 
+Before editing the global assistant, its instructions, memories or tools, read
+[global assistant architecture](docs/architecture/global-assistant.md).
+
 Before data/action publication or document/scope architecture work, read
 [the agreed design and pending audit](docs/architecture/data-actions-continuity.md).
 It links the full-conversation continuation. Audit the canonical integrated

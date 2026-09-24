@@ -134,6 +134,8 @@ async function executeLoop(
     outputTokens: 0
   };
   const toolDeclarations = openAIToolDeclarations(tools);
+  let previousCallBatch = "";
+  let repeatedBatches = 0;
   const requestPayload = () => ({
     model: model.model,
     ...(model.effort ? { reasoning: { effort: model.effort } } : {}),
@@ -170,6 +172,21 @@ async function executeLoop(
 
     if (!functionCalls.length) {
       outcome.finalText = messageText;
+      if (definition.loop?.reportResult !== false && !outcome.reported) outcome.loopError = "The agent ended without reporting a result.";
+      break;
+    }
+    const callBatch = JSON.stringify(functionCalls.map((call) => {
+      const item = asObject(call);
+      return [cleanText(item.name), cleanText(item.arguments)];
+    }));
+    repeatedBatches = callBatch === previousCallBatch ? repeatedBatches + 1 : 0;
+    previousCallBatch = callBatch;
+    if (repeatedBatches >= 3) {
+      outcome.loopError = "The agent repeated the same tool calls and was stopped.";
+      break;
+    }
+    if (outcome.toolCalls + functionCalls.length > 64) {
+      outcome.loopError = "The agent reached its tool-call limit and was stopped.";
       break;
     }
     conversation.push(...output.map((item) => asObject(item)));
@@ -197,6 +214,9 @@ async function executeLoop(
       });
       conversation.push({ type: "function_call_output", call_id: callObject.call_id, output: truncateJson(toolOutput, 80_000) });
     }
+  }
+  if (!outcome.finalText && !outcome.loopError && outcome.rounds >= options.maxRounds) {
+    outcome.loopError = "The agent reached its turn limit and was stopped.";
   }
   return outcome;
 }
@@ -309,7 +329,7 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
       retryOnRetryable: loop.retryOnRetryable !== false,
       checkLease
     });
-  let finalText = loopText;
+  let finalText = loopError ? "" : loopText;
 
   const failed = loopError !== "" || (reported ? reported.status === "failed" : false);
   let reverted: string[] = [];

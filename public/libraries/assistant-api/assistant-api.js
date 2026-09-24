@@ -80,6 +80,21 @@
       load(orgId){ return request(orgPath(orgId, '/settings')); },
       save(orgId, settings){ return request(orgPath(orgId, '/settings'), { method:'PUT', body:{ settings:object(settings) } }); }
     },
+    globalInstructions:{
+      load(orgId){ return request(orgPath(orgId, '/global-instructions')); },
+      save(orgId, instructions){ return request(orgPath(orgId, '/global-instructions'), { method:'PUT', body:{ instructions } }); }
+    },
+    profile:{
+      load(orgId){ return request(orgPath(orgId, '/profile')); },
+      save(orgId, profile){ return request(orgPath(orgId, '/profile'), { method:'PUT', body:object(profile) }); }
+    },
+    memories:{
+      list(orgId){ return request(orgPath(orgId, '/memories')); },
+      add(orgId, content){ return request(orgPath(orgId, '/memories'), { method:'POST', body:{ content } }); },
+      update(orgId, id, content){ return request(orgPath(orgId, `/memories/${enc(id)}`), { method:'PUT', body:{ content } }); },
+      remove(orgId, id){ return request(orgPath(orgId, `/memories/${enc(id)}`), { method:'DELETE' }); },
+      clear(orgId){ return request(orgPath(orgId, '/memories'), { method:'DELETE' }); }
+    },
     threads(orgId){ return request(orgPath(orgId, '/threads')); },
     createThread(orgId, body){ return request(orgPath(orgId, '/threads'), { method:'POST', body:object(body) }); },
     thread(orgId, threadId){ return request(orgPath(orgId, `/threads/${enc(threadId)}`)); },

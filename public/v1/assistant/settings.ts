@@ -3,6 +3,7 @@
 // whether the assistant exists at all; these settings shape how it behaves.
 
 import { readBranchModule, saveBranchModule } from "../platform/storage.js";
+import { readAssistantOrganizationInstructions, saveAssistantOrganizationInstructions } from "./personalization.js";
 
 export type AssistantSettings = {
   enabled: boolean;
@@ -78,12 +79,13 @@ export function normalizeAssistantSettings(value: unknown): AssistantSettings {
 }
 
 export async function loadAssistantSettings(orgId: string, branchId: string): Promise<AssistantSettings> {
+  let branchSettings = defaultAssistantSettings();
   try {
     const doc = await readBranchModule(orgId, branchId || "default", ASSISTANT_MODULE_ID);
-    return normalizeAssistantSettings(asObject(doc).data);
-  } catch {
-    return defaultAssistantSettings();
-  }
+    branchSettings = normalizeAssistantSettings(asObject(doc).data);
+  } catch {}
+  const organizationInstructions = await readAssistantOrganizationInstructions(orgId);
+  return { ...branchSettings, custom_instructions: organizationInstructions ?? branchSettings.custom_instructions };
 }
 
 export async function saveAssistantSettings(orgId: string, branchId: string, value: unknown): Promise<AssistantSettings> {
@@ -92,5 +94,6 @@ export async function saveAssistantSettings(orgId: string, branchId: string, val
     data: settings,
     metadata: { kind: "assistant_settings", source: "assistant_api" }
   }, { replace: true });
+  await saveAssistantOrganizationInstructions(orgId, settings.custom_instructions);
   return settings;
 }

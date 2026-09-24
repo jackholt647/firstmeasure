@@ -1,0 +1,75 @@
+# Global assistant architecture
+
+The portal's global assistant is registered as `assistant` in
+`public/v1/assistant/agent/definition.ts`. It uses the shared Responses loop in
+`public/v1/agents/runtime.ts`, the same SQL-backed thread and run store as other
+agents, and the published platform data/action tools in `agents/platform_tools.ts`.
+`platform_search` discovers authorized resources and operations; `platform_describe`
+returns typed contracts; read/list/invoke/resolve-binding operate through the
+publication layer. A local tool list is a convenience, not a limit on app reach.
+Each tool call refreshes the human principal and checks current permissions.
+
+## Instruction layers
+
+1. **Platform rules** are versioned source in the agent definition and shared
+   runtime. They include tool use, confirmation, permission and memory rules.
+2. **Platform-wide editable instructions** live in the platform configuration
+   record `global_assistant_instructions`. The Company Settings page displays
+   them to company administrators. Editing requires a platform session with
+   `manage_company_settings` and a verified full internal admin identity.
+3. **Organization instructions** use `assistant_organization_instructions`,
+   keyed by organization. The settings API retains the `custom_instructions`
+   field; if no organization record exists it reads the legacy branch value.
+   The first settings save writes the organization record. Company
+   administrators edit them in Company Settings.
+4. **User interaction instructions** live in `assistant_profiles`, keyed by
+   organization and user. A user edits only their own profile in Company
+   Settings. They are loaded on every authenticated assistant turn.
+
+Platform rules take precedence over editable platform instructions, then
+organization instructions, then personal instructions and saved memories.
+Editable text is treated as preferences and cannot grant permissions or
+override action gates. Admin or personal edits apply to the next turn; no
+process cache is used.
+
+## Memory and history
+
+`assistant_memories` stores up to 50 short, user-owned entries per organization.
+The user can add, edit, delete or clear them and turn prompt use off without
+deleting them. Memory is disabled for automatic runs. The agent's
+`save_user_memory` tool is instructed to save only at the user's explicit
+request and never store credentials or sensitive personal data. The owner can
+ask the agent to forget an entry or manage it directly in Settings. Saved
+memories are bounded and loaded into each prompt when enabled.
+
+Conversation messages remain durable in `agent_messages`. The runtime replays
+the most recent 40 messages, in chronological order. The assistant may search
+older messages across only its caller's own threads with
+`search_my_conversation_history`. This gives it retrieval across the replay
+window without growing every prompt indefinitely. The user can inspect their
+threads through the existing assistant API.
+
+## API and UI
+
+`/v1/assistant/organizations/:orgId/settings` remains the organization
+settings route. The API adds `global-instructions`, `profile` and `memories`
+routes under the same prefix. Profile and memory endpoints derive user identity
+from the authenticated session; they accept no user-id selector. Mutations
+require CSRF. The Company Settings AI Agents tab shows the platform and
+organization settings to admins and personal settings and memory controls to
+assistant users.
+
+## Reliability
+
+The shared runtime stops after 16 rounds, 64 tool calls, or repeated identical
+tool batches, whichever comes first. Hitting a limit records a failed run and
+attempts the agent's revert hook. A run requiring `report_result` fails if the
+model ends without it. Tool calls and outcomes are recorded in the message
+trace. The assistant defaults to `gpt-6-luna` with medium reasoning effort;
+`OPENAI_ASSISTANT_AGENT_MODEL` and `OPENAI_ASSISTANT_AGENT_EFFORT` can override
+it operationally.
+
+Verification: `npm run check`, `npm run test:assistant`,
+`npm run test:assistant:frontend`, and `npm run test:publication` in
+`public/v1`. Tests mock Responses and cover instruction loading, memory across
+threads, memory opt-out, action permissions and loop stopping.

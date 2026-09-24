@@ -265,8 +265,8 @@ export const env = {
   openaiTerminologyTimeoutMs: readNumber("OPENAI_TERMINOLOGY_TIMEOUT_MS", 30_000),
   // The global platform assistant mirrors the scope agent's model/effort
   // defaults (gpt-5.6-sol at high effort across the board).
-  openaiAssistantAgentModel: process.env.OPENAI_ASSISTANT_AGENT_MODEL ?? process.env.OPENAI_SCOPE_AGENT_MODEL ?? "gpt-5.6-sol",
-  openaiAssistantAgentEffort: process.env.OPENAI_ASSISTANT_AGENT_EFFORT ?? process.env.OPENAI_SCOPE_AGENT_EFFORT ?? "high",
+  openaiAssistantAgentModel: process.env.OPENAI_ASSISTANT_AGENT_MODEL ?? "gpt-6-luna",
+  openaiAssistantAgentEffort: process.env.OPENAI_ASSISTANT_AGENT_EFFORT ?? "medium",
   openaiAssistantAgentTimeoutMs: readNumber("OPENAI_ASSISTANT_AGENT_TIMEOUT_MS", 150_000),
   // The document designer agent (workflow/template/document copilot) mirrors
   // the assistant defaults; it emits whole definitions so it gets a generous
