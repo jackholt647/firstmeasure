@@ -41,7 +41,11 @@ function createSessionClient() {
     assert.ok(response.statusCode < 400, `${method} ${url} failed: ${response.statusCode} ${response.body}`);
     return json;
   };
-  return { request, raw };
+  const multipart = async (url: string, payload: Buffer, boundary: string) => await (app.inject as any)({
+    method: "POST", url, payload,
+    headers: { cookie, "x-platform-csrf": csrf, "content-type": `multipart/form-data; boundary=${boundary}` }
+  });
+  return { request, raw, multipart };
 }
 
 before(async () => {
@@ -183,6 +187,45 @@ test("assistant answers a lookup question through tools and reports success", as
   } finally {
     mock.restore();
   }
+});
+
+test("assistant attachments reach the model and stay bound to their conversation", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const first = await client.request("POST", `/v1/assistant/organizations/${orgId}/threads`, {});
+  const second = await client.request("POST", `/v1/assistant/organizations/${orgId}/threads`, {});
+  const threadId = first.thread.id as string;
+  const boundary = "assistant-test-boundary";
+  const image = Buffer.from("test-image-bytes");
+  const payload = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="photo.png"\r\nContent-Type: image/png\r\n\r\n`),
+    image,
+    Buffer.from(`\r\n--${boundary}--\r\n`)
+  ]);
+  const uploadedResponse = await client.multipart(`/v1/assistant/organizations/${orgId}/threads/${threadId}/attachments`, payload, boundary);
+  assert.equal(uploadedResponse.statusCode, 200, uploadedResponse.body);
+  const attachmentId = JSON.parse(uploadedResponse.body).attachment.media_id as string;
+  const rejected = await client.raw("POST", `/v1/assistant/organizations/${orgId}/threads/${second.thread.id}/messages`, {
+    message: "Look at this photo", attachments: [attachmentId]
+  });
+  assert.equal(rejected.statusCode, 400);
+  const mock = mockOpenAI([
+    { output: [functionCall("report_result", { status: "success", summary: "Photo received." }, "call_1")] },
+    { output: [messageOutput("Photo received.")] }
+  ]);
+  try {
+    const sent = await client.request("POST", `/v1/assistant/organizations/${orgId}/threads/${threadId}/messages`, {
+      message: "Look at this photo", attachments: [attachmentId]
+    });
+    assert.equal(sent.status, "success");
+    const currentUser = (mock.calls[0] as any).input.at(-1);
+    assert.equal(currentUser.role, "user");
+    assert.equal(currentUser.content[1].type, "input_image");
+    assert.match(currentUser.content[1].image_url, /^data:image\/png;base64,/);
+    const search = await client.request("GET", `/v1/assistant/organizations/${orgId}/search?q=Look%20at%20this`);
+    assert.ok(search.matches.some((match: Record<string, unknown>) => match.thread_id === threadId));
+    assert.ok(search.threads.some((thread: Record<string, unknown>) => thread.id === threadId));
+  } finally { mock.restore(); }
 });
 
 test("personal instructions and saved memories persist across assistant threads", async () => {

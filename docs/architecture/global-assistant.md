@@ -59,6 +59,47 @@ require CSRF. The Company Settings AI Agents tab shows the platform and
 organization settings to admins and personal settings and memory controls to
 assistant users.
 
+## Portal window and app entry
+
+The top-bar assistant and `portal.assistant` app use the same
+`PlatformAssistant` instance, thread state, and `FirstMateWindows` controller.
+The assistant starts as a right dock. The shared maximize control opens the
+full workspace and activates the Assistant tab; Dock or Minimize returns it to
+the right. On phones, its dock occupies the workspace width and uses the same
+compact layout. Channels conversations and the assistant both use
+`libraries/window-manager/window-manager.js`; the assistant no longer has a
+separate fixed drawer implementation.
+
+The app manifest exposes Assistant in the Apps launcher through
+`apps.assistant`. Its default `portal.assistant` placement is `more` and
+`app_placements` pinning moves it to the left sidebar. The assistant sidebar
+opens a complete in-window settings view in docked, floating and full layouts.
+Personalization and Memory belong to the signed-in user. Company administrators
+also get Capabilities, Agents and Advanced tabs. These expose the assistant's
+name, organization instructions, action and data switches, every registered
+agent's common and advanced settings, and the platform-wide instructions
+(editable only by a verified platform administrator). Saves use the existing
+permission-checked assistant and agent APIs. No settings link leaves the
+assistant window. Enable controls use accessible visual switches in the
+assistant and the legacy AI Agents settings page.
+
+The assistant header keeps the conversations toggle at left and the shared
+Float, Minimize and Maximize window controls at right. Conversation history is
+a persistent left sidebar in desktop full view and a 68%-width overlay in
+docked, floating and mobile views. The sidebar searches titles and the user's
+own conversation messages, and owns new
+conversation and assistant settings. The chat and settings panes use the same
+assistant instance, so switching window modes preserves their state.
+
+The composer accepts up to five files of 20 MB each through an authenticated
+assistant upload route. Uploads are bound to the current user's conversation;
+the send route rechecks both user ownership and thread binding. Supported
+images and document types are passed to the current Responses turn as image
+and file input parts. Audio attachments are transcribed first. Other formats,
+including video, are stored and shown in history but their contents are not
+analyzed by the model. Browser microphone dictation uses the same transcription
+service and places recognized text into the composer for review before send.
+
 ## Reliability
 
 The shared runtime stops after 16 rounds, 64 tool calls, or repeated identical

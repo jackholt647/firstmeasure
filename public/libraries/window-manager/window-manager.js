@@ -57,12 +57,13 @@
     const active = [...windows].filter(win => win.host === host && win.visible);
     const width = host.clientWidth, height = host.clientHeight;
     const docks = active.filter(win => win.mode === 'docked');
-    const desired = docks.reduce((sum,win) => sum + win.dockWidth, 0);
-    const budget = Math.max(0,width - Math.min(320,width * .35));
+    const mobileOverlayDock = width <= 640 && docks.some(win => win.mobileFullDock);
+    const desired = docks.reduce((sum,win) => sum + (mobileOverlayDock && win.mobileFullDock ? width : win.dockWidth), 0);
+    const budget = mobileOverlayDock ? width : Math.max(0,width - Math.min(320,width * .35));
     const scale = desired > budget ? budget / desired : 1;
     let reserved = 0, minimized = 0;
     for (const win of docks) {
-      const size = win.dockWidth * scale, top = win.topInset();
+      const size = (mobileOverlayDock && win.mobileFullDock ? width : win.dockWidth) * scale, top = win.topInset();
       box(win,width - reserved - size,top,size,Math.max(0,height-top)); reserved += size;
     }
     const record = hosts.get(host);
@@ -100,6 +101,7 @@
     const win = {
       element, header, host, contentTarget:options.contentTarget,
       minWidth:options.minWidth || 320, minHeight:options.minHeight || 280,
+      mobileFullDock:options.mobileFullDock === true,
       mode:modes.includes(options.mode) ? options.mode : 'floating', previous:'floating',
       pinned:false, visible:!element.hidden, dockWidth:options.dockWidth || 440,
       topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),

@@ -14096,11 +14096,15 @@
                 </span>
               </label>
             </div>
+            ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
             <div class="li-actions">
               <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
+        paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
+          window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
+        });
         if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
         const sidebarWidthInput = paneMySettings.querySelector('[data-my-sidebar-width]');
         const sidebarWidthOutput = paneMySettings.querySelector('[data-my-sidebar-width-output]');
@@ -14365,6 +14369,12 @@
 
     async function renderAssistantSettings(){
       if (!paneAssistant) return;
+      if (!document.getElementById('fm-assistant-settings-switches')) {
+        const style = document.createElement('style');
+        style.id = 'fm-assistant-settings-switches';
+        style.textContent = `#csPaneAssistant input[type=checkbox]{appearance:none;-webkit-appearance:none;order:2;flex:0 0 auto;width:42px;height:24px;margin:0 0 0 auto!important;border:0;border-radius:999px;background:#cbd5e1;position:relative;cursor:pointer;transition:background .15s ease}#csPaneAssistant input[type=checkbox]:before{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #10182833;transition:transform .15s ease}#csPaneAssistant input[type=checkbox]:checked{background:var(--primary-readable,var(--primary,#175cd3))}#csPaneAssistant input[type=checkbox]:checked:before{transform:translateX(18px)}#csPaneAssistant input[type=checkbox]:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#175cd3));outline-offset:3px}`;
+        document.head.appendChild(style);
+      }
       try {
         if (await window.FirstMatePlatformBilling?.setup(paneAssistant, {orgId:currentOrgId(),canView:canPlatformBilling,capabilityKeys:['apps.assistant'],onReady:renderAssistantSettings})) return;
       } catch (error) {
@@ -14383,7 +14393,7 @@
       paneAssistant.innerHTML = `<div class="cs-note" style="padding:18px;">${(globalThis.PlatformLanguage?.text("settings","m_0637168da6416c","Loading assistant settings...") ?? "Loading assistant settings...")}</div>`;
       const toggleRow = (key, label, hint, checked) => `
         <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f2f4f7;cursor:pointer;">
-          <input type="checkbox" data-assistant-key="${key}" ${checked ? 'checked' : ''} style="margin-top:3px;">
+          <input type="checkbox" role="switch" data-assistant-key="${key}" ${checked ? 'checked' : ''}>
           <span style="display:flex;flex-direction:column;gap:2px;">
             <strong style="color:#101828;font-weight:800;">${escapeHtml(label)}</strong>
             <small style="color:#667085;">${escapeHtml(hint)}</small>
@@ -14499,7 +14509,7 @@
         ]);
         const profile = profileResult.profile || {};
         const memories = Array.isArray(memoryResult.memories) ? memoryResult.memories : [];
-        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;"><input type="checkbox" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}>Use saved memories in my conversations</label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
+        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;">Use saved memories in my conversations<input type="checkbox" role="switch" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}></label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
         host.querySelector('[data-profile-save]')?.addEventListener('click', async () => {
           const status = host.querySelector('[data-profile-status]');
           try { await window.AssistantAPI.profile.save(currentOrgId(), { instructions:host.querySelector('[data-user-instructions]').value, memory_enabled:host.querySelector('[data-memory-enabled]').checked }); status.textContent = 'Saved.'; }
@@ -14554,7 +14564,7 @@
                 <div style="border-top:1px solid #f2f4f7;padding:12px 0;display:grid;gap:8px;" data-agent-card="${escapeHtml(agent.id)}">
                   <div style="display:flex;align-items:center;gap:10px;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;">
-                      <input type="checkbox" data-agent-enabled ${settings.enabled !== false ? 'checked' : ''}>
+                      <input type="checkbox" role="switch" data-agent-enabled ${settings.enabled !== false ? 'checked' : ''}>
                       <strong style="color:#101828;font-weight:850;">${escapeHtml(agent.title)}</strong>
                     </label>
                     <input type="text" data-agent-name value="${escapeHtml(settings.display_name || agent.title)}" maxlength="80" style="width:200px;border:1px solid #d0d5dd;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;">

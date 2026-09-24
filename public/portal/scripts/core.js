@@ -2327,7 +2327,7 @@
     const requested = cleanText(configured || app.placement || fallback).toLowerCase();
     // The advanced launcher revives `more` as an app-menu-only placement. With
     // the experiment off, preserve the legacy projection back to the sidebar.
-    if (requested === 'more') return advancedAppMenuEnabled() ? 'more' : 'sidebar';
+    if (requested === 'more') return appId === 'portal.assistant' || advancedAppMenuEnabled() ? 'more' : 'sidebar';
     return ['sidebar', 'more', 'settings', 'hidden'].includes(requested) ? requested : fallback;
   }
 
@@ -3221,7 +3221,8 @@
     // org has not enabled yet. Once that catalog is empty, this launcher
     // becomes a direct Apps Settings shortcut instead of opening an empty menu.
     const catalogApps = appCatalogEntries().filter((entry) => entry.addable);
-    const hasMoreApps = catalogApps.length > 0;
+    const assistantApp = list.find((tab) => tab.id === 'assistant');
+    const hasMoreApps = catalogApps.length > 0 || !!assistantApp;
     const advancedMenu = advancedAppMenuEnabled();
     if (!advancedMenu && advancedAppMenuOpen) closeAdvancedAppMenu({ restoreFocus:false });
     const settingsTabId = ['company', 'settings'].join('_');
@@ -3289,7 +3290,8 @@
         if (count <= 23) return 6;
         return 7;
       };
-      const catalogGrid = catalogApps.length ? `<nav class="fm-more-apps-grid">${catalogApps.map((entry) => `
+      const assistantTile = assistantApp ? `<div style="position:relative"><button type="button" class="fm-more-app" role="menuitem" data-active-app="assistant"><span class="fm-more-app-icon"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span><span class="fm-more-app-name">FirstMate Assistant</span></button><button type="button" data-assistant-pin="${assistantApp.placement === 'sidebar' ? 'unpin' : 'pin'}" aria-label="${assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin'} FirstMate Assistant" title="${assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin'} FirstMate Assistant" style="position:absolute;top:0;right:0;border:0;background:transparent;padding:8px;cursor:pointer;color:#667085"><i class="fas fa-thumbtack" aria-hidden="true"></i></button></div>` : '';
+      const catalogGrid = (catalogApps.length || assistantApp) ? `<nav class="fm-more-apps-grid">${assistantTile}${catalogApps.map((entry) => `
         <button type="button" class="fm-more-app" role="menuitem" data-catalog-app="${escapeHtml(entry.key)}">
           <span class="fm-more-app-icon"><i class="fas ${escapeHtml(entry.icon)}" aria-hidden="true"></i></span>
           <span class="fm-more-app-name">${escapeHtml(entry.label)}</span>
@@ -3322,8 +3324,9 @@
         const availableWidth = window.innerWidth - (viewportMargin * 2);
         const availableHeight = Math.max(240, anchor.top - anchorGap - viewportMargin);
         const maximumColumns = Math.max(1, Math.floor((availableWidth - horizontalChrome + gridGap) / (tileWidth + gridGap)));
-        const columns = Math.min(preferredCatalogColumns(catalogApps.length), maximumColumns);
-        const rows = Math.max(1, Math.ceil(catalogApps.length / columns));
+        const tileCount = catalogApps.length + (assistantApp ? 1 : 0);
+        const columns = Math.min(preferredCatalogColumns(tileCount), maximumColumns);
+        const rows = Math.max(1, Math.ceil(tileCount / columns));
         const width = Math.min(960, availableWidth, Math.max(300, (columns * tileWidth) + ((columns - 1) * gridGap) + horizontalChrome));
         const height = Math.min(640, availableHeight, (rows * tileHeight) + ((rows - 1) * gridGap) + verticalChrome);
         const anchorCenter = anchor.left + (anchor.width / 2);
@@ -3369,6 +3372,18 @@
       });
       popover.querySelector('[data-more-apps-close]')?.addEventListener('click', () => { close(); moreButton.focus(); });
       popover.addEventListener('click', (event) => {
+        const pin = event.target.closest?.('[data-assistant-pin]');
+        if (pin) {
+          pin.disabled = true;
+          updateAdvancedAppPin('portal.assistant', pin.dataset.assistantPin === 'pin')
+            .catch((error) => { pin.disabled = false; window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.'); });
+          return;
+        }
+        if (event.target.closest?.('[data-active-app="assistant"]')) {
+          close();
+          activateTab('assistant', false, {history:'push', source:'more-apps'});
+          return;
+        }
         if (event.target.closest?.('[data-more-apps-manage]')) {
           close();
           if (window.Portal?.navigation?.navigate) {
