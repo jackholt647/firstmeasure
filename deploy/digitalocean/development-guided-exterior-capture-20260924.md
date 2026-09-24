@@ -105,3 +105,34 @@ release from `aa6fa40`; native APK 1.0.2 and backend services are unchanged.
 SHA-256: `53efb09cb4772b61b62f41cdcb5112f2339c08370889f806fedecc7427428959`.
 Rollback restores the retained `aa6fa40` runtime. Physical live-camera
 confirmation is still pending; these browser tests simulate camera devices.
+
+
+## Capture layout refinement
+
+Source `900d5f6`, integrated into canonical commit/release
+`582b498091af7a3bfce3401872e6fb5b210d4765`, reduces capture to one view heading
+and House/View metadata beside the house diagram. The camera flexes to occupy
+the remaining height; its captured-photo strip overlays the preview so taking
+a photo does not displace navigation. A centered labelled shutter sits above
+the bottom Back / Upload instead / Skip for now row. After capture, the last
+control becomes Next angle (Review photos on the final view). The early summary
+shortcut, direction paragraph, progress bar, and capture disclaimer are gone.
+The photo summary remains the destination after the eighth view.
+
+Additional photos uses one full-width, 170 px minimum-height dashed upload
+control. It invokes the normal multi-image picker without a capture attribute,
+so the native Android chooser can offer camera and library. File drops there
+are assigned directly as additional references for the selected structure.
+
+All five browser tests pass. New measured layout checks at 390x844 and 320x640
+verify bottom alignment, camera expansion, stable navigation across all eight
+views and after capture, and the normal additional-photo chooser. Existing
+camera permission/readiness, retake, primary-selection and upload checks pass.
+Visual review used simulated camera frames. This is a frontend-only update;
+FirstMate 1.0.2 remains the downloadable native build and needs no reinstall.
+
+The web-only delta from `b274a07` contains exteriors.js and release.env. Both
+nodes use guarded activation and local exact-release readiness. Final script
+SHA-256 is `0deefae56249bd808ec036c003bd3aeb78d257b04bee3e168210d59f9e984754`.
+Compatibility, worker, production and APK settings are unchanged. Rollback is
+the retained `b274a07` runtime.
