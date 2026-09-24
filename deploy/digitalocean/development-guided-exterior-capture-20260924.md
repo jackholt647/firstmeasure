@@ -193,3 +193,9 @@ Both serving nodes passed development readiness with the new release ID. Public 
 Source 18d915b restores the eight-direction primary-photo diagram below the additional upload target and additional thumbnail grid. Completion headings are removed; grouped angle tiles remain below the diagram. Footer padding contains the full shutter outline. Seven browser regressions pass, including diagram presence, ordering and shutter containment. The one-file development delta preserves the concurrent d224b18a43316b6a64d22b469cb2baca0775ff86 baseline. Production is unchanged.
 
 Activated release 50e1bcaf56c2397d908f653c5c924e7644dd7813 on both dev web nodes. Both passed readiness; the public exterior script matched the committed hash.
+
+## Final review photos and compact contact details
+
+Source 3f60464, integrated release 54fcd99f4204250534cd12e241fad8c91f3b1c4b. Final review separates report/customer/pricing from Photos, with an eight-direction primary-photo grid per house and required/additional/total counts below. The existing bottom-right Order action is retained. Customer information heading sits above the contact cards on mobile Details; nested contact field margins are reset and the gap to notes is tightened. Ten camera/navigation browser checks passed, including final-review section and photo assertions. Two-script development delta preserves 91046fca06b533a381223366db14161ab78779d9; production unchanged.
+
+Both dev web nodes passed readiness for 54fcd99; both public script hashes match the committed source.
