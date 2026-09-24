@@ -14121,11 +14121,15 @@
                 </span>
               </label>
             </div>
+            ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
             <div class="li-actions">
               <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
+        paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
+          window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
+        });
         if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
         const sidebarWidthInput = paneMySettings.querySelector('[data-my-sidebar-width]');
         const sidebarWidthOutput = paneMySettings.querySelector('[data-my-sidebar-width-output]');

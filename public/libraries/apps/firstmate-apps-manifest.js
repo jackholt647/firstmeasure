@@ -543,6 +543,21 @@
       ]
     },
     {
+      id: 'portal.assistant',
+      package: 'assistant',
+      title: 'FirstMate Assistant',
+      icon: 'fa-wand-magic-sparkles',
+      kind: 'portal_tab',
+      surfaces: ['portal_tab'],
+      portalTabId: 'assistant',
+      settingsTabId: 'assistant',
+      order: 45,
+      placement: 'more',
+      fullBleed: true,
+      access: { applicationsAny: ['management', 'field'], permissionsAny: ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'] },
+      bundles: [bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
+    },
+    {
       id: 'portal.canvassing',
       package: 'canvassing',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_88f66f0b968bb2","Canvassing") ?? "Canvassing"),
@@ -878,6 +893,12 @@
   };
 
   const initialAppDefinitions = {
+    'portal.assistant': {
+      visible:true,
+      mount(){ return { destroy(){} }; },
+      onShow(){ window.PlatformAssistant?.openFull?.(); },
+      onHide(){ window.PlatformAssistant?.dockIfFull?.(); }
+    },
     'project.request': { mount: moduleMount('request') },
     billing: { mount: moduleMount('billing') },
     'onboarding.wizard': { mount: moduleMount('onboarding_wizard', 'show') },
@@ -983,6 +1004,7 @@
     // live-chat channel additionally gates itself inside the app).
     'portal.chat': 'apps.comms',
     'portal.channels': 'apps.channels',
+    'portal.assistant': 'apps.assistant',
     'portal.canvassing': 'canvassing.app',
     'portal.sales_overview': 'apps.sales',
     'portal.sales_schedule': 'apps.sales',

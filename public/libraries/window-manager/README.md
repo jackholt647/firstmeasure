@@ -2,8 +2,8 @@
 
 Load `window-manager.js` before an app that uses windows. It exposes
 `window.FirstMateWindows.attach(options)` and has no Channels dependency.
-The portal and app manifest load it before Channels. Conversations and calls
-are its first consumers.
+The portal and app manifest load it before Channels and Assistant. Conversations,
+calls, and the global assistant use the same controller.
 
 The manager owns geometry, pointer and keyboard resizing on all eight handles,
 dragging, focus stacking, four title-bar controls, a title menu, pin state,
@@ -21,6 +21,7 @@ const windowController = FirstMateWindows.attach({
   label: 'Inspector window',
   mode: 'floating',                // floating | docked | full | minimized
   width: 640, height: 520, dockWidth: 420,
+  mobileFullDock: true,             // Optional: dock fills a phone workspace
   minWidth: 320, minHeight: 280,
   topInset: () => document.getElementById('platformTopbar')?.offsetHeight || 0,
   onChange: ({mode, pinned, reason}) => {

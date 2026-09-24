@@ -59,6 +59,24 @@ require CSRF. The Company Settings AI Agents tab shows the platform and
 organization settings to admins and personal settings and memory controls to
 assistant users.
 
+## Portal window and app entry
+
+The top-bar assistant and `portal.assistant` app use the same
+`PlatformAssistant` instance, thread state, and `FirstMateWindows` controller.
+The assistant starts as a right dock. The shared maximize control opens the
+full workspace and activates the Assistant tab; Dock or Minimize returns it to
+the right. On phones, its dock occupies the workspace width and uses the same
+compact layout. Channels conversations and the assistant both use
+`libraries/window-manager/window-manager.js`; the assistant no longer has a
+separate fixed drawer implementation.
+
+The app manifest exposes Assistant in the Apps launcher through
+`apps.assistant`. Its default `portal.assistant` placement is `more` and
+`app_placements` pinning moves it to the left sidebar. The assistant gear opens
+personal instructions, saved memories and, for company administrators, company
+name/instructions/enabled controls inside either window layout. The full AI
+Agents settings page remains available from that view for the other controls.
+
 ## Reliability
 
 The shared runtime stops after 16 rounds, 64 tool calls, or repeated identical
