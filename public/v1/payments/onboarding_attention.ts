@@ -1,8 +1,10 @@
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { registerAttentionSource } from "../platform/attention.js";
 import type { JsonObject } from "../platform/storage.js";
+import { env } from "../src/config/env.js";
 
 import { getMerchantConfigForOps } from "./merchant_config.js";
+import { forwardConfigured } from "./providers/forward.js";
 import { getBoardingProvider } from "./providers/index.js";
 
 /**
@@ -97,6 +99,10 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
   if (!moneyOn || !processingOn) return [];
 
   const config = await getMerchantConfigForOps(orgId);
+  const hostedSandbox = config?.provider === "forward" && forwardConfigured() && env.forwardApiBase.includes("sandbox");
+  const setupAction = (route: JsonObject) => hostedSandbox
+    ? { kind: "open_payment_setup", route }
+    : { route };
   const forward = config?.forward;
   const status = cleanText(forward?.boarding_status).toUpperCase();
   const approved = status === "APPROVED" || (!!cleanText(forward?.account_id) && !status);
@@ -174,7 +180,7 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
       title: "Action needed on your payments application",
       body: "The underwriter needs more information. Review the request and provide the documents on Forward's secure application page.",
       cta_label: "Review request",
-      frontend_action: { route: { ...PAYMENTS_PANE_ROUTE } }
+      frontend_action: setupAction({ ...PAYMENTS_PANE_ROUTE })
     }];
   }
 
@@ -190,7 +196,7 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
       title: "Finish your application on Forward's secure page",
       body: "Your details are ready. Complete signatures and verification on Forward's secure application to submit for review.",
       cta_label: "Continue application",
-      frontend_action: { route: { ...PAYMENTS_PANE_ROUTE } }
+      frontend_action: setupAction({ ...PAYMENTS_PANE_ROUTE })
     }];
   }
 
@@ -204,7 +210,7 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
     title: "Finish setting up payments",
     body: "Complete your onboarding to start taking payments.",
     cta_label: "Finish setup",
-    frontend_action: { route: wizardRoute(resumeStep) }
+    frontend_action: setupAction(wizardRoute(resumeStep))
   }];
 }
 

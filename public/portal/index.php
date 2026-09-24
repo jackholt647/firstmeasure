@@ -2119,6 +2119,7 @@ session_write_close();
   <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= $ver ?>"></script>
   <script src="../libraries/report-units.js?v=<?= $ver ?>"></script>
   <script src="scripts/core.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/payments-setup/payments-setup.js?v=<?= $ver ?>"></script>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= $ver ?>"></script>
   <?php endif; ?>

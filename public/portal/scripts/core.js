@@ -4540,6 +4540,11 @@
     } catch (error) {
       console.warn('Money app setup could not enable merchant processing', error);
     }
+    try {
+      if (await window.FirstMatePaymentsSetup?.open?.()) return;
+    } catch (error) {
+      console.warn('Forward hosted setup could not open', error);
+    }
     window.Portal.navigation?.navigate?.(
       { tab: 'company_settings', sub: 'money', settingsView: 'payments', workflow: 'money_onboarding', workflow_step: 'business' },
       { source: 'money-app-setup', ownedKeys: ['tab', 'sub', 'workflow', 'workflow_step'] }

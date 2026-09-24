@@ -218,11 +218,17 @@
   function applyEntryAction(entry){
     if (!entry) return false;
     markSeen(entry.id);
+    const action = entry.frontend_action && typeof entry.frontend_action === 'object' ? entry.frontend_action : {};
+    if (action.kind === 'open_payment_setup' && root.FirstMatePaymentsSetup?.open) {
+      root.FirstMatePaymentsSetup.open().then((opened) => {
+        if (!opened && action.route) root.Portal?.navigation?.navigate?.(action.route, { source:'attention-banner' });
+      }).catch((error) => root.PlatformUI?.showToast?.(error?.message || 'Could not open payment setup.'));
+      return true;
+    }
     if (typeof entry.onCta === 'function') {
       try { entry.onCta(entry); } catch (error) {}
       return true;
     }
-    const action = entry.frontend_action && typeof entry.frontend_action === 'object' ? entry.frontend_action : {};
     const route = action.route && typeof action.route === 'object'
       ? action.route
       : (!action.kind && Object.keys(action).length ? action : null);

@@ -9380,7 +9380,7 @@
         const overlay = document.createElement('div');
         overlay.dataset.fmWizard = 'money-onboarding';
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483300;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:rgba(15,23,42,.46);padding:16px';
-        overlay.innerHTML = `<div style="display:flex;flex-direction:column;width:min(900px,100%);height:min(92vh,1000px);min-height:500px;overflow:hidden;border-radius:16px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3)">
+        overlay.innerHTML = `<div style="display:flex;flex-direction:column;width:min(1180px,100%);height:min(94vh,1050px);min-height:500px;overflow:hidden;border-radius:16px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3)">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #e4e7ec"><strong>Secure payment setup</strong><button type="button" data-mp-close aria-label="Close payment setup" style="border:0;background:transparent;font-size:26px;cursor:pointer">&times;</button></div>
           <iframe src="${String(escapeHtml(linkUrl))}" title="Forward merchant application" style="flex:1;width:100%;border:0;background:#fff" allow="camera; clipboard-write"></iframe>
         </div>`;

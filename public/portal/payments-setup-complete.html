@@ -13,19 +13,18 @@
 <body>
   <main>
     <div class="mark" aria-hidden="true">&#10003;</div>
-    <h1>Payment application finished</h1>
-    <p>Return to FirstMate to see your application status. Forward may still be reviewing your account.</p>
-    <button id="return" type="button">Return to payment settings</button>
-    <a id="fallback" href="/portal/" hidden>Return to FirstMate</a>
+    <h1>Payment application submitted</h1>
+    <p>You can now close this window. Forward may still be reviewing your application. A payout bank account can be connected later if needed.</p>
+    <button id="close" type="button">Close window</button>
   </main>
   <script>
-    const button = document.getElementById('return');
-    if (window.parent === window) {
-      button.hidden = true;
-      document.getElementById('fallback').hidden = false;
-    } else {
-      button.addEventListener('click', () => window.parent.postMessage({ type:'firstmate:payments-setup-return' }, window.location.origin));
-    }
+    document.getElementById('close').addEventListener('click', () => {
+      if (window.parent !== window) {
+        window.parent.postMessage({ type:'firstmate:payments-setup-return' }, window.location.origin);
+      } else {
+        window.close();
+      }
+    });
   </script>
 </body>
 </html>

@@ -269,6 +269,19 @@ Remaining once keys arrive: 4 env vars, register webhook endpoint URL, flip an o
 
 ## 7. Immediate next steps
 
+### Hosted application return and bank linking (2026-09-24)
+
+In the Forward sandbox, `partner_data.redirect_url` sends the applicant to
+FirstMate's return page immediately after application submission. The observed
+flow no longer displays Forward's subsequent bank-account prompt before that
+return. Forward's boarding guide recommends adding a bank account during the
+hosted application, and its application/account guide says funding details can
+also be collected later. The published API documents the redirect field but
+does not identify a separate post-bank redirect control. Keep payout-bank
+status visible and arrange later linking through Forward's merchant portal;
+ask Forward whether they support a redirect only after the bank prompt before
+claiming that this end-to-end sequence is restored.
+
 1. Get sandbox API keys (public + private) and webhook signing secret.
 2. Send the open-questions list to the rep.
 3. Phase 0 build: adapter skeleton, merchant-config record, capability keys, webhook receiver.
