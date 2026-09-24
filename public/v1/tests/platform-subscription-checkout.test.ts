@@ -120,6 +120,7 @@ test("storage limits serialize uploads, credit replaced bytes, and retain files 
  await org("storage_quota");await caps.saveCapabilityValues("storage_quota",{"platform.free_storage_gb":0});
  const price=await service.createPrice({product_id:"storage",name:"Tiny storage fixture",capability_key:"platform.purchasable_storage",monthly_cents:5,allowances:{storage_bytes:10}},"operator");await service.publishPrice(price.id,"operator");
  const local=await service.subscribe("storage_quota",price.id,"storage-accept","owner");
+ const effective=await service.applyEntitlements("storage_quota",{"platform.storage_limits":true,"platform.free_storage_gb":0});assert.equal(Number(effective["platform.free_storage_gb"])*1073741824,10,"Existing upload controls receive purchased capacity");
  const upload=(id:string,n:number)=>storage.storeMediaUpload("storage_quota",{id,fileName:"fixture.txt",contentType:"text/plain",bytes:Buffer.alloc(n)});
  const result=await Promise.allSettled([upload("one",6),upload("two",6)]);assert.equal(result.filter(r=>r.status==="fulfilled").length,1);assert.equal((result.find(r=>r.status==="rejected") as PromiseRejectedResult).reason.code,"billing_storage_allowance");
  const media=await storage.listMedia("storage_quota");await upload(String(media[0]!.id),8);assert.equal((await storage.mediaStorageUsage("storage_quota")).used_bytes,8);

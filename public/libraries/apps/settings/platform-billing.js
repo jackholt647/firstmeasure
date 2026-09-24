@@ -75,6 +75,17 @@
     host.querySelector('[data-setup-checkout]')?.addEventListener('click',async event=>{event.currentTarget.disabled=true;try{if(await review({orgId:options.orgId,priceId:required.id}))await options.onReady?.();}finally{if(host.isConnected)host.querySelector('[data-setup-checkout]')?.removeAttribute('disabled');}});
     return true;
   }
+  async function choose(options){
+    styles();const data=await apiFor(options.orgId)();
+    const latest=new Map();for(const p of data.prices)if(p.published&&p.product_id===options.productId&&(!latest.has(planKey(p))||latest.get(planKey(p)).version<p.version))latest.set(planKey(p),p);
+    const wrapper=document.createElement('div');wrapper.className='pb';wrapper.setAttribute('data-settings-autosave','off');
+    const dialog=document.createElement('dialog');wrapper.appendChild(dialog);document.body.appendChild(wrapper);
+    dialog.innerHTML=`<h3>Choose a plan</h3>${[...latest.values()].sort((a,b)=>a.monthly_cents-b.monthly_cents).map(p=>{const current=data.subscriptions.some(s=>s.price.id===p.id&&(!s.ends_at||s.ends_at>new Date().toISOString()));return `<div class="pb-card"><h4>${esc(p.name)}</h4><p>${esc(p.description)}</p>${highlights(p)}<div class="pb-row"><strong>${esc(priceText(p))}</strong><button data-plan="${esc(p.id)}" ${current||!data.can_manage?'disabled':''}>${current?'Current plan':'Review plan'}</button></div></div>`;}).join('')||'<p>No plans are available yet.</p>'}${!data.can_manage?'<p>Ask a billing administrator to change your plan.</p>':''}<button data-close>Back</button>`;dialog.showModal();
+    return new Promise(resolve=>{
+      const close=()=>{wrapper.remove();resolve(false);};dialog.querySelector('[data-close]').onclick=close;dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
+      dialog.querySelectorAll('[data-plan]').forEach(button=>button.onclick=async()=>{wrapper.remove();resolve(await review({orgId:options.orgId,priceId:button.dataset.plan}));});
+    });
+  }
   function styles(){
     if(document.getElementById('platform-billing-css'))return;
     const style=document.createElement('style');style.id='platform-billing-css';style.textContent=`
@@ -262,5 +273,5 @@
     if(active()&&data?.can_manage&&returningId)await act(async()=>{await api('/subscription-checkouts/refresh','POST');await root.PlatformAPI.appFlags?.load?.(options.orgId,{refresh:true});notice='Checkout status refreshed. Your current subscriptions and any pending payments are shown below.';const url=new URL(root.location.href);url.searchParams.delete('billing_checkout');url.searchParams.delete('billing_portal');root.history.replaceState(root.history.state,'',url.href);});
   }
 
-  root.FirstMatePlatformBilling={mount,mountWorkspace,statementRows,statementCsv,isEnabled,configured,review,setup};
+  root.FirstMatePlatformBilling={mount,mountWorkspace,statementRows,statementCsv,isEnabled,configured,review,setup,choose};
 })(window);

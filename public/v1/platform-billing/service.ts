@@ -154,6 +154,8 @@ export async function applyEntitlements(org:string, values:Record<string,Capabil
     if(!p.require_subscription || (!p.monthly_cents && !p.rates.some(r=>r.unit_price_micros))) continue;
     if(!subscriptions.some(s=>s.product_id===p.product_id && s.starts_at<=now() && (!s.ends_at||s.ends_at>now()) && (!s.stripe_subscription_id || (s.paid_through||"")>now()))) result[p.capability_key]=false;
   }
+  const storageLimit=await (await import("./storage-allowance.js")).storageAllowance(org);
+  if(storageLimit!==null && values["platform.storage_limits"]===true)result["platform.free_storage_gb"]=storageLimit/1073741824;
   return result;
 }
 export async function overview(org:string, operator=false, period=now().slice(0,7)) {

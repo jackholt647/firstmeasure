@@ -32,6 +32,7 @@ test('unified subscription controls show tiers, allowances, automatic payments a
  await page.getByRole('heading',{name:'Due today'}).waitFor();const text=await page.locator('.pb dialog').innerText();for(const value of ['$30.00','$100.00','$35.00','Prorated difference'])assert.ok(text.includes(value));
  await page.screenshot({path:'../../output/subscription-service/ui/review.png',fullPage:true});await page.getByRole('button',{name:'Back',exact:true}).click();
  page.on('dialog',d=>d.accept());await page.getByRole('button',{name:'Cancel renewal'}).click();await page.getByRole('button',{name:'Resume renewal'}).click();await page.getByRole('button',{name:'Cancel renewal'}).waitFor();
- await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'../../output/subscription-service/ui/mobile.png',fullPage:true});assert.deepEqual(errors,[]);
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'../../output/subscription-service/ui/mobile.png',fullPage:true});await page.evaluate(()=>{window.fixture.prices.push({...window.fixture.prices[0],id:'storage_v1',product_id:'storage',name:'Storage 10 GB'});void window.FirstMatePlatformBilling.choose({orgId:'fixture',productId:'storage'});});
+ await page.getByRole('heading',{name:'Choose a plan'}).waitFor();await page.getByRole('heading',{name:'Storage 10 GB'}).waitFor();assert.equal(await page.getByRole('button',{name:'Review plan',exact:true}).count(),1);await page.getByRole('button',{name:'Back',exact:true}).click();assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
