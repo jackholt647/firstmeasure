@@ -153,6 +153,7 @@ session_write_close();
     }
 
     .sidebar{
+      --fm-sidebar-safe-bottom:env(safe-area-inset-bottom,0px);
       position:relative;
       width:var(--sidebar);
       background:var(--panel);
@@ -164,6 +165,9 @@ session_write_close();
       margin-right:0;
       transition:width .2s cubic-bezier(.2,.8,.2,1),margin-right .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease;
     }
+
+    /* The Android host already insets the WebView above the system navigation bar. */
+    html[data-native-app="android"] .sidebar{--fm-sidebar-safe-bottom:0px}
 
     .sidebar-mini-logo,
     .sidebar-new-mini-icon,
@@ -230,7 +234,7 @@ session_write_close();
         mask:url('/images/logo_square.png') center / contain no-repeat;
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-scroll{
-        padding:10px 6px calc(8px + env(safe-area-inset-bottom,0px));
+        padding:10px 6px calc(8px + var(--fm-sidebar-safe-bottom));
         gap:5px;
         overflow:hidden;
       }
@@ -364,7 +368,7 @@ session_write_close();
     }
 
     .sidebar-scroll{
-      padding:16px 14px calc(14px + env(safe-area-inset-bottom,0px));
+      padding:16px 14px calc(14px + var(--fm-sidebar-safe-bottom));
       display:flex;
       flex-direction:column;
       gap:12px;
@@ -1142,7 +1146,7 @@ session_write_close();
         max-height:32px;
       }
       .sidebar-scroll{
-        padding-bottom:calc(26px + env(safe-area-inset-bottom,0px));
+        padding-bottom:calc(26px + var(--fm-sidebar-safe-bottom));
         overscroll-behavior:contain;
         -webkit-overflow-scrolling:touch;
       }
