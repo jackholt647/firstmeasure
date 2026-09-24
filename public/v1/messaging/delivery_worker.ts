@@ -185,6 +185,16 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
     }
   }
 
+  const { reserveSms, releaseSms } = await import("../platform-billing/allowances.js");
+  if (!await reserveSms(organizationId, deliveryId)) {
+    await updateDeliveryRecord(organizationId, deliveryId, {
+      status: "retry_pending", attempts: Math.max(0, Number(delivery.attempts || 1) - 1),
+      next_attempt_at: new Date(Date.now() + 300000).toISOString(), lease_owner: "", lease_until: "",
+      error: { code: "billing_sms_allowance", message: "SMS allowance reached. Upgrade in Billing or wait for renewal; this message is paused." }
+    });
+    await refreshParentMessageStatus(organizationId, messageId);
+    return;
+  }
   try {
     const audioNote = asObject(asObject(message.metadata).audio_note);
     const audioMediaId = cleanText(audioNote.media_id);
@@ -239,6 +249,7 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
     if (!(error instanceof TelnyxError)) throw error;
     const details = asObject(error.details);
     const submissionUnknown = details.submission_unknown === true;
+    if (!submissionUnknown) await releaseSms(organizationId, deliveryId);
     const attempts = Number(delivery.attempts || 1);
     const code = providerErrorCode(error);
     if (code === "40300") {

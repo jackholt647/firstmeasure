@@ -215,3 +215,44 @@ subscription confirmation, operator price creation/publication and phone layout.
 Set `BILLING_BROWSER_PATH` when Chromium is elsewhere. Linux build hosts without
 a browser may set `SKIP_BILLING_BROWSER=1` after the local browser gate passes.
 Provider tests simulate Stripe responses and never create a real customer charge.
+
+
+## Recurring service and tier allowances (September 24)
+
+Customer subscriptions collect automatically through a dedicated Stripe customer.
+The payment-method portal updates that customer's card and billing details; it
+cannot change FirstMeasure credit billing. Subscription changes use a preview of
+Stripe's prorated difference, a persisted idempotent request and
+`pending_if_incomplete`. Unpaid changes retain the previously paid plan. One
+product can have several `plan_key` offers, each with immutable price versions,
+marketing description/highlights and typed allowances. Cancelling retains access
+through the paid period; resuming during that period does not charge it again.
+
+An explicit operator catalog installation offers SMS Basic ($30 / 1,000 outgoing
+messages), SMS Advanced ($100 / provisional 5,000 messages), Advanced AI ($20,
+clearly placeholder feature details), and storage 10 GB/$5, 100 GB/$15,
+1 TB/$50 and 10 TB/$250. Storage prices are development placeholders. Basic AI
+remains free. Enterprise SMS is a contact-for-custom-plan option, not an
+unpriced checkout. Installation is idempotent and never enrolls an organization.
+
+SMS allowances count one provider submission per recipient, including MMS and
+ambiguous submissions. Definitive provider rejections release the reservation.
+The delivery worker reserves atomically immediately before submission, pauses
+at the limit and retries paused deliveries every five minutes. Upgrades keep
+usage within the current Stripe subscription period. No automatic overage is
+charged. Existing SMS organizations are unchanged until they accept a tier.
+
+Storage plans are total decimal-byte allowances. Originals and generated media
+renditions are counted before persistence under an organization lock. Replacing
+media credits the replaced bytes. Expired plans fall back to configured free
+storage; existing files remain readable and are never deleted automatically.
+The quota covers platform media, not unrelated FirstMeasure project artifacts.
+
+Accepted commercial subscriptions enable entitlement checks and automatic usage
+collection. Local month-end usage invoices are accounting records: a dedicated
+Stripe invoice uses `charge_automatically` and is reused on retries. Customers
+have no manual Pay Invoice action. Historical manual Checkout sessions are
+reconciled before any automatic collection, and ambiguous legacy invoices need
+operator review. Stripe handles collection and retries; Billing shows payment
+attention and the payment-method portal. Historical manual customers are not
+automatically enrolled without acceptance.

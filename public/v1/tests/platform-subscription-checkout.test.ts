@@ -68,3 +68,71 @@ test("stale quotes, changed amounts, wrong tenants and mismatched payments fail 
 test("free products activate without contacting Stripe",async()=>{
   const f=stripeBillingFixture();try{await org("checkout_free");const q=await billing.quoteSubscription("checkout_free",free.id);assert.equal(q.due_now_cents,0);await billing.acceptSubscription("checkout_free",q.id,"owner");assert.equal(f.calls.length,0);assert.equal((await store.records("checkout_free","subscription")).length,1);}finally{f.restore();}
 });
+
+test("SMS tier changes preserve used messages, pause at limit, and resume after renewal",async()=>{
+ const f=stripeBillingFixture();try{
+  const allowances=await import("../platform-billing/allowances.js");
+  const basic=await service.createPrice({product_id:"sms",plan_key:"basic",name:"SMS Basic",capability_key:"apps.messaging",monthly_cents:3000,allowances:{sms_messages:2}},"operator");await service.publishPrice(basic.id,"operator");
+  const advanced=await service.createPrice({product_id:"sms",plan_key:"advanced",name:"SMS Advanced",capability_key:"apps.messaging",monthly_cents:10000,allowances:{sms_messages:5}},"operator");await service.publishPrice(advanced.id,"operator");
+  await org("sms_tiers");await billing.acceptSubscription("sms_tiers",(await billing.quoteSubscription("sms_tiers",basic.id)).id,"owner");
+  const reservations=await Promise.all(["a","b","c"].map(id=>allowances.reserveSms("sms_tiers",id)));assert.equal(reservations.filter(Boolean).length,2);
+  assert.equal(await allowances.reserveSms("sms_tiers","a"),true,"retry does not consume another message");assert.equal((await allowances.smsAllowance("sms_tiers"))?.paused,true);
+  const q=await billing.quoteSubscription("sms_tiers",advanced.id);assert.equal(q.current_monthly_cents,3000);assert.equal(q.new_monthly_cents,10000);assert.ok(q.replaces_item_id);
+  f.paid=false;await billing.acceptSubscription("sms_tiers",q.id,"owner");assert.equal((await allowances.smsAllowance("sms_tiers"))?.limit,2);
+  const sub=[...f.subscriptions.values()][0];sub.latest_invoice.status="paid";sub.items.data=[sub.pending_update.item];sub.pending_update=null;f.paid=true;
+  await billing.reconcileSubscriptions("sms_tiers","test");assert.equal(sub.items.data.length,1);assert.equal((await allowances.smsAllowance("sms_tiers"))?.used,2);assert.equal((await allowances.smsAllowance("sms_tiers"))?.limit,5);assert.equal(await allowances.reserveSms("sms_tiers","c"),true);
+  sub.items.data[0].current_period_start=Math.floor(Date.now()/1000)+10;sub.items.data[0].current_period_end+=30*86400;
+  await billing.reconcileSubscriptions("sms_tiers","test");assert.equal((await allowances.smsAllowance("sms_tiers"))?.used,0);
+ }finally{f.restore();}
+});
+test("cancel, resume and cancel again are independent idempotent operations, including past due",async()=>{
+ const f=stripeBillingFixture();try{
+  await org("resume_plan");await billing.acceptSubscription("resume_plan",(await billing.quoteSubscription("resume_plan",sms.id)).id,"owner");
+  const local=(await store.records<any>("resume_plan","subscription"))[0],sub=[...f.subscriptions.values()][0];
+  sub.status="past_due";sub.latest_invoice.status="open";
+  await billing.cancelRecurring("resume_plan",local.id,"owner");assert.equal(sub.cancel_at_period_end,true);
+  await billing.resumeRecurring("resume_plan",local.id,"owner");assert.equal(sub.cancel_at_period_end,false);assert.equal((await store.record<any>("resume_plan","subscription",local.id)).ends_at,null);
+  await billing.cancelRecurring("resume_plan",local.id,"owner");assert.equal(sub.cancel_at_period_end,true);
+  const cancels=f.calls.filter(c=>c.fields.get("cancel_at_period_end")==="true");assert.notEqual(cancels[0]!.key,cancels[1]!.key);
+  assert.match((await billing.customerPortal("resume_plan")).url,/^https:\/\/billing.stripe.com/);
+  await assert.rejects(billing.customerPortal("wrong_org"),{code:"billing_customer_missing"});
+ }finally{f.restore();}
+});
+
+test("usage auto-collection survives a lost response, cannot duplicate charges and isolates credit billing",async()=>{
+ const f=stripeBillingFixture();try{
+  const {collectInvoice}=await import("../platform-billing/collection.js");await org("auto_usage");
+  await billing.acceptSubscription("auto_usage",(await billing.quoteSubscription("auto_usage",sms.id)).id,"owner");
+  const original=(await storage.readGlobal("auto_usage")).data;
+  await store.put("auto_usage","invoice","2020-01",{id:"2020-01",period:"2020-01",currency:"USD",total_cents:1250,status:"open",lines:[]});
+  f.loseResponse=true;await assert.rejects(collectInvoice("auto_usage","2020-01"),/response was lost/);
+  await collectInvoice("auto_usage","2020-01");await collectInvoice("auto_usage","2020-01");
+  assert.equal((await store.record<any>("auto_usage","invoice","2020-01")).status,"paid");
+  const creates=f.calls.filter(c=>c.route==="invoices");assert.equal(creates.length,2);assert.equal(creates[0]!.key,creates[1]!.key);assert.equal(creates[0]!.fields.get("collection_method"),"charge_automatically");
+  assert.equal(f.calls.filter(c=>c.route==="invoiceitems").length,1);assert.deepEqual((await storage.readGlobal("auto_usage")).data,original);
+  await store.put("auto_usage","invoice","2020-02",{id:"2020-02",period:"2020-02",currency:"USD",total_cents:500,status:"open",lines:[]});
+  f.paid=false;await collectInvoice("auto_usage","2020-02");assert.equal((await store.record<any>("auto_usage","invoice","2020-02")).status,"open");
+  const pending=(await store.record<any>("auto_usage","automatic-invoice","2020-02"));f.invoices.get(pending.stripe_id).status="paid";
+  await collectInvoice("auto_usage","2020-02");assert.equal((await store.record<any>("auto_usage","invoice","2020-02")).status,"paid");
+ }finally{f.restore();}
+});
+test("storage limits serialize uploads, credit replaced bytes, and retain files after cancellation",async()=>{
+ await org("storage_quota");await caps.saveCapabilityValues("storage_quota",{"platform.free_storage_gb":0});
+ const price=await service.createPrice({product_id:"storage",name:"Tiny storage fixture",capability_key:"platform.purchasable_storage",monthly_cents:5,allowances:{storage_bytes:10}},"operator");await service.publishPrice(price.id,"operator");
+ const local=await service.subscribe("storage_quota",price.id,"storage-accept","owner");
+ const upload=(id:string,n:number)=>storage.storeMediaUpload("storage_quota",{id,fileName:"fixture.txt",contentType:"text/plain",bytes:Buffer.alloc(n)});
+ const result=await Promise.allSettled([upload("one",6),upload("two",6)]);assert.equal(result.filter(r=>r.status==="fulfilled").length,1);assert.equal((result.find(r=>r.status==="rejected") as PromiseRejectedResult).reason.code,"billing_storage_allowance");
+ const media=await storage.listMedia("storage_quota");await upload(String(media[0]!.id),8);assert.equal((await storage.mediaStorageUsage("storage_quota")).used_bytes,8);
+ await service.cancelSubscription("storage_quota",local.id,"owner");const ended=await store.record<any>("storage_quota","subscription",local.id);ended.ends_at="2000-01-01T00:00:00Z";await store.put("storage_quota","subscription",local.id,ended);assert.equal((await storage.mediaStorageUsage("storage_quota")).used_bytes,8);await assert.rejects(upload("three",1),{code:"billing_storage_allowance"});
+});
+
+test("resuming a removed add-on cannot renew a different cancelled add-on",async()=>{
+ const f=stripeBillingFixture();try{
+  await org("resume_multiple");await billing.acceptSubscription("resume_multiple",(await billing.quoteSubscription("resume_multiple",sms.id)).id,"owner");await billing.acceptSubscription("resume_multiple",(await billing.quoteSubscription("resume_multiple",ai.id)).id,"owner");
+  const locals=await store.records<any>("resume_multiple","subscription"),one=locals.find(s=>s.product_id==="sms"),two=locals.find(s=>s.product_id==="ai"),sub=[...f.subscriptions.values()][0];
+  await billing.cancelRecurring("resume_multiple",one.id,"owner");await billing.cancelRecurring("resume_multiple",two.id,"owner");
+  await billing.resumeRecurring("resume_multiple",one.id,"owner");assert.equal(sub.cancel_at_period_end,false);assert.equal(sub.items.data.length,1);assert.equal(sub.items.data[0].price.unit_amount,3000);
+  assert.ok((await store.record<any>("resume_multiple","subscription",two.id)).ends_at);
+  await billing.resumeRecurring("resume_multiple",two.id,"owner");assert.equal(sub.items.data.length,2);assert.equal((await store.record<any>("resume_multiple","subscription",two.id)).ends_at,null);
+ }finally{f.restore();}
+});

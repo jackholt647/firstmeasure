@@ -1448,6 +1448,8 @@ const definitions: CapabilityDefinition[] = [
     default: false
   },
 
+  { key: "platform.advanced_ai", kind: "feature", label: "Advanced AI", description: "Optional Advanced AI subscription; Basic AI remains included.", requires: ["platform.expanded_access"], default: false },
+
   // --- Storage --------------------------------------------------------------
   {
     key: "platform.storage_limits",
