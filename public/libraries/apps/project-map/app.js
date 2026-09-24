@@ -284,7 +284,7 @@
   }
 
   function shouldShowPinPlacementHint(){
-    return hasSelectedAddons() && !reportOrderState()?.ordered && !projectHasReportOrder();
+    return hasSelectedAddons() && !callHost('mobileOrderPinsLocked') && !reportOrderState()?.ordered && !projectHasReportOrder();
   }
 
   function syncPinPlacementHint(){
@@ -1263,6 +1263,7 @@
     }
     applyMapControlsForMode();
     state.map.addListener('click', (event) => {
+      if (callHost('mobileOrderPinsLocked')) return;
       if (!hasSelectedAddons()) return;
       if (!callHost('getAddressSelected')) {
         if (!addPin(event.latLng, true)) return;
@@ -1290,6 +1291,7 @@
         event.preventDefault();
         const text = (input.value || '').trim();
         if (!text) return;
+        if (callHost('isMobileReportOrder')) return;
         const genBefore = state.placeLoadGen;
         setTimeout(() => { if (state.placeLoadGen === genBefore) forwardGeocode(text); }, 220);
       });
@@ -1298,7 +1300,7 @@
         const place = ac.getPlace();
         if (!place?.geometry?.location) {
           const text = (input.value || '').trim();
-          if (text) forwardGeocode(text);
+          if (text && !callHost('isMobileReportOrder')) forwardGeocode(text);
           return;
         }
         loadPlaceResult(place.geometry.location, place.address_components, place.formatted_address);

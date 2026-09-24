@@ -109,6 +109,9 @@
   let headerPropertyTypeGlobalEventsBound = false;
   let structurePinLimitNoticeActive = false;
   let typePickerExpanded = false;
+  let mobileTypeTransitioning = false;
+  let mobileTypeTransitionTimer = null;
+  let mobileRoofOnlyChosen = false;
   let reportSelection = null;
   let mobileOrderPage = 'location';
   let mobileLeftTrayOpen = false;
@@ -2099,6 +2102,7 @@
       .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
       html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-pager{padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end;background:transparent;border:0;box-shadow:none;pointer-events:none}
+      .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{display:none}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager .r-mobile-page-btn{pointer-events:auto;box-shadow:0 4px 18px rgba(15,23,42,.2)}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
@@ -2109,6 +2113,21 @@
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto}
       .r-overlay.mobile-order.mobile-order-location .r-step-body{gap:9px;padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location #rStepType{margin-bottom:2px}
+      @keyframes rMobileStepReveal{from{opacity:0;transform:translateY(-7px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+      @keyframes rMobileTypeCollapse{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.96)}}
+      .r-overlay.mobile-order.mobile-order-location #rStepType.is-open,
+      .r-overlay.mobile-order.mobile-order-location #rStepReport.is-open,
+      .r-overlay.mobile-order.mobile-order-location #rExteriorOrder:not([hidden]),
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinStage:not([hidden]){animation:rMobileStepReveal .22s ease-out both}
+      .r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:rMobileTypeCollapse .2s ease-in both}
+      .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending #rMobilePinStage{display:none!important}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{display:flex;flex-direction:column;gap:9px}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext{width:100%;min-height:52px;border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden],
+      .r-overlay.mobile-order.mobile-order-location #rMobileRoofChoice[hidden]{display:none!important}
+      .r-overlay.mobile-order.mobile-order-location .r-mobile-roof-choice{width:100%;min-height:56px;border:1px solid rgba(15,23,42,.15);border-radius:13px;background:#fff;color:#344054;font:inherit;font-weight:700;cursor:pointer}
+      .r-overlay.mobile-order.mobile-order-location #rConfirm.pin-returning{animation:rMobileStepReveal .22s ease-out both}
+      @media(prefers-reduced-motion:reduce){.r-overlay.mobile-order.mobile-order-location #rStepType.is-open,.r-overlay.mobile-order.mobile-order-location #rStepReport.is-open,.r-overlay.mobile-order.mobile-order-location #rExteriorOrder:not([hidden]),.r-overlay.mobile-order.mobile-order-location #rMobilePinStage:not([hidden]),.r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup,.r-overlay.mobile-order.mobile-order-location #rConfirm.pin-returning{animation:none}}
       .r-overlay.mobile-order.mobile-order-location #rStepTypeLabel{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType:not(.is-condensed) #rTypeGroup{display:grid!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypeGroup{display:none!important}
@@ -2544,7 +2563,15 @@
   }
 
   function mobileOrderReadyForDetails(){
-    return !!(addressSelected && selectedType && !window.Portal.ExteriorOrder?.needsChoice() && pinCount() > 0 && locationConfirmed);
+    return !!(mobileOrderScopeReady() && pinCount() > 0 && locationConfirmed);
+  }
+
+  function mobileOrderScopeReady(){
+    if (!addressSelected || !selectedType || mobileTypeTransitioning) return false;
+    const exterior = window.Portal.ExteriorOrder;
+    return exterior?.offersChoice?.(selectedType)
+      ? !!exterior.selectedScope?.(selectedType)
+      : mobileRoofOnlyChosen;
   }
 
   function shakeMobileOrderTarget(target){
@@ -2712,7 +2739,7 @@
       const ready = mobileOrderPage === 'photos' ? mobileOrderReadyForFinal()
         : mobileOrderPage === 'details' ? (exterior ? window.Portal.ExteriorOrder.mobileDetailsReady() : mobileOrderReadyForFinal())
         : mobileOrderReadyForDetails();
-      next.style.display = mobile && (mobileOrderPage === 'location' || mobileOrderPage === 'photos' || (mobileOrderPage === 'details' && hasFinalPage)) ? '' : 'none';
+      next.style.display = mobile && (mobileOrderPage === 'photos' || (mobileOrderPage === 'details' && hasFinalPage)) ? '' : 'none';
       next.disabled = mobile ? !ready : false;
       next.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i>`;
     }
@@ -5351,7 +5378,11 @@
     if (!nextType || !TYPE_META[nextType]) return false;
     const previousType = selectedType;
     selectedType = nextType;
-    typePickerExpanded = false;
+    const mobileTypeChoice = shouldUseMobileOrderPagination() && addressSelected;
+    mobileRoofOnlyChosen = false;
+    if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
+    mobileTypeTransitioning = mobileTypeChoice;
+    typePickerExpanded = mobileTypeChoice;
     if (activeBaseProject) activeBaseProject.project_type = nextType;
     if (previousType && previousType !== selectedType && reportExpediteOptionsEnabled()) {
       selectedReportExpedite = null;
@@ -5364,8 +5395,13 @@
     if (hasSelectedAddons()) locationConfirmed = false;
     refreshMarkerIcons();
     renderWorkflowState();
+    if (mobileTypeChoice) mobileTypeTransitionTimer = setTimeout(() => {
+      mobileTypeTransitioning = false;
+      typePickerExpanded = false;
+      renderWorkflowState();
+    }, 210);
     renderProjectStageBar();
-    if (!addressSelected) {
+    if (!addressSelected && !shouldUseMobileOrderPagination()) {
       const typedAddress = ($('#rAddress')?.value || '').trim();
       if (typedAddress) forwardGeocode(typedAddress);
     }
@@ -6245,6 +6281,15 @@
     const tx = $('#rConfirmTx');
     const ic = $('#rConfirmIc');
     if (!wrap || !tx || !ic) return;
+    const mobileLocation = shouldUseMobileOrderPagination() && mobileOrderPage === 'location';
+    const next = $('#rMobilePinNext');
+    if (next) next.hidden = !mobileLocation || !mobileOrderReadyForDetails();
+    if (mobileLocation && wrap.dataset.pinConfirmed === 'true' && !locationConfirmed) {
+      wrap.classList.remove('pin-returning');
+      void wrap.offsetWidth;
+      wrap.classList.add('pin-returning');
+    }
+    wrap.dataset.pinConfirmed = String(locationConfirmed);
 
     wrap.classList.remove('active', 'checked');
     wrap.setAttribute('aria-checked',String(locationConfirmed));
@@ -6269,6 +6314,11 @@
     }
 
     wrap.classList.add('checked');
+    if (mobileLocation) {
+      tx.textContent = 'Pin confirmed';
+      ic.innerHTML = `<i class="fas fa-check-square"></i>`;
+      return;
+    }
     tx.textContent = pinCount() === 1
       ? 'Confirmed - 1 pin placed'
       : `Confirmed - ${pinCount()} pins placed`;
@@ -6663,6 +6713,8 @@
         return reorderSourceCanReopenInPlace;
       },
       hasSelectedAddons: () => hasSelectedAddons(),
+      isMobileReportOrder: () => shouldUseMobileOrderPagination(),
+      mobileOrderPinsLocked: () => shouldUseMobileOrderPagination() && !mobileOrderScopeReady(),
       inlineProjectMapWithReports: () => projectModalAppsShouldInlineMap(),
       showStructurePinLimitNotice: () => showStructurePinLimitNotice(),
       invalidateReportExpediteOptions: () => invalidateReportExpediteOptions(),
@@ -9030,7 +9082,8 @@
       if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active()) setActivePreviewTab('map');
     }
     const hasAddress = !!(($('#rAddress')?.value || '').trim());
-    const typeReady = addressSelected || hasAddress;
+    const mobileOrder = shouldUseMobileOrderPagination();
+    const typeReady = mobileOrder ? addressSelected : addressSelected || hasAddress;
     const reportReady = addressSelected && !!selectedType;
     const customerOpen = true;
     const existingProjectSession = !newProjectCreationSession;
@@ -9042,11 +9095,14 @@
     const roofCondensed = false;
 
     setStepState('#rStepAddress', true, addressSelected ? 'complete' : 'active', false);
-    setStepState('#rStepType', typeReady && (!existingProjectSession || (requestedWorkflow === 'report' && !hasReportOrdered())), selectedType ? 'complete' : (typeReady ? 'active' : 'locked'), !!selectedType, { hidePrices: isProposalChoice() || isScheduleChoice() });
-    const mobileOrder = shouldUseMobileOrderPagination();
-    const mobileReportOpen = mobileOrder && (addressSelected || mobileOrderPage !== 'location');
+    setStepState('#rStepType', typeReady && (!existingProjectSession || (requestedWorkflow === 'report' && !hasReportOrdered())), selectedType ? 'complete' : (typeReady ? 'active' : 'locked'), !!selectedType && (!mobileOrder || !typePickerExpanded), { hidePrices: isProposalChoice() || isScheduleChoice() });
+    $('#rStepType')?.classList.toggle('is-type-collapsing', mobileOrder && mobileTypeTransitioning);
+    const mobileReportOpen = mobileOrder && addressSelected && !!selectedType && !mobileTypeTransitioning;
     const explicitActionWorkflow = !['project', 'contact'].includes(requestedWorkflow);
-    setStepState('#rStepReport', mobileReportOpen || (explicitActionWorkflow && reportReady && hasAvailableActions), roofDecisionMade() ? 'complete' : (reportReady ? 'active' : 'locked'), mobileOrder ? false : reportCondensed, { hideHeadWhenCondensed: true });
+    setStepState('#rStepReport', mobileOrder ? mobileReportOpen : (explicitActionWorkflow && reportReady && hasAvailableActions), roofDecisionMade() ? 'complete' : (reportReady ? 'active' : 'locked'), mobileOrder ? false : reportCondensed, { hideHeadWhenCondensed: true });
+    const roofChoice = $('#rMobileRoofChoice');
+    if (roofChoice) roofChoice.hidden = !mobileOrder || !mobileReportOpen || !!window.Portal.ExteriorOrder?.offersChoice?.(selectedType) || mobileRoofOnlyChosen;
+    $('#rOverlay')?.classList.toggle('mobile-scope-pending', mobileOrder && !mobileOrderScopeReady());
     setStepState('#rStepRoof', reportReady && roofNeedsPins, roofNeedsPins ? (locationConfirmed ? 'complete' : 'active') : 'locked', roofCondensed);
     setStepState('#rStepCustomer', customerOpen, customerOpen ? 'active' : 'locked', false);
 
@@ -9120,7 +9176,8 @@
       setActivePreviewTab('map');
     }
     syncReportExpediteMinuteRefresh();
-    window.Portal.ExteriorOrder?.sync({type:selectedType,count:pinCount(),pins:getMarkersData(),showMap:()=>setActivePreviewTab('map'),showPhotos:()=>setActivePreviewTab('photos'),syncPhotoTabs:()=>syncProjectViewerTabs(),updateMobilePager:()=>syncMobileOrderPagination(),locationConfirmed,closed:reportOrderingClosed(),setPinConfirmed:value=>{locationConfirmed=!!value;renderConfirm();},getNotes:()=>$('#rTechNotes')?.value||'',setNotes:value=>{if($('#rTechNotes'))$('#rTechNotes').value=value;},getCc:()=>collectCcEmails(),getContacts:()=>collectContacts(),getAddress:()=>($('#rAddress')?.value||'').trim(),getTypeLabel:()=>TYPE_META[selectedType]?.label||selectedType,getInternalNotes:()=>($('#rProjectNotes')?.value||'').trim()||legacyProjectNotesText(),showInfo:key=>showAddonInfoModal(key),hoverInfo:element=>showAddonInfoPopout(element),hideInfo:()=>hideAddonInfoPopout(120),ordered:hasReportOrdered(),orderWorkflow:requestedWorkflow==='report',refresh:()=>renderWorkflowState(),submit:()=>onSubmit({preventDefault(){}})});
+    window.Portal.ExteriorOrder?.sync({type:selectedType,count:pinCount(),pins:getMarkersData(),showMap:()=>setActivePreviewTab('map'),showPhotos:()=>setActivePreviewTab('photos'),syncPhotoTabs:()=>syncProjectViewerTabs(),updateMobilePager:()=>syncMobileOrderPagination(),locationConfirmed,closed:reportOrderingClosed(),setPinConfirmed:value=>{locationConfirmed=!!value;renderConfirm();},getNotes:()=>$('#rTechNotes')?.value||'',setNotes:value=>{if($('#rTechNotes'))$('#rTechNotes').value=value;},getCc:()=>collectCcEmails(),getContacts:()=>collectContacts(),getAddress:()=>($('#rAddress')?.value||'').trim(),getTypeLabel:()=>TYPE_META[selectedType]?.label||selectedType,getInternalNotes:()=>($('#rProjectNotes')?.value||'').trim()||legacyProjectNotesText(),showInfo:key=>showAddonInfoModal(key),hoverInfo:element=>showAddonInfoPopout(element),hideInfo:()=>hideAddonInfoPopout(120),ordered:hasReportOrdered(),orderWorkflow:requestedWorkflow==='report',mobileOrder,addressSelected,typeTransitioning:mobileTypeTransitioning,refresh:()=>renderWorkflowState(),submit:()=>onSubmit({preventDefault(){}})});
+    if (mobileOrder) renderConfirm();
   }
 
   function revealInLeftColumnIfBelow(target, options = {}){
@@ -9369,6 +9426,12 @@
     }, { signal: projectFormListeners.signal });
     $('#rMobileBack')?.addEventListener('click', mobileOrderGoBack, { signal: projectFormListeners.signal });
     $('#rMobileNext')?.addEventListener('click', mobileOrderGoNext, { signal: projectFormListeners.signal });
+    $('#rMobilePinNext')?.addEventListener('click', mobileOrderGoNext, { signal: projectFormListeners.signal });
+    $('#rMobileRoofChoice')?.addEventListener('click', event => {
+      if (!event.target.closest('.r-mobile-roof-choice')) return;
+      mobileRoofOnlyChosen = true;
+      renderWorkflowState();
+    }, { signal: projectFormListeners.signal });
     el.querySelector('.r-win')?.addEventListener('touchstart', handleMobileOrderSwipeStart, { ...({ passive: true }), signal: projectFormListeners.signal });
     el.querySelector('.r-win')?.addEventListener('touchend', handleMobileOrderSwipeEnd, { ...({ passive: true }), signal: projectFormListeners.signal });
     $('#rMobileOrder')?.addEventListener('click', () => {
@@ -9736,6 +9799,17 @@
       preferMapForNewProjectInput();
     }, { signal: projectFormListeners.signal });
     $('#rAddress')?.addEventListener('input', () => {
+      if (shouldUseMobileOrderPagination() && addressSelected) {
+        addressSelected = false;
+        locationConfirmed = false;
+        selectedType = null;
+        mobileRoofOnlyChosen = false;
+        mobileTypeTransitioning = false;
+        typePickerExpanded = false;
+        if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
+        clearAllPins({ silent: true });
+        window.Portal.ExteriorOrder?.reset();
+      }
       preferMapForNewProjectInput();
       renderWorkflowState();
     }, { signal: projectFormListeners.signal });
@@ -10257,6 +10331,9 @@
     locationConfirmed = !isUnfinishedReportDraft(base);
     selectedType = base.project_type || 'residential';
     typePickerExpanded = false;
+    mobileTypeTransitioning = false;
+    mobileRoofOnlyChosen = false;
+    if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
     const hasBaseMeasurement = projectHasReportOrder(base);
     reportSelection = hasBaseMeasurement || isUnfinishedReportDraft(base)
       ? 'roof'
@@ -10407,6 +10484,9 @@
   }
 
   function resetNewProjectState(){
+    if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
+    mobileTypeTransitioning = false;
+    mobileRoofOnlyChosen = false;
     window.Portal.ExteriorOrder?.reset();
     activeBaseProject = null;
     projectWorkPlanState = { projectId: '', plans: [], loaded: false };

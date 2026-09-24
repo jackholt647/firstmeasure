@@ -170,7 +170,7 @@
   }
   function render(){const scroller=root?.closest('.r-scroll');const savedScroll=scroller?.scrollTop;const focused=document.activeElement;const caret=focused&&/^(INPUT|TEXTAREA)$/.test(focused.tagName)?[focused.selectionStart,focused.selectionEnd]:null;restoreShared();if(!ctx)return;const step=document.getElementById('rStepType');if(!step)return;
     if(!root?.isConnected){root=document.createElement('section');root.className='ext-order';root.id='rExteriorOrder';step.after(root);}
-    const visible=!ctx.ordered && ctx.type && allowed(ctx.type) && ctx.orderWorkflow;
+    const visible=!ctx.ordered && ctx.type && allowed(ctx.type) && ctx.orderWorkflow && (!ctx.mobileOrder || (ctx.addressSelected && !ctx.typeTransitioning));
     const overlay=document.getElementById('rOverlay');const mobileOrder=!!overlay?.classList.contains('mobile-order');
     root.hidden=!visible||(mobileOrder&&scope==='roof');overlay?.classList.toggle('exteriors-active',!!visible&&active());overlay?.classList.toggle('exteriors-choose',!!visible&&!scope);
     overlay?.classList.toggle('exteriors-details',!!visible&&active()&&page>0);
@@ -197,7 +197,7 @@
       body+=`<div class="ext-nav">${page?`<button type="button" data-back>${(globalThis.PlatformLanguage?.text("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&(!ready()||pending()||unassigned().length))?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Structure · '+money(q?.amount):page===0?'Continue to photos →':'Review order →'}</button></div>`;
     }
     root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof','Roof Only','fa-house-chimney'],['full_house','Full Structure','fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" data-addon-info="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.text("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error?`<p class="ext-error" role="alert">${esc(error)} <button type="button" ${!quote?'data-reload':'data-dismiss-error'}>${!quote?'Retry':'Dismiss'}</button></p>`:''}`;
-    if(active()&&page===0){mountShared('rPinInfo','[data-pin-mount]');mountShared('rConfirm','[data-confirm-mount]');mountShared('rTechNotes','[data-notes-mount]',true);mountShared('rCcList','[data-cc-mount]',true);}
+    if(active()&&page===0){mountShared('rPinInfo','[data-pin-mount]');mountShared('rMobilePinStage','[data-confirm-mount]');mountShared('rTechNotes','[data-notes-mount]',true);mountShared('rCcList','[data-cc-mount]',true);}
     root.querySelectorAll('[data-details]').forEach(b=>{b.onclick=e=>{e.stopPropagation();ctx.showInfo?.(b.dataset.details);};});
     root.querySelectorAll('[data-addon-info]').forEach(b=>{b.onmouseenter=()=>ctx.hoverInfo?.(b);b.onmouseleave=()=>ctx.hideInfo?.();b.onfocus=()=>ctx.hoverInfo?.(b);b.onblur=()=>ctx.hideInfo?.();});
     if(scope){
@@ -259,7 +259,7 @@
     uploadsInFlight++;
     try{if(![...files.values()].includes(entry))return;const fd=new FormData();fd.append('action','exteriors_upload');fd.append('project_type',ctx.type);fd.append('reference',entry.file);const csrfName=(P.cfg.platformSessionCookieName||'fm_platform_session')+'_csrf';const csrf=document.cookie.split('; ').find(s=>s.startsWith(csrfName+'='))?.slice(csrfName.length+1);const response=await fetch(P.cfg.serverEndpoint,{method:'POST',body:fd,credentials:'include',headers:csrf?{'X-Platform-CSRF':decodeURIComponent(csrf)}:{}});const data=await response.json();if(!response.ok||!data.success)throw Error(data.message||data.error||'Upload failed. Try again.');if([...files.values()].includes(entry))entry.media_id=data.media_id;}catch(e){if([...files.values()].includes(entry))entry.error=e.message;}finally{uploadsInFlight--;uploadWaiters.shift()?.();entry.uploading=false;if([...files.values()].includes(entry))render();}}
 
-  P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,
+  P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>ctx?.type===type?scope:null,
     mobileDetailsReady:()=>active()&&pinsConfirmed()&&!!option()&&!busy&&!error,
     mobilePhotosReady:()=>active()&&photosReviewable(),
     setMobilePage(step){if(!active())return;const next=step==='photos'?1:step==='final'?2:0;if(page!==next){page=next;render();}},
