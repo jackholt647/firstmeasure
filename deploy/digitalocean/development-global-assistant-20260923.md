@@ -31,6 +31,14 @@ checks, ten assistant tests, and 47 publication tests with one PostgreSQL-only
 skip. A disposable local assistant turn reached the real OpenAI API on
 `gpt-6-luna` and completed with `report_result`; no credential was packaged.
 
+The two web services initially lacked `OPENAI_API_KEY`. The user-designated
+local credential was streamed over SSH stdin into each node's existing
+`/etc/firstmeasure/development-runtime.env`, outside the release bundle,
+without printing or storing it in a deployment artifact. The file remains
+root-owned with mode `0640`. Web nodes were restarted one at a time, and each
+passed local readiness and a live `gpt-6-luna` Responses call under its actual
+service environment. Neither node has a model or effort override.
+
 ## Activation and verification
 
 Compatibility, worker and the two web nodes were activated sequentially with
@@ -42,6 +50,8 @@ on all four hosts. Twenty-four public readiness calls split evenly between
 development data and enforced outbound isolation. The public assistant client
 and Company Settings scripts returned HTTP 200 and matched the commit byte for
 byte. `/v1/assistant/` advertised the new profile and memory routes.
+After credential provisioning, both web nodes again appeared in public
+readiness with the same release and enforced development isolation.
 
 The deployment used no production credentials or data and did not send a
 customer message, order a report or create a charge. An authenticated assistant
