@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -946,6 +946,15 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     return boarding;
   }
 
+  async function ensureForwardApplicationRedirect(boarding: Awaited<ReturnType<typeof requireBoardingProvider>>, applicationId: string, redirectUrl: string, application?: Awaited<ReturnType<typeof boarding.getApplication>>) {
+    if (boarding.provider !== "forward") return application;
+    const current = application || await boardingCall(() => boarding.getApplication(applicationId));
+    if (current.status !== "DRAFT" || cleanText(asObject(current.raw.partner_data).redirect_url) === redirectUrl) return current;
+    return boardingCall(() => boarding.updateApplication(applicationId, {
+      partner_data: { redirect_url: redirectUrl }
+    }));
+  }
+
   /**
    * Provider API failures (validation, capability gates, upstream 4xx) become
    * structured 400s instead of opaque 500s — e.g. Forward's "You cannot
@@ -993,7 +1002,8 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const application = await boardingCall(() => boarding.createApplication({
       ...applicationInput,
       business_id: businessId || undefined,
-      external_account_id: cleanText(body.external_account_id) || orgId
+      external_account_id: cleanText(body.external_account_id) || orgId,
+      ...(boarding.provider === "forward" ? { partner_data: { ...asObject(body.partner_data), redirect_url: forwardApplicationRedirectUrl(request) } } : {})
     }));
     // Record identifiers immediately (webhook projections also update these,
     // but business_id only travels through this seam).
@@ -1053,7 +1063,10 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const body = boardingApplicationSchema.parse(request.body ?? {});
     const boarding = await requireBoardingProvider(orgId);
     const { business: _business, ...applicationInput } = body;
-    const application = await boardingCall(() => boarding.updateApplication(getParam(request.params, "applicationId"), applicationInput));
+    const application = await boardingCall(() => boarding.updateApplication(getParam(request.params, "applicationId"), {
+      ...applicationInput,
+      ...(boarding.provider === "forward" ? { partner_data: { ...asObject(body.partner_data), redirect_url: forwardApplicationRedirectUrl(request) } } : {})
+    }));
     return { ok: true, application };
   });
 
@@ -1084,11 +1097,12 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     // stamped expiry (LINK_EXPIRED_OR_REMOVED), so surfaces that are about to
     // RENDER the link mint a fresh one instead of trusting the stored URL.
     const force = asObject(request.body).force === true;
+    const boarding = await requireBoardingProvider(orgId);
+    await ensureForwardApplicationRedirect(boarding, applicationId, forwardApplicationRedirectUrl(request));
     const storedFresh = !force && storedUrl && storedExpiry && Date.parse(storedExpiry) > Date.now();
     if (storedFresh && cleanText(config.forward.application_id) === applicationId) {
       return { ok: true, link: { url: storedUrl, expires_at: storedExpiry, reused: true }, merchant_config: config };
     }
-    const boarding = await requireBoardingProvider(orgId);
     const link = await boardingCall(() => boarding.generateApplicationLink(applicationId));
     const merchantConfig = await upsertMerchantConfig(orgId, {
       forward: {
@@ -1146,6 +1160,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
       let application;
       if (existingApplicationId) {
         application = await boardingCall(() => boarding.getApplication(existingApplicationId));
+        application = await ensureForwardApplicationRedirect(boarding, existingApplicationId, forwardApplicationRedirectUrl(request), application) || application;
       } else {
         const organization = asObject(await readOrganization(orgId).catch(() => null));
         const businessName = cleanText(body.business_name) || cleanText(organization.name) || `FirstMate Test Business ${orgId}`;
@@ -1181,7 +1196,8 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
           name: businessName,
           ...(planId ? { processing_plan_id: planId } : {}),
           external_account_id: orgId,
-          user_fields: { hosted_signup: "true", firstmate_org_id: orgId }
+          user_fields: { hosted_signup: "true", firstmate_org_id: orgId },
+          ...(boarding.provider === "forward" ? { partner_data: { redirect_url: forwardApplicationRedirectUrl(request) } } : {})
         }));
       }
       const link = await boardingCall(() => boarding.generateApplicationLink(application.id));
@@ -1394,6 +1410,15 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function forwardApplicationRedirectUrl(request: FastifyRequest) {
+  const forwardedHost = cleanText(request.headers["x-forwarded-host"]).split(",")[0]?.trim().toLowerCase();
+  const host = forwardedHost || cleanText(request.headers.host).split(",")[0]?.trim().toLowerCase();
+  // These are the public FirstMate origins; never echo an arbitrary Host into
+  // Forward's stored return URL. Local development retains PUBLIC_BASE_URL.
+  const origin = host === "dev.1m8.ai" || host === "app.1m8.ai" ? `https://${host}` : env.publicBaseUrl;
+  return new URL("/portal/payments-setup-complete.html", origin).toString();
 }
 
 function getParam(params: unknown, key: string) {
