@@ -72,10 +72,16 @@ separate fixed drawer implementation.
 
 The app manifest exposes Assistant in the Apps launcher through
 `apps.assistant`. Its default `portal.assistant` placement is `more` and
-`app_placements` pinning moves it to the left sidebar. The assistant gear opens
-personal instructions, saved memories and, for company administrators, company
-name/instructions/enabled controls inside either window layout. The full AI
-Agents settings page remains available from that view for the other controls.
+`app_placements` pinning moves it to the left sidebar. The assistant sidebar
+opens a complete in-window settings view in docked, floating and full layouts.
+Personalization and Memory belong to the signed-in user. Company administrators
+also get Capabilities, Agents and Advanced tabs. These expose the assistant's
+name, organization instructions, action and data switches, every registered
+agent's common and advanced settings, and the platform-wide instructions
+(editable only by a verified platform administrator). Saves use the existing
+permission-checked assistant and agent APIs. No settings link leaves the
+assistant window. Enable controls use accessible visual switches in the
+assistant and the legacy AI Agents settings page.
 
 The assistant header keeps the conversations toggle at left and the shared
 Float, Minimize and Maximize window controls at right. Conversation history is
