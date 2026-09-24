@@ -171,7 +171,7 @@
       .fma-settings button{align-self:flex-start;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:8px 11px;cursor:pointer;font:inherit}
       .fma-settings .fma-memory{display:flex;gap:6px;align-items:center}.fma-settings .fma-memory input{flex:1;min-width:0}
       .fma-settings .fma-status{font-size:12px;color:#475467}
-      .fma-settings-tabs{flex:0 0 auto;display:flex;gap:5px;overflow-x:auto;padding-bottom:5px;border-bottom:1px solid #e4e7ec;scrollbar-width:thin;}
+      .fma-settings-tabs{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;padding-bottom:5px;border-bottom:1px solid #e4e7ec;}
       .fma-settings-tabs button{flex:0 0 auto;white-space:nowrap;border:0;border-radius:8px;background:transparent;color:#667085;padding:8px 10px;font-weight:700;}
       .fma-settings-tabs button[aria-selected=true]{background:rgba(var(--primary-rgb,23,92,211),.1);color:var(--primary-readable,var(--primary,#175cd3));}
       .fma-settings-section{flex:0 0 auto;display:none;flex-direction:column;gap:14px;max-width:820px;width:100%;margin:0 auto;padding:18px 0 30px;}
