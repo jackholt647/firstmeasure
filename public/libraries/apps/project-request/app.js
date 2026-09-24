@@ -2742,6 +2742,10 @@
     syncMobileLeftTray();
     syncMobileDefaultInfoTray();
     syncMobileProjectNotes();
+    const contacts=$('#rContactList');
+    if(contacts&&!contacts.parentElement.querySelector('.r-mobile-customer-heading')){
+      const heading=document.createElement('h3');heading.className='r-mobile-customer-heading';heading.textContent='Customer information';contacts.before(heading);
+    }
     const back = $('#rMobileBack');
     const next = $('#rMobileNext');
     const order = $('#rMobileOrder');
