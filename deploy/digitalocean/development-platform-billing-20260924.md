@@ -126,3 +126,34 @@ the current serving fleet, not the image or pool topology. A development image
 or signed-bootstrap update with a new-node rehearsal remains necessary for
 durability across autoscaling; see the global assistant and mobile-download
 release records for the same existing infrastructure limitation.
+
+## Follow-up: one Billing tab
+
+`a6b1857ef005dca529adc13cd194d880050abfcd` combines both surfaces under
+Settings → Billing. FirstMeasure's existing controls remain in their original
+renderer. Expanded users with an enabled platform feature see a Subscriptions &
+usage section below them. Disabling all platform features restores the original
+FirstMeasure-only view, with no platform ledger requests from the hidden section.
+The platform billing switch by itself does not count as an enabled feature.
+Search uses Billing, and old `sub=platform_billing` links open that same pane.
+
+This is a frontend-only delta: four scripts, architecture documentation and a
+behavior test file. There are no API, payment, database or rollout-setting changes.
+The worker retains `adfb2cf`; it does not serve this interface. The web and
+compatibility roles receive the immutable frontend release. Company Settings
+receives only five scoped patches on each live baseline, preserving concurrent
+Forward work on web release `1d995eb7bff07ac6bda83d1ce94f2e9d1debd980` and
+the earlier compatibility baseline.
+
+Eight targeted behavior/regression tests passed. The authenticated browser
+check exercised the combined page, old links, the pricing editor, phone layout,
+and FirstMeasure-only fallback. The disabled-feature cases use client-only flag
+snapshots to exercise the real renderer without changing saved customer settings.
+
+Post-deployment checks passed against the public portal without local script
+overrides. Both web nodes and compatibility passed readiness and all six file
+hash checks. Twenty-four public readiness requests reached both web nodes (13
+original, 11 pool), all on `a6b1857` with enforced development isolation. The
+four public UI assets matched the deployed hashes. Both desktop and mobile
+views were inspected; the browser reported no JavaScript errors. Production
+and saved billing/account configuration were not changed.
