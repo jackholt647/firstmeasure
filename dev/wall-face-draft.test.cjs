@@ -2749,3 +2749,31 @@ test('plane rectangle selection uses the point-only highlight update',()=>{
  let updates=0,redraws=0;const p=(x,z)=>({x,y:0,z}),face={id:'face',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},f=fixture({walls:[],selected:null,state:{wallEdits:{$surfaces:[face]}},redraw:()=>redraws++,redrawSelection:ps=>{updates++;return true;}});
  f.editor.togglePlane(face);f.editor.planeDown(f.e(-1,-1));f.listeners.pointermove(f.e(5,5));redraws=0;f.listeners.pointerup(f.e(5,5));assert.equal(updates,1);assert.equal(redraws,0);assert.equal(f.editor.pointSelection().length,4);
 });
+
+
+test('double-click places a point on a standalone line after ordinary line selection',()=>{
+ const a={x:6,y:0,z:2},b={x:10,y:0,z:2},f=fixture({state:{wallEdits:{$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null});
+ const before=JSON.stringify(f.state.wallEdits);f.editor.pickLine3D(f.e(7,2.05));f.listeners.pointerup(f.e(7,2.05));
+ f.editor.doubleClick(f.e(7,2.05));assert.equal(f.history.length,1,f.message());const point=f.editor.pointSelection()[0];assert.ok(point);assert.ok(Math.abs(point.x-7)<1e-6);assert.equal(point.z,2);assert.equal(f.state.wallEdits.$loose.edges.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ f.editor.doubleClick(f.e(7,2.05));assert.equal(f.state.wallEdits.$loose.points.length,3,'repeated clicks do not duplicate points');
+});
+
+test('line double-click uses perspective projection and ignores the previously selected face',()=>{
+ const a={x:0,y:0,z:2},b={x:4,y:4,z:2},screen=p=>({x:p.x/(p.y+1)*100,y:p.z/(p.y+1)*100}),f=fixture({state:{wallEdits:{$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null,screen});
+ const target={x:1,y:1,z:2},q=screen(target);f.editor.doubleClick({...f.e(0,0),clientX:q.x,clientY:q.y});const p=f.editor.pointSelection()[0];assert.ok(p,f.message());assert.ok(Math.hypot(p.x-1,p.y-1,p.z-2)<1e-6);
+});
+
+test('a hidden standalone line is not a double-click placement target',()=>{
+ const a={x:6,y:0,z:2},b={x:10,y:0,z:2},f=fixture({state:{wallEdits:{$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null,pickLineVisible:()=>false,pickVisible:()=>false});
+ const before=JSON.stringify(f.state.wallEdits);f.editor.doubleClick(f.e(7,2));assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);
+});
+
+
+test('double-click just outside a surface edge places an edge point without a face hit',()=>{
+ const p=(x,z)=>({x,y:0,z}),face={id:'surface',points:[p(6,0),p(10,0),p(10,4),p(6,4)]},f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null});
+ f.editor.doubleClick(f.e(7,4.05));assert.equal(f.history.length,1,f.message());const point=f.editor.pointSelection()[0];assert.ok(Math.abs(point.x-7)<1e-6);assert.equal(point.z,4);assert.deepEqual(JSON.parse(JSON.stringify(f.state.wallEdits.$surfaces[0])),face);
+});
+
+test('standalone line midpoint placement honors the center toggle',()=>{
+ for(const centers of [true,false]){const a={x:6,y:0,z:2},b={x:10,y:0,z:2},f=fixture({state:{lineCenters:centers,wallEdits:{$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null});f.editor.doubleClick(f.e(7.95,2.03));const point=f.editor.pointSelection()[0];assert.ok(Math.abs(point.x-(centers?8:7.95))<1e-6);assert.equal(point.z,2);}
+});

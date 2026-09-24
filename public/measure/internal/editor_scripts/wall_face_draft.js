@@ -499,6 +499,7 @@ function perf_snap(d,e,raw=null){
   if(tool?.kind==='material')return true;
   if(tool?.kind==='quad')return down(e,true);
   if(tool&&!finishToolForSwitch())return true;
+  if(viewOf(e)==='3d'&&placeLinePoint(e,w))return true;
   const before=copy(host.state().wallEdits||{});
   // Resolve the clicked face, including pasted/extruded surfaces, rather than
   // projecting onto whichever drawing plane happened to be active previously.
@@ -636,8 +637,32 @@ function perf_snap(d,e,raw=null){
   marker.onBeforeRender=renderer=>{const r=renderer.domElement.getBoundingClientRect();viewport.value.set(r.width,r.height);};group.add(marker);
  }
  function heightPoints(){const state=host.state(),base=state.wallEdits?.$base||state.base;return [...(state.roof?.points||[]),...(base?.faces||[]).filter(f=>!f.deleted).flatMap(f=>[...f.points,...(f.holes||[]).flat(),...(f.retainedPoints||[])])];}
+ // Use exactly the visible-line hit tolerance used by selection. In perspective
+ // screen interpolation is not world interpolation, so solve on the projected
+ // segment instead of placing a point at the wrong depth.
+ function placeLinePoint(e,w){
+  if(w)return false;
+  const hit=withSelectionGeometry(()=>pickLineInScene(e,true));if(!hit)return false;
+  // Preserve inference and curve snapping when the actual face hit owns
+  // this edge; standalone lines do not need a drawing plane.
+  const owns=face=>W.sharedIntervals(...hit.pair,[face]).some(([a,b])=>b-a>.999);
+  const face=placementHost(e,true);if(face&&owns({points:face.points}))return false;
+  const [a,b]=hit.pair,at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t}),sa=host.screen(a,'3d'),sb=host.screen(b,'3d'),dx=sb.x-sa.x,dy=sb.y-sa.y,l2=dx*dx+dy*dy;
+  let lo=0,hi=1,t=hit.t;for(let i=0;i<40;i++){const q=host.screen(at(t),'3d'),u=((q.x-sa.x)*dx+(q.y-sa.y)*dy)/l2;if(Math.abs(u-hit.t)<1e-12)break;if(u<hit.t)lo=t;else hi=t;t=(lo+hi)/2;}
+  let point=at(t);
+  const snaps=[a,b,...(host.state().lineCenters!==false?[at(.5)]:[])].map(p=>({p,q:host.screen(p,'3d')})).filter(({q})=>Math.hypot(q.x-e.clientX,q.y-e.clientY)<8).sort((a,b)=>Math.hypot(a.q.x-e.clientX,a.q.y-e.clientY)-Math.hypot(b.q.x-e.clientX,b.q.y-e.clientY));
+  if(snaps.length)point=copy(snaps[0].p);
+  box=null;boxEl?.remove?.();boxEl=null;
+  transaction(()=>{
+   let d=Object.values(all()).find(d=>visibleDraft(d)&&draftSegments(d).some(edge=>hit.pair.every(p=>onSegment(p,world(d,edge.start),world(d,edge.end)))));
+   if(!d){const w=walls().find(w=>W.sharedIntervals(...hit.pair,[{points:[...w.bottom,w.top[1],w.top[0]]}]).some(([a,b])=>b-a>.999));if(w)d=ensure(w);}
+   draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedBasePoints=[];lineSelection=[];selectedRegion=null;selectedSolid=null;preferredSolid=null;preferredRegion=null;
+   if(d){activeDraftKey=draftKey(d);preferredDraft=activeDraftKey;host.select(walls().find(w=>d.members.includes(w.id))?.id||null);picked=[add(d,toLocal(d,point))];}
+   else{const edits=host.state().wallEdits,loose=edits.$loose||={points:[],edges:[]};if(!loose.points.some(p=>W.vertexKey(p)===W.vertexKey(point)))loose.points.push(point);edits.$removedSurfacePoints=(edits.$removedSurfacePoints||[]).filter(id=>id!==W.vertexKey(point));activeDraftKey=null;preferredDraft=null;host.select(null);solidPoints=[W.vertexKey(point)];}
+  });return true;
+ }
  function pickLine3D(e){return withSelectionGeometry(()=>pickLineInScene(e));}
- function pickLineInScene(e){let contacts;const soffits=()=>contacts ||= renderDerived('soffit-edges',()=>soffitEdges());const isSoffit=pair=>soffits().some(c=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001));const dividerOnly=['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
+ function pickLineInScene(e,hitOnly=false){let contacts;const soffits=()=>contacts ||= renderDerived('soffit-edges',()=>soffitEdges());const isSoffit=pair=>soffits().some(c=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001));const dividerOnly=['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
   // Resoffit highlights come from merged support outlines. Those edges need
   // not exist verbatim in the editable sketch (a turret can have split or
   // consumed return edges). Pick the same contact lines that we draw.
@@ -645,8 +670,9 @@ function perf_snap(d,e,raw=null){
   const scene=resoffitMode?contactsScene():sceneLines();
   if(!resoffitMode)scene.lines=new Map([...scene.lines,...soffits().map(c=>[c.id,c.pair])]);
   const {points,lines,baseSegments,curveGroups}=scene,screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);
-  if(!resoffitMode&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&pickVisible(p,e);}))return false;
-  let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!resoffitMode&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(pickLineVisible(pair,e,t)||((resoffitMode||isSoffit(pair))&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair};}}
+  if(!hitOnly&&!resoffitMode&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&pickVisible(p,e);}))return false;
+  let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!resoffitMode&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(pickLineVisible(pair,e,t)||((resoffitMode||isSoffit(pair))&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair,...(hitOnly?{t}:{})};}}
+  if(hitOnly)return nearest;
   if(!nearest){if(resoffitMode&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&lineSelection.length){lineSelection=[];host.message('0 lines selected');host.redraw();}return false;}const curved=[...curveGroups.values()].find(g=>g.pairs.some(pair=>W.edgeKey(...pair)===W.edgeKey(...nearest.pair)));if(curved){nearest={...nearest,...curved};}const baseLine=baseSegments.some(pair=>W.sharedIntervals(...nearest.pair,[{points:pair}]).reduce((s,[a,b])=>s+b-a,0)>.99999);const wallLine=host.wallsVisible?.()!==false&&[...solids().filter(f=>!f.deleted&&!f.drafted),...Object.values(all()).flatMap(d=>d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)).map(f=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}))),...walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id))).map(w=>({points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]}))].some(f=>W.sharedIntervals(...nearest.pair,[f]).some(([a,b])=>b-a>1e-6));beginBox(e,current());box.lineClick=true;box.click=()=>{mouse=e;const add=resoffitMode||e.ctrlKey||e.metaKey||e.shiftKey;if(nearest.draftKey){activeDraftKey=nearest.draftKey;pickedLines=nearest.edgeIds||[nearest.edgeId];picked=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedSolid=null;selectedRegion=null;host.message('1 curve selected');host.redraw();return;}if(baseLine&&!wallLine&&host.selectBaseEntities&&!lineSelection.some(l=>l.id===nearest.id)){lineSelection=[];host.selectBaseEntities([], [nearest.pair],add,!!(e.ctrlKey||e.metaKey));return;}lineSelection=e.ctrlKey||e.metaKey||resoffitMode&&lineSelection.some(l=>l.id===nearest.id)?lineSelection.filter(l=>l.id!==nearest.id):add?[...lineSelection.filter(l=>l.id!==nearest.id),nearest]:[nearest];draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedRegion=null;selectedSolid=null;host.select(null);host.message(lineSelection.length+' lines selected');host.redraw();};return true;
  }
  function stepStatus(text){host.message(text);const button=typeof document!=='undefined'&&document.getElementById('wall-step');if(button)button.textContent=tool?.kind==='step'?'Auto-step: '+tool.count+' (S)':'Auto-step (S)';}
