@@ -85,3 +85,23 @@ Rollback: restore the per-role original runtime above and the original
 mobile-testing.conf backup, daemon-reload, restart the corresponding
 firstmeasure-development service and php8.3-fpm, and verify localhost:3201
 readiness. A rollback does not undo submitted test orders or uploads.
+
+
+## Android fallback screen correction
+
+A physical-device screenshot showed the native fallback branch, an empty video
+poster rendered as a giant play icon, and instructions referring to an
+unlabelled shutter. The screenshot alone does not establish the installed APK
+version. Commit `3e53250`, integrated as `b274a07bf148ba31c24b0d2564842abe6ab41cec`,
+waits for PhoneFeatures.ready before deciding whether a known Android host
+lacks liveCamera. Missing native metadata is no longer treated as an old app.
+The video stays hidden until a live stream exists. The shutter now has visible
+Take photo text; old Android hosts get an explicit app-update explanation and
+no nonfunctional Retry camera control. Actual camera failures retain retry.
+
+All four browser capture tests pass, including delayed native discovery and
+legacy Android picker fallback. Both web nodes receive the single-script
+release from `aa6fa40`; native APK 1.0.2 and backend services are unchanged.
+SHA-256: `53efb09cb4772b61b62f41cdcb5112f2339c08370889f806fedecc7427428959`.
+Rollback restores the retained `aa6fa40` runtime. Physical live-camera
+confirmation is still pending; these browser tests simulate camera devices.
