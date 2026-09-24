@@ -2063,6 +2063,7 @@
       .r-photo-wrap{padding:20px}
       .r-photo-title{font-size:22px}
       .r-overlay.mobile-order{--r-mobile-pager-height:calc(47px + env(safe-area-inset-bottom,0px))}
+      html[data-native-app="android"] .r-overlay.mobile-order{--r-mobile-pager-height:47px}
       .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box}
       .r-overlay.mobile-order.mobile-order-location .r-win{padding-bottom:0}
       .r-overlay.mobile-order .r-modal-header{display:none}
@@ -2095,6 +2096,7 @@
       .r-overlay.mobile-order #rExpediteSubmit{display:none!important}
       .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:8px;right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
       .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
+      html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-pager{padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end;background:transparent;border:0;box-shadow:none;pointer-events:none}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager .r-mobile-page-btn{pointer-events:auto;box-shadow:0 4px 18px rgba(15,23,42,.2)}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
