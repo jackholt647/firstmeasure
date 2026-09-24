@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 line point placement: [Double-click visible lines without a face](deploy/digitalocean/development-line-doubleclick-20260924.md) records `4d9aa8674197b36be18b4b186c3861d38199506b` on all four development roles. Five new regressions pass; the combined suite passes 493 checks with one independently confirmed existing chimney-selection failure. Both public editor hashes and local role readiness passed. Production is unchanged.
+
 September 24 Test Company Full Structure reports: [Enable the residential pilot flag](deploy/digitalocean/development-test-company-full-reports-20260924.md) records the development-only capability update for Test Company. Effective checks pass on both web nodes, and a development audit found it is the sole enabled organization. Production is unchanged.
 
 September 24 mobile map hint: [Align the pin instruction with the map edge](deploy/digitalocean/development-mobile-map-hint-20260924.md) records development web release `4c42747e06326d54d9d80c95c19be15b72cd0cc2` on both serving nodes. Both passed local readiness; the public map script contains the correction. Production is unchanged.
