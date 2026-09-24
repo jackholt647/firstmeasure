@@ -30,6 +30,7 @@
     view:'chat', // chat | settings
     sidebarOpen:false,
     historyQuery:'',
+    historyMatches:[],
     mode:'docked',
     returnTab:''
   };
@@ -42,6 +43,8 @@
   let recordingTimer = null;
   let waveformFrame = null;
   let audioContext = null;
+  let historySearchTimer = null;
+  let historySearchGeneration = 0;
 
   function orgId(){ return clean((window.__APP || {}).userOrgId); }
   function branchId(){
@@ -295,9 +298,27 @@
     drawer.querySelector('[data-fma="search"]').addEventListener('click', () => {
       els.searchWrap.hidden = !els.searchWrap.hidden;
       if (!els.searchWrap.hidden) els.searchInput.focus();
-      else { els.searchInput.value = ''; state.historyQuery = ''; renderHistory(); }
+      else { els.searchInput.value = ''; state.historyQuery = ''; state.historyMatches = []; historySearchGeneration++; clearTimeout(historySearchTimer); renderHistory(); }
     });
-    els.searchInput.addEventListener('input', () => { state.historyQuery = clean(els.searchInput.value).toLowerCase(); renderHistory(); });
+    els.searchInput.addEventListener('input', () => {
+      state.historyQuery = clean(els.searchInput.value).toLowerCase();
+      state.historyMatches = [];
+      const generation = ++historySearchGeneration;
+      clearTimeout(historySearchTimer);
+      renderHistory();
+      if (state.historyQuery.length < 2) return;
+      historySearchTimer = setTimeout(async () => {
+        try {
+          const result = await window.AssistantAPI.search(orgId(), state.historyQuery);
+          if (generation !== historySearchGeneration) return;
+          state.historyMatches = array(result.matches);
+          for (const thread of array(result.threads)) {
+            if (!state.threads.some((entry) => clean(entry.id) === clean(thread.id))) state.threads.push(thread);
+          }
+          renderHistory();
+        } catch (error) { console.warn('[assistant] conversation search failed', error); }
+      }, 200);
+    });
     drawer.querySelector('[data-fma="settings"]').addEventListener('click', () => {
       setView(state.view === 'settings' ? 'chat' : 'settings');
       state.sidebarOpen = false;
@@ -433,7 +454,8 @@
 
   function renderHistory(){
     if (!els) return;
-    const items = state.threads.filter((thread) => clean(thread.title || 'New conversation').toLowerCase().includes(state.historyQuery)).map((thread) => `
+    const matchingIds = new Set(state.historyMatches.map((match) => clean(match.thread_id)));
+    const items = state.threads.filter((thread) => !state.historyQuery || clean(thread.title || 'New conversation').toLowerCase().includes(state.historyQuery) || matchingIds.has(clean(thread.id))).map((thread) => `
       <button type="button" class="fma-history-item" data-thread-id="${esc(clean(thread.id))}" aria-current="${clean(thread.id) === state.threadId}">
         <div class="name">${esc(clean(thread.title) || 'New conversation')}</div>
         <div class="meta">${esc(clean(thread.updated_at).slice(0, 10))}</div>

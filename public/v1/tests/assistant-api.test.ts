@@ -222,6 +222,9 @@ test("assistant attachments reach the model and stay bound to their conversation
     assert.equal(currentUser.role, "user");
     assert.equal(currentUser.content[1].type, "input_image");
     assert.match(currentUser.content[1].image_url, /^data:image\/png;base64,/);
+    const search = await client.request("GET", `/v1/assistant/organizations/${orgId}/search?q=Look%20at%20this`);
+    assert.ok(search.matches.some((match: Record<string, unknown>) => match.thread_id === threadId));
+    assert.ok(search.threads.some((thread: Record<string, unknown>) => thread.id === threadId));
   } finally { mock.restore(); }
 });
 

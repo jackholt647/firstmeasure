@@ -80,7 +80,8 @@ Agents settings page remains available from that view for the other controls.
 The assistant header keeps the conversations toggle at left and the shared
 Float, Minimize and Maximize window controls at right. Conversation history is
 a persistent left sidebar in desktop full view and a 68%-width overlay in
-docked, floating and mobile views. The sidebar owns title search, new
+docked, floating and mobile views. The sidebar searches titles and the user's
+own conversation messages, and owns new
 conversation and assistant settings. The chat and settings panes use the same
 assistant instance, so switching window modes preserves their state.
 

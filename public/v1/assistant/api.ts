@@ -13,7 +13,7 @@ import { PlatformError, badRequest } from "../platform/errors.js";
 import { readMediaFile, readMediaMetadata, storeMediaUpload } from "../platform/storage.js";
 import { transcribeAudio } from "../audio-notes/transcription.js";
 import { loadAgentSettings, saveAgentSettings } from "../agents/settings.js";
-import { importLegacyThreads } from "../agents/storage.js";
+import { importLegacyThreads, readAgentThread, searchAgentHistory } from "../agents/storage.js";
 import {
   createThreadForAgent,
   listThreadsForAgent,
@@ -213,6 +213,18 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
     (await importOrgLegacyThreads(orgId));
     return { ok: true, threads: (await listThreadsForAgent(ASSISTANT_AGENT_ID, orgId, { actorUserId: ctx.userId })) };
+  });
+
+  app.get("/organizations/:orgId/search", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const query = cleanText((request.query as Record<string, unknown> | undefined)?.q).slice(0, 200);
+    const matches = query.length >= 2 ? await searchAgentHistory(ASSISTANT_AGENT_ID, orgId, ctx.userId, query) : [];
+    const threads = await Promise.all([...new Set(matches.map((match) => String(match.thread_id)))].map(async (id) => {
+      const thread = await readAgentThread(ASSISTANT_AGENT_ID, orgId, id);
+      return thread?.created_by_user_id === ctx.userId ? thread : null;
+    }));
+    return { ok: true, matches, threads: threads.filter(Boolean) };
   });
 
   app.post("/organizations/:orgId/threads", async (request) => {

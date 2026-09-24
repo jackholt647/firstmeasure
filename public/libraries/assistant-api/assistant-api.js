@@ -96,6 +96,7 @@
       clear(orgId){ return request(orgPath(orgId, '/memories'), { method:'DELETE' }); }
     },
     threads(orgId){ return request(orgPath(orgId, '/threads')); },
+    search(orgId, query){ return request(orgPath(orgId, `/search?q=${enc(query)}`)); },
     createThread(orgId, body){ return request(orgPath(orgId, '/threads'), { method:'POST', body:object(body) }); },
     thread(orgId, threadId){ return request(orgPath(orgId, `/threads/${enc(threadId)}`)); },
     upload(orgId, threadId, file){
