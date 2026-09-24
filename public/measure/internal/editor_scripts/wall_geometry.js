@@ -150,6 +150,36 @@
         }
         return [...new Set(ts.map(t=>+t.toFixed(8)))].sort((a,b)=>a-b);
     }
+    // Propagate surveyed eave offsets only through connected eaves on one roof
+    // layer. Compare evaluated heights; never flatten or move a roof plane.
+    function driveSoffits(sources,faces,layers){
+        const runs=sources.filter(s=>s.kind==='perimeter'&&s.type==='eave'),resolved=new Map(),neighbors=new Map(runs.map(s=>[s,[]]));
+        const same=(a,b)=>distance(a,b)<.005&&Math.abs(a.z-b.z)<.02;
+        for(let i=0;i<runs.length;i++)for(let j=i+1;j<runs.length;j++){
+            const a=runs[i],b=runs[j];if(layers.get(a.parentId)!==layers.get(b.parentId))continue;
+            if([a.originalA,a.originalB].some(p=>[b.originalA,b.originalB].some(q=>same(p,q)))){neighbors.get(a).push(b);neighbors.get(b).push(a);}
+        }
+        const point=(s,p,depth)=>{const n=normalFor(faces.find(f=>f.id===s.parentId),s.originalA,s.originalB),q={x:p.x+n.x*depth,y:p.y+n.y*depth};return {...q,z:height({plane:s.sourcePlane},q)};};
+        for(const s of runs)if(s.inferred||s.boundaryReference||s.junctionSetback||Number.isFinite(s.contactSetback)&&Math.abs(s.setback-s.contactSetback)<.002){
+            if(s.clearanceRoofIds?.length)continue;
+            const h=(s.a.z+s.b.z)/2;resolved.set(s,{height:h,root:s.id});s.drivenSoffit={anchor:true,referenceHeight:h,sourceId:s.id};
+        }
+        // Synchronous waves avoid connection-order dependence and allow measured
+        // contacts at both ends to compete before a new section propagates.
+        for(let pass=0;pass<runs.length;pass++){
+            const next=[];
+            for(const s of runs){if(resolved.has(s)||s.clearanceRoofIds?.length)continue;const adjacent=neighbors.get(s).filter(n=>resolved.has(n));if(!adjacent.length)continue;
+                const choices=adjacent.flatMap(n=>{const ref=resolved.get(n);return [...new Set([s.setback,n.setback])].map(depth=>{
+                    depth=layerSetback(layers.get(s.parentId),depth);const a=point(s,s.originalA,depth),b=point(s,s.originalB,depth);
+                    return {depth,a,b,ref,score:Math.max(Math.abs(a.z-ref.height),Math.abs(b.z-ref.height)),default:Math.abs(depth-s.setback)<.000001};
+                });});
+                choices.sort((a,b)=>Math.abs(a.score-b.score)>.001?a.score-b.score:Number(b.default)-Number(a.default)||a.depth-b.depth||a.ref.height-b.ref.height);
+                next.push({s,best:choices[0]});
+            }
+            if(!next.length)break;
+            for(const {s,best:b}of next){s.drivenSoffit={sourceId:b.ref.root,referenceHeight:b.ref.height,defaultSetback:s.setback,chosenSetback:b.depth};s.setback=b.depth;s.a=b.a;s.b=b.b;resolved.set(s,b.ref);}
+        }
+    }
     function buildSources(roof,options={}) {
         // New From Roof presets use a fixed default; legacy saved Auto retains its inferred sources.
         if(options.soffit==='auto'&&Number.isFinite(options.defaultSoffitInches))options={...options,soffit:options.defaultSoffitInches};
@@ -166,7 +196,7 @@
             const inferred=options.soffit==='auto' ? inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n) : null;
             let setback=options.soffit==='auto' ? (inferred?.distance??18*INCH) : Number(options.soffit??18)*INCH;
             const contact=inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n);
-            if(options.roofContacts&&contact?.coverage>=.45&&e.type==='eave')setback=Math.min(setback,contact.distance);
+            if(options.roofContacts&&contact?.coverage>=.45&&e.type==='eave')setback=options.drivenSoffits!==false&&Number(options.soffit)!==0?contact.distance:Math.min(setback,contact.distance);
             // Preserve at least a foot across a narrow roof-supported body.
             // Measure the whole connected layer, not an individual hip triangle.
             setback=layerSetback(layers.get(parent.id),setback);
@@ -209,6 +239,7 @@
             if(limit>=s.setback)continue;s.setback=limit;s.junctionSetback={maximum:limit,flashingId};
             for(const [k,original]of [['a','originalA'],['b','originalB']]){const p=s[original],q={x:p.x+n.x*limit,y:p.y+n.y*limit};s[k]={...q,z:height({plane:s.sourcePlane},q)};}
         }
+        if(options.roofContacts&&options.drivenSoffits!==false&&Number(options.soffit)!==0)driveSoffits(sources,faces,layers);
         // A short return/flashing/return chain inside two overlapping exterior
         // edges is an overlap seam, not a recess in the building. Resolve it
         // from measured roof edges before inset miters can invert the chain.

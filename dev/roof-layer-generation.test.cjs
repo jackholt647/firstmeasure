@@ -198,10 +198,16 @@ function finiteTowerJunctions(r,soffit){
  for(const id of ['R113','R114']){const s=r.state.sources.find(s=>s.id.startsWith(id+'.'));assert.ok(s);assert.ok(Math.abs(s.setback-G.layerSetback(G.roofLayers(r.state.roof).get(s.parentId),soffit*G.INCH))<.002,'unconstrained front soffits retain the chosen depth');}
  assert.equal(r.open.length,0,'junctions stay closed down to the foundation');
 }
-for(const soffit of [0,6,12,18,24,36])test(`finite roof-end planes reconcile both tower sides at ${soffit} inches`,()=>finiteTowerJunctions(build(fixture,soffit),soffit));
+for(const soffit of [0,6,12,18,24,36])test(`finite roof-end planes reconcile both tower sides at ${soffit} inches`,()=>finiteTowerJunctions(build({...fixture,options:{...fixture.options,drivenSoffits:false}},soffit),soffit));
 
 test('finite tower contacts do not depend on compass direction or face ordering',()=>{
  const f=structuredClone(fixture),angle=.71,c=Math.cos(angle),s=Math.sin(angle),point=p=>({...p,x:c*p.x-s*p.y+20,y:s*p.x+c*p.y-10});
  f.roof.points=f.roof.points.map(point);for(const face of f.roof.faces){face.points=face.points.map(point);face.holes=(face.holes||[]).map(r=>r.map(point));}f.roof.faces.reverse();f.ground.points=f.ground.points.map(point);f.ground.plane=G.plane(f.ground.points);delete f.chimneys;
- finiteTowerJunctions(build(f,24),24);
+ finiteTowerJunctions(build({...f,options:{...f.options,drivenSoffits:false}},24),24);
+});
+
+test('driven soffits flatten the captured tower front while preserving closed foundations and measured sides',()=>{
+ const on=build({...fixture,options:{...fixture.options,drivenSoffits:true}},24),off=build({...fixture,options:{...fixture.options,drivenSoffits:false}},24),front=r=>r.state.sources.filter(s=>/^R11[34][.]/.test(s.id)),span=ss=>{const z=ss.flatMap(s=>[s.a.z,s.b.z]);return Math.max(...z)-Math.min(...z);};
+ assert.ok(span(front(off))>.1);assert.ok(span(front(on))<.002);assert.equal(on.open.length,0);assert.ok(front(on).every(s=>s.drivenSoffit&&!s.drivenSoffit.anchor));
+ for(const prefix of ['R112.','R115.']){const a=on.state.sources.find(s=>s.id.startsWith(prefix)),b=off.state.sources.find(s=>s.id.startsWith(prefix));assert.ok(Math.abs(a.setback-b.setback)<.002);}
 });

@@ -705,3 +705,10 @@ test('AI percentage placements become persistent typed geometry in one undoable 
  assert.throws(()=>f.ctx.WallMode.applyAIPlacements({...record,project:'different'}),/project/);
 });
 
+
+test('driven soffits default on and the advanced preference applies only on rebuild and survives reload',()=>{
+ const f=fixture(true);f.ctx.WallMode.setEnabled(true);f.soffits[0].onclick();const initial=f.ctx.WallMode.serialize();assert.equal(initial.options.drivenSoffits,true);
+ f.elements.get('wall-driven-soffits').onchange({target:{checked:false}});const toggled=f.ctx.WallMode.serialize();assert.equal(toggled.drivenSoffits,false);assert.equal(toggled.options.drivenSoffits,true);assert.deepEqual(toggled.sources,initial.sources);
+ f.soffits[0].onclick();assert.equal(f.ctx.WallMode.serialize().options.drivenSoffits,false);
+ const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().options.drivenSoffits,false);
+});
