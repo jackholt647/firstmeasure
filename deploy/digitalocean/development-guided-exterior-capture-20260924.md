@@ -191,3 +191,5 @@ Both serving nodes passed development readiness with the new release ID. Public 
 ## Directional overview and shutter containment
 
 Source 18d915b restores the eight-direction primary-photo diagram below the additional upload target and additional thumbnail grid. Completion headings are removed; grouped angle tiles remain below the diagram. Footer padding contains the full shutter outline. Seven browser regressions pass, including diagram presence, ordering and shutter containment. The one-file development delta preserves the concurrent d224b18a43316b6a64d22b469cb2baca0775ff86 baseline. Production is unchanged.
+
+Activated release 50e1bcaf56c2397d908f653c5c924e7644dd7813 on both dev web nodes. Both passed readiness; the public exterior script matched the committed hash.
