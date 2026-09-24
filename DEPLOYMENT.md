@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 signup sandbox: [Shared development storage repair](deploy/digitalocean/development-signup-sandbox-storage-20260924.md) records `0f1fa56445a3b9ae6a0ed023a4c29b640609cf3a` on both serving development web nodes. The builder state API now loads its shared PostgreSQL workflow library; production is unchanged.
+
 September 24 line point placement: [Double-click visible lines without a face](deploy/digitalocean/development-line-doubleclick-20260924.md) records `4d9aa8674197b36be18b4b186c3861d38199506b` on all four development roles. Five new regressions pass; the combined suite passes 493 checks with one independently confirmed existing chimney-selection failure. Both public editor hashes and local role readiness passed. Production is unchanged.
 
 September 24 Test Company Full Structure reports: [Enable the residential pilot flag](deploy/digitalocean/development-test-company-full-reports-20260924.md) records the development-only capability update for Test Company. Effective checks pass on both web nodes, and a development audit found it is the sole enabled organization. Production is unchanged.

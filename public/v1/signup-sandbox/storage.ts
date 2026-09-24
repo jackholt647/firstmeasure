@@ -3,7 +3,8 @@ import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
-import { writeJsonAtomic } from "../platform/storage.js";
+import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
+import { deleteIdentity, deleteIdentitySessions, deleteOrganization, mutatePlatformConfiguration, readPlatformConfiguration, writeJsonAtomic } from "../platform/storage.js";
 import { readFile } from "node:fs/promises";
 
 export type JsonObject = Record<string, unknown>;
@@ -11,11 +12,23 @@ export type JsonObject = Record<string, unknown>;
 const SANDBOX_SCHEMA_VERSION = 1;
 
 function sandboxRoot() {
-  return process.env.SIGNUP_SANDBOX_STORAGE_ROOT ?? "./storage/signup-sandbox";
+  if (process.env.SIGNUP_SANDBOX_STORAGE_ROOT) return process.env.SIGNUP_SANDBOX_STORAGE_ROOT;
+  // The deployed service cannot write to its immutable release directory.
+  // Keep sandbox documents beside the platform's configured writable storage.
+  return path.join(path.dirname(env.platformStorageRoot), "signup-sandbox");
 }
 
 function collectionRoot(collection: "workflows" | "pages" | "test_orgs") {
   return path.join(sandboxRoot(), collection);
+}
+
+function collectionConfigName(collection: "workflows" | "pages" | "test_orgs") {
+  return `signup_sandbox_${collection}`;
+}
+
+function storedDocuments(config: JsonObject | null): Record<string, JsonObject> {
+  const value = config?.documents;
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, JsonObject> : {};
 }
 
 export function sanitizeSandboxId(value: unknown, label: string) {
@@ -61,6 +74,10 @@ async function readJson(filePath: string): Promise<JsonObject | null> {
 }
 
 async function listCollection(collection: "workflows" | "pages" | "test_orgs") {
+  if (isFirstMeasurePostgresEnabled()) {
+    const config = await readPlatformConfiguration(collectionConfigName(collection));
+    return Object.values(storedDocuments(config)).sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+  }
   await ensureSandboxStorage();
   const entries = await readdir(collectionRoot(collection));
   const documents: JsonObject[] = [];
@@ -73,13 +90,37 @@ async function listCollection(collection: "workflows" | "pages" | "test_orgs") {
 }
 
 async function saveDocument(collection: "workflows" | "pages" | "test_orgs", doc: JsonObject) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const id = sanitizeSandboxId(doc.id, "document id");
+    await mutatePlatformConfiguration(collectionConfigName(collection), (current) => ({
+      documents: { ...storedDocuments(current), [id]: doc }
+    }));
+    return doc;
+  }
   await ensureSandboxStorage();
   await writeJsonAtomic(documentPath(collection, String(doc.id)), doc);
   return doc;
 }
 
 async function deleteDocument(collection: "workflows" | "pages" | "test_orgs", id: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const cleanId = sanitizeSandboxId(id, "document id");
+    await mutatePlatformConfiguration(collectionConfigName(collection), (current) => {
+      const documents = { ...storedDocuments(current) };
+      delete documents[cleanId];
+      return { documents };
+    });
+    return;
+  }
   await rm(documentPath(collection, id), { force: true });
+}
+
+async function readDocument(collection: "workflows" | "pages" | "test_orgs", id: string) {
+  if (isFirstMeasurePostgresEnabled()) {
+    const config = await readPlatformConfiguration(collectionConfigName(collection));
+    return storedDocuments(config)[sanitizeSandboxId(id, "document id")] ?? null;
+  }
+  return readJson(documentPath(collection, id));
 }
 
 export const sandboxStore = {
@@ -87,9 +128,9 @@ export const sandboxStore = {
   listWorkflows: () => listCollection("workflows"),
   listPages: () => listCollection("pages"),
   listTestOrgs: () => listCollection("test_orgs"),
-  readWorkflow: (id: string) => readJson(documentPath("workflows", id)),
-  readPage: (id: string) => readJson(documentPath("pages", id)),
-  readTestOrg: (id: string) => readJson(documentPath("test_orgs", id)),
+  readWorkflow: (id: string) => readDocument("workflows", id),
+  readPage: (id: string) => readDocument("pages", id),
+  readTestOrg: (id: string) => readDocument("test_orgs", id),
   saveWorkflow: (doc: JsonObject) => saveDocument("workflows", doc),
   savePage: (doc: JsonObject) => saveDocument("pages", doc),
   saveTestOrg: (doc: JsonObject) => saveDocument("test_orgs", doc),
@@ -112,6 +153,12 @@ function platformRoot() {
 export async function removePlatformOrgData(input: { orgId: string; identityId: string; email: string }) {
   const orgId = sanitizeSandboxId(input.orgId, "organization id");
   const identityId = sanitizeSandboxId(input.identityId, "identity id");
+  if (isFirstMeasurePostgresEnabled()) {
+    await deleteIdentitySessions(identityId);
+    await deleteOrganization(orgId);
+    await deleteIdentity(identityId);
+    return;
+  }
   await rm(path.join(platformRoot(), "organizations", orgId), { recursive: true, force: true });
   await rm(path.join(platformRoot(), "identities", `${identityId}.json`), { force: true });
   const emailHash = createHash("sha256").update(String(input.email).trim().toLowerCase()).digest("hex");
