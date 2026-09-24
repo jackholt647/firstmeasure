@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 Test Company Full Structure reports: [Enable the residential pilot flag](deploy/digitalocean/development-test-company-full-reports-20260924.md) records the development-only capability update for Test Company. Effective checks pass on both web nodes, and a development audit found it is the sole enabled organization. Production is unchanged.
+
 September 24 mobile map hint: [Align the pin instruction with the map edge](deploy/digitalocean/development-mobile-map-hint-20260924.md) records development web release `4c42747e06326d54d9d80c95c19be15b72cd0cc2` on both serving nodes. Both passed local readiness; the public map script contains the correction. Production is unchanged.
 
 September 24 Android sidebar: [Remove duplicate native bottom inset](deploy/digitalocean/development-android-sidebar-20260924.md) records development web release `bdefd3f806f88257689f628737c299281eed1346` on both serving nodes. Public readiness reached both; browser and iOS spacing is preserved. The development autoscale image remains historical; production is unchanged.
