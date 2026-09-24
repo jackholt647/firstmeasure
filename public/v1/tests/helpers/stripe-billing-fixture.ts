@@ -3,7 +3,7 @@ let counter=0;const prices=new Map<string,any>();
 export function stripeBillingFixture() {
   const sessions=new Map<string,any>(),subscriptions=new Map<string,any>(),invoices=new Map<string,any>(),requests=new Map<string,any>();
   const original=globalThis.fetch;
-  const control={credit:0,paid:true,loseResponse:false,proration:1500,creates:0,mutations:0,prices,sessions,subscriptions,invoices,calls:[] as {route:string;fields:URLSearchParams;key:string}[],restore:()=>{globalThis.fetch=original;}};
+  const control={customerMethod:null as string|null,credit:0,paid:true,loseResponse:false,proration:1500,creates:0,mutations:0,prices,sessions,subscriptions,invoices,calls:[] as {route:string;fields:URLSearchParams;key:string}[],restore:()=>{globalThis.fetch=original;}};
   const timestamp=()=>Math.floor(Date.now()/1000), id=(prefix:string)=>`${prefix}_${++counter}`;
   function invoice(sub:any,amount:number,paid=control.paid) {
     const value={id:id("in"),customer:sub.customer,parent:{subscription_details:{subscription:sub.id,metadata:sub.metadata}},status:paid?"paid":"open",currency:"usd",livemode:false,amount_due:amount,amount_paid:paid?amount:0,total:amount,subtotal:amount,created:timestamp(),hosted_invoice_url:"https://invoice.stripe.com/i/fixture",lines:{data:[{description:"Added subscription",amount}]}};
@@ -14,7 +14,7 @@ export function stripeBillingFixture() {
     if(url.hostname!=="api.stripe.com")throw new Error("Unexpected network request");
     const respond=(value:any)=>new Response(JSON.stringify(value),{status:200,headers:{"content-type":"application/json"}});
     if(options.method==="GET") {
-      if(route.startsWith("customers/"))return respond({id:route.split("/").at(-1),livemode:false,invoice_settings:{default_payment_method:null}});
+      if(route.startsWith("customers/"))return respond({id:route.split("/").at(-1),livemode:false,invoice_settings:{default_payment_method:control.customerMethod}});
       if(route==="prices")return respond({data:[...prices.values()].filter(p=>p.lookup_key===url.searchParams.get("lookup_keys[]"))});
       if(route.startsWith("checkout/sessions/"))return respond(sessions.get(route.split("/").at(-1)!));
       if(route.startsWith("subscriptions/"))return respond(subscriptions.get(route.split("/").at(-1)!));

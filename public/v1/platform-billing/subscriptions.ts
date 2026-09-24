@@ -210,7 +210,7 @@ export async function reconcileSubscriptions(org:string,actor:string) {
   const customer=await stripe("GET",`customers/${encodeURIComponent(account.customer_id)}`);mode(customer);
   if(customer.id!==account.customer_id)throw conflict("billing_subscription_mismatch");
   const method=objectId(customer.invoice_settings?.default_payment_method);
-  if(method && objectId(sub.default_payment_method)!==method)await stripe("POST",`subscriptions/${sub.id}`,{default_payment_method:method},`platform-card-${hash([org,sub.id,method])}`);
+  if(method && objectId(sub.default_payment_method)!==method)await stripe("POST",`subscriptions/${sub.id}`,{default_payment_method:method});
   await put(org,"payment-details","current",{has_payment_method:Boolean(method||sub.default_payment_method),status:sub.status,automatic:true});
   await saveInvoice(org,sub.latest_invoice);
   await billingStore().transaction(async()=>{
