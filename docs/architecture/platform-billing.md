@@ -50,7 +50,8 @@ adjustment. Tenant users can access only their current organization.
 `platform-billing/model.ts` declares trusted meters, not arbitrary queries or
 customer supplied code. SMS segments come from `communication_usage_events`,
 agent runs/input/output tokens from `agent_runs`, and live chat tokens from
-`chat_ai_usage_events`. Provider costs are not customer prices. Source rows remain
+`chat_ai_usage_events`. Live chat's duplicate `agent_runs` records are excluded
+from general agent meters to prevent charging twice. Provider costs are not customer prices. Source rows remain
 the evidence. No HTTP endpoint lets a customer submit arbitrary measured usage.
 
 `metering.ts` imports durable source rows in bounded pages, with a saved cursor

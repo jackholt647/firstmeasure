@@ -47,8 +47,11 @@ test("operator configures a product; customer explicitly subscribes; collector r
   assert.equal((await customer.raw("POST",base+"/subscriptions",{price_id:price.id,request_key:"customer-accept"})).statusCode,400);
   const response=await customer.raw("POST",base+"/subscriptions",{price_id:price.id,request_key:"customer-accept",accept_terms:true});assert.equal(response.statusCode,200,response.body);
   await (await import("../agents/storage.js")).recordAgentRun({organization_id:"billing_flow",agent_id:"assistant",status:"success",input_tokens:123,output_tokens:45});
+  await (await import("../agents/storage.js")).recordAgentRun({organization_id:"billing_flow",agent_id:"live_chat",status:"success",input_tokens:20,output_tokens:10});
+  await (await import("../chat/storage.js")).createAiUsageEvent({organization_id:"billing_flow",kind:"agent_turn",model:"fixture",input_tokens:20,output_tokens:10});
   const {collectUsage}=await import("../platform-billing/metering.js");await collectUsage("billing_flow");await collectUsage("billing_flow");
   const rows=await billing.billingStore().prepare("SELECT * FROM platform_billing_usage WHERE organization_id=? AND meter=?").all("billing_flow","agents.runs");assert.equal(rows.length,1);assert.equal(rows[0]?.quantity,"1");
+  assert.equal((await billing.billingStore().prepare("SELECT quantity FROM platform_billing_usage WHERE organization_id=? AND meter=?").get("billing_flow","chat.output_tokens"))?.quantity,"10");
   assert.equal((await billing.records<any>("billing_flow","subscription"))[0].price.monthly_cents,1200);
   const original=(await storage.readGlobal("billing_legacy")).data;
   await operator.request("PUT","/v1/platform-billing/organizations/billing_customer/account",{enforce:true});

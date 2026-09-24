@@ -24,7 +24,9 @@ export async function collectUsage(org:string) {
       for(const row of rows) {
         const key=String(row.id), at=String(row[source.time]);
         const emit=(meter:string,quantity:unknown)=>recordUsage(org,meter,`${source.id}:${key}`,Number(quantity||0),at);
-        if(source.id==="agents") { await emit("agents.runs",1); await emit("agents.input_tokens",row.input_tokens); await emit("agents.output_tokens",row.output_tokens); }
+        // Live chat also writes agent_runs; its dedicated ledger below is authoritative,
+        // including suggestions/polish which do not run through the shared agent loop.
+        if(source.id==="agents" && row.agent_id!=="live_chat") { await emit("agents.runs",1); await emit("agents.input_tokens",row.input_tokens); await emit("agents.output_tokens",row.output_tokens); }
         if(source.id==="chat") { await emit("chat.input_tokens",row.input_tokens); await emit("chat.output_tokens",row.output_tokens); }
         if(source.id==="sms") await emit(row.direction==="inbound"?"sms.inbound_segments":"sms.outbound_segments",row.segments);
       }
