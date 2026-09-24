@@ -2121,6 +2121,7 @@
       .r-overlay.mobile-order.mobile-order-location #rMobilePinStage:not([hidden]){animation:rMobileStepReveal .22s ease-out both}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:rMobileTypeCollapse .2s ease-in both}
       .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending #rMobilePinStage{display:none!important}
+      .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending .r-map-hint{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{display:flex;flex-direction:column;gap:9px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext{width:100%;min-height:52px;border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden],
