@@ -64,7 +64,7 @@
     guideNode.querySelector('[data-guide-title]').textContent=`${label(view)} of the house`;
     guideNode.querySelector('[data-guide-instruction]').textContent=view==='front'?'Start at the street. Include the roof, walls and ground.':`Move to the ${view.replace('-',' ')}. Keep the whole exterior in frame.`;
     guideNode.querySelector('[data-guide-angle]').textContent=label(view);
-    guideNode.querySelector('.ext-model').style.transform=`rotateX(-18deg) rotateY(${-45*(guideIndex%8)}deg)`;
+    guideNode.querySelector('.ext-model').style.transform=`rotateX(-18deg) rotateY(${45*(guideIndex%8)}deg)`;
     guideNode.querySelector('.ext-model-scene').setAttribute('aria-label',`${label(view)} of the house; front faces the street`);
     guideNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);
     guideNode.querySelector('.ext-camera-status').textContent=cameraMessage;
