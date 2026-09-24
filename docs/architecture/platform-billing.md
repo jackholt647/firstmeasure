@@ -168,6 +168,36 @@ Settings ownership is documented in `platform/publication/coverage.ts`.
 
 ## Verification
 
+### Cohesive customer Billing workspace
+
+When platform billing is available, `mountWorkspace` owns the entire customer
+Billing surface: a common summary, subscriptions alongside credit auto top-up,
+usage details, and one monthly statement/history/export. It uses container
+queries so layout follows the settings panel's available width. Customer billing
+has no secondary tabs; operator catalog/account tools open in a separate dialog.
+
+The existing FirstMeasure monthly-statement transport supplies the complete
+credit ledger for the selected month. Platform overview supplies subscription
+and usage invoices. The common statement sorts by posting date in UTC, labels
+usage service months separately, and keeps cash payments and measurement-credit
+movements in separate columns. Bonus credits, orders and credit refunds never
+become invented cash payments. Unknown historical cash amounts remain blank and
+are explicitly excluded from payment totals. CSV exports all services regardless
+of the on-screen service filter, escapes spreadsheet formulas, and is disabled
+if either source failed to load. Requests for older months cannot overwrite a
+newer selection.
+
+Credit purchase and auto-top-up retain their established payment handlers and
+permissions. Auto-top-up controls move into a dialog under the original billing
+root; subscription additions reuse the shared Stripe review/checkout flow.
+When platform features are disabled, the original FirstMeasure-only renderer
+and its statement/history remain unchanged and issue no platform billing reads.
+
+Run `node --test tests/billing-workspace.test.mjs tests/unified-billing.test.mjs`
+for the common statement model, CSV, permissions, errors, asynchronous month
+changes and responsive browser interactions. `CHROME_PATH` can override the
+browser executable used by the workspace test.
+
 From `public/v1`:
 
 ```text

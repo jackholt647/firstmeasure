@@ -4753,12 +4753,36 @@
     const paneForms = $('#csPaneForms', panel);
     const billingPane = $('#csPaneBilling', panel);
     if (billingPane && canPlatformBilling) {
-      billingPane.innerHTML = `${canBilling?'<h2 style="margin:0 0 16px">FirstMeasure</h2><div data-firstmeasure-billing></div>':''}<section data-platform-billing style="${canBilling?'margin-top:28px;padding-top:24px;border-top:1px solid #e4e7ec':''}"></section>`;
+      billingPane.innerHTML = '<div data-billing-legacy data-settings-autosave="off" hidden></div><section data-billing-workspace></section>';
     }
-    const paneBilling = canPlatformBilling ? billingPane?.querySelector('[data-firstmeasure-billing]') : billingPane;
+    const paneBilling = billingPane;
     function renderPlatformBilling(){
-      const host = billingPane?.querySelector('[data-platform-billing]');
-      if (canPlatformBilling && host && !host._billingMount) window.FirstMatePlatformBilling?.mount(host, {orgId:currentOrgId()});
+      const host = billingPane?.querySelector('[data-billing-workspace]');
+      if (!canPlatformBilling || !host || host._billingMount) return;
+      window.FirstMatePlatformBilling?.mountWorkspace(host, {
+        orgId:currentOrgId(),
+        credits:canBilling ? {
+          statement:fetchMonthlyStatement,
+          describe:row=>({title:msLedgerTitle(row),detail:msLedgerSub(row)}),
+          refreshBalance:()=>window.Portal?.credits?.refreshCredits?.(),
+          settings:()=>({enabled:renderBilling._base?.enabled ?? !!state.billing?.auto_topup?.enabled,
+            amount:renderBilling._base?.amt ?? state.billing?.auto_topup?.topup_dollars ?? BILL_MIN,
+            threshold:renderBilling._base?.th ?? state.billing?.auto_topup?.threshold_dollars ?? BILL_MIN,
+            card:state.billing?.stripe?.last4 ? `${state.billing.stripe.brand || 'Card'} ending in ${state.billing.stripe.last4}` : ''}),
+          open:()=>{
+            renderBilling();
+            const storage=billingPane.querySelector('[data-billing-legacy]');
+            const card=storage?.querySelector('#blEnableToggle')?.closest('.bl-card');
+            if(!card)return;
+            const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Credit auto top-up');
+            dialog.innerHTML='<header class="bw-head"><h3>Credit auto top-up</h3><button type="button" data-close>Done</button></header>';
+            host.querySelector('.bw').appendChild(dialog);dialog.appendChild(card);
+            dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+            dialog.addEventListener('close',()=>{storage.appendChild(card);dialog.remove();void host._billingRefresh?.();},{once:true});
+            dialog.showModal();
+          }
+        } : null
+      });
     }
     const tabCompany  = $('#csTabCompany', panel);
     const tabMySettings = $('#csTabMySettings', panel);
@@ -16423,7 +16447,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     }
     // **** Billing pane ----
     if (canBilling && paneBilling) {
-      paneBilling.innerHTML = `
+      (canPlatformBilling ? billingPane.querySelector('[data-billing-legacy]') : paneBilling).innerHTML = `
         <div class="bl-wrap">
           <div class="bl-card" style="margin-bottom:16px;">
             <div class="bl-row" style="align-items:center;">
@@ -16963,6 +16987,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       return Array.isArray(d.transactions) ? d.transactions : (Array.isArray(d.ledger) ? d.ledger : []);
     }
     async function msLoadMonth(month, year, forceRefresh){
+      if (canPlatformBilling) return;
       if (!canBilling || !paneBilling) return;
       const key = msCacheKey(month, year);
       const summaryEl = $('#msSummary', paneBilling);
@@ -17699,7 +17724,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         });
       }
       // ---------- RIGHT SIDE: Billing History ----------
-      const bhList = $('#bhList', paneBilling);
+      const bhList = canPlatformBilling ? null : $('#bhList', paneBilling);
       const bhStatus = $('#bhStatus', paneBilling);
       const bhReload = $('#bhReload', paneBilling);
       if (!renderBilling.__css_patched){
@@ -17952,8 +17977,10 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       }
       void loadHistory(false);
       // ---------- MONTHLY STATEMENT wiring ----------
-      wireStatementControls();
-      void msLoadMonth(msState.month, msState.year, false);
+      if (!canPlatformBilling) {
+        wireStatementControls();
+        void msLoadMonth(msState.month, msState.year, false);
+      }
     }
     // **** Company bindings ----
     if (canCompany) {
