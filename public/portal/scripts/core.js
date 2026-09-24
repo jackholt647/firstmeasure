@@ -2247,6 +2247,7 @@
   };
 
   function terminologyLabel(key, fallback = ''){
+    if (!String(key || '').trim()) return String(fallback || '').trim();
     return window.PlatformTerminology?.get?.(key, fallback) || String(fallback || '').trim();
   }
 

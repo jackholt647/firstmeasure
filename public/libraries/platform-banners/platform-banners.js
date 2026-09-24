@@ -15,13 +15,14 @@
  */
 (function(){
   const root = window;
-  const CLIENT_DISMISS_KEY = 'fm_attention_client_dismissed_v1';
+  const SESSION_DISMISS_KEY = 'fm_attention_session_dismissed_v1';
   const SURFACES = ['topbar', 'sidebar', 'notification'];
   const POLL_MS = 10000; // same cadence as the notifications poll in topbar.js
 
   const listeners = new Set();
   const clientSources = new Map();
   const clientSeen = new Set();
+  const sessionDismissed = new Set(readSessionDismissals());
   let serverEntries = [];
   let mergedEntries = [];
   let loadedAt = null;
@@ -39,20 +40,27 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  function readClientDismissals(){
+  function readSessionDismissals(){
     try {
-      const raw = localStorage.getItem(CLIENT_DISMISS_KEY);
-      const data = raw ? JSON.parse(raw) : {};
-      return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
-    } catch (error) { return {}; }
+      const data = JSON.parse(sessionStorage.getItem(SESSION_DISMISS_KEY) || '[]');
+      return Array.isArray(data) ? data.filter((key) => typeof key === 'string') : [];
+    } catch (error) { return []; }
   }
 
-  function rememberClientDismissal(entryId){
-    try {
-      const data = readClientDismissals();
-      data[entryId] = new Date().toISOString();
-      localStorage.setItem(CLIENT_DISMISS_KEY, JSON.stringify(data));
-    } catch (error) {}
+  function sessionDismissalKey(entryId, surface){
+    const orgId = currentOrgId || cleanText(root.Portal?.cfg?.userOrgId || root.Portal?.cfg?.orgId);
+    const userId = cleanText(root.Portal?.currentUser?.id || root.__APP?.userId || root.Portal?.cfg?.userId);
+    return JSON.stringify([orgId, userId, cleanText(entryId), surface]);
+  }
+
+  function isSessionDismissed(entryId, surface){
+    return sessionDismissed.has(sessionDismissalKey(entryId, surface));
+  }
+
+  function rememberSessionDismissal(entryId, surface){
+    sessionDismissed.add(sessionDismissalKey(entryId, surface));
+    try { sessionStorage.setItem(SESSION_DISMISS_KEY, JSON.stringify([...sessionDismissed])); }
+    catch (error) {}
   }
 
   function normalizeClientEntry(entry, sourceKey){
@@ -67,7 +75,6 @@
       notification: false
     };
     const id = cleanText(raw.id) || `attention_client_${sourceKey}`;
-    const dismissedAt = readClientDismissals()[id] || '';
     return {
       id,
       source: cleanText(raw.source) || sourceKey,
@@ -83,10 +90,8 @@
       dismissible,
       client: true,
       onCta: typeof raw.onCta === 'function' ? raw.onCta : null,
-      user_state: { seen_at: clientSeen.has(id) ? new Date().toISOString() : '', dismissed_at: dismissedAt },
-      visible_surfaces: surfaces.length
-        ? surfaces.filter((surface) => !dismissedAt || dismissible[surface] !== true)
-        : SURFACES.filter((surface) => !dismissedAt || dismissible[surface] !== true)
+      user_state: { seen_at: clientSeen.has(id) ? new Date().toISOString() : '', dismissed_at: '' },
+      visible_surfaces: surfaces.length ? surfaces : SURFACES.slice()
     };
   }
 
@@ -128,7 +133,8 @@
   }
 
   function entriesForSurface(surface){
-    return mergedEntries.filter((entry) => entry.visible_surfaces.includes(surface));
+    return mergedEntries.filter((entry) => entry.visible_surfaces.includes(surface)
+      && !isSessionDismissed(entry.id, surface));
   }
 
   function topEntryForSurface(surface){
@@ -202,16 +208,10 @@
 
   async function dismiss(entryId, surface = 'topbar'){
     const entry = findEntry(entryId);
-    if (!entry || entry.dismissible?.[surface] !== true) return getState();
-    if (entry.client) {
-      rememberClientDismissal(String(entry.id));
-      refresh();
-      return getState();
-    }
-    if (currentOrgId && root.PlatformAPI?.attention) {
-      await root.PlatformAPI.attention.dismiss(currentOrgId, entry.id).catch(() => null);
-      return await load(currentOrgId);
-    }
+    if (!entry || !['topbar', 'sidebar'].includes(surface)
+      || !entry.visible_surfaces.includes(surface)) return getState();
+    rememberSessionDismissal(entry.id, surface);
+    refresh();
     return getState();
   }
 
@@ -309,6 +309,17 @@
       transition:.16s ease; flex:0 0 auto;
     }
     .fm-attention-topbar-dismiss:hover{ background:rgba(255,255,255,0.22); }
+    .sidebar-attention-wrap{ position:relative; min-width:0; }
+    .sidebar-attention-wrap .sidebar-attention-card{ padding-right:44px; }
+    .sidebar-attention-dismiss{
+      position:absolute; right:8px; top:50%; transform:translateY(-50%);
+      width:28px; height:28px; border:0; border-radius:8px;
+      display:grid; place-items:center; background:transparent; color:#667085;
+      font:inherit; font-size:12px; cursor:pointer;
+    }
+    .sidebar-attention-dismiss:hover,.sidebar-attention-dismiss:focus-visible{
+      background:rgba(15,23,42,.08); color:#101828;
+    }
     @media (max-width: 820px){
       .fm-attention-topbar{ padding:6px 10px; }
       .fm-attention-topbar-body{ display:none; }
@@ -355,7 +366,7 @@
   }
 
   function entrySignature(entry){
-    return entry ? [entry.id, entry.tone, entry.state, !!entry.cta_label, entry.dismissible?.topbar === true].join('|') : '';
+    return entry ? [entry.id, entry.tone, entry.state, !!entry.cta_label].join('|') : '';
   }
 
   function removeTopbar(){
@@ -387,7 +398,7 @@
           </div>
           <div class="fm-attention-topbar-right">
             ${entry.cta_label ? '<button type="button" class="fm-attention-topbar-cta" data-attention-cta></button>' : ''}
-            ${entry.dismissible?.topbar === true ? `<button type="button" class="fm-attention-topbar-dismiss" data-attention-dismiss aria-label="${(globalThis.PlatformLanguage?.text("platform-banners","m_54fe29d1908de6","Dismiss") ?? "Dismiss")}"><i class="fas fa-times" aria-hidden="true"></i></button>` : ''}
+            <button type="button" class="fm-attention-topbar-dismiss" data-attention-dismiss aria-label="Dismiss banner for this session" title="Dismiss for this session"><i class="fas fa-times" aria-hidden="true"></i></button>
           </div>
         </div>
       `;
@@ -430,16 +441,23 @@
     const signature = [entrySignature(entry), entry.title, entry.body].join('|');
     if (signature !== renderedSidebarSignature) {
       slot.innerHTML = `
-        <button type="button" class="sidebar-attention-card tone-${escapeHtml(entry.tone)}" data-attention-id="${escapeHtml(entry.id)}">
-          <span class="sidebar-attention-copy">
-            <strong>${entry.state === 'waiting' ? '<i class="fas fa-hourglass-half" aria-hidden="true"></i> ' : ''}${escapeHtml(entry.title)}</strong>
-            ${entry.body ? `<small>${escapeHtml(entry.body)}</small>` : ''}
-          </span>
-          <i class="fas fa-chevron-right sidebar-attention-chevron" aria-hidden="true"></i>
-        </button>
+        <div class="sidebar-attention-wrap">
+          <button type="button" class="sidebar-attention-card tone-${escapeHtml(entry.tone)}" data-attention-id="${escapeHtml(entry.id)}">
+            <span class="sidebar-attention-copy">
+              <strong>${entry.state === 'waiting' ? '<i class="fas fa-hourglass-half" aria-hidden="true"></i> ' : ''}${escapeHtml(entry.title)}</strong>
+              ${entry.body ? `<small>${escapeHtml(entry.body)}</small>` : ''}
+            </span>
+            <i class="fas fa-chevron-right sidebar-attention-chevron" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="sidebar-attention-dismiss" data-attention-dismiss="sidebar" aria-label="Dismiss banner for this session" title="Dismiss for this session"><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
       `;
       slot.querySelector('[data-attention-id]')?.addEventListener('click', () => {
         applyEntryAction(findEntry(entry.id));
+      });
+      slot.querySelector('[data-attention-dismiss]')?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        dismiss(entry.id, 'sidebar');
       });
       renderedSidebarSignature = signature;
     }

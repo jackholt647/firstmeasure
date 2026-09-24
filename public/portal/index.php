@@ -214,7 +214,7 @@ session_write_close();
 
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area{
         display:flex;
-        height:64px;
+        height:92px;
         width:100%;
         padding:0;
         align-items:center;
@@ -234,11 +234,11 @@ session_write_close();
         mask:url('/images/logo_square.png') center / contain no-repeat;
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-scroll{
-        padding:10px 6px calc(8px + var(--fm-sidebar-safe-bottom));
-        gap:5px;
+        padding:16px 6px calc(14px + var(--fm-sidebar-safe-bottom));
+        gap:12px;
         overflow:hidden;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .new-menu-wrap{display:flex;justify-content:center}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .new-menu-wrap{display:flex;align-items:center;justify-content:center}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq{
         width:36px;
         height:36px;
@@ -253,9 +253,8 @@ session_write_close();
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-full-icon{display:none}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-mini-icon{display:block}
 
-      /* The midpoint rail control is the sole compact expansion affordance.
-         The Apps / To Do / Channels labels return once the rail expands. */
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mode-tabs{display:none}
+      /* Keep the tab row's space so app icons do not move when the rail opens. */
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mode-tabs{visibility:hidden;pointer-events:none}
 
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarTodoPanel,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
@@ -270,6 +269,7 @@ session_write_close();
         overflow-x:hidden;
         overflow-y:auto;
         scrollbar-width:none;
+        gap:10px;
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks::-webkit-scrollbar{display:none}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link{
@@ -625,6 +625,12 @@ session_write_close();
       flex-direction:column;
       gap: 10px;
       padding: 0 6px;
+    }
+
+    @media (min-width:821px){
+      .new-menu-wrap{height:46px}
+      .new-menu-wrap .btn-primary{height:100%}
+      #sidebarMainLinks .fm-link{min-height:32px}
     }
 
     .sidebar-footer{
@@ -2123,7 +2129,17 @@ session_write_close();
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
-  <?php if ($platformExpandedAssets) { require_once dirname(__DIR__, 2) . '/external-apps/registry.php'; fm_external_render(); } ?>
+  <?php
+    if ($platformExpandedAssets) {
+      $externalAppsRegistry = dirname(__DIR__, 2) . '/external-apps/registry.php';
+      if (is_file($externalAppsRegistry)) {
+        require_once $externalAppsRegistry;
+        fm_external_render();
+      } else {
+        error_log('FirstMate external app registry is missing; continuing portal render without external apps.');
+      }
+    }
+  ?>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
