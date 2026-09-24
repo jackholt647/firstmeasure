@@ -973,6 +973,8 @@
     $('#mobilePlatformMoreAssistant')?.addEventListener('click', (event) => {
       event.stopPropagation();
       closeMoreMenu();
+      closeMessagesMenus();
+      closeNotificationMenus();
       window.PlatformAssistant?.toggle?.();
     });
     $('#mobilePlatformMoreMessages')?.addEventListener('click', (event) => {
@@ -1025,6 +1027,8 @@
     ['#platformAssistantBtn', '#mobilePlatformAssistantBtn'].forEach((selector) => {
       $(selector)?.addEventListener('click', (event) => {
         event.stopPropagation();
+        closeMessagesMenus();
+        closeNotificationMenus();
         window.PlatformAssistant?.toggle?.();
       });
     });

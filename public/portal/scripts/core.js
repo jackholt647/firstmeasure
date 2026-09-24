@@ -3530,6 +3530,8 @@
       .fm-sidebar-app-pin:hover,.fm-sidebar-app-pin:focus-visible{background:#f1f3f5;color:var(--primary-readable,var(--primary,#d93025));outline:none;transform:translate(0,-50%) rotate(-12deg)}
       .fm-sidebar-app-pin:disabled{opacity:.45;cursor:wait}
       .fm-advanced-apps-overlay{position:fixed;z-index:2147483003;inset:0 0 0 var(--fm-advanced-sidebar-edge,var(--sidebar));display:block;padding:clamp(20px,2.5vw,40px);box-sizing:border-box;background:rgba(3,8,18,.86);animation:fmAdvancedAppsReveal .2s ease both}
+      body.has-attention-topbar .fm-advanced-apps-overlay{top:var(--attention-topbar-offset,48px)}
+      body:has(#impersonationBanner) .fm-advanced-apps-overlay{top:max(44px,var(--attention-topbar-offset,0px))}
       .fm-advanced-apps-overlay.closing{pointer-events:none;animation:fmAdvancedAppsDismiss .2s ease both}
       .fm-advanced-apps-panel{position:relative;width:100%;height:100%;min-height:0;display:block;overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none;animation:fmAdvancedAppsPanelIn .32s cubic-bezier(.16,1,.3,1) both}
       .fm-advanced-apps-close{position:absolute;z-index:3;top:calc(-1 * clamp(10px,1.5vw,24px));right:calc(-1 * clamp(10px,1.5vw,24px));width:40px;height:40px;border:1px solid rgba(255,255,255,.18);border-radius:50%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.82);cursor:pointer;transition:transform .18s ease,background .18s ease,color .18s ease}.fm-advanced-apps-close:hover,.fm-advanced-apps-close:focus-visible{background:rgba(255,255,255,.18);color:#fff;transform:rotate(5deg) scale(1.06);outline:none}
@@ -3559,11 +3561,11 @@
       .fm-more-apps-foot button{width:100%;border:0;border-radius:9px;background:transparent;padding:8px 6px;color:#475467;font:inherit;font-size:11px;font-weight:900;cursor:pointer;text-align:center}
       .fm-more-apps-foot button:hover,.fm-more-apps-foot button:focus-visible{background:#f5f6f8;color:var(--primary-readable,var(--primary,#d93025));outline:none}
       @media(prefers-reduced-motion:reduce){.fm-more-apps-popover:not([hidden]),.fm-more-apps-popover.closing{animation:none}}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarBottomLinks.sidebar-launchers-split{grid-template-columns:1fr;grid-template-rows:auto 1px auto;gap:4px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarBottomLinks.sidebar-launchers-integrated{flex-direction:column;gap:4px;padding-bottom:15px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarBottomLinks.sidebar-launchers-integrated>.sidebar-launcher-icon{flex:none;width:28px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-launcher-divider{justify-self:center;width:22px;height:1px;flex-basis:1px}
-      @media(max-width:820px){.sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-more-apps-popover{right:auto;left:42px;bottom:0;width:min(340px,calc(100vw - 56px));transform-origin:0 100%}}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks.sidebar-launchers-split{grid-template-columns:1fr;grid-template-rows:auto 1px auto;gap:4px}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks.sidebar-launchers-integrated{flex-direction:column;gap:4px;padding-bottom:15px}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks.sidebar-launchers-integrated>.sidebar-launcher-icon{flex:none;width:28px}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-launcher-divider{justify-self:center;width:22px;height:1px;flex-basis:1px}
+      @media(max-width:820px){.sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-more-apps-popover{right:auto;left:42px;bottom:0;width:min(340px,calc(100vw - 56px));transform-origin:0 100%}}
       @media(min-width:821px){
         .fm-more-apps-popover{position:fixed;left:var(--fm-more-apps-left,16px);right:auto;bottom:var(--fm-more-apps-bottom,70px);width:var(--fm-more-apps-width,min(960px,calc(100vw - 32px)));height:var(--fm-more-apps-height,640px);max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);box-sizing:border-box;flex-direction:column;padding:clamp(16px,1.5vw,24px);border-radius:20px;transform-origin:var(--fm-more-apps-caret-left,32px) 100%}
         .fm-more-apps-popover:not([hidden]){display:flex}

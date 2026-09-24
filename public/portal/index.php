@@ -182,8 +182,8 @@ session_write_close();
       .sidebar.sidebar-compact:hover,
       .sidebar.sidebar-compact.sidebar-compact-edge-held,
       .sidebar.sidebar-compact.sidebar-compact-expanded{width:var(--sidebar)}
-      .sidebar.sidebar-compact.sidebar-compact-overlap:hover:not(.sidebar-compact-expanded),
-      .sidebar.sidebar-compact.sidebar-compact-overlap.sidebar-compact-edge-held:not(.sidebar-compact-expanded){
+      .sidebar.sidebar-compact.sidebar-compact-overlap:hover:not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open),
+      .sidebar.sidebar-compact.sidebar-compact-overlap.sidebar-compact-edge-held:not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open){
         margin-right:calc(var(--sidebar-compact) - var(--sidebar));
       }
       .sidebar.sidebar-compact:hover,
@@ -250,7 +250,7 @@ session_write_close();
         transition:max-width .2s ease,opacity .12s ease .08s,transform .2s ease;
       }
 
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area{
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .logo-area{
         display:flex;
         height:92px;
         width:100%;
@@ -259,41 +259,41 @@ session_write_close();
         justify-content:center;
         grid-template-columns:none;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>.firstmate-color-logo,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>.cobrand-logo-divider,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>img{opacity:0;pointer-events:none;transform:scale(.82)}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mini-logo{
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .logo-area>.firstmate-color-logo,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .logo-area>.cobrand-logo-divider,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .logo-area>img{opacity:0;pointer-events:none;transform:scale(.82)}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-mini-logo{
         opacity:1;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-scroll{
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-scroll{
         padding:16px 6px calc(14px + var(--fm-sidebar-safe-bottom));
         gap:12px;
         overflow:hidden;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .new-menu-wrap{display:flex;align-items:center;justify-content:center}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq{
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .new-menu-wrap{display:flex;align-items:center;justify-content:center}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #btnNewReq{
         width:100%;
         justify-content:center;
         padding:0;
         border-radius:12px;
         box-shadow:0 5px 12px rgba(var(--primary-rgb),.2);
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq>span,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-full-icon{max-width:0;opacity:0}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq>span{max-width:0;opacity:0}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-mini-icon{opacity:1}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #btnNewReq>span,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-new-full-icon{max-width:0;opacity:0}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #btnNewReq>span{max-width:0;opacity:0}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-new-mini-icon{opacity:1}
 
       /* Keep the tab row's space so app icons do not move when the rail opens. */
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mode-tabs{visibility:hidden;opacity:0;pointer-events:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-mode-tabs{visibility:hidden;opacity:0;pointer-events:none}
 
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarTodoPanel,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarLinks,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarBottomLinks{padding:0;margin-left:0;margin-right:0;gap:2px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarAppsPanel,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarLinks{min-height:0;overflow:hidden}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks{
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarTodoPanel,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarLinks,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarMainLinks,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks{padding:0;margin-left:0;margin-right:0;gap:2px}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarAppsPanel,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarLinks{min-height:0;overflow:hidden}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarMainLinks{
         flex:1 1 auto;
         min-height:0;
         overflow-x:hidden;
@@ -301,17 +301,17 @@ session_write_close();
         scrollbar-width:none;
         gap:10px;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks::-webkit-scrollbar{display:none}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link{
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarMainLinks::-webkit-scrollbar{display:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-link{
         padding:0 0 0 8px;
         flex:none;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link .tx{max-width:0;opacity:0;transform:translateX(-6px)}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link.bottom{padding-top:0}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-footer{padding:8px 0 0;border-top:1px solid rgba(0,0,0,.06)}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-switcher-trigger{justify-content:center;padding:3px!important}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-trigger-copy,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-trigger-chevron{display:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-link .tx{max-width:0;opacity:0;transform:translateX(-6px)}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-link.bottom{padding-top:0}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-footer{padding:8px 0 0;border-top:1px solid rgba(0,0,0,.06)}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-account-switcher-trigger{justify-content:center;padding:3px!important}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-account-trigger-copy,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-account-trigger-chevron{display:none}
     }
 
     @media (prefers-reduced-motion:reduce){
@@ -953,7 +953,7 @@ session_write_close();
     .sidebar-attention-copy strong{font-size:12px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .sidebar-attention-copy small{font-size:11px;font-weight:800;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .sidebar-attention-chevron{flex:0 0 auto;color:#98a2b3;font-size:10px}
-    .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-expanded):not(.sidebar-compact-edge-held) .sidebar-attention-slot{display:none}
+    .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open):not(.sidebar-compact-edge-held) .sidebar-attention-slot{display:none}
     .main-panels{
       flex:1;
       min-height:0;
