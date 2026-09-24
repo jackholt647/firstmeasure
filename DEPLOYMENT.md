@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 Android sidebar: [Remove duplicate native bottom inset](deploy/digitalocean/development-android-sidebar-20260924.md) records development web release `bdefd3f806f88257689f628737c299281eed1346` on both serving nodes. Public readiness reached both; browser and iOS spacing is preserved. The development autoscale image remains historical; production is unchanged.
+
 September 24 driven junction correction: [Measured anchors versus finite depth limits](deploy/digitalocean/development-driven-soffits-junction-20260924.md) records `9098b7dbfcdf1d599c98e44ee8042c5dd85ce6d8` on all four development roles. Measured depths now propagate through junction-limited sides, retaining the maximum-depth constraint and eliminating the sloping support fragments. All 233 focused checks, local readiness and the public script hash passed. The one-script delta preserves `2acb427`; production is unchanged.
 
 September 24 driven soffits: [Measured depths and connected-eave flatness](deploy/digitalocean/development-driven-soffits-20260924.md) records `2acb42780eee33487a08fc1a7e2b17553beeb7b2` on all four development roles. The default-on advanced setting applies on the next From Roof rebuild; disabling retains the legacy calculation. All 233 focused tests and public script hashes passed. The two-script delta preserves `d885489`; production is unchanged.
