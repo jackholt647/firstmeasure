@@ -5,11 +5,11 @@ import {chromium} from 'playwright-core';
 
 const source=await readFile(new URL('../../libraries/apps/firstmeasure/order/exteriors.js',import.meta.url),'utf8');
 const instrumented=source.replace('  P.ExteriorOrder={','  P.test={files,upload,visitGuide,finishGuide,removeGuided,stopCamera,getStream:()=>cameraStream};\n  P.ExteriorOrder={');
-async function setup(t,{denied=false,width=390,native=null}={}){
+async function setup(t,{denied=false,width=390,height=844,native=null}={}){
  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
  t.after(()=>browser.close());
- const page=await browser.newPage({viewport:{width,height:844}});
- await page.route('https://capture.test/**',route=>route.fulfill({contentType:'text/html',body:'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}.r-scroll{padding:16px;max-width:500px;margin:auto}button{font:inherit}</style></head><body><div id="rOverlay" class="r-overlay mobile-order mobile-order-photos"><div class="r-scroll"><div id="rStepType"><div id="rTypePill"></div></div></div></div></body></html>'}));
+ const page=await browser.newPage({viewport:{width,height}});
+ await page.route('https://capture.test/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}.r-left{height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;padding:12px;gap:8px}.r-top{height:42px;flex-shrink:0}.r-form{display:flex;flex:1;min-height:0}.r-scroll{flex:1;min-height:0;overflow:auto}button{font:inherit}</style></head><body><div id="rOverlay" class="r-overlay mobile-order mobile-order-photos"><div class="r-left"><div class="r-top">Property address</div><form class="r-form"><div class="r-scroll"><div id="rStepType"><div id="rTypePill"></div></div></div></form></div></div></body></html>'}));
  await page.goto('https://capture.test/');
  await page.evaluate(({denied,native})=>{
   window.cameraCalls=0;const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -43,14 +43,14 @@ test('camera stays mounted across captures; newest is primary, extras persist an
  await page.click('[data-guide-primary]');
  assert.notEqual(await page.evaluate(()=>JSON.parse(Portal.ExteriorOrder.payload().exterior_references).find(r=>r.view==='front').media_id),refs.find(r=>r.view==='front').media_id);
  await page.click('[data-guide-forward]');
- assert.equal(await page.locator('[data-guide-title]').textContent(),'Front Left of the house');
+ assert.equal(await page.locator('[data-guide-title]').textContent(),'Front Left of House');
  await page.evaluate(()=>window.liveTrack=Portal.test.getStream().getVideoTracks()[0]);
  for(let i=0;i<7;i++)await page.click('[data-guide-forward]');
  assert.equal(await page.locator('.ext-summary-guide').count(),1);
  assert.equal(await page.evaluate(()=>liveTrack.readyState),'ended');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.mobilePhotosReady()),false);
  await page.click('[data-view="0:left"]');
- assert.equal(await page.locator('[data-guide-title]').textContent(),'Left of the house');
+ assert.equal(await page.locator('[data-guide-title]').textContent(),'Left of House');
  await page.screenshot({path:process.env.TEMP+'/firstmate-guided-camera.png'});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
  assert.equal(overflow,false);
@@ -88,8 +88,36 @@ test('denied camera does not reprompt during renders and upload remains availabl
  await (await chooserPromise).setFiles({name:'front.jpg',mimeType:'image/jpeg',buffer:Buffer.from('fixture')});
  await page.waitForFunction(()=>Portal.test.files.get('0:front')?.media_id);
  assert.equal(await page.evaluate(()=>cameraCalls),1);
- await page.click('[data-guide-summary]');
+ for(let i=0;i<8;i++)await page.click('[data-guide-forward]');
  assert.equal(await page.locator('.ext-summary-guide').count(),1);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:process.env.TEMP+'/firstmate-photo-summary.png'});
+});
+
+
+test('capture fills the screen, keeps three navigation buttons anchored and uses the normal additional-photo picker',async t=>{
+ const page=await setup(t,{width:390,height:844});
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ const bottom=await page.locator('.ext-guide-footer').boundingBox();
+ const camera=await page.locator('.ext-camera').boundingBox();
+ await page.screenshot({path:process.env.TEMP+'/firstmate-capture-layout.png'});
+ assert.ok(bottom.y+bottom.height>830 && bottom.y+bottom.height<=844,JSON.stringify({bottom,camera}));
+ assert.ok(camera.height>400,JSON.stringify(camera));
+ assert.equal(await page.locator('[data-guide-summary],[data-guide-instruction],[role=progressbar],.ext-capture-status').count(),0);
+ for(let i=0;i<7;i++){
+  await page.click('[data-guide-forward]');const box=await page.locator('.ext-guide-footer').boundingBox();assert.equal(box.y,bottom.y);
+ }
+ await page.click('[data-guide-capture]');await page.waitForFunction(()=>Portal.test.files.size===1);
+ assert.equal((await page.locator('.ext-guide-footer').boundingBox()).y,bottom.y);
+ await page.screenshot({path:process.env.TEMP+'/firstmate-capture-layout.png'});
+ await page.click('[data-guide-forward]');
+ const extra=page.locator('[data-extra-upload]');const box=await extra.boundingBox();assert.ok(box.width>350&&box.height>=170);
+ assert.equal(await page.locator('[data-extra-camera]').count(),0);
+ const chooserPromise=page.waitForEvent('filechooser');await extra.click();const chooser=await chooserPromise;
+ assert.equal(await chooser.element().getAttribute('capture'),null);
+ assert.equal(chooser.isMultiple(),true);await chooser.setFiles([]);
+ await page.screenshot({path:process.env.TEMP+'/firstmate-additional-layout.png'});
+ await page.click('[data-view="0:front"]');await page.setViewportSize({width:320,height:640});
+ const small=await page.locator('.ext-guide-footer').boundingBox();assert.ok(small.y+small.height<=640&&small.y+small.height>625);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
 });
