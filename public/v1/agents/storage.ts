@@ -278,7 +278,7 @@ export async function searchAgentHistory(agentId: string, orgId: string, userId:
   return (await getAgentsDatabase().prepare(`SELECT m.thread_id,m.role,m.content,m.created_at
     FROM agent_messages m JOIN agent_threads t ON t.id=m.thread_id
     WHERE m.agent_id=? AND m.organization_id=? AND t.created_by_user_id=?
-      AND m.content LIKE ? ESCAPE '\\' ORDER BY m.created_at DESC LIMIT 20`)
+      AND LOWER(m.content) LIKE LOWER(?) ESCAPE '\\' ORDER BY m.created_at DESC LIMIT 20`)
     .all(agentId, orgId, userId, term)).map((row) => asObject(row));
 }
 

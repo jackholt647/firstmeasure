@@ -209,7 +209,7 @@ test("personal instructions and saved memories persist across assistant threads"
   await client.request("PUT", `${base}/profile`, { instructions: "Keep answers brief.", memory_enabled: false });
   const second = await client.request("POST", `${base}/threads`, {});
   const mock2 = mockOpenAI([
-    { output: [functionCall("search_my_conversation_history", { query: "remember" }, "search_1")] },
+    { output: [functionCall("search_my_conversation_history", { query: "REMEMBER" }, "search_1")] },
     { output: [functionCall("report_result", { status: "success", summary: "Okay." }, "call_2")] },
     { output: [messageOutput("Okay.")] }
   ]);
@@ -221,6 +221,35 @@ test("personal instructions and saved memories persist across assistant threads"
   await client.request("DELETE", `${base}/memories/${memoryId}`);
   const list = await client.request("GET", `${base}/memories`);
   assert.equal(list.memories.length, 0);
+});
+
+test("assistant memory tools save and forget the caller's memories", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const thread = await client.request("POST", `${base}/threads`, {});
+  const mock = mockOpenAI([
+    { output: [functionCall("save_user_memory", { content: "I like concise updates." }, "save_1")] },
+    { output: [functionCall("report_result", { status: "success", summary: "I'll remember that." }, "done_1")] },
+    { output: [messageOutput("I'll remember that.")] }
+  ]);
+  try {
+    const result = await client.request("POST", `${base}/threads/${thread.thread.id}/messages`, { message: "Remember that I like concise updates." });
+    assert.equal(result.status, "success");
+  } finally { mock.restore(); }
+  const saved = await client.request("GET", `${base}/memories`);
+  assert.equal(saved.memories.length, 1);
+  assert.equal(saved.memories[0].content, "I like concise updates.");
+  const mockForget = mockOpenAI([
+    { output: [functionCall("forget_user_memory", { memory_id: saved.memories[0].id }, "forget_1")] },
+    { output: [functionCall("report_result", { status: "success", summary: "I forgot that." }, "done_2")] },
+    { output: [messageOutput("I forgot that.")] }
+  ]);
+  try {
+    const result = await client.request("POST", `${base}/threads/${thread.thread.id}/messages`, { message: "Forget that preference." });
+    assert.equal(result.status, "success");
+  } finally { mockForget.restore(); }
+  assert.equal((await client.request("GET", `${base}/memories`)).memories.length, 0);
 });
 
 test("company administrators cannot overwrite platform-wide assistant instructions", async () => {
