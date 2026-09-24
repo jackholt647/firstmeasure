@@ -18,7 +18,8 @@ export const priceSchema = z.object({
   rates:z.array(rateSchema).max(12).default([]), require_subscription:z.boolean().default(true)
 }).strict();
 export type Price = z.infer<typeof priceSchema> & { id:string; version:number; published:boolean; created_at:string; actor:string };
-export type Subscription = { id:string; product_id:string; price:Price; starts_at:string; ends_at:string|null; actor:string; request_key:string };
+export type Subscription = { id:string; product_id:string; price:Price; starts_at:string; ends_at:string|null; actor:string; request_key:string;
+  stripe_subscription_id?:string; stripe_item_id?:string; paid_through?:string; payment_status?:string };
 export type Account = { enforce:boolean; created_at:string; updated_at:string; actor:string };
 export type Line = { subscription_id:string; product_id:string; price_id:string; label:string; meter:string|null; quantity:string; included:number; amount_cents:number };
 export type Invoice = { id:string; period:string; currency:"USD"; lines:Line[]; total_cents:number; status:"open"|"paid"|"void"; created_at:string; actor:string; payment_id?:string; checkout_id?:string; checkout_url?:string; paid_at?:string };

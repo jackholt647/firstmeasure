@@ -288,6 +288,8 @@ export async function appFlagState(orgId: string, userId?: string) {
     definitions: appFlagDefinitions(),
     variant_definitions: appVariantDefinitions(),
     raw,
+    // Setup may sell a configured capability that commercial access has masked.
+    available: resolveAppFlags(raw).resolved,
     raw_variants: rawVariants,
     effective: resolvedState.resolved,
     effective_variants: variantState.resolved,

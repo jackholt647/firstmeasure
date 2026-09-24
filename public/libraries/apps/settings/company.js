@@ -2219,9 +2219,9 @@
     const canScopeTemplates = canCompany && appFlag('platform', 'expanded_access') && appFlag('apps', 'projects');
     const canCallWorkflows = canCompany && appFlag('calls', 'app');
     const canStorage = canCompany && storageLimitsEnabled();
-    const canSmsSettings = canCompany && appFlag('platform', 'sms_settings');
+    const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
-    const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
+    const canAssistant = (appFlag('apps', 'assistant') || window.FirstMatePlatformBilling?.configured('apps', 'assistant')) && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
@@ -6124,6 +6124,7 @@
       const orgId = currentOrgId();
       paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
+        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
         const profile = profiles[0] || smsPrefillProfile({}, setup);
@@ -14363,8 +14364,14 @@
       });
     }
 
-    function renderAssistantSettings(){
+    async function renderAssistantSettings(){
       if (!paneAssistant) return;
+      try {
+        if (await window.FirstMatePlatformBilling?.setup(paneAssistant, {orgId:currentOrgId(),canView:canPlatformBilling,capabilityKeys:['apps.assistant'],onReady:renderAssistantSettings})) return;
+      } catch (error) {
+        paneAssistant.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load subscription setup.')}</div>`;
+        return;
+      }
       if (!window.AssistantAPI) {
         paneAssistant.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_509d484132439c","Assistant settings failed to load.") ?? "Assistant settings failed to load.")}</div>`;
         return;

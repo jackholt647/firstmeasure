@@ -91,21 +91,64 @@ for review rather than silently rewriting an issued invoice. Operators can post
 an auditable positive adjustment or negative credit to an open period. Negative
 invoice totals require allocating the remaining credit to another period.
 
-Collection uses a dedicated hosted Stripe Checkout payment for each platform
-invoice. It can reuse the organization's Stripe customer, but does not debit
-measurement credits, change auto top-up or use the Forward merchant-payment flow.
-Customers pay issued invoices explicitly; automatic saved-card collection is not
-enabled by accepting a subscription in this release. Payment reconciliation runs
-on explicit refresh and the hourly task. The existing FirstMeasure webhook does
-not fulfill these sessions because they lack its credit-purchase metadata.
+### Subscription checkout and renewals
 
-Checkout request identity and exact parameters are saved before the external
-request. Concurrent/retried requests use the same Stripe idempotency key. A new
-attempt is allowed only after confirming that the preceding session expired.
-An uncertain result older than 23 hours requires provider reconciliation before
-retry, because the provider's idempotency retention cannot be assumed forever.
-Settlement verifies organization, invoice, currency, amount and test/live mode.
-Development refuses live Stripe keys and production return hosts.
+New fixed monthly subscriptions use Stripe Billing, with a dedicated platform
+customer and one recurring subscription containing an item for each add-on.
+The first purchase uses Stripe Checkout and charges the full first month, with
+renewal on its monthly anniversary. Adding a product preserves that renewal date
+and charges only its remaining-period proration. A server-created quote shows
+current and new monthly totals, every included product, and the amount due now.
+Descriptions and included usage come from the immutable catalog price version.
+No trial is currently offered; the catalog does not silently imply a trial.
+
+The review is shared by Billing, SMS setup and Assistant setup through
+`FirstMatePlatformBilling.review` / `setup`. New app setup can use the same helper
+with its registered capability keys. Setup can display a configured capability
+whose commercial entitlement is still locked; this never grants runtime access
+or bypasses the user's billing permissions or the platform rollout audience.
+
+Quotes expire after ten minutes. Acceptance checks the current plan and previews
+again using the original Stripe `proration_date`. An add-on uses
+`payment_behavior=pending_if_incomplete` and `proration_behavior=always_invoice`.
+Stripe tries the saved payment method only after the user confirms the displayed
+amount. When card authentication or another payment step is needed, the customer
+continues on Stripe's hosted invoice page. A declined payment keeps the existing
+plan and does not grant the new entitlement. The provider's verified paid result,
+not the browser redirect, activates the price snapshot locally.
+
+A purchase and its exact Stripe parameters are committed before the provider
+request. Requests share a durable idempotency key; each organization has at most
+one pending purchase/cancellation. Signed webhook events, explicit refresh and
+the hourly worker reconcile provider state. Duplicate or out-of-order events
+fetch current Stripe state. Unknown results are retried with the same request
+within 23 hours; older ambiguous requests require operator reconciliation with
+Stripe request logs before any replacement purchase. Operators must identify the
+original session/subscription/invoice and settle or void it; never delete the
+purchase record and start another charge blindly.
+
+Stripe handles automatic monthly collection. Local entitlements retain their
+verified paid-through date when a renewal fails and resume after verified payment.
+Cancellation removes an item from future renewals without refunding the current
+period; access continues through the paid period. The last item cancels the
+Stripe subscription at period end. Subscription receipts and outstanding payments
+appear alongside usage invoices in the single Billing tab.
+
+Prepaid Stripe fixed fees are excluded from the local usage invoice. Existing
+subscriptions retain their original arrears contract. Usage continues to use UTC
+calendar months, with explicit Stripe payment for issued usage invoices. Existing
+FirstMeasure credits, saved cards, auto top-up and Forward merchant payments keep
+their original contracts. Platform sessions are routed by metadata only after the
+existing webhook signature and mode validation.
+
+The Stripe API version is pinned to `2025-06-30.basil`. All settlement verifies
+organization, provider customer/subscription, currency, amount, price/item and
+mode. Development refuses live keys and production return hosts. No paid product
+or subscription is enabled for a customer by deploying this implementation.
+
+Provider contracts: [pending updates](https://docs.stripe.com/billing/subscriptions/pending-updates),
+[invoice previews](https://docs.stripe.com/api/invoices/create_preview),
+[subscription updates](https://docs.stripe.com/api/subscriptions/update).
 
 ## Storage and publication boundaries
 
@@ -127,8 +170,8 @@ From `public/v1`:
 ```text
 npm run check
 npm run build
-node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-billing.test.ts tests/platform-billing-api.test.ts tests/platform-stripe.test.ts
-node tests/run-embedded-postgres.mjs tests/platform-billing.test.ts
+node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-billing.test.ts tests/platform-billing-api.test.ts tests/platform-subscription-checkout.test.ts tests/platform-stripe.test.ts
+node tests/run-embedded-postgres.mjs tests/platform-billing.test.ts tests/platform-subscription-checkout.test.ts
 npm run test:publication
 node --test tests/billing-resume-project.test.mjs tests/settings-autosave-optout.test.mjs
 node --test tests/unified-billing.test.mjs

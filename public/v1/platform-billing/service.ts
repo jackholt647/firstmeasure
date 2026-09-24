@@ -103,7 +103,8 @@ export async function estimate(org:string, period:string, at=now()) {
     if(start>=end) continue;
     const duration=Date.parse(end)-Date.parse(start);
     const lineBase={subscription_id:s.id,product_id:s.product_id,price_id:s.price.id};
-    lines.push({...lineBase,label:s.price.name,meter:null,quantity:"1",included:0,amount_cents:roundRatio(BigInt(s.price.monthly_cents)*BigInt(duration),BigInt(bounds.milliseconds))});
+    // Recurring Stripe fees are prepaid. Only their usage enters the local arrears invoice.
+    if(!s.stripe_subscription_id) lines.push({...lineBase,label:s.price.name,meter:null,quantity:"1",included:0,amount_cents:roundRatio(BigInt(s.price.monthly_cents)*BigInt(duration),BigInt(bounds.milliseconds))});
     for(const rate of s.price.rates) {
       const quantity=await meteredQuantity(org,rate.meter,start,end,bounds.milliseconds);
       // The first partial month receives the full allowance; storage allowance is time prorated.
@@ -151,7 +152,7 @@ export async function applyEntitlements(org:string, values:Record<string,Capabil
   const result={...values};
   for(const p of latest.values()) {
     if(!p.require_subscription || (!p.monthly_cents && !p.rates.some(r=>r.unit_price_micros))) continue;
-    if(!subscriptions.some(s=>s.product_id===p.product_id && s.starts_at<=now() && (!s.ends_at||s.ends_at>now()))) result[p.capability_key]=false;
+    if(!subscriptions.some(s=>s.product_id===p.product_id && s.starts_at<=now() && (!s.ends_at||s.ends_at>now()) && (!s.stripe_subscription_id || (s.paid_through||"")>now()))) result[p.capability_key]=false;
   }
   return result;
 }
@@ -162,7 +163,7 @@ export async function overview(org:string, operator=false, period=now().slice(0,
     record(org,"sync","last")
   ]);
   const late=await billingStore().prepare("SELECT meter,COUNT(*) AS count FROM platform_billing_usage WHERE organization_id=? AND occurred_at<? AND received_at>? GROUP BY meter").all(org,monthBounds(period).end,(invoices.find(i=>i.period===period)?.created_at)||"9999");
-  return {account:account||{enforce:false},prices,subscriptions,invoices:invoices.sort((a,b)=>b.period.localeCompare(a.period)),estimate:estimateValue,storage:usage||null,sync,late_usage:late,meters,operator,
+  return {account:account||{enforce:false},prices,subscriptions,invoices:invoices.sort((a,b)=>b.period.localeCompare(a.period)),recurring_invoices:await records(org,"stripe-invoice"),purchases:(await records<any>(org,"purchase")).filter(p=>!["paid","expired"].includes(p.status)).map(p=>({id:p.id,name:p.price.name,status:p.status,url:p.url})),estimate:estimateValue,storage:usage||null,sync,late_usage:late,meters,operator,
     ...(operator?{capabilities:billableCapabilities().map(c=>({key:c.key,label:c.label})),audit:(await records<any>(org,"audit")).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,100)}:{})};
 }
 export function invoiceKey(org:string, invoice:string) { return createHash("sha256").update(`${org}:${invoice}`).digest("hex"); }

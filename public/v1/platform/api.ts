@@ -10729,6 +10729,7 @@ async function portalStripeWebhookProxy(body: JsonObject) {
   if (liveMode !== !stripeIsTestMode()) return { success: true, ignored: true, reason: "livemode_mismatch", livemode: liveMode, test_mode: stripeIsTestMode() };
   const eventType = cleanText(event.type);
   const object = asObject(asObject(event.data).object);
+  if (await (await import("../platform-billing/subscriptions.js")).subscriptionWebhook(event)) return { success: true, received: true, type: eventType };
   if (eventType === "checkout.session.completed" || eventType === "checkout.session.async_payment_succeeded") {
     const sessionId = cleanText(object.id);
     const expanded = sessionId ? await stripeRetrieveCheckoutSessionExpanded(sessionId) : { success: true, session: object };

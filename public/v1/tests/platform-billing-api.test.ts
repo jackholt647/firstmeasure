@@ -5,17 +5,18 @@ import {createHmac} from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import {access, mkdir} from "node:fs/promises";
+import {stripeBillingFixture} from "./helpers/stripe-billing-fixture.js";
 import {operatorFixtureClient} from "./helpers/platform-fixture.js";
 let app:any, storage:typeof import("../platform/storage.js"), caps:typeof import("../platform/capabilities.js"), billing:typeof import("../platform-billing/storage.js");
 before(async()=>{
   const root=await mkdtemp(path.join(os.tmpdir(),"billing-api-"));
-  Object.assign(process.env,{NODE_ENV:"test",FIRSTMATE_ENV:"test",PLATFORM_HEARTBEAT_DISABLED:"1",WORK_SCHEDULER_DISABLED:"1",EMAIL_OUTBOUND_DISABLED:"1",CUSTOMER_CALL_WORKER_DISABLED:"1",OPENAI_API_KEY:"",PLATFORM_STORAGE_ROOT:path.join(root,"platform"),CRM_STORAGE_ROOT:path.join(root,"crm"),FIRSTMEASURE_STORAGE_ROOT:path.join(root,"measure"),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,"measure/index.sqlite"),MESSAGING_STORAGE_ROOT:path.join(root,"messaging"),PRICEBOOK_STORAGE_ROOT:path.join(root,"pricebook"),V1_LOG_LEVEL:"error",STRIPE_TEST_MODE:"true",STRIPE_SECRET_KEY:"sk_test_billing_fixture",STRIPE_BASE_URL:"https://dev.1m8.ai/portal"});
+  Object.assign(process.env,{NODE_ENV:"test",FIRSTMATE_ENV:"test",PLATFORM_HEARTBEAT_DISABLED:"1",WORK_SCHEDULER_DISABLED:"1",EMAIL_OUTBOUND_DISABLED:"1",CUSTOMER_CALL_WORKER_DISABLED:"1",OPENAI_API_KEY:"",PLATFORM_STORAGE_ROOT:path.join(root,"platform"),CRM_STORAGE_ROOT:path.join(root,"crm"),FIRSTMEASURE_STORAGE_ROOT:path.join(root,"measure"),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,"measure/index.sqlite"),MESSAGING_STORAGE_ROOT:path.join(root,"messaging"),PRICEBOOK_STORAGE_ROOT:path.join(root,"pricebook"),V1_LOG_LEVEL:"error",STRIPE_TEST_WEBHOOK_SECRET:"whsec_billing_fixture",STRIPE_TEST_MODE:"true",STRIPE_SECRET_KEY:"sk_test_billing_fixture",STRIPE_BASE_URL:"https://dev.1m8.ai/portal"});
   app=await (await import("../src/app.js")).buildApp();await app.ready();
   storage=await import("../platform/storage.js");caps=await import("../platform/capabilities.js");billing=await import("../platform-billing/storage.js");
 });
 after(async()=>{await app?.close();await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();});
 async function owner(org:string,expanded=true,permissions?:Record<string,boolean>){
-  await storage.createOrganization({id:org,name:"Billing fixture"});if(expanded)await caps.saveCapabilityValues(org,{"platform.expanded_access":true,"apps.messaging":true});
+  await storage.createOrganization({id:org,name:"Billing fixture"});if(expanded)await caps.saveCapabilityValues(org,{"platform.expanded_access":true,"apps.messaging":true,"apps.assistant":true});
   const identity=await storage.createIdentity({email:`${org}@example.test`,name:"Billing owner"});const user="owner";
   await storage.addIdentityMembership(String(identity.id),org,user,"owner");
   await storage.upsertDocument(org,"users",{id:user,data:{identity_id:identity.id,email:identity.email,status:"active",org_permissions:{level:"owner",items:permissions||{}}}});
@@ -45,7 +46,16 @@ test("operator configures a product; customer explicitly subscribes; collector r
   assert.equal((await customer.raw("GET",base)).json().prices.length,0);
   await operator.request("POST",`${base}/prices/${price.id}/publish`);
   assert.equal((await customer.raw("POST",base+"/subscriptions",{price_id:price.id,request_key:"customer-accept"})).statusCode,400);
-  const response=await customer.raw("POST",base+"/subscriptions",{price_id:price.id,request_key:"customer-accept",accept_terms:true});assert.equal(response.statusCode,200,response.body);
+  assert.equal((await customer.raw("POST",base+"/subscriptions",{price_id:price.id,request_key:"customer-accept",accept_terms:true})).json().error,"billing_checkout_required");
+  const stripeFixture=stripeBillingFixture();try {
+    const quote=(await customer.raw("POST",base+"/subscription-quotes",{price_id:price.id})).json().quote;
+    assert.equal((await customer.raw("POST",base+"/subscription-checkouts",{quote_id:quote.id})).statusCode,400);
+    const response=await customer.raw("POST",base+"/subscription-checkouts",{quote_id:quote.id,accept_terms:true});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().paid,true);
+    const session=[...stripeFixture.sessions.values()][0];const event={id:"evt_platform_fixture",type:"checkout.session.completed",livemode:false,data:{object:session}};
+    const payload=JSON.stringify(event),timestamp=Math.floor(Date.now()/1000),signature=createHmac("sha256","whsec_billing_fixture").update(`${timestamp}.${payload}`).digest("hex");
+    assert.equal((await app.inject({method:"POST",url:"/v1/platform/stripe-webhook-proxy",payload:{payload_base64:Buffer.from(payload).toString("base64"),signature:`t=${timestamp},v1=invalid`}})).statusCode,400);
+    for(let i=0;i<2;i++)assert.equal((await app.inject({method:"POST",url:"/v1/platform/stripe-webhook-proxy",payload:{payload_base64:Buffer.from(payload).toString("base64"),signature:`t=${timestamp},v1=${signature}`}})).json().success,true);
+  } finally {stripeFixture.restore();}
   await (await import("../agents/storage.js")).recordAgentRun({organization_id:"billing_flow",agent_id:"assistant",status:"success",input_tokens:123,output_tokens:45});
   await (await import("../agents/storage.js")).recordAgentRun({organization_id:"billing_flow",agent_id:"live_chat",status:"success",input_tokens:20,output_tokens:10});
   await (await import("../chat/storage.js")).createAiUsageEvent({organization_id:"billing_flow",kind:"agent_turn",model:"fixture",input_tokens:20,output_tokens:10});
@@ -87,7 +97,7 @@ test("browser renders real billing API, accepts subscriptions explicitly and fit
   const paths=[process.env.BILLING_BROWSER_PATH,"C:/Program Files/Google/Chrome/Application/chrome.exe","C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe","/usr/bin/chromium"].filter(Boolean) as string[];
   let executablePath="";for(const item of paths){try{await access(item);executablePath=item;break;}catch{}}
   assert.ok(executablePath,"A browser is required for billing UI acceptance.");
-  const browser=await chromium.launch({executablePath,headless:true});
+  const browser=await chromium.launch({executablePath,headless:true});const stripeFixture=stripeBillingFixture();
   const customer=await owner("billing_browser");const address=await app.listen({host:"127.0.0.1",port:0});
   const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
   try{
@@ -97,10 +107,25 @@ test("browser renders real billing API, accepts subscriptions explicitly and fit
     await page.evaluate(base=>{(window as any).__APP={platformApiBase:base+"/v1/platform"};},address);
     await page.addScriptTag({path:path.resolve("../libraries/platform-api/platform-api.js")});await page.addScriptTag({path:path.resolve("../libraries/apps/settings/platform-billing.js")});
     await page.evaluate(()=> (window as any).FirstMatePlatformBilling.mount(document.querySelector("#billing"),{orgId:"billing_browser"}));
-    await page.getByRole("button",{name:"Subscriptions",exact:true}).click();await page.getByRole("button",{name:"Review & activate"}).click();
+    await page.getByRole("button",{name:"Subscriptions",exact:true}).click();await page.getByRole("button",{name:"Review & add"}).click();
     assert.equal((await billing.records("billing_browser","subscription")).length,0);
-    await page.getByRole("button",{name:"Accept prices & activate"}).click();await page.getByRole("button",{name:"Cancel at month end"}).waitFor();
+    await page.getByRole("heading",{name:"Due today"}).waitFor();
+    assert.match(await page.locator('dialog').innerText(),/Current monthly total/);assert.match(await page.locator('dialog').innerText(),/New monthly total/);
+    await mkdir(path.resolve("../../output/platform-billing-ui"),{recursive:true});await page.screenshot({path:path.resolve("../../output/platform-billing-ui/checkout-desktop.png"),fullPage:true});
+    await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);await page.screenshot({path:path.resolve("../../output/platform-billing-ui/checkout-mobile.png"),fullPage:true});
+    await page.getByRole("button",{name:"Continue to checkout"}).click();await page.getByRole("button",{name:"Cancel renewal"}).waitFor();
     assert.equal((await billing.records("billing_browser","subscription")).length,1);
+    const setupPrice=await (await import("../platform-billing/service.js")).createPrice({product_id:"browser_sms",name:"SMS",description:"Customer text messaging",capability_key:"apps.messaging",monthly_cents:3000},"operator");
+    await (await import("../platform-billing/service.js")).publishPrice(setupPrice.id,"operator");
+    await page.evaluate(`(async()=>{
+      await window.PlatformAPI.appFlags.load("billing_browser",{refresh:true});
+      await window.FirstMatePlatformBilling.setup(document.querySelector('#billing'),{orgId:"billing_browser",capabilityKeys:['apps.messaging'],onReady:()=>{document.querySelector('#billing').textContent='SMS setup ready';}});
+    })()`);
+    await page.getByRole('button',{name:'Review & add',exact:true}).click();await page.getByRole('heading',{name:'Due today'}).waitFor();
+    const review=await page.locator('dialog').innerText();assert.match(review,/\$12\.00/);assert.match(review,/\$42\.00/);assert.match(review,/\$15\.00/);
+    await page.screenshot({path:path.resolve("../../output/platform-billing-ui/addon-mobile.png"),fullPage:true});
+    await page.getByRole('button',{name:'Pay $15.00 & add'}).click();await page.getByText('SMS setup ready',{exact:true}).waitFor();
+    await page.evaluate(()=> (window as any).FirstMatePlatformBilling.mount(document.querySelector("#billing"),{orgId:"billing_browser"}));
     await page.getByRole("button",{name:"Overview",exact:true}).click();
     await mkdir(path.resolve("../../output/platform-billing-ui"),{recursive:true});
     await page.screenshot({path:path.resolve("../../output/platform-billing-ui/desktop.png"),fullPage:true});
@@ -122,5 +147,5 @@ test("browser renders real billing API, accepts subscriptions explicitly and fit
     const product=(await (await import("../platform-billing/service.js")).catalog()).find(p=>p.product_id==="browser_piece");assert.equal(product?.rates[0]?.unit_price_micros,100);
     await page.screenshot({path:path.resolve("../../output/platform-billing-ui/catalog.png"),fullPage:true});
     assert.deepEqual(errors,[]);
-  }finally{await browser.close();}
+  }finally{stripeFixture.restore();await browser.close();}
 });

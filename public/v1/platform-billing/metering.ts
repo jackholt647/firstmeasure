@@ -53,8 +53,8 @@ export async function sweepBilling() {
   for(const row of rows) {
     const org=String(row.organization_id);
     try {
-      const sync=await collectUsage(org); if(!("complete" in sync) || !sync.complete) continue;
       await reconcilePayments(org,"billing-scheduler");
+      const sync=await collectUsage(org); if(!("complete" in sync) || !sync.complete) continue;
       const subscriptions=await records<Subscription>(org,"subscription");
       if(!subscriptions.length) continue;
       let month=subscriptions.map(s=>s.starts_at.slice(0,7)).sort()[0]!;

@@ -1489,6 +1489,7 @@
         org_id: orgId,
         enabled: normalizeEnabled(result?.enabled),
         raw: result?.raw && typeof result.raw === 'object' ? result.raw : {},
+        available: result?.available && typeof result.available === 'object' ? result.available : {},
         raw_variants: result?.raw_variants && typeof result.raw_variants === 'object' ? result.raw_variants : {},
         effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
         effective_variants: result?.effective_variants && typeof result.effective_variants === 'object' ? result.effective_variants : {},

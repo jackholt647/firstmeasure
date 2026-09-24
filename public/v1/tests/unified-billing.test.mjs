@@ -20,6 +20,15 @@ test('an enabled platform app or newly registered feature enables the combined s
 test('expanded access and the dedicated billing switch remain required',()=>{
   for(const disabled of ['platform.expanded_access','platform.platform_billing']) assert.equal(fixture({'platform.expanded_access':true,'platform.platform_billing':true,'apps.assistant':true,[disabled]:false}).FirstMatePlatformBilling.isEnabled(),false);
 });
+
+test('commercially locked configured apps retain a checkout entry; a disabled rollout does not',()=>{
+  const root=fixture({'platform.expanded_access':true,'platform.platform_billing':true});
+  root.PlatformAPI.appFlags.current=()=>({definitions,available:{apps:{assistant:true}}});
+  assert.equal(root.FirstMatePlatformBilling.isEnabled(),true);
+  assert.equal(root.FirstMatePlatformBilling.configured('apps','assistant'),true);
+  root.PlatformAPI.appFlags.has=()=>false;
+  assert.equal(root.FirstMatePlatformBilling.isEnabled(),false);
+});
 test('search uses the single Billing destination and hides platform entries when features are off',()=>{
   const enabled=fixture({'platform.expanded_access':true,'platform.platform_billing':true,'apps.assistant':true});
   const matches=enabled.FirstMateSettingsSearch.search('usage charges');assert.equal(matches.length,1);assert.equal(matches[0].section,'billing');assert.equal(matches[0].tab,'Billing');

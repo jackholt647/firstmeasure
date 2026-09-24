@@ -5,11 +5,11 @@ import { billingStore, record, put } from "./storage.js";
 import { audit, invoiceKey } from "./service.js";
 import type { Invoice } from "./model.js";
 
-async function stripe(method:string, route:string, fields:Record<string,string>={}, key="") {
+export async function stripe(method:string, route:string, fields:Record<string,string>={}, key="") {
   const secret=env.stripeSecretKey || (env.stripeTestMode?env.stripeTestSecretKey:env.stripeLiveSecretKey);
   if(!secret) throw badRequest("billing_payments_unconfigured","Stripe is not configured for this environment.");
   if(env.dataEnvironment!=="production" && (!env.stripeTestMode || !secret.startsWith("sk_test_"))) throw badRequest("billing_test_mode_required","Development billing requires a Stripe test key.");
-  const response=await fetch(`https://api.stripe.com/v1/${route}`,{method,headers:{Authorization:`Bearer ${secret}`,"Content-Type":"application/x-www-form-urlencoded",...(key?{"Idempotency-Key":key}:{})},...(method==="POST"?{body:new URLSearchParams(fields)}:{}),signal:AbortSignal.timeout(15000)});
+  const response=await fetch(`https://api.stripe.com/v1/${route}`,{method,headers:{Authorization:`Bearer ${secret}`,"Content-Type":"application/x-www-form-urlencoded","Stripe-Version":"2025-06-30.basil",...(key?{"Idempotency-Key":key}:{})},...(method==="POST"?{body:new URLSearchParams(fields)}:{}),signal:AbortSignal.timeout(15000)});
   const data=await response.json() as any;
   if(!response.ok) throw badRequest("billing_provider_error",data.error?.message||"Payment provider request failed.");
   return data;
@@ -73,6 +73,7 @@ async function settle(org:string, invoice:Invoice, session:any, actor:string) {
   await put(org,"invoice",invoice.id,invoice); await audit(org,"invoice.paid",actor,{period:invoice.id,payment_id:invoice.payment_id});
 }
 export async function reconcilePayments(org:string, actor:string) {
+  await (await import("./subscriptions.js")).reconcileSubscriptions(org,actor);
   const {records}=await import("./storage.js");
   for(const invoice of await records<Invoice>(org,"invoice")) if(invoice.status==="open" && invoice.checkout_id) {
     const session=await stripe("GET",`checkout/sessions/${encodeURIComponent(invoice.checkout_id)}`);
