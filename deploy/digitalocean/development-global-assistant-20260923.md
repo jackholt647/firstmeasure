@@ -1,6 +1,7 @@
 # Global assistant development release — September 23, 2026
 
-Development release: `05df16b68c2a8a0a4d680a360cb37fd8316c7578`.
+Current development release: `d885489a08e42dacedfa9b8fc4e9275db005bc44`.
+Initial release: `05df16b68c2a8a0a4d680a360cb37fd8316c7578`.
 Production was not changed.
 
 The global assistant now composes platform, organization and user instructions;
@@ -70,3 +71,21 @@ bootstrap code. A replacement node can reintroduce old code. Update its
 development-only image or signed release bootstrap and rehearse a new node
 before treating this deployment as durable across scaling. This image and
 pool configuration were not changed by this release.
+
+## Follow-up: case-insensitive history search
+
+`d885489a08e42dacedfa9b8fc4e9275db005bc44` makes older-conversation
+search case insensitive on PostgreSQL and adds a direct test of the agent's
+save/forget memory tools. Eleven assistant tests passed locally and on the
+development Linux build, along with the type check and publication suite.
+The follow-up compiled runtime contained 22,287 files; archive SHA-256 was
+`39ad7a0202358628f2ec464dffb71592875ad0564bf371ecd455ca3c0bdbc8f2`.
+
+All four roles were staged from the exact `05df16b` source baseline and
+activated sequentially. The second web node rejoined the load balancer before
+the first was switched. Role-local verification passed everywhere. Eleven
+public readiness samples hit both web nodes (`do-598520065` seven times and
+`do-603124965` four times); all returned `d885489`, development data and
+enforced outbound isolation. Both served UI assets retained the committed
+hashes. The OpenAI credential remained outside the release and a live
+`gpt-6-luna` Responses call completed from each web node after activation.

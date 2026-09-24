@@ -1,6 +1,6 @@
 # FirstMeasure: local development and production deployment
 
-September 23 global assistant: [Central instructions and user memory](deploy/digitalocean/development-global-assistant-20260923.md) records development release `05df16b68c2a8a0a4d680a360cb37fd8316c7578` on compatibility, worker and both serving web nodes. Both public instances reported the release with enforced development isolation. The development autoscale image remains historical; production is unchanged.
+September 23 global assistant: [Central instructions and user memory](deploy/digitalocean/development-global-assistant-20260923.md) records development release `d885489a08e42dacedfa9b8fc4e9275db005bc44` on compatibility, worker and both serving web nodes. Both public instances reported the release with enforced development isolation, and live GPT-6 Luna calls completed from both. The development autoscale image remains historical; production is unchanged.
 
 September 23 rectangle selection: [Point-buffer updates and shared picking](deploy/digitalocean/development-marquee-selection-20260923.md) records `33969f09f82127ea94e4bca6f9b5c8d63bb97819` on all development roles. Point-only rectangles update marker buffers and SVG markers without rebuilding geometry. All 510 combined checks passed; public script hashes and local role readiness are verified. Public readiness alternates between this release and `a66efdc`, recorded as unresolved backend routing/runtime drift. The three-script delta preserves `9ca5242`; production is unchanged.
 
