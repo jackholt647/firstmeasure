@@ -173,3 +173,17 @@ The single-script web delta preserves `582b498` as rollback. Both web nodes
 use guarded activation and exact-release readiness. Script SHA-256:
 `9c9699b00741e21c161923338cb9b67cf8f134eca08d9430bfb13162179b37df`.
 No native APK, backend, worker, compatibility, or production changes.
+
+
+## Compact shutter and grouped photo summary
+
+Source `3c58d45`, integrated release `cefc0f3db9ed0ec02eb69fbc0ebb8e2bc40bcfdd`.
+
+- Removed the visible shutter caption while retaining its accessible name; camera gains the freed height.
+- Mobile photo summary reuses the capture tiles in responsive four-column grids grouped by house and angle, plus Additional photos. Primary selection, upload spinner, retry and circular delete controls are shared.
+- Kept the large additional upload target at the top and preserved native chooser behavior.
+- Unavailable photo-summary Next remains grey but accepts activation to explain missing angles, upload failures, pending uploads or unassigned photos. Navigation remains gated.
+- Seven camera/browser checks and eleven state/navigation checks passed, including primary switching, pending captures, four-column wrapping, square controls and missing-angle feedback.
+- Targeted two-script rollout on both dev web nodes preserves runtime baseline `418cb77b52bcf933c93693f13621e27bba8ea409`. No native rebuild required; production unchanged.
+
+Both serving nodes passed development readiness with the new release ID. Public SHA-256 checks matched both committed scripts.
