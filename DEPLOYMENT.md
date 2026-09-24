@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 recurring subscriptions: [Automatic billing, configurable tiers and allowances](deploy/digitalocean/development-subscription-service-20260924.md) records billing release `91046fca06b533a381223366db14161ab78779d9`. Stripe checkout, prorated upgrades, cancellation/resumption, saved-card recovery, SMS caps and storage upgrades share the Billing workspace. SMS is $30/1,000 or $100/provisional 5,000 messages, with custom Enterprise. Production is unchanged.
+
 September 24 FirstMeasure billing fit: [History-only scrolling and visible monthly statement](deploy/digitalocean/development-billing-scroll-20260924.md) records `0068a9616c31d82ad74f3f3d1e58771a49ad308c` on development web and compatibility. Five deployed viewport checks confirmed no outer page overflow, independently scrolling history, and visible statement actions. Public readiness and asset hashes passed; production is unchanged.
 
 September 24 cohesive Billing: [Unified billing workspace and monthly statement](deploy/digitalocean/development-billing-workspace-20260924.md) records `3dc59abd3edadbc211ba3e00433d377bb943b1d3` on both development web nodes and compatibility. One responsive customer UI integrates credits, subscriptions, usage, auto-top-up, history and CSV; the FirstMeasure-only fallback is preserved. Fourteen focused checks, deployed browser checks and public hashes/readiness passed. Production is unchanged.
