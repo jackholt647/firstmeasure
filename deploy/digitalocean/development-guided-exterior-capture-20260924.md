@@ -187,3 +187,7 @@ Source `3c58d45`, integrated release `cefc0f3db9ed0ec02eb69fbc0ebb8e2bc40bcfdd`.
 - Targeted two-script rollout on both dev web nodes preserves runtime baseline `418cb77b52bcf933c93693f13621e27bba8ea409`. No native rebuild required; production unchanged.
 
 Both serving nodes passed development readiness with the new release ID. Public SHA-256 checks matched both committed scripts.
+
+## Directional overview and shutter containment
+
+Source 18d915b restores the eight-direction primary-photo diagram below the additional upload target and additional thumbnail grid. Completion headings are removed; grouped angle tiles remain below the diagram. Footer padding contains the full shutter outline. Seven browser regressions pass, including diagram presence, ordering and shutter containment. The one-file development delta preserves the concurrent d224b18a43316b6a64d22b469cb2baca0775ff86 baseline. Production is unchanged.
