@@ -1,6 +1,21 @@
 # Forward setup modal follow-up (development, 2026-09-24)
 
-Both serving development web nodes (`do-598520065`, `do-603124965`) run
+## Completion copy update
+
+Both development web nodes now run `d7437b8caa5993ee5406aeb949f36a82a1495fb3`.
+This release copied the then-current live release
+`63db2b3989acf39b5bcd3c720aabe33703edd565` and replaced only
+`public/portal/payments-setup-complete.html`. The page now says **Payment
+application submitted** and **Your application is under review. We will notify
+you once it has been processed.** The **Close window** action remains.
+Both nodes passed `verify-node.sh` and the public page returned HTTP 200 with
+the exact copy, with no Forward or bank-account wording. Production was not
+changed. To roll back this copy, switch both nodes to the `63db2b` release
+above and restart the development web service and PHP-FPM.
+
+## Initial modal change
+
+Both serving development web nodes (`do-598520065`, `do-603124965`) ran
 `7769ec15fd6f60ddf14336041b9a85046d4e4263`, based on the previously
 serving `f48e7b2ae384aa162caab106f7dc978913a368b0`. This is a targeted
 web/API delta; the staged runtime carried forward the exact live portal files,
