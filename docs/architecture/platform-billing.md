@@ -2,8 +2,9 @@
 
 Company Settings has one **Billing** tab. It contains the existing FirstMeasure
 credit, auto top-up and monthly statement controls, plus a **Subscriptions &
-usage** section when the user has an enabled expanded-platform feature and
-platform billing permission. With all platform features disabled, only the
+usage** section when the user has a configured expanded-platform feature and
+platform billing permission, including paid features awaiting checkout. With
+all platform features disabled, only the
 original FirstMeasure view is rendered. The billing switch itself and numeric
 configuration values do not count as enabled platform features. Search uses
 the single Billing destination; old `sub=platform_billing` links remain aliases.
@@ -29,10 +30,11 @@ only one product to prevent overlapping charges.
 
 Customers explicitly review and accept a published price. The subscription retains
 the full price snapshot and acceptance actor/time. New catalog versions never
-change that agreement. The first month's base fee is prorated by elapsed time;
-subsequent months renew until cancelled. Cancellation takes effect at the end of
-the current UTC calendar month. After cancellation, another version can be chosen.
-The initial release uses monthly USD billing; annual periods, tiered rates and
+change that agreement. New subscriptions prepay their first month and renew on
+the monthly anniversary; add-ons are prorated to that date. Cancellation retains
+access through the paid period. Legacy arrears subscriptions keep their UTC
+calendar-month contract. After cancellation ends, another version can be chosen.
+Billing uses monthly USD prices; annual periods, tiered rates and
 tax calculation are separate future extensions.
 
 Commercial access checks are explicitly enabled per organization. Until enabled,
@@ -41,8 +43,9 @@ marked as requiring a subscription masks its capability when no subscription is
 active. Existing parent/dependency resolution, rollout audiences and user
 permissions still apply. Buying a subscription does not grant a user permission
 or enable an operator-disabled app. Agent runtime entry points also check their
-registered capability for background runs. This release does not automatically
-suspend customers based on unpaid invoices.
+registered capability for background runs. An unpaid Stripe renewal does not
+extend paid access. Legacy subscriptions and usage invoices retain their existing
+access policy.
 
 Operators use the existing deployment-owned test-organization/email allowlist;
 ordinary organization administrators cannot edit prices or enable commercial

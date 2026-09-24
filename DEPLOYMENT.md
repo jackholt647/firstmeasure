@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 subscription checkout: [Stripe checkout and prorated add-ons](deploy/digitalocean/development-subscription-checkout-20260924.md) records release `f48e7b2ae384aa162caab106f7dc978913a368b0` on all four development roles. Shared Billing/SMS/Assistant review, immediate incremental payment, recurring collection and verified activation passed browser, PostgreSQL and Stripe sandbox checks. The existing dev webhook now receives subscription/invoice events. Test Company remains on its concurrently reset FirstMeasure defaults; production is unchanged.
+
 September 24 platform billing: [Configurable subscriptions, usage and invoices](deploy/digitalocean/development-platform-billing-20260924.md) records billing source `295f63e9c0a80368a2a94fdc784b52e26ff85b89` and portal entry-point follow-up `adfb2cf324020cd48959d62573beb7be351c9fdc` on development. Test Company operator access is configured; prices and customer enrollment remain empty. The release preserves concurrent mobile, registry and banner work. FirstMeasure billing and production are unchanged. The existing development autoscale image limitation remains.
 
 September 24 mobile report order flow: [Shared Location, Details, Photos and Review pager](deploy/digitalocean/development-mobile-order-flow-20260924.md) records final development web release `252d73ebb6acaa56c4c09a6a5fa31e208d35cd74` on both serving nodes, preserving the concurrent signup sandbox repair. Both scripts and local readiness were verified; production is unchanged.
