@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 23 global assistant: [Central instructions and user memory](deploy/digitalocean/development-global-assistant-20260923.md) records development release `05df16b68c2a8a0a4d680a360cb37fd8316c7578` on compatibility, worker and both serving web nodes. Both public instances reported the release with enforced development isolation. The development autoscale image remains historical; production is unchanged.
+
 September 23 rectangle selection: [Point-buffer updates and shared picking](deploy/digitalocean/development-marquee-selection-20260923.md) records `33969f09f82127ea94e4bca6f9b5c8d63bb97819` on all development roles. Point-only rectangles update marker buffers and SVG markers without rebuilding geometry. All 510 combined checks passed; public script hashes and local role readiness are verified. Public readiness alternates between this release and `a66efdc`, recorded as unresolved backend routing/runtime drift. The three-script delta preserves `9ca5242`; production is unchanged.
 
 September 23 shared overlay allowance: [Six pixels for lines and points](deploy/digitalocean/development-overlay-depth-six-20260923.md) records `9ca524208bd8d86826ffac40405065fdd108b3ba` on all development roles. Both use six pixels, with point markers retaining higher drawing order. All 52 focused checks and public verification passed. The one-script delta preserves `9d132fa`; production is unchanged.
