@@ -2152,7 +2152,9 @@
       .pac-item:hover,.pac-item-selected{background:#f5f8fc!important}
       @keyframes rMobileNeedShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
       .r-overlay.mobile-order .r-mobile-needs-attention{animation:rMobileNeedShake .32s ease;border-color:rgba(180,35,24,.42)!important;box-shadow:0 0 0 3px rgba(180,35,24,.08)!important}
-      .r-overlay.mobile-order.mobile-order-location #rStepCustomer,
+      .r-overlay.mobile-order.mobile-order-location #rStepCustomer > .r-step-shell > .r-step-inner > .r-step-body > .r-group,
+      .r-overlay.mobile-order.mobile-order-location #rProjectCustomFields,
+      .r-overlay.mobile-order.mobile-order-location #rCustomerPortalLinkMount,
       .r-overlay.mobile-order.mobile-order-location #rPinInfo,
       .r-overlay.mobile-order.mobile-order-location #rRoofReportFields > .r-group,
       .r-overlay.mobile-order.mobile-order-location #rRoofReportFields > .r-addon-toggle,
