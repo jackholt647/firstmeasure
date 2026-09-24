@@ -42,7 +42,7 @@ export async function publishPrice(priceId:string, actor:string) {
 export async function setAccount(org:string, enforce:boolean, actor:string) {
   return billingStore().transaction(async()=>{
     const current = await record<Account>(org,"account","account");
-    const value:Account = { enforce, actor, created_at:current?.created_at || now(), updated_at:now() };
+    const value:Account = { ...current, enforce, actor, created_at:current?.created_at || now(), updated_at:now() };
     await put(org,"account","account",value); await audit(org,"account.updated",actor,value); return value;
   },org);
 }
@@ -154,6 +154,8 @@ export async function applyEntitlements(org:string, values:Record<string,Capabil
     if(!p.require_subscription || (!p.monthly_cents && !p.rates.some(r=>r.unit_price_micros))) continue;
     if(!subscriptions.some(s=>s.product_id===p.product_id && s.starts_at<=now() && (!s.ends_at||s.ends_at>now()) && (!s.stripe_subscription_id || (s.paid_through||"")>now()))) result[p.capability_key]=false;
   }
+  const storageLimit=await (await import("./storage-allowance.js")).storageAllowance(org);
+  if(storageLimit!==null && values["platform.storage_limits"]===true)result["platform.free_storage_gb"]=storageLimit/1073741824;
   return result;
 }
 export async function overview(org:string, operator=false, period=now().slice(0,7)) {
@@ -163,7 +165,7 @@ export async function overview(org:string, operator=false, period=now().slice(0,
     record(org,"sync","last")
   ]);
   const late=await billingStore().prepare("SELECT meter,COUNT(*) AS count FROM platform_billing_usage WHERE organization_id=? AND occurred_at<? AND received_at>? GROUP BY meter").all(org,monthBounds(period).end,(invoices.find(i=>i.period===period)?.created_at)||"9999");
-  return {account:account||{enforce:false},prices,subscriptions,invoices:invoices.sort((a,b)=>b.period.localeCompare(a.period)),recurring_invoices:await records(org,"stripe-invoice"),purchases:(await records<any>(org,"purchase")).filter(p=>!["paid","expired"].includes(p.status)).map(p=>({id:p.id,name:p.price.name,status:p.status,url:p.url})),estimate:estimateValue,storage:usage||null,sync,late_usage:late,meters,operator,
+  return {storage_allowance:await (await import("./storage-allowance.js")).storageAllowance(org),sms_allowance:await (await import("./allowances.js")).smsAllowance(org),account:account||{enforce:false},payment_details:await record(org,"payment-details","current"),has_customer:!!await record(org,"stripe-account","account"),collection_status:await records(org,"collection-status"),prices,subscriptions,invoices:invoices.sort((a,b)=>b.period.localeCompare(a.period)),recurring_invoices:await records(org,"stripe-invoice"),purchases:(await records<any>(org,"purchase")).filter(p=>!["paid","expired"].includes(p.status)).map(p=>({id:p.id,name:p.price.name,status:p.status,url:p.url})),estimate:estimateValue,storage:usage||null,sync,late_usage:late,meters,operator,
     ...(operator?{capabilities:billableCapabilities().map(c=>({key:c.key,label:c.label})),audit:(await records<any>(org,"audit")).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,100)}:{})};
 }
 export function invoiceKey(org:string, invoice:string) { return createHash("sha256").update(`${org}:${invoice}`).digest("hex"); }

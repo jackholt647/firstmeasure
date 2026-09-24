@@ -6148,7 +6148,7 @@
       const orgId = currentOrgId();
       paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
-        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
+        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
         const profile = profiles[0] || smsPrefillProfile({}, setup);
@@ -11979,42 +11979,17 @@
       }
       renderCallWorkflowWorkspace();
     }
-    function openStorageCheckoutModal(){
-      document.getElementById('storageCheckoutModal')?.remove();
-      const back = document.createElement('div');
-      back.id = 'storageCheckoutModal';
-      back.className = 'storage-checkout-backdrop';
-      back.innerHTML = `
-        <div class="storage-checkout-modal" role="dialog" aria-modal="true" aria-labelledby="storageCheckoutTitle">
-          <div class="storage-checkout-head">
-            <div>
-              <strong id="storageCheckoutTitle">${(globalThis.PlatformLanguage?.text("settings","m_fd0221a1d87d1d","Get More Storage") ?? "Get More Storage")}</strong>
-              <span>${(globalThis.PlatformLanguage?.text("settings","m_eba5a2ca652c52","Storage checkout options will appear here.") ?? "Storage checkout options will appear here.")}</span>
-            </div>
-            <button type="button" class="storage-checkout-close" data-storage-checkout-close aria-label="${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
-          </div>
-          <div class="storage-checkout-body">${(globalThis.PlatformLanguage?.text("settings","m_66ecec49f56389","Checkout placeholder") ?? "Checkout placeholder")}</div>
-      </div>`;
-      document.body.appendChild(back);
-      let modalHandle = null;
-      const close = () => {
-        modalHandle?.unregister?.();
-        modalHandle = null;
-        back.remove();
-      };
-      back.querySelector('[data-storage-checkout-close]')?.addEventListener('click', close);
-      modalHandle = window.Portal?.modals?.register?.(back, {
-        id: 'company-storage-checkout',
-        closeOnEscape: true,
-        closeOnBackdrop: true,
-        onClose: close
-      }) || null;
+    async function openStorageCheckoutModal(){
+      const billing=window.FirstMatePlatformBilling;
+      if(!billing?.isEnabled() || !canPlatformBilling){ window.alert('Ask a billing administrator to enable storage subscriptions for your organization.');return; }
+      try { if(await billing.choose({orgId:currentOrgId(),productId:'storage'}))await renderStorage(); }
+      catch(error){ window.alert(error.message || 'Could not load storage plans.'); }
     }
     async function renderStorage(){
       if (!paneStorage) return;
       const orgId = String(window.__APP?.userOrgId || '').trim();
       const limitBytes = storageLimitBytes();
-      const purchasable = purchasableStorageEnabled();
+      const purchasable = purchasableStorageEnabled() || window.FirstMatePlatformBilling?.configured('platform','purchasable_storage');
       paneStorage.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8ab7baf4c8b004","Loading media storage usage...") ?? "Loading media storage usage...")}</p></div>`;
       let usage = null;
       try {

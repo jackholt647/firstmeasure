@@ -49,7 +49,7 @@ test('camera stays mounted across captures; newest is primary, extras persist an
  assert.equal(await page.locator('.ext-summary-guide').count(),1);
  assert.equal(await page.evaluate(()=>liveTrack.readyState),'ended');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.mobilePhotosReady()),false);
- await page.click('[data-view="0:left"]');
+ await page.locator('[data-view="0:left"]').first().click();
  assert.equal(await page.locator('[data-guide-title]').textContent(),'Left of House');
  await page.screenshot({path:process.env.TEMP+'/firstmate-guided-camera.png'});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
@@ -102,6 +102,9 @@ test('capture fills the screen, keeps three navigation buttons anchored and uses
  await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
  const bottom=await page.locator('.ext-guide-footer').boundingBox();
  const camera=await page.locator('.ext-camera').boundingBox();
+ const shutter=await page.locator('[data-guide-capture]').boundingBox();
+ const scroll=await page.locator('.r-scroll').boundingBox();
+ assert.ok(shutter.y+shutter.height+2<=scroll.y+scroll.height,'entire shutter outline fits inside scroll clipping boundary');
  await page.screenshot({path:process.env.TEMP+'/firstmate-capture-layout.png'});
  assert.ok(bottom.y+bottom.height>830 && bottom.y+bottom.height<=844,JSON.stringify({bottom,camera}));
  assert.ok(camera.height>400,JSON.stringify(camera));
@@ -121,7 +124,7 @@ test('capture fills the screen, keeps three navigation buttons anchored and uses
  assert.equal(await chooser.element().getAttribute('capture'),null);
  assert.equal(chooser.isMultiple(),true);await chooser.setFiles([]);
  await page.screenshot({path:process.env.TEMP+'/firstmate-additional-layout.png'});
- await page.click('[data-view="0:front"]');await page.setViewportSize({width:320,height:640});
+ await page.locator('[data-view="0:front"]').first().click();await page.setViewportSize({width:320,height:640});
  const small=await page.locator('.ext-guide-footer').boundingBox();assert.ok(small.y+small.height<=640&&small.y+small.height>625);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
 });
@@ -174,6 +177,10 @@ test('summary uses four square columns, grouped primary selection, and missing-a
  for(let i=0;i<6;i++)await page.click('[data-guide-capture]');
  await page.waitForFunction(()=>Portal.test.files.size===6&&[...Portal.test.files.values()].every(f=>f.media_id));
  await page.evaluate(()=>{document.getAnimations().forEach(a=>a.finish());Portal.test.finishGuide();});
+ assert.equal(await page.locator('.ext-photo-grid [data-view]').count(),8);
+ assert.equal(await page.locator('.ext-photo-summary-head,.ext-count').count(),0);
+ assert.equal(await page.locator('[data-summary-tiles=""]').count(),1);
+ assert.equal(await page.locator('.ext-summary-guide').evaluate(el=>{const extra=el.querySelector('[data-summary-tiles=""]'),diagram=el.querySelector('.ext-photo-grid');return !!(extra.compareDocumentPosition(diagram)&Node.DOCUMENT_POSITION_FOLLOWING);}),true);
  const grid=page.locator('[data-summary-tiles="0:front"]');
  assert.equal(await grid.locator('.ext-photo-tile').count(),6);
  const boxes=await grid.locator('.ext-photo-tile').evaluateAll(els=>els.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));

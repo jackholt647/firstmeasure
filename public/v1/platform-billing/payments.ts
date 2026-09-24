@@ -82,4 +82,5 @@ export async function reconcilePayments(org:string, actor:string) {
       if(current?.status==="open") await settle(org,current,session,actor);
     },org);
   }
+  await (await import("./collection.js")).collectOpenInvoices(org);
 }

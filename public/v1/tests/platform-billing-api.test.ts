@@ -78,7 +78,8 @@ test("Stripe checkout retries reuse a session; settlement validates org, amount 
     return new Response(JSON.stringify({id:"cs_test_fixture",url:"https://checkout.stripe.com/test",status:"open",payment_status:paid?"paid":"unpaid",livemode:false,currency:"usd",amount_total:wrong?1251:1250,payment_intent:"pi_test_fixture",metadata:{billing_kind:"platform_invoice",organization_id:"billing_pay",invoice_id:"2020-01"}}),{status:200,headers:{"content-type":"application/json"}});
   }) as typeof fetch;
   try {
-    for(let i=0;i<2;i++){const r=await customer.raw("POST",base+"/invoices/2020-01/checkout");assert.equal(r.statusCode,200,r.body);}assert.equal(creates,1);
+    const blocked=await customer.raw("POST",base+"/invoices/2020-01/checkout");assert.equal(blocked.statusCode,400);assert.equal(blocked.json().error,"billing_automatic_collection");
+    for(let i=0;i<2;i++)await (await import("../platform-billing/payments.js")).checkout("billing_pay","2020-01","legacy-recovery-test");assert.equal(creates,1);
     paid=true;wrong=true;const payments=await import("../platform-billing/payments.js");await assert.rejects(payments.reconcilePayments("billing_pay","test"),{code:"billing_payment_mismatch"});
     assert.equal((await billing.record<any>("billing_pay","invoice","2020-01")).status,"open");
     wrong=false;await payments.reconcilePayments("billing_pay","test");await payments.reconcilePayments("billing_pay","test");
@@ -124,7 +125,7 @@ test("browser renders real billing API, accepts subscriptions explicitly and fit
     await page.getByRole('button',{name:'Review & add',exact:true}).click();await page.getByRole('heading',{name:'Due today'}).waitFor();
     const review=await page.locator('dialog').innerText();assert.match(review,/\$12\.00/);assert.match(review,/\$42\.00/);assert.match(review,/\$15\.00/);
     await page.screenshot({path:path.resolve("../../output/platform-billing-ui/addon-mobile.png"),fullPage:true});
-    await page.getByRole('button',{name:'Pay $15.00 & add'}).click();await page.getByText('SMS setup ready',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Pay $15.00 & confirm'}).click();await page.getByText('SMS setup ready',{exact:true}).waitFor();
     await page.evaluate(()=> (window as any).FirstMatePlatformBilling.mount(document.querySelector("#billing"),{orgId:"billing_browser"}));
     await page.getByRole("button",{name:"Overview",exact:true}).click();
     await mkdir(path.resolve("../../output/platform-billing-ui"),{recursive:true});

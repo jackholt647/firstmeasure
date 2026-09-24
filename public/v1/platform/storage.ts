@@ -1638,7 +1638,7 @@ export async function storeMediaUpload(orgId: string, input: MediaUploadOptions)
 
   const storedOriginalName = `original.${ext}`;
   const originalRelativePath = `original/${storedOriginalName}`;
-  await writeFile(path.join(originalDir, storedOriginalName), input.bytes);
+  const pendingWrites: {path:string;bytes:Buffer}[] = [{path:path.join(originalDir, storedOriginalName),bytes:input.bytes}];
 
   const variants: Record<string, MediaVariant> = {};
   variants.original = {
@@ -1675,7 +1675,7 @@ export async function storeMediaUpload(orgId: string, input: MediaUploadOptions)
           format,
           quality: settings.compression.quality
         });
-        await writeFile(path.join(renditionsDir, fileName), generated.bytes);
+        pendingWrites.push({path:path.join(renditionsDir, fileName),bytes:generated.bytes});
         variants[variantName] = {
           path: `renditions/${fileName}`,
           content_type: contentTypeForFormat(format),
@@ -1698,7 +1698,7 @@ export async function storeMediaUpload(orgId: string, input: MediaUploadOptions)
             format,
             quality: settings.thumbnails.quality
           });
-          await writeFile(path.join(renditionsDir, fileName), generated.bytes);
+          pendingWrites.push({path:path.join(renditionsDir, fileName),bytes:generated.bytes});
           variants[variantName] = {
             path: `renditions/${fileName}`,
             content_type: contentTypeForFormat(format),
@@ -1714,6 +1714,9 @@ export async function storeMediaUpload(orgId: string, input: MediaUploadOptions)
     }
   }
 
+  const { withStorageAllowance } = await import("../platform-billing/storage-allowance.js");
+  return withStorageAllowance(orgId, mediaId, Object.values(variants).reduce((sum,v)=>sum+Number(v.size_bytes||0),0), async()=>{
+  for(const file of pendingWrites)await writeFile(file.path,file.bytes);
   const now = nowIso();
   const markup = await writeInitialMarkup(normalizedOrgId, mediaId, input.markup);
   const metadata = {
@@ -1755,6 +1758,7 @@ export async function storeMediaUpload(orgId: string, input: MediaUploadOptions)
 
   await writeJsonAtomic(mediaMetadataPath(normalizedOrgId, mediaId), metadata);
   return metadata;
+  });
 }
 
 async function renderImageVariant(

@@ -47,7 +47,7 @@ export async function collectUsage(org:string) {
   const result={enrolled:true,complete,at:new Date().toISOString()}; await put(org,"sync","last",result); return result;
 }
 
-/** Runs from the existing leased heartbeat; finalization never sends a payment. */
+/** Runs from the leased heartbeat; accepted subscriptions use automatic collection. */
 export async function sweepBilling() {
   const rows=await billingStore().prepare("SELECT organization_id FROM platform_billing_records WHERE kind='account' AND id='account'").all();
   for(const row of rows) {
@@ -63,6 +63,7 @@ export async function sweepBilling() {
         const bounds=monthBounds(month);
         if(Date.now()<Date.parse(bounds.end)+72*3600000) break;
         await finalizeInvoice(org,month,"billing-scheduler");
+        await (await import("./collection.js")).collectInvoice(org,month);
         month=bounds.end.slice(0,7);
       }
     } catch(error) {
