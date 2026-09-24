@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 24 mobile report order flow: [Shared Location, Details, Photos and Review pager](deploy/digitalocean/development-mobile-order-flow-20260924.md) records development web release `ed8d1ee4cf474aece20306abf276203afa18d7b3` on both serving nodes. Both scripts and local readiness were verified; production is unchanged.
+
 September 24 signup sandbox: [Shared development storage repair](deploy/digitalocean/development-signup-sandbox-storage-20260924.md) records `0f1fa56445a3b9ae6a0ed023a4c29b640609cf3a` on both serving development web nodes. The builder state API now loads its shared PostgreSQL workflow library; production is unchanged.
 
 September 24 line point placement: [Double-click visible lines without a face](deploy/digitalocean/development-line-doubleclick-20260924.md) records `4d9aa8674197b36be18b4b186c3861d38199506b` on all four development roles. Five new regressions pass; the combined suite passes 493 checks with one independently confirmed existing chimney-selection failure. Both public editor hashes and local role readiness passed. Production is unchanged.
