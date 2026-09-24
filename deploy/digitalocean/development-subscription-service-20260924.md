@@ -133,3 +133,17 @@ A concurrent unrelated web rollout followed activation (`54fcd99`). Public
 readiness briefly returned `draining` during that rollout; final checks verify
 the current serving release and preserved billing hashes instead of requiring
 the prior release identifier.
+
+
+Final public verification passed after the concurrent rollout: 24 ready responses
+reached both serving instances (14 primary, 10 pool), now on
+`54fcd99f4204250534cd12e241fad8c91f3b1c4b`, with development isolation enforced.
+Billing backend files and the billing frontend matched their deployed hashes on
+all applicable roles; the public manifest, company settings and billing assets
+matched the current serving files. The manifest/company retain the concurrent
+assistant changes. Evidence is in `output/subscription-card-followup/public-verify.json`.
+
+Source history was merged with concurrent remote work in a detached publication
+worktree and pushed without forcing the canonical branch. The shared checkout's
+uncommitted work was preserved; its fast-forward was refused because concurrent
+assistant edits overlap the incoming committed changes. No stash/reset was used.
