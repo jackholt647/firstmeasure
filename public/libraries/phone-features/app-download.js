@@ -9,7 +9,7 @@
       const response=await fetch('/v1/mobile/organizations/'+encodeURIComponent(orgId)+'/config',{credentials:'same-origin',cache:'no-store'});
       const data=await response.json();if(!response.ok)throw new Error(data.message||'Unable to load app downloads.');
       if(host.__mobileMount!==marker)return;
-      host.replaceChildren();const heading=document.createElement('h3');heading.textContent=text('title','Get the FirstMeasure app');host.appendChild(heading);
+      host.replaceChildren();const heading=document.createElement('h3');heading.textContent=text('title','Get the FirstMate app');host.appendChild(heading);
       const description=document.createElement('p');description.textContent=text('description','Use your existing account, projects, language and company settings on your phone.');host.appendChild(description);
       const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
       const android=/Android/.test(navigator.userAgent);

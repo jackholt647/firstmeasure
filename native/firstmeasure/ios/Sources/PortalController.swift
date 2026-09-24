@@ -72,7 +72,7 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
     private func connectionError(_ error: Error) {
         if (error as NSError).code == NSURLErrorCancelled { return }
-        let alert = UIAlertController(title: "FirstMeasure", message: "Unable to connect. Check your connection and try again.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "FirstMate", message: "Unable to connect. Check your connection and try again.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Try again", style: .default) { [weak self] _ in self?.loadPortal() })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         if presentedViewController == nil { present(alert, animated: true) }
@@ -146,18 +146,18 @@ final class PortalController: UIViewController, WKNavigationDelegate, WKUIDelega
     }
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         guard frame.isMainFrame, trusted(frame.securityOrigin), presentedViewController == nil else { completionHandler(); return }
-        let alert = UIAlertController(title: "FirstMeasure", message: message, preferredStyle: .alert)
+        let alert = UIAlertController(title: "FirstMate", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() }); present(alert, animated: true)
     }
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         guard frame.isMainFrame, trusted(frame.securityOrigin), presentedViewController == nil else { completionHandler(false); return }
-        let alert = UIAlertController(title: "FirstMeasure", message: message, preferredStyle: .alert)
+        let alert = UIAlertController(title: "FirstMate", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) }); present(alert, animated: true)
     }
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
         guard frame.isMainFrame, trusted(frame.securityOrigin), presentedViewController == nil else { completionHandler(nil); return }
-        let alert = UIAlertController(title: "FirstMeasure", message: prompt, preferredStyle: .alert); alert.addTextField { $0.text = defaultText }
+        let alert = UIAlertController(title: "FirstMate", message: prompt, preferredStyle: .alert); alert.addTextField { $0.text = defaultText }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(nil) })
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(alert.textFields?.first?.text) }); present(alert, animated: true)
     }

@@ -30,7 +30,7 @@ export const registerMobileApi: FastifyPluginAsync = async app => {
     const info = await stat(file).catch(() => null);
     if (!info?.isFile()) throw notFound("build_unavailable", "No Android test build has been published.");
     reply.header("Content-Type", "application/vnd.android.package-archive");
-    reply.header("Content-Disposition", 'attachment; filename="FirstMeasure-development.apk"');
+    reply.header("Content-Disposition", 'attachment; filename="FirstMate.apk"');
     reply.header("Content-Length", info.size);
     reply.header("X-Content-Type-Options", "nosniff");
     return reply.send(createReadStream(file));

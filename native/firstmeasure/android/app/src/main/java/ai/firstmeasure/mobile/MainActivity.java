@@ -70,7 +70,7 @@ public class MainActivity extends ComponentActivity {
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            showError("Please update Android System WebView to use FirstMeasure."); return;
+            showError("Please update Android System WebView to use FirstMate."); return;
         }
         WebViewCompat.addWebMessageListener(web,"FirstMeasureNative",Set.of(BuildConfig.PORTAL_ORIGIN), (view,message,source,isMain,reply)->{
             if (!isMain || !policy.trusted(source.toString()) || !policy.trusted(view.getUrl())) return;
@@ -86,7 +86,7 @@ public class MainActivity extends ComponentActivity {
                 if(request.isForMainFrame()) showError("Unable to connect. Check your connection and try again.");
             }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response){
-                if(request.isForMainFrame() && response.getStatusCode()>=500) showError("FirstMeasure is temporarily unavailable. Please try again.");
+                if(request.isForMainFrame() && response.getStatusCode()>=500) showError("FirstMate is temporarily unavailable. Please try again.");
             }
         });
         web.setWebChromeClient(new WebChromeClient(){
@@ -229,7 +229,7 @@ public class MainActivity extends ComponentActivity {
     private void pruneFiles(){File[] files=phoneDirectory().listFiles();if(files!=null)for(File file:files)if(file.lastModified()<System.currentTimeMillis()-86400000L)file.delete();}
     private void showError(String message){
         if(isFinishing())return;
-        new AlertDialog.Builder(this).setTitle("FirstMeasure").setMessage(message).setPositiveButton("Try again",(d,w)->web.loadUrl(BuildConfig.PORTAL_ORIGIN+"/portal/")).setNegativeButton("Close",(d,w)->finish()).show();
+        new AlertDialog.Builder(this).setTitle("FirstMate").setMessage(message).setPositiveButton("Try again",(d,w)->web.loadUrl(BuildConfig.PORTAL_ORIGIN+"/portal/")).setNegativeButton("Close",(d,w)->finish()).show();
     }
     private void showMessage(String message){if(!isFinishing())Toast.makeText(this,message,Toast.LENGTH_LONG).show();}
     @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);web.saveState(out);}
