@@ -114,6 +114,7 @@ test("usage auto-collection survives a lost response, cannot duplicate charges a
   f.paid=false;await collectInvoice("auto_usage","2020-02");assert.equal((await store.record<any>("auto_usage","invoice","2020-02")).status,"open");
   const pending=(await store.record<any>("auto_usage","automatic-invoice","2020-02"));f.invoices.get(pending.stripe_id).status="paid";
   await collectInvoice("auto_usage","2020-02");assert.equal((await store.record<any>("auto_usage","invoice","2020-02")).status,"paid");
+  f.paid=true;f.credit=500;await store.put("auto_usage","invoice","2020-03",{id:"2020-03",period:"2020-03",currency:"USD",total_cents:500,status:"open",lines:[]});await collectInvoice("auto_usage","2020-03");const credited=await store.record<any>("auto_usage","invoice","2020-03");assert.equal(credited.status,"paid");assert.equal(credited.amount_paid_cents,0);assert.equal(credited.amount_remaining_cents,0);
  }finally{f.restore();}
 });
 test("storage limits serialize uploads, credit replaced bytes, and retain files after cancellation",async()=>{
@@ -142,4 +143,16 @@ test("commercial accounts require an SMS plan and receive only free storage befo
  const {reserveSms}=await import("../platform-billing/allowances.js");const {storageAllowance}=await import("../platform-billing/storage-allowance.js");
  await org("commercial_no_plan");assert.equal(await reserveSms("commercial_no_plan","unpaid-delivery"),false);assert.equal(await storageAllowance("commercial_no_plan"),1073741824);
  await service.setAccount("commercial_no_plan",false,"operator");assert.equal(await reserveSms("commercial_no_plan","legacy-delivery"),true);assert.equal(await storageAllowance("commercial_no_plan"),null);
+});
+
+test("card changes including switching back update both renewal and open usage collection",async()=>{
+ const f=stripeBillingFixture();try{
+  const {collectInvoice}=await import("../platform-billing/collection.js");await org("card_switch");await billing.acceptSubscription("card_switch",(await billing.quoteSubscription("card_switch",sms.id)).id,"owner");
+  await store.put("card_switch","invoice","2020-01",{id:"2020-01",period:"2020-01",currency:"USD",total_cents:500,status:"open",lines:[]});f.paid=false;
+  for(const method of ['pm_first','pm_second','pm_first']){
+   f.customerMethod=method;await billing.reconcileSubscriptions("card_switch","owner");await collectInvoice("card_switch","2020-01");
+   assert.equal([...f.subscriptions.values()][0].default_payment_method,method);const attempt=await store.record<any>("card_switch","automatic-invoice","2020-01");assert.equal(f.invoices.get(attempt.stripe_id).default_payment_method,method);
+  }
+  assert.equal(f.calls.filter(c=>c.route==='invoiceitems').length,1);assert.equal(f.calls.filter(c=>c.route.endsWith('/finalize')).length,1,"Changing the card must not create another usage invoice");
+ }finally{f.restore();}
 });

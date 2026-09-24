@@ -34,18 +34,18 @@ export async function collectInvoice(org:string,id:string) {
   }
   let invoice=await stripe('GET',`invoices/${attempt.stripe_id}`);verify(invoice,customer.customer_id,attempt.stripe_id);
   if(invoice.metadata?.organization_id!==org||invoice.metadata?.invoice_id!==id||invoice.currency!=='usd'||invoice.collection_method!=='charge_automatically')throw conflict('billing_payment_mismatch');
+  // The customer's saved subscription card also pays usage. This never uses
+  // the separate FirstMeasure credit customer's card.
+  if(customer.subscription_id && ['draft','open'].includes(invoice.status)){
+    const sub=await stripe('GET',`subscriptions/${customer.subscription_id}`);verify(sub,customer.customer_id,customer.subscription_id);
+    if(sub.metadata?.organization_id!==org)throw conflict('billing_payment_mismatch');
+    const method=String(sub.default_payment_method?.id||sub.default_payment_method||'');
+    if(method && String(invoice.default_payment_method?.id||invoice.default_payment_method||'')!==method)await stripe('POST',`invoices/${attempt.stripe_id}`,{default_payment_method:method});
+  }
   if(invoice.status==='draft') {
     if(!attempt.item_id){
       fresh();const item=await stripe('POST','invoiceitems',{customer:customer.customer_id,invoice:attempt.stripe_id!,currency:'usd',amount:String(local.total_cents),description:`FirstMate usage · ${local.period}`},key(org,id,'item'));
       attempt.item_id=item.id;await put(org,'automatic-invoice',id,attempt);
-    }
-    // The customer's saved subscription card also pays usage. This never uses
-    // the separate FirstMeasure credit customer's card.
-    if(customer.subscription_id){
-      const sub=await stripe('GET',`subscriptions/${customer.subscription_id}`);verify(sub,customer.customer_id,customer.subscription_id);
-      if(sub.metadata?.organization_id!==org)throw conflict('billing_payment_mismatch');
-      const method=String(sub.default_payment_method?.id||sub.default_payment_method||'');
-      if(method)await stripe('POST',`invoices/${attempt.stripe_id}`,{default_payment_method:method},key(org,id,'card:'+method));
     }
     invoice=await stripe('POST',`invoices/${attempt.stripe_id}/finalize`,{auto_advance:'true'},key(org,id,'finalize'));verify(invoice,customer.customer_id,attempt.stripe_id);
   }
@@ -55,6 +55,8 @@ export async function collectInvoice(org:string,id:string) {
   await billingStore().transaction(async()=>{
     local=(await record<Invoice>(org,'invoice',id))!;
     local.checkout_url=invoice.hosted_invoice_url;
+    local.amount_paid_cents=invoice.amount_paid;local.amount_remaining_cents=invoice.amount_remaining;
+    if(invoice.status==='void')local.status='void';
     if(invoice.status==='paid'&&local.status!=='paid'){
       local.status='paid';local.paid_at=new Date((invoice.status_transitions?.paid_at||Math.floor(Date.now()/1000))*1000).toISOString();local.payment_id=invoice.id;
       await audit(org,'invoice.automatically_paid','stripe',{id,stripe_id:invoice.id});

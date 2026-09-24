@@ -191,3 +191,17 @@ test('summary uses four square columns, grouped primary selection, and missing-a
  assert.match(await page.locator('.ext-photo-toast').textContent(),/Missing 7 angles/);
  await page.screenshot({path:process.env.TEMP+'/firstmate-summary-grid.png'});
 });
+
+
+test('final review separates report details from eight primary photos and their counts',async t=>{
+ const page=await setup(t);
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.click('[data-guide-capture]');
+ await page.waitForFunction(()=>Portal.test.files.get('0:front')?.media_id);
+ await page.evaluate(()=>Portal.ExteriorOrder.setMobilePage('final'));
+ assert.equal(await page.locator('section[aria-label="Report details"]').count(),1);
+ assert.equal(await page.locator('section[aria-label="Photos"] .ext-review-view').count(),8);
+ assert.equal(await page.locator('section[aria-label="Photos"] img').count(),1);
+ assert.match(await page.locator('section[aria-label="Photos"]').textContent(),/Required angles1 \/ 8/);
+ assert.doesNotMatch(await page.locator('section[aria-label="Report details"]').textContent(),/Required references|Extra references/);
+});

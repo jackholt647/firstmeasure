@@ -35,3 +35,9 @@ test('search uses the single Billing destination and hides platform entries when
   let route;enabled.Portal={navigation:{navigate:value=>{route=value;}}};enabled.FirstMateSettingsSearch.open(matches[0]);assert.equal(route.sub,'billing');
   assert.equal(fixture({'platform.expanded_access':true,'platform.platform_billing':true}).FirstMateSettingsSearch.search('usage charges').length,0);
 });
+
+test('statement uses provider cash and remaining balance after subscription credits',()=>{
+ const api=fixture({}).FirstMatePlatformBilling;
+ const rows=api.statementRows('2026-09',[],{invoices:[{id:'credited',created_at:'2026-09-01',status:'paid',total_cents:500,amount_paid_cents:0,amount_remaining_cents:0},{id:'partial_credit',created_at:'2026-09-02',status:'open',total_cents:500,amount_paid_cents:0,amount_remaining_cents:200}]});
+ assert.equal(rows.find(r=>r.id==='usage-credited').paid,0);assert.equal(rows.find(r=>r.id==='usage-partial_credit').due,200);
+});

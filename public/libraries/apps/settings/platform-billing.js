@@ -173,7 +173,7 @@
       for (const invoice of invoices) rows.push({id:service+'-'+invoice.id,at:invoice.created_at,service,
         title:service==='subscriptions'?'Subscription invoice':'Usage invoice',detail:invoice.period?'Service month '+invoice.period:(invoice.lines||[]).map(l=>l.label).join(' · '),
         status:invoice.status,paid:invoice.amount_paid_cents>0?invoice.amount_paid_cents:invoice.status==='paid'?(invoice.amount_paid_cents??invoice.total_cents):null,
-        due:invoice.status==='open'?Math.max(0,invoice.total_cents-(invoice.amount_paid_cents||0)):0,credits:null,lines:invoice.lines||[],invoice});
+        due:invoice.status==='open'?Math.max(0,invoice.amount_remaining_cents??(invoice.total_cents-(invoice.amount_paid_cents||0))):0,credits:null,lines:invoice.lines||[],invoice});
     }
     return rows.filter(row=>String(row.at||'').slice(0,7)===period).sort((a,b)=>String(b.at).localeCompare(String(a.at))||a.id.localeCompare(b.id));
   }
