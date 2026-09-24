@@ -8584,10 +8584,12 @@
             <div class="cs-note" style="margin:0">${((v0) => globalThis.PlatformLanguage?.text("settings","m_77de2547c1032f",`Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`,{v0}) ?? `Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`)(escapeHtml(mcText(mp.config?.provider) === 'mock' ? 'mock simulator' : `Forward ${mp.forwardEnv}`))}</div>
             <div class="mp-sandbox-actions">
               <button type="button" class="cs-btn primary" data-mp-express-signup><i class="fas fa-arrow-up-right-from-square"></i> ${String(hasApplication ? 'Reopen Forward application' : 'Sign up on Forward')}</button>
+              ${String(mcText(mp.config?.provider) !== 'mock' ? '<button type="button" class="cs-btn" data-mp-express-legacy>Test prior overlay workflow</button>' : '')}
               <button type="button" class="cs-btn" data-mp-express-portal><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc5802017d7488"," Open Forward merchant portal") ?? " Open Forward merchant portal")}</button>
             </div>
           </div>`;
       };
+      // Alternate test workflow retained for comparing the prior overlay.
       // Embeds Forward's hosted application in the same setup-wizard modal
       // the step-by-step flow used (same shell, size, and radius) — a single
       // full-bleed iframe pane instead of the wizard steps. Forward's hosted
@@ -8595,7 +8597,7 @@
       // footer keeps an open-in-new-tab escape hatch. Mock aapplink URLs
       // cannot resolve in an iframe (and the mock harnesses assert
       // window.open), so the mock provider keeps the new-tab behavior.
-      const openHostedApplication = (linkUrl) => {
+      const openHostedApplicationLegacy = (linkUrl) => {
         if (!linkUrl) return;
         if (mcText(mp.config?.provider) === 'mock') {
           window.open(linkUrl, '_blank', 'noopener');
@@ -9296,7 +9298,7 @@
           if (confirmed) showHostedBankSuccess();
         });
         bankSuccess.querySelector('[data-mp-bank-success-close]')?.addEventListener('click', () => closeModal());
-        mp.moneyWizard = { id: 'money-onboarding', el: overlay, close: (options) => closeModal(options || {}) };
+        mp.moneyWizard = { id: 'money-onboarding', legacy:true, el: overlay, close: (options) => closeModal(options || {}) };
         modalHandle = window.Portal?.modals?.register?.(overlay, {
           id: 'money-onboarding',
           closeOnEscape: true,
@@ -9349,7 +9351,7 @@
         // Own the workflow route keys the wizard used so deep links and
         // reloads reopen the hosted application (via the wizard divert).
         try {
-          writeSettingsRoute({ sub: 'money', settingsView:'payments', workflow: 'money_onboarding', workflow_step: 'application' }, { history: 'push', source: 'money-onboarding-step', ownedKeys: ['settingsView', 'workflow', 'workflow_step'] });
+          writeSettingsRoute({ sub: 'money', settingsView:'payments', workflow: 'money_onboarding', workflow_step: 'application_legacy' }, { history: 'push', source: 'money-onboarding-step', ownedKeys: ['settingsView', 'workflow', 'workflow_step'] });
         } catch (error) { /* route write is best-effort */ }
       };
       // Shared by the express button and the wizard divert below.
@@ -9359,14 +9361,63 @@
       // each minted its own link, the modal would render the first link just
       // as the second generation killed it (LINK_EXPIRED_OR_REMOVED).
       // Concurrent callers therefore share one in-flight request.
-      const runHostedSignup = () => {
+      const openHostedApplication = (linkUrl, options = {}) => {
+        if (!linkUrl) return;
+        if (options.legacy) return openHostedApplicationLegacy(linkUrl);
+        if (mcText(mp.config?.provider) === 'mock') return window.open(linkUrl, '_blank', 'noopener');
+        if (mp.moneyWizard || document.querySelector('[data-fm-wizard="money-onboarding"]')) return;
+        const overlay = document.createElement('div');
+        overlay.dataset.fmWizard = 'money-onboarding';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483300;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:rgba(15,23,42,.46);padding:16px';
+        overlay.innerHTML = `<div style="display:flex;flex-direction:column;width:min(900px,100%);height:min(92vh,1000px);min-height:500px;overflow:hidden;border-radius:16px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #e4e7ec"><strong>Secure payment setup</strong><button type="button" data-mp-close aria-label="Close payment setup" style="border:0;background:transparent;font-size:26px;cursor:pointer">&times;</button></div>
+          <iframe src="${String(escapeHtml(linkUrl))}" title="Forward merchant application" style="flex:1;width:100%;border:0;background:#fff" allow="camera; clipboard-write"></iframe>
+        </div>`;
+        document.body.appendChild(overlay);
+        const frame = overlay.querySelector('iframe');
+        let closed = false;
+        let modalHandle = null;
+        let fallbackKeydown = null;
+        const returnHandler = (event) => {
+          if (event.origin === window.location.origin && event.source === frame.contentWindow && event.data?.type === 'firstmate:payments-setup-return') closeModal();
+        };
+        const closeModal = (options = {}) => {
+          if (closed) return;
+          closed = true;
+          window.removeEventListener('message', returnHandler);
+          if (fallbackKeydown) document.removeEventListener('keydown', fallbackKeydown, true);
+          try { modalHandle?.unregister?.(); } catch (error) { /* already closed */ }
+          overlay.remove();
+          mp.moneyWizard = null;
+          if (options.fromRoute !== true && !window.Portal?.navigation?.applying) {
+            window.Portal?.navigation?.backOrClose?.(['workflow', 'workflow_step'], { workflow:'', workflow_step:'' }, { source:'money-onboarding-close' });
+          }
+          (async () => {
+            try { await loadConfig(); await loadApplication(); } catch (error) { /* retain last state */ }
+            renderSection();
+          })();
+        };
+        mp.moneyWizard = { id:'money-onboarding', el:overlay, close:closeModal };
+        window.addEventListener('message', returnHandler);
+        overlay.querySelector('[data-mp-close]')?.addEventListener('click', () => closeModal());
+        modalHandle = window.Portal?.modals?.register?.(overlay, { id:'money-onboarding', closeOnEscape:true, closeOnBackdrop:true, onClose:() => closeModal() }) || null;
+        if (!modalHandle) {
+          fallbackKeydown = (event) => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closeModal(); } };
+          document.addEventListener('keydown', fallbackKeydown, true);
+          overlay.addEventListener('click', (event) => { if (event.target === overlay) closeModal(); });
+        }
+        try {
+          writeSettingsRoute({ sub:'money', settingsView:'payments', workflow:'money_onboarding', workflow_step:'application' }, { history:'push', source:'money-onboarding-step', ownedKeys:['settingsView', 'workflow', 'workflow_step'] });
+        } catch (error) { /* route write is best-effort */ }
+      };
+      const runHostedSignup = (options = {}) => {
         if (mp.hostedSignupPromise) return mp.hostedSignupPromise;
         mp.hostedSignupPromise = (async () => {
           const result = await paymentsApi.merchantBoarding.hostedSignup(orgId, {});
           if (result?.merchant_config) mp.config = result.merchant_config; else await loadConfig();
           await loadApplication();
           renderSection();
-          openHostedApplication(mcText(result?.link?.url));
+          openHostedApplication(mcText(result?.link?.url), options);
           showToast((globalThis.PlatformLanguage?.text("settings","m_84852f47418b64","Continue at Forward") ?? "Continue at Forward"), (globalThis.PlatformLanguage?.text("settings","m_faf05e18c07567","Fill out and submit the application on Forward's hosted page — this pane tracks the status.") ?? "Fill out and submit the application on Forward's hosted page — this pane tracks the status."), true);
         })().finally(() => { mp.hostedSignupPromise = null; });
         return mp.hostedSignupPromise;
@@ -9389,6 +9440,13 @@
             renderSection();
             showToast((globalThis.PlatformLanguage?.text("settings","m_9e4fd308b9bf61","Hosted signup failed") ?? "Hosted signup failed"), error?.message || 'Could not start the Forward hosted application.', false);
           }
+        });
+        container.querySelector('[data-mp-express-legacy]')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try { await runHostedSignup({ legacy:true }); }
+          catch (error) { showToast('Overlay test failed', error?.message || 'Could not start the prior workflow.', false); }
+          finally { button.disabled = false; }
         });
         container.querySelector('[data-mp-express-portal]')?.addEventListener('click', async (event) => {
           const button = event.currentTarget;
@@ -9597,7 +9655,7 @@
                 <button type="button" class="cs-btn primary" data-mp-open-forward><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("settings","m_6413a0c0b8d019"," Reopen application") ?? " Reopen application")}</button>
                 <button type="button" class="cs-btn" data-mp-setup><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.text("settings","m_e311a77b932e27"," Edit details") ?? " Edit details")}</button>
               </div>
-              <div class="cs-note" style="margin:0" data-mp-hosted-note>${String(expired ? 'Your secure link expired — reopening generates a fresh one.' : 'Opens in a new tab on Forward\'s secure site. The link stays valid for 14 days and can always be reopened here.')}</div>
+              <div class="cs-note" style="margin:0" data-mp-hosted-note>${String(expired ? 'Your secure link expired — reopening generates a fresh one.' : 'Opens Forward\'s secure application here. The link stays valid for 14 days and can always be reopened.')}</div>
               ${String(sandboxHtml())}${String(expressHtml())}
             </div>`;
         }
@@ -9916,7 +9974,7 @@
           // The hosted-application modal takes over the workflow route keys
           // the wizard would have owned, so deep links and reloads reopen it.
           try {
-            await runHostedSignup();
+            await runHostedSignup({ legacy:openOptions.initialStep === 'application_legacy' });
           } catch (error) {
             // Clear the stale workflow route so a reload lands on the pane
             // instead of looping into another failing signup call.
@@ -9995,8 +10053,7 @@
           }
         });
       };
-      // Generates (or reuses until expiry) the hosted application link and
-      // opens Forward's secure page in a new tab.
+      // Generates a fresh hosted application link and opens the iframe.
       const openForwardApplication = async () => {
         const applicationId = mcText(mp.config?.forward?.application_id);
         if (!applicationId) throw new Error('No application exists yet.');
@@ -10229,7 +10286,7 @@
             await loadApplication().catch(() => null);
             // The merchant finished Forward's hosted form: dismiss its
             // "submitted successfully" page and land on our status tracker.
-            if (mp.moneyWizard && !mp.moneyWizard.submitted && before === 'DRAFT' && boardingStatus() !== 'DRAFT') {
+            if (mp.moneyWizard?.legacy && !mp.moneyWizard.submitted && before === 'DRAFT' && boardingStatus() !== 'DRAFT') {
               mp.moneyWizard.close?.({ skipSave: true });
               showToast((globalThis.PlatformLanguage?.text("settings","m_7b0ff20220ed8b","Application submitted") ?? "Application submitted"), (globalThis.PlatformLanguage?.text("settings","m_9641a3d6c9149d","Your application is with the underwriting team — track its status right here.") ?? "Your application is with the underwriting team — track its status right here."), true);
             }

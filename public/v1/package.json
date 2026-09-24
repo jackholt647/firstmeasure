@@ -63,7 +63,7 @@
     "test:proposal-send-ui": "node --test tests/proposal-send-ui-contract.test.mjs",
     "test:proposals": "node --experimental-sqlite --import tsx --test --test-force-exit tests/proposals-api.test.ts",
     "test:materials": "node --experimental-sqlite --import tsx --test --test-force-exit tests/materials-api.test.ts",
-    "test:payments": "node --experimental-sqlite --import tsx --test --test-force-exit tests/payments-api.test.ts tests/payments-forward.test.ts tests/payments-mock.test.ts tests/payments-autopay.test.ts tests/payments-admin.test.ts tests/payments-onboarding.test.ts",
+    "test:payments": "node --experimental-sqlite --import tsx --test --test-force-exit tests/payments-api.test.ts tests/payments-forward.test.ts tests/payments-forward-redirect.test.ts tests/payments-mock.test.ts tests/payments-autopay.test.ts tests/payments-admin.test.ts tests/payments-onboarding.test.ts",
     "test:payroll": "node --check ../libraries/payroll-api/payroll-api.js && node --check ../libraries/apps/payroll/app.js && node --experimental-sqlite --import tsx --test --test-force-exit tests/payroll-api.test.ts && node --test tests/payroll-exports-ui-contract.test.mjs",
     "test:platform:stripe": "node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-stripe.test.ts",
     "test:platform:migration": "node --import tsx --test tests/platform-migration.test.ts",
