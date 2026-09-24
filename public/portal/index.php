@@ -315,7 +315,18 @@ session_write_close();
     }
 
     @media (prefers-reduced-motion:reduce){
-      .sidebar,.sidebar-compact-toggle i{transition-duration:.01ms!important}
+      .sidebar,.sidebar-compact-toggle i,
+      .sidebar.sidebar-compact .logo-area>*,
+      .sidebar.sidebar-compact .sidebar-scroll,
+      .sidebar.sidebar-compact #sidebarLinks,
+      .sidebar.sidebar-compact #sidebarBottomLinks,
+      .sidebar.sidebar-compact #btnNewReq,
+      .sidebar.sidebar-compact #btnNewReq>span,
+      .sidebar.sidebar-compact .sidebar-new-full-icon,
+      .sidebar.sidebar-compact .sidebar-new-mini-icon,
+      .sidebar.sidebar-compact .sidebar-mode-tabs,
+      .sidebar.sidebar-compact .fm-link,
+      .sidebar.sidebar-compact .fm-link .tx{transition-duration:.01ms!important}
     }
 
     /* TOP LEFT: logo only, no border, preserve aspect ratio */
