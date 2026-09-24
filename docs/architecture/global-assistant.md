@@ -77,6 +77,22 @@ personal instructions, saved memories and, for company administrators, company
 name/instructions/enabled controls inside either window layout. The full AI
 Agents settings page remains available from that view for the other controls.
 
+The assistant header keeps the conversations toggle at left and the shared
+Float, Minimize and Maximize window controls at right. Conversation history is
+a persistent left sidebar in desktop full view and a 68%-width overlay in
+docked, floating and mobile views. The sidebar owns title search, new
+conversation and assistant settings. The chat and settings panes use the same
+assistant instance, so switching window modes preserves their state.
+
+The composer accepts up to five files of 20 MB each through an authenticated
+assistant upload route. Uploads are bound to the current user's conversation;
+the send route rechecks both user ownership and thread binding. Supported
+images and document types are passed to the current Responses turn as image
+and file input parts. Audio attachments are transcribed first. Other formats,
+including video, are stored and shown in history but their contents are not
+analyzed by the model. Browser microphone dictation uses the same transcription
+service and places recognized text into the composer for review before send.
+
 ## Reliability
 
 The shared runtime stops after 16 rounds, 64 tool calls, or repeated identical

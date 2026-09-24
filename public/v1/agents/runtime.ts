@@ -226,6 +226,8 @@ export type AgentTurnInput = {
   branchId?: string;
   threadId: string;
   message: string;
+  /** Validated multimodal parts for the current user turn only. */
+  contentParts?: JsonObject[];
   ctx?: PlatformAuthContext | null;
   actorUserId?: string;
   actorName?: string;
@@ -318,6 +320,12 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
   const last = history[history.length - 1];
   if (last && cleanText(turn.turnNote) && last.role === "user") {
     last.content = `${last.content}${turn.turnNote}`;
+  }
+  if (last && last.role === "user" && turn.contentParts?.length) {
+    (last as { role: string; content: string | JsonObject[] }).content = [
+      { type: "input_text", text: last.content },
+      ...turn.contentParts
+    ];
   }
 
   const conversation: JsonObject[] = [
