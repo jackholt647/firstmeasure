@@ -22,9 +22,9 @@ was changed. Test Company retains its FirstMeasure defaults.
 
 ## Deployment status
 
-Prepared for activation. Initial staging on `0b3750b` was not activated: the
+Serving release: `3dc59abd3edadbc211ba3e00433d377bb943b1d3` on both web nodes and the compatibility host. Initial staging on `0b3750b` was not activated: the
 baseline guard detected the concurrent payment-completion release before any
-Billing activation. The replacement release will preserve web/pool baseline
+Billing activation. The activated replacement preserves web/pool baseline
 `d7437b8caa5993ee5406aeb949f36a82a1495fb3` and compatibility baseline
 `f48e7b2ae384aa162caab106f7dc978913a368b0`.
 
@@ -35,6 +35,21 @@ The worker backend does not need a new release. Activation verifies source
 hashes, JavaScript syntax, process release identity and development outbound
 isolation, with rollback on readiness failure.
 
-Post-activation results will be recorded here. The previously documented
+Post-activation checks passed:
+
+- All three hosts verified the scoped file hashes, process release and healthy
+  readiness with development outbound isolation enforced.
+- A 24-request public readiness check reached both web instances (14 requests
+  to `do-598520065`, 10 to `do-603124965`). Public hashes match all three assets.
+  The load balancer readmitted the second node after its restart health checks.
+- The browser pass used the deployed scripts without candidate asset overrides.
+  FirstMeasure-only behavior, combined layout with browser-only commercial
+  fixtures, saved auto-top-up adapter, mixed CSV, subscription review,
+  administration, desktop/tablet/phone widths and disabled-feature fallback all
+  passed. No JavaScript page errors or hidden platform reads occurred.
+- Temporary browser verification sessions were revoked. No customer payment or
+  persisted account/flag setting changed.
+
+The previously documented
 historical autoscale-image limitation remains; this change does not alter
 images, infrastructure topology or production.
