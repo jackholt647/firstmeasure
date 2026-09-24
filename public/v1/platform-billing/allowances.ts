@@ -1,12 +1,18 @@
 import { billingStore, record, records } from "./storage.js";
-import type { Account, Subscription } from "./model.js";
+import type { Account, Price, Subscription } from "./model.js";
 
 /** Counts provider submissions per recipient, including ambiguous submissions.
  * Organization locks make the final slot atomic across delivery workers. */
 export async function smsAllowance(org:string, at=new Date().toISOString()) {
   const subscriptions=await records<Subscription>(org,"subscription");
   const enrolled=subscriptions.some(s=>s.product_id==="sms" && s.price.allowances?.sms_messages!==undefined);
-  if(!enrolled)return null; // Preserve legacy SMS organizations until they accept a plan.
+  if(!enrolled){
+    // Preserve legacy contracts, but an enrolled commercial account must buy SMS
+    // before background deliveries can use the provider, regardless of API route.
+    if(subscriptions.some(s=>s.product_id==="sms"&&s.starts_at<=at&&(!s.ends_at||s.ends_at>at)&&(!s.stripe_subscription_id||(s.paid_through||"")>at)))return null;
+    if(!(await record<Account>(org,"account","account"))?.enforce)return null;
+    if(!(await records<Price>("_platform","price")).some(p=>p.published&&p.product_id==="sms"&&p.allowances?.sms_messages!==undefined))return null;
+  }
   const plan=subscriptions.filter(s=>s.product_id==="sms" && s.starts_at<=at && (!s.ends_at||s.ends_at>at) && (!s.stripe_subscription_id||(s.paid_through||"")>at)).sort((a,b)=>b.starts_at.localeCompare(a.starts_at))[0];
   const start=plan?.period_start||plan?.starts_at||at;
   const end=plan?.paid_through||new Date(Date.parse(start)+30*86400000).toISOString();

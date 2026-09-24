@@ -136,3 +136,9 @@ test("resuming a removed add-on cannot renew a different cancelled add-on",async
   await billing.resumeRecurring("resume_multiple",two.id,"owner");assert.equal(sub.items.data.length,2);assert.equal((await store.record<any>("resume_multiple","subscription",two.id)).ends_at,null);
  }finally{f.restore();}
 });
+
+test("commercial accounts require an SMS plan and receive only free storage before upgrading",async()=>{
+ const {reserveSms}=await import("../platform-billing/allowances.js");const {storageAllowance}=await import("../platform-billing/storage-allowance.js");
+ await org("commercial_no_plan");assert.equal(await reserveSms("commercial_no_plan","unpaid-delivery"),false);assert.equal(await storageAllowance("commercial_no_plan"),1073741824);
+ await service.setAccount("commercial_no_plan",false,"operator");assert.equal(await reserveSms("commercial_no_plan","legacy-delivery"),true);assert.equal(await storageAllowance("commercial_no_plan"),null);
+});

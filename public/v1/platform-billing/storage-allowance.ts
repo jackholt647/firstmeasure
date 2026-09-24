@@ -1,10 +1,13 @@
-import { billingStore, records } from "./storage.js";
-import type { Subscription } from "./model.js";
+import { billingStore, record, records } from "./storage.js";
+import type { Account, Price, Subscription } from "./model.js";
 import { conflict, PlatformError } from "../platform/errors.js";
 
 export async function storageAllowance(org:string) {
   const subscriptions=await records<Subscription>(org,"subscription");
-  if(!subscriptions.some(s=>s.price.allowances?.storage_bytes!==undefined))return null;
+  if(!subscriptions.some(s=>s.price.allowances?.storage_bytes!==undefined)){
+    if(!(await record<Account>(org,"account","account"))?.enforce)return null;
+    if(!(await records<Price>("_platform","price")).some(p=>p.published&&p.allowances?.storage_bytes!==undefined))return null;
+  }
   const now=new Date().toISOString();
   const active=subscriptions.filter(s=>s.starts_at<=now&&(!s.ends_at||s.ends_at>now)&&(!s.stripe_subscription_id||(s.paid_through||"")>now));
   const limits=active.map(s=>s.price.allowances?.storage_bytes||0);
