@@ -25,7 +25,7 @@ export function exteriorQuote(count=1) {
         amount:Math.round((config.exteriors_base_price+o.fee)*count*100)/100,
         deadline:new Date(now.getTime()+o.minutes*60000).toISOString()}))};
 }
-const referenceSchema=z.array(z.object({structure:z.number().int().min(0).max(99),view:z.enum([...EXTERIOR_VIEWS,"additional"]),media_id:z.string().min(1).max(160)}).strict()).min(8).max(100);
+const referenceSchema=z.array(z.object({structure:z.number().int().min(0).max(99),view:z.enum([...EXTERIOR_VIEWS,"additional"]),angle:z.enum(EXTERIOR_VIEWS).optional(),media_id:z.string().min(1).max(160)}).strict()).min(8).max(100);
 export async function validateExteriorOrder(orgId:string, body:Record<string,unknown>, count:number) {
   await requireExteriorAccess(orgId,String(body.project_type || "residential"));
   if (!Number.isInteger(count) || count<1 || count>10) throw new FirstMeasureError("invalid_structures",400,"Place a pin on each structure (up to 10).");

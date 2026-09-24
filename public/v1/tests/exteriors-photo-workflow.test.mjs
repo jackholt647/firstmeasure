@@ -100,3 +100,14 @@ test('shared mobile pager can show Details, Photos, and Review without using the
  order.setMobilePage('photos');assert.equal(t.getPage(),1);
  assert.equal(order.ready(),false);
 });
+
+test('guided retakes preserve each photo and its angle through draft restore',async()=>{
+ const {order,t}=await harness(async()=>({ok:true,json:async()=>({success:true,media_id:randomUUID()})}));
+ const file=new File(['test'],'front.jpg',{type:'image/jpeg'});
+ await t.upload(file,'0:front',true);await t.upload(file,'0:front',true);
+ const fields=order.payload(),references=JSON.parse(fields.exterior_references);
+ assert.equal(references.length,10);assert.equal(references.filter(r=>r.view==='front').length,1);
+ assert.equal(references.filter(r=>r.view==='additional'&&r.angle==='front').length,2);
+ t.files.clear();order.restore(fields);
+ assert.deepEqual(JSON.parse(order.payload().exterior_references),references);
+});

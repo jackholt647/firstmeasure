@@ -39,6 +39,10 @@ test('Full House ordering validates flags, references, prices and paid queue art
  const refs:Array<{structure:number;view:string;media_id:string}>=[];for(const view of EXTERIOR_VIEWS){const upload=await action('exteriors_upload',{project_type:'residential',__file:{filename:view+'.png',bytes_base64:png.toString('base64')}});assert.equal(upload.statusCode,200,upload.body);refs.push({structure:0,view,media_id:upload.json().media_id});}
  await saveGlobal(orgId,{data:{credits_balance:100}});
  const body={address:'123 Fictional Test Lane',project_type:'residential',measurement_scope:'full_house',pins:JSON.stringify([{lat:47.6,lng:-122.3}]),report_expedite_option:'exteriors_priority',report_pricing_revision:quote.json().pricing_revision,exterior_references:JSON.stringify(refs),tech_notes:'Reference test notes'};
+ const extra=await action('exteriors_upload',{project_type:'residential',__file:{filename:'front-retake.png',bytes_base64:png.toString('base64')}});
+ const withRetake=[...refs,{structure:0,view:'additional',angle:'front',media_id:extra.json().media_id}];
+ assert.equal((await validateExteriorOrder(orgId,{...body,report_expedite_option:'exteriors_standard',exterior_references:withRetake},1)).references.at(-1)?.angle,'front');
+ await assert.rejects(()=>validateExteriorOrder(orgId,{...body,exterior_references:[...refs,{...withRetake.at(-1),angle:'invalid'}]},1));
  await pricingContext.run({config:{...DEFAULT_EXPEDITE_PRICING,exteriors_priority_fee:0},revision:quote.json().pricing_revision,now:new Date('2026-09-20T04:00:00Z')},async()=>{
   assert.equal(exteriorQuote().ordering_closed,true);
   await assert.rejects(()=>validateExteriorOrder(orgId,body,1),(error:any)=>error.code==='exteriors_closed','closed hours reject expedited orders even when their fee is zero');

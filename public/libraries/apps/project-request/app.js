@@ -2625,7 +2625,7 @@
   }
 
   function mobileOrderPageIndex(page = mobileOrderPage){
-    return page === 'final' ? 3 : (page === 'photos' ? 2 : (page === 'details' ? 1 : 0));
+    return page === 'final' ? 3 : (page === 'details' ? 2 : (page === 'photos' ? 1 : 0));
   }
 
   function setMobileOrderPage(page){
@@ -2671,32 +2671,26 @@
 
   function mobileOrderGoBack(){
     if (!shouldUseMobileOrderPagination() || mobileOrderPage === 'location') return;
-    setMobileOrderPage(mobileOrderPage === 'final'
-      ? (window.Portal.ExteriorOrder?.active() ? 'photos' : 'details')
-      : (mobileOrderPage === 'photos' ? 'details' : 'location'));
+    const exterior=window.Portal.ExteriorOrder;
+    if (mobileOrderPage === 'photos' && exterior?.mobilePhotoBack?.()) return;
+    setMobileOrderPage(mobileOrderPage === 'final' ? 'details'
+      : mobileOrderPage === 'details' && exterior?.active() ? 'photos' : 'location');
   }
 
   function mobileOrderGoNext(){
     if (!shouldUseMobileOrderPagination() || mobileOrderPage === 'final') return;
+    const exterior=window.Portal.ExteriorOrder;
     if (mobileOrderPage === 'photos') {
-      if (mobileOrderReadyForFinal()) setMobileOrderPage('final');
+      if (exterior?.mobilePhotoSummary?.() && exterior.mobilePhotosReady()) setMobileOrderPage('details');
       return;
     }
     if (mobileOrderPage === 'details') {
-      if (window.Portal.ExteriorOrder?.active()) {
-        if (window.Portal.ExteriorOrder.mobileDetailsReady()) setMobileOrderPage('photos');
-        return;
-      }
-      if (!mobileOrderUsesFinalPage()) return;
-      if (!mobileOrderReadyForFinal()) return;
-      setMobileOrderPage('final');
+      if (exterior?.active() && !exterior.mobileDetailsReady()) return;
+      if (mobileOrderReadyForFinal()) setMobileOrderPage('final');
       return;
     }
-    if (!mobileOrderReadyForDetails()) {
-      shakeMissingMobileOrderRequirement();
-      return;
-    }
-    setMobileOrderPage('details');
+    if (!mobileOrderReadyForDetails()) { shakeMissingMobileOrderRequirement(); return; }
+    setMobileOrderPage(exterior?.active() ? 'photos' : 'details');
   }
 
   function handleMobileOrderSwipeStart(event){
@@ -2751,7 +2745,7 @@
     if (back) back.style.display = mobile && mobileOrderPage !== 'location' ? '' : 'none';
     if (next) {
       const exterior = window.Portal.ExteriorOrder?.active();
-      const ready = mobileOrderPage === 'photos' ? mobileOrderReadyForFinal()
+      const ready = mobileOrderPage === 'photos' ? (window.Portal.ExteriorOrder.mobilePhotoSummary() && window.Portal.ExteriorOrder.mobilePhotosReady())
         : mobileOrderPage === 'details' ? (exterior ? window.Portal.ExteriorOrder.mobileDetailsReady() : mobileOrderReadyForFinal())
         : mobileOrderReadyForDetails();
       next.style.display = mobile && (mobileOrderPage === 'photos' || (mobileOrderPage === 'details' && hasFinalPage)) ? '' : 'none';

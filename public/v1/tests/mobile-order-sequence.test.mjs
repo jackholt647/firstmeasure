@@ -6,6 +6,23 @@ import vm from 'node:vm';
 const request = await readFile(new URL('../../libraries/apps/project-request/app.js', import.meta.url), 'utf8');
 const source = request.slice(request.indexOf('  function mobileOrderReadyForDetails(){'), request.indexOf('  function shakeMobileOrderTarget('));
 
+test('full structure goes map, guided photos and summary, details, then review; roof keeps its existing sequence',()=>{
+ const navigation=request.slice(request.indexOf('  function mobileOrderGoBack(){'),request.indexOf('  function handleMobileOrderSwipeStart'));
+ let full=true,summary=false,photos=false,details=true;
+ const state={mobileOrderPage:'location',shouldUseMobileOrderPagination:()=>true,mobileOrderReadyForDetails:()=>true,mobileOrderReadyForFinal:()=>!full||(photos&&details),shakeMissingMobileOrderRequirement(){},setMobileOrderPage:p=>state.mobileOrderPage=p,window:{Portal:{ExteriorOrder:{active:()=>full,mobilePhotoSummary:()=>summary,mobilePhotosReady:()=>photos,mobileDetailsReady:()=>details,mobilePhotoBack:()=>false}}}};
+ vm.createContext(state);vm.runInContext(navigation,state);
+ state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'photos');
+ state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'photos');
+ summary=true;photos=true;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'details');
+ details=false;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'details');
+ details=true;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'final');
+ state.mobileOrderGoBack();assert.equal(state.mobileOrderPage,'details');
+ state.mobileOrderGoBack();assert.equal(state.mobileOrderPage,'photos');
+ state.mobileOrderGoBack();assert.equal(state.mobileOrderPage,'location');
+ full=false;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'details');
+ state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'final');
+});
+
 test('mobile location requires scope only where two report scopes are available', () => {
   const state = {
     addressSelected: false, selectedType: null, mobileTypeTransitioning: false,
