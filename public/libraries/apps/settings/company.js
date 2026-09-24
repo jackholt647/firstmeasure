@@ -16568,6 +16568,92 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         </div>
       `;
     }
+    // The FirstMeasure workspace has one scroll owner: its history list.
+    if (canBilling && !canPlatformBilling && paneBilling) {
+      paneBilling.classList.add('fm-credit-fit');
+      injectCSS('billing_viewport_fit', `
+        #tab_company_settings:has(.fm-credit-fit.active),.cs-wrap:has(.fm-credit-fit.active),.cs-layout:has(.fm-credit-fit.active),.cs-main:has(.fm-credit-fit.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
+        .cs-main>.cs-card:has(.fm-credit-fit.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
+        #csPaneBilling.fm-credit-fit.active{height:100%;min-height:0;overflow:hidden}
+        #csPaneBilling.fm-credit-fit .bl-wrap{height:100%;max-width:none;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;min-height:0}
+        #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card{margin:0!important;padding:10px 14px}
+        #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-row{margin:0}
+        #csPaneBilling.fm-credit-fit .bl-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:12px}
+        #csPaneBilling.fm-credit-fit .bh-card{display:flex;flex-direction:column;min-height:0;margin:0;padding:12px}
+        #csPaneBilling.fm-credit-fit .bh-list{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .bh-top{flex-shrink:0}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card{padding:12px;min-width:0}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-row{flex-wrap:nowrap;gap:8px;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-left{gap:4px;min-width:0}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-pill{padding:0;border:0;background:none;border-radius:0}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-ctrl{flex-wrap:nowrap;gap:4px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-money{width:76px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-stepBtn{padding:8px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-divider{margin:9px 0}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-toggleLine{padding:8px;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .cs-btn{padding:8px 10px}
+        #csPaneBilling.fm-credit-fit .ms-card{margin:0;padding:10px 12px;min-width:0}
+        #csPaneBilling.fm-credit-fit .ms-sub{display:none}
+        #csPaneBilling.fm-credit-fit .ms-top{gap:6px}
+        #csPaneBilling.fm-credit-fit .ms-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .ms-stat{min-width:0;padding:7px;border-radius:6px}
+        #csPaneBilling.fm-credit-fit .ms-statLabel{font-size:9px;letter-spacing:0}
+        #csPaneBilling.fm-credit-fit .ms-statVal{font-size:17px;margin-top:3px}
+        #csPaneBilling.fm-credit-fit .ms-actions{margin-top:7px;gap:8px}
+        #csPaneBilling.fm-credit-fit .ms-actions .cs-btn{padding:6px 10px;min-height:30px}
+        #csPaneBilling.fm-credit-fit .fm-credit-settings{display:none}
+        #csPaneBilling.fm-credit-fit dialog{width:min(600px,calc(100% - 24px));max-height:90dvh;overflow:auto;border:1px solid #d0d5dd;border-radius:12px;padding:18px;color:inherit}
+        #csPaneBilling.fm-credit-fit dialog::backdrop{background:#10182888}
+        #csPaneBilling.fm-credit-fit dialog>.bl-card{border:0;box-shadow:none;padding:0;margin-top:12px}
+        @media(max-width:1100px),(max-height:730px){
+          #csPaneBilling.fm-credit-fit .bl-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:8px}
+          #csPaneBilling.fm-credit-fit .bl-grid>.bl-card{display:none}
+          #csPaneBilling.fm-credit-fit .fm-credit-settings{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+          #csPaneBilling.fm-credit-fit .bl-wrap{gap:8px}
+          #csPaneBilling.fm-credit-fit .bh-sub{display:none}
+        }
+        @media(max-width:1100px){
+          .cs-layout:has(.fm-credit-fit.active){display:flex;flex-direction:column}
+          .cs-layout:has(.fm-credit-fit.active)>.cs-heading,.cs-layout:has(.fm-credit-fit.active)>.cs-sidebar{flex:0 0 auto}
+          .cs-main:has(.fm-credit-fit.active){flex:1;min-height:0;height:auto}
+        }
+        @media(max-width:600px){
+          .cs-main>.cs-card:has(.fm-credit-fit.active){padding:8px 12px}
+          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card{padding:8px}
+          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-row{display:flex;flex-wrap:nowrap;gap:8px}
+          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-left{display:none}
+          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-ctrl{display:flex;width:100%;justify-content:space-between;align-items:center}
+          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .credits-value:before{content:'Measurement credits';display:block;font-size:11px;font-weight:500;margin-bottom:4px}
+          #csPaneBilling.fm-credit-fit .ms-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:6px}
+          #csPaneBilling.fm-credit-fit .ms-stat{padding:5px}
+          #csPaneBilling.fm-credit-fit .ms-statVal{font-size:15px}
+          #csPaneBilling.fm-credit-fit .ms-h{font-size:13px}
+          #csPaneBilling.fm-credit-fit .ms-monthLabel{font-size:12px;min-width:110px}
+          #csPaneBilling.fm-credit-fit .ms-navBtn{padding:6px}
+          #csPaneBilling.fm-credit-fit .bh-card{padding:8px}
+          #csPaneBilling.fm-credit-fit .bh-top .bh-btn{width:auto;min-height:30px;padding:5px 8px}
+        }
+      `);
+      const grid=paneBilling.querySelector('.bl-grid');
+      const summary=document.createElement('div');summary.className='fm-credit-settings';
+      summary.innerHTML='<span data-credit-topup-summary>Credit auto top-up</span><button type="button" class="cs-btn ghost" data-credit-settings>Manage</button>';
+      grid.prepend(summary);
+      summary.querySelector('button').onclick=()=>{
+        const card=grid.querySelector('.bl-card');if(!card)return;
+        const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Credit auto top-up');
+        dialog.setAttribute('data-settings-autosave','off');
+        dialog.innerHTML='<button type="button" class="cs-btn ghost" data-close>Done</button>';
+        paneBilling.appendChild(dialog);dialog.appendChild(card);
+        dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+        dialog.addEventListener('close',()=>{grid.insertBefore(card,grid.querySelector('.bh-card'));dialog.remove();updateCreditFitSummary();},{once:true});
+        dialog.showModal();
+      };
+    }
+    function updateCreditFitSummary(){
+      const target=paneBilling?.querySelector('[data-credit-topup-summary]');if(!target)return;
+      const saved=renderBilling._base;
+      target.textContent=saved?.enabled ? `Auto top-up: $${saved.amt} below $${saved.th}` : 'Credit auto top-up: Off';
+    }
     // **** Floating menu element (users) ----
     floatingMenu = document.createElement('div');
     floatingMenu.className = 'cu-fmenu';
@@ -17650,6 +17736,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               return;
             }
             renderBilling._base = { enabled: v.enabled, th: v.th, amt: v.amt, _orgId: state.id };
+            updateCreditFitSummary();
             state.billing.auto_topup.enabled = v.enabled;
             state.billing.auto_topup.threshold_dollars = v.th;
             state.billing.auto_topup.topup_dollars = v.amt;
@@ -17675,6 +17762,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
                 return;
               }
               renderBilling._base = { enabled: v.enabled, th: v.th, amt: v.amt, _orgId: state.id };
+            updateCreditFitSummary();
               state.billing.auto_topup.enabled = v.enabled;
               state.billing.auto_topup.threshold_dollars = v.th;
               state.billing.auto_topup.topup_dollars = v.amt;
@@ -17723,6 +17811,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           renderBilling();
         });
       }
+      updateCreditFitSummary();
       // ---------- RIGHT SIDE: Billing History ----------
       const bhList = canPlatformBilling ? null : $('#bhList', paneBilling);
       const bhStatus = $('#bhStatus', paneBilling);
