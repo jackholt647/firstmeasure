@@ -85,3 +85,18 @@ test('shared host pin confirmation and technician notes are authoritative',async
  order.sync(context);t.go(2);assert.equal(order.ready(),true);assert.equal(order.payload().tech_notes,'Shared roof notes');
  context.pins=[{lat:40,lng:-105}];order.sync(context);assert.equal(context.locationConfirmed,false);assert.equal(order.ready(),false);
 });
+
+test('shared mobile pager can show Details, Photos, and Review without using the exterior navigation',async()=>{
+ const {order,context,t}=await harness();
+ context.locationConfirmed=true;order.sync(context);
+ assert.equal(order.mobileDetailsReady(),true);
+ order.setMobilePage('photos');assert.equal(t.getPage(),1);
+ assert.equal(order.mobilePhotosReady(),true);
+ order.setMobilePage('final');assert.equal(t.getPage(),2);
+ assert.equal(order.ready(),true);
+ order.setMobilePage('details');assert.equal(t.getPage(),0);
+ t.files.delete('0:front');
+ assert.equal(order.mobilePhotosReady(),false);
+ order.setMobilePage('photos');assert.equal(t.getPage(),1);
+ assert.equal(order.ready(),false);
+});
