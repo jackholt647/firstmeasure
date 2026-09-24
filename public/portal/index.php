@@ -177,6 +177,7 @@ session_write_close();
     #mobNewReqBtn[hidden]{display:none!important}
 
     @media (min-width:821px){
+      .sidebar .logo-area{flex:0 0 92px;box-sizing:border-box}
       .sidebar.sidebar-compact{width:var(--sidebar-compact)}
       .sidebar.sidebar-compact:hover,
       .sidebar.sidebar-compact.sidebar-compact-edge-held,
@@ -212,9 +213,46 @@ session_write_close();
       .sidebar.sidebar-compact.sidebar-compact-expanded .sidebar-compact-toggle i{transform:rotate(180deg)}
       .sidebar-compact-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}
 
+      .sidebar.sidebar-compact .logo-area{position:relative}
+      .sidebar.sidebar-compact .logo-area>.firstmate-color-logo,
+      .sidebar.sidebar-compact .logo-area>.cobrand-logo-divider,
+      .sidebar.sidebar-compact .logo-area>img{transition:opacity .16s ease .04s,transform .2s ease;transform-origin:left center}
+      .sidebar.sidebar-compact .sidebar-mini-logo{
+        display:block;position:absolute;left:10px;top:50%;width:27px;height:27px;
+        background:var(--primary-readable,var(--primary,#d93025));
+        -webkit-mask:url('/images/logo_square.png') center / contain no-repeat;
+        mask:url('/images/logo_square.png') center / contain no-repeat;
+        transform:translateY(-50%);opacity:0;pointer-events:none;
+        transition:opacity .12s ease;
+      }
+      .sidebar.sidebar-compact .sidebar-scroll{transition:padding .2s cubic-bezier(.2,.8,.2,1)}
+      .sidebar.sidebar-compact #sidebarLinks,
+      .sidebar.sidebar-compact #sidebarBottomLinks{transition:padding .2s cubic-bezier(.2,.8,.2,1)}
+      .sidebar.sidebar-compact .new-menu-wrap{display:flex;align-items:center;flex:0 0 46px}
+      .sidebar.sidebar-compact #btnNewReq{
+        position:relative;width:100%;height:40px;min-height:40px;
+        transition:padding .2s cubic-bezier(.2,.8,.2,1),background .18s ease,box-shadow .18s ease;
+      }
+      .sidebar.sidebar-compact #btnNewReq>span{min-width:0;max-width:170px;overflow:hidden;white-space:nowrap;opacity:1;transition:max-width .2s ease,opacity .12s ease .08s}
+      .sidebar.sidebar-compact .sidebar-new-full-icon{opacity:1;transition:opacity .12s ease .08s}
+      .sidebar.sidebar-compact .sidebar-new-mini-icon{
+        display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+        opacity:0;pointer-events:none;transition:opacity .12s ease;
+      }
+      .sidebar.sidebar-compact .sidebar-mode-tabs{transition:opacity .16s ease}
+      .sidebar.sidebar-compact .fm-link{
+        box-sizing:border-box;width:100%;height:32px;min-height:32px;flex:0 0 32px;
+        justify-content:flex-start;transition:padding .2s cubic-bezier(.2,.8,.2,1),color .14s ease,background .14s ease;
+      }
+      .sidebar.sidebar-compact .fm-link .ic{width:18px;flex:0 0 18px;font-size:14px}
+      .sidebar.sidebar-compact .fm-link .tx{
+        max-width:180px;overflow:hidden;white-space:nowrap;opacity:1;transform:translateX(0);
+        transition:max-width .2s ease,opacity .12s ease .08s,transform .2s ease;
+      }
+
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area{
         display:flex;
-        height:64px;
+        height:92px;
         width:100%;
         padding:0;
         align-items:center;
@@ -223,39 +261,30 @@ session_write_close();
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>.firstmate-color-logo,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>.cobrand-logo-divider,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>img{display:none!important}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .logo-area>img{opacity:0;pointer-events:none;transform:scale(.82)}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mini-logo{
-        display:block;
-        flex:none;
-        width:27px;
-        height:27px;
-        background:var(--primary-readable,var(--primary,#d93025));
-        -webkit-mask:url('/images/logo_square.png') center / contain no-repeat;
-        mask:url('/images/logo_square.png') center / contain no-repeat;
+        opacity:1;
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-scroll{
-        padding:10px 6px calc(8px + var(--fm-sidebar-safe-bottom));
-        gap:5px;
+        padding:16px 6px calc(14px + var(--fm-sidebar-safe-bottom));
+        gap:12px;
         overflow:hidden;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .new-menu-wrap{display:flex;justify-content:center}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .new-menu-wrap{display:flex;align-items:center;justify-content:center}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq{
-        width:36px;
-        height:36px;
-        min-height:36px;
-        flex:none;
+        width:100%;
         justify-content:center;
         padding:0;
         border-radius:12px;
         box-shadow:0 5px 12px rgba(var(--primary-rgb),.2);
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq>span,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-full-icon{display:none}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-mini-icon{display:block}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-full-icon{max-width:0;opacity:0}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #btnNewReq>span{max-width:0;opacity:0}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-new-mini-icon{opacity:1}
 
-      /* The midpoint rail control is the sole compact expansion affordance.
-         The Apps / To Do / Channels labels return once the rail expands. */
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mode-tabs{display:none}
+      /* Keep the tab row's space so app icons do not move when the rail opens. */
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-mode-tabs{visibility:hidden;opacity:0;pointer-events:none}
 
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarTodoPanel,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
@@ -270,17 +299,14 @@ session_write_close();
         overflow-x:hidden;
         overflow-y:auto;
         scrollbar-width:none;
+        gap:10px;
       }
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) #sidebarMainLinks::-webkit-scrollbar{display:none}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link{
-        width:34px;
-        height:32px;
-        justify-content:center;
-        padding:0;
+        padding:0 0 0 8px;
         flex:none;
       }
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link .ic{width:auto;font-size:15px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link .tx{display:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link .tx{max-width:0;opacity:0;transform:translateX(-6px)}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-link.bottom{padding-top:0}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .sidebar-footer{padding:8px 0 0;border-top:1px solid rgba(0,0,0,.06)}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded) .fm-account-switcher-trigger{justify-content:center;padding:3px!important}
@@ -625,6 +651,12 @@ session_write_close();
       flex-direction:column;
       gap: 10px;
       padding: 0 6px;
+    }
+
+    @media (min-width:821px){
+      .new-menu-wrap{height:46px}
+      .new-menu-wrap .btn-primary{height:100%}
+      #sidebarMainLinks .fm-link{min-height:32px}
     }
 
     .sidebar-footer{
