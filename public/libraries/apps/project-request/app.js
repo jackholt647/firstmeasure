@@ -111,7 +111,6 @@
   let typePickerExpanded = false;
   let mobileTypeTransitioning = false;
   let mobileTypeTransitionTimer = null;
-  let mobileRoofOnlyChosen = false;
   let reportSelection = null;
   let mobileOrderPage = 'location';
   let mobileLeftTrayOpen = false;
@@ -2067,7 +2066,7 @@
       .r-photo-title{font-size:22px}
       .r-overlay.mobile-order{--r-mobile-pager-height:calc(47px + env(safe-area-inset-bottom,0px))}
       html[data-native-app="android"] .r-overlay.mobile-order{--r-mobile-pager-height:47px}
-      .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box}
+      .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box;animation:none}
       .r-overlay.mobile-order.mobile-order-location .r-win{padding-bottom:0}
       .r-overlay.mobile-order .r-modal-header{display:none}
       .r-overlay.mobile-order,
@@ -2110,37 +2109,49 @@
       .r-overlay.mobile-order.mobile-order-location .r-left{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
       .r-overlay.mobile-order.mobile-order-location .r-right{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
-      .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto}
+      .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
+      .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:4px 4px 6px}
+      .r-overlay.mobile-order.mobile-order-location .r-step-shell{transition:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-body{gap:9px;padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location #rStepType{margin-bottom:2px}
       @keyframes rMobileStepReveal{from{opacity:0;transform:translateY(-7px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
       @keyframes rMobileTypeCollapse{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.96)}}
-      .r-overlay.mobile-order.mobile-order-location #rStepType.is-open,
-      .r-overlay.mobile-order.mobile-order-location #rStepReport.is-open,
-      .r-overlay.mobile-order.mobile-order-location #rExteriorOrder:not([hidden]),
-      .r-overlay.mobile-order.mobile-order-location #rMobilePinStage:not([hidden]){animation:rMobileStepReveal .22s ease-out both}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinStage.pin-stage-entering{animation:rMobileStepReveal .22s ease-out both}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:rMobileTypeCollapse .2s ease-in both}
       .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending #rMobilePinStage{display:none!important}
       .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending .r-map-hint{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{display:flex;flex-direction:column;gap:9px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext{width:100%;min-height:52px;border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}
-      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden],
-      .r-overlay.mobile-order.mobile-order-location #rMobileRoofChoice[hidden]{display:none!important}
-      .r-overlay.mobile-order.mobile-order-location .r-mobile-roof-choice{width:100%;min-height:56px;border:1px solid rgba(15,23,42,.15);border-radius:13px;background:#fff;color:#344054;font:inherit;font-weight:700;cursor:pointer}
-      .r-overlay.mobile-order.mobile-order-location #rConfirm.pin-returning{animation:rMobileStepReveal .22s ease-out both}
-      @media(prefers-reduced-motion:reduce){.r-overlay.mobile-order.mobile-order-location #rStepType.is-open,.r-overlay.mobile-order.mobile-order-location #rStepReport.is-open,.r-overlay.mobile-order.mobile-order-location #rExteriorOrder:not([hidden]),.r-overlay.mobile-order.mobile-order-location #rMobilePinStage:not([hidden]),.r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup,.r-overlay.mobile-order.mobile-order-location #rConfirm.pin-returning{animation:none}}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden]{display:none!important}
+      @media(prefers-reduced-motion:reduce){.r-overlay.mobile-order.mobile-order-location #rMobilePinStage.pin-stage-entering,.r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:none}}
       .r-overlay.mobile-order.mobile-order-location #rStepTypeLabel{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType:not(.is-condensed) #rTypeGroup{display:grid!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypeGroup{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType:not(.is-condensed) #rTypePill{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypePill{display:flex!important}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill .r-order-select{height:42px;box-sizing:border-box;border-radius:13px}
+      .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypePill.has-confirmed-pin{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch;width:100%}
+      .r-overlay.mobile-order.mobile-order-location #rStepType.is-condensed #rTypePill.has-confirmed-pin:has(#rScopeSelect){grid-template-columns:repeat(3,minmax(0,1fr))}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill.has-confirmed-pin .r-order-select{width:100%;height:42px;box-sizing:border-box;border-radius:13px}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill.has-confirmed-pin .r-order-select select{width:100%;padding-left:23px;padding-right:18px;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm{width:100%;height:42px;min-width:0;box-sizing:border-box;margin:0;padding:0 7px;border-radius:13px;gap:5px;white-space:nowrap}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm .ic{font-size:13px}
+      .r-overlay.mobile-order.mobile-order-location #rTypePill #rConfirm .tx{font-size:10px;line-height:1.1;white-space:nowrap}
       .r-overlay.mobile-order.mobile-order-location .r-type-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:9px 5px;min-height:62px;min-width:0;gap:3px;box-sizing:border-box}
       .r-overlay.mobile-order.mobile-order-location .r-type-icon{display:flex!important;width:24px;height:24px;flex:0 0 24px;align-items:center;justify-content:center}
       .r-overlay.mobile-order.mobile-order-location .r-type-label{display:block!important;width:100%;min-width:0;font-size:11px;line-height:1.15;white-space:normal;overflow-wrap:anywhere}
       .r-overlay.mobile-order.mobile-order-location .r-type-price{display:block!important;width:100%;min-width:0;font-size:9px;line-height:1.1;white-space:normal;overflow-wrap:anywhere}
       .r-overlay.mobile-order.mobile-order-location #rStepReport .r-step-body{gap:9px;padding:0}
+      .r-overlay.mobile-order.mobile-order-location #rStepReport,
+      .r-overlay.mobile-order.mobile-order-location #rStepReport .r-step-shell,
+      .r-overlay.mobile-order.mobile-order-location #rReportOptionGroup,
+      .r-overlay.mobile-order.mobile-order-location #rRoofReportFields,
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{width:100%;box-sizing:border-box}
       .r-overlay.mobile-order.mobile-order-location #rRoofReportFields{gap:9px}
       .r-overlay.mobile-order.mobile-order-location #rConfirm{padding:9px 11px;border-radius:13px;margin:7px 0 0}
+      .r-overlay.mobile-order.mobile-order-location.exteriors-active #rStepReport{display:block!important}
+      .r-overlay.mobile-order.mobile-order-location.exteriors-active #rExteriorOrder{height:0;margin:0}
+      .r-overlay.mobile-order.mobile-order-location.exteriors-active #rExteriorOrder .ext-pages{display:none!important}
       .r-overlay.mobile-order.mobile-order-location.exteriors-choose #rConfirm{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rExteriorOrder{margin:4px 0 0}
       .r-overlay.mobile-order.mobile-order-location #rExteriorOrder .ext-pages{margin-top:0}
@@ -2572,9 +2583,9 @@
   function mobileOrderScopeReady(){
     if (!addressSelected || !selectedType || mobileTypeTransitioning) return false;
     const exterior = window.Portal.ExteriorOrder;
-    return exterior?.offersChoice?.(selectedType)
+    return selectedType === 'residential' && exterior?.offersChoice?.(selectedType)
       ? !!exterior.selectedScope?.(selectedType)
-      : mobileRoofOnlyChosen;
+      : true;
   }
 
   function shakeMobileOrderTarget(target){
@@ -5382,7 +5393,6 @@
     const previousType = selectedType;
     selectedType = nextType;
     const mobileTypeChoice = shouldUseMobileOrderPagination() && addressSelected;
-    mobileRoofOnlyChosen = false;
     if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
     mobileTypeTransitioning = mobileTypeChoice;
     typePickerExpanded = mobileTypeChoice;
@@ -5903,15 +5913,25 @@
     const pill = $('#rTypePill');
     if (pill) {
       const meta = selectedType ? TYPE_META[selectedType] : null;
+      const ordered = hasReportOrdered();
+      const existing = pill.querySelector('[data-property-type]')?.closest('.r-order-select') || pill.querySelector('.r-viewer-type-tag');
       if (!meta) {
-        pill.innerHTML = '';
+        existing?.remove();
+        pill.dataset.typeKey = '';
         return;
       }
+      if (existing && pill.dataset.typeKey === selectedType && pill.dataset.typeOrdered === String(ordered)) return;
       const icon = escapeHtml(meta.icon || 'fa-house');
       const label = escapeHtml(meta.label || selectedType);
-      pill.innerHTML = hasReportOrdered()
+      const markup = ordered
         ? ("<span class=\"r-viewer-type-tag\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-request","m_207fd0b5cbe442","Project type") ?? "Project type") + "\"><i class=\"fas " + String(icon) + "\"></i> " + String(label) + "</span>")
         : `<label class="r-order-select"><i class="fas ${String(icon)}" aria-hidden="true"></i><select data-property-type aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_dccbe8abe35b17","Property type") ?? "Property type")}">${String(Object.entries(TYPE_META).map(([key,item])=>`<option value="${escapeHtml(key)}" ${key===selectedType?'selected':''}>${escapeHtml(item.label)}</option>`).join(''))}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></label>`;
+      const holder = document.createElement('span');
+      holder.innerHTML = markup;
+      existing?.remove();
+      pill.prepend(holder.firstElementChild);
+      pill.dataset.typeKey = selectedType;
+      pill.dataset.typeOrdered = String(ordered);
     }
   }
 
@@ -6287,11 +6307,6 @@
     const mobileLocation = shouldUseMobileOrderPagination() && mobileOrderPage === 'location';
     const next = $('#rMobilePinNext');
     if (next) next.hidden = !mobileLocation || !mobileOrderReadyForDetails();
-    if (mobileLocation && wrap.dataset.pinConfirmed === 'true' && !locationConfirmed) {
-      wrap.classList.remove('pin-returning');
-      void wrap.offsetWidth;
-      wrap.classList.add('pin-returning');
-    }
     wrap.dataset.pinConfirmed = String(locationConfirmed);
 
     wrap.classList.remove('active', 'checked');
@@ -9082,7 +9097,7 @@
     }
     if (shouldUseMobileOrderPagination()) {
       reportSelection = 'roof';
-      if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active()) setActivePreviewTab('map');
+      if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active() && activePreviewTab !== 'map') setActivePreviewTab('map');
     }
     const hasAddress = !!(($('#rAddress')?.value || '').trim());
     const mobileOrder = shouldUseMobileOrderPagination();
@@ -9103,9 +9118,20 @@
     const mobileReportOpen = mobileOrder && addressSelected && !!selectedType && !mobileTypeTransitioning;
     const explicitActionWorkflow = !['project', 'contact'].includes(requestedWorkflow);
     setStepState('#rStepReport', mobileOrder ? mobileReportOpen : (explicitActionWorkflow && reportReady && hasAvailableActions), roofDecisionMade() ? 'complete' : (reportReady ? 'active' : 'locked'), mobileOrder ? false : reportCondensed, { hideHeadWhenCondensed: true });
-    const roofChoice = $('#rMobileRoofChoice');
-    if (roofChoice) roofChoice.hidden = !mobileOrder || !mobileReportOpen || !!window.Portal.ExteriorOrder?.offersChoice?.(selectedType) || mobileRoofOnlyChosen;
-    $('#rOverlay')?.classList.toggle('mobile-scope-pending', mobileOrder && !mobileOrderScopeReady());
+    const scopeReady = mobileOrderScopeReady();
+    $('#rOverlay')?.classList.toggle('mobile-scope-pending', mobileOrder && !scopeReady);
+    const pinStage = $('#rMobilePinStage');
+    if (pinStage && mobileOrder && mobileOrderPage === 'location') {
+      const wasVisible = pinStage.dataset.stageVisible === 'true';
+      pinStage.dataset.stageVisible = String(scopeReady);
+      if (scopeReady && !wasVisible) {
+        pinStage.classList.remove('pin-stage-entering');
+        void pinStage.offsetWidth;
+        pinStage.classList.add('pin-stage-entering');
+      } else if (!scopeReady) {
+        pinStage.classList.remove('pin-stage-entering');
+      }
+    }
     setStepState('#rStepRoof', reportReady && roofNeedsPins, roofNeedsPins ? (locationConfirmed ? 'complete' : 'active') : 'locked', roofCondensed);
     setStepState('#rStepCustomer', customerOpen, customerOpen ? 'active' : 'locked', false);
 
@@ -9180,7 +9206,21 @@
     }
     syncReportExpediteMinuteRefresh();
     window.Portal.ExteriorOrder?.sync({type:selectedType,count:pinCount(),pins:getMarkersData(),showMap:()=>setActivePreviewTab('map'),showPhotos:()=>setActivePreviewTab('photos'),syncPhotoTabs:()=>syncProjectViewerTabs(),updateMobilePager:()=>syncMobileOrderPagination(),locationConfirmed,closed:reportOrderingClosed(),setPinConfirmed:value=>{locationConfirmed=!!value;renderConfirm();},getNotes:()=>$('#rTechNotes')?.value||'',setNotes:value=>{if($('#rTechNotes'))$('#rTechNotes').value=value;},getCc:()=>collectCcEmails(),getContacts:()=>collectContacts(),getAddress:()=>($('#rAddress')?.value||'').trim(),getTypeLabel:()=>TYPE_META[selectedType]?.label||selectedType,getInternalNotes:()=>($('#rProjectNotes')?.value||'').trim()||legacyProjectNotesText(),showInfo:key=>showAddonInfoModal(key),hoverInfo:element=>showAddonInfoPopout(element),hideInfo:()=>hideAddonInfoPopout(120),ordered:hasReportOrdered(),orderWorkflow:requestedWorkflow==='report',mobileOrder,addressSelected,typeTransitioning:mobileTypeTransitioning,refresh:()=>renderWorkflowState(),submit:()=>onSubmit({preventDefault(){}})});
-    if (mobileOrder) renderConfirm();
+    if (mobileOrder) {
+      renderConfirm();
+      const confirm = $('#rConfirm');
+      const stage = $('#rMobilePinStage');
+      const pill = $('#rTypePill');
+      const confirmedPill = mobileOrderPage === 'location' && locationConfirmed && !!pinCount() && scopeReady;
+      if (confirm && stage && pill) {
+        const target = confirmedPill ? pill : stage;
+        if (confirm.parentElement !== target) {
+          if (target === stage) stage.prepend(confirm);
+          else pill.append(confirm);
+        }
+        pill.classList.toggle('has-confirmed-pin', confirmedPill);
+      }
+    }
   }
 
   function revealInLeftColumnIfBelow(target, options = {}){
@@ -9430,11 +9470,6 @@
     $('#rMobileBack')?.addEventListener('click', mobileOrderGoBack, { signal: projectFormListeners.signal });
     $('#rMobileNext')?.addEventListener('click', mobileOrderGoNext, { signal: projectFormListeners.signal });
     $('#rMobilePinNext')?.addEventListener('click', mobileOrderGoNext, { signal: projectFormListeners.signal });
-    $('#rMobileRoofChoice')?.addEventListener('click', event => {
-      if (!event.target.closest('.r-mobile-roof-choice')) return;
-      mobileRoofOnlyChosen = true;
-      renderWorkflowState();
-    }, { signal: projectFormListeners.signal });
     el.querySelector('.r-win')?.addEventListener('touchstart', handleMobileOrderSwipeStart, { ...({ passive: true }), signal: projectFormListeners.signal });
     el.querySelector('.r-win')?.addEventListener('touchend', handleMobileOrderSwipeEnd, { ...({ passive: true }), signal: projectFormListeners.signal });
     $('#rMobileOrder')?.addEventListener('click', () => {
@@ -9806,7 +9841,6 @@
         addressSelected = false;
         locationConfirmed = false;
         selectedType = null;
-        mobileRoofOnlyChosen = false;
         mobileTypeTransitioning = false;
         typePickerExpanded = false;
         if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
@@ -10335,7 +10369,6 @@
     selectedType = base.project_type || 'residential';
     typePickerExpanded = false;
     mobileTypeTransitioning = false;
-    mobileRoofOnlyChosen = false;
     if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
     const hasBaseMeasurement = projectHasReportOrder(base);
     reportSelection = hasBaseMeasurement || isUnfinishedReportDraft(base)
@@ -10489,7 +10522,6 @@
   function resetNewProjectState(){
     if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
     mobileTypeTransitioning = false;
-    mobileRoofOnlyChosen = false;
     window.Portal.ExteriorOrder?.reset();
     activeBaseProject = null;
     projectWorkPlanState = { projectId: '', plans: [], loaded: false };
@@ -10842,7 +10874,7 @@
       projectMapInitTimer = 0;
     }
     setTimeout(() => {
-      if (!projectShellLoading && !hasReportOrdered()) {
+      if (!projectShellLoading && !hasReportOrdered() && !shouldUseMobileOrderPagination()) {
         const firstContactName = document.querySelector('#rContactList [data-field="name"]');
         (firstContactName || $('#rAddress'))?.focus();
         if (!firstContactName) $('#rAddress')?.select?.();

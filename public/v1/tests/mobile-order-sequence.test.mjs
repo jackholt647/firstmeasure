@@ -6,10 +6,10 @@ import vm from 'node:vm';
 const request = await readFile(new URL('../../libraries/apps/project-request/app.js', import.meta.url), 'utf8');
 const source = request.slice(request.indexOf('  function mobileOrderReadyForDetails(){'), request.indexOf('  function shakeMobileOrderTarget('));
 
-test('mobile location requires a selected address, type, scope and confirmed pin', () => {
+test('mobile location requires scope only where two report scopes are available', () => {
   const state = {
     addressSelected: false, selectedType: null, mobileTypeTransitioning: false,
-    mobileRoofOnlyChosen: false, locationConfirmed: false,
+    locationConfirmed: false,
     window: { Portal: { ExteriorOrder: {
       offersChoice: type => type === 'residential',
       selectedScope: () => state.scope,
@@ -33,9 +33,13 @@ test('mobile location requires a selected address, type, scope and confirmed pin
   assert.equal(state.mobileOrderReadyForDetails(), false);
   state.locationConfirmed = true;
   state.selectedType = 'commercial';
-  assert.equal(state.mobileOrderReadyForDetails(), false);
-  state.mobileRoofOnlyChosen = true;
   assert.equal(state.mobileOrderReadyForDetails(), true);
+  state.window.Portal.ExteriorOrder.offersChoice = () => true;
+  assert.equal(state.mobileOrderReadyForDetails(), true, 'commercial skips Full Structure even if a capability is enabled');
+  state.selectedType = 'residential';
+  state.window.Portal.ExteriorOrder.offersChoice = () => false;
+  state.scope = null;
+  assert.equal(state.mobileOrderReadyForDetails(), true, 'a disabled Full Structure flag skips the scope step');
   state.pins = 0;
   assert.equal(state.mobileOrderReadyForDetails(), false);
 });
