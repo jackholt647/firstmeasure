@@ -64,7 +64,8 @@ test('native discovery can finish after the photo screen opens without disabling
  await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
  assert.equal(await page.evaluate(()=>cameraCalls),1);
  assert.equal(await page.locator('video').evaluate(v=>getComputedStyle(v).visibility),'visible');
- assert.equal(await page.locator('.ext-shutter-control>span').textContent(),'Take photo');
+ assert.equal(await page.locator('.ext-shutter-control>span').count(),0);
+ assert.equal(await page.locator('[data-guide-capture]').getAttribute('aria-label'),'Take photo');
 });
 
 test('older Android app explains the update, hides the empty video and exposes a labelled camera picker',async t=>{
@@ -73,7 +74,8 @@ test('older Android app explains the update, hides the empty video and exposes a
  assert.equal(await page.evaluate(()=>cameraCalls),0);
  assert.equal(await page.locator('video').evaluate(v=>getComputedStyle(v).visibility),'hidden');
  assert.equal(await page.locator('[data-guide-retry-camera]').isVisible(),false);
- assert.equal(await page.locator('.ext-shutter-control>span').textContent(),'Take photo');
+ assert.equal(await page.locator('.ext-shutter-control>span').count(),0);
+ assert.equal(await page.locator('[data-guide-capture]').getAttribute('aria-label'),'Take photo');
  const chosen=page.waitForEvent('filechooser');await page.click('[data-guide-capture]');
  const chooser=await chosen;assert.equal(await chooser.element().getAttribute('capture'),'environment');
  await chooser.setFiles([]);
@@ -111,7 +113,8 @@ test('capture fills the screen, keeps three navigation buttons anchored and uses
  assert.equal((await page.locator('.ext-guide-footer').boundingBox()).y,bottom.y);
  await page.screenshot({path:process.env.TEMP+'/firstmate-capture-layout.png'});
  await page.click('[data-guide-forward]');
- const remove=await page.locator('.ext-view .ext-remove').first().boundingBox();assert.equal(remove.width,32);assert.equal(remove.height,32);
+ await page.evaluate(()=>document.getAnimations().forEach(a=>a.finish()));
+ const remove=await page.locator('.ext-summary-tiles .ext-thumb-remove').first().boundingBox();assert.equal(remove.width,24);assert.equal(remove.height,24);
  const extra=page.locator('[data-extra-upload]');const box=await extra.boundingBox();assert.ok(box.width>350&&box.height>=170);
  assert.equal(await page.locator('[data-extra-camera]').count(),0);
  const chooserPromise=page.waitForEvent('filechooser');await extra.click();const chooser=await chooserPromise;
@@ -162,4 +165,22 @@ test('captures appear before encoding or upload; primary selection, scrolling an
  assert.equal(await page.locator('.ext-thumb-busy:visible').count(),0);
  for(const tile of await page.locator('.ext-photo-tile').all()){const box=await tile.boundingBox();assert.equal(box.width,box.height);}
  await page.screenshot({path:process.env.TEMP+'/firstmate-instant-thumbnails.png'});
+});
+
+
+test('summary uses four square columns, grouped primary selection, and missing-angle feedback',async t=>{
+ const page=await setup(t);
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ for(let i=0;i<6;i++)await page.click('[data-guide-capture]');
+ await page.waitForFunction(()=>Portal.test.files.size===6&&[...Portal.test.files.values()].every(f=>f.media_id));
+ await page.evaluate(()=>{document.getAnimations().forEach(a=>a.finish());Portal.test.finishGuide();});
+ const grid=page.locator('[data-summary-tiles="0:front"]');
+ assert.equal(await grid.locator('.ext-photo-tile').count(),6);
+ const boxes=await grid.locator('.ext-photo-tile').evaluateAll(els=>els.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));
+ assert.equal(boxes[0].y,boxes[3].y);assert.ok(boxes[4].y>boxes[0].y);assert.equal(boxes[0].w,boxes[0].h);
+ await grid.locator('[data-guide-primary]').first().click();
+ assert.equal(await grid.locator('.ext-photo-tile').first().getAttribute('class'),'ext-photo-tile primary');
+ await page.evaluate(()=>Portal.ExteriorOrder.explainMissingPhotos());
+ assert.match(await page.locator('.ext-photo-toast').textContent(),/Missing 7 angles/);
+ await page.screenshot({path:process.env.TEMP+'/firstmate-summary-grid.png'});
 });

@@ -2105,7 +2105,7 @@
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager .r-mobile-page-btn{pointer-events:auto;box-shadow:0 4px 18px rgba(15,23,42,.2)}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
-      .r-mobile-page-btn:disabled{background:#e5e7eb;border-color:#d1d5db;color:#667085;box-shadow:none;cursor:not-allowed}
+      .r-mobile-page-btn:disabled,.r-mobile-page-btn[aria-disabled="true"]{background:#e5e7eb;border-color:#d1d5db;color:#667085;box-shadow:none;cursor:not-allowed}
       .r-overlay.mobile-order.mobile-order-location .r-left{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
       .r-overlay.mobile-order.mobile-order-location .r-right{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
@@ -2681,7 +2681,10 @@
     if (!shouldUseMobileOrderPagination() || mobileOrderPage === 'final') return;
     const exterior=window.Portal.ExteriorOrder;
     if (mobileOrderPage === 'photos') {
-      if (exterior?.mobilePhotoSummary?.() && exterior.mobilePhotosReady()) setMobileOrderPage('details');
+      if (exterior?.mobilePhotoSummary?.()) {
+        if (exterior.mobilePhotosReady()) setMobileOrderPage('details');
+        else exterior.explainMissingPhotos?.();
+      }
       return;
     }
     if (mobileOrderPage === 'details') {
@@ -2749,7 +2752,9 @@
         : mobileOrderPage === 'details' ? (exterior ? window.Portal.ExteriorOrder.mobileDetailsReady() : mobileOrderReadyForFinal())
         : mobileOrderReadyForDetails();
       next.style.display = mobile && (mobileOrderPage === 'photos' || (mobileOrderPage === 'details' && hasFinalPage)) ? '' : 'none';
-      next.disabled = mobile ? !ready : false;
+      const photoFeedback = mobile && mobileOrderPage === 'photos' && window.Portal.ExteriorOrder?.mobilePhotoSummary?.();
+      next.disabled = mobile && !ready && !photoFeedback;
+      next.setAttribute('aria-disabled', String(mobile && !ready));
       next.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i>`;
     }
     if (order) {

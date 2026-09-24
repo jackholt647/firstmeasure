@@ -8,12 +8,12 @@ const source = request.slice(request.indexOf('  function mobileOrderReadyForDeta
 
 test('full structure goes map, guided photos and summary, details, then review; roof keeps its existing sequence',()=>{
  const navigation=request.slice(request.indexOf('  function mobileOrderGoBack(){'),request.indexOf('  function handleMobileOrderSwipeStart'));
- let full=true,summary=false,photos=false,details=true;
- const state={mobileOrderPage:'location',shouldUseMobileOrderPagination:()=>true,mobileOrderReadyForDetails:()=>true,mobileOrderReadyForFinal:()=>!full||(photos&&details),shakeMissingMobileOrderRequirement(){},setMobileOrderPage:p=>state.mobileOrderPage=p,window:{Portal:{ExteriorOrder:{active:()=>full,mobilePhotoSummary:()=>summary,mobilePhotosReady:()=>photos,mobileDetailsReady:()=>details,mobilePhotoBack:()=>false}}}};
+ let full=true,summary=false,photos=false,details=true,feedback=0;
+ const state={mobileOrderPage:'location',shouldUseMobileOrderPagination:()=>true,mobileOrderReadyForDetails:()=>true,mobileOrderReadyForFinal:()=>!full||(photos&&details),shakeMissingMobileOrderRequirement(){},setMobileOrderPage:p=>state.mobileOrderPage=p,window:{Portal:{ExteriorOrder:{active:()=>full,mobilePhotoSummary:()=>summary,mobilePhotosReady:()=>photos,mobileDetailsReady:()=>details,explainMissingPhotos:()=>feedback++,mobilePhotoBack:()=>false}}}};
  vm.createContext(state);vm.runInContext(navigation,state);
  state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'photos');
  state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'photos');
- summary=true;photos=true;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'details');
+ summary=true;state.mobileOrderGoNext();assert.equal(feedback,1);assert.equal(state.mobileOrderPage,'photos');photos=true;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'details');
  details=false;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'details');
  details=true;state.mobileOrderGoNext();assert.equal(state.mobileOrderPage,'final');
  state.mobileOrderGoBack();assert.equal(state.mobileOrderPage,'details');
