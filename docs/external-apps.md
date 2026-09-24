@@ -9,8 +9,7 @@ the PHP server environment to use a different registry on another machine.
 {
   "version": 1,
   "apps": [
-    { "id": "geo", "directory": "../FirstMate Geo", "enabled": true },
-    { "id": "another-project", "directory": "/srv/firstmate-labs/another-project", "enabled": false }
+    { "id": "example-app", "directory": "/srv/firstmate-labs/example-app", "enabled": true }
   ]
 }
 ```
@@ -60,10 +59,11 @@ from the repository root, plus `npm run test:navigation` from `public/v1`.
 
 ## Combined FirstMeasure checkout
 
-The combined checkout ships the configured GEO starter as an unchanged frontend
-snapshot under `external-apps/packages/geo`, selected by `external-apps.json`.
-Its original authoring directory remains independent; see the snapshot's
-`SOURCE.md` for file hashes. No GEO backend is provided by its current source.
-An environment-specific `FIRSTMATE_EXTERNAL_APPS_CONFIG` still overrides this
-registry for independent development/deployment. The portal only renders external
-packages for users with explicit expanded-platform access.
+The combined checkout retains the GEO starter frontend snapshot under
+`external-apps/packages/geo`, but the shipped `external-apps.json` has no enabled
+packages. GEO is therefore absent from the portal for every organization,
+including full-platform organizations. Its original authoring directory remains
+independent; see the snapshot's `SOURCE.md` for file hashes. No GEO backend is
+provided by its current source. An environment-specific
+`FIRSTMATE_EXTERNAL_APPS_CONFIG` can select a different registry. The portal
+only renders selected external packages for users with expanded-platform access.

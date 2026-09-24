@@ -64,7 +64,7 @@ Payroll automation events are written in the payroll transaction and forwarded w
 
 Application mutation locks are deliberately conservative and may serialize writes within a store. No production throughput claim has been established for the expanded apps. Mixed-app contention and lazy first-use initialization must be measured in development. Public document-token discovery also retains a broad organization/document lookup from the platform source and needs workload measurement before broad adoption.
 
-The portable GEO registry includes the source's existing starter frontend under `external-apps/packages/geo`; see its `SOURCE.md`. That source has no GEO backend. `FIRSTMATE_EXTERNAL_APPS_CONFIG` still supports independently deployed packages. The imported public website entry point is `public/sites/index.php`.
+The portable external-app registry has no enabled packages. The GEO starter frontend remains as an inactive snapshot under `external-apps/packages/geo`; see its `SOURCE.md`. That source has no GEO backend. `FIRSTMATE_EXTERNAL_APPS_CONFIG` still supports independently deployed packages. The imported public website entry point is `public/sites/index.php`.
 
 ## Verification record
 

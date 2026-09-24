@@ -16,6 +16,11 @@ function php(code, args = []) {
   return result.stdout;
 }
 
+test('shipped registry does not discover GEO for full-platform organizations', () => {
+  const discovered = JSON.parse(php('require $argv[1]; echo json_encode(array_keys(fm_external_packages()));', [registry]));
+  assert.equal(discovered.includes('geo'), false);
+});
+
 test('directory discovery tolerates missing, invalid, disabled and moved packages; private files stay private', () => {
   const temp = mkdtempSync(path.join(tmpdir(), 'fm-external-'));
   try {
