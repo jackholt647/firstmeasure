@@ -895,7 +895,11 @@
   const initialAppDefinitions = {
     'portal.assistant': {
       visible:true,
-      mount(){ return { destroy(){} }; },
+      mount(context){
+        const panel = context.roots?.main || context.root;
+        if (panel) panel.innerHTML = '';
+        return { destroy(){} };
+      },
       onShow(){ window.PlatformAssistant?.openFull?.(); },
       onHide(){ window.PlatformAssistant?.dockIfFull?.(); }
     },
