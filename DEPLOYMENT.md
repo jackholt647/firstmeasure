@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 25 notifications: [Platform notifications and FirstMate mobile app](deploy/digitalocean/development-notifications-20260925.md) records the development rollout, enabled Test Company Notifications tab, and private Android 1.0.3 download. Browser and role verification passed. Real phone push still requires Firebase/APNs configuration; production is unchanged.
+
 September 25 regional billing: [Persistent signup region, currencies and prices](deploy/digitalocean/development-regional-billing-20260925.md) records final development web release `4c059e5`. Regional backend hashes are verified across all four roles; 42 Linux tests, browser checks, public readiness and asset hashes passed. A live startup-order defect was corrected before completion. Production is unchanged.
 
 September 24 recurring subscriptions: [Automatic billing, configurable tiers and allowances](deploy/digitalocean/development-subscription-service-20260924.md) records billing release `91046fca06b533a381223366db14161ab78779d9`. Stripe checkout, prorated upgrades, cancellation/resumption, saved-card recovery, SMS caps and storage upgrades share the Billing workspace. SMS is $30/1,000 or $100/provisional 5,000 messages, with custom Enterprise. Production is unchanged.
