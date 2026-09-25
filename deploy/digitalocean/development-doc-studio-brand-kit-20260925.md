@@ -74,3 +74,35 @@ bundle token. Both web nodes returned exact `4c059e5` readiness with enforced
 development isolation; a subsequent 38-request public sample reached both
 instances (37 and 1). Compatibility retained the hotfix release during that
 check.
+
+## Shared Brand Kit controls and automatic saving
+
+Source commit `b45ab00ea0c6aee0b5a70bc8144eb37a28bfd730` moved the
+Company Information palette, logo, and font controls into one shared Brand Kit
+library consumed by Company Settings and Doc Studio. Brand Kit edits now save
+automatically in both locations; Doc Studio no longer has a Brand Kit Save
+button. The existing Company Save button still handles the other company
+information fields.
+
+The development overlay was rebased onto the actual serving files before
+activation. Both web nodes previously served `4c059e5558a20ca09cacebfc17e66ed6ebf4c51a`;
+compatibility served `5685b86f214d81018aab92e312c1b3111b4a885e`.
+The web Company Settings file had concurrent assistant and billing changes,
+which were retained. Stray earlier Brand Kit fragments in the Users and
+Billing markup were removed from the web overlay. Only Studio, Company
+Settings, the app manifest, portal entry, the two new shared-library files,
+and `release.env` changed in each immutable release. Compatibility used
+hardlinks for unchanged files and distinct inodes for changed files.
+
+JavaScript syntax and PHP lint passed for both overlays. A local visual
+fixture confirmed that Company Settings and Doc Studio render the same
+palette, logo, and font cards. Each development service passed exact-release
+readiness with development data and outbound isolation after activation.
+Six public readiness requests reached both web instances, all reporting
+`b45ab00`. The public Brand Kit JavaScript and CSS, Studio, Company Settings,
+and app-manifest files matched the staged SHA-256 hashes.
+
+Rollback: restore web nodes to `4c059e5` and compatibility to `5685b86`,
+restart the applicable web or legacy service and PHP-FPM, then check exact
+readiness and development isolation. The autoscale image has not been
+updated; replacement nodes need this verified UI overlay before serving it.
