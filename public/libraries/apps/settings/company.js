@@ -16639,7 +16639,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           #csPaneBilling.fm-credit-fit .bh-sub{display:none}
         }
         @media(max-width:1100px){
-          .cs-layout:has(.fm-credit-fit.active){display:flex;flex-direction:column}
+          .cs-layout:has(.fm-credit-fit.active){display:flex;flex-direction:column;gap:0}
           .cs-layout:has(.fm-credit-fit.active)>.cs-heading,.cs-layout:has(.fm-credit-fit.active)>.cs-sidebar{flex:0 0 auto}
           .cs-main:has(.fm-credit-fit.active){flex:1;min-height:0;height:auto}
         }
