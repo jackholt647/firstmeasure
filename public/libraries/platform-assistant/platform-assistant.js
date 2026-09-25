@@ -204,7 +204,7 @@
       .fma-composer{position:relative;flex:0 0 auto;display:flex;flex-direction:column;gap:7px;padding:11px 13px;border-top:1px solid #e4e7ec;}
       .fma-compose-shell{display:flex;align-items:flex-end;gap:5px;min-height:54px;padding:5px 7px;border:1px solid #e4e7ec;border-radius:28px;background:#fff;box-shadow:0 3px 14px #10182812;}
       .fma-compose-shell:focus-within{border-color:var(--primary-readable,var(--primary,#175cd3));}
-      .fma-compose-shell textarea{flex:1;resize:none;border:0;background:transparent;padding:10px 5px;font:inherit;min-height:42px;max-height:170px;outline:none;}
+      .fma-compose-shell textarea{flex:1;min-width:0;box-sizing:border-box;resize:none;border:0;background:transparent;padding:9px 5px;font:inherit;line-height:22px;height:40px;min-height:40px;outline:none;overflow-y:hidden;transition:height .14s ease;}
       .fma-compose-icon{flex:0 0 auto;align-self:flex-end;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#344054;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px;}
       .fma-compose-icon:hover{background:#f2f4f7;}
       .fma-send{align-self:flex-end;width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;background:var(--primary-readable,var(--primary,#175cd3));color:#fff;display:none;align-items:center;justify-content:center;font-size:15px;transition:filter .15s ease,transform .12s ease;}
@@ -225,8 +225,8 @@
       .fma-composer[data-recording=true] .fma-recording{display:flex;}
       .fma-composer[data-recording=true] textarea,.fma-composer[data-recording=true] [data-fma=attach],.fma-composer[data-recording=true] [data-fma=mic]{display:none;}
       .fma-recording-time{font-size:12px;color:#667085;font-variant-numeric:tabular-nums;}
-      .fma-wave{display:flex;align-items:center;gap:3px;flex:1;min-width:0;height:28px;overflow:hidden;}
-      .fma-wave span{flex:1;min-width:2px;max-width:4px;height:4px;border-radius:50%;background:var(--primary-readable,var(--primary,#175cd3));transition:height .12s ease;}
+      .fma-wave{display:block;flex:1;min-width:0;width:100%;height:28px;color:var(--primary-readable,var(--primary,#175cd3));}
+      @media (prefers-reduced-motion:reduce){.fma-compose-shell textarea{transition:none;}}
       .fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings{padding-top:64px;padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
       .fma-drawer[data-window=full] .fma-composer{padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
       .fma-drawer[data-window=full] .fma-msg{max-width:75%;}
@@ -264,7 +264,7 @@
         <div class="fma-compose-shell">
           <button type="button" class="fma-compose-icon" data-fma="attach" title="Add files or camera photo" aria-label="Add files or camera photo"><i class="fas fa-plus" aria-hidden="true"></i></button>
           <textarea data-fma="input" rows="1" placeholder="${(globalThis.PlatformLanguage?.text("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...")}"></textarea>
-          <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="Discard recording" aria-label="Discard recording"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><div class="fma-wave" data-fma="wave"></div></div>
+          <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="Discard recording" aria-label="Discard recording"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><canvas class="fma-wave" data-fma="wave" aria-hidden="true"></canvas></div>
           <button type="button" class="fma-compose-icon" data-fma="mic" title="Dictate" aria-label="Dictate"><i class="fas fa-microphone" aria-hidden="true"></i></button>
           <button type="button" class="fma-send" data-fma="send" title="Send" aria-label="Send"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
         </div>
@@ -356,6 +356,13 @@
     });
     els.send.addEventListener('click', sendMessage);
     els.input.addEventListener('input', updateComposer);
+    let composerWidth = 0;
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => {
+        const width = els?.input?.clientWidth || 0;
+        if (width && width !== composerWidth) { composerWidth = width; resizeComposerInput(); }
+      }).observe(els.input);
+    } else window.addEventListener('resize', resizeComposerInput);
     drawer.querySelector('[data-fma="attach"]').addEventListener('click', () => { els.attachMenu.hidden = !els.attachMenu.hidden; });
     drawer.querySelector('[data-fma="pickFile"]').addEventListener('click', () => { els.attachMenu.hidden = true; els.fileInput.click(); });
     drawer.querySelector('[data-fma="pickCamera"]').addEventListener('click', () => { els.attachMenu.hidden = true; els.cameraInput.click(); });
@@ -684,8 +691,29 @@
     } catch (error) { panel.textContent = error?.message || 'Assistant settings could not be loaded.'; }
   }
 
+  function resizeComposerInput(){
+    if (!els?.input) return;
+    const input = els.input;
+    const style = getComputedStyle(input);
+    const lineHeight = parseFloat(style.lineHeight) || 22;
+    const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+    const minimum = Math.ceil(lineHeight + padding);
+    const maximum = Math.ceil(10 * lineHeight + padding);
+    const previous = input.getBoundingClientRect().height || minimum;
+    input.style.transition = 'none';
+    input.style.height = `${minimum}px`;
+    const needed = input.scrollHeight;
+    const next = Math.max(minimum, Math.min(needed, maximum));
+    input.style.height = `${previous}px`;
+    input.offsetHeight;
+    input.style.transition = '';
+    input.style.height = `${next}px`;
+    input.style.overflowY = needed > maximum + 1 ? 'auto' : 'hidden';
+  }
+
   function updateComposer(){
     if (!els) return;
+    resizeComposerInput();
     els.composer.dataset.canSend = String(Boolean(clean(els.input.value) || state.attachments.length || recorder));
     els.composer.dataset.recording = String(Boolean(recorder));
     els.send.disabled = state.pending;
@@ -743,29 +771,57 @@
       }, {once:true});
       recorder.start();
       recordingStarted = Date.now();
-      els.wave.innerHTML = '<span></span>'.repeat(54);
-      const dots = [...els.wave.children];
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      let analyser = null;
+      let data = null;
       if (AudioContextClass) {
         audioContext = new AudioContextClass();
-        const analyser = audioContext.createAnalyser();
+        analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         audioContext.createMediaStreamSource(recordingStream).connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        let lastFrame = 0;
-        const animate = (now) => {
-          if (!recorder) return;
-          if (now - lastFrame > 100) {
-            analyser.getByteTimeDomainData(data);
-            const level = Math.sqrt(data.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / data.length);
-            for (let index = 0; index < dots.length - 1; index++) dots[index].style.height = dots[index + 1].style.height;
-            dots.at(-1).style.height = `${Math.max(4, Math.min(26, 4 + level * 120))}px`;
-            lastFrame = now;
-          }
-          waveformFrame = requestAnimationFrame(animate);
-        };
-        waveformFrame = requestAnimationFrame(animate);
+        data = new Uint8Array(analyser.frequencyBinCount);
       }
+      const canvas = els.wave;
+      const context = canvas.getContext('2d');
+      const samples = [];
+      let lastSample = 0;
+      const animate = (now) => {
+        if (!recorder) return;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const scale = Math.min(window.devicePixelRatio || 1, 2);
+        if (context && width && height) {
+          const pixelsWide = Math.round(width * scale);
+          const pixelsHigh = Math.round(height * scale);
+          if (canvas.width !== pixelsWide || canvas.height !== pixelsHigh) {
+            canvas.width = pixelsWide;
+            canvas.height = pixelsHigh;
+          }
+          context.setTransform(scale, 0, 0, scale, 0, 0);
+          context.clearRect(0, 0, width, height);
+          if (now - lastSample >= 100) {
+            if (analyser && data) analyser.getByteTimeDomainData(data);
+            const level = data ? Math.sqrt(data.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / data.length) : 0;
+            samples.push({ time:now, height:Math.max(4, Math.min(26, 4 + level * 120)) });
+            lastSample = now;
+          }
+          while (samples.length && now - samples[0].time > (width + 8) / 70 * 1000) samples.shift();
+          context.fillStyle = getComputedStyle(canvas).color;
+          for (const sample of samples) {
+            const age = now - sample.time;
+            const x = width - 4 - age * .07;
+            if (x < -4) continue;
+            context.globalAlpha = Math.min(1, age / 170, Math.max(0, (x + 4) / 12));
+            context.beginPath();
+            if (context.roundRect) context.roundRect(x, (height - sample.height) / 2, 4, sample.height, 2);
+            else context.rect(x, (height - sample.height) / 2, 4, sample.height);
+            context.fill();
+          }
+          context.globalAlpha = 1;
+        }
+        waveformFrame = requestAnimationFrame(animate);
+      };
+      waveformFrame = requestAnimationFrame(animate);
       recordingTimer = setInterval(() => {
         const seconds = Math.floor((Date.now() - recordingStarted) / 1000);
         els.recordingTime.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
