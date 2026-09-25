@@ -123,9 +123,11 @@ test("registry is structurally valid and includes every legacy flag plus new app
     assert.ok(keys.has(key), `missing app node ${key}`);
   }
   assert.ok(keys.has("channels.sidebar_tab"), "missing integrated Channels sidebar capability");
+  assert.ok(keys.has("assistant.sidebar_tab"), "missing integrated Agents sidebar capability");
+  assert.equal(definitions.find((definition) => definition.key === "assistant.sidebar_tab")?.default, false);
   const leftColumnDefault = definitions.find((definition) => definition.key === "platform.left_column_default_mode");
   assert.equal(leftColumnDefault?.default, "apps", "Default Left Column should preserve Apps for existing organizations");
-  assert.deepEqual(leftColumnDefault?.options?.map(([value]) => value), ["apps", "todo", "channels"]);
+  assert.deepEqual(leftColumnDefault?.options?.map(([value]) => value), ["apps", "todo", "channels", "agents"]);
   assert.equal(definitions.find((definition) => definition.key === "platform.cobrand_sidebar_logo")?.default, true);
   assert.equal(definitions.find((definition) => definition.key === "platform.project_assignments")?.default, true);
   assert.equal(definitions.find((definition) => definition.key === "platform.separate_user_section")?.default, false);
@@ -285,6 +287,21 @@ test("capabilities API returns definitions, resolves values, and persists flat w
   assert.equal(unchanged.effective["platform.left_column_default_mode"], "channels");
   assert.equal(unchanged.raw["platform.advanced_app_menu"], true);
   assert.equal(unchanged.effective["platform.advanced_app_menu"], true);
+});
+
+test("Agents left-column mode is opt-in and projects through the shared flags API", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const initial = await client.request("GET", `/v1/platform/organizations/${orgId}/capabilities`);
+  assert.equal(initial.effective_by_key["assistant.sidebar_tab"], false);
+  const updated = await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
+    values: { "assistant.sidebar_tab": true, "platform.left_column_default_mode": "agents" }
+  });
+  assert.equal(updated.effective_by_key["assistant.sidebar_tab"], true);
+  assert.equal(updated.effective["platform.left_column_default_mode"], "agents");
+  const legacy = await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`);
+  assert.equal(legacy.effective.assistant.sidebar_tab, true);
+  assert.equal(legacy.effective.platform.left_column_default_mode, "agents");
 });
 
 test("built-in presets exist and applying proposals_only reshapes the org", async () => {

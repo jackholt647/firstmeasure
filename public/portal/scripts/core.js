@@ -2442,20 +2442,23 @@
   }
 
   function setSidebarPanel(panelName){
-    const requestedMode = ['apps', 'todo', 'channels'].includes(panelName) ? panelName : 'apps';
+    const requestedMode = ['apps', 'todo', 'channels', 'agents'].includes(panelName) ? panelName : 'apps';
     const sidebar = document.getElementById('mainSidebar');
     const appsTab = document.getElementById('sidebarAppsTab');
     const todoTab = document.getElementById('sidebarTodoTab');
     const channelsTab = document.getElementById('sidebarChannelsTab');
+    const agentsTab = document.getElementById('sidebarAgentsTab');
     const appsPanel = document.getElementById('sidebarAppsPanel');
     const todoPanel = document.getElementById('sidebarTodoPanel');
     const channelsPanel = document.getElementById('sidebarChannelsPanel');
+    const agentsPanel = document.getElementById('sidebarAgentsPanel');
     if (!appsTab || !todoTab || !appsPanel || !todoPanel) return;
 
     const panes = [
       { key: 'apps', enabledClass: 'apps-list-enabled', tab: appsTab, panel: appsPanel },
       { key: 'todo', enabledClass: 'todo-list-enabled', tab: todoTab, panel: todoPanel },
-      ...(channelsTab && channelsPanel ? [{ key: 'channels', enabledClass: 'channels-tab-enabled', tab: channelsTab, panel: channelsPanel }] : [])
+      ...(channelsTab && channelsPanel ? [{ key: 'channels', enabledClass: 'channels-tab-enabled', tab: channelsTab, panel: channelsPanel }] : []),
+      ...(agentsTab && agentsPanel ? [{ key: 'agents', enabledClass: 'agents-tab-enabled', tab: agentsTab, panel: agentsPanel }] : [])
     ];
     const available = panes.filter((pane) => sidebar?.classList.contains(pane.enabledClass));
     const mode = available.some((pane) => pane.key === requestedMode) ? requestedMode : (available[0]?.key || '');
@@ -2468,12 +2471,13 @@
     }
     if (mode === 'todo') mountSidebarTodo();
     if (mode === 'channels') mountSidebarChannels();
+    if (mode === 'agents') mountSidebarAgents();
   }
 
   function sidebarDefaultMode(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     const configured = String(flags?.value?.('platform', 'left_column_default_mode', 'apps') || 'apps').trim().toLowerCase();
-    return ['apps', 'todo', 'channels'].includes(configured) ? configured : 'apps';
+    return ['apps', 'todo', 'channels', 'agents'].includes(configured) ? configured : 'apps';
   }
 
   function sidebarAppsFeatureEnabled(){
@@ -2562,6 +2566,34 @@
     return enabled;
   }
 
+  function sidebarAgentsFeatureEnabled(){
+    if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    if (!flags?.current?.()) return false;
+    if (window.Portal?.can?.('apps.assistant') === false) return false;
+    const user = window.Portal?.currentUser;
+    if (user?.canAccessApplication && !user.canAccessApplication('management') && !user.canAccessApplication('field')) return false;
+    if (!['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'].some((permission) => window.Portal?.util?.hasPerm?.(permission))) return false;
+    return !!flags.has?.('assistant', 'sidebar_tab');
+  }
+
+  function applySidebarAgentsFeatureFlag(){
+    const enabled = sidebarAgentsFeatureEnabled();
+    document.getElementById('mainSidebar')?.classList.toggle('agents-tab-enabled', enabled);
+    if (!enabled) window.PlatformAssistant?.unmountSidebar?.();
+    return enabled;
+  }
+
+  function mountSidebarAgents(){
+    const container = document.getElementById('sidebarAgentsList');
+    if (!container) return;
+    if (!window.PlatformAssistant?.mountSidebar) {
+      container.textContent = 'Agent conversations are loading…';
+      return;
+    }
+    window.PlatformAssistant.mountSidebar(container);
+  }
+
   function mountSidebarChannels(){
     const container = document.getElementById('sidebarChannelsList');
     if (!container) return;
@@ -2620,7 +2652,8 @@
     const modes = [
       { key: 'apps', enabled: applySidebarAppsFeatureFlag(), tab: document.getElementById('sidebarAppsTab') },
       { key: 'todo', enabled: applySidebarTodoFeatureFlag(), tab: document.getElementById('sidebarTodoTab') },
-      { key: 'channels', enabled: applySidebarChannelsFeatureFlag(), tab: document.getElementById('sidebarChannelsTab') }
+      { key: 'channels', enabled: applySidebarChannelsFeatureFlag(), tab: document.getElementById('sidebarChannelsTab') },
+      { key: 'agents', enabled: applySidebarAgentsFeatureFlag(), tab: document.getElementById('sidebarAgentsTab') }
     ];
     const available = modes.filter((mode) => mode.enabled);
     sidebar?.classList.toggle('sidebar-modes-switchable', available.length > 1);
@@ -2628,9 +2661,11 @@
       if (mode.tab) mode.tab.hidden = !mode.enabled;
     }
     const active = modes.find((mode) => mode.tab?.classList.contains('active'))?.key || '';
-    const preferred = sidebarModeUserSelected && available.some((mode) => mode.key === active)
-      ? active
-      : sidebarDefaultMode();
+    const preferred = available.some((mode) => mode.key === 'agents') && window.PlatformAssistant?.isFull?.()
+      ? 'agents'
+      : sidebarModeUserSelected && available.some((mode) => mode.key === active)
+        ? active
+        : sidebarDefaultMode();
     setSidebarPanel(available.some((mode) => mode.key === preferred) ? preferred : (available[0]?.key || ''));
   }
 
@@ -2638,6 +2673,7 @@
     const appsTab = document.getElementById('sidebarAppsTab');
     const todoTab = document.getElementById('sidebarTodoTab');
     const channelsTab = document.getElementById('sidebarChannelsTab');
+    const agentsTab = document.getElementById('sidebarAgentsTab');
     if (!appsTab || !todoTab) return;
     appsTab.addEventListener('click', () => {
       if (sidebarAppsFeatureEnabled()) {
@@ -2657,6 +2693,16 @@
         setSidebarPanel('channels');
       }
     });
+    agentsTab?.addEventListener('click', () => {
+      if (sidebarAgentsFeatureEnabled()) {
+        sidebarModeUserSelected = true;
+        setSidebarPanel('agents');
+      }
+    });
+    window.addEventListener('fm:assistant:ready', () => {
+      if (document.getElementById('sidebarAgentsTab')?.classList.contains('active')) mountSidebarAgents();
+    });
+    window.addEventListener('resize', applySidebarFeatureFlags, { passive:true });
     window.addEventListener('fm:app-flags:updated', applySidebarFeatureFlags);
     window.addEventListener('fm:perms:updated', applySidebarFeatureFlags);
     window.addEventListener('fm:platform-session:updated', applySidebarFeatureFlags);
@@ -2667,6 +2713,8 @@
     });
     applySidebarFeatureFlags();
   }
+
+  window.Portal.sidebarModes = { activate:setSidebarPanel, agentsEnabled:sidebarAgentsFeatureEnabled };
 
   function updateMobileTabTitle(tab){
     const topbar = document.querySelector('.mobile-topbar');

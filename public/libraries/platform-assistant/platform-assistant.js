@@ -109,13 +109,18 @@
       .fma-head{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #e4e7ec;}
       .fma-head .fm-window-controls{margin-left:auto;}
       .fma-head .fm-window-controls [data-window-action=close]{display:none;}
+      .fma-drawer[data-window=full] .fma-head{position:absolute;top:12px;right:16px;z-index:4;width:auto;min-height:0;padding:0;border:0;background:transparent;}
+      .fma-drawer[data-window=full] .fma-head .fm-window-controls{gap:4px;}
+      .fma-drawer[data-window=full] .fma-head .fm-window-controls button{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
+      .fma-drawer[data-window=full] .fma-head .fm-window-controls button:hover{background:#f2f4f7;}
       .fma-sidebar-toggle{border:0;background:transparent;font-size:16px;color:#475467;}
       .fma-drawer .fma-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:row;overflow:hidden;}
       .fma-content{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
       .fma-sidebar{display:none;flex-direction:column;width:min(68%,340px);min-width:0;background:#f8fafc;border-right:1px solid #e4e7ec;z-index:2;}
       .fma-drawer[data-window=full] .fma-sidebar{display:flex;width:280px;flex:0 0 280px;}
+      #sidebarAgentsList .fma-sidebar{display:flex;flex:1 1 auto;width:100%;min-width:0;min-height:0;border:0;background:transparent;color:#101828;font-size:14px;}
       .fma-drawer:not([data-window=full])[data-sidebar-open=true] .fma-sidebar{display:flex;position:absolute;inset:0 auto 0 0;box-shadow:12px 0 28px #10182824;}
-      .fma-drawer[data-window=full] .fma-sidebar-toggle{visibility:hidden;}
+      .fma-drawer[data-window=full] .fma-sidebar-toggle{display:none;}
       .fma-sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:18px 14px 10px;}
       .fma-sidebar-head h2{margin:0;font-size:16px;color:#101828;}
       .fma-sidebar-search{padding:0 12px 10px;}
@@ -222,11 +227,11 @@
       .fma-recording-time{font-size:12px;color:#667085;font-variant-numeric:tabular-nums;}
       .fma-wave{display:flex;align-items:center;gap:3px;flex:1;min-width:0;height:28px;overflow:hidden;}
       .fma-wave span{flex:1;min-width:2px;max-width:4px;height:4px;border-radius:50%;background:var(--primary-readable,var(--primary,#175cd3));transition:height .12s ease;}
-      .fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings{padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
+      .fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings{padding-top:64px;padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
       .fma-drawer[data-window=full] .fma-composer{padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
       .fma-drawer[data-window=full] .fma-msg{max-width:75%;}
       @media (min-width:641px){.fma-attach-menu [data-fma=pickCamera]{display:none;}}
-      @media (max-width:640px){.fma-drawer[data-window=full] .fma-sidebar{display:none}.fma-drawer[data-window=full] .fma-sidebar-toggle{visibility:visible}.fma-drawer[data-window=full][data-sidebar-open=true] .fma-sidebar{display:flex;position:absolute;inset:0 auto 0 0;width:min(68%,340px);box-shadow:12px 0 28px #10182824}.fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings,.fma-drawer[data-window=full] .fma-composer{padding-left:14px;padding-right:14px}.fma-drawer[data-window=full] .fma-msg{max-width:92%;}}
+      @media (max-width:640px){.fma-drawer[data-window=full] .fma-head{left:14px;right:14px;justify-content:space-between}.fma-drawer[data-window=full] .fma-sidebar{display:none}.fma-drawer[data-window=full] .fma-sidebar-toggle{display:inline-flex}.fma-drawer[data-window=full][data-sidebar-open=true] .fma-sidebar{display:flex;position:absolute;inset:0 auto 0 0;width:min(68%,340px);box-shadow:12px 0 28px #10182824}.fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings,.fma-drawer[data-window=full] .fma-composer{padding-left:14px;padding-right:14px}.fma-drawer[data-window=full] .fma-msg{max-width:92%;}}
     `;
     document.head.appendChild(style);
   }
@@ -301,6 +306,7 @@
       onChange:({mode}) => {
         state.mode = mode;
         syncSidebar();
+        if (mode === 'full' && window.Portal?.sidebarModes?.agentsEnabled?.()) window.Portal.sidebarModes.activate('agents');
         if (mode === 'full' && document.querySelector('.fm-tabpanel.active')?.id !== 'tab_assistant') {
           window.Portal?.tabs?.activateTab?.('assistant');
         } else if (mode === 'minimized') {
@@ -313,7 +319,10 @@
         }
       }, onClose:close
     });
-    drawer.querySelector('[data-fma="new"]').addEventListener('click', startNewThread);
+    drawer.querySelector('[data-fma="new"]').addEventListener('click', () => {
+      if (sidebarExternal()) openFull();
+      startNewThread();
+    });
     drawer.querySelector('[data-fma="history"]').addEventListener('click', toggleHistory);
     drawer.querySelector('[data-fma="search"]').addEventListener('click', () => {
       els.searchWrap.hidden = !els.searchWrap.hidden;
@@ -340,6 +349,7 @@
       }, 200);
     });
     drawer.querySelector('[data-fma="settings"]').addEventListener('click', () => {
+      if (sidebarExternal()) openFull();
       setView(state.view === 'settings' ? 'chat' : 'settings');
       state.sidebarOpen = false;
       syncSidebar();
@@ -483,7 +493,10 @@
     `);
     els.historyList.innerHTML = String(items.join('') || `<div class="fma-empty">${state.historyQuery ? 'No matching conversations.' : 'No conversations yet.'}</div>`);
     els.historyList.querySelectorAll('.fma-history-item').forEach((item) => {
-      item.addEventListener('click', () => openThread(clean(item.getAttribute('data-thread-id'))));
+      item.addEventListener('click', () => {
+        if (sidebarExternal()) openFull();
+        void openThread(clean(item.getAttribute('data-thread-id')));
+      });
     });
   }
 
@@ -497,14 +510,37 @@
     if (view === 'settings') void renderSettings();
   }
 
+  function sidebarExternal(){
+    return !!els?.sidebar && els.sidebar.parentElement?.id === 'sidebarAgentsList';
+  }
+
+  function mountSidebar(container){
+    if (!available() || !container) return;
+    build();
+    if (!els?.sidebar) return;
+    if (els.sidebar.parentElement !== container) container.appendChild(els.sidebar);
+    renderHistory();
+    syncSidebar();
+    void boot();
+  }
+
+  function unmountSidebar(){
+    if (!sidebarExternal()) return;
+    const body = els.drawer.querySelector('[data-fma="body"]');
+    body?.insertBefore(els.sidebar, els.drawer.querySelector('[data-fma="content"]'));
+    state.sidebarOpen = false;
+    syncSidebar();
+  }
+
   function syncSidebar(){
     if (!els) return;
     els.drawer.dataset.sidebarOpen = String(state.sidebarOpen);
-    els.sidebarToggle.setAttribute('aria-expanded',String((state.mode === 'full' && window.innerWidth > 640) || state.sidebarOpen));
+    els.sidebarToggle.setAttribute('aria-expanded',String(sidebarExternal() || (state.mode === 'full' && window.innerWidth > 640) || state.sidebarOpen));
     els.sidebarToggle.setAttribute('aria-label',state.sidebarOpen ? 'Close conversations' : 'Open conversations');
   }
 
   function toggleHistory(){
+    if (sidebarExternal()) { window.Portal?.sidebarModes?.activate?.('agents'); return; }
     state.sidebarOpen = !state.sidebarOpen;
     syncSidebar();
     if (state.sidebarOpen) renderHistory();
@@ -552,6 +588,7 @@
           ${toggle('scopeSchedule','Schedule','Calendar and project events.',scope.schedule !== false)}
           ${toggle('scopeActivity','Activity feed','Recent platform events.',scope.activity !== false)}
         </div><button type="button" class="fma-settings-primary" data-fma-setting="saveCapabilities">Save capabilities</button><span class="fma-status" data-fma-status="capabilities" role="status"></span>` : '<p>Capability settings could not be loaded.</p>';
+      const layoutControls = `<div class="fma-settings-card"><h3>Conversation layout</h3><small>On desktop, show agent conversations in the portal's left column.</small>${toggle('sidebarTab','Agents in left column','Selecting a conversation opens the full assistant.',window.Portal?.capabilities?.value?.('assistant.sidebar_tab', false) === true)}<button type="button" class="fma-settings-primary" data-fma-setting="saveLayout">Save layout</button><span class="fma-status" data-fma-status="layout" role="status"></span></div>`;
       const agentControls = agents.length ? agents.map((agent) => {
         const settings = object(agent.settings);
         return `<div class="fma-settings-card" data-agent-id="${esc(agent.id)}"><h3>${esc(agent.title || agent.id)}</h3><small>${esc(agent.description || '')}</small>${toggle('agentEnabled','Enabled','Available to permitted users.',settings.enabled !== false)}<label>Display name<input type="text" maxlength="80" data-agent-name value="${esc(settings.display_name || agent.title || '')}"></label><label>Company instructions<textarea rows="3" data-agent-instructions>${esc(settings.custom_instructions || '')}</textarea></label><details><summary>Advanced configuration</summary><small>All settings published by this agent. Changes are validated by the agent service.</small><textarea rows="8" data-agent-advanced spellcheck="false">${esc(JSON.stringify(settings, null, 2))}</textarea></details><button type="button" class="fma-settings-primary" data-agent-save>Save agent</button><span class="fma-status" data-agent-status role="status"></span></div>`;
@@ -560,7 +597,7 @@
         <nav class="fma-settings-tabs" role="tablist" aria-label="Assistant settings">${tabs.map(([id,label]) => `<button type="button" role="tab" data-settings-tab="${id}" aria-selected="${state.settingsTab === id}">${label}</button>`).join('')}</nav>
         <section class="fma-settings-section" data-settings-section="personalization" data-active="${state.settingsTab === 'personalization'}" role="tabpanel"><div class="fma-settings-card"><h3>Your instructions</h3><small>These apply only when the assistant talks with you.</small><label>Your instructions<textarea data-fma-setting="instructions" rows="5" maxlength="4000">${esc(profile.instructions || '')}</textarea></label><button type="button" class="fma-settings-primary" data-fma-setting="savePersonalization">Save your instructions</button><span class="fma-status" data-fma-status="personalization" role="status"></span></div>${companyPersonalization}</section>
         <section class="fma-settings-section" data-settings-section="memory" data-active="${state.settingsTab === 'memory'}" role="tabpanel"><div class="fma-settings-card"><h3>Memory</h3><small>Turning memory off keeps your saved entries but leaves them out of conversations.</small>${toggle('memoryEnabled','Use saved memories','Apply your saved memories in future conversations.',profile.memory_enabled !== false)}<button type="button" class="fma-settings-primary" data-fma-setting="saveMemoryPreference">Save memory preference</button><span class="fma-status" data-fma-status="memory" role="status"></span></div><div class="fma-settings-card"><h3>Saved memories</h3><div data-fma-setting="memories">${memories.length ? memories.map((memory) => `<div class="fma-memory"><input type="text" maxlength="500" value="${esc(memory.content || '')}" data-memory-id="${esc(memory.id)}"><button type="button" data-memory-save="${esc(memory.id)}" aria-label="Save memory">Save</button><button type="button" data-memory-delete="${esc(memory.id)}" aria-label="Delete memory">Delete</button></div>`).join('') : '<p>No saved memories.</p>'}</div><div class="fma-memory"><input type="text" maxlength="500" data-fma-setting="newMemory" placeholder="Add a memory"><button type="button" data-fma-setting="addMemory">Add</button></div>${memories.length ? '<button type="button" data-fma-setting="clearMemories">Clear all memories</button>' : ''}<span class="fma-status" data-fma-status="memories" role="status"></span></div></section>
-        ${canManage ? `<section class="fma-settings-section" data-settings-section="capabilities" data-active="${state.settingsTab === 'capabilities'}" role="tabpanel">${capabilityControls}</section><section class="fma-settings-section" data-settings-section="agents" data-active="${state.settingsTab === 'agents'}" role="tabpanel">${agentControls}</section><section class="fma-settings-section" data-settings-section="advanced" data-active="${state.settingsTab === 'advanced'}" role="tabpanel"><div class="fma-settings-card"><h3>Platform-wide instructions</h3><small>These apply to the global assistant in every organization. Only a verified platform administrator can edit them.</small>${globalInstructions ? `<textarea rows="6" maxlength="8000" data-fma-setting="globalInstructions" ${globalInstructions.can_edit ? '' : 'readonly'}>${esc(globalInstructions.instructions || '')}</textarea>${globalInstructions.can_edit ? '<button type="button" class="fma-settings-primary" data-fma-setting="saveGlobal">Save platform instructions</button>' : '<small>Read only for your account.</small>'}` : '<p>Platform instructions could not be loaded.</p>'}<span class="fma-status" data-fma-status="advanced" role="status"></span></div></section>` : ''}`;
+        ${canManage ? `<section class="fma-settings-section" data-settings-section="capabilities" data-active="${state.settingsTab === 'capabilities'}" role="tabpanel">${capabilityControls}${layoutControls}</section><section class="fma-settings-section" data-settings-section="agents" data-active="${state.settingsTab === 'agents'}" role="tabpanel">${agentControls}</section><section class="fma-settings-section" data-settings-section="advanced" data-active="${state.settingsTab === 'advanced'}" role="tabpanel"><div class="fma-settings-card"><h3>Platform-wide instructions</h3><small>These apply to the global assistant in every organization. Only a verified platform administrator can edit them.</small>${globalInstructions ? `<textarea rows="6" maxlength="8000" data-fma-setting="globalInstructions" ${globalInstructions.can_edit ? '' : 'readonly'}>${esc(globalInstructions.instructions || '')}</textarea>${globalInstructions.can_edit ? '<button type="button" class="fma-settings-primary" data-fma-setting="saveGlobal">Save platform instructions</button>' : '<small>Read only for your account.</small>'}` : '<p>Platform instructions could not be loaded.</p>'}<span class="fma-status" data-fma-status="advanced" role="status"></span></div></section>` : ''}`;
       panel.querySelector('[data-fma-setting="back"]')?.addEventListener('click', () => setView('chat'));
       panel.querySelectorAll('[data-settings-tab]').forEach((tab) => tab.addEventListener('click', () => {
         state.settingsTab = tab.dataset.settingsTab;
@@ -609,6 +646,9 @@
           data_scope:{ projects:value('scopeProjects'), contacts:value('scopeContacts'), stats:value('scopeStats'), documents:value('scopeDocuments'), schedule:value('scopeSchedule'), activity:value('scopeActivity') }
         }));
         if (result) organization = object(result.settings);
+      });
+      panel.querySelector('[data-fma-setting="saveLayout"]')?.addEventListener('click', () => {
+        void run('layout', () => window.Portal.capabilities.update({ 'assistant.sidebar_tab':value('sidebarTab') }), true);
       });
       panel.querySelector('[data-fma-setting="addMemory"]')?.addEventListener('click', () => {
         const content = clean(panel.querySelector('[data-fma-setting="newMemory"]').value);
@@ -891,6 +931,7 @@
   function openFull(){
     open();
     assistantWindow?.setMode('full');
+    if (window.Portal?.sidebarModes?.agentsEnabled?.()) window.Portal.sidebarModes.activate('agents');
   }
 
   function leaveAssistantTab(){
@@ -925,7 +966,11 @@
     dockIfFull,
     close,
     toggle,
+    mountSidebar,
+    unmountSidebar,
     isOpen(){ return state.open; },
+    isFull(){ return assistantWindow?.state.mode === 'full'; },
     available
   };
+  window.dispatchEvent(new CustomEvent('fm:assistant:ready'));
 })();

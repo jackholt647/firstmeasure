@@ -83,6 +83,14 @@ permission-checked assistant and agent APIs. No settings link leaves the
 assistant window. Enable controls use accessible visual switches in the
 assistant and the legacy AI Agents settings page.
 
+The `assistant.sidebar_tab` capability enables the desktop Agents mode in the
+portal left column, alongside Apps, To Do and Channels. It reuses the same
+conversation list and controls as the assistant window. Selecting a conversation
+opens the full assistant workspace; docked and mobile layouts retain the compact
+in-window conversation panel. The flag defaults off. In either full-screen
+layout, the assistant's Float, Dock and Minimize controls float at the upper
+right while the conversation body uses the full workspace height.
+
 The assistant header keeps the conversations toggle at left and the shared
 Float, Minimize and Maximize window controls at right. Conversation history is
 a persistent left sidebar in desktop full view and a 68%-width overlay in
