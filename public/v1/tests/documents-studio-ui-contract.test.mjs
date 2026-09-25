@@ -1123,7 +1123,7 @@ test('Brand Kit loads with an absent presentation style module', async () => {
       orgs: { portalState: async () => ({ global: null, organization: null }) },
       branches: { get: async () => null },
       branchModules: { get: async () => null }
-    }, PlatformBrandKit: { displayValue: () => ({ background_color:'#FFFFFF', shape:'square', rounded_corners:true }) } },
+    }, PlatformBrandKit: { displayValue: () => ({ background_color:'#FFFFFF', shape:'square', rounded_corners:true }), resolveLogo: () => '' } },
     orgId: () => 'org',
     brandBranchId: () => 'default',
     objectValue: (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {},
