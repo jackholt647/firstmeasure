@@ -128,8 +128,8 @@
   }
 
   function ensureStyles(){
-    if (document.getElementById('fmdx-documents-css')) return;
-    const link = document.createElement('link');
+    const existing = document.getElementById('fmdx-documents-css');
+    const link = existing || document.createElement('link');
     link.id = 'fmdx-documents-css';
     link.rel = 'stylesheet';
     try {
@@ -139,7 +139,7 @@
     } catch (e) {
       link.href = '/libraries/apps/documents/documents.css';
     }
-    document.head.appendChild(link);
+    if (!existing) document.head.appendChild(link);
   }
 
   // ------------------------------------------------ readable on-primary text
