@@ -200,6 +200,10 @@ test('final review separates report details from eight primary photos and their 
  await page.waitForFunction(()=>Portal.test.files.get('0:front')?.media_id);
  await page.evaluate(()=>Portal.ExteriorOrder.setMobilePage('final'));
  assert.equal(await page.locator('section[aria-label="Report details"]').count(),1);
+ assert.equal(await page.locator('.ext-pages>h3').textContent(),'Review your full structural report');
+ assert.equal(await page.locator('section[aria-label="Photos"]>h3').count(),0);
+ assert.equal(await page.locator('.ext-pages').evaluate(el=>{const photos=el.querySelector('section[aria-label="Photos"]'),details=el.querySelector('section[aria-label="Report details"]');return !!(photos.compareDocumentPosition(details)&Node.DOCUMENT_POSITION_FOLLOWING)&&details.nextElementSibling.textContent.includes('Delivery timing');}),true);
+
  assert.equal(await page.locator('section[aria-label="Photos"] .ext-review-view').count(),8);
  assert.equal(await page.locator('section[aria-label="Photos"] img').count(),1);
  assert.match(await page.locator('section[aria-label="Photos"]').textContent(),/Required angles1 \/ 8/);
