@@ -14094,15 +14094,76 @@
           scheduling:appFlag('platform','scheduling'), payments:appFlag('apps','billing'),
           celebrations:appFlag('apps','projects'), system:true
         })[id]) : [];
-        const preferenceRows = (rows) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 70px 70px;gap:8px;align-items:center;margin-top:14px"><span></span><strong>In app</strong><strong>Push</strong>
-          ${rows.map(([id,label]) => `<span>${escapeHtml(label)}</span><input type="checkbox" data-notification-surface="in_app" data-notification-key="${id}" ${preferences.in_app?.[id] !== false ? 'checked' : ''}><input type="checkbox" data-notification-surface="push" data-notification-key="${id}" ${preferences.push?.[id] ? 'checked' : ''}>`).join('')}
-        </div>`;
-        paneNotifications.innerHTML = `<div class="my-settings-shell">
-          <div class="my-settings-hero"><div class="my-settings-icon"><i class="fas fa-bell"></i></div><div><h3>Notifications</h3><p>Choose what appears in the bell on every device and what is sent to your phone.</p></div></div>
-          <div class="cs-note">Phone push also requires permission in iOS or Android settings. Your choices apply to your account on every device.</div>
-          ${measurements.length ? `<div class="my-settings-group"><h4>Measurements</h4>${preferenceRows(measurements)}</div>` : ''}
-          ${otherUpdates.length ? `<div class="my-settings-group"><h4>Other updates</h4>${preferenceRows(otherUpdates)}</div>` : ''}
-          <div class="li-actions"><button class="cs-btn primary" type="button" data-notification-save>Save notification settings</button>${window.PlatformPush?.available?.() ? '<button class="cs-btn" type="button" data-notification-enable>Enable phone push</button><button class="cs-btn" type="button" data-notification-disable>Disable on this phone</button>' : ''}<span class="my-settings-status" data-notification-status></span></div>
+        const descriptions = {
+          'measurements.report_delivered':'Your report is ready to view and download.',
+          'measurements.report_revised':'An updated version of your report is ready.',
+          'measurements.report_canceled':'An order has been canceled.',
+          'measurements.report_rejected':'An order could not be accepted.',
+          'measurements.report_status':'Your order moves to the next stage.',
+          leads:'New leads and updates to your pipeline.', messages:'New conversations and replies.',
+          mentions:'Someone mentions you in a project.', tasks:'Assignments and updates to your tasks.',
+          scheduling:'Updates to appointments and schedules.', payments:'Payment and billing activity.',
+          celebrations:'Milestones and team achievements.', system:'Updates about your account and the platform.'
+        };
+        const preferenceRows = (rows) => `<div class="ns-columns" aria-hidden="true"><span>Notify me about</span><span>In app</span><span>Push</span></div><div class="ns-rows">
+          ${rows.map(([id,label]) => `<div class="ns-row"><div class="ns-event"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(descriptions[id] || 'Updates from this app.')}</p></div>${['in_app','push'].map(surface => `<label class="ns-switch"><span class="ns-mobile-label">${surface === 'in_app' ? 'In app' : 'Push'}</span><input type="checkbox" role="switch" aria-label="${escapeHtml(label)} — ${surface === 'in_app' ? 'In app' : 'Push'}" data-notification-surface="${surface}" data-notification-key="${id}" ${(surface === 'in_app' ? preferences.in_app?.[id] !== false : preferences.push?.[id]) ? 'checked' : ''}><span class="ns-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`;
+        paneNotifications.innerHTML = `<style>
+          #csPaneNotifications .ns-shell{max-width:980px;display:grid;gap:24px;color:#182230}
+          #csPaneNotifications .ns-intro h3{font-size:24px;letter-spacing:-.6px;line-height:1.25;margin:0 0 8px;font-weight:700}
+          #csPaneNotifications .ns-intro p{font-size:14px;color:#667085;line-height:1.6;margin:0}
+          #csPaneNotifications .ns-channels{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 24px;background:#f8fafb;border:1px solid #eaecf0;border-radius:14px}
+          #csPaneNotifications .ns-channel{display:flex;gap:12px;align-items:flex-start}
+          #csPaneNotifications .ns-channel>i{color:var(--primary-readable,#18794e);font-size:17px;margin-top:3px;width:20px;text-align:center}
+          #csPaneNotifications .ns-channel strong{font-size:13px;font-weight:650}
+          #csPaneNotifications .ns-channel p{margin:5px 0 0;color:#667085;font-size:12px;line-height:1.6}
+          #csPaneNotifications .ns-card{border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;background:#fff}
+          #csPaneNotifications .ns-card-header{display:flex;gap:14px;align-items:center;padding:24px}
+          #csPaneNotifications .ns-app-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafb;color:var(--primary-readable,#18794e);font-size:18px;flex-shrink:0}
+          #csPaneNotifications .ns-card h4{font-size:16px;letter-spacing:-.2px;margin:0;font-weight:700}
+          #csPaneNotifications .ns-card-header p{font-size:12px;line-height:1.5;color:#667085;margin:5px 0 0}
+          #csPaneNotifications .ns-columns,#csPaneNotifications .ns-row{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px;column-gap:12px;align-items:center;padding:0 24px}
+          #csPaneNotifications .ns-columns{min-height:40px;background:#f8fafb;border-top:1px solid #eaecf0;border-bottom:1px solid #eaecf0;font-size:11px;font-weight:650;color:#667085}
+          #csPaneNotifications .ns-columns span:not(:first-child){text-align:center}
+          #csPaneNotifications .ns-row{min-height:86px;padding-top:15px;padding-bottom:15px}
+          #csPaneNotifications .ns-row+.ns-row{border-top:1px solid #f0f2f5}
+          #csPaneNotifications .ns-event strong{font-size:13px;line-height:1.5;font-weight:650}
+          #csPaneNotifications .ns-event p{font-size:12px;line-height:1.5;color:#667085;margin:5px 0 0}
+          #csPaneNotifications .ns-switch{position:relative;display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;cursor:pointer;margin:0;gap:12px}
+          #csPaneNotifications .ns-switch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer;z-index:1}
+          #csPaneNotifications .ns-track{display:block;width:38px;height:22px;flex-shrink:0;border-radius:20px;background:#d0d5dd;position:relative;transition:background .15s ease}
+          #csPaneNotifications .ns-track:after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 3px #10182826;transition:transform .15s ease}
+          #csPaneNotifications .ns-switch input:checked+.ns-track{background:var(--primary-readable,#18794e)}
+          #csPaneNotifications .ns-switch input:checked+.ns-track:after{transform:translateX(16px)}
+          #csPaneNotifications .ns-switch input:focus-visible+.ns-track{outline:3px solid var(--primary-readable,#18794e);outline-offset:4px}
+          #csPaneNotifications .ns-mobile-label{display:none}
+          #csPaneNotifications .ns-footer{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:#667085;font-size:12px;line-height:1.6}
+          #csPaneNotifications .ns-footer>i{color:#98a2b3}
+          #csPaneNotifications .ns-status{font-size:12px;color:var(--primary-readable,#18794e)}
+          #csPaneNotifications .ns-status:empty{display:none}
+          #csPaneNotifications .ns-device{padding:20px 24px;border:1px solid #e4e7ec;border-radius:14px;display:grid;gap:12px}
+          #csPaneNotifications .ns-device p{font-size:12px;line-height:1.6;color:#667085;margin:0}
+          @media(max-width:600px){
+            #csPaneNotifications .ns-shell{gap:20px}
+            #csPaneNotifications .ns-intro h3{font-size:21px}
+            #csPaneNotifications .ns-intro p{font-size:13px}
+            #csPaneNotifications .ns-channels{padding:16px;gap:16px;grid-template-columns:1fr}
+            #csPaneNotifications .ns-card-header{padding:18px 16px}
+            #csPaneNotifications .ns-columns{display:none}
+            #csPaneNotifications .ns-row{grid-template-columns:1fr 1fr;padding:16px;gap:8px 24px;border-top:1px solid #f0f2f5}
+            #csPaneNotifications .ns-event{grid-column:1/-1}
+            #csPaneNotifications .ns-mobile-label{display:block;font-size:12px;color:#667085}
+            #csPaneNotifications .ns-switch{justify-content:space-between}
+            #csPaneNotifications .ns-device{padding:16px}
+          }
+          @media(prefers-reduced-motion:reduce){#csPaneNotifications .ns-track,#csPaneNotifications .ns-track:after{transition:none}}
+        </style><div class="ns-shell">
+          <header class="ns-intro"><h3>Stay in the loop.</h3><p>Choose the updates you want and where you receive them.</p></header>
+          <div class="ns-channels"><div class="ns-channel"><i class="far fa-bell" aria-hidden="true"></i><div><strong>In app</strong><p>In your notification center, on any device.</p></div></div><div class="ns-channel"><i class="fas fa-mobile-alt" aria-hidden="true"></i><div><strong>Push notifications</strong><p>On your phone, even when FirstMate is closed.</p></div></div></div>
+          ${measurements.length ? `<section class="ns-card" aria-label="Measurements notifications"><div class="ns-card-header"><span class="ns-app-icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></span><div><h4>Measurements</h4><p>From order updates to your finished report.</p></div></div>${preferenceRows(measurements)}</section>` : ''}
+          ${otherUpdates.length ? `<section class="ns-card" aria-label="Other notifications"><div class="ns-card-header"><span class="ns-app-icon"><i class="far fa-bell" aria-hidden="true"></i></span><div><h4>Other updates</h4><p>Activity across your enabled apps.</p></div></div>${preferenceRows(otherUpdates)}</section>` : ''}
+          <div class="ns-footer"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>These preferences apply to your account across all devices.</span></div>
+          ${window.PlatformPush?.available?.() ? '<div class="ns-device" data-settings-autosave="off"><strong>Push on this phone</strong><p>Allow FirstMate notifications in your phone settings to receive push updates.</p><div class="li-actions"><button class="cs-btn" type="button" data-notification-enable>Enable phone push</button><button class="cs-btn" type="button" data-notification-disable>Disable on this phone</button></div></div>' : '<div class="ns-footer">To receive push notifications, allow notifications in the FirstMate app on your phone.</div>'}
+          <button class="cs-btn primary" type="button" data-notification-save>Save notification settings</button><span class="ns-status" data-notification-status role="status" aria-live="polite"></span>
         </div>`;
         paneNotifications.querySelector('[data-notification-save]')?.addEventListener('click', async (event) => {
           const button = event.currentTarget;
