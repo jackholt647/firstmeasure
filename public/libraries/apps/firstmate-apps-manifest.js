@@ -188,7 +188,7 @@
         versionedBundle('../doc-model/firstmate-doc-model.js', '20260811-word-doc-v1'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260813-theme-styles-restored'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('photos/feed.js', '20260811-document-media-picker'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
@@ -208,7 +208,7 @@
       settingsTabId: 'documents',
       access: managementAccess,
       params: {
-        studioSection: { default:'templates', values:['templates','workflows','themes','folder'], history:'push' },
+        studioSection: { default:'templates', values:['templates','workflows','themes','brand-kit','folder'], history:'push' },
         studioFolder: { history:'push' },
         studioDocument: { history:'push' }
       },
@@ -217,12 +217,12 @@
         versionedBundle('../doc-model/firstmate-doc-model.js', '20260811-word-doc-v1'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260813-theme-styles-restored'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('photos/feed.js', '20260811-document-media-picker'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/studio.js', '20260813-theme-styles-restored')
+        versionedBundle('documents/studio.js', '20260925-brand-chrome')
       ]
     },
     {
@@ -243,7 +243,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260726-doc-tiers'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20260801-portal-builder-v1'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260813-theme-styles-restored'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('../visual-editor/firstmate-visual-editor.js', '20260813-modes-in-toolbar'),
         versionedBundle('settings/domains.js', '20260731-domains-v11'),
         versionedBundle('web-editor/app.js', '20260813-modes-in-toolbar')

@@ -1302,6 +1302,7 @@
       primary: brandingColors.primary ?? brandingColors.accent ?? liveTheme?.primary ?? DEFAULT_PRIMARY,
       secondary: brandingColors.secondary ?? liveTheme?.secondary ?? DEFAULT_SECONDARY,
       palette: brandingColors.palette,
+      font_family: o?.branding?.typography?.document_font_family || 'Montserrat',
       logo_display: normalizeLogoDisplay(o?.branding?.logo_display),
       company_email: contact.email || '',
       company_phone: contact.phone || '',
@@ -1350,6 +1351,7 @@
         if (branchColors.primary || branchColors.accent) result.primary = branchColors.primary || branchColors.accent;
         if (branchColors.secondary) result.secondary = branchColors.secondary;
         if (Array.isArray(branchColors.palette)) result.palette = branchColors.palette;
+        if (branchBrand.typography?.document_font_family) result.font_family = branchBrand.typography.document_font_family;
         if (branchBrand.logo_display) result.logo_display = normalizeLogoDisplay(branchBrand.logo_display);
       }
       if (orgId && window.PlatformAPI?.branchModules?.get) {
@@ -1360,16 +1362,18 @@
         if (styleColors.primary || styleColors.accent) result.primary = styleColors.primary || styleColors.accent;
         if (styleColors.secondary) result.secondary = styleColors.secondary;
         if (Array.isArray(styleColors.palette)) result.palette = styleColors.palette;
+        if (styleBrand.typography?.document_font_family) result.font_family = styleBrand.typography.document_font_family;
         if (styleBrand.logo_display) result.logo_display = normalizeLogoDisplay(styleBrand.logo_display);
         const styleLogo = logoFromBranding(styleBrand, orgId);
         if (shouldReplaceLogo(result.logo, styleLogo)) result.logo = styleLogo;
       }
     } catch(e) {}
     result.palette = normalizeBrandPalette(result.palette, result.primary, result.secondary);
+    result.font_family = result.font_family || 'Montserrat';
     result.logo_display = normalizeLogoDisplay(result.logo_display);
     return result;
   }
-  async function saveOrg({ name, primary, secondary, palette, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
+  async function saveOrg({ name, primary, secondary, palette, font_family, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
     const orgId = currentOrgId();
     if (!orgId) return { ok:false, error:'Missing organization.' };
     if (window.PlatformAPI?.branches?.get && window.PlatformAPI?.branches?.save) {
@@ -1390,6 +1394,7 @@
         },
         branding: {
           ...(branch.branding || {}),
+          typography: { ...(branch.branding?.typography || {}), document_font_family: font_family || 'Montserrat' },
           logo: existingBranchLogo && existingBranchLogo !== DEFAULT_LOGO ? existingBranchLogo : companyLogoForSave(),
           logo_display: normalizeLogoDisplay(logo_display),
           colors: {
@@ -1422,6 +1427,7 @@
           companyName: name ?? styleData.companyName ?? '',
           branding: {
             ...(styleData.branding || {}),
+            typography: { ...(styleData.branding?.typography || {}), document_font_family: font_family || 'Montserrat' },
             logo_display: normalizeLogoDisplay(logo_display),
             colors: {
               ...(styleData.branding?.colors || {}),
@@ -1433,7 +1439,7 @@
           }
         }, { kind: 'branch_presentation_style', source: 'company_settings' });
       }
-    } catch(e) {}
+    } catch(e) { return { ok:false, error:e?.message || 'Could not save brand settings.' }; }
     return { ok:true };
   }
   async function saveReportSettings({ general, customer }){
@@ -2352,6 +2358,7 @@
       primary:liveTheme?.primary || DEFAULT_PRIMARY,
       secondary:liveTheme?.secondary || DEFAULT_SECONDARY,
       palette:defaultBrandPalette(liveTheme?.primary || DEFAULT_PRIMARY, liveTheme?.secondary || DEFAULT_SECONDARY),
+      font_family:'Montserrat',
       logo_display:normalizeLogoDisplay(null),
       company_email:'',
       company_phone:'',
@@ -2941,6 +2948,9 @@
       .company-settings-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
       .company-settings-grid.without-report-preview{grid-template-columns:minmax(0,1fr)}
       .company-settings-left{display:grid;gap:10px}
+      .company-brand-heading{border-top:1px solid #e4e7ec;padding-top:12px;color:#101828;font-size:13px;font-weight:1000}
+      .company-font-card{max-width:calc(50% - 5px)}
+      @media(max-width:700px){.company-font-card{max-width:none}}
       .company-brand-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
       .company-brand-row>.company-settings-card{min-width:0}
       .company-settings-card{border:1px solid #e4e7ec;border-radius:16px;background:#fff;overflow:hidden}
@@ -16383,6 +16393,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             </div>
             <div id="cuMsg" class="cu-list-message" role="status"></div>
             <div class="cu-table-shell">
+            <div class="company-brand-heading">Brand Kit</div>
               <table class="cu-table">
                 <thead><tr>
                   <th class="cu-th userHead">${(globalThis.PlatformLanguage?.text("settings","m_23d5e0c82a8304","Person") ?? "Person")}</th>
@@ -16441,6 +16452,10 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             <div class="bl-card">
               <h3 class="bl-h">${(globalThis.PlatformLanguage?.text("settings","m_d18853df3ac9a2","Auto Top-Up") ?? "Auto Top-Up")}</h3>
               <div class="bl-sub" id="blSubCopy">${(globalThis.PlatformLanguage?.text("settings","m_8110adde8a99f5","Use the card on file to keep your account funded automatically.") ?? "Use the card on file to keep your account funded automatically.")}</div>
+            <section class="company-settings-card company-font-card">
+              <div class="company-settings-card-head"><strong>Company font</strong><span>Default for new documents and templates</span></div>
+              <div class="company-settings-card-body"><label class="cs-field"><span>Font family</span><select id="csBrandFont">${String(['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3','Arial'].map(font => `<option value="${font}">${font}</option>`).join(''))}</select></label></div>
+            </section>
               <div class="bl-toggleLine">
                 <div class="bl-left">
                   <span class="bl-pill"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("settings","m_3c82ce40c8ef79"," Auto top-up") ?? " Auto top-up")}</span>
@@ -16874,6 +16889,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               })).join('')}
             </div>
           </section>
+      const csBrandFont = $('#csBrandFont', paneCompany);
         `).join('');
         wrap.querySelectorAll('.rp-toggle').forEach(btn=>{
           btn.addEventListener('click', ()=>{
@@ -16898,6 +16914,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const now = new Date();
       return m === (now.getMonth()+1) && y === now.getFullYear();
     }
+        if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
     function msIsFutureMonth(m, y){
       const now = new Date();
       const nowKey = now.getFullYear() * 100 + (now.getMonth()+1);
@@ -18433,6 +18450,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             </div>
             <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_64fb5b5e093e03","Default app experience") ?? "Default app experience")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_3e099da1ba6813","These views appear by default. Individual users can still inherit, show, or hide each one.") ?? "These views appear by default. Individual users can still inherit, show, or hide each one.")}</div></div>
             ${String(surfaceMarkup(role))}
+        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
             <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_275ff357425e43","Default data &amp; actions") ?? "Default data &amp; actions")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_949c4257bb016e","Role permissions control capability. App visibility and permissions are intentionally separate.") ?? "Role permissions control capability. App visibility and permissions are intentionally separate.")}</div></div>
             ${String(permissionsMarkup(role))}
             <div class="cu-role-actions">
@@ -18443,6 +18461,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
         </details>`;
       };
+          font_family: state.font_family,
       body.innerHTML = (String(workforceAccessIntroMarkup()) + "\n        <div class=\"cu-section-toolbar\"><div><strong>" + ((v1,v2) => globalThis.PlatformLanguage?.text("settings","m_abdd4d7921870b",`${v1} active ${v2}`,{v1,v2}) ?? `${v1} active ${v2}`)(roles.length,roles.length === 1 ? 'role' : 'roles') + "</strong><span>" + (globalThis.PlatformLanguage?.text("settings","m_13ede0d4cc3b2e","Roles are reusable defaults. Individual people can still receive explicit overrides.") ?? "Roles are reusable defaults. Individual people can still receive explicit overrides.") + "</span></div><button type=\"button\" class=\"cs-btn primary\" data-role-new " + String(accessRoleDraftOpen ? 'disabled' : '') + "><i class=\"fas fa-plus\"></i>" + (globalThis.PlatformLanguage?.text("settings","m_174b2acffbcf7c"," New role") ?? " New role") + "</button></div>\n        <div class=\"cu-role-manager-list\">" + String(roles.map((role) => roleCardMarkup(role)).join('') || '<div class="cs-note">No active access roles.</div>') + String(accessRoleDraftOpen ? roleCardMarkup({ application_ids:['field'], permissions:{}, app_defaults:{} }, true) : '') + "</div>\n        <div class=\"cs-note\" data-role-manager-status>" + String(escapeHtml(statusText)) + "</div>");
       const refreshRoleSurfaces = async (message = '') => {
         workforceUi.loaded = false;

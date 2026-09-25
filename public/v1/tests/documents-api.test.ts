@@ -411,6 +411,13 @@ test("new and seeded Doc Studio themes snapshot the company palette and document
     "triangle body pages reserve a larger safe area on every side"
   );
 
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/branch/default/modules/presentation_style`, {
+    data: {
+      branding: { colors: { primary: palette[0], secondary: palette[1], accent: palette[0], palette }, typography: { document_font_family: "Lato" } },
+      proposal_defaults: { font_family: "Poppins" }
+    }
+  });
+
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/themes`, {
     id: "thm_company_defaults_test",
     name: "Company defaults",
@@ -427,7 +434,8 @@ test("new and seeded Doc Studio themes snapshot the company palette and document
   const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/themes/${created.theme.id}`);
   assert.equal(detail.theme.definition.tokens.colors.primary, palette[0]);
   assert.equal(detail.theme.definition.tokens.colors.accent, palette[1]);
-  assert.equal(detail.theme.definition.tokens.fonts.display, "Poppins");
+  assert.equal(detail.theme.definition.tokens.fonts.display, "Lato", "the saved Brand Kit font takes precedence for new themes");
+  assert.equal(detail.theme.definition.tokens.fonts.body, "Lato");
 
   const cloned = await client.request("POST", `/v1/documents/organizations/${orgId}/themes`, {
     id: "thm_exact_clone_test",

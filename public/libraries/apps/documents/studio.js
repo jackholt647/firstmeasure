@@ -171,11 +171,11 @@
       const styles = getComputedStyle(el || document.documentElement);
       const branding = (window.__APP?.orgBranding || window.Portal?.cfg?.branding || {});
       const primary = firstText(
-        styles.getPropertyValue('--fm-primary'),
         styles.getPropertyValue('--primary'),
+        styles.getPropertyValue('--fm-primary'),
         branding?.colors?.primary,
         branding?.primary,
-        '#2563EB'
+        '#d93025'
       );
       document.documentElement.style.setProperty('--fmdx-on-primary', readableOnColor(primary));
     } catch (e) { /* keep the CSS #fff fallback */ }
@@ -211,7 +211,7 @@
       const top = ((Number(frame.y) || 0) / 792) * 100;
       const w = ((Number(frame.w) || 0) / 612) * 100;
       const h = ((Number(frame.h) || 0) / 792) * 100;
-      const fill = firstText(objectValue(objectValue(node.style).fill).color, 'var(--fm-primary,#2563EB)');
+      const fill = firstText(objectValue(objectValue(node.style).fill).color, 'var(--fm-primary,var(--primary,#d93025))');
       let clip = '';
       if (cleanText(objectValue(node.props).shape) === 'polygon') {
         const pts = arrayValue(objectValue(node.props).points)
@@ -239,8 +239,8 @@
           <strong>${String(esc(firstText(options.name, 'Theme')))}${String(options.current ? ' <i class="fas fa-circle-check"></i>' : '')}</strong>
           ${String(fonts ? `<small>${esc(fonts)}</small>` : '')}
           <span class="fmdx-theme-dots">
-            <i style="background:var(--fm-primary,#2563EB)" title="${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}"></i>
-            <i style="background:var(--fm-accent,#0EA5E9)" title="${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}"></i>
+            <i style="background:var(--fm-primary,var(--primary,#d93025))" title="${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}"></i>
+            <i style="background:var(--fm-accent,var(--secondary,#202124))" title="${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}"></i>
             <i style="background:var(--fm-text,#111827)" title="${(globalThis.PlatformLanguage?.text("documents","m_124287f184b88b","Text") ?? "Text")}"></i>
           </span>
         </span>
@@ -460,12 +460,14 @@
   }
 
   function defaultThemeDefinition(){
+    const primary = studioBrandColor('primary');
+    const secondary = studioBrandColor('secondary');
     return {
       tokens: {
         colors: {
-          primary: { from: 'org.branding.colors.primary', fallback: '#2563EB' },
-          secondary: { from: 'org.branding.colors.secondary', fallback: '#0EA5E9' },
-          accent: { from: 'org.branding.colors.secondary', fallback: '#0EA5E9' },
+          primary: { from: 'org.branding.colors.primary', fallback: primary },
+          secondary: { from: 'org.branding.colors.secondary', fallback: secondary },
+          accent: { from: 'org.branding.colors.secondary', fallback: secondary },
           text: '#111827'
         },
         fonts: { display: 'Montserrat', body: 'Inter' },
@@ -491,6 +493,13 @@
     if (original && typeof original === 'object' && !Array.isArray(original)) return { ...original, fallback: color };
     return color;
   }
+  function studioBrandColor(kind = 'primary'){
+    try {
+      const theme = window.Portal?.currentTheme || {};
+      const css = getComputedStyle(document.documentElement);
+      return firstText(css.getPropertyValue(`--${kind}`), theme[kind], kind === 'primary' ? '#d93025' : '#202124');
+    } catch (e) { return kind === 'primary' ? '#d93025' : '#202124'; }
+  }
 
   // =========================================================================
   function mountStudio(context = {}){
@@ -505,7 +514,8 @@
       destroyed: false,
       active: true,
       sidebarCompactRelease: null,
-      tab: 'templates',              // 'templates' | 'workflows' | 'themes' | 'folder:<id>'
+      tab: 'templates',              // 'templates' | 'workflows' | 'themes' | 'brand-kit' | 'folder:<id>'
+      brandKit: null,
       view: 'list',                  // 'list' | 'template' | 'workflow' | 'theme' | 'folder_item'
       workflows: null,
       // folders (Marketing + custom tabs) and their items
@@ -573,7 +583,7 @@
       const value = cleanText(tab);
       const folderId = value.startsWith('folder:') ? value.slice('folder:'.length) : '';
       return {
-        studioSection: folderId ? 'folder' : (['templates', 'workflows', 'themes'].includes(value) ? value : 'templates'),
+        studioSection: folderId ? 'folder' : (['templates', 'workflows', 'themes', 'brand-kit'].includes(value) ? value : 'templates'),
         studioFolder: folderId || null,
         studioDocument: null,
         ...extra
@@ -766,6 +776,100 @@
       return capabilityEnabled('documents.custom_folders');
     }
 
+    const BRAND_FONTS = ['Montserrat', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Poppins', 'Source Sans 3', 'Arial'];
+    const brandBranchId = () => firstText(context.branchId, window.Portal?.cfg?.userBranchId, window.__APP?.userBranchId, 'default');
+    const brandHex = (value, fallback) => /^#[0-9a-f]{6}$/i.test(cleanText(value)) ? cleanText(value).toUpperCase() : fallback;
+    async function loadBrandKit(){
+      const platform = window.PlatformAPI;
+      if (!platform?.branches?.get || !platform?.branchModules?.get) throw new Error('Company branding service is unavailable.');
+      const [portal, branchRes, styleRes] = await Promise.all([
+        platform.orgs.portalState(orgId()),
+        platform.branches.get(orgId(), brandBranchId()),
+        platform.branchModules.get(orgId(), brandBranchId(), 'presentation_style')
+      ]);
+      const globalBrand = objectValue(objectValue(objectValue(portal.global).data).branding);
+      const orgBrand = objectValue(objectValue(objectValue(portal.organization).data).branding);
+      const branch = objectValue(objectValue(branchRes.document).data || branchRes.data);
+      const style = objectValue(styleRes.data);
+      const brand = { ...globalBrand, ...orgBrand, ...objectValue(branch.branding), ...objectValue(style.branding) };
+      const colors = { ...objectValue(globalBrand.colors), ...objectValue(orgBrand.colors), ...objectValue(objectValue(branch.branding).colors), ...objectValue(objectValue(style.branding).colors) };
+      const typography = { ...objectValue(globalBrand.typography), ...objectValue(orgBrand.typography), ...objectValue(objectValue(branch.branding).typography), ...objectValue(objectValue(style.branding).typography) };
+      const primary = brandHex(colors.primary || colors.accent, '#D93025');
+      const secondary = brandHex(colors.secondary, '#202124');
+      const palette = arrayValue(colors.palette).slice(0, 6).map((color, index) => brandHex(color, index ? secondary : primary));
+      while (palette.length < 6) palette.push([primary, secondary, '#E8E8E8', '#A0A0A0', '#666666', '#202124'][palette.length]);
+      palette[0] = primary; palette[1] = secondary;
+      state.brandKit = { primary, secondary, palette, font: firstText(typography.document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat'), logo: firstText(brand.logo, brand.logo_node_url), branch, style, global: objectValue(objectValue(portal.global).data) };
+      if (!state.destroyed && state.tab === 'brand-kit') render();
+    }
+    function renderBrandKit(body){
+      const kit = state.brandKit;
+      if (!kit) {
+        body.innerHTML = '<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>Loading Brand Kit</strong></div>';
+        loadBrandKit().catch((error) => { body.innerHTML = `<div class="fmdx-state"><strong>Could not load Brand Kit</strong><span>${esc(errorMessage(error))}</span><button class="fmdx-btn" data-brand-retry>Retry</button></div>`; body.querySelector('[data-brand-retry]')?.addEventListener('click', () => renderBrandKit(body)); });
+        return;
+      }
+      body.innerHTML = `<div class="fmdx-brand-kit">
+        <header class="fmdx-brand-head"><div><h2>Brand Kit</h2><p>Shared with Company Information. These styles are the starting point for new documents and themes.</p></div><button type="button" class="fmdx-btn primary" data-brand-save><i class="fas fa-save"></i> Save</button></header>
+        <div class="fmdx-brand-status" role="status"></div>
+        <div class="fmdx-brand-grid">
+          <section class="fmdx-brand-card"><h3>Color palette</h3><div class="fmdx-brand-card-body"><div class="fmdx-brand-swatches">${kit.palette.map((color, index) => `<label><span>${['Primary · UI','Secondary · UI','Supporting 1','Supporting 2','Supporting 3','Supporting 4'][index]}</span><input type="color" data-brand-color="${index}" value="${esc(color)}"><input class="fmdx-brand-hex" data-brand-hex="${index}" value="${esc(color)}" maxlength="7" spellcheck="false"></label>`).join('')}</div></div></section>
+          <section class="fmdx-brand-card"><h3>Logo</h3><div class="fmdx-brand-card-body"><div class="fmdx-brand-logo">${kit.logo ? `<img src="${esc(kit.logo)}" alt="Company logo">` : '<span>No logo uploaded</span>'}</div><label class="fmdx-btn" for="fmdxBrandLogo"><i class="fas fa-upload"></i> Replace logo</label><input id="fmdxBrandLogo" type="file" accept="image/*" hidden><p>Transparent PNG or SVG works best.</p></div></section>
+          <section class="fmdx-brand-card"><h3>Company font</h3><div class="fmdx-brand-card-body"><label class="fmdx-field"><span>Font family</span><select data-brand-font>${BRAND_FONTS.map((font) => `<option value="${esc(font)}" ${kit.font === font ? 'selected' : ''}>${esc(font)}</option>`).join('')}</select></label><p>Default font for new documents and templates.</p></div></section>
+        </div></div>`;
+      const status = body.querySelector('.fmdx-brand-status');
+      body.querySelectorAll('[data-brand-color]').forEach((input) => input.addEventListener('input', () => { body.querySelector(`[data-brand-hex="${input.dataset.brandColor}"]`).value = input.value.toUpperCase(); }));
+      body.querySelectorAll('[data-brand-hex]').forEach((input) => input.addEventListener('change', () => { const index = Number(input.dataset.brandHex); const color = brandHex(input.value, kit.palette[index]); input.value = color; body.querySelector(`[data-brand-color="${index}"]`).value = color; }));
+      body.querySelector('[data-brand-save]').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const palette = Array.from(body.querySelectorAll('[data-brand-color]')).map((input) => input.value.toUpperCase());
+        const font = body.querySelector('[data-brand-font]').value;
+        button.disabled = true; status.textContent = 'Saving…';
+        try {
+          const colors = { primary:palette[0], secondary:palette[1], accent:palette[0], palette };
+          const typography = { document_font_family:font };
+          const branch = kit.branch;
+          const style = kit.style;
+          await window.PlatformAPI.branches.save(orgId(), brandBranchId(), { ...branch, branding:{ ...objectValue(branch.branding), colors:{ ...objectValue(objectValue(branch.branding).colors), ...colors }, typography:{ ...objectValue(objectValue(branch.branding).typography), ...typography } } }, { source:'doc_studio_brand_kit' });
+          await window.PlatformAPI.branchModules.save(orgId(), brandBranchId(), 'presentation_style', { ...style, branding:{ ...objectValue(style.branding), colors:{ ...objectValue(objectValue(style.branding).colors), ...colors }, typography:{ ...objectValue(objectValue(style.branding).typography), ...typography } } }, { kind:'branch_presentation_style', source:'doc_studio_brand_kit' });
+          kit.primary = palette[0]; kit.secondary = palette[1]; kit.palette = palette; kit.font = font;
+          kit.branch = { ...branch, branding:{ ...objectValue(branch.branding), colors, typography } };
+          kit.style = { ...style, branding:{ ...objectValue(style.branding), colors, typography } };
+          document.documentElement.style.setProperty('--primary', palette[0]);
+          document.documentElement.style.setProperty('--fm-primary', palette[0]);
+          syncOnPrimaryVar(root);
+          status.textContent = 'Saved';
+          showToast('Brand Kit', 'Company brand settings saved.');
+        } catch (error) { status.textContent = errorMessage(error, 'Could not save Brand Kit.'); showToast('Brand Kit', status.textContent, false); }
+        finally { button.disabled = false; }
+      });
+      body.querySelector('#fmdxBrandLogo').addEventListener('change', async (event) => {
+        const file = event.target.files?.[0]; if (!file) return;
+        status.textContent = 'Uploading logo…';
+        try {
+          const uploaded = await window.PlatformAPI.media.upload(orgId(), file, { ownerType:'organization', ownerId:orgId(), slot:'logo', collection:'branding' });
+          const mediaId = firstText(objectValue(uploaded.media).id, objectValue(uploaded.media).media_id);
+          if (!mediaId) throw new Error('Logo upload returned no media ID.');
+          const logo = `/v1/platform/organizations/${encodeURIComponent(orgId())}/media/${encodeURIComponent(mediaId)}/logo`;
+          await window.PlatformAPI.orgs.patchGlobal(orgId(), { branding:{ ...kit.global.branding, logo, logo_node_url:logo } });
+          await window.PlatformAPI.branches.save(orgId(), brandBranchId(), { ...kit.branch, branding:{ ...objectValue(kit.branch.branding), logo } }, { source:'doc_studio_brand_kit' });
+          if (kit.style.branding?.logo) await window.PlatformAPI.branchModules.save(orgId(), brandBranchId(), 'presentation_style', { ...kit.style, branding:{ ...objectValue(kit.style.branding), logo } }, { kind:'branch_presentation_style', source:'doc_studio_brand_kit' });
+          kit.logo = logo; kit.branch.branding = { ...objectValue(kit.branch.branding), logo }; kit.global.branding = { ...objectValue(kit.global.branding), logo, logo_node_url:logo };
+          renderBrandKit(body);
+          showToast('Brand Kit', 'Company logo saved.');
+        } catch (error) { status.textContent = errorMessage(error, 'Could not upload logo.'); showToast('Brand Kit', status.textContent, false); }
+      });
+    }
+    async function applyFontToBlankDocument(definition){
+      const style = state.brandKit?.style || objectValue((await window.PlatformAPI.branchModules.get(orgId(), brandBranchId(), 'presentation_style').catch(() => ({}))).data);
+      const font = firstText(objectValue(objectValue(style.branding).typography).document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat');
+      const styles = objectValue(definition.styles);
+      const names = Object.keys(styles).length ? Object.keys(styles) : ['Normal text', 'Title', 'Subtitle', 'Heading 1', 'Heading 2', 'Heading 3'];
+      definition.styles = { ...styles };
+      names.forEach((name) => { const current = objectValue(styles[name]); definition.styles[name] = { ...current, font:{ ...objectValue(current.font), family:font } }; });
+      return definition;
+    }
+
     function renderLists(){
       // A deleted/archived folder can leave a stale folder tab selected.
       if (isFolderTab() && Array.isArray(state.folders) && !currentFolder()) state.tab = 'templates';
@@ -803,11 +907,13 @@
                 <i class="fas ${esc(firstText(folder.icon, 'fa-folder'))}"></i> ${esc(firstText(folder.label, 'Folder'))}
                 ${folder.system === true ? '' : `<span class="fmdx-subtab-kebab" role="button" tabindex="0" data-folder-menu="${esc(folder.id)}" title="Folder actions" aria-label="Actions for ${esc(firstText(folder.label, 'folder'))}"><i class="fas fa-ellipsis"></i></span>`}
               </button>`).join(''))}
+            <button type="button" class="fmdx-subtab fmdx-brand-tab ${String(state.tab === 'brand-kit' ? 'active' : '')}" data-tab="brand-kit"><i class="fas fa-swatchbook"></i> Brand Kit</button>
             ${String(canCreateFolders() ? '<button type="button" class="fmdx-subtab fmdx-subtab-add" data-new-folder title="New folder" aria-label="New folder"><i class="fas fa-plus"></i></button>' : '')}
           </div>
           <div class="fmdx-body" data-studio-body></div>
         </div>`;
       root.querySelectorAll('[data-tab]').forEach((btn) => btn.addEventListener('click', () => {
+        if (btn.dataset.tab === 'brand-kit') state.brandKit = null;
         state.tab = btn.dataset.tab;
         writeStudioRoute(state.tab, {}, { source:'documents-studio-tab' });
         render();
@@ -833,6 +939,7 @@
         catch (error) { showToast('Document modules', errorMessage(error), false); }
       });
       const body = root.querySelector('[data-studio-body]');
+      if (state.tab === 'brand-kit') { renderBrandKit(body); return; }
       if (state.loading && state.templates === null) {
         body.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_c867f3b4567afc","Loading studio") ?? "Loading studio")}</strong></div>`;
         return;
@@ -985,9 +1092,9 @@
       body.innerHTML = `<div class="fmdx-card-grid">
         ${themes.map((theme) => {
           const colors = objectValue(objectValue(objectValue(theme.definition).tokens).colors);
-          const primary = tokenColor(colors.primary, '#2563EB');
-          const accent = tokenColor(colors.accent, '#0EA5E9');
-          const swatches = ['primary', 'accent', 'text'].map((key) => `<span style="width:18px;height:18px;border-radius:6px;border:1px solid rgba(15,23,42,.12);background:${esc(tokenColor(colors[key], key === 'text' ? '#111827' : '#2563EB'))}"></span>`).join('');
+          const primary = tokenColor(colors.primary, studioBrandColor('primary'));
+          const accent = tokenColor(colors.accent, studioBrandColor('secondary'));
+          const swatches = ['primary', 'accent', 'text'].map((key) => `<span style="width:18px;height:18px;border-radius:6px;border:1px solid rgba(15,23,42,.12);background:${esc(tokenColor(colors[key], key === 'text' ? '#111827' : studioBrandColor('primary')))}"></span>`).join('');
           return `
             <div class="fmdx-tpl-card" data-theme-card="${String(esc(theme.id))}" style="--fm-primary:${String(esc(primary))};--fm-accent:${String(esc(accent))};position:relative">
               <button type="button" class="fmdx-icon-btn" data-theme-actions title="${(globalThis.PlatformLanguage?.text("documents","m_45b6adab52d821","Theme actions") ?? "Theme actions")}" aria-label="${((v3) => globalThis.PlatformLanguage?.text("documents","m_30396c80099968",`Actions for ${v3}`,{v3}) ?? `Actions for ${v3}`)(esc(firstText(theme.name, 'theme')))}" style="position:absolute;right:10px;top:10px;z-index:2"><i class="fas fa-ellipsis"></i></button>
@@ -1488,6 +1595,7 @@
             const definition = kind === 'visual_document'
               ? (blankViewDefinition() || blankDefinition('generic'))
               : blankDefinition('generic');
+            if (kind !== 'visual_document') await applyFontToBlankDocument(definition);
             const res = await api().folders.items.create(orgId(), folder.id, { item_type: kind, name, definition });
             const item = objectValue(res.item || res);
             modal.close();
@@ -2014,6 +2122,7 @@
             // Seed from the type's seeded template when available, else blank.
             const seeded = arrayValue(catalogType.seeded_templates)[0];
             const definition = objectValue(seeded?.definition).pages ? clone(seeded.definition) : blankDefinition(selectedType);
+            if (!objectValue(seeded?.definition).pages) await applyFontToBlankDocument(definition);
             definition.metadata = { ...objectValue(definition.metadata), document_type: selectedType };
             const res = await api().templates.create(orgId(), { name, document_type: selectedType, definition });
             const template = objectValue(res.template || res);
@@ -3215,8 +3324,8 @@
           <div class="fmdx-panel-head"><h3><i class="fas fa-droplet"></i>${(globalThis.PlatformLanguage?.text("documents","m_817d950b6e11d1"," Colors") ?? " Colors")}</h3></div>
           <div class="fmdx-panel-body">
             <div class="fmdx-form-grid" style="grid-template-columns:repeat(2,1fr)">
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}</span><input type="color" data-theme-color="primary" value="${String(esc(tokenColor(colors.primary, '#2563EB')))}"></label>
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}</span><input type="color" data-theme-color="accent" value="${String(esc(tokenColor(colors.accent, '#0EA5E9')))}"></label>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}</span><input type="color" data-theme-color="primary" value="${String(esc(tokenColor(colors.primary, studioBrandColor('primary'))))}"></label>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}</span><input type="color" data-theme-color="accent" value="${String(esc(tokenColor(colors.accent, studioBrandColor('secondary'))))}"></label>
               <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_124287f184b88b","Text") ?? "Text")}</span><input type="color" data-theme-color="text" value="${String(esc(tokenColor(colors.text, '#111827')))}"></label>
               <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_847e8d8b0827a3","Muted") ?? "Muted")}</span><input type="color" data-theme-color="muted" value="${String(esc(tokenColor(colors.muted, '#667085')))}"></label>
             </div>
@@ -3373,7 +3482,7 @@
 
     async function applyStudioRoute(route){
       if (cleanText(route?.tab) !== 'documents_studio') return;
-      const section = ['templates', 'workflows', 'themes', 'folder'].includes(cleanText(route?.studioSection))
+      const section = ['templates', 'workflows', 'themes', 'brand-kit', 'folder'].includes(cleanText(route?.studioSection))
         ? cleanText(route.studioSection)
         : 'templates';
       const folderId = cleanText(route?.studioFolder);
@@ -3404,7 +3513,9 @@
       apply: applyStudioRoute
     });
     const onPlatformTopbarVisibility = () => { if (!state.destroyed && state.view === 'folder_item') syncFolderItemHeaderHost(); };
+    const onCompanyThemeUpdated = () => { if (!state.destroyed) syncOnPrimaryVar(root); };
     window.addEventListener('fm:platform-topbar-visibility', onPlatformTopbarVisibility);
+    window.addEventListener('fm:theme:updated', onCompanyThemeUpdated);
     window.addEventListener('resize', onPlatformTopbarVisibility);
     loadCatalog().then(() => { if (!state.destroyed && state.view === 'list') render(); });
     loadLists();
@@ -3421,6 +3532,7 @@
         state.destroyed = true;
         unregisterStudioRoute?.();
         window.removeEventListener('fm:platform-topbar-visibility', onPlatformTopbarVisibility);
+        window.removeEventListener('fm:theme:updated', onCompanyThemeUpdated);
         window.removeEventListener('resize', onPlatformTopbarVisibility);
         closeFloatingMenu();
         clearTimeout(state.themePreviewTimer);
