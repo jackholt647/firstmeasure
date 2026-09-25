@@ -1830,6 +1830,14 @@
       description: (globalThis.PlatformLanguage?.text("settings","m_2d894b062b10e8","Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.") ?? "Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.")
     },
     {
+      key: 'platform.resizable_left_column',
+      group: 'platform',
+      flag: 'resizable_left_column',
+      defaultValue: true,
+      label: 'Drag to Resize Left Column',
+      description: 'Drag the right edge of the left column to set its width. Dragging also locks a compact column open.'
+    },
+    {
       key: 'platform.cobrand_sidebar_logo',
       group: 'platform',
       flag: 'cobrand_sidebar_logo',
@@ -4739,6 +4747,14 @@
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
     const paneNotifications = $('#csPaneNotifications', panel);
+    window.addEventListener('fm:user-preferences:updated', (event) => {
+      const width = window.Portal?.sidebarWidth?.normalize?.(event?.detail?.preferences?.sidebar_width);
+      const input = paneMySettings?.querySelector('[data-my-sidebar-width]');
+      const output = paneMySettings?.querySelector('[data-my-sidebar-width-output]');
+      if (!width || !input || !output) return;
+      input.value = String(width);
+      output.textContent = `${width}px`;
+    });
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);
@@ -16315,7 +16331,6 @@
             </div>
             <div class="cs-actions">
               <button class="cs-btn primary" id="csSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
-              <button class="cs-btn ghost icon" id="csRefresh" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_1e424fccfe4f4d","Reload company settings") ?? "Reload company settings")}" title="${(globalThis.PlatformLanguage?.text("settings","m_286f235cc79de7","Reload") ?? "Reload")}"><i class="fas fa-rotate"></i></button>
             </div>
           </header>
           <div class="cs-note" id="csStatus" role="status"></div>
@@ -16628,8 +16643,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           .cs-layout:has(.fm-credit-fit.active)>.cs-heading,.cs-layout:has(.fm-credit-fit.active)>.cs-sidebar{flex:0 0 auto}
           .cs-main:has(.fm-credit-fit.active){flex:1;min-height:0;height:auto}
         }
+        @media(max-width:820px){
+          /* The mobile shell bleeds across its parent's 12px padding. Do not clip it. */
+          #tab_company_settings:has(.fm-credit-fit.active){overflow:visible}
+          .cs-wrap:has(.fm-credit-fit.active){height:calc(100% + 24px)}
+        }
         @media(max-width:600px){
-          .cs-main>.cs-card:has(.fm-credit-fit.active){padding:8px 12px}
           #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card{padding:8px}
           #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-row{display:flex;flex-wrap:nowrap;gap:8px}
           #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-left{display:none}
@@ -18309,21 +18328,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
       });
       void loadAlternateLogos();
-      $('#csRefresh', paneCompany).addEventListener('click', async ()=>{
-        csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_7b5f5734f30c8b","Reloading...") ?? "Reloading...");
-        const o = await fetchOrg();
-        if (!o){
-          csStatus.textContent = '';
-          showToast((globalThis.PlatformLanguage?.text("settings","m_7e55f5dd31b9fd","Reload failed") ?? "Reload failed"), (globalThis.PlatformLanguage?.text("settings","m_f7053b6ec86dcc","Could not fetch company settings.") ?? "Could not fetch company settings."), false);
-          return;
-        }
-        state = o;
-        csStatus.textContent = '';
-        lastSidebarLogoKey = null;
-        lastPreviewLogoKey = null;
-        renderCompany({ writeInputs:true, forceLogo:true });
-        showToast((globalThis.PlatformLanguage?.text("settings","m_1c5bcbffd3fe03","Reloaded") ?? "Reloaded"), (globalThis.PlatformLanguage?.text("settings","m_a976ff401c3e5e","Company settings refreshed.") ?? "Company settings refreshed."), true);
-      });
       $('#csSave', paneCompany).addEventListener('click', async ()=>{
         csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
         const toSaveName = String(csName.value || '').trim();
