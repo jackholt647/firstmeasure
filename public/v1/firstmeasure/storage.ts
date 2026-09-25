@@ -263,7 +263,6 @@ export async function createProject(input: JsonObject & { address: string }, opt
   const languageSnapshot = await freezeReportLanguage(input, reportPreferences);
   const manifest: ProjectManifest = {
     ...(options.fullHouse ? { measurement_scope: "full_house", internal_only: true } : {}),
-    ...(options.customerExteriors ? { measurement_scope: "full_house", exterior_references: input.exterior_references } : {}),
     ...reportPreferences,
     language_snapshot: languageSnapshot,
     schema_version: FIRSTMEASURE_SCHEMA_VERSION,
