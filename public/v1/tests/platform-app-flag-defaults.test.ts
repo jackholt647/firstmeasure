@@ -12,6 +12,12 @@ test("co-branding is available by default without enabling expanded apps and res
   assert.equal(resolveCapabilities({ "platform.cobrand_sidebar_logo": false }).values["platform.cobrand_sidebar_logo"], false);
 });
 
+test("sidebar edge resizing starts on and respects an organization opt-out", () => {
+  assert.equal(appFlagDefaults().platform?.resizable_left_column, true);
+  assert.equal(resolveCapabilities({}).values["platform.resizable_left_column"], true);
+  assert.equal(resolveCapabilities({ "platform.resizable_left_column": false }).values["platform.resizable_left_column"], false);
+});
+
 test("new organizations enable the standard FirstMeasure report options by default", () => {
   const defaults = appFlagDefaults();
 
