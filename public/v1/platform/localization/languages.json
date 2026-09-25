@@ -1,0 +1,136 @@
+{
+  "packs": [
+    {
+      "code": "en-US",
+      "label": "English (US)",
+      "direction": "ltr"
+    },
+    {
+      "code": "en-GB",
+      "label": "English (UK)",
+      "direction": "ltr"
+    }
+  ],
+  "translation_targets": [
+    {
+      "code": "en-US",
+      "label": "English (US)",
+      "name": "English (US)"
+    },
+    {
+      "code": "en-GB",
+      "label": "English (UK)",
+      "name": "English (UK)"
+    },
+    {
+      "code": "es",
+      "label": "Español",
+      "name": "Spanish"
+    },
+    {
+      "code": "fr",
+      "label": "Français",
+      "name": "French"
+    },
+    {
+      "code": "de",
+      "label": "Deutsch",
+      "name": "German"
+    },
+    {
+      "code": "pt",
+      "label": "Português",
+      "name": "Portuguese"
+    },
+    {
+      "code": "it",
+      "label": "Italiano",
+      "name": "Italian"
+    },
+    {
+      "code": "nl",
+      "label": "Nederlands",
+      "name": "Dutch"
+    },
+    {
+      "code": "pl",
+      "label": "Polski",
+      "name": "Polish"
+    },
+    {
+      "code": "ru",
+      "label": "Русский",
+      "name": "Russian"
+    },
+    {
+      "code": "uk",
+      "label": "Українська",
+      "name": "Ukrainian"
+    },
+    {
+      "code": "ar",
+      "label": "العربية",
+      "name": "Arabic"
+    },
+    {
+      "code": "hi",
+      "label": "हिन्दी",
+      "name": "Hindi"
+    },
+    {
+      "code": "bn",
+      "label": "বাংলা",
+      "name": "Bengali"
+    },
+    {
+      "code": "ur",
+      "label": "اردو",
+      "name": "Urdu"
+    },
+    {
+      "code": "zh",
+      "label": "中文",
+      "name": "Chinese"
+    },
+    {
+      "code": "ja",
+      "label": "日本語",
+      "name": "Japanese"
+    },
+    {
+      "code": "ko",
+      "label": "한국어",
+      "name": "Korean"
+    },
+    {
+      "code": "vi",
+      "label": "Tiếng Việt",
+      "name": "Vietnamese"
+    },
+    {
+      "code": "th",
+      "label": "ไทย",
+      "name": "Thai"
+    },
+    {
+      "code": "id",
+      "label": "Bahasa Indonesia",
+      "name": "Indonesian"
+    },
+    {
+      "code": "tl",
+      "label": "Filipino",
+      "name": "Filipino"
+    },
+    {
+      "code": "tr",
+      "label": "Türkçe",
+      "name": "Turkish"
+    },
+    {
+      "code": "he",
+      "label": "עברית",
+      "name": "Hebrew"
+    }
+  ]
+}

@@ -12,6 +12,15 @@
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
+  function languageOptions(selected, { inherit = false, translation = false, companyLocale } = {}) {
+    const service = window.PlatformLanguage;
+    const packs = service?.supportedLanguages || [];
+    const choices = translation ? (service?.translationLanguages || []) : packs;
+    const company = companyLocale || service?.companyContext?.().locale || 'en-US';
+    const companyName = packs.find(pack => pack.code === company)?.label || company;
+    const inherited = inherit ? `<option value="" ${!selected ? 'selected' : ''}>${escapeHtml(window.PlatformLanguage.text('settings','company_language_inherit','Use company language (' + companyName + ')',{name:companyName}))}</option>` : '';
+    return inherited + choices.map(({code,label}) => `<option value="${escapeHtml(code)}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
   const DEFAULT_LOGO = '/images/logo_red.png';
   const SAMPLE_DIAGRAM = 'media/sample_diagram.png';
   const LS_KEY = 'fm_org_theme_v1';
@@ -14138,16 +14147,9 @@
       paneMySettings.innerHTML = `<div class="my-settings-status"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_5dfbfde9b4da49"," Loading your settings…") ?? " Loading your settings…")}</div>`;
       try {
         const result = await window.PlatformAPI?.preferences?.get?.();
-        const preferences = result?.preferences || { language:'en', auto_translate_messages:false, sidebar_width:250 };
+        const preferences = result?.preferences || { language:null, auto_translate_messages:false, sidebar_width:250 };
         const sidebarWidthApi = window.Portal?.sidebarWidth;
         const sidebarWidth = sidebarWidthApi?.normalize?.(preferences.sidebar_width) || 250;
-        const languages = [
-          ['en','English'],['es','Español'],['fr','Français'],['de','Deutsch'],['pt','Português'],
-          ['it','Italiano'],['nl','Nederlands'],['pl','Polski'],['ru','Русский'],['uk','Українська'],
-          ['ar','العربية'],['hi','हिन्दी'],['bn','বাংলা'],['ur','اردو'],['zh','中文'],
-          ['ja','日本語'],['ko','한국어'],['vi','Tiếng Việt'],['th','ไทย'],['id','Bahasa Indonesia'],
-          ['tl','Filipino'],['tr','Türkçe'],['he','עברית']
-        ];
         paneMySettings.innerHTML = `
           <div class="my-settings-shell">
             <div class="my-settings-hero">
@@ -14157,11 +14159,11 @@
             <div class="my-settings-group">
               <h4>${(globalThis.PlatformLanguage?.text("settings","m_7be4e66b6de94c","Language &amp; translation") ?? "Language &amp; translation")}</h4>
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_6a345cd0072503","Interface language") ?? "Interface language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_338ca4c4d53ee1","Use the company language or choose your own. Reports use the company language.") ?? "Use the company language or choose your own. Reports use the company language.")}</small></span>
-                <select class="cs-in" data-interface-locale><option value="" ${String(!preferences.interface_locale ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_ad35e6104bfe0c","Use company language") ?? "Use company language")}</option><option value="en-US" ${String(preferences.interface_locale === 'en-US' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_0f09b3ed9128db","English (United States)") ?? "English (United States)")}</option><option value="en-GB" ${String(preferences.interface_locale === 'en-GB' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_58ac1532c90295","English (United Kingdom)") ?? "English (United Kingdom)")}</option></select>
+                <select class="cs-in" data-interface-locale>${languageOptions(preferences.interface_locale, {inherit:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_1c783adbd1d4a5","Message translation language") ?? "Message translation language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_c7cb58bc75e592","Messages in other detected languages can be translated into this language.") ?? "Messages in other detected languages can be translated into this language.")}</small></span>
-                <select class="cs-in" data-my-language>${String(languages.map(([code,label]) => `<option value="${code}" ${preferences.language === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join(''))}</select>
+                <select class="cs-in" data-my-language>${languageOptions(preferences.language, {inherit:true, translation:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_c4030f56eb495c","Show translations automatically") ?? "Show translations automatically")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_4405a3f8c91aac","Foreign-language messages open translated. You can still toggle each message back to its original text.") ?? "Foreign-language messages open translated. You can still toggle each message back to its original text.")}</small></span>
@@ -14203,7 +14205,7 @@
             const previousLocale = window.PlatformLanguage?.context?.().locale;
             const saved = await window.PlatformAPI.preferences.patch({
               ...(paneMySettings.querySelector('[data-interface-locale]') ? { interface_locale: paneMySettings.querySelector('[data-interface-locale]').value || null } : {}),
-              language: paneMySettings.querySelector('[data-my-language]').value,
+              language: paneMySettings.querySelector('[data-my-language]').value || null,
               auto_translate_messages: paneMySettings.querySelector('[data-my-auto-translate]').checked,
               sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth)
             });
@@ -16343,11 +16345,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             </section>
             ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
             <section class="company-settings-card" aria-labelledby="csLocalizationHeading">
-              <div class="company-settings-card-head"><strong id="csLocalizationHeading">Measurements and language</strong></div>
+              <div class="company-settings-card-head"><strong id="csLocalizationHeading">${escapeHtml(window.PlatformLanguage.text('settings','company_language_heading','Company language and measurements'))}</strong><i class="fas fa-circle-info company-settings-card-help" tabindex="0" role="button" aria-label="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help_label','About company language and measurements'))}" data-fm-tooltip="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}" title="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}"></i></div>
               <div class="company-settings-card-body company-localization-grid">
                 <label class="cs-field"><span>Measurements</span><select id="csMeasurementSystem"><option value="imperial">Imperial (feet and squares)</option><option value="metric">Metric (metres and square metres)</option></select></label>
-                <label class="cs-field"><span>Language</span><select id="csReportLanguage"><option value="en-US">English (United States)</option><option value="en-GB">English (United Kingdom)</option></select></label>
-                <div class="cs-note">Language applies across the platform and to new reports. Personal interface preferences can override it. Existing reports keep their ordered language and units.</div>
+                <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
               </div>
             </section>` : '')}
             <div class="company-brand-row">
@@ -16869,8 +16870,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const csAlternateLogoList = $('#csAlternateLogoList', paneCompany);
       if (writeInputs){
         const units = $('#csMeasurementSystem', paneCompany), language = $('#csReportLanguage', paneCompany);
-        if (units) units.value = state.report_preferences?.measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
-        if (language) language.value = state.report_preferences?.report_language || 'en-US';
+        if (units) units.value = state.report_preferences?.measurement_system || window.PlatformLanguage?.companyContext?.().measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
+        if (language) language.value = state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale || 'en-US';
         if(csName) csName.value = state.name;
         if(csPrimary) csPrimary.value = clampHex(state.primary, DEFAULT_PRIMARY);
         if(csSecondary) csSecondary.value = clampHex(state.secondary, DEFAULT_SECONDARY);

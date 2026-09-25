@@ -9,7 +9,19 @@ const root = path.resolve(import.meta.dirname, '../../..');
 const out = path.join(root, 'public/libraries/platform-language/catalogs');
 const sourcePath = path.join(root, 'public/v1/platform/localization/catalog-source.json');
 const catalog = fs.existsSync(sourcePath) ? JSON.parse(fs.readFileSync(sourcePath, 'utf8')) : {};
+const languageRegistry=JSON.parse(fs.readFileSync(path.join(root,'public/v1/platform/localization/languages.json'),'utf8'));
+const supportedLocales=languageRegistry.packs.map(pack=>pack.code);
 const overrides=JSON.parse(fs.readFileSync(path.join(root,'public/v1/platform/localization/catalog-overrides.json'),'utf8'));
+// Each translation worker's language is imported separately; no shared override-file edits.
+const packsDir=path.join(root,'public/v1/platform/localization/packs');
+for(const locale of supportedLocales.filter(code=>!['en-US','en-GB'].includes(code))) {
+  const file=path.join(packsDir,locale+'.json');
+  if(fs.existsSync(file)) {
+    const pack=JSON.parse(fs.readFileSync(file,'utf8'));
+    overrides[locale] ||= {};
+    for(const [namespace,messages] of Object.entries(pack)) overrides[locale][namespace]={...overrides[locale][namespace],...messages};
+  }
+}
 const write = process.argv.includes('--write');
 const check = process.argv.includes('--check');
 const words = {color:'colour',colors:'colours',colored:'coloured',coloring:'colouring',colorize:'colourise',colorized:'colourised',favorite:'favourite',favorites:'favourites',organize:'organise',organized:'organised',organizing:'organising',organization:'organisation',organizations:'organisations',customize:'customise',customized:'customised',customizing:'customising',customization:'customisation',analyze:'analyse',analyzed:'analysed',analyzing:'analysing',center:'centre',centers:'centres',centered:'centred',centering:'centring',license:'licence',licenses:'licences',aluminum:'aluminium',gray:'grey',labor:'labour',vapor:'vapour',miter:'mitre',miters:'mitres',canceled:'cancelled',canceling:'cancelling',catalog:'catalogue',catalogs:'catalogues',meter:'metre',meters:'metres',millimeter:'millimetre',millimeters:'millimetres'};
@@ -117,13 +129,23 @@ catalog.platform ||= {};
 catalog.notifications={document_greeting:{format:'icu',message:'Hi {name},'},document_ready:{format:'icu',message:'Your {type} is ready to review.'},document_link:{format:'icu',message:'Review and respond here: {url}'}};
 const reportRoot={};vm.runInNewContext(fs.readFileSync(path.join(root,'public/libraries/report-units.js'),'utf8'),{window:reportRoot});
 catalog.reports=Object.fromEntries(Object.keys(reportRoot.ReportUnits.catalogs['en-GB']).map(key=>[key,key]));
+function localeMessages(namespace,messages) {
+  const locales={'en-US':messages};
+  for(const locale of supportedLocales.filter(code=>code!=='en-US')) {
+    if(locale!=='en-GB' && !overrides[locale])throw Error(`Missing reviewed catalog overrides for ${locale}`);
+    const defaults=locale==='en-GB' ? (namespace==='reports'?{...reportRoot.ReportUnits.catalogs['en-GB']}:Object.fromEntries(Object.entries(messages).filter(([,m])=>british(typeof m==='string'?m:m.message)!==(typeof m==='string'?m:m.message)).map(([key,m])=>[key,typeof m==='string'?british(m):{...m,message:british(m.message)}]))) : {};
+    const translated={...defaults,...overrides[locale]?.[namespace]};
+    for(const key of Object.keys(translated))if(!Object.hasOwn(messages,key))throw Error(`Unknown translation key: ${locale}.${namespace}.${key}`);
+    locales[locale]=translated;
+  }
+  return locales;
+}
 if(check){
   const unresolved=stats.filter(s=>s.edits);if(unresolved.length){console.error(JSON.stringify(unresolved,null,2));process.exitCode=1;}
   const manifest=JSON.parse(fs.readFileSync(path.join(out,'manifest.json'),'utf8'));
+  if(JSON.stringify(manifest.supported_locales)!==JSON.stringify(supportedLocales))throw Error('Stale supported language list');
   for(const [namespace,messages] of Object.entries(catalog)){
-    const gb=namespace==='reports'?{...reportRoot.ReportUnits.catalogs['en-GB']}:Object.fromEntries(Object.entries(messages).filter(([,m])=>british(typeof m==='string'?m:m.message)!==(typeof m==='string'?m:m.message)).map(([key,m])=>[key,typeof m==='string'?british(m):{...m,message:british(m.message)}]));
-    Object.assign(gb,overrides['en-GB']?.[namespace]||{});
-    const namespaces={[namespace]:{'en-US':messages,'en-GB':gb}},version=crypto.createHash('sha256').update(JSON.stringify(namespaces)).digest('hex').slice(0,16);
+    const namespaces={[namespace]:localeMessages(namespace,messages)},version=crypto.createHash('sha256').update(JSON.stringify(namespaces)).digest('hex').slice(0,16);
     if(manifest.namespaces[namespace]!==namespace+'.'+version+'.json'||fs.readFileSync(path.join(out,manifest.namespaces[namespace]),'utf8')!==JSON.stringify({version,namespaces}))throw Error(`Stale generated catalog: ${namespace}. Run npm run localization:build.`);
   }
   const compiled=await build({entryPoints:[path.join(root,'public/v1/platform/localization/browser.ts')],bundle:true,format:'iife',target:'es2022',minify:true,legalComments:'eof',write:false});
@@ -132,12 +154,9 @@ if(check){
 else {
   fs.mkdirSync(out,{recursive:true});fs.writeFileSync(sourcePath,JSON.stringify(catalog,null,2)+'\n');
   const appNamespaces=new Set(stats.filter(s=>/\/apps\/[^/]+\//.test(s.file)).map(s=>s.namespace));
-  const manifest={schema_version:1,supported_locales:['en-US','en-GB'],eagerNamespaces:Object.keys(catalog).filter(n=>!appNamespaces.has(n)),namespaces:{}};
+  const manifest={schema_version:1,supported_locales:supportedLocales,eagerNamespaces:Object.keys(catalog).filter(n=>!appNamespaces.has(n)),namespaces:{}};
   for(const[namespace,messages]of Object.entries(catalog)){
-    const gb=namespace==='reports'?reportRoot.ReportUnits.catalogs['en-GB']:Object.fromEntries(Object.entries(messages).filter(([,m])=>british(typeof m==='string'?m:m.message)!==(typeof m==='string'?m:m.message)).map(([key,m])=>[key,typeof m==='string'?british(m):{...m,message:british(m.message)}]));
-    Object.assign(gb, overrides['en-GB']?.[namespace] || {});
-    for(const key of Object.keys(gb))if(!Object.hasOwn(messages,key))throw Error(`Unknown translation key: ${namespace}.${key}`);
-    const namespaces={[namespace]:{'en-US':messages,'en-GB':gb}},version=crypto.createHash('sha256').update(JSON.stringify(namespaces)).digest('hex').slice(0,16),file=namespace+'.'+version+'.json';
+    const namespaces={[namespace]:localeMessages(namespace,messages)},version=crypto.createHash('sha256').update(JSON.stringify(namespaces)).digest('hex').slice(0,16),file=namespace+'.'+version+'.json';
     fs.writeFileSync(path.join(out,file),JSON.stringify({version,namespaces}));manifest.namespaces[namespace]=file;
   }
   fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');

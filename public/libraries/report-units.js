@@ -9,8 +9,12 @@
   };
   function create(preferences = {}) {
     const metric = preferences.measurement_system === 'metric';
-    const language = Object.hasOwn(catalogs, preferences.report_language) ? preferences.report_language : 'en-US';
-    const dictionary = preferences.language_snapshot?.report_dictionary || catalogs[language];
+    const requested = preferences.language_snapshot?.locale || preferences.report_language;
+    let language = 'en-US';
+    if (requested && (Object.hasOwn(catalogs, requested) || preferences.language_snapshot?.report_dictionary || root.PlatformLanguage?.supportedLocales?.includes(requested))) {
+      try { language = Intl.getCanonicalLocales(requested)[0] || 'en-US'; } catch { /* Invalid legacy locale retains the original default. */ }
+    }
+    const dictionary = preferences.language_snapshot?.report_dictionary || catalogs[language] || {};
     const factors = { ft:.3048, sf:.09290304, sq:9.290304, inch:25.4, si:6.4516, gallon:3.785411784 };
     const units = { ft:'m', sf:'m²', sq:'m²', inch:'mm', si:'cm²', gallon:'L' };
     const imperial = { ft:'ft', sf:'sq ft', sq:'squares', inch:'in', si:'sq in', gallon:'gal' };
