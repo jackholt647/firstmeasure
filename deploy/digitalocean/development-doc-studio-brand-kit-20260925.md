@@ -106,3 +106,29 @@ Rollback: restore web nodes to `4c059e5` and compatibility to `5685b86`,
 restart the applicable web or legacy service and PHP-FPM, then check exact
 readiness and development isolation. The autoscale image has not been
 updated; replacement nodes need this verified UI overlay before serving it.
+
+## Stacked Brand Kit layout and logo preview correction
+
+Source commit `21fe1b937eaab6aba91eec3108dd8673f5ebb29d` places the
+color palette above the company font, with the logo card filling the
+combined height on the right. The shared component supplies this layout in
+both Company Information and Doc Studio. Doc Studio now resolves its logo
+from the same organization, global, branch, style, saved media ID, and
+current-theme sources used by Company Settings. It skips the default
+placeholder and does not let a legacy branch logo replace a newer media URL.
+
+The previous `b45ab00` release was still serving on both development web
+nodes and compatibility before staging. Four files were overlaid into new
+immutable releases: shared Brand Kit JavaScript and CSS, Doc Studio, and the
+app manifest. The compatibility manifest's unrelated differences were
+preserved. The focused Brand Kit and nullable-style tests passed. A local
+visual render showed identical stacked layouts in Company Information and
+Doc Studio. JavaScript syntax passed on all three staged hosts.
+
+All three development roles passed exact `21fe1b9` readiness checks with
+development data and outbound isolation. Eight public readiness requests
+reached both web instances at that release. Public responses for all four
+changed assets matched the staged SHA-256 hashes. Rollback restores the
+previous `b45ab00` release on each role, restarts its service and PHP-FPM,
+and checks exact readiness and development isolation. The autoscale image
+remains historical and needs this overlay before a replacement node serves.
