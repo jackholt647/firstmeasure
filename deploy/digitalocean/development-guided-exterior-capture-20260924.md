@@ -199,3 +199,11 @@ Activated release 50e1bcaf56c2397d908f653c5c924e7644dd7813 on both dev web nodes
 Source 3f60464, integrated release 54fcd99f4204250534cd12e241fad8c91f3b1c4b. Final review separates report/customer/pricing from Photos, with an eight-direction primary-photo grid per house and required/additional/total counts below. The existing bottom-right Order action is retained. Customer information heading sits above the contact cards on mobile Details; nested contact field margins are reset and the gap to notes is tightened. Ten camera/navigation browser checks passed, including final-review section and photo assertions. Two-script development delta preserves 91046fca06b533a381223366db14161ab78779d9; production unchanged.
 
 Both dev web nodes passed readiness for 54fcd99; both public script hashes match the committed source.
+
+## Photo-first final review and matching customer input text
+
+Source 8d7b6ea, currency-fixture update 4e7941e. Removes the Full Structure-only 16px input override; mobile customer name, phone and email use the same 13px size as standard mobile inputs. Computed-style browser check confirms all four fields at 13px. Review title is now "Review your full structural report", followed by the eight-direction primary photos and counts, report details/total, and delivery timing. The redundant Photos heading is removed. Seven guided camera checks passed, followed by the final-review ordering check with the updated shared currency fixture.
+
+Release artifact f517e59d39ae19b4b158dc3556dead3013d01f8b changes only exteriors.js. Activation coordinated to follow the language rollout, preserving its runtime files. Production unchanged.
+
+Coordinated with the language rollout: web baselines 3f3b92ada110032f7a03b1fe633be95685fd38ea and c8417a39f6b88b8790c3dbafbbc347387a01701f are preserved. At the language task's request, the delta also adds its missing manifest-referenced public/libraries/platform-language/catalogs/mobile.9391bf1cc7ff306f.json, exact immutable bytes from42cc0e7, SHA2560922494a2d4ee836d6f501389d26b7c3bdaf1b52414d759aef5ec5a1f7152ee4. Explicit diff guard allows only that new catalog, exteriors.js and release.env.
