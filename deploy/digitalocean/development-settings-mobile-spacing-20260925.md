@@ -13,3 +13,7 @@ Candidate raw SHA256: 4bceabd1b4e3d4f5d9ceec6f1414684703e43e52b6f3b27317d6fd66a8
 Only company.js and release.env differ between release directories. Native binaries, backend, production and topology unchanged.
 
 The second web node advanced concurrently to c3f0547ba427f01c576011f63242019c5f944e41 before activation. Its baseline guard correctly stopped the old artifact. The same committed patch was reapplied to its newer company.js, preserving that concurrent change. Second-node candidate SHA256: a162d217aaed927f30132a50e6ab30c5690962dc1ca0988b7268165198804daf. These are targeted per-node deltas, not an assertion that the entire fleet has an identical source baseline.
+
+## Billing title/search gap follow-up
+
+Source/release 58113d59587a5a86ca3aab8177be62c9c6b86a42 resets the inherited 12px desktop grid gap when Billing uses the mobile flex shell. Chrome at 390x844 now measures search y=52 on both Company and Billing, with matching shell/title coordinates and content padding. Exact one-line delta applied to the common live baseline 961ed92f4bb828d7672f2bb52d9381dcd681a5d2, preserving unrelated unactivated canonical changes. Candidate SHA256: bf3848852b4dea435f51162f4c0840307edf9d0e2afb6e866693e5639788262d. Production unchanged.
