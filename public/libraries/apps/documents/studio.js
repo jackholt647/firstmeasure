@@ -789,6 +789,7 @@
       ]);
       const globalBrand = objectValue(objectValue(objectValue(portal.global).data).branding);
       const orgBrand = objectValue(objectValue(objectValue(portal.organization).data).branding);
+      const portalBranchBrand = objectValue(objectValue(objectValue(portal.branch).data).branding);
       const branchResponse = objectValue(branchRes);
       const branch = objectValue(objectValue(branchResponse.document).data || branchResponse.data);
       const style = objectValue(objectValue(styleRes).data);
@@ -800,7 +801,9 @@
       const palette = arrayValue(colors.palette).slice(0, 6).map((color, index) => brandHex(color, index ? secondary : primary));
       while (palette.length < 6) palette.push([primary, secondary, '#E8E8E8', '#A0A0A0', '#666666', '#202124'][palette.length]);
       palette[0] = primary; palette[1] = secondary;
-      state.brandKit = { primary, secondary, palette, font: firstText(typography.document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat'), logo: firstText(brand.logo, brand.logo_node_url), logo_display: window.PlatformBrandKit.displayValue(brand.logo_display), branch, style, global: objectValue(objectValue(portal.global).data) };
+      const logo = window.PlatformBrandKit.resolveLogo(orgId(), orgBrand, globalBrand, portalBranchBrand, objectValue(branch.branding), objectValue(style.branding))
+        || firstText(window.Portal?.currentTheme?.logo, window.__APP?.theme?.logo);
+      state.brandKit = { primary, secondary, palette, font: firstText(typography.document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat'), logo, logo_display: window.PlatformBrandKit.displayValue(brand.logo_display), branch, style, global: objectValue(objectValue(portal.global).data) };
       if (!state.destroyed && state.tab === 'brand-kit') render();
     }
     function renderBrandKit(body){

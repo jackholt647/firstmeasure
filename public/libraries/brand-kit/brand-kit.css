@@ -1,6 +1,6 @@
 /* Shared Brand Kit controls, matching Company Information. */
 .fm-brand-kit{display:grid;gap:10px;min-width:0}
-.fm-brand-kit .company-font-card{max-width:calc(50% - 5px)}
+.fm-brand-kit .company-font-card{max-width:none}
 .cs-field{display:grid;gap:6px;min-width:0;color:#667085;font-size:10px;font-weight:1000;letter-spacing:.04em;text-transform:uppercase}
 .cs-field span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cs-field input,.cs-field select,.cs-field textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#101828;font-size:13px;font-weight:850;letter-spacing:0;text-transform:none;outline:none}
@@ -42,6 +42,8 @@ text-transform: uppercase;
 .company-settings-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .company-brand-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
 .company-brand-row>.company-settings-card{min-width:0}
+.fm-brand-kit .company-brand-stack{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-width:0}
+.fm-brand-kit .company-brand-stack>.company-settings-card{min-width:0}
 .company-settings-card{border:1px solid #e4e7ec;border-radius:16px;background:#fff;overflow:hidden}
 .company-settings-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid #edf0f4;background:#fbfcfe}
 .company-settings-card-head strong{display:block;color:#101828;font-size:13px;font-weight:1000}

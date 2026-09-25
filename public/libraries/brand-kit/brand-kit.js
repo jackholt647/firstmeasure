@@ -10,6 +10,29 @@
     shape: value?.shape === 'circle' ? 'circle' : 'square',
     rounded_corners: value?.rounded_corners !== false && value?.roundedCorners !== false
   });
+  const DEFAULT_LOGO = '/images/logo_red.png';
+  function logoFromBranding(branding, orgId){
+    const value = branding && typeof branding === 'object' ? branding : {};
+    const canonical = String(value.logo || '').trim();
+    if (canonical === DEFAULT_LOGO) return '';
+    if (/^(https?:|blob:|data:|\/v1\/)/i.test(canonical)) return canonical;
+    const direct = value.logo_node_url || value.logoNodeUrl || value.logo_url || value.logoUrl || value.companyLogo || value.brandLogo;
+    if (direct) return String(direct).trim() === DEFAULT_LOGO ? '' : String(direct).trim();
+    const mediaId = value.logo_media_id || value.logoMediaId || value.logo_media || value.logoMedia;
+    if (mediaId && orgId && root.PlatformAPI?.media?.fileUrl) return root.PlatformAPI.media.fileUrl(orgId, mediaId, 'original');
+    return canonical;
+  }
+  function resolveLogo(orgId, ...brandings){
+    let logo = '';
+    for (const branding of brandings) {
+      const candidate = logoFromBranding(branding, orgId);
+      if (!candidate) continue;
+      if (logo && /(^|\/)organizations\/[^/?#]+\/logo\.png(?:[?#].*)?$/i.test(candidate)
+          && (logo.includes('/v1/platform/') || /^https?:\/\//i.test(logo) || logo.startsWith('/v1/'))) continue;
+      logo = candidate;
+    }
+    return logo;
+  }
   function ensureStyles(){
     if (document.getElementById('fm-brand-kit-css')) return;
     const link = document.createElement('link');
@@ -27,6 +50,7 @@
     const fonts = Array.from(new Set([...(options.fonts || []), ...DEFAULT_FONTS])).filter(Boolean);
     return `<div class="fm-brand-kit" data-brandkit-root="${prefix}">
       <div class="company-brand-row">
+        <div class="company-brand-stack">
         <section class="company-settings-card">
           <div class="company-settings-card-head"><strong>Color palette</strong><i class="fas fa-circle-info company-settings-card-help" title="Primary and secondary style the interface. Supporting colors are available in visual editors." aria-label="About the company color palette"></i></div>
           <div class="company-settings-card-body">
@@ -37,6 +61,8 @@
             ${extendedPalette ? `<div class="brand-palette-strip" id="${id('PaletteStrip')}" aria-label="Six-color company palette"></div><div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="${id('GeneratePalette')}"><i class="fas fa-rotate"></i> Regenerate palette from logo</button></div>` : ''}
           </div>
         </section>
+        <section class="company-settings-card company-font-card"><div class="company-settings-card-head"><strong>Company font</strong><span>Default for new documents and templates</span></div><div class="company-settings-card-body"><label class="cs-field"><span>Font family</span><select id="${id('BrandFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label></div></section>
+        </div>
         <section class="company-settings-card">
           <div class="company-settings-card-head"><strong>Logo</strong><i class="fas fa-circle-info company-settings-card-help" title="Manage the company logo and its appearance on branded surfaces." aria-label="About company logos"></i></div>
           <div class="company-settings-card-body">
@@ -46,7 +72,6 @@
           </div>
         </section>
       </div>
-      <section class="company-settings-card company-font-card"><div class="company-settings-card-head"><strong>Company font</strong><span>Default for new documents and templates</span></div><div class="company-settings-card-body"><label class="cs-field"><span>Font family</span><select id="${id('BrandFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label></div></section>
     </div>`;
   }
   function paletteTextColor(color){
@@ -156,5 +181,5 @@
     for(const entry of ranked){ if(distinct.length>=6)break; if(distinct.every((chosen)=>Math.sqrt((entry.r-chosen.r)**2+(entry.g-chosen.g)**2+(entry.b-chosen.b)**2)>=42))distinct.push(entry); }
     return distinct.map(({r,g,b})=>`#${[r,g,b].map((value)=>value.toString(16).padStart(2,'0')).join('')}`.toUpperCase());
   }
-  root.PlatformBrandKit = { markup, fill, bind, renderPalette, renderLogoAppearance, renderAlternates, extractPalette, displayValue, fonts:DEFAULT_FONTS };
+  root.PlatformBrandKit = { markup, fill, bind, renderPalette, renderLogoAppearance, renderAlternates, extractPalette, displayValue, resolveLogo, fonts:DEFAULT_FONTS };
 })(window);
