@@ -1,7 +1,7 @@
 /* public/libraries/apps/project-request/app.js
  * Staged request workflow with optional roof-report ordering.
  */
-(function(){
+window.PlatformCommerce.onReady(function(){
   if (!window.Portal) return;
 
   const cfg = window.Portal.cfg || {};
@@ -10959,7 +10959,8 @@
     btn.style.display = hasPerm('order_reports') ? '' : 'none';
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  const onDocumentReady = callback => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', callback, {once:true}) : queueMicrotask(callback);
+  onDocumentReady( () => {
     const btn = document.getElementById('btnNewReq');
     if (btn) btn.addEventListener('click', (event) => {
       event.preventDefault();
@@ -11352,4 +11353,4 @@
   window.addEventListener('fm:device:updated', () => refreshProjectModalForAppFlags());
   window.setTimeout(() => restoreRouteState(), 0);
   window.setTimeout(() => restoreRouteState(), 900);
-})();
+});

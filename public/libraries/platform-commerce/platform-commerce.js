@@ -1,10 +1,13 @@
 (function(root){
   'use strict';
   let profile=null;
+  const readyCallbacks=[];
+  function onReady(callback){if(profile)return callback(profile);readyCallbacks.push(callback);}
   function set(value){
     if(!value || !/^[A-Z]{3}$/.test(value.currency) || !['currency','credits'].includes(value.credit_display))throw new Error('Billing settings are unavailable.');
     if(profile && JSON.stringify(profile.report_prices)!==JSON.stringify(value.report_prices))throw new Error('Prices changed. Reload the page before ordering.');
     profile=Object.freeze({...value,report_prices:Object.freeze({...value.report_prices})});
+    readyCallbacks.splice(0).forEach(callback=>callback(profile));
     return profile;
   }
   function current(){if(!profile)throw new Error('Billing settings are still loading.');return profile;}
@@ -25,5 +28,5 @@
   function estimate(amount,exchange=current().exchange){
     return exchange?.rate>0?'Approximately '+cash(Number(amount)*exchange.rate,exchange.currency)+' · exchange rate at payment may differ.':'';
   }
-  root.PlatformCommerce={set,current,price,credit,cash,estimate};
+  root.PlatformCommerce={set,current,price,credit,cash,estimate,onReady};
 })(globalThis);

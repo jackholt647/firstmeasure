@@ -9,8 +9,12 @@ const commercePath=fileURLToPath(new URL('../../libraries/platform-commerce/plat
 test('currency formatting, reference estimates and stale prices are independent of language',async()=>{
   const root={Intl};vm.runInNewContext(await readFile(commercePath,'utf8'),root);
   const api=root.PlatformCommerce;
+  const loaded=[];api.onReady(view=>loaded.push(view.currency));
+  assert.deepEqual(loaded,[]);
   assert.throws(()=>api.credit(14),/still loading/);
   api.set({currency:'USD',credit_display:'credits',report_prices:{residential:14},exchange:{rate:150,currency:'JPY'}});
+  assert.deepEqual(loaded,['USD']);
+  api.onReady(view=>loaded.push(view.currency));assert.deepEqual(loaded,['USD','USD']);
   assert.equal(api.credit(14),'14 credits');assert.match(api.cash(30),/30\.00 USD/);assert.match(api.estimate(30),/4,500/);
   assert.equal(api.credit(14,{currency:'EUR',credit_display:'currency'}),'€14.00');
   assert.equal(api.credit(-7,{currency:'USD',credit_display:'currency'}),'-$7');

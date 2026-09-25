@@ -1,7 +1,7 @@
 /* public/libraries/apps/measurements/project.js
  * Embeddable project measurements/report-results pane.
  */
-(function(){
+window.PlatformCommerce.onReady(function(){
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
   const util = Portal?.util || {};
@@ -4155,4 +4155,4 @@
   });
 
   runtime?.registerApp?.(definition);
-})();
+});

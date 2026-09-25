@@ -1,14 +1,14 @@
 /* public/libraries/apps/billing/app.js
  * Factors in 'manage_billing' permission.
  */
-(function(){
+window.PlatformCommerce.onReady(function(){
   if (!window.Portal) return;
 
   const cfg = window.Portal.cfg || {};
   const { $, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
 
-  const ROOF_COST = Number(cfg.roofCost || 7);
+  const ROOF_COST = window.PlatformCommerce.price('residential');
   const INSTANT_ADDON_RESIDENTIAL = window.PlatformCommerce.price('instant_residential');
   const INSTANT_ADDON_COMMERCIAL = window.PlatformCommerce.price('instant_commercial');
   const DEFAULT_CREDIT_AMOUNT = 250;
@@ -1645,7 +1645,8 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
+  const onDocumentReady = callback => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', callback, {once:true}) : queueMicrotask(callback);
+  onDocumentReady( ()=>{
     const btn = document.getElementById('btnBuyCredits');
     if (btn) btn.addEventListener('click', ()=>open('manual'));
     document.addEventListener('click', (event) => {
@@ -1675,4 +1676,4 @@
     hideOverlay: hideStripeCheckoutOverlay,
     reconcile: reconcileStripeCheckout
   };
-})();
+});
