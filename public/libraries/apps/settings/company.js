@@ -1814,6 +1814,14 @@
       description: (globalThis.PlatformLanguage?.text("settings","m_2d894b062b10e8","Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.") ?? "Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.")
     },
     {
+      key: 'platform.resizable_left_column',
+      group: 'platform',
+      flag: 'resizable_left_column',
+      defaultValue: true,
+      label: 'Drag to Resize Left Column',
+      description: 'Drag the right edge of the left column to set its width. Dragging also locks a compact column open.'
+    },
+    {
       key: 'platform.cobrand_sidebar_logo',
       group: 'platform',
       flag: 'cobrand_sidebar_logo',
@@ -4720,6 +4728,14 @@
     window.FirstMateSettingsPages?.installAutosave?.(panel, { source:'company-settings', inputDelay:350 });
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
+    window.addEventListener('fm:user-preferences:updated', (event) => {
+      const width = window.Portal?.sidebarWidth?.normalize?.(event?.detail?.preferences?.sidebar_width);
+      const input = paneMySettings?.querySelector('[data-my-sidebar-width]');
+      const output = paneMySettings?.querySelector('[data-my-sidebar-width-output]');
+      if (!width || !input || !output) return;
+      input.value = String(width);
+      output.textContent = `${width}px`;
+    });
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);

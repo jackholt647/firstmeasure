@@ -12,7 +12,7 @@
     const style = document.createElement('style'); style.id = 'fm-window-styles';
     style.textContent = `
 .fm-window,.fm-window *{box-sizing:border-box}.fm-window{position:absolute;display:flex;flex-direction:column;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;resize:none!important;overflow:hidden;background:#fff;color:#101828;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 14px 42px #10182826}
-.fm-window[hidden]{display:none!important}.fm-window[data-window=full],.fm-window[data-window=docked]{border-radius:0;box-shadow:none}
+.fm-window[hidden]{display:none!important}.fm-window[data-window=full],.fm-window[data-window=docked]{border-radius:0;box-shadow:none}.fm-window[data-window=docked]{overflow:visible}
 .fm-window-header{display:flex;flex:none;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;white-space:nowrap;touch-action:none;user-select:none;cursor:default}
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
@@ -26,6 +26,9 @@
 .fm-window-resize[data-resize=nw]{top:0;left:0;cursor:nwse-resize}.fm-window-resize[data-resize=ne]{top:0;right:0;cursor:nesw-resize}.fm-window-resize[data-resize=sw]{bottom:0;left:0;cursor:nesw-resize}.fm-window-resize[data-resize=se]{bottom:0;right:0;cursor:nwse-resize}
 .fm-window-resize[data-resize=nw],.fm-window-resize[data-resize=ne],.fm-window-resize[data-resize=sw],.fm-window-resize[data-resize=se]{width:14px;height:14px}
 .fm-window[data-window=docked] .fm-window-resize[data-resize=w]{display:block;top:0;bottom:0}
+.fm-window[data-window=docked] .fm-window-resize[data-resize=w]::before{content:'';position:absolute;top:0;bottom:0;left:0;width:1px;background:#d0d5dd;pointer-events:none;transition:left .16s ease,width .16s ease,background-color .16s ease}
+.fm-window[data-window=docked] .fm-window-resize[data-resize=w]:hover::before,.fm-window[data-window=docked] .fm-window-resize[data-resize=w]:focus-visible::before,.fm-window[data-window=docked] .fm-window-resize[data-resize=w].is-resizing::before{left:-3px;width:4px;background:#667085}
+@media (prefers-reduced-motion:reduce){.fm-window[data-window=docked] .fm-window-resize[data-resize=w]::before{transition:none}}
 .fm-window-resize:focus-visible{background:#66708555;outline:2px solid #175cd3;outline-offset:-2px}
 .fm-window-menu{position:fixed;z-index:1700;background:#fff;color:#101828;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 12px 36px #10182830;padding:6px;width:230px;font:13px Arial,sans-serif}
 .fm-window-menu button{display:block;width:100%;padding:9px 10px;text-align:left;border:0;border-radius:6px;background:none;color:inherit;cursor:pointer}.fm-window-menu button:hover,.fm-window-menu button:focus{background:#f2f4f7}
@@ -157,6 +160,7 @@
       if(event.button!==0 || (!edge && (win.mode!=='floating' || event.target.closest('button,input,a,select'))))return;
       event.preventDefault(); dragged=false; focus();
       const handle=event.currentTarget; handle.setPointerCapture(event.pointerId);
+      if(edge) handle.classList.add('is-resizing');
       const start={...win.rect}, bounds=element.getBoundingClientRect();const x=event.clientX,y=event.clientY;
       const move=next=>{
         const dx=next.clientX-x,dy=next.clientY-y;if(Math.abs(dx)+Math.abs(dy)>3)dragged=true;
@@ -169,7 +173,7 @@
         if(edge.includes('s'))b=Math.min(win.host.clientHeight,Math.max(t+win.minHeight,b+dy));
         win.rect={left:l,top:t,width:r-l,height:b-t};layout(win.host);
       };
-      const end=()=>{handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',end);handle.removeEventListener('pointercancel',end);endGesture=null;};
+      const end=()=>{handle.classList.remove('is-resizing');handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',end);handle.removeEventListener('pointercancel',end);endGesture=null;};
       endGesture?.();endGesture=end;handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);
     }
     const drag=event=>gesture(event,'');header.addEventListener('pointerdown',drag);

@@ -1368,6 +1368,14 @@ const definitions: CapabilityDefinition[] = [
     default: false
   },
   {
+    key: "platform.resizable_left_column",
+    kind: "setting",
+    category: "Platform & Appearance",
+    label: "Drag to Resize Left Column",
+    description: "Drag the right edge of the left column to set its width. Dragging also locks a compact column open.",
+    default: true
+  },
+  {
     key: "platform.cobrand_sidebar_logo",
     kind: "setting",
     category: "Platform & Appearance",
