@@ -1,3 +1,4 @@
+import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { buildReportExpediteOptions, normalizeReportExpediteKey, reportExpediteBaseUnitPrice } from "./expedite.js";
 import { pricingContext } from "./pricing_config.js";
 import { FirstMeasureError } from "./errors.js";
@@ -10,6 +11,7 @@ export type FirstMeasureReportPricingInput = {
   include_weather_report?: unknown;
   pins?: unknown;
   report_pricing_revision?: unknown;
+  commercial_pricing_revision?: unknown;
 };
 
 export type FirstMeasureReportChargeInput = FirstMeasureReportPricingInput & {
@@ -51,7 +53,7 @@ function standardWaitMinutes(type: string, structures: number) {
 
 export function firstMeasureInstantAddon(value: unknown) {
   const type = projectType(value);
-  return type === "commercial" || type === "multifamily" ? 4 : 2;
+  return reportPrice(type === "commercial" || type === "multifamily" ? 4 : 2);
 }
 
 export function firstMeasureReportAmount(input: FirstMeasureReportPricingInput) {
@@ -65,8 +67,8 @@ export function firstMeasureReportAmount(input: FirstMeasureReportPricingInput) 
   const reportUnit = baseUnit + instantUnit;
   const report = type === "commercial" || type === "multifamily" ? reportUnit * structures : reportUnit;
   // Gutter measurements are a flat residential add-on in the customer portal.
-  const gutters = type === "residential" && enabled(input.include_gutter_measurements) ? 2 : 0;
-  const weather = enabled(input.include_weather_report) ? 5 * structures : 0;
+  const gutters = type === "residential" && enabled(input.include_gutter_measurements) ? reportPrice(2) : 0;
+  const weather = enabled(input.include_weather_report) ? reportPrice(5) * structures : 0;
   return money(report + gutters + weather);
 }
 
@@ -81,6 +83,7 @@ export function firstMeasureReportExpediteDiscount(input: FirstMeasureReportPric
 }
 
 export function assertReportPricingRevision(input: FirstMeasureReportPricingInput) {
+  assertCommercialRevision(input);
   const revision = pricingContext.getStore()?.revision ?? 0;
   if (normalizeReportExpediteKey(input.report_expedite_option) !== "standard_3_6"
     && revision > 0 && Number(input.report_pricing_revision ?? -1) !== revision) {

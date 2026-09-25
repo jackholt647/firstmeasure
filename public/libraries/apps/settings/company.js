@@ -9401,7 +9401,11 @@
           if (result?.merchant_config) mp.config = result.merchant_config; else await loadConfig();
           await loadApplication();
           renderSection();
-          openHostedApplication(mcText(result?.link?.url));
+          if (!mcText(result?.link?.url)) {
+            showToast('Application already submitted', 'Your payment application status is shown here.', true);
+            return;
+          }
+          openHostedApplication(mcText(result.link.url));
           showToast((globalThis.PlatformLanguage?.text("settings","m_84852f47418b64","Continue at Forward") ?? "Continue at Forward"), (globalThis.PlatformLanguage?.text("settings","m_faf05e18c07567","Fill out and submit the application on Forward's hosted page — this pane tracks the status.") ?? "Fill out and submit the application on Forward's hosted page — this pane tracks the status."), true);
         })().finally(() => { mp.hostedSignupPromise = null; });
         return mp.hostedSignupPromise;
@@ -16463,20 +16467,20 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               </div>
               <div class="bl-divider"></div>
               <div id="blControls">
-                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb",`
-                  Minimum auto top-up values are $${v0}.
+                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb_currency",`
+                  Minimum auto top-up values are ${v0}.
                 `,{v0}) ?? `
-                  Minimum auto top-up values are $${v0}.
-                `)(BILL_MIN)}</div>
+                  Minimum auto top-up values are ${v0}.
+                `)(window.PlatformCommerce.credit(BILL_MIN))}</div>
                 <div class="bl-row">
                   <div class="bl-left">
                     <span class="bl-pill"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</span>
-                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08",`Minimum $${v1}`,{v1}) ?? `Minimum $${v1}`)(BILL_MIN)}</span>
+                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08_currency",`Minimum ${v1}`,{v1}) ?? `Minimum ${v1}`)(window.PlatformCommerce.credit(BILL_MIN))}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blThMinus" type="button"><i class="fas fa-minus"></i></button>
                     <div class="bl-moneyWrap">
-                      <span class="usd">$</span>
+                      <span class="usd">${window.PlatformCommerce.current().credit_display==='credits'?'credits':window.PlatformCommerce.current().currency}</span>
                       <input class="cs-in bl-money" id="blThreshold" inputmode="numeric" placeholder="${String(BILL_MIN)}">
                     </div>
                     <button class="bl-stepBtn" id="blThPlus" type="button"><i class="fas fa-plus"></i></button>
@@ -16485,12 +16489,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
                 <div class="bl-row">
                   <div class="bl-left">
                     <span class="bl-pill"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</span>
-                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8",`Minimum $${v3}`,{v3}) ?? `Minimum $${v3}`)(BILL_MIN)}</span>
+                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8_currency",`Minimum ${v3}`,{v3}) ?? `Minimum ${v3}` )(window.PlatformCommerce.credit(BILL_MIN))}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blAmtMinus" type="button"><i class="fas fa-minus"></i></button>
                     <div class="bl-moneyWrap">
-                      <span class="usd">$</span>
+                      <span class="usd">${window.PlatformCommerce.current().credit_display==='credits'?'credits':window.PlatformCommerce.current().currency}</span>
                       <input class="cs-in bl-money" id="blTopup" inputmode="numeric" placeholder="${String(BILL_MIN)}">
                     </div>
                     <button class="bl-stepBtn" id="blAmtPlus" type="button"><i class="fas fa-plus"></i></button>
@@ -16637,7 +16641,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     function updateCreditFitSummary(){
       const target=paneBilling?.querySelector('[data-credit-topup-summary]');if(!target)return;
       const saved=renderBilling._base;
-      target.textContent=saved?.enabled ? `Auto top-up: $${saved.amt} below $${saved.th}` : 'Credit auto top-up: Off';
+      target.textContent=saved?.enabled ? `Auto top-up: ${window.PlatformCommerce.credit(saved.amt)} below ${window.PlatformCommerce.credit(saved.th)}` : 'Credit auto top-up: Off';
     }
     // **** Floating menu element (users) ----
     floatingMenu = document.createElement('div');
@@ -17046,9 +17050,9 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     }
     function msLedgerAmountText(row){
       const delta = msMoney(row?.delta);
-      if (delta > 0) return `+$${msMoneyText(delta)}`;
-      if (delta < 0) return `-$${msMoneyText(Math.abs(delta))}`;
-      return '$0';
+      if (delta > 0) return `+${window.PlatformCommerce.credit(delta)}`;
+      if (delta < 0) return `-${window.PlatformCommerce.credit(Math.abs(delta))}`;
+      return window.PlatformCommerce.credit(0);
     }
     function msCsvCell(value){
       return `"${String(value ?? '').replace(/"/g, '""')}"`;
@@ -17115,15 +17119,15 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
-            <div class="ms-statVal">+$${String(msMoneyText(totalIn))}</div>
+            <div class="ms-statVal">+${String(window.PlatformCommerce.credit(totalIn))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_84a960ac02e33a","Orders / Debits") ?? "Orders / Debits")}</div>
-            <div class="ms-statVal">$${String(msMoneyText(totalOut))}</div>
+            <div class="ms-statVal">${String(window.PlatformCommerce.credit(totalOut))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_705ca6f25ef6d8","Net Change") ?? "Net Change")}</div>
-            <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}$${String(msMoneyText(Math.abs(net)))}</div>
+            <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_320155f7cd8ad0","Order Count") ?? "Order Count")}</div>
@@ -17162,12 +17166,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       } else {
         const rows = orders.map((o, idx) => {
           const stCls = msStatusClass(o.status);
-          const costTxt = o.rejected ? '<span style="opacity:.45;">$0</span>' : `$${o.cost || 0}`;
+          const costTxt = o.rejected ? `<span style="opacity:.45;">${window.PlatformCommerce.credit(0)}</span>` : `${window.PlatformCommerce.credit(o.cost || 0)}`;
 
           // Reimbursement cell: show amount for rejected orders, dash for others
           const reimb = o.rejected ? (parseFloat(o.reimbursed_amount ?? o.cost ?? 0) || 0) : 0;
           const reimbTxt = o.rejected
-            ? `<span style="color:#1e7e34; font-weight:1000;">+$${reimb}</span>`
+            ? `<span style="color:#1e7e34; font-weight:1000;">+${window.PlatformCommerce.credit(reimb)}</span>`
             : '<span style="opacity:.3;">-</span>';
 
           // Optional rejection reason sub-line under address
@@ -17215,7 +17219,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
 
       // Footer: show total + reimbursement summary
       const reimbFooter = totalReimbursed > 0
-        ? ` &nbsp;&middot;&nbsp; Reimbursed: <b style="color:#1e7e34;">+$${totalReimbursed}</b>`
+        ? ` &nbsp;&middot;&nbsp; Reimbursed: <b style="color:#1e7e34;">+${window.PlatformCommerce.credit(totalReimbursed)}</b>`
         : '';
 
       back.innerHTML = `
@@ -17226,7 +17230,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>$${String(total)}</b>${String(reimbFooter)}</div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32_currency",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -17345,7 +17349,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}$${String(msMoneyText(Math.abs(net)))}</b></div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e_currency",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -17501,7 +17505,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         return (v.enabled !== !!b.enabled) || (v.th !== b.th) || (v.amt !== b.amt);
       }
       function setMinimumMessage(text, isWarning){
-        const nextText = text || `Minimum auto top-up values are $${BILL_MIN}.`;
+        const nextText = text || `Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`;
         if (blMinimumNote) blMinimumNote.textContent = nextText;
         if (blStatus) blStatus.textContent = text || '';
         if (blStatus) blStatus.style.color = isWarning ? '#b26a00' : '';
@@ -17522,7 +17526,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           return;
         }
         elSummary.style.display = '';
-        elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58",`If your balance falls below $${v0}, we will automatically add $${v1} to your account.`,{v0,v1}) ?? `If your balance falls below $${v0}, we will automatically add $${v1} to your account.`)(thNow,amtNow);
+        elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58_currency",`If your balance falls below ${v0}, we will automatically add ${v1} to your account.`,{v0,v1}) ?? `If your balance falls below ${v0}, we will automatically add ${v1} to your account.`)(window.PlatformCommerce.credit(thNow),window.PlatformCommerce.credit(amtNow));
+        elSummary.textContent += ` Each top-up charges ${window.PlatformCommerce.cash(amtNow)}. ${window.PlatformCommerce.estimate(amtNow)}`;
       }
       // Payment method row behavior
       const cardNote = $('#blCardNote', paneBilling);
@@ -17653,7 +17658,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           const v = Math.max(BILL_MIN, n || BILL_MIN);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are $${BILL_MIN}.`, true);
+          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`, true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -17665,7 +17670,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           inputEl.value = String(v);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the $${BILL_MIN} minimum.`, true);
+          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the ${window.PlatformCommerce.credit(BILL_MIN)} minimum.`, true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -17861,7 +17866,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             ts: ev.ts_utc,
             title: (globalThis.PlatformLanguage?.text("settings","m_65a3284ee46864","Auto top-up completed") ?? "Auto top-up completed"),
             sub: by ? `Triggered by ${by}` : 'Payment processed',
-            amountTxt: (topup > 0 ? `+$${msMoneyText(topup)}` : '')
+            amountTxt: (topup > 0 ? `+${window.PlatformCommerce.credit(topup)}` : '')
           };
         }
         return null;
@@ -17898,7 +17903,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         } else if (isPayment){
           title = 'Payment received';
           const cents = nInt(row?.amount_total);
-          if (cents != null && cents > 0) sub = `Charged $${msMoneyText(cents / 100)}`;
+          if (cents != null && cents > 0) sub = `Charged ${window.PlatformCommerce.credit(cents / 100)}`;
           const sid = row?.session_id ? String(row.session_id) : '';
           if (sid) sub = sub ? `${sub} - Ref ${sid.slice(-8)}` : `Ref ${sid.slice(-8)}`;
           const by = row?.by_email ? String(row.by_email) : '';

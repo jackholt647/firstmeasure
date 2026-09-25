@@ -1,3 +1,4 @@
+import { organizationProfile, profileFromGlobal, creditMinorAmount, customerCommercialView } from "../commerce/profile.js";
 import { readGlobal, saveGlobal, mutateGlobal } from "../platform/storage.js";
 import { badRequest, forbidden } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
@@ -30,6 +31,7 @@ export async function publicFirstMeasureBalance(orgId: string) {
   const ledger = Array.isArray(data.credits_ledger) ? data.credits_ledger : [];
   return {
     balance: moneyAmount(data.credits_balance),
+    commerce: customerCommercialView(),
     ledger_count: ledger.length,
     billing,
     document_revision: global.revision
@@ -158,8 +160,8 @@ async function applyCreditDelta(orgId: string, body: Record<string, unknown>, ac
       reason: cleanText(body.reason) || "adjustment",
       by_email: cleanText(actorEmail),
       applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
-      meta: asObject(body.meta),
-      unit: cleanText(body.unit) || "usd_dollars",
+      meta: { ...asObject(body.meta), credit_currency: profileFromGlobal(data).currency, credit_display: profileFromGlobal(data).credit_display, minor_digits: profileFromGlobal(data).minor_digits },
+      unit: profileFromGlobal(data).currency === "USD" ? "usd_dollars" : `${profileFromGlobal(data).currency.toLowerCase()}_credits`,
       balance_after: moneyAmount(balance + amount)
     };
     ledger.push(entry);
@@ -262,6 +264,7 @@ async function stripePatchBilling(orgId: string, patch: JsonObject, eventType = 
 }
 
 async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAfterSpend: number, triggerEntry: JsonObject) {
+  const profile = await organizationProfile(orgId);
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const billing = asObject(data.billing);
@@ -287,13 +290,13 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
   }, "api_autotopup_attempted", { balance_after_spend: balanceAfterSpend, threshold_dollars: threshold, topup_dollars: topup });
 
   const result = await stripeApiRequest("POST", "/v1/payment_intents", {
-    amount: Math.round(topup * 100),
-    currency: "usd",
+    amount: creditMinorAmount(topup, profile),
+    currency: profile.currency.toLowerCase(),
     customer: customerId,
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: stripeCreditReceiptDescription(topup),
+    description: stripeCreditReceiptDescription(topup, profile),
     "metadata[org_id]": orgId,
     "metadata[source]": "public_firstmeasure_api",
     "metadata[trigger_reason]": cleanText(triggerEntry.reason),
@@ -310,6 +313,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
   const paymentIntent = asObject(result.data);
   const paymentIntentId = cleanText(paymentIntent.id);
   const status = cleanText(paymentIntent.status);
+  if(status === "succeeded" && (Number(paymentIntent.amount)!==creditMinorAmount(topup,profile) || String(paymentIntent.currency).toUpperCase()!==profile.currency))throw forbidden("payment_amount_mismatch", "Payment amount or currency mismatch.");
   if (status !== "succeeded") {
     await stripePatchBilling(orgId, {
       auto_topup: { status: "needs_payment_method", last_error: `Top-up not completed (status=${status || "unknown"}).` }
@@ -320,7 +324,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
   const credit = await applyCreditDelta(orgId, {
     amount: topup,
     reason: "stripe_auto_topup",
-    meta: { payment_intent_id: paymentIntentId, source: "public_firstmeasure_api", trigger_entry: triggerEntry }
+    meta: { currency: profile.currency.toLowerCase(), amount_total: creditMinorAmount(topup, profile), paid_dollars: topup, payment_intent_id: paymentIntentId, source: "public_firstmeasure_api", trigger_entry: triggerEntry }
   }, "stripe");
   await stripePatchBilling(orgId, {
     auto_topup: { status: "ok", last_success_utc: new Date().toISOString(), last_error: null }

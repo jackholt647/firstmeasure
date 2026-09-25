@@ -1,3 +1,5 @@
+import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
+import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
 import { reportPreferencesSchema, resolveOrderReportPreferences } from "../firstmeasure/report_preferences.js";
 import { exteriorQuote, requireExteriorAccess, validateExteriorOrder } from "../firstmeasure/exteriors.js";
@@ -501,10 +503,12 @@ app.post("/auth/google", async (request, reply) => {
     const company = cleanText(body.company) || "Your Company";
     const requestedPhone = cleanText(body.phone);
     const phone = requestedPhone ? formatSignupPhone(requestedPhone) : "";
-    if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid ten-digit mobile phone number.");
+    if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const workspaceWebsite = googleWorkspaceWebsite(google.hostedDomain);
 
     const defaultAppFlags = await newOrganizationAppFlagDefaults();
+    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -528,6 +532,7 @@ app.post("/auth/google", async (request, reply) => {
           ...(workspaceWebsite ? { contact: { website: workspaceWebsite } } : {}),
           report_settings: {},
           ...requestedGlobal,
+          commercial_profile: commercialProfile,
           app_flags: defaultAppFlags
         }
       });
@@ -960,10 +965,12 @@ app.get("/auth/google/config", async () => ({
     const passwordHash = body.password_hash || (body.password ? await hashPassword(body.password) : "");
     if (!passwordHash) throw badRequest("password_required", "A password is required.");
     const phone = formatSignupPhone(body.phone);
-    if (!phone) throw badRequest("invalid_phone_number", "Enter a valid ten-digit mobile phone number.");
+    if (!phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const orgInput = body.organization && typeof body.organization === "object" ? body.organization : {};
     const orgName = String(body.company ?? orgInput.name ?? "Your Company");
     const defaultAppFlags = await newOrganizationAppFlagDefaults();
+    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -985,6 +992,7 @@ app.get("/auth/google/config", async () => ({
           branding: { colors: { primary: "#d93025", secondary: "#202124", accent: "#1a73e8" } },
           report_settings: {},
           ...requestedGlobal,
+          commercial_profile: commercialProfile,
           app_flags: defaultAppFlags
         }
       });
@@ -1171,6 +1179,7 @@ app.get("/auth/google/config", async () => ({
         ledger_count: Array.isArray(globalData.credits_ledger) ? globalData.credits_ledger.length : 0
       },
       billing: safeBillingView(globalData.billing),
+      commerce: customerCommercialView(),
       branding: asObject(branchData.branding),
       contact: asObject(branchData.contact),
       report_settings: asObject(branchData.report_settings),
@@ -1196,6 +1205,14 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  app.get("/organizations/:orgId/commerce", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId });
+    reply.header("Cache-Control", "private, no-store");
+    const profile = await organizationProfile(orgId);
+    return { ok: true, ...customerCommercialView(profile), exchange: profile.credit_display === "credits" ? await exchangeEstimate(profile.currency, profile.local_currency) : null };
+  });
+
   app.get("/organizations/:orgId/credits", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId });
@@ -1208,6 +1225,7 @@ app.get("/auth/google/config", async () => ({
     return {
       ok: true,
       balance: numericValue(data.credits_balance),
+      commerce: customerCommercialView(),
       free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
       ledger: items,
       ledger_count: ledger.length,
@@ -1687,7 +1705,7 @@ app.get("/auth/google/config", async () => ({
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {
       ok: true,
-      document: await saveGlobal(orgId, body, { replace: true })
+      document: await saveGlobal(orgId, await protectCommercialProfile(orgId, body, true), { replace: true })
     };
   });
 
@@ -1698,7 +1716,7 @@ app.get("/auth/google/config", async () => ({
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {
       ok: true,
-      document: await saveGlobal(orgId, body, { replace: false })
+      document: await saveGlobal(orgId, await protectCommercialProfile(orgId, body, false), { replace: false })
     };
   });
 
@@ -4821,6 +4839,16 @@ function numericValue(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+async function protectCommercialProfile(orgId: string, body: JsonObject, replace: boolean) {
+  const saved = asObject((await readGlobal(orgId)).data).commercial_profile;
+  const data = asObject(body.data || body);
+  if (data.commercial_profile !== undefined && JSON.stringify(data.commercial_profile) !== JSON.stringify(saved)) {
+    throw forbidden("billing_profile_fixed", "The billing profile is managed by FirstMate.");
+  }
+  if (replace && saved !== undefined) return { ...body, data: { ...data, commercial_profile: saved } };
+  return body;
+}
+
 function safeBillingView(value: unknown) {
   const billing = asObject(value);
   const autoTopup = asObject(billing.auto_topup);
@@ -4944,8 +4972,8 @@ async function applyCreditDelta(
       reason: String(body.reason || "adjustment"),
       by_email: String(actorEmail || ""),
       applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
-      meta: asObject(body.meta),
-      unit: String(body.unit || "usd_dollars"),
+      meta: { ...asObject(body.meta), credit_currency: profileFromGlobal(data).currency, credit_display: profileFromGlobal(data).credit_display, minor_digits: profileFromGlobal(data).minor_digits },
+      unit: profileFromGlobal(data).currency === "USD" ? "usd_dollars" : `${profileFromGlobal(data).currency.toLowerCase()}_credits`,
       balance_after: Math.round((balance + amount) * 100) / 100
     };
     if (amount !== 0) ledger.push(entry);
@@ -8523,13 +8551,16 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
       return { success: false, ok: false, status_code: 400, error: "Missing required account fields." };
     }
     if (!phone) {
-      return { success: false, ok: false, status_code: 400, error: "Enter a valid ten-digit mobile phone number." };
+      return { success: false, ok: false, status_code: 400, error: "Enter a valid mobile phone number, including the country code outside the US and Canada." };
     }
     const defaultAppFlags = await newOrganizationAppFlagDefaults();
+    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
     const registered = await withNewIdentityRegistration(cleanText(body.email), async (transaction) => {
       const organization = await createOrganization({
         name: company,
         global: {
+          commercial_profile: commercialProfile,
           app_flags: defaultAppFlags,
           credits_balance: 0,
           credits_ledger: [],
@@ -9052,6 +9083,7 @@ async function portalOrgView(orgId: string) {
     contact: { ...asObject(legacyMetadata.contact), ...asObject(legacyGlobal.contact), ...asObject(data.contact) },
     report_settings: { ...asObject(legacyMetadata.report_settings), ...asObject(legacyGlobal.report_settings), ...asObject(data.report_settings) },
     billing: safeBillingView(Object.keys(asObject(data.billing)).length ? data.billing : legacyGlobal.billing),
+    commerce: customerCommercialView(),
     offers: { ...asObject(legacyMetadata.offers), ...asObject(legacyGlobal.offers), ...asObject(data.offers) },
     credits_balance: numericValue(data.credits_balance ?? legacyGlobal.credits_balance ?? legacyMetadata.credits_balance),
     free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
@@ -9070,6 +9102,7 @@ async function portalCredits(orgId: string, userDoc: JsonObject | null) {
     success: true,
     credits: balance,
     credits_balance: balance,
+    commerce: customerCommercialView(),
     balance,
     remaining_credits: balance,
     free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
@@ -9094,7 +9127,7 @@ async function portalUpdateOrg(orgId: string, body: JsonObject, userDoc: JsonObj
   const fullName = cleanText(body.full_name || body.user_name);
   const requestedPhone = cleanText(body.phone || body.user_phone);
   const phone = requestedPhone ? formatSignupPhone(requestedPhone) : "";
-  if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid ten-digit mobile phone number.");
+  if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
   if ((fullName || phone) && userDoc) {
     const currentUser = asObject(userDoc.data);
     const identityId = cleanText(currentUser.identity_id);
@@ -10291,7 +10324,10 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     "metadata[paid_dollars]": qty,
     "metadata[bonus_dollars]": bonus,
     "metadata[is_signup_match]": useBonus ? "1" : "0",
-    "metadata[credits_qty]": totalCredit
+    "metadata[credits_qty]": totalCredit,
+    "metadata[credit_currency]": currentProfile().currency,
+    "metadata[paid_minor]": creditMinorAmount(qty),
+    "adaptive_pricing[enabled]": currentProfile().credit_display === "credits" ? "true" : "false"
   };
   for (const [key, value] of Object.entries(metaAttribution)) {
     fields[`metadata[${key}]`] = value;
@@ -10306,18 +10342,18 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     if (offerLabel) fields["metadata[offer_label]"] = offerLabel;
     if (matchPercent) fields["metadata[match_percent]"] = matchPercent;
   }
-  const priceId = stripePriceId(useBonus);
+  const priceId = currentProfile().credit_display === "currency" && currentProfile().currency === "USD" && currentProfile().minor_digits === 2 ? stripePriceId(useBonus) : "";
   if (priceId && !useBonus) {
     fields["line_items[0][price]"] = priceId;
     fields["line_items[0][quantity]"] = qty;
   } else {
     const matchPercent = qty > 0 && bonus > 0 ? Math.round((bonus / qty) * 10_000) / 100 : 0;
-    fields["line_items[0][price_data][currency]"] = "usd";
-    fields["line_items[0][price_data][unit_amount]"] = "100";
+    fields["line_items[0][price_data][currency]"] = currentProfile().currency.toLowerCase();
+    fields["line_items[0][price_data][unit_amount]"] = String(creditMinorAmount(1));
     fields["line_items[0][price_data][product_data][name]"] = useBonus ? "Roof Measurement Credits With Limited-Time Bonus" : "Roof Measurement Credits";
     fields["line_items[0][price_data][product_data][description]"] = useBonus
-      ? `$${qty} purchased + $${bonus} limited-time bonus (${matchPercent}% bonus) = $${totalCredit} total credit added to your account`
-      : `$${totalCredit} credit added to your FirstMate account`;
+      ? `${creditLabel(qty)} purchased + ${creditLabel(bonus)} limited-time bonus (${matchPercent}% bonus) = ${creditLabel(totalCredit)} added to your account`
+      : `${creditLabel(totalCredit)} added to your FirstMate account`;
     fields["line_items[0][quantity]"] = qty;
   }
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
@@ -10340,12 +10376,12 @@ async function portalStripeStartSetup(orgId: string, body: JsonObject) {
   const baseUrl = stripeReturnBaseUrl(body);
   const termsUrl = `${baseUrl}/terms`;
   const consent = billing.auto_topup.enabled
-    ? `I authorize FirstMate to save my card for recurring billing and authorize an automatic top-up of $${topup} when my balance drops below $${threshold}. [Terms](${termsUrl})`
+    ? `I authorize FirstMate to save my card for recurring billing and authorize an automatic top-up of ${creditLabel(topup)} when my balance drops below ${creditLabel(threshold)}. [Terms](${termsUrl})`
     : `I authorize FirstMate to save my card for future billing. [Terms](${termsUrl})`;
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", {
     mode: "setup",
     customer: customerId,
-    currency: "usd",
+    currency: currentProfile().currency.toLowerCase(),
     success_url: `${baseUrl}/index.php?tab=company_settings&sub=billing&setup=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/index.php?tab=company_settings&sub=billing&setup=0`,
     "consent_collection[terms_of_service]": "required",
@@ -10402,6 +10438,12 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
   if (!email || !orgId || dollars < 1) return { success: false, error: "Missing metadata", user_email: email, org_id: orgId, credit_dollars: dollars, session_id: sessionId };
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
+  const profile = profileFromGlobal(data);
+  const paidCurrency = cleanText(meta.credit_currency || "USD").toUpperCase();
+  const expectedMinor = meta.paid_minor === undefined ? Math.round(numericValue(meta.paid_dollars, dollars) * 100) : Number(meta.paid_minor);
+  if (paidCurrency !== profile.currency || cleanText(session.currency).toUpperCase() !== paidCurrency || Number(session.amount_total) !== expectedMinor) {
+    return { success: false, error: "Payment amount or currency mismatch", session_id: sessionId };
+  }
   const fulfilled = asObject(data.stripe_fulfilled_sessions);
   if (fulfilled[sessionId]) return { success: true, duplicate: true, session_id: sessionId };
   const credit = await applyCreditDelta(orgId, {
@@ -10416,6 +10458,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
       offer_tier_id: meta.offer_tier_id || "",
       amount_total: session.amount_total ?? null,
       currency: session.currency ?? null,
+      presentment_details: session.presentment_details ?? null,
       paid_dollars: numericValue(meta.paid_dollars, dollars),
       bonus_dollars: numericValue(meta.bonus_dollars),
       is_signup_match: meta.is_signup_match === "1",
@@ -10469,7 +10512,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
     }
   });
   await stripeSavePaymentMethodFromCheckout(orgId, session).catch(() => null);
-  return { success: true, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
+  return { success: true, currency: profile.currency, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
 }
 
 function metaAttributionFields(body: JsonObject) {
@@ -10600,6 +10643,7 @@ async function stripePatchBilling(orgId: string, patch: JsonObject, eventType = 
 }
 
 async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAfterSpend: number, triggerEntry: JsonObject) {
+  const profile = await organizationProfile(orgId);
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const billing = asObject(data.billing);
@@ -10640,13 +10684,13 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     meta: triggerEntry.meta
   })).slice(0, 24);
   const result = await stripeApiRequest("POST", "/v1/payment_intents", {
-    amount: Math.round(topup * 100),
-    currency: "usd",
+    amount: creditMinorAmount(topup, profile),
+    currency: profile.currency.toLowerCase(),
     customer: customerId,
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: stripeCreditReceiptDescription(topup),
+    description: stripeCreditReceiptDescription(topup, profile),
     "metadata[type]": "org_auto_topup",
     "metadata[org_id]": orgId,
     "metadata[topup_dollars]": topup,
@@ -10671,6 +10715,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
   const paymentIntent = asObject(result.data);
   const paymentIntentId = cleanText(paymentIntent.id);
   const status = cleanText(paymentIntent.status);
+  if(status === "succeeded" && (Number(paymentIntent.amount)!==creditMinorAmount(topup,profile) || String(paymentIntent.currency).toUpperCase()!==profile.currency || paymentIntent.livemode!==!stripeIsTestMode()))throw conflict("payment_amount_mismatch", "Payment amount or currency mismatch.");
   if (status !== "succeeded") {
     await stripePatchBilling(orgId, {
       auto_topup: {
@@ -10687,6 +10732,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     reason: "stripe_auto_topup",
     applied_for_user_email: actorEmail,
     meta: {
+      currency: profile.currency.toLowerCase(), amount_total: creditMinorAmount(topup,profile), paid_dollars: topup,
       payment_intent_id: paymentIntentId,
       balance_before_topup: balanceAfterSpend,
       threshold_dollars: threshold,
@@ -10855,17 +10901,7 @@ function moneyAmount(value: unknown) {
 }
 
 function firstMeasureReportAmount(body: JsonObject, projectType: string, reportMode: string, pins: unknown) {
-  const pinCount = Math.max(1, Array.isArray(pins) ? pins.length : 1);
-  const expediteKey = cleanText(body.report_expedite_option).toLowerCase();
-  const quote = buildReportExpediteOptions({ projectType, structureCount: pinCount });
-  const standardWait = numericValue(quote.options.find((option) => option.key === "standard_3_6")?.estimated_wait_minutes, 180);
-  const base = reportExpediteBaseUnitPrice(projectType, expediteKey, standardWait);
-  const instant = reportMode === "both" || reportMode === "instant" ? firstMeasureInstantAddon(projectType) : 0;
-  const unit = base + instant;
-  const report = projectType === "commercial" || projectType === "multifamily" ? unit * pinCount : unit;
-  const gutters = projectType === "residential" && parseBooleanField(body.include_gutter_measurements, false) ? 2 : 0;
-  const weather = parseBooleanField(body.include_weather_report, false) ? 5 * pinCount : 0;
-  return moneyAmount(report + gutters + weather);
+  return sharedFirstMeasureReportAmount({ ...body, project_type: projectType, report_mode: reportMode, pins });
 }
 
 function isPortalStructurePinLimitedType(projectType: string) {
@@ -10898,16 +10934,7 @@ function firstMeasureReportExpediteDiscount(body: JsonObject, projectType: strin
 }
 
 function firstMeasureReportCharge(body: JsonObject, projectType: string, reportMode: string, pins: unknown, freeExpediteUses: number) {
-  const gross = firstMeasureReportAmount(body, projectType, reportMode, pins);
-  const expediteDiscount = freeExpediteUses > 0 ? firstMeasureReportExpediteDiscount(body, projectType, pins) : 0;
-  const finalAmount = moneyAmount(Math.max(0.01, gross - expediteDiscount));
-  return {
-    gross_amount: gross,
-    amount: finalAmount,
-    free_expedite_discount: expediteDiscount,
-    free_expedite_applied: expediteDiscount > 0,
-    free_expedite_uses_before: Math.max(0, Math.round(freeExpediteUses))
-  };
+  return sharedFirstMeasureReportCharge({ ...body, project_type: projectType, report_mode: reportMode, pins, free_expedite_uses: freeExpediteUses });
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -11306,6 +11333,7 @@ async function portalSubmitReportReworkRequest(app: FastifyInstance, orgId: stri
   const chargeQuote = requestType === "additional_structure" && projectType !== "residential"
     ? firstMeasureReportCharge({
         report_pricing_revision: body.report_pricing_revision,
+        commercial_pricing_revision: body.commercial_pricing_revision,
         report_expedite_option: normalizedExpedite,
         include_gutter_measurements: false
       }, projectType, "full", Array.from({ length: structureCount }, () => ({ lat: 0, lng: 0 })), numericValue(globalData.free_expedite_uses))

@@ -9,8 +9,8 @@
   const { showToast } = window.Portal.ui;
 
   const ROOF_COST = Number(cfg.roofCost || 7);
-  const INSTANT_ADDON_RESIDENTIAL = 2;
-  const INSTANT_ADDON_COMMERCIAL = 4;
+  const INSTANT_ADDON_RESIDENTIAL = window.PlatformCommerce.price('instant_residential');
+  const INSTANT_ADDON_COMMERCIAL = window.PlatformCommerce.price('instant_commercial');
   const DEFAULT_CREDIT_AMOUNT = 250;
   const CREDIT_STEP = 10;
   const MIN_CREDIT_AMOUNT = 1;
@@ -61,6 +61,7 @@
     return Number.isFinite(amount) ? amount : 5;
   }
 
+  const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){
     if (window.Portal?.pricing?.formatMoney) return window.Portal.pricing.formatMoney(value);
     const n = Number(value);
@@ -531,9 +532,9 @@
             <p class="b-first-copy">${(globalThis.PlatformLanguage?.text("billing","m_822c0e40ff60e8","Add credit to your account to pay for this report.") ?? "Add credit to your account to pay for this report.")}</p>
             <div class="b-first-address" id="bFirstAddress">${(globalThis.PlatformLanguage?.text("billing","m_b09a10270594d4","Your first roof report") ?? "Your first roof report")}</div>
             <div class="b-first-numbers">
-              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_087b20ba6645bc","Needed for order") ?? "Needed for order")}</span><strong id="bFirstReportTotal">$0</strong></div>
-              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_56ddeabdd68349","Your balance") ?? "Your balance")}</span><strong id="bFirstBalance">$0</strong></div>
-              <div class="b-first-number due"><span>${(globalThis.PlatformLanguage?.text("billing","m_a66599d9c29a1c","Difference") ?? "Difference")}</span><strong id="bFirstDue">$0</strong></div>
+              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_087b20ba6645bc","Needed for order") ?? "Needed for order")}</span><strong id="bFirstReportTotal">${window.PlatformCommerce.credit(0)}</strong></div>
+              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_56ddeabdd68349","Your balance") ?? "Your balance")}</span><strong id="bFirstBalance">${window.PlatformCommerce.credit(0)}</strong></div>
+              <div class="b-first-number due"><span>${(globalThis.PlatformLanguage?.text("billing","m_a66599d9c29a1c","Difference") ?? "Difference")}</span><strong id="bFirstDue">${window.PlatformCommerce.credit(0)}</strong></div>
             </div>
             <div class="b-msg" id="bFirstAutoSubmit" style="margin-top:10px;"></div>
           </div>
@@ -560,7 +561,7 @@
             </div>
             <div class="b-credit-panel b-price">
               <div class="b-price-label">${(globalThis.PlatformLanguage?.text("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
-              <div class="big" id="bTotal">$${String(DEFAULT_CREDIT_AMOUNT)}</div>
+              <div class="big" id="bTotal">${window.PlatformCommerce.cash(DEFAULT_CREDIT_AMOUNT)}</div>
             </div>
           </div>
           <div class="b-hint" id="bHint">${String(CREDIT_AMOUNT_HELP_TEXT)}</div>
@@ -751,7 +752,7 @@
     const amtMinus = $('#bAutoAmtMinus');
     if (thMinus) thMinus.disabled = !isLoaded || !enabled || thVal <= AUTO_MIN_AMOUNT;
     if (amtMinus) amtMinus.disabled = !isLoaded || !enabled || amtVal <= AUTO_MIN_AMOUNT;
-    if (summary) summary.textContent = '';
+    if (summary) summary.textContent = enabled ? `Add ${window.PlatformCommerce.credit(amtVal)} when your balance falls below ${window.PlatformCommerce.credit(thVal)}. Each top-up charges ${window.PlatformCommerce.cash(amtVal)}. ${window.PlatformCommerce.estimate(amtVal)}` : '';
     if (status && !autoTopupState?.loading && !autoTopupState?.error) status.textContent = '';
   }
   async function loadAutoTopupSettings(){
@@ -948,18 +949,19 @@
     total?.classList?.toggle('is-insufficient', insufficient);
     if (message) {
       message.textContent = insufficient
-        ? `This credit would not be sufficient to order the report. You need to add at least $${fmtMoney(needed)} to cover this report.`
+        ? `This credit would not be sufficient to order the report. You need to add at least ${fmtCredit(needed)} to cover this report.`
         : '';
       message.style.display = insufficient ? 'block' : 'none';
     }
   }
   function updateTotal(){
     const q = readAmountInput();
-    $('#bTotal').textContent = `$${q ?? 0}`;
+    $('#bTotal').textContent = window.PlatformCommerce.cash(q ?? 0);
+    let fx=document.getElementById('bFxEstimate');if(!fx){fx=document.createElement('small');fx.id='bFxEstimate';$('#bTotal').after(fx);}fx.textContent=window.PlatformCommerce.estimate(q ?? 0);
     updateFirstReportInsufficientState(q ?? 0);
     if (firstReportAccountLoadEligible && !purchaseTopupContext) {
       const due = $('#bFirstDue');
-      if (due) due.textContent = `$${fmtMoney(q ?? 0)}`;
+      if (due) due.textContent = `${fmtCredit(q ?? 0)}`;
     }
   }
   function normalizeAmountInput(fallback = defaultCreditAmountForContext()){
@@ -1089,7 +1091,7 @@
     try {
       window.fbq('track', 'Purchase', {
         value: Math.round(value * 100) / 100,
-        currency: 'USD',
+        currency: window.PlatformCommerce.current().currency,
         content_name: 'FirstMate account credit',
         content_type: 'product'
       }, { eventID: `stripe_purchase:${id}` });
@@ -1191,9 +1193,9 @@
     }
     $('#bFirstReportCard .b-first-number:first-child span').textContent = (purchaseActive || reportGateActive) ? 'Needed for order' : 'First report from';
     $('#bFirstReportCard .b-first-number.due span').textContent = (purchaseActive || reportGateActive) ? 'Difference' : 'Credit to add';
-    $('#bFirstReportTotal').textContent = `$${fmtMoney(required)}`;
-    $('#bFirstBalance').textContent = `$${fmtMoney(balance)}`;
-    $('#bFirstDue').textContent = `$${fmtMoney(needed)}`;
+    $('#bFirstReportTotal').textContent = `${fmtCredit(required)}`;
+    $('#bFirstBalance').textContent = `${fmtCredit(balance)}`;
+    $('#bFirstDue').textContent = `${fmtCredit(needed)}`;
     if (autoSubmit) {
       autoSubmit.textContent = reportGateActive
         ? ''
@@ -1220,14 +1222,14 @@
       title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3460e2ac6317dc","Load your account") ?? "Load your account");
       subtitle.textContent = balance === null
         ? 'Add credit before ordering your first report.'
-        : `Your balance is $${fmtMoney(balance)}. Add credit before ordering your first report.`;
+        : `Your balance is ${fmtCredit(balance)}. Add credit before ordering your first report.`;
       return;
     }
     if (po?.fields?.address) {
       title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = balance === null
         ? 'Checking your balance. More credit is needed to fulfill this order.'
-        : `Your balance is $${fmtMoney(balance)}. More credit is needed to fulfill this order.`;
+        : `Your balance is ${fmtCredit(balance)}. More credit is needed to fulfill this order.`;
       return;
     }
     if (purchase) {
@@ -1235,11 +1237,11 @@
       title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = current === null
         ? `Please top up your account to complete ${purchase.label}.`
-        : `Your balance is $${fmtMoney(current)}. Please top up your account to complete ${purchase.label}.`;
+        : `Your balance is ${fmtCredit(current)}. Please top up your account to complete ${purchase.label}.`;
       return;
     }
     title.textContent = (globalThis.PlatformLanguage?.text("billing","m_a3144fad58241a","Add credit") ?? "Add credit");
-    subtitle.textContent = balance === null ? 'Checking your balance.' : `Your balance is $${fmtMoney(balance)}.`;
+    subtitle.textContent = balance === null ? 'Checking your balance.' : `Your balance is ${fmtCredit(balance)}.`;
   }
 
   function renderPendingSafe(){
@@ -1267,8 +1269,8 @@
     const packageLabel = `${pendingReportModeLabel(po.fields)} - ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
-      ? `$${fmtMoney(quote.final_amount)} (save $${fmtMoney(quote.discount_amount)})`
-      : `$${fmtMoney(quote.final_amount)}`;
+      ? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`
+      : `${fmtCredit(quote.final_amount)}`;
     $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' - ') || '-';
     renderFundingContext();
   }
@@ -1294,8 +1296,8 @@
     const packageLabel = `${pendingReportModeLabel(po.fields)} · ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
-      ? `$${fmtMoney(quote.final_amount)} (save $${fmtMoney(quote.discount_amount)})`
-      : `$${fmtMoney(quote.final_amount)}`;
+      ? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`
+      : `${fmtCredit(quote.final_amount)}`;
     $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' • ') || '—';
   }
 

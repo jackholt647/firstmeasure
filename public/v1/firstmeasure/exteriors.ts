@@ -1,3 +1,4 @@
+import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { z } from "zod";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { readMediaMetadata } from "../platform/storage.js";
@@ -12,7 +13,7 @@ export async function requireExteriorAccess(orgId:string, projectType:string) {
   }
 }
 export function exteriorQuote(count=1) {
-  const config=currentExpeditePricing(), now=pricingContext.getStore()?.now ?? new Date();
+  const raw=currentExpeditePricing(), config={...raw,exteriors_base_price:reportPrice(raw.exteriors_base_price),exteriors_same_day_fee:reportPrice(raw.exteriors_same_day_fee),exteriors_priority_fee:reportPrice(raw.exteriors_priority_fee)}, now=pricingContext.getStore()?.now ?? new Date();
   const orderingClosed=Number(new Intl.DateTimeFormat("en-US",{timeZone:"America/Los_Angeles",hour:"numeric",hourCycle:"h23"}).format(now))>=20;
   const roof=buildReportExpediteOptions({now}).options[0]!;
   const ratio=Math.max(0,Math.min(1,((roof.estimated_wait_minutes ?? 240)-240)/180));
@@ -42,6 +43,7 @@ export async function validateExteriorOrder(orgId:string, body:Record<string,unk
     if((media.metadata as any)?.source!=="exteriors_order_reference") throw new FirstMeasureError("invalid_reference",400,"Upload this reference through the full-house order form.");
   }
   const quote=exteriorQuote(count);
+  assertCommercialRevision(body);
   if(Number(body.report_pricing_revision)!==quote.pricing_revision) throw new FirstMeasureError("pricing_changed",409,"Prices changed. Refresh the delivery options before ordering.");
   const option=quote.options.find(o=>o.key===body.report_expedite_option);
   if(quote.ordering_closed && option && option.key!=="exteriors_standard") throw new FirstMeasureError("exteriors_closed",409,"Expedited delivery is unavailable while closed. Choose standard delivery.");

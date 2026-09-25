@@ -6,7 +6,7 @@ export function stripeBillingFixture() {
   const control={customerMethod:null as string|null,credit:0,paid:true,loseResponse:false,proration:1500,creates:0,mutations:0,prices,sessions,subscriptions,invoices,calls:[] as {route:string;fields:URLSearchParams;key:string}[],restore:()=>{globalThis.fetch=original;}};
   const timestamp=()=>Math.floor(Date.now()/1000), id=(prefix:string)=>`${prefix}_${++counter}`;
   function invoice(sub:any,amount:number,paid=control.paid) {
-    const value={id:id("in"),customer:sub.customer,parent:{subscription_details:{subscription:sub.id,metadata:sub.metadata}},status:paid?"paid":"open",currency:"usd",livemode:false,amount_due:amount,amount_paid:paid?amount:0,total:amount,subtotal:amount,created:timestamp(),hosted_invoice_url:"https://invoice.stripe.com/i/fixture",lines:{data:[{description:"Added subscription",amount}]}};
+    const value={id:id("in"),customer:sub.customer,parent:{subscription_details:{subscription:sub.id,metadata:sub.metadata}},status:paid?"paid":"open",currency:sub.items.data[0].price.currency,livemode:false,amount_due:amount,amount_paid:paid?amount:0,total:amount,subtotal:amount,created:timestamp(),hosted_invoice_url:"https://invoice.stripe.com/i/fixture",lines:{data:[{description:"Added subscription",amount}]}};
     invoices.set(value.id,value);sub.latest_invoice=value;return value;
   }
   globalThis.fetch=(async(input:any,options:any)=>{
@@ -24,14 +24,14 @@ export function stripeBillingFixture() {
     if(key&&requests.has(key))return respond(requests.get(key));
     let value:any;
     if(route==="prices") {
-      value={id:id("price"),currency:"usd",livemode:false,unit_amount:Number(fields.get("unit_amount")),lookup_key:fields.get("lookup_key"),recurring:{interval:"month",interval_count:1}};prices.set(value.id,value);
+      value={id:id("price"),currency:fields.get("currency"),livemode:false,unit_amount:Number(fields.get("unit_amount")),lookup_key:fields.get("lookup_key"),recurring:{interval:"month",interval_count:1}};prices.set(value.id,value);
     } else if(route==="invoices/create_preview") {
-      value={currency:"usd",amount_due:Math.max(0,control.proration),total:control.proration,subtotal:control.proration};
+      value={currency:prices.get(fields.get("subscription_details[items][0][price]")||fields.get("subscription_details[items][0][price]")||"")?.currency || subscriptions.get(fields.get("subscription")||"")?.items.data[0].price.currency || "usd",amount_due:Math.max(0,control.proration),total:control.proration,subtotal:control.proration};
     } else if(route==="checkout/sessions") {
       control.creates++;const price=prices.get(fields.get("line_items[0][price]")!);const customer=fields.get("customer")||id("cus");
       const sub={id:id("sub"),customer,livemode:false,status:control.paid?"active":"incomplete",metadata:{billing_kind:"platform_subscription",organization_id:fields.get("metadata[organization_id]"),purchase_id:fields.get("metadata[purchase_id]")},items:{has_more:false,data:[{id:id("si"),price,quantity:1,current_period_start:timestamp(),current_period_end:timestamp()+30*86400}]},pending_update:null,cancel_at_period_end:false};
       invoice(sub,price.unit_amount);subscriptions.set(sub.id,sub);
-      value={id:id("cs"),url:"https://checkout.stripe.com/c/pay/fixture",mode:"subscription",status:control.paid?"complete":"open",payment_status:control.paid?"paid":"unpaid",currency:"usd",amount_total:price.unit_amount,livemode:false,customer,subscription:sub.id,metadata:sub.metadata};sessions.set(value.id,value);
+      value={id:id("cs"),url:"https://checkout.stripe.com/c/pay/fixture",mode:"subscription",status:control.paid?"complete":"open",payment_status:control.paid?"paid":"unpaid",currency:price.currency,amount_total:price.unit_amount,livemode:false,customer,subscription:sub.id,metadata:sub.metadata};sessions.set(value.id,value);
     } else if(route.startsWith("subscriptions/")) {
       control.mutations++;const sub=subscriptions.get(route.split("/").at(-1)!);
       if(fields.has("default_payment_method"))sub.default_payment_method=fields.get("default_payment_method");

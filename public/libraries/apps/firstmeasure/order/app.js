@@ -127,11 +127,11 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
           <div class="r-mobile-internal-notes-mount" id="rMobileInternalNotesMount"></div>
           <button type="button" class="r-addon-toggle r-addon-inline r-gutter-inline" data-report-addon="gutters" data-addon-info="gutters">
             <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-water"></i>${((v5) => globalThis.PlatformLanguage?.text("firstmeasure","m_265b3dbdedd86c",` Gutters ${v5}`,{v5}) ?? ` Gutters ${v5}`)(addonInfoIcon('gutters'))}</span></span>
-            <span class="r-addon-side"><span class="r-addon-price" data-addon-price="gutters">+$${String(fmtMoney(GUTTER_REPORT_ADDON))}</span><span class="r-switch" aria-hidden="true"></span></span>
+            <span class="r-addon-side"><span class="r-addon-price" data-addon-price="gutters">+${String(window.PlatformCommerce.credit(GUTTER_REPORT_ADDON))}</span><span class="r-switch" aria-hidden="true"></span></span>
           </button>
           <button type="button" class="r-addon-toggle r-addon-inline r-weather-inline" data-report-addon="weather" data-addon-info="weather">
             <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-cloud-showers-heavy"></i>${((v7) => globalThis.PlatformLanguage?.text("firstmeasure","m_b318a6c0bce8d9",` Historical Weather ${v7}`,{v7}) ?? ` Historical Weather ${v7}`)(addonInfoIcon('weather'))}</span></span>
-            <span class="r-addon-side"><span class="r-addon-price" data-addon-price="weather">+$${String(fmtMoney(WEATHER_REPORT_ADDON))}</span><span class="r-switch" aria-hidden="true"></span></span>
+            <span class="r-addon-side"><span class="r-addon-price" data-addon-price="weather">+${String(window.PlatformCommerce.credit(WEATHER_REPORT_ADDON))}</span><span class="r-switch" aria-hidden="true"></span></span>
           </button>
           <button type="button" class="r-addon-toggle r-addon-inline r-instant-inline" data-report-addon="inspection" data-addon-info="inspection">
             <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-bolt"></i>${((v9) => globalThis.PlatformLanguage?.text("firstmeasure","m_bd0257416e7c2e",` Instant Report ${v9}`,{v9}) ?? ` Instant Report ${v9}`)(addonInfoIcon('inspection'))}</span></span>

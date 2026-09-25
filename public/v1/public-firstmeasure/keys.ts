@@ -220,7 +220,19 @@ export async function revokePublicFirstMeasureApiKey(keyId: string) {
   });
 }
 
-export async function authenticatePublicFirstMeasureRequest(request: FastifyRequest): Promise<PublicFirstMeasureAuthContext> {
+// Share authentication between the commerce pre-handler and route without
+// acquiring the API key lock twice. A new request always revalidates the key.
+const requestAuthentication = new WeakMap<FastifyRequest, Promise<PublicFirstMeasureAuthContext>>();
+export function authenticatePublicFirstMeasureRequest(request: FastifyRequest): Promise<PublicFirstMeasureAuthContext> {
+  let pending = requestAuthentication.get(request);
+  if (!pending) {
+    pending = authenticateRequest(request);
+    requestAuthentication.set(request, pending);
+  }
+  return pending;
+}
+
+async function authenticateRequest(request: FastifyRequest): Promise<PublicFirstMeasureAuthContext> {
   const header = cleanText(request.headers.authorization);
   const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
   const parsed = parsePublicFirstMeasureApiKey(token);

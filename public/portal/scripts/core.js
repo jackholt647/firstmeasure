@@ -406,23 +406,22 @@
 
   function projectTypePrice(type){
     const key = String(type || '').trim().toLowerCase();
-    if (key === 'commercial' || key === 'multifamily') return 12;
-    return 7;
+    return window.PlatformCommerce.price(key === 'commercial' || key === 'multifamily' ? key : 'residential');
   }
 
   function gutterReportAddon(){
-    const amount = Number(APP.gutterReportAddon ?? 2);
+    const amount = window.PlatformCommerce.price('gutters');
     return Number.isFinite(amount) ? amount : 2;
   }
 
   function weatherReportAddon(){
-    const amount = Number(APP.weatherReportAddon ?? 5);
+    const amount = window.PlatformCommerce.price('weather');
     return Number.isFinite(amount) ? amount : 5;
   }
 
   function instantReportAddon(projectType){
     const type = String(projectType || 'residential').trim().toLowerCase();
-    return type === 'commercial' || type === 'multifamily' ? 4 : 2;
+    return window.PlatformCommerce.price('instant_' + (type === 'commercial' || type === 'multifamily' ? type : 'residential'));
   }
 
   function firstMeasureFlagEnabled(flag, fallback = false){
@@ -530,7 +529,7 @@
   }
 
   async function fmPost(path, payload){
-    return await fmJson(path, { method: 'POST', body: payload || {} });
+    return await fmJson(path, { method: 'POST', body: /weather\/order/.test(path)?{...payload,commercial_pricing_revision:window.PlatformCommerce.current().pricing_revision}:payload || {} });
   }
 
   async function portalActionJson(action, fields = {}){
@@ -1717,6 +1716,7 @@
   }
 
   async function postAction(action, fields={}){
+    if(['queue','submit_report_rework_request','expedite_queued_report'].includes(action))fields={...fields,commercial_pricing_revision:window.PlatformCommerce.current().pricing_revision};
     const routed = await routeProjectAction(action, fields);
     if (routed) return routed;
     return await portalActionJson(action, fields);
@@ -2247,6 +2247,7 @@
   };
 
   function terminologyLabel(key, fallback = ''){
+    if (!String(key || '').trim()) return String(fallback || '').trim();
     return window.PlatformTerminology?.get?.(key, fallback) || String(fallback || '').trim();
   }
 
@@ -3892,6 +3893,7 @@
         if (hasDirectBalance) {
           data = {
             success: true,
+            commerce: directCredits.commerce,
             credits_balance: directCredits.balance ?? directCredits.credits_balance ?? directCredits.organization?.credits_balance ?? 0,
             free_expedite_uses: directCredits.free_expedite_uses ?? directCredits.organization?.free_expedite_uses ?? 0,
             permissions: session?.membership?.permissions || session?.membership?.org_permissions?.items || session?.user?.permissions || session?.user?.org_permissions?.items || null,
@@ -3913,6 +3915,7 @@
         return { ok:false, balance: lastCredits };
       }
 
+      if (data.commerce) window.PlatformCommerce.set({...window.PlatformCommerce.current(), ...data.commerce});
       const bal = moneyAmount(data.credits_balance ?? 0);
       lastCredits = bal;
       window.Portal.freeExpediteUses = Math.max(0, parseInt(String(data.free_expedite_uses ?? 0), 10) || 0);
@@ -3921,7 +3924,7 @@
       if (data.permissions && typeof data.permissions === 'object') setCurrentPermissions(data.permissions);
       window.Portal.referralDiscount = data.referral_discount || null;
 
-      document.querySelectorAll('.credits-val-target').forEach(el => el.textContent = `$${formatMoney(bal)}`);
+      document.querySelectorAll('.credits-val-target').forEach(el => el.textContent = window.PlatformCommerce.credit(bal));
       document.querySelectorAll('#creditsSub,.credits-sub-target').forEach((sub) => {
         sub.textContent = '';
         sub.style.display = 'none';
@@ -4376,6 +4379,7 @@
   // Export
   window.Portal.cfg = APP;
   window.Portal.util = { $, escapeHtml, injectCSS, formatDate, postAction, enableSafeBackdropClose, hasPerm, fmUrl, fmJson, fmPost, platformUrl, platformJson, currentActor, googleMapsApiKey };
+  window.Portal.commerce = window.PlatformCommerce;
   window.Portal.pricing = { projectTypePrice, gutterReportAddon, weatherReportAddon, instantReportAddon, orderAmount, orderAmountWithWeather, activeReferralDiscount, standardBaseAmountForOrder, referralDiscountPreview, moneyAmount, formatMoney };
   window.Portal.ui = {
     showToast,
@@ -4557,6 +4561,11 @@
     } catch (error) {
       console.warn('Money app setup could not enable merchant processing', error);
     }
+    try {
+      if (await window.FirstMatePaymentsSetup?.open?.()) return;
+    } catch (error) {
+      console.warn('Forward hosted setup could not open', error);
+    }
     window.Portal.navigation?.navigate?.(
       { tab: 'company_settings', sub: 'money', settingsView: 'payments', workflow: 'money_onboarding', workflow_step: 'business' },
       { source: 'money-app-setup', ownedKeys: ['tab', 'sub', 'workflow', 'workflow_step'] }
@@ -4584,11 +4593,20 @@
     const terminologyReady = Promise.resolve(window.Portal.terminology.load()).catch(()=>null);
     initializeSidebarModes();
     await Promise.all([appFlagsReady, capabilitiesReady, terminologyReady]);
+    try {
+      const orgId=String(APP.userOrgId || '').trim();
+      const commerce=await window.PlatformAPI.request(`${window.PlatformAPI.baseUrl()}/organizations/${encodeURIComponent(orgId)}/commerce`);
+      window.PlatformCommerce.set(commerce.commerce || commerce);
+    } catch(error) {
+      const cover=document.getElementById('fmPlatformBootCover');
+      if(cover){cover.textContent='Billing settings could not be loaded. ';const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>location.reload();cover.appendChild(retry);}
+      console.error('Billing initialization failed',error);return;
+    }
     TabRegistry.routesReady = true;
     renderTabs();
+    await refreshCredits().catch(()=>null);
     document.body.classList.remove('platform-booting');
     document.getElementById('fmPlatformBootCover')?.remove();
-    refreshCredits().catch(()=>null);
     setTimeout(()=>checkSession().catch(()=>null), 1000);
     setInterval(()=>checkSession().catch(()=>null), 240000);
   });

@@ -2161,11 +2161,23 @@ session_write_close();
   <?php endif; ?>
   <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= $ver ?>"></script>
   <script src="../libraries/report-units.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-commerce/platform-commerce.js?v=<?= $ver ?>"></script>
   <script src="scripts/core.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/payments-setup/payments-setup.js?v=<?= $ver ?>"></script>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
-  <?php if ($platformExpandedAssets) { require_once dirname(__DIR__, 2) . '/external-apps/registry.php'; fm_external_render(); } ?>
+  <?php
+    if ($platformExpandedAssets) {
+      $externalAppsRegistry = dirname(__DIR__, 2) . '/external-apps/registry.php';
+      if (is_file($externalAppsRegistry)) {
+        require_once $externalAppsRegistry;
+        fm_external_render();
+      } else {
+        error_log('FirstMate external app registry is missing; continuing portal render without external apps.');
+      }
+    }
+  ?>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= $ver ?>"></script>
   <?php endif; ?>

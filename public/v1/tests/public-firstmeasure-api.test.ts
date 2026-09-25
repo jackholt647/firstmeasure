@@ -392,7 +392,7 @@ test("public FirstMeasure customer API end-to-end and load behavior", async (t) 
       headers: { ...auth(key.key), "idempotency-key": `live-load-${index}` },
       payload: order(`live-load-${index}`)
     })));
-    assert.ok(responses.every((response) => response.statusCode === 201));
+    assert.ok(responses.every((response) => response.statusCode === 201), JSON.stringify(responses.filter(response => response.statusCode !== 201).map(response => ({status:response.statusCode,body:response.body}))));
     const totalCharged = responses.reduce((sum, response) => sum + Number(response.json().billing.amount_charged), 0);
     const after = await app.inject({
       method: "GET",

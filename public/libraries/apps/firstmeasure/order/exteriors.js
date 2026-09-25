@@ -241,7 +241,7 @@
   function pick(key,multiple=false){const input=root.querySelector('[data-picker]');input.multiple=multiple;input.onchange=()=>{const picked=[...input.files];input.value='';for(const file of picked)void upload(file,key||'tray:'+crypto.randomUUID());};input.click();}
 
   const label=v=>v.split('-').map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
-  const money=n=>'$'+Number(n).toFixed(2);
+  const money=n=>window.PlatformCommerce.credit(n);
   const allowed=type=>P.capabilities?.value?.('firstmeasure.exteriors',false)===true && (type==='residential'||P.capabilities?.value?.('firstmeasure.exteriors_'+type,false)===true);
   const active=()=>scope==='full_house' && ctx && allowed(ctx.type) && !ctx.ordered;
   const closed=()=>ctx?.closed===true||quote?.ordering_closed===true;

@@ -23,6 +23,6 @@ test("checkout and both automatic top-up paths send the description to Stripe", 
   ]);
 
   assert.match(platformSource, /"payment_intent_data\[description\]": stripeCreditReceiptDescription\(totalCredit\)/);
-  assert.match(platformSource, /description: stripeCreditReceiptDescription\(topup\)/);
-  assert.match(publicApiSource, /description: stripeCreditReceiptDescription\(topup\)/);
+  assert.match(platformSource, /description: stripeCreditReceiptDescription\(topup, profile\)/);
+  assert.match(publicApiSource, /description: stripeCreditReceiptDescription\(topup, profile\)/);
 });

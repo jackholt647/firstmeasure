@@ -1,3 +1,4 @@
+import { organizationProfile } from "../../commerce/profile.js";
 import { z } from "zod";
 import { readDocument } from "../storage.js";
 import { isAppFlagEnabled } from "../app_flags.js";
@@ -11,18 +12,19 @@ export const localizationSchema = z.object({
 }).strict();
 
 export async function companyLocalization(orgId: string, branchId = "default") {
-  const [branch, enabled, metric] = await Promise.all([
+  const [branch, enabled, metric, profile] = await Promise.all([
     readDocument(orgId, "branch", branchId).catch(() => null),
     isAppFlagEnabled(orgId, "firstmeasure", "report_localization"),
-    isAppFlagEnabled(orgId, "firstmeasure", "metric_measurements")
+    isAppFlagEnabled(orgId, "firstmeasure", "metric_measurements"),
+    organizationProfile(orgId)
   ]);
   const data = branch?.data || {};
   const legacy = (data.report_preferences || {}) as Record<string, unknown>;
   const saved = (data.localization || {}) as Record<string, unknown>;
   const company = enabled ? {
     ...saved,
-    locale: saved.locale || legacy.report_language || "en-US",
-    measurement_system: saved.measurement_system || legacy.measurement_system || (metric ? "metric" : "imperial")
+    locale: saved.locale || legacy.report_language || profile.locale,
+    measurement_system: saved.measurement_system || legacy.measurement_system || (metric ? "metric" : profile.measurement_system)
   } : { locale: "en-US", measurement_system: metric ? "metric" : "imperial" };
   return { enabled, company, context: resolveContext(company) };
 }

@@ -19,10 +19,10 @@ export function formatIdentityPhone(value: unknown) {
     : normalized;
 }
 
-/** Signup currently collects a ten-digit US/Canada mobile number. */
+/** Signup accepts E.164 internationally and local US/Canada numbers. */
 export function formatSignupPhone(value: unknown) {
   const normalized = normalizeIdentityPhone(value);
-  return /^\+1\d{10}$/.test(normalized) ? formatIdentityPhone(normalized) : "";
+  return normalized ? formatIdentityPhone(normalized) : "";
 }
 
 export function identifierLooksLikeEmail(value: unknown) {

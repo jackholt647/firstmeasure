@@ -1,3 +1,4 @@
+import { organizationProfile } from "../commerce/profile.js";
 import { z } from "zod";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { readDocument } from "../platform/storage.js";
@@ -18,9 +19,10 @@ export async function resolveOrderReportPreferences(input: Record<string, unknow
   const ref = input.organization_ref as Record<string, unknown> | undefined;
   const orgId = String(ref?.id || "");
   if (!orgId) return normalizeReportPreferences(input); // Internal standalone projects.
-  const [customize, metric] = await Promise.all([
+  const [customize, metric, profile] = await Promise.all([
     isAppFlagEnabled(orgId, "firstmeasure", "report_localization"),
-    isAppFlagEnabled(orgId, "firstmeasure", "metric_measurements")
+    isAppFlagEnabled(orgId, "firstmeasure", "metric_measurements"),
+    organizationProfile(orgId)
   ]);
   if (!customize) return { measurement_system: metric ? "metric" : "imperial", report_language: "en-US" };
   const branch = await readDocument(orgId, "branch", String(input.branch_id || "default")).catch(() => null);
@@ -28,7 +30,7 @@ export async function resolveOrderReportPreferences(input: Record<string, unknow
   const localization = (branch?.data?.localization || {}) as Record<string, unknown>;
   const saved = { ...legacy, measurement_system: localization.measurement_system ?? legacy.measurement_system, report_language: localization.locale ?? legacy.report_language };
   return normalizeReportPreferences({
-    measurement_system: input.measurement_system ?? saved.measurement_system ?? (metric ? "metric" : "imperial"),
-    report_language: input.report_language ?? saved.report_language ?? "en-US"
+    measurement_system: input.measurement_system ?? saved.measurement_system ?? (metric ? "metric" : profile.measurement_system),
+    report_language: input.report_language ?? saved.report_language ?? profile.locale
   });
 }

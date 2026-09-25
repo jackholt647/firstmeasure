@@ -1,3 +1,4 @@
+import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { resolveOrderReportPreferences, normalizeReportPreferences } from "./report_preferences.js";
 import { validateExteriorOrder, isCustomerExteriorId } from "./exteriors.js";
 
@@ -635,7 +636,7 @@ const EXPEDITE_MISSED_PROMISE_BATCH_LIMIT = 250;
 
 const EXPEDITE_MISSED_PROMISE_AUTOMATIC_REFUNDS_ENABLED = false;
 
-const WEATHER_REPORT_ADDON_AMOUNT = 5;
+const weatherReportAddonAmount = () => reportPrice(5);
 
 const weatherReportGenerationQueue = new Set<string>();
 
@@ -2521,7 +2522,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const structureCount = Math.max(manifestStructureCount, requestedStructureCount, 1);
 
-    const chargeAmount = moneyAmount(WEATHER_REPORT_ADDON_AMOUNT * structureCount);
+    assertCommercialRevision(body);
+    const chargeAmount = moneyAmount(weatherReportAddonAmount() * structureCount);
 
     const chargeToken = `weather_${projectId}_${Date.now()}`;
 
@@ -2541,7 +2543,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
         structure_count: structureCount,
 
-        unit_price: WEATHER_REPORT_ADDON_AMOUNT,
+        unit_price: weatherReportAddonAmount(),
 
         address: legacy.address ?? null,
 
@@ -2569,7 +2571,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
         weather_report_structure_count: structureCount,
 
-        weather_report_unit_price: WEATHER_REPORT_ADDON_AMOUNT,
+        weather_report_unit_price: weatherReportAddonAmount(),
 
         weather_report_charge_token: chargeToken,
 
@@ -2633,7 +2635,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
           structure_count: structureCount,
 
-          unit_price: WEATHER_REPORT_ADDON_AMOUNT,
+          unit_price: weatherReportAddonAmount(),
 
           error: error instanceof Error ? error.message : String(error)
 

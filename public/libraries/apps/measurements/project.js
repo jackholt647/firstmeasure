@@ -23,11 +23,11 @@
     "'": '&#39;'
   }[match])));
   const showToast = Portal?.ui?.showToast || window.showToast || (() => {});
-  const PRICE_RESIDENTIAL = 7;
-  const PRICE_COMMERCIAL = 12;
-  const PRICE_MULTIFAMILY = 12;
-  const GUTTER_REPORT_ADDON = Number(cfg.gutterReportAddon ?? 2) || 2;
-  const WEATHER_REPORT_ADDON = Number(cfg.weatherReportAddon ?? 5) || 5;
+  const PRICE_RESIDENTIAL = window.PlatformCommerce.price('residential');
+  const PRICE_COMMERCIAL = window.PlatformCommerce.price('commercial');
+  const PRICE_MULTIFAMILY = window.PlatformCommerce.price('multifamily');
+  const GUTTER_REPORT_ADDON = window.PlatformCommerce.price('gutters');
+  const WEATHER_REPORT_ADDON = window.PlatformCommerce.price('weather');
   const PDF_PREVIEW_QUERY_FLAGS = ['disablePdfPreview', 'mobileDebug', 'noPdfPreview'];
   const TYPE_META = {
     residential: { label: (globalThis.PlatformLanguage?.text("measurements","m_aaf397f737f7b1","Residential") ?? "Residential"), icon: 'fa-house', price: PRICE_RESIDENTIAL },
@@ -183,6 +183,7 @@
   function measurementReportSummaryEnabled(){
     return firstMeasureFlagEnabled('measurement_report_summary', false);
   }
+  const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){ return callHost('fmtMoney', value) || String(Math.round((Number(value) || 0) * 100) / 100); }
   function addMinutes(date, minutes){ return new Date(date.getTime() + (Number(minutes) || 0) * 60000); }
   function isPerStructureType(type){ return !!callHost('isPerStructureType', type); }
@@ -196,7 +197,7 @@
     const base = TYPE_META[type]?.price ?? PRICE_RESIDENTIAL;
     const unit = Number(option?.unit_price ?? reportExpediteUnitPrice(option, type || 'residential'));
     const delta = Math.max(0, Math.round((unit - base) * 100) / 100);
-    return delta > 0 ? `+$${fmtMoney(delta)}` : '+$0';
+    return delta > 0 ? `+${fmtCredit(delta)}` : '+' + fmtCredit(0);
   }
   function formatTurnaroundTime(date){
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -957,7 +958,7 @@
     const info = reportExpediteRefundInfo();
     if (!info.active) return '';
     const amountText = info.amount > 0
-      ? `$${fmtMoney(info.amount)} in expedite fees was refunded to your credits.`
+      ? `${fmtCredit(info.amount)} in expedite fees was refunded to your credits.`
       : 'The expedited delivery charge was removed for this order.';
     const at = info.refundedAt ? ` Refunded ${escapeHtml(formatDate(info.refundedAt))}.` : '';
     return `
@@ -1115,7 +1116,7 @@
 
   function pendingExpeditePriceHtml(delta, loading = false){
     if (loading) return ("<span class=\"r-pending-action-price is-loading\" aria-label=\"" + (globalThis.PlatformLanguage?.text("measurements","m_4345f5c42b261f","Loading current price") ?? "Loading current price") + "\"></span>");
-    return `<span class="r-pending-action-price">+$${escapeHtml(fmtMoney(delta))}</span>`;
+    return `<span class="r-pending-action-price">+${escapeHtml(fmtCredit(delta))}</span>`;
   }
 
   function selectPendingReportExpedite(optionKey){
@@ -1206,7 +1207,7 @@
           <i class="fas fa-ban"></i>
           <h3>${(globalThis.PlatformLanguage?.text("measurements","m_54d5979c45b1b7","Report Canceled") ?? "Report Canceled")}</h3>
           <p>${(globalThis.PlatformLanguage?.text("measurements","m_33644b43620c6e","This report order was canceled and is no longer being processed.") ?? "This report order was canceled and is no longer being processed.")}</p>
-          ${String(refunded > 0 ? `<div class="r-pending-detail"><strong>Refunded</strong><span>$${escapeHtml(fmtMoney(refunded))} returned to credits</span></div>` : '')}
+          ${String(refunded > 0 ? `<div class="r-pending-detail"><strong>Refunded</strong><span>${escapeHtml(fmtCredit(refunded))} returned to credits</span></div>` : '')}
           <div class="r-pending-actions">
             <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.text("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
             <div class="r-pending-note">${(globalThis.PlatformLanguage?.text("measurements","m_8d314bb37e9478","This starts a new report order for this same project and replaces the canceled order in this workflow.") ?? "This starts a new report order for this same project and replaces the canceled order in this workflow.")}</div>
@@ -1370,7 +1371,7 @@
           <i class="fas fa-circle-exclamation"></i>
           <h3>${(globalThis.PlatformLanguage?.text("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
           <p>${String(escapeHtml(copy))}</p>
-          ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>Reimbursed</strong><span>$${escapeHtml(fmtMoney(refundAmount))} returned to credits</span></div>` : '')}
+          ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>Reimbursed</strong><span>${escapeHtml(fmtCredit(refundAmount))} returned to credits</span></div>` : '')}
           ${String(reorderType ? `
           <div class="r-pending-actions">
             <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(`Reorder as ${reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)}`)}</button>
@@ -2437,7 +2438,7 @@
 
   function weatherReportOrderButtonHtml(){
     const total = weatherReportTotalPrice();
-    return `Add for $${String(escapeHtml(fmtMoney(total)))}<span>${(globalThis.PlatformLanguage?.text("measurements","m_6a656f97b4af69","Delivered with this project") ?? "Delivered with this project")}</span>`;
+    return `Add for ${String(escapeHtml(fmtCredit(total)))}<span>${(globalThis.PlatformLanguage?.text("measurements","m_6a656f97b4af69_currency","Delivered with this project") ?? "Delivered with this project")}</span>`;
   }
 
   function weatherReportPanelHtml(){
@@ -2597,7 +2598,7 @@
         mergeReportManifestIntoActiveProject(patch);
       }
       activeMeasurementTab = 'weather';
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_a54dfa11060c5d","Weather report ordered") ?? "Weather report ordered"), data.charged_amount ? `$${fmtMoney(data.charged_amount)} charged to credits.` : 'The weather report is ready.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_a54dfa11060c5d_currency","Weather report ordered") ?? "Weather report ordered"), data.charged_amount ? `${fmtCredit(data.charged_amount)} charged to credits.` : 'The weather report is ready.', true);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
       renderMeasurementsPanel();
@@ -2734,7 +2735,7 @@
                   ${isIssue ? '<span><i class="fas fa-circle-info"></i>Support will reach out if needed</span>' : '<span><i class="fas fa-clock"></i>Waiting for review</span>'}
                   ${pins ? `<span><i class="fas fa-location-dot"></i>${pins} pin${pins === 1 ? '' : 's'}</span>` : ''}
                   ${photos ? `<span><i class="fas fa-image"></i>${photos} photo${photos === 1 ? '' : 's'}</span>` : ''}
-                  ${charge > 0 ? `<span><i class="fas fa-credit-card"></i>$${escapeHtml(fmtMoney(charge))} charged</span>` : '<span><i class="fas fa-dollar-sign"></i>No charge</span>'}
+                  ${charge > 0 ? `<span><i class="fas fa-credit-card"></i>${escapeHtml(fmtCredit(charge))} charged</span>` : '<span><i class="fas fa-dollar-sign"></i>No charge</span>'}
                   ${expedite ? '<span><i class="fas fa-bolt"></i>Rushed</span>' : ''}
                 </div>
               </div>`;
@@ -2924,11 +2925,11 @@
     const countDisplay = overlay.querySelector('[data-followup-count-display]');
     if (countDisplay) countDisplay.textContent = countText;
     const price = overlay.querySelector('[data-followup-price]');
-    if (price) price.textContent = charge > 0 ? `$${fmtMoney(charge)}` : '';
+    if (price) price.textContent = charge > 0 ? `${fmtCredit(charge)}` : '';
     const submit = overlay.querySelector('.r-report-followup-submit');
     if (submit && submit.dataset.submitting !== '1') {
       submit.disabled = reportRequestModalState.type === 'additional_structure' && !newPins.length;
-      submit.textContent = charge > 0 ? `Submit - $${fmtMoney(charge)}` : 'Submit';
+      submit.textContent = charge > 0 ? `Submit - ${fmtCredit(charge)}` : 'Submit';
     }
     const clear = overlay.querySelector('[data-followup-clear-new-pins]');
     if (clear) clear.disabled = !newPins.length;
@@ -3120,7 +3121,7 @@
               </div>
               <div class="r-report-followup-summary">
                 <span>${escapeHtml(TYPE_META[projectType]?.label || projectType)} request</span>
-                <strong data-followup-price>${charge > 0 ? `$${escapeHtml(fmtMoney(charge))}` : ''}</strong>
+                <strong data-followup-price>${charge > 0 ? `${escapeHtml(fmtCredit(charge))}` : ''}</strong>
               </div>
             </div>
             ${showRush ? `
@@ -3138,7 +3139,7 @@
           <div class="r-report-followup-error" id="rReportFollowupError"></div>
           <div class="r-report-followup-actions">
             <button type="button" class="r-report-followup-secondary" data-report-followup-close>${(globalThis.PlatformLanguage?.text("measurements","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="submit" class="r-report-followup-submit" ${String(isAdditional && !newPins.length ? 'disabled' : '')}>${String(charge > 0 ? `Submit - $${escapeHtml(fmtMoney(charge))}` : 'Submit')}</button>
+            <button type="submit" class="r-report-followup-submit" ${String(isAdditional && !newPins.length ? 'disabled' : '')}>${String(charge > 0 ? `Submit - ${escapeHtml(fmtCredit(charge))}` : 'Submit')}</button>
           </div>
         </form>
       </div>`;
@@ -3329,7 +3330,7 @@
       if (!data?.success) throw new Error(data?.error || data?.message || 'Could not submit the request.');
       mergeReportReworkResponse(data);
       closeReportRequestModal();
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_bd585f0df980a6","Request submitted") ?? "Request submitted"), data.charged_amount ? `Charged $${fmtMoney(data.charged_amount)} for the additional structure request.` : 'The report follow-up was saved.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_bd585f0df980a6_currency","Request submitted") ?? "Request submitted"), data.charged_amount ? `Charged ${fmtCredit(data.charged_amount)} for the additional structure request.` : 'The report follow-up was saved.', true);
       if (data.charged_amount) window.Portal.credits.refreshCredits().catch(() => null);
       renderMeasurementsPanel();
       syncProjectViewerTabs();
@@ -3688,7 +3689,7 @@
       if (!data?.success) throw new Error(data?.error || data?.message || 'Could not expedite this report.');
       mergeReportManifestIntoActiveProject(data.manifest || {});
       pendingExpediteSelection = '';
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_550e7313d4d175","Report expedited") ?? "Report expedited"), data.charge_amount ? `Charged $${fmtMoney(data.charge_amount)} for the faster delivery option.` : 'Delivery has been updated.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_550e7313d4d175_currency","Report expedited") ?? "Report expedited"), data.charge_amount ? `Charged ${fmtCredit(data.charge_amount)} for the faster delivery option.` : 'Delivery has been updated.', true);
       renderMeasurementsPanel();
       syncProjectViewerTabs();
       window.Portal.credits.refreshCredits().catch(() => null);
@@ -3769,7 +3770,7 @@
           detail: { project: activeBaseProject, redraw: true }
         }));
       }
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_d588b9b5f17ee7","Report cancelled") ?? "Report cancelled"), data.refunded ? `$${fmtMoney(data.refunded)} was refunded to credits.` : 'The order was cancelled.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_d588b9b5f17ee7_currency","Report cancelled") ?? "Report cancelled"), data.refunded ? `${fmtCredit(data.refunded)} was refunded to credits.` : 'The order was cancelled.', true);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
       close();

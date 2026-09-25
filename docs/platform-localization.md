@@ -1,6 +1,6 @@
 # Platform language and measurement architecture
 
-The platform now has one language service, shared by the portal, app host and Node output pipeline. The released interface locales are `en-US` and `en-GB`. US English and imperial measurements remain the defaults. This work is local; it does not activate a production rollout.
+The platform now has one language service, shared by the portal, app host and Node output pipeline. The released interface locales are `en-US` and `en-GB`. Existing accounts retain US English and imperial defaults. New accounts inherit signup country defaults from the organization commercial profile; see [regional billing](architecture/regional-billing.md). This work is local; it does not activate a production rollout.
 
 ## Preferences and rollout
 

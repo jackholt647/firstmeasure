@@ -154,7 +154,10 @@ export function registerDomainActions() {
   publish({ id:"firstmeasure.exteriors.quote",description:"Calculate current full-house report pricing with exterior feature access enforced.",permission:view,properties:{count:{type:"integer",minimum:1,maximum:10},projectType:{type:"string",enum:["residential","commercial","multifamily"]}},effect:"read",execute:async(c,_t,i)=>{
     const service=await import("../../firstmeasure/exteriors.js");
     await service.requireExteriorAccess(c.organizationId,String(i.projectType || "residential"));
-    return service.exteriorQuote(Number(i.count || 1));
+    const {withOrganizationCommerce}=await import("../../commerce/profile.js");
+    const {pricingContext,readExpeditePricing}=await import("../../firstmeasure/pricing_config.js");
+    const pricing=await readExpeditePricing();
+    return withOrganizationCommerce(c.organizationId,()=>pricingContext.run({...pricing,now:new Date()},()=>service.exteriorQuote(Number(i.count || 1))));
   } });
   publish({ id:"media.item.read",description:"Read media metadata with receipt privacy filtering.",permission:"",effect:"read",execute:async(c,t)=>{
     const media=await (await import("../storage.js")).readMediaMetadata(c.organizationId,id(t));

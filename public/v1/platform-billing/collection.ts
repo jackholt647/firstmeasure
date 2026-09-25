@@ -23,7 +23,7 @@ export async function collectInvoice(org:string,id:string) {
   type Attempt={created_at:string;fields:Record<string,string>;stripe_id?:string;item_id?:string};
   let attempt=await billingStore().transaction(async()=>{
     const previous=await record<Attempt>(org,'automatic-invoice',id);if(previous)return previous;
-    const value:Attempt={created_at:new Date().toISOString(),fields:{customer:customer.customer_id,currency:'usd',collection_method:'charge_automatically',auto_advance:'false',pending_invoice_items_behavior:'exclude',
+    const value:Attempt={created_at:new Date().toISOString(),fields:{customer:customer.customer_id,currency:local!.currency.toLowerCase(),collection_method:'charge_automatically',auto_advance:'false',pending_invoice_items_behavior:'exclude',
       'metadata[billing_kind]':'platform_invoice','metadata[organization_id]':org,'metadata[invoice_id]':id}};
     await put(org,'automatic-invoice',id,value);return value;
   },org);
@@ -33,7 +33,7 @@ export async function collectInvoice(org:string,id:string) {
     attempt.stripe_id=created.id;await put(org,'automatic-invoice',id,attempt);
   }
   let invoice=await stripe('GET',`invoices/${attempt.stripe_id}`);verify(invoice,customer.customer_id,attempt.stripe_id);
-  if(invoice.metadata?.organization_id!==org||invoice.metadata?.invoice_id!==id||invoice.currency!=='usd'||invoice.collection_method!=='charge_automatically')throw conflict('billing_payment_mismatch');
+  if(invoice.metadata?.organization_id!==org||invoice.metadata?.invoice_id!==id||invoice.currency!==local!.currency.toLowerCase()||invoice.collection_method!=='charge_automatically')throw conflict('billing_payment_mismatch');
   // The customer's saved subscription card also pays usage. This never uses
   // the separate FirstMeasure credit customer's card.
   if(customer.subscription_id && ['draft','open'].includes(invoice.status)){
@@ -44,7 +44,7 @@ export async function collectInvoice(org:string,id:string) {
   }
   if(invoice.status==='draft') {
     if(!attempt.item_id){
-      fresh();const item=await stripe('POST','invoiceitems',{customer:customer.customer_id,invoice:attempt.stripe_id!,currency:'usd',amount:String(local.total_cents),description:`FirstMate usage · ${local.period}`},key(org,id,'item'));
+      fresh();const item=await stripe('POST','invoiceitems',{customer:customer.customer_id,invoice:attempt.stripe_id!,currency:local!.currency.toLowerCase(),amount:String(local.total_cents),description:`FirstMate usage · ${local.period}`},key(org,id,'item'));
       attempt.item_id=item.id;await put(org,'automatic-invoice',id,attempt);
     }
     invoice=await stripe('POST',`invoices/${attempt.stripe_id}/finalize`,{auto_advance:'true'},key(org,id,'finalize'));verify(invoice,customer.customer_id,attempt.stripe_id);

@@ -8,14 +8,14 @@
   const { $, injectCSS, postAction, hasPerm, formatDate, fmUrl, fmJson, fmPost, platformJson, currentActor } = window.Portal.util;
   const { showToast } = window.Portal.ui;
 
-  const PRICE_RESIDENTIAL = 7;
-  const PRICE_COMMERCIAL = 12;
-  const PRICE_MULTIFAMILY = 12;
-  const INSTANT_ADDON_RESIDENTIAL = 2;
-  const INSTANT_ADDON_COMMERCIAL = 4;
-  const INSTANT_ADDON_MULTIFAMILY = 4;
-  const GUTTER_REPORT_ADDON = Number(cfg.gutterReportAddon ?? 2) || 2;
-  const WEATHER_REPORT_ADDON = Number(cfg.weatherReportAddon ?? 5) || 5;
+  const PRICE_RESIDENTIAL = window.PlatformCommerce.price('residential');
+  const PRICE_COMMERCIAL = window.PlatformCommerce.price('commercial');
+  const PRICE_MULTIFAMILY = window.PlatformCommerce.price('multifamily');
+  const INSTANT_ADDON_RESIDENTIAL = window.PlatformCommerce.price('instant_residential');
+  const INSTANT_ADDON_COMMERCIAL = window.PlatformCommerce.price('instant_commercial');
+  const INSTANT_ADDON_MULTIFAMILY = window.PlatformCommerce.price('instant_multifamily');
+  const GUTTER_REPORT_ADDON = window.PlatformCommerce.price('gutters');
+  const WEATHER_REPORT_ADDON = window.PlatformCommerce.price('weather');
   const EXPEDITE_FEE_PERCENT = 115;
   const MAX_PINS_RESIDENTIAL = 5;
   const MAX_PINS_PER_STRUCTURE_REPORT = 10;
@@ -3196,6 +3196,7 @@
     }
     return false;
   }
+  const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
@@ -5367,7 +5368,7 @@
     const count = Math.max(1, pinCount());
     const total = Math.round(unit * count * 100) / 100;
     const structureLabel = count === 1 ? 'structure' : 'structures';
-    return `<div class="r-addon-info-price">${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("project-request","m_f2a719928b5a49",`$${v0} / structure x ${v1} ${v2} = $${v3}`,{v0,v1,v2,v3}) ?? `$${v0} / structure x ${v1} ${v2} = $${v3}`)(escapeHtml(fmtMoney(unit)),count,structureLabel,escapeHtml(fmtMoney(total)))}</div>`;
+    return `<div class="r-addon-info-price">${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("project-request","m_f2a719928b5a49_currency",`${v0} / structure x ${v1} ${v2} = ${v3}`,{v0,v1,v2,v3}) ?? `${v0} / structure x ${v1} ${v2} = ${v3}`)(escapeHtml(fmtCredit(unit)),count,structureLabel,escapeHtml(fmtCredit(total)))}</div>`;
   }
 
   function addonInfoIcon(key){
@@ -5376,7 +5377,7 @@
   }
 
   function buildTypeButtons(){
-    const pricingLabels = { residential: '$7 flat rate', commercial: '$12 / structure', multifamily: '$12 / structure' };
+    const pricingLabels = { residential: fmtCredit(PRICE_RESIDENTIAL)+' flat rate', commercial: fmtCredit(PRICE_COMMERCIAL)+' / structure', multifamily: fmtCredit(PRICE_MULTIFAMILY)+' / structure' };
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -5432,7 +5433,7 @@
     if (!selectedType) return 'Choose a project type first';
     const instant = includeInstantPreview ? instantAddonUnitPriceFor(selectedType) : 0;
     const unit = reportBaseUnitPrice(selectedType) + instant;
-    return isPerStructureType(selectedType) ? `$${fmtMoney(unit)} / structure` : `$${fmtMoney(unit)} flat rate`;
+    return isPerStructureType(selectedType) ? `${fmtCredit(unit)} / structure` : `${fmtCredit(unit)} flat rate`;
   }
 
   function addMinutes(date, minutes){
@@ -5493,7 +5494,7 @@
 
   function reportExpeditePriceLabel(option, type = selectedType){
     const unit = Number(option?.unit_price ?? reportExpediteUnitPrice(option, type || 'residential'));
-    return isPerStructureType(type) ? `$${fmtMoney(unit)} / structure` : `$${fmtMoney(unit)}`;
+    return isPerStructureType(type) ? `${fmtCredit(unit)} / structure` : `${fmtCredit(unit)}`;
   }
 
   function reportExpediteTotalPrice(option, type = selectedType){
@@ -5528,15 +5529,11 @@
   }
 
   function reportExpediteTotalPriceLabel(option, type = selectedType){
-    return `$${fmtMoney(reportExpediteNetTotalPrice(option, type))}`;
+    return `${fmtCredit(reportExpediteNetTotalPrice(option, type))}`;
   }
 
   function reportExpediteMoneyHtml(value){
-    const text = fmtMoney(value);
-    const parts = text.split('.');
-    const dollars = parts[0] || '0';
-    const cents = parts[1] ? `<span class="r-expedite-price-cents">.${escapeHtml(parts[1])}</span>` : '';
-    return `<span class="r-expedite-price-currency">$</span><span class="r-expedite-price-dollars">${escapeHtml(dollars)}</span>${cents}`;
+    return `<span class="r-expedite-price-dollars">${escapeHtml(fmtCredit(value))}</span>`;
   }
 
   function reportExpediteAddOnAmount(option, type = selectedType){
@@ -5569,7 +5566,7 @@
   function reportExpediteDeltaLabel(option, type = selectedType){
     if (!option) return '';
     const delta = reportExpediteAddOnAmount(option, type);
-    return delta > 0 ? `+$${fmtMoney(delta)}` : '+$0';
+    return delta > 0 ? `+${fmtCredit(delta)}` : '+' + fmtCredit(0);
   }
 
   function reportExpediteBusyLabel(option){
@@ -6074,13 +6071,13 @@
       const unit = instantAddonUnitPriceFor(selectedType);
       const total = isPerStructureType(selectedType) ? unit * Math.max(1, pinCount()) : unit;
       inspectionPrice.textContent = selectedType
-        ? `+$${fmtMoney(total)}`
+        ? `+${fmtCredit(total)}`
         : 'Choose type';
     }
     const gutterPrice = document.querySelector('[data-addon-price="gutters"]');
-    if (gutterPrice) gutterPrice.textContent = `+$${fmtMoney(GUTTER_REPORT_ADDON)}`;
+    if (gutterPrice) gutterPrice.textContent = `+${fmtCredit(GUTTER_REPORT_ADDON)}`;
     const weatherPrice = document.querySelector('[data-addon-price="weather"]');
-    if (weatherPrice) weatherPrice.textContent = `+$${fmtMoney(WEATHER_REPORT_ADDON * Math.max(1, pinCount()))}`;
+    if (weatherPrice) weatherPrice.textContent = `+${fmtCredit(WEATHER_REPORT_ADDON * Math.max(1, pinCount()))}`;
   }
 
   function renderProjectTodoDock(){
@@ -6280,7 +6277,7 @@
     const base = reportBaseUnitPrice(selectedType);
     const instant = includeInstantPreview ? instantAddonUnitPriceFor(selectedType) : 0;
     const unit = base + instant;
-    el.innerHTML = `<i class="fas fa-calculator"></i> ${reportLabel}: ${count} structures x $${fmtMoney(unit)} = $${fmtMoney(quote.final_amount)} total`;
+    el.innerHTML = `<i class="fas fa-calculator"></i> ${reportLabel}: ${count} structures x ${fmtCredit(unit)} = ${fmtCredit(quote.final_amount)} total`;
     el.classList.add('visible');
     renderReferralDiscountNotice();
   }
@@ -6296,7 +6293,7 @@
     }
     const quote = currentPriceQuote();
     if (quote.active) {
-      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_2bba8198d7ade2",`${v0}% referral discount applied. `,{v0}) ?? `${v0}% referral discount applied. `)(quote.discount_percent)}<s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("project-request","m_ede7d3676ea640",`$${v2} total.`,{v2}) ?? `$${v2} total.`)(fmtMoney(quote.final_amount))}</span>`;
+      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_2bba8198d7ade2_currency",`${v0}% referral discount applied. `,{v0}) ?? `${v0}% referral discount applied. `)(quote.discount_percent)}<s>${String(fmtCredit(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("project-request","m_ede7d3676ea640_currency",`${v2} total.`,{v2}) ?? `${v2} total.`)(fmtCredit(quote.final_amount))}</span>`;
     } else {
       el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_c5fd3cbf0b07a0",`Your ${v0}% referral discount applies to standard report base pricing.`,{v0}) ?? `Your ${v0}% referral discount applies to standard report base pricing.`)(discount.discount_percent)}</span>`;
     }
@@ -6503,8 +6500,8 @@
           : (expeditePrice
           ? `Order Roof Report - ${expeditePrice}`
           : (quote.active
-            ? `Order Roof Report - $${fmtMoney(quote.final_amount)} (save $${fmtMoney(quote.discount_amount)})`
-            : `Order Roof Report - $${fmtMoney(quote.final_amount)}`)))
+            ? `Order Roof Report - ${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`
+            : `Order Roof Report - ${fmtCredit(quote.final_amount)}`)))
         : 'Order Roof Report';
     } else if (isProposalChoice() && proposalsEnabled()) {
       text = 'Proposals';
@@ -9925,7 +9922,7 @@
     const cachedBalance = Number(window.Portal?.credits?.lastCredits);
     if (Number.isFinite(cachedBalance) && cachedBalance < price) {
       capturePendingOrder();
-      showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae",`You need $${v0} to place this report order.`,{v0}) ?? `You need $${v0} to place this report order.`)(price), false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
       close();
       await openReportCreditGateTopup({
         label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
@@ -9940,7 +9937,7 @@
     const bal = window.Portal.credits.lastCredits ?? 0;
     if (bal >= price) return true;
     capturePendingOrder();
-    showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae",`You need $${v0} to place this report order.`,{v0}) ?? `You need $${v0} to place this report order.`)(price), false);
+    showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
     close();
     await openReportCreditGateTopup({
       label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',

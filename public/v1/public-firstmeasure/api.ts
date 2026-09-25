@@ -1,3 +1,4 @@
+import { reportPrice, customerCommercialView, assertCommercialRevision } from "../commerce/profile.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
@@ -36,6 +37,7 @@ const pinSchema = z.object({
 });
 
 const orderReportSchema = z.object({
+  commercial_pricing_revision: z.number().int().min(0).optional(),
   external_id: z.string().optional(),
   address: z.string().min(1),
   project_type: z.enum(["residential", "commercial", "multifamily"]).optional(),
@@ -145,12 +147,13 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
         busy_label: quote.options.find((option) => option.key === "standard_3_6")?.busy_label || ""
       },
       feature_flags: features,
+      commerce: customerCommercialView(),
       options: quote.options.filter((option) => !option.expedited || features.report_expedite_options),
       add_ons: {
         gutters: {
           enabled: features.gutter_reports,
           request_field: "include_gutter_measurements",
-          unit_price: 2,
+          unit_price: reportPrice(2),
           unit: "per_structure"
         },
         weather_report: {
@@ -158,7 +161,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
           request_field: "include_weather_report",
           tier_field: "weather_report_tier",
           default_tier: "history",
-          unit_price: 5,
+          unit_price: reportPrice(5),
           unit: "per_structure"
         }
       }
@@ -236,6 +239,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       };
     }
 
+    assertCommercialRevision(body);
     const amount = firstMeasurePublicReportAmount({
       project_type: body.project_type,
       report_mode: body.report_mode,
