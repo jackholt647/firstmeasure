@@ -28,9 +28,9 @@ outbound safety. Public assistant, portal, and company-settings assets match the
 staged hashes. Live Chrome inspection confirmed the default-off full-screen
 layout and floating controls. The current test account could see the new layout
 switch but could not save it: the server returned “Only an authorized operator
-can change app rollout flags.” The switch was returned to off. The enabled
-layout is covered by source and capability tests, but was not visually verified
-under an authorized operator account in this rollout.
+can change app rollout flags.” The switch was returned to off. The flag's
+availability is covered by capability tests; the enabled layout was not
+visually verified under an authorized operator account in this rollout.
 
 The development autoscale image remains historical. Rollback on each web node:
 restore `/opt/firstmeasure/current` to
