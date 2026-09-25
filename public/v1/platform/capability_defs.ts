@@ -1352,7 +1352,8 @@ const definitions: CapabilityDefinition[] = [
     options: [
       ["apps", "Apps"],
       ["todo", "To Do"],
-      ["channels", "Channels"]
+      ["channels", "Channels"],
+      ["agents", "Agents"]
     ]
   },
   {

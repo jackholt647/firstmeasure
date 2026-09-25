@@ -287,7 +287,8 @@ session_write_close();
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-mode-tabs{visibility:hidden;opacity:0;pointer-events:none}
 
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarTodoPanel,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarChannelsPanel,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarAgentsPanel{visibility:hidden;pointer-events:none}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarLinks,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarMainLinks,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks{padding:0;margin-left:0;margin-right:0;gap:2px}
@@ -417,7 +418,7 @@ session_write_close();
     .sidebar-mode-tabs{
       display:none;
       grid-auto-flow:column;
-      grid-auto-columns:1fr;
+      grid-auto-columns:minmax(0,1fr);
       gap:0;
       padding:0;
       border:1px solid rgba(0,0,0,0.07);
@@ -434,6 +435,7 @@ session_write_close();
     .sidebar:not(.apps-list-enabled) #sidebarAppsTab{display:none}
     .sidebar:not(.todo-list-enabled) #sidebarTodoTab{display:none}
     .sidebar:not(.channels-tab-enabled) #sidebarChannelsTab{display:none}
+    .sidebar:not(.agents-tab-enabled) #sidebarAgentsTab{display:none}
 
     .sidebar-mode-tab{
       border:0;
@@ -540,6 +542,9 @@ session_write_close();
       flex:1;
       min-width:0;
     }
+
+    #sidebarAgentsPanel.active{gap:8px}
+    #sidebarAgentsList{display:flex;flex:1 1 auto;min-height:0;overflow:hidden;margin:0 -6px}
 
     #sidebarBottomLinks{
       display:flex;
@@ -2006,6 +2011,7 @@ session_write_close();
         <button type="button" class="sidebar-mode-tab active" id="sidebarAppsTab" role="tab" aria-selected="true" aria-controls="sidebarAppsPanel">Apps</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarTodoTab" role="tab" aria-selected="false" aria-controls="sidebarTodoPanel">To Do</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarChannelsTab" role="tab" aria-selected="false" aria-controls="sidebarChannelsPanel">Channels</button>
+        <button type="button" class="sidebar-mode-tab" id="sidebarAgentsTab" role="tab" aria-selected="false" aria-controls="sidebarAgentsPanel">Agents</button>
       </div>
 
       <div class="sidebar-panel active" id="sidebarAppsPanel" role="tabpanel" aria-labelledby="sidebarAppsTab">
@@ -2020,6 +2026,9 @@ session_write_close();
 
       <div class="sidebar-panel" id="sidebarChannelsPanel" role="tabpanel" aria-labelledby="sidebarChannelsTab" hidden>
         <div id="sidebarChannelsList"></div>
+      </div>
+      <div class="sidebar-panel" id="sidebarAgentsPanel" role="tabpanel" aria-labelledby="sidebarAgentsTab" hidden>
+        <div id="sidebarAgentsList"></div>
       </div>
 
       <!-- Attention banner sidebar surface. Rendered by PlatformBanners; must

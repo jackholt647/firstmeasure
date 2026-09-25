@@ -1786,6 +1786,14 @@
       description: (globalThis.PlatformLanguage?.text("settings","m_08c15cae3c4b7b","Show the Apps/To Do switcher and today's action-item list in the portal left column.") ?? "Show the Apps/To Do switcher and today's action-item list in the portal left column.")
     },
     {
+      key: 'assistant.sidebar_tab',
+      group: 'assistant',
+      flag: 'sidebar_tab',
+      defaultValue: false,
+      label: 'Agents in Left Column',
+      description: 'Show agent conversations in an Agents tab in the desktop portal left column.'
+    },
+    {
       key: 'platform.left_column_default_mode',
       group: 'platform',
       flag: 'left_column_default_mode',
@@ -1796,7 +1804,8 @@
       options: [
         ['apps', 'Apps'],
         ['todo', 'To Do'],
-        ['channels', 'Channels']
+        ['channels', 'Channels'],
+        ['agents', 'Agents']
       ]
     },
     {
