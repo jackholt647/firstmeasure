@@ -3046,7 +3046,11 @@
               ${String(options.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(options.uploadLabel)}</button>` : '')}
             </div>
           </div>
-          <div data-photo-feed-dynamic>${String(bodyHtml())}</div>
+          ${String(options.layoutAsideHtml ? `<div class="pf-content-layout">
+            ${String(typeof options.layoutTabsHtml === 'function' ? options.layoutTabsHtml() : options.layoutTabsHtml || '')}
+            <div data-photo-feed-dynamic>${String(bodyHtml())}</div>
+            <aside class="pf-content-aside">${String(typeof options.layoutAsideHtml === 'function' ? options.layoutAsideHtml() : options.layoutAsideHtml)}</aside>
+          </div>` : `<div data-photo-feed-dynamic>${String(bodyHtml())}</div>`)}
         </div>`;
       panel.querySelector('input[type="search"]')?.addEventListener('input', (event) => {
         local.query = event.target.value || '';
