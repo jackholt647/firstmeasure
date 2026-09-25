@@ -6,6 +6,36 @@ import vm from 'node:vm';
 const request = await readFile(new URL('../../libraries/apps/project-request/app.js', import.meta.url), 'utf8');
 const source = request.slice(request.indexOf('  function mobileOrderReadyForDetails(){'), request.indexOf('  function shakeMobileOrderTarget('));
 
+test('entering final review recomputes submit readiness and preserves in-flight lock', () => {
+  let exteriorPage = 'details', uploading = false, busy = false;
+  const submit = { disabled: true, querySelector: () => busy ? {} : null };
+  const order = { style: {}, disabled: true };
+  const elements = { '#rOverlay': { classList: { toggle() {} } }, '#rMobileOrder': order };
+  const state = {
+    $: selector => elements[selector], mobileOrderPage: 'final',
+    shouldUseMobileOrderPagination: () => true, mobileOrderReadyForDetails: () => true,
+    mobileOrderUsesFinalPage: () => true, mobileOrderReadyForFinal: () => true,
+    activeSubmitButton: () => submit,
+    canSubmit: () => exteriorPage === 'final' && !uploading,
+    selectedReportExpeditePricingPending: () => false, isScheduleChoice: () => false,
+    syncMobileProjectInfoNavigation() {}, syncMobileLeftTray() {},
+    syncMobileDefaultInfoTray() {}, syncMobileProjectNotes() {},
+    window: { Portal: { ExteriorOrder: { active: () => true, setMobilePage: page => { exteriorPage = page; } } } },
+  };
+  vm.createContext(state);
+  vm.runInContext(request.slice(request.indexOf('  function orderSubmitBlocked(){'), request.indexOf('  function setSubmitBusyLabel(')), state);
+  vm.runInContext(request.slice(request.indexOf('  function syncMobileOrderPagination(){'), request.indexOf('  function normalizedProjectType(')), state);
+  state.syncMobileOrderPagination();
+  assert.equal(order.disabled, false, 'valid review must not inherit the previous page disabled state');
+  assert.equal(submit.disabled, false, 'the forwarded click target must also be enabled');
+  uploading = true; state.syncMobileOrderPagination();
+  assert.equal(order.disabled, true);
+  uploading = false; busy = true; state.syncMobileOrderPagination();
+  assert.equal(order.disabled, true, 'do not unlock an order already submitting');
+  busy = false; state.syncMobileOrderPagination();
+  assert.equal(order.disabled, false);
+});
+
 test('full structure goes map, guided photos and summary, details, then review; roof keeps its existing sequence',()=>{
  const navigation=request.slice(request.indexOf('  function mobileOrderGoBack(){'),request.indexOf('  function handleMobileOrderSwipeStart'));
  let full=true,summary=false,photos=false,details=true,feedback=0;

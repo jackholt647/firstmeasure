@@ -2765,7 +2765,11 @@ window.PlatformCommerce.onReady(function(){
       const submit = activeSubmitButton();
       const orderVisible = mobile && (mobileOrderPage === 'final' || (mobileOrderPage === 'details' && !hasFinalPage));
       order.style.display = orderVisible ? '' : 'none';
-      order.disabled = !orderVisible || !submit || submit.disabled || !!(window.Portal.ExteriorOrder?.active() && !window.Portal.ExteriorOrder.ready());
+      const blocked = !submit || orderSubmitBlocked();
+      // Keep the generic submit in lockstep (the order button's click forwards to it), but never
+      // re-enable it while an order is in flight (setSubmitBusyLabel shows a spinner).
+      if (submit && !submit.querySelector('.r-submit-spinner')) submit.disabled = blocked;
+      order.disabled = !orderVisible || blocked || submit.disabled;
       const label = window.Portal.ExteriorOrder?.active() ? 'Order Full Structure' : (submit?.textContent?.trim() || 'Order Roof Report');
       order.textContent = label.replace(/^Order Roof Report\b/, 'Order Report');
     }
@@ -6510,10 +6514,17 @@ window.PlatformCommerce.onReady(function(){
     }
     submits.forEach((submit) => {
       submit.textContent = text;
-      submit.disabled = !canSubmit() || selectedReportExpeditePricingPending() || (isScheduleChoice() && !scheduleHasDraft());
+      submit.disabled = orderSubmitBlocked();
     });
     renderActionRow();
     syncMobileOrderPagination();
+  }
+
+  // One predicate for every order control. Exterior readiness depends on the exterior review page,
+  // which the mobile pager changes, so callers must evaluate this fresh rather than copy a stale
+  // submit.disabled value computed before the page changed.
+  function orderSubmitBlocked(){
+    return !canSubmit() || selectedReportExpeditePricingPending() || (isScheduleChoice() && !scheduleHasDraft());
   }
 
   function setSubmitBusyLabel(button, label){
