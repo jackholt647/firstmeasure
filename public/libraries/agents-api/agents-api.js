@@ -27,8 +27,12 @@
   }
 
   function csrfToken(){
-    const match = document.cookie.match(/(?:^|;\s*)fm_platform_session_csrf=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
+    const sessionName = clean(APP.platformSessionCookieName || 'fm_platform_session');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const cookieName = `${encodeURIComponent(sessionName + '_csrf')}=`;
+    const cookie = document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith(cookieName));
+    try { return cookie ? decodeURIComponent(cookie.slice(cookieName.length)) : ''; }
+    catch (_) { return ''; }
   }
 
   async function request(path, options = {}){

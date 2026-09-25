@@ -40,7 +40,7 @@
     "test:assistant": "node --experimental-sqlite --import tsx --test --test-force-exit tests/assistant-api.test.ts",
     "test:channels-agent": "node --experimental-sqlite --import tsx --test --test-force-exit tests/channels-agent.test.ts",
     "test:channels-inbox": "node --experimental-sqlite --import tsx --test --test-force-exit tests/channels-inbox.test.ts",
-    "test:assistant:frontend": "node --check ../libraries/assistant-api/assistant-api.js && node --check ../libraries/platform-assistant/platform-assistant.js && node --check ../portal/scripts/topbar.js && node --check ../libraries/apps/settings/company.js",
+    "test:assistant:frontend": "node --check ../libraries/assistant-api/assistant-api.js && node --check ../libraries/agents-api/agents-api.js && node --check ../libraries/platform-assistant/platform-assistant.js && node --check ../portal/scripts/topbar.js && node --check ../libraries/apps/settings/company.js && node --test tests/agent-client-csrf.test.mjs",
     "test:stats:frontend": "node --check ../libraries/stats-api/stats-api.js && node --check ../libraries/apps/stats/app.js",
     "test:workforce": "node --experimental-sqlite --import tsx --test --test-force-exit tests/workforce-api.test.ts",
     "test:crew": "node --experimental-sqlite --import tsx --test --test-force-exit tests/crew-api.test.ts",
