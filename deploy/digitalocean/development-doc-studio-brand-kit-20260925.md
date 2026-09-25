@@ -44,3 +44,33 @@ development isolation. The autoscale image remains historical; replacement
 nodes need this verified UI overlay before serving it. The compatibility host
 had about 466 MB free after staging and should have its retained releases
 reviewed before another full-copy deployment.
+
+## Missing presentation style hotfix
+
+The first live Brand Kit load exposed a nullable `branchModules.get` result:
+organizations without a saved `presentation_style` module returned `null`, and
+Doc Studio attempted to read `.data` from it. Source hotfix
+`5685b86f214d81018aab92e312c1b3111b4a885e` treats absent branch and
+style responses as empty data, including the blank-document font path. Its
+regression test executes the loader with null responses and checks Montserrat
+and palette defaults. The Studio bundle token was bumped so existing browsers
+fetch the correction.
+
+The web nodes and compatibility had concurrently advanced to
+`b94be726b407047814b819de0cf935d49fce4e5b`. The hotfix cloned that
+serving release and replaced only `studio.js`, the scoped app-manifest token,
+and `release.env`. Compatibility used hardlinks for unchanged files to fit its
+remaining disk capacity; changed files and the marker have separate inodes.
+All three roles report hotfix release `5685b86` with readiness, development
+data, and outbound isolation. Thirteen public readiness checks reached both
+web nodes (8 and 5), and the served Studio and app-manifest bytes match the
+staged overlay. Rollback is the same as above, using `b94be726` as the prior
+release on all three roles.
+
+A concurrent development release subsequently advanced both web nodes to
+`4c059e5558a20ca09cacebfc17e66ed6ebf4c51a`. Read-only checks confirmed
+that both serving scripts still contain the null guard and the bumped Studio
+bundle token. Both web nodes returned exact `4c059e5` readiness with enforced
+development isolation; a subsequent 38-request public sample reached both
+instances (37 and 1). Compatibility retained the hotfix release during that
+check.
