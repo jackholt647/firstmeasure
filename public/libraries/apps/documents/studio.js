@@ -789,8 +789,9 @@
       ]);
       const globalBrand = objectValue(objectValue(objectValue(portal.global).data).branding);
       const orgBrand = objectValue(objectValue(objectValue(portal.organization).data).branding);
-      const branch = objectValue(objectValue(branchRes.document).data || branchRes.data);
-      const style = objectValue(styleRes.data);
+      const branchResponse = objectValue(branchRes);
+      const branch = objectValue(objectValue(branchResponse.document).data || branchResponse.data);
+      const style = objectValue(objectValue(styleRes).data);
       const brand = { ...globalBrand, ...orgBrand, ...objectValue(branch.branding), ...objectValue(style.branding) };
       const colors = { ...objectValue(globalBrand.colors), ...objectValue(orgBrand.colors), ...objectValue(objectValue(branch.branding).colors), ...objectValue(objectValue(style.branding).colors) };
       const typography = { ...objectValue(globalBrand.typography), ...objectValue(orgBrand.typography), ...objectValue(objectValue(branch.branding).typography), ...objectValue(objectValue(style.branding).typography) };
@@ -861,7 +862,8 @@
       });
     }
     async function applyFontToBlankDocument(definition){
-      const style = state.brandKit?.style || objectValue((await window.PlatformAPI.branchModules.get(orgId(), brandBranchId(), 'presentation_style').catch(() => ({}))).data);
+      const styleResult = state.brandKit?.style ? null : await window.PlatformAPI.branchModules.get(orgId(), brandBranchId(), 'presentation_style').catch(() => null);
+      const style = state.brandKit?.style || objectValue(objectValue(styleResult).data);
       const font = firstText(objectValue(objectValue(style.branding).typography).document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat');
       const styles = objectValue(definition.styles);
       const names = Object.keys(styles).length ? Object.keys(styles) : ['Normal text', 'Title', 'Subtitle', 'Heading 1', 'Heading 2', 'Heading 3'];

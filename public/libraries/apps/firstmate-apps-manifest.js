@@ -222,7 +222,7 @@
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/studio.js', '20260925-brand-chrome')
+        versionedBundle('documents/studio.js', '20260925-brand-kit-null-guard')
       ]
     },
     {
