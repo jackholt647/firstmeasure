@@ -9428,7 +9428,11 @@
           if (result?.merchant_config) mp.config = result.merchant_config; else await loadConfig();
           await loadApplication();
           renderSection();
-          openHostedApplication(mcText(result?.link?.url), options);
+          if (!mcText(result?.link?.url)) {
+            showToast('Application already submitted', 'Your payment application status is shown here.', true);
+            return;
+          }
+          openHostedApplication(mcText(result.link.url), options);
           showToast((globalThis.PlatformLanguage?.text("settings","m_84852f47418b64","Continue at Forward") ?? "Continue at Forward"), (globalThis.PlatformLanguage?.text("settings","m_faf05e18c07567","Fill out and submit the application on Forward's hosted page — this pane tracks the status.") ?? "Fill out and submit the application on Forward's hosted page — this pane tracks the status."), true);
         })().finally(() => { mp.hostedSignupPromise = null; });
         return mp.hostedSignupPromise;

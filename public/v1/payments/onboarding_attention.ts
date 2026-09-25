@@ -6,6 +6,7 @@ import { env } from "../src/config/env.js";
 import { getMerchantConfigForOps } from "./merchant_config.js";
 import { forwardConfigured } from "./providers/forward.js";
 import { getBoardingProvider } from "./providers/index.js";
+import type { ProviderApplication } from "./providers/types.js";
 
 /**
  * Money onboarding attention source.
@@ -104,7 +105,18 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
     ? { kind: "open_payment_setup", route }
     : { route };
   const forward = config?.forward;
-  const status = cleanText(forward?.boarding_status).toUpperCase();
+  let status = cleanText(forward?.boarding_status).toUpperCase();
+  const applicationId = cleanText(forward?.application_id);
+  let application: ProviderApplication | null = null;
+  // A hosted submission can precede webhook delivery. Check Forward before
+  // offering a draft-only Continue action, even if our stored status is stale.
+  if (applicationId && (!status || status === "DRAFT" || status === "NEED_INFORMATION")) {
+    try {
+      const boarding = await getBoardingProvider(orgId);
+      application = boarding ? await boarding.getApplication(applicationId) : null;
+      status = cleanText(application?.status || status).toUpperCase();
+    } catch { /* retain the tracked status when Forward is unavailable */ }
+  }
   const approved = status === "APPROVED" || (!!cleanText(forward?.account_id) && !status);
 
   const base = {
@@ -152,21 +164,17 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
   // guarded so a provider hiccup never breaks the attention feed.
   let resumeStep: MoneyOnboardingStep = "business";
   let wizardComplete = false;
-  const applicationId = cleanText(forward?.application_id);
-  if (applicationId) {
+  if (applicationId && !application) {
     try {
       const boarding = await getBoardingProvider(orgId);
-      const application = boarding ? await boarding.getApplication(applicationId) : null;
-      resumeStep = moneyOnboardingResumeStep(application?.raw);
-      // "Complete" = every wizard-collected section filled AND a plan chosen;
-      // what remains (signatures, bank verification, final submission) happens
-      // on Forward's hosted application.
-      wizardComplete = resumeStep === "review" && !!cleanText(application?.processing_plan_id);
-    } catch {
-      resumeStep = "business";
-    }
+      application = boarding ? await boarding.getApplication(applicationId) : null;
+    } catch { /* use the tracked state */ }
   }
-  const linkOffered = wizardComplete || !!cleanText(forward?.application_link_url);
+  resumeStep = moneyOnboardingResumeStep(application?.raw);
+  // "Complete" = every wizard-collected section filled AND a plan chosen;
+  // signatures and final submission happen on Forward's hosted application.
+  wizardComplete = resumeStep === "review" && !!cleanText(application?.processing_plan_id);
+  const linkOffered = status === "DRAFT" && (wizardComplete || !!cleanText(forward?.application_link_url));
 
   if (status === "NEED_INFORMATION") {
     // Documents get uploaded on Forward's hosted application form — the CTA
@@ -180,7 +188,7 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
       title: "Action needed on your payments application",
       body: "The underwriter needs more information. Review the request and provide the documents on Forward's secure application page.",
       cta_label: "Review request",
-      frontend_action: setupAction({ ...PAYMENTS_PANE_ROUTE })
+      frontend_action: { route: { ...PAYMENTS_PANE_ROUTE } }
     }];
   }
 

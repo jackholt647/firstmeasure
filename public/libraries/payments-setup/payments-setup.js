@@ -61,7 +61,12 @@
       const config = await root.PaymentsAPI.merchantConfig.get(orgId);
       if (config?.forward_environment !== 'sandbox' || config?.merchant_config?.provider !== 'forward') return false;
       const result = await root.PaymentsAPI.merchantBoarding.hostedSignup(orgId, {});
-      openLink(result?.link?.url, options);
+      if (!result?.link?.url) {
+        root.PlatformBanners?.load?.(orgId);
+        root.PlatformUI?.showToast?.('Your payment application has already been submitted.');
+        return true;
+      }
+      openLink(result.link.url, options);
       return true;
     })().finally(() => { pending = null; });
     return pending;

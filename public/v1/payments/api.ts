@@ -1098,7 +1098,18 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     // RENDER the link mint a fresh one instead of trusting the stored URL.
     const force = asObject(request.body).force === true;
     const boarding = await requireBoardingProvider(orgId);
-    await ensureForwardApplicationRedirect(boarding, applicationId, forwardApplicationRedirectUrl(request));
+    const application = await boardingCall(() => boarding.getApplication(applicationId));
+    if (application.status !== "DRAFT") {
+      if (cleanText(config.forward.application_id) === applicationId) {
+        await upsertMerchantConfig(orgId, { forward: {
+          boarding_status: application.status,
+          application_link_url: "",
+          application_link_expires_at: ""
+        } });
+      }
+      throw badRequest("merchant_boarding_application_not_draft", "This application has already been submitted. Its status is now available in payment settings.");
+    }
+    await ensureForwardApplicationRedirect(boarding, applicationId, forwardApplicationRedirectUrl(request), application);
     const storedFresh = !force && storedUrl && storedExpiry && Date.parse(storedExpiry) > Date.now();
     if (storedFresh && cleanText(config.forward.application_id) === applicationId) {
       return { ok: true, link: { url: storedUrl, expires_at: storedExpiry, reused: true }, merchant_config: config };
@@ -1199,6 +1210,24 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
           user_fields: { hosted_signup: "true", firstmate_org_id: orgId },
           ...(boarding.provider === "forward" ? { partner_data: { redirect_url: forwardApplicationRedirectUrl(request) } } : {})
         }));
+      }
+      if (application.status !== "DRAFT") {
+        const merchantConfig = await upsertMerchantConfig(orgId, { forward: {
+          ...(businessId ? { business_id: businessId } : {}),
+          application_id: application.id,
+          boarding_status: application.status,
+          application_link_url: "",
+          application_link_expires_at: ""
+        } });
+        if (application.status === "APPROVED") await maybeNotifyMerchantApproved(orgId).catch(() => null);
+        return { result: {
+          ok: true,
+          application,
+          link: null,
+          merchant_config: merchantConfig,
+          forward_environment: environment,
+          already_submitted: true
+        } as JsonObject, created: false };
       }
       const link = await boardingCall(() => boarding.generateApplicationLink(application.id));
       const merchantConfig = await upsertMerchantConfig(orgId, {

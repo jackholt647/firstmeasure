@@ -196,7 +196,9 @@ function applicationStatus(value: unknown): BoardingApplicationStatus {
     "CREDIT_PENDED", "DECLINED", "CANCELLED", "REEVALUATION_PENDING", "REEVALUATION_APPROVED",
     "REEVALUATION_DECLINED", "REJECT_BY_SALES", "UNDERWRITING_ERROR", "DECLINE_REEVALUATION_INITIATED"
   ];
-  return (known as string[]).includes(status) ? status as BoardingApplicationStatus : "DRAFT";
+  // A new provider status must never be treated as an editable draft: doing
+  // so offers a link that Forward rejects after the application was submitted.
+  return (known as string[]).includes(status) ? status as BoardingApplicationStatus : "UNDER_REVIEW";
 }
 
 function paymentMethodType(value: unknown): ProviderPaymentMethodType {

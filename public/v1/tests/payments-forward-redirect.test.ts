@@ -36,6 +36,9 @@ test("Forward application redirect is sent under partner_data and survives full-
 
     await adapter.generateApplicationLink("appl_test");
     assert.deepEqual(requests.at(-1)?.body, {}, "the link call does not carry the redirect");
+
+    current.status = "NEW_POST_SUBMISSION_STATUS";
+    assert.equal((await adapter.getApplication("appl_test")).status, "UNDER_REVIEW", "unknown statuses cannot become editable drafts");
   } finally {
     globalThis.fetch = originalFetch;
   }

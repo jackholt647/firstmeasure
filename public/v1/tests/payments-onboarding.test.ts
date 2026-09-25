@@ -64,6 +64,7 @@ before(async () => {
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");
   process.env.FIRSTMEASURE_STORAGE_ROOT = path.join(storageRoot, "firstmeasure");
   process.env.FIRSTMEASURE_INDEX_DB_PATH = path.join(storageRoot, "firstmeasure", "projects_index.sqlite");
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.PRICEBOOK_STORAGE_ROOT = path.join(storageRoot, "pricebook");
   process.env.EMAIL_OUTBOUND_DISABLED = "1";
   process.env.OPENAI_API_KEY = "";
@@ -408,6 +409,35 @@ test("hosted-first signup harness: one call creates a minimal draft + hosted lin
   // then approval work against the harness-created draft.
   const advanced = await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
   assert.equal(advanced.merchant_config.forward.boarding_status, "UNDER_REVIEW");
+});
+
+test("a submitted hosted application cannot be offered as a draft again", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const boardingBase = `/v1/payments/organizations/${orgId}/merchant-boarding`;
+  const created = await client.request("POST", `${boardingBase}/hosted-signup`, { business_name: "Submitted Link Co" });
+  const applicationId = created.application.id as string;
+  await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
+  // Simulate a hosted submission whose webhook has not updated our tracked state.
+  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
+    forward: { boarding_status: "DRAFT" }
+  });
+
+  const attention = moneyEntry(await client.request("GET", `/v1/platform/organizations/${orgId}/attention`));
+  assert.equal(attention.state, "waiting");
+  assert.deepEqual(attention.surfaces, ["notification"]);
+  assert.match(attention.title, /under review/i);
+
+  const resumed = await client.request("POST", `${boardingBase}/hosted-signup`, {});
+  assert.equal(resumed.already_submitted, true);
+  assert.equal(resumed.link, null);
+  assert.equal(resumed.application.status, "UNDER_REVIEW");
+  assert.equal(resumed.merchant_config.forward.boarding_status, "UNDER_REVIEW");
+  assert.equal(resumed.merchant_config.forward.application_link_url, "");
+
+  const directLink = await client.raw("POST", `${boardingBase}/applications/${applicationId}/link`, { force: true });
+  assert.equal(directLink.statusCode, 400);
+  assert.equal(JSON.parse(directLink.body).error, "merchant_boarding_application_not_draft");
 });
 
 test("application GET shim syncs boarding_status from the provider (hosted submissions surface without webhooks)", async () => {
