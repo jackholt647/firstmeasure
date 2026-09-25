@@ -12,6 +12,15 @@
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
+  function languageOptions(selected, { inherit = false, translation = false, companyLocale } = {}) {
+    const service = window.PlatformLanguage;
+    const packs = service?.supportedLanguages || [];
+    const choices = translation ? (service?.translationLanguages || []) : packs;
+    const company = companyLocale || service?.companyContext?.().locale || 'en-US';
+    const companyName = packs.find(pack => pack.code === company)?.label || company;
+    const inherited = inherit ? `<option value="" ${!selected ? 'selected' : ''}>${escapeHtml(window.PlatformLanguage.text('settings','company_language_inherit','Use company language (' + companyName + ')',{name:companyName}))}</option>` : '';
+    return inherited + choices.map(({code,label}) => `<option value="${escapeHtml(code)}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
   const DEFAULT_LOGO = '/images/logo_red.png';
   const SAMPLE_DIAGRAM = 'media/sample_diagram.png';
   const LS_KEY = 'fm_org_theme_v1';
@@ -1665,7 +1674,6 @@
     `;
   }
   const DEFAULT_VISIBLE_APP_FLAGS = {
-    apps: ['firstmeasure', 'notifications'],
     mobile: [],
     platform: [],
     scheduling: ['routing', 'gantt'],
@@ -1786,14 +1794,6 @@
       description: (globalThis.PlatformLanguage?.text("settings","m_08c15cae3c4b7b","Show the Apps/To Do switcher and today's action-item list in the portal left column.") ?? "Show the Apps/To Do switcher and today's action-item list in the portal left column.")
     },
     {
-      key: 'assistant.sidebar_tab',
-      group: 'assistant',
-      flag: 'sidebar_tab',
-      defaultValue: false,
-      label: 'Agents in Left Column',
-      description: 'Show agent conversations in an Agents tab in the desktop portal left column.'
-    },
-    {
       key: 'platform.left_column_default_mode',
       group: 'platform',
       flag: 'left_column_default_mode',
@@ -1804,8 +1804,7 @@
       options: [
         ['apps', 'Apps'],
         ['todo', 'To Do'],
-        ['channels', 'Channels'],
-        ['agents', 'Agents']
+        ['channels', 'Channels']
       ]
     },
     {
@@ -2241,14 +2240,16 @@
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
-    // Every signed-in member can manage their own notification preferences.
+    if (!canMySettings && !canCompany && !canPayments && !canCustomFields && !canUsers && !canPayroll && !canReports && !canBilling && !canPlatformBilling && !canForms && !canPricebook && !canProposalSettings && !canDocuments && !canConfiguration && !canScheduling && !canTerminology && !canCrews && !canScopeFlags && !canCallWorkflows && !canStorage && !canSmsSettings && !canDomains && !canAssistant && !canAppFlags) {
+      panel.innerHTML = `<div style="padding:20px; text-align:center; color:#666; font-weight:800;">${(globalThis.PlatformLanguage?.text("settings","m_3d547d220b69f5","Access Denied") ?? "Access Denied")}</div>`;
+      return;
+    }
     // Canonical Settings information architecture. A new broad Settings page
     // is declared exactly once here: stable route id, permission/flag gate,
     // icon, title, subtitle, and its existing pane ids. The shared shell below
     // derives navigation, headings, accessibility, and active state from it.
     const settingsSections = [
       { id:'my_settings', allowed:canMySettings, icon:'fas fa-user-gear', title:(globalThis.PlatformLanguage?.text("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_005931f3534c4a","Personal preferences for your account.") ?? "Personal preferences for your account."), tabId:'csTabMySettings', paneId:'csPaneMySettings' },
-      { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:'Notifications', subtitle:'Choose which updates appear here and on your phone.', tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
@@ -4738,7 +4739,6 @@
     window.FirstMateSettingsPages?.installAutosave?.(panel, { source:'company-settings', inputDelay:350 });
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
-    const paneNotifications = $('#csPaneNotifications', panel);
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);
@@ -9420,11 +9420,7 @@
           if (result?.merchant_config) mp.config = result.merchant_config; else await loadConfig();
           await loadApplication();
           renderSection();
-          if (!mcText(result?.link?.url)) {
-            showToast('Application already submitted', 'Your payment application status is shown here.', true);
-            return;
-          }
-          openHostedApplication(mcText(result.link.url));
+          openHostedApplication(mcText(result?.link?.url));
           showToast((globalThis.PlatformLanguage?.text("settings","m_84852f47418b64","Continue at Forward") ?? "Continue at Forward"), (globalThis.PlatformLanguage?.text("settings","m_faf05e18c07567","Fill out and submit the application on Forward's hosted page — this pane tracks the status.") ?? "Fill out and submit the application on Forward's hosted page — this pane tracks the status."), true);
         })().finally(() => { mp.hostedSignupPromise = null; });
         return mp.hostedSignupPromise;
@@ -14031,7 +14027,6 @@
         else delete titleNode.dataset.settingsTerminologyKey;
       }
       if (which === 'my_settings' && canMySettings) renderMySettings();
-      if (which === 'notifications') renderNotificationSettings();
       if (which === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
       if (which === 'users' && canUsers) refreshUsers();
       if (which === 'money' && canPayments) renderMoneySettings();
@@ -14062,64 +14057,6 @@
       scheduleSettingsSubtabsSync();
     }
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
-    async function renderNotificationSettings(){
-      if (!paneNotifications) return;
-      paneNotifications.innerHTML = '<div class="my-settings-status">Loading notification preferences…</div>';
-      try {
-        const result = await window.PlatformAPI.notifications.preferences(currentOrgId());
-        const preferences = result.preferences || {};
-        const categories = window.PlatformPush?.categories || [
-          ['leads','Leads'],['messages','Messages'],['mentions','Mentions'],['tasks','Tasks'],
-          ['scheduling','Scheduling'],['payments','Payments'],['celebrations','Celebrations'],['system','System']
-        ];
-        const measurements = appFlag('apps', 'firstmeasure') ? [
-          ['measurements.report_delivered','Report delivered'],
-          ['measurements.report_revised','Corrected report delivered'],
-          ['measurements.report_canceled','Order canceled'],
-          ['measurements.report_rejected','Order rejected'],
-          ['measurements.report_status','Order progress']
-        ] : [];
-        const otherUpdates = appFlag('platform', 'expanded_access') ? categories.filter(([id]) => ({
-          leads:appFlag('apps','crm'), messages:appFlag('apps','messaging') || appFlag('apps','channels'),
-          mentions:appFlag('apps','projects'), tasks:appFlag('apps','projects'),
-          scheduling:appFlag('platform','scheduling'), payments:appFlag('apps','billing'),
-          celebrations:appFlag('apps','projects'), system:true
-        })[id]) : [];
-        const preferenceRows = (rows) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 70px 70px;gap:8px;align-items:center;margin-top:14px"><span></span><strong>In app</strong><strong>Push</strong>
-          ${rows.map(([id,label]) => `<span>${escapeHtml(label)}</span><input type="checkbox" data-notification-surface="in_app" data-notification-key="${id}" ${preferences.in_app?.[id] !== false ? 'checked' : ''}><input type="checkbox" data-notification-surface="push" data-notification-key="${id}" ${preferences.push?.[id] ? 'checked' : ''}>`).join('')}
-        </div>`;
-        paneNotifications.innerHTML = `<div class="my-settings-shell">
-          <div class="my-settings-hero"><div class="my-settings-icon"><i class="fas fa-bell"></i></div><div><h3>Notifications</h3><p>Choose what appears in the bell on every device and what is sent to your phone.</p></div></div>
-          <div class="cs-note">Phone push also requires permission in iOS or Android settings. Your choices apply to your account on every device.</div>
-          ${measurements.length ? `<div class="my-settings-group"><h4>Measurements</h4>${preferenceRows(measurements)}</div>` : ''}
-          ${otherUpdates.length ? `<div class="my-settings-group"><h4>Other updates</h4>${preferenceRows(otherUpdates)}</div>` : ''}
-          <div class="li-actions"><button class="cs-btn primary" type="button" data-notification-save>Save notification settings</button>${window.PlatformPush?.available?.() ? '<button class="cs-btn" type="button" data-notification-enable>Enable phone push</button><button class="cs-btn" type="button" data-notification-disable>Disable on this phone</button>' : ''}<span class="my-settings-status" data-notification-status></span></div>
-        </div>`;
-        paneNotifications.querySelector('[data-notification-save]')?.addEventListener('click', async (event) => {
-          const button = event.currentTarget;
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          const patch = { in_app:{}, push:{} };
-          paneNotifications.querySelectorAll('[data-notification-key]').forEach((input) => { patch[input.dataset.notificationSurface][input.dataset.notificationKey] = input.checked; });
-          try {
-            button.disabled = true;
-            await window.PlatformAPI.notifications.savePreferences(currentOrgId(), patch);
-            await window.PlatformNotifications?.load?.(currentOrgId(), { branchId:currentBranchId(), includeDismissed:true, silent:true });
-            status.textContent = 'Saved';
-          } catch (error) { status.textContent = error?.message || 'Could not save preferences.'; }
-          finally { button.disabled = false; }
-        });
-        paneNotifications.querySelector('[data-notification-enable]')?.addEventListener('click', async () => {
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          try { const result = await window.PlatformPush.enable(); status.textContent = result.granted ? 'Phone push enabled' : (result.reason || 'Allow notifications in your phone settings.'); }
-          catch (error) { status.textContent = error?.message || 'Phone push could not be enabled.'; }
-        });
-        paneNotifications.querySelector('[data-notification-disable]')?.addEventListener('click', async () => {
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          try { await window.PlatformPush.disable(); status.textContent = 'Phone push disabled on this device'; }
-          catch (error) { status.textContent = error?.message || 'Could not disable phone push.'; }
-        });
-      } catch (error) { paneNotifications.innerHTML = `<div class="my-settings-status" style="color:#b42318">${escapeHtml(error?.message || 'Notification settings could not be loaded.')}</div>`; }
-    }
     window.Portal?.navigation?.registerHandler?.('company-settings', {
       priority:350,
       apply:(route) => {
@@ -14138,16 +14075,9 @@
       paneMySettings.innerHTML = `<div class="my-settings-status"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_5dfbfde9b4da49"," Loading your settings…") ?? " Loading your settings…")}</div>`;
       try {
         const result = await window.PlatformAPI?.preferences?.get?.();
-        const preferences = result?.preferences || { language:'en', auto_translate_messages:false, sidebar_width:250 };
+        const preferences = result?.preferences || { language:null, auto_translate_messages:false, sidebar_width:250 };
         const sidebarWidthApi = window.Portal?.sidebarWidth;
         const sidebarWidth = sidebarWidthApi?.normalize?.(preferences.sidebar_width) || 250;
-        const languages = [
-          ['en','English'],['es','Español'],['fr','Français'],['de','Deutsch'],['pt','Português'],
-          ['it','Italiano'],['nl','Nederlands'],['pl','Polski'],['ru','Русский'],['uk','Українська'],
-          ['ar','العربية'],['hi','हिन्दी'],['bn','বাংলা'],['ur','اردو'],['zh','中文'],
-          ['ja','日本語'],['ko','한국어'],['vi','Tiếng Việt'],['th','ไทย'],['id','Bahasa Indonesia'],
-          ['tl','Filipino'],['tr','Türkçe'],['he','עברית']
-        ];
         paneMySettings.innerHTML = `
           <div class="my-settings-shell">
             <div class="my-settings-hero">
@@ -14157,11 +14087,11 @@
             <div class="my-settings-group">
               <h4>${(globalThis.PlatformLanguage?.text("settings","m_7be4e66b6de94c","Language &amp; translation") ?? "Language &amp; translation")}</h4>
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_6a345cd0072503","Interface language") ?? "Interface language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_338ca4c4d53ee1","Use the company language or choose your own. Reports use the company language.") ?? "Use the company language or choose your own. Reports use the company language.")}</small></span>
-                <select class="cs-in" data-interface-locale><option value="" ${String(!preferences.interface_locale ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_ad35e6104bfe0c","Use company language") ?? "Use company language")}</option><option value="en-US" ${String(preferences.interface_locale === 'en-US' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_0f09b3ed9128db","English (United States)") ?? "English (United States)")}</option><option value="en-GB" ${String(preferences.interface_locale === 'en-GB' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_58ac1532c90295","English (United Kingdom)") ?? "English (United Kingdom)")}</option></select>
+                <select class="cs-in" data-interface-locale>${languageOptions(preferences.interface_locale, {inherit:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_1c783adbd1d4a5","Message translation language") ?? "Message translation language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_c7cb58bc75e592","Messages in other detected languages can be translated into this language.") ?? "Messages in other detected languages can be translated into this language.")}</small></span>
-                <select class="cs-in" data-my-language>${String(languages.map(([code,label]) => `<option value="${code}" ${preferences.language === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join(''))}</select>
+                <select class="cs-in" data-my-language>${languageOptions(preferences.language, {inherit:true, translation:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_c4030f56eb495c","Show translations automatically") ?? "Show translations automatically")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_4405a3f8c91aac","Foreign-language messages open translated. You can still toggle each message back to its original text.") ?? "Foreign-language messages open translated. You can still toggle each message back to its original text.")}</small></span>
@@ -14178,15 +14108,11 @@
                 </span>
               </label>
             </div>
-            ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
             <div class="li-actions">
               <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
-        paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
-          window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
-        });
         if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
         const sidebarWidthInput = paneMySettings.querySelector('[data-my-sidebar-width]');
         const sidebarWidthOutput = paneMySettings.querySelector('[data-my-sidebar-width-output]');
@@ -14203,7 +14129,7 @@
             const previousLocale = window.PlatformLanguage?.context?.().locale;
             const saved = await window.PlatformAPI.preferences.patch({
               ...(paneMySettings.querySelector('[data-interface-locale]') ? { interface_locale: paneMySettings.querySelector('[data-interface-locale]').value || null } : {}),
-              language: paneMySettings.querySelector('[data-my-language]').value,
+              language: paneMySettings.querySelector('[data-my-language]').value || null,
               auto_translate_messages: paneMySettings.querySelector('[data-my-auto-translate]').checked,
               sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth)
             });
@@ -14451,12 +14377,6 @@
 
     async function renderAssistantSettings(){
       if (!paneAssistant) return;
-      if (!document.getElementById('fm-assistant-settings-switches')) {
-        const style = document.createElement('style');
-        style.id = 'fm-assistant-settings-switches';
-        style.textContent = `#csPaneAssistant input[type=checkbox]{appearance:none;-webkit-appearance:none;order:2;flex:0 0 auto;width:42px;height:24px;margin:0 0 0 auto!important;border:0;border-radius:999px;background:#cbd5e1;position:relative;cursor:pointer;transition:background .15s ease}#csPaneAssistant input[type=checkbox]:before{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #10182833;transition:transform .15s ease}#csPaneAssistant input[type=checkbox]:checked{background:var(--primary-readable,var(--primary,#175cd3))}#csPaneAssistant input[type=checkbox]:checked:before{transform:translateX(18px)}#csPaneAssistant input[type=checkbox]:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#175cd3));outline-offset:3px}`;
-        document.head.appendChild(style);
-      }
       try {
         if (await window.FirstMatePlatformBilling?.setup(paneAssistant, {orgId:currentOrgId(),canView:canPlatformBilling,capabilityKeys:['apps.assistant'],onReady:renderAssistantSettings})) return;
       } catch (error) {
@@ -14475,7 +14395,7 @@
       paneAssistant.innerHTML = `<div class="cs-note" style="padding:18px;">${(globalThis.PlatformLanguage?.text("settings","m_0637168da6416c","Loading assistant settings...") ?? "Loading assistant settings...")}</div>`;
       const toggleRow = (key, label, hint, checked) => `
         <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f2f4f7;cursor:pointer;">
-          <input type="checkbox" role="switch" data-assistant-key="${key}" ${checked ? 'checked' : ''}>
+          <input type="checkbox" data-assistant-key="${key}" ${checked ? 'checked' : ''} style="margin-top:3px;">
           <span style="display:flex;flex-direction:column;gap:2px;">
             <strong style="color:#101828;font-weight:800;">${escapeHtml(label)}</strong>
             <small style="color:#667085;">${escapeHtml(hint)}</small>
@@ -14591,7 +14511,7 @@
         ]);
         const profile = profileResult.profile || {};
         const memories = Array.isArray(memoryResult.memories) ? memoryResult.memories : [];
-        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;">Use saved memories in my conversations<input type="checkbox" role="switch" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}></label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
+        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;"><input type="checkbox" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}>Use saved memories in my conversations</label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
         host.querySelector('[data-profile-save]')?.addEventListener('click', async () => {
           const status = host.querySelector('[data-profile-status]');
           try { await window.AssistantAPI.profile.save(currentOrgId(), { instructions:host.querySelector('[data-user-instructions]').value, memory_enabled:host.querySelector('[data-memory-enabled]').checked }); status.textContent = 'Saved.'; }
@@ -14646,7 +14566,7 @@
                 <div style="border-top:1px solid #f2f4f7;padding:12px 0;display:grid;gap:8px;" data-agent-card="${escapeHtml(agent.id)}">
                   <div style="display:flex;align-items:center;gap:10px;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;">
-                      <input type="checkbox" role="switch" data-agent-enabled ${settings.enabled !== false ? 'checked' : ''}>
+                      <input type="checkbox" data-agent-enabled ${settings.enabled !== false ? 'checked' : ''}>
                       <strong style="color:#101828;font-weight:850;">${escapeHtml(agent.title)}</strong>
                     </label>
                     <input type="text" data-agent-name value="${escapeHtml(settings.display_name || agent.title)}" maxlength="80" style="width:200px;border:1px solid #d0d5dd;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;">
@@ -16344,71 +16264,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             </section>
             ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
             <section class="company-settings-card" aria-labelledby="csLocalizationHeading">
-              <div class="company-settings-card-head"><strong id="csLocalizationHeading">Measurements and language</strong></div>
+              <div class="company-settings-card-head"><strong id="csLocalizationHeading">${escapeHtml(window.PlatformLanguage.text('settings','company_language_heading','Company language and measurements'))}</strong><i class="fas fa-circle-info company-settings-card-help" tabindex="0" role="button" aria-label="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help_label','About company language and measurements'))}" data-fm-tooltip="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}" title="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}"></i></div>
               <div class="company-settings-card-body company-localization-grid">
                 <label class="cs-field"><span>Measurements</span><select id="csMeasurementSystem"><option value="imperial">Imperial (feet and squares)</option><option value="metric">Metric (metres and square metres)</option></select></label>
-                <label class="cs-field"><span>Language</span><select id="csReportLanguage"><option value="en-US">English (United States)</option><option value="en-GB">English (United Kingdom)</option></select></label>
-                <div class="cs-note">Language applies across the platform and to new reports. Personal interface preferences can override it. Existing reports keep their ordered language and units.</div>
+                <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
               </div>
             </section>` : '')}
-            <div class="company-brand-row">
-            <section class="company-settings-card">
-                <div class="company-settings-card-head">
-                  <strong>${(globalThis.PlatformLanguage?.text("settings","m_6bb25348173069","Color palette") ?? "Color palette")}</strong>
-                  <i class="fas fa-circle-info company-settings-card-help" data-fm-tooltip="${String(extendedPalette ? 'Primary and secondary style the UI. Supporting colors are available in visual editors.' : 'Primary and secondary colors style your company branding.')}" title="${String(extendedPalette ? 'Primary and secondary style the UI. Supporting colors are available in visual editors.' : 'Primary and secondary colors style your company branding.')}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_490cbf5945b3f8","About the company color palette") ?? "About the company color palette")}"></i>
-                </div>
-                <div class="company-settings-card-body">
-                  <div class="brand-color-main">
-                    <div class="brand-color-control">
-                      <input type="color" class="cs-color" id="csPrimary">
-                      <div class="brand-color-copy"><label for="csPrimaryHex">${(globalThis.PlatformLanguage?.text("settings","m_0c92722f162cbd","Primary · UI") ?? "Primary · UI")}</label><span class="cs-chip" id="csPrimaryChip"><span class="hash">#</span><input id="csPrimaryHex" maxlength="6" autocomplete="off" spellcheck="false"></span></div>
-                    </div>
-                    <div class="brand-color-control">
-                      <input type="color" class="cs-color" id="csSecondary">
-                      <div class="brand-color-copy"><label for="csSecondaryHex">${(globalThis.PlatformLanguage?.text("settings","m_390a15f2a6d920","Secondary · UI") ?? "Secondary · UI")}</label><span class="cs-chip" id="csSecondaryChip"><span class="hash">#</span><input id="csSecondaryHex" maxlength="6" autocomplete="off" spellcheck="false"></span></div>
-                    </div>
-                  </div>
-${String(extendedPalette ? `                  <div class="brand-palette-strip" id="csPaletteStrip" aria-label="Six-color company palette"></div>
-                  <div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="csGeneratePalette"><i class="fas fa-rotate"></i> Regenerate palette from logo</button></div>` : '')}
-                </div>
-            </section>
-            <section class="company-settings-card">
-                <div class="company-settings-card-head">
-                  <strong>${(globalThis.PlatformLanguage?.text("settings","m_a63c5a4c25569b","Logo") ?? "Logo")}</strong>
-                  <i class="fas fa-circle-info company-settings-card-help" data-fm-tooltip="${String(advancedLogos ? 'Manage the primary logo, alternate versions, and how logos appear on branded surfaces.' : 'Choose the company logo used on your reports.')}" title="${String(advancedLogos ? 'Manage the primary logo, alternate versions, and how logos appear on branded surfaces.' : 'Choose the company logo used on your reports.')}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_85de3f0cdfc46a","About company logos") ?? "About company logos")}"></i>
-                </div>
-                <div class="company-settings-card-body">
-                  <div class="logo-editor">
-                    <div class="logo-stage" id="csLogoStage"><img id="csLogoPreviewImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.text("settings","m_fc3b468d1ec4eb","Current company logo") ?? "Current company logo")}"></div>
-                    <div class="logo-main-controls">
-                      <strong>${(globalThis.PlatformLanguage?.text("settings","m_2c8fc5e11eaf62","Current logo") ?? "Current logo")}</strong>
-                      <div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_eb55056b53954c","Transparent PNG or SVG works best.") ?? "Transparent PNG or SVG works best.")}</div>
-                      <div class="cs-file"><label class="cs-btn ghost" for="csLogoFile"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.text("settings","m_ac8bf335945352"," Replace logo") ?? " Replace logo")}</label><input type="file" id="csLogoFile" accept="image/*"></div>
-                    </div>
-                  </div>
-${String(advancedLogos ? `                  <div class="alternate-logos">
-                    <div class="alternate-logos-head">
-                      <span class="alternate-logos-title">Alternate logos <i class="fas fa-circle-info company-settings-card-help" data-fm-tooltip="Reusable logo variations for proposals, web pages, and other branded media." title="Reusable logo variations for proposals, web pages, and other branded media."></i></span>
-                      <label class="alternate-logo-add" for="csAlternateLogoFiles"><i class="fas fa-plus"></i> Add<input type="file" id="csAlternateLogoFiles" accept="image/*" multiple></label>
-                    </div>
-                    <div class="alternate-logo-list" id="csAlternateLogoList"><span class="alternate-logo-empty">No alternate logos yet.</span></div>
-                  </div>
-                  <details class="company-advanced" id="csLogoAdvanced">
-                    <summary>Advanced logo appearance</summary>
-                    <div class="company-advanced-body">
-                      <div class="logo-advanced-grid">
-                        <label class="cs-field"><span>Background</span><div class="logo-background"><input type="color" id="csLogoBackground"><input type="text" id="csLogoBackgroundHex" maxlength="7" spellcheck="false" autocomplete="off"></div></label>
-                        <div class="cs-field"><span>Container shape</span><div class="logo-options">
-                          <label class="logo-choice"><input type="radio" name="csLogoShape" value="square"><span><i class="far fa-square"></i> Square</span></label>
-                          <label class="logo-choice"><input type="radio" name="csLogoShape" value="circle"><span><i class="far fa-circle"></i> Circle</span></label>
-                          <button type="button" class="logo-corners" id="csLogoCorners" aria-pressed="true"><i class="fas fa-border-all"></i> Rounded corners</button>
-                        </div></div>
-                      </div>
-                    </div>
-                  </details>` : '')}
-                </div>
-            </section>
-            </div>
+            <div class="company-brand-heading">Brand Kit</div>
+            ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos })}
             </div>
             ${String(reportsEnabled ? `<aside class="company-document-preview">
               <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i> Report preview</span></div>
@@ -16461,7 +16324,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             <button type="button" class="cu-subtab ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view="people" role="tab" aria-selected="${String(viewState.usersSubtab === 'people')}"><i class="fas fa-users"></i><span>${String(escapeHtml(terminologyLabel('settings.people_view', 'People')))}</span></button>
             ${String(canManageAccess ? `<button type="button" class="cu-subtab ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view="access" role="tab" aria-selected="${viewState.usersSubtab === 'access'}"><i class="fas fa-user-shield"></i><span>${escapeHtml(terminologyLabel('settings.roles_access_view', 'Roles & access'))}</span><small data-access-role-count>0</small></button>` : '')}
           </nav>
-            <div class="company-brand-heading">Brand Kit</div>
 
           <section class="cu-view ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view-panel="people" ${String(viewState.usersSubtab === 'people' ? '' : 'hidden')}>
             <div class="cu-list-toolbar">
@@ -16520,10 +16382,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           <div class="bl-card" style="margin-bottom:16px;">
             <div class="bl-row" style="align-items:center;">
               <div class="bl-left">
-            <section class="company-settings-card company-font-card">
-              <div class="company-settings-card-head"><strong>Company font</strong><span>Default for new documents and templates</span></div>
-              <div class="company-settings-card-body"><label class="cs-field"><span>Font family</span><select id="csBrandFont">${String(['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3','Arial'].map(font => `<option value="${font}">${font}</option>`).join(''))}</select></label></div>
-            </section>
                 <span class="bl-pill"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("settings","m_f406e9348b023b"," Measurement credit") ?? " Measurement credit")}</span>
                 <span class="cs-note credits-sub-target" style="margin:0;">${(globalThis.PlatformLanguage?.text("settings","m_0f620c04296518","Available balance for measurement orders.") ?? "Available balance for measurement orders.")}</span>
               </div>
@@ -16550,20 +16408,20 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               </div>
               <div class="bl-divider"></div>
               <div id="blControls">
-                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb_currency",`
-                  Minimum auto top-up values are ${v0}.
+                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb",`
+                  Minimum auto top-up values are $${v0}.
                 `,{v0}) ?? `
-                  Minimum auto top-up values are ${v0}.
-                `)(window.PlatformCommerce.credit(BILL_MIN))}</div>
+                  Minimum auto top-up values are $${v0}.
+                `)(BILL_MIN)}</div>
                 <div class="bl-row">
                   <div class="bl-left">
                     <span class="bl-pill"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</span>
-                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08_currency",`Minimum ${v1}`,{v1}) ?? `Minimum ${v1}`)(window.PlatformCommerce.credit(BILL_MIN))}</span>
+                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08",`Minimum $${v1}`,{v1}) ?? `Minimum $${v1}`)(BILL_MIN)}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blThMinus" type="button"><i class="fas fa-minus"></i></button>
                     <div class="bl-moneyWrap">
-                      <span class="usd">${window.PlatformCommerce.current().credit_display==='credits'?'credits':window.PlatformCommerce.current().currency}</span>
+                      <span class="usd">$</span>
                       <input class="cs-in bl-money" id="blThreshold" inputmode="numeric" placeholder="${String(BILL_MIN)}">
                     </div>
                     <button class="bl-stepBtn" id="blThPlus" type="button"><i class="fas fa-plus"></i></button>
@@ -16572,12 +16430,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
                 <div class="bl-row">
                   <div class="bl-left">
                     <span class="bl-pill"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</span>
-                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8_currency",`Minimum ${v3}`,{v3}) ?? `Minimum ${v3}` )(window.PlatformCommerce.credit(BILL_MIN))}</span>
+                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8",`Minimum $${v3}`,{v3}) ?? `Minimum $${v3}`)(BILL_MIN)}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blAmtMinus" type="button"><i class="fas fa-minus"></i></button>
                     <div class="bl-moneyWrap">
-                      <span class="usd">${window.PlatformCommerce.current().credit_display==='credits'?'credits':window.PlatformCommerce.current().currency}</span>
+                      <span class="usd">$</span>
                       <input class="cs-in bl-money" id="blTopup" inputmode="numeric" placeholder="${String(BILL_MIN)}">
                     </div>
                     <button class="bl-stepBtn" id="blAmtPlus" type="button"><i class="fas fa-plus"></i></button>
@@ -16724,7 +16582,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     function updateCreditFitSummary(){
       const target=paneBilling?.querySelector('[data-credit-topup-summary]');if(!target)return;
       const saved=renderBilling._base;
-      target.textContent=saved?.enabled ? `Auto top-up: ${window.PlatformCommerce.credit(saved.amt)} below ${window.PlatformCommerce.credit(saved.th)}` : 'Credit auto top-up: Off';
+      target.textContent=saved?.enabled ? `Auto top-up: $${saved.amt} below $${saved.th}` : 'Credit auto top-up: Off';
     }
     // **** Floating menu element (users) ----
     floatingMenu = document.createElement('div');
@@ -16784,46 +16642,15 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         setImgSmart(img, key, { forceBust: force, bustKey: Date.now() });
       });
     }
-    function paletteTextColor(hex){
-      const value = clampHex(hex, '#000000').slice(1);
-      const r = parseInt(value.slice(0,2),16), g = parseInt(value.slice(2,4),16), b = parseInt(value.slice(4,6),16);
-      return ((r*299 + g*587 + b*114) / 1000) > 160 ? '#172033' : '#FFFFFF';
-    }
     function renderBrandPalette(){
       if (!paneCompany) return;
       state.palette = normalizeBrandPalette(state.palette, state.primary, state.secondary);
-      const strip = $('#csPaletteStrip', paneCompany);
-      if (strip) strip.innerHTML = state.palette.map((color,index)=>`
-        <label class="brand-palette-swatch ${String(index < 2 ? 'blessed' : '')}" style="--swatch:${String(escapeHtml(color))};--swatch-text:${String(paletteTextColor(color))}" title="${String(index === 0 ? 'Primary' : index === 1 ? 'Secondary' : `Support ${index-1}`)}: ${String(escapeHtml(color))}">
-          <input type="color" data-palette-direct="${String(index)}" value="${String(escapeHtml(color))}" aria-label="${((v7) => globalThis.PlatformLanguage?.text("settings","m_953e4a6603f5f1",`Edit ${v7} color`,{v7}) ?? `Edit ${v7} color`)(index === 0 ? 'primary' : index === 1 ? 'secondary' : `support ${index-1}`)}">
-          <span>${String(escapeHtml(color))}</span>
-        </label>
-      `).join('');
+      window.PlatformBrandKit.renderPalette(paneCompany, 'cs', state.palette);
     }
     function renderLogoAppearance(){
       if (!paneCompany) return;
       state.logo_display = normalizeLogoDisplay(state.logo_display);
-      const display = state.logo_display;
-      const stage = $('#csLogoStage', paneCompany);
-      const background = $('#csLogoBackground', paneCompany);
-      const backgroundHex = $('#csLogoBackgroundHex', paneCompany);
-      const corners = $('#csLogoCorners', paneCompany);
-      if (stage) {
-        stage.style.setProperty('--logo-bg', display.background_color);
-        stage.style.setProperty('--logo-radius', display.rounded_corners ? '14px' : '0px');
-        stage.classList.toggle('circle', display.shape === 'circle');
-      }
-      if (background) background.value = display.background_color;
-      if (backgroundHex) backgroundHex.value = display.background_color;
-      paneCompany.querySelectorAll('input[name="csLogoShape"]').forEach((input)=>{
-        input.checked = input.value === display.shape;
-      });
-      if (corners) {
-        corners.disabled = display.shape === 'circle';
-        corners.classList.toggle('active', display.rounded_corners && display.shape !== 'circle');
-        corners.setAttribute('aria-pressed', String(display.rounded_corners));
-        corners.innerHTML = `<i class="fas fa-border-all"></i> ${display.rounded_corners ? 'Rounded corners' : 'Square corners'}`;
-      }
+      window.PlatformBrandKit.renderLogoAppearance(paneCompany, 'cs', state.logo_display);
     }
     function persistTheme(){
       const theme = {
@@ -16847,6 +16674,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const csName = $('#csName', paneCompany);
       const csPrimary = $('#csPrimary', paneCompany);
       const csSecondary = $('#csSecondary', paneCompany);
+      const csBrandFont = $('#csBrandFont', paneCompany);
       const csPrimaryHex = $('#csPrimaryHex', paneCompany);
       const csSecondaryHex = $('#csSecondaryHex', paneCompany);
       const csCompanyEmail = $('#csCompanyEmail', paneCompany);
@@ -16866,11 +16694,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const csAlternateLogoList = $('#csAlternateLogoList', paneCompany);
       if (writeInputs){
         const units = $('#csMeasurementSystem', paneCompany), language = $('#csReportLanguage', paneCompany);
-        if (units) units.value = state.report_preferences?.measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
-        if (language) language.value = state.report_preferences?.report_language || 'en-US';
+        if (units) units.value = state.report_preferences?.measurement_system || window.PlatformLanguage?.companyContext?.().measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
+        if (language) language.value = state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale || 'en-US';
         if(csName) csName.value = state.name;
         if(csPrimary) csPrimary.value = clampHex(state.primary, DEFAULT_PRIMARY);
         if(csSecondary) csSecondary.value = clampHex(state.secondary, DEFAULT_SECONDARY);
+        if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
         if(csPrimaryHex) csPrimaryHex.value = clampHex(csPrimary.value, DEFAULT_PRIMARY).slice(1);
         if(csSecondaryHex) csSecondaryHex.value = clampHex(csSecondary.value, DEFAULT_SECONDARY).slice(1);
         if (csCompanyEmail) csCompanyEmail.value = state.company_email || '';
@@ -16957,7 +16786,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const wrap = $('#rpToggles', paneReports);
       if (wrap) {
         wrap.className = 'rp-sections';
-      const csBrandFont = $('#csBrandFont', paneCompany);
         wrap.innerHTML = sections.map(section => `
           <section class="rp-section">
             <div class="rp-sectionHead">
@@ -16982,7 +16810,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             btn.classList.toggle('on', next);
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');
-        if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
             const st = btn.querySelector('.rp-state');
             if (st) st.textContent = next ? 'On' : 'Off';
           });
@@ -17135,9 +16962,9 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     }
     function msLedgerAmountText(row){
       const delta = msMoney(row?.delta);
-      if (delta > 0) return `+${window.PlatformCommerce.credit(delta)}`;
-      if (delta < 0) return `-${window.PlatformCommerce.credit(Math.abs(delta))}`;
-      return window.PlatformCommerce.credit(0);
+      if (delta > 0) return `+$${msMoneyText(delta)}`;
+      if (delta < 0) return `-$${msMoneyText(Math.abs(delta))}`;
+      return '$0';
     }
     function msCsvCell(value){
       return `"${String(value ?? '').replace(/"/g, '""')}"`;
@@ -17204,15 +17031,15 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
-            <div class="ms-statVal">+${String(window.PlatformCommerce.credit(totalIn))}</div>
+            <div class="ms-statVal">+$${String(msMoneyText(totalIn))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_84a960ac02e33a","Orders / Debits") ?? "Orders / Debits")}</div>
-            <div class="ms-statVal">${String(window.PlatformCommerce.credit(totalOut))}</div>
+            <div class="ms-statVal">$${String(msMoneyText(totalOut))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_705ca6f25ef6d8","Net Change") ?? "Net Change")}</div>
-            <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</div>
+            <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}$${String(msMoneyText(Math.abs(net)))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_320155f7cd8ad0","Order Count") ?? "Order Count")}</div>
@@ -17251,12 +17078,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       } else {
         const rows = orders.map((o, idx) => {
           const stCls = msStatusClass(o.status);
-          const costTxt = o.rejected ? `<span style="opacity:.45;">${window.PlatformCommerce.credit(0)}</span>` : `${window.PlatformCommerce.credit(o.cost || 0)}`;
+          const costTxt = o.rejected ? '<span style="opacity:.45;">$0</span>' : `$${o.cost || 0}`;
 
           // Reimbursement cell: show amount for rejected orders, dash for others
           const reimb = o.rejected ? (parseFloat(o.reimbursed_amount ?? o.cost ?? 0) || 0) : 0;
           const reimbTxt = o.rejected
-            ? `<span style="color:#1e7e34; font-weight:1000;">+${window.PlatformCommerce.credit(reimb)}</span>`
+            ? `<span style="color:#1e7e34; font-weight:1000;">+$${reimb}</span>`
             : '<span style="opacity:.3;">-</span>';
 
           // Optional rejection reason sub-line under address
@@ -17304,7 +17131,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
 
       // Footer: show total + reimbursement summary
       const reimbFooter = totalReimbursed > 0
-        ? ` &nbsp;&middot;&nbsp; Reimbursed: <b style="color:#1e7e34;">+${window.PlatformCommerce.credit(totalReimbursed)}</b>`
+        ? ` &nbsp;&middot;&nbsp; Reimbursed: <b style="color:#1e7e34;">+$${totalReimbursed}</b>`
         : '';
 
       back.innerHTML = `
@@ -17315,7 +17142,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32_currency",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>$${String(total)}</b>${String(reimbFooter)}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -17434,7 +17261,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e_currency",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}$${String(msMoneyText(Math.abs(net)))}</b></div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -17590,7 +17417,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         return (v.enabled !== !!b.enabled) || (v.th !== b.th) || (v.amt !== b.amt);
       }
       function setMinimumMessage(text, isWarning){
-        const nextText = text || `Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`;
+        const nextText = text || `Minimum auto top-up values are $${BILL_MIN}.`;
         if (blMinimumNote) blMinimumNote.textContent = nextText;
         if (blStatus) blStatus.textContent = text || '';
         if (blStatus) blStatus.style.color = isWarning ? '#b26a00' : '';
@@ -17611,8 +17438,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           return;
         }
         elSummary.style.display = '';
-        elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58_currency",`If your balance falls below ${v0}, we will automatically add ${v1} to your account.`,{v0,v1}) ?? `If your balance falls below ${v0}, we will automatically add ${v1} to your account.`)(window.PlatformCommerce.credit(thNow),window.PlatformCommerce.credit(amtNow));
-        elSummary.textContent += ` Each top-up charges ${window.PlatformCommerce.cash(amtNow)}. ${window.PlatformCommerce.estimate(amtNow)}`;
+        elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58",`If your balance falls below $${v0}, we will automatically add $${v1} to your account.`,{v0,v1}) ?? `If your balance falls below $${v0}, we will automatically add $${v1} to your account.`)(thNow,amtNow);
       }
       // Payment method row behavior
       const cardNote = $('#blCardNote', paneBilling);
@@ -17743,7 +17569,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           const v = Math.max(BILL_MIN, n || BILL_MIN);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`, true);
+          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are $${BILL_MIN}.`, true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -17755,7 +17581,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           inputEl.value = String(v);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the ${window.PlatformCommerce.credit(BILL_MIN)} minimum.`, true);
+          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the $${BILL_MIN} minimum.`, true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -17951,7 +17777,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             ts: ev.ts_utc,
             title: (globalThis.PlatformLanguage?.text("settings","m_65a3284ee46864","Auto top-up completed") ?? "Auto top-up completed"),
             sub: by ? `Triggered by ${by}` : 'Payment processed',
-            amountTxt: (topup > 0 ? `+${window.PlatformCommerce.credit(topup)}` : '')
+            amountTxt: (topup > 0 ? `+$${msMoneyText(topup)}` : '')
           };
         }
         return null;
@@ -17988,7 +17814,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         } else if (isPayment){
           title = 'Payment received';
           const cents = nInt(row?.amount_total);
-          if (cents != null && cents > 0) sub = `Charged ${window.PlatformCommerce.credit(cents / 100)}`;
+          if (cents != null && cents > 0) sub = `Charged $${msMoneyText(cents / 100)}`;
           const sid = row?.session_id ? String(row.session_id) : '';
           if (sid) sub = sub ? `${sub} - Ref ${sid.slice(-8)}` : `Ref ${sid.slice(-8)}`;
           const by = row?.by_email ? String(row.by_email) : '';
@@ -18181,6 +18007,44 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         postal_code: csCompanyPostalCode?.value,
         country: csCompanyCountry?.value || 'US'
       });
+      const brandRoot = paneCompany.querySelector('[data-brandkit-root="cs"]');
+      let brandSaveTimer = 0;
+      let brandSaveQueue = Promise.resolve();
+      const scheduleBrandSave = () => {
+        clearTimeout(brandSaveTimer);
+        csStatus.textContent = 'Saving Brand Kit…';
+        brandSaveTimer = window.setTimeout(() => {
+          const snapshot = {
+            name:state.name, primary:state.primary, secondary:state.secondary,
+            palette:[...state.palette], font_family:state.font_family || 'Montserrat',
+            logo_display:{ ...state.logo_display },
+            company_email:state.company_email, company_phone:state.company_phone,
+            company_address:state.company_address, company_business_address:state.company_business_address,
+            report_preferences:state.report_preferences
+          };
+          brandSaveQueue = brandSaveQueue.catch(() => {}).then(() => saveOrg(snapshot)).then((result) => {
+            if (!result.ok) throw new Error(result.error || 'Could not save Brand Kit.');
+            csStatus.textContent = 'Brand Kit saved';
+          }, (error) => {
+            csStatus.textContent = error?.message || 'Could not save Brand Kit.';
+            showToast('Brand Kit save failed', csStatus.textContent, false);
+          });
+        }, 400);
+      };
+      brandRoot?.addEventListener('input', (event) => {
+        const id = event.target?.id || '';
+        if (id === 'csBrandFont') state.font_family = event.target.value;
+        if (['csPrimaryHex','csSecondaryHex'].includes(id) && event.target.value.length !== 6) return;
+        if (id === 'csLogoBackgroundHex' && event.target.value.length !== 7) return;
+        if (['csPrimary','csSecondary','csPrimaryHex','csSecondaryHex','csLogoBackground','csLogoBackgroundHex'].includes(id)) scheduleBrandSave();
+      });
+      brandRoot?.addEventListener('change', (event) => {
+        if (event.target?.id === 'csBrandFont') { state.font_family = event.target.value; scheduleBrandSave(); }
+        if (event.target?.matches?.('[data-palette-direct], input[name="csLogoShape"]')) scheduleBrandSave();
+      });
+      brandRoot?.addEventListener('click', (event) => {
+        if (event.target?.closest?.('#csLogoCorners')) scheduleBrandSave();
+      });
       if(csSampleDiagram) setImgSmart(csSampleDiagram, SAMPLE_DIAGRAM, { forceBust:false });
       function wireHexChip(chip, input){
         if (!chip || !input) return;
@@ -18311,7 +18175,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           const fallbacks = defaultBrandPalette(state.primary, state.secondary).slice(2);
           state.palette = [state.primary, state.secondary, ...fallbacks.map((fallback,index)=>supporting[index] || fallback)];
           renderBrandPalette();
-          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), (globalThis.PlatformLanguage?.text("settings","m_bd51b5d44573bf","Four supporting colors were pulled from your logo. Save when ready.") ?? "Four supporting colors were pulled from your logo. Save when ready."), true);
+          scheduleBrandSave();
+          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), 'Four supporting colors were pulled from your logo and saved.', true);
         } catch(e) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || 'The logo colors could not be read.', false);
         } finally {
@@ -18319,34 +18184,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           csGeneratePalette.innerHTML = defaultHtml;
         }
       });
-      const alternateLogoItem = (item, index)=>{
-        if (window.PlatformAPI?.brandingMedia?.imageRef) {
-          return window.PlatformAPI.brandingMedia.imageRef(currentOrgId(), item, {
-            label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}`
-          });
-        }
-        return {
-          id:item?.id || item?.media_id || '',
-          src:item?.src || item?.url || '',
-          thumb:item?.thumb || item?.src || item?.url || '',
-          label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}`
-        };
-      };
-      const isAlternateLogo = (item)=>{
-        const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-        const owner = item?.owner && typeof item.owner === 'object' ? item.owner : {};
-        const purpose = String(metadata.purpose || metadata.branding_purpose || '').trim().toLowerCase();
-        const slot = String(owner.slot || item?.slot || '').trim().toLowerCase();
-        return purpose === 'alternate_logo' || slot === 'alternate_logo';
-      };
       const renderAlternateLogos = (items=[])=>{
-        if (!csAlternateLogoList) return;
-        const logos = items.filter(isAlternateLogo).map(alternateLogoItem);
-        csAlternateLogoList.innerHTML = logos.length ? logos.map((logo)=>`
-          <div class="alternate-logo-item" title="${escapeHtml(logo.label || 'Alternate logo')}">
-            <img src="${escapeHtml(portalAssetUrl(logo.thumb || logo.src))}" alt="${escapeHtml(logo.label || 'Alternate logo')}">
-          </div>
-        `).join('') : `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.text("settings","m_036dda0aa72306","No alternate logos yet.") ?? "No alternate logos yet.")}</span>`;
+        window.PlatformBrandKit.renderAlternates(paneCompany, 'cs', items);
       };
       const loadAlternateLogos = async ()=>{
         if (!csAlternateLogoList || !window.PlatformAPI?.brandingMedia?.list || !currentOrgId()) return;
@@ -18408,6 +18247,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         const toSaveName = String(csName.value || '').trim();
         state.primary = csPrimary.value;
         state.secondary = csSecondary.value;
+        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
         state.company_email = String(csCompanyEmail?.value || '').trim();
         state.company_phone = String(csCompanyPhone?.value || '').trim();
         state.company_business_address = readBusinessAddressInputs();
@@ -18418,6 +18258,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           name: toSaveName,
           primary: state.primary,
           secondary: state.secondary,
+          font_family: state.font_family,
           ...(extendedPalette ? { palette: state.palette } : {}),
           ...(advancedLogos ? { logo_display: state.logo_display } : {}),
           company_email: state.company_email,
@@ -18519,7 +18360,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         const permissionCount = Object.values(rolePermissions).filter((allowed) => allowed === true).length;
         return `<details class="cu-role-card" ${String(draft ? 'open data-access-role-draft' : `data-access-role-id="${escapeHtml(roleId)}"`)} data-application="${String(escapeHtml(applicationMode))}">
           <summary>
-        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
             <span class="cu-role-icon"><i class="fas ${String(applicationMode === 'hybrid' ? 'fa-layer-group' : applicationMode === 'field' ? 'fa-mobile-screen-button' : 'fa-desktop')}"></i></span>
             <span class="cu-role-summary"><b>${String(escapeHtml(workforceText(role.name, draft ? 'New role' : roleId)))}</b><span>${String(escapeHtml(draft ? 'Configure a reusable role' : `${applicationLabel} / ${systemRole ? 'System role' : roleId}`))}</span></span>
             <span class="cu-role-counts"><span>${((v5) => globalThis.PlatformLanguage?.text("settings","m_fc34c12e76b6c1",`${v5} views`,{v5}) ?? `${v5} views`)(appCount)}</span><span>${String(rolePermissions['*'] === true ? 'All permissions' : `${permissionCount} permissions`)}</span>${String(!draft ? `<span>rev ${escapeHtml(String(role.revision || 0))}</span>` : '')}</span>
@@ -18530,7 +18370,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               <div class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_b08bf56c8979ef","Application families") ?? "Application families")}</span><div class="cu-choice-list">
                 ${String(['management', 'field'].map((application) => `<label class="cu-workforce-choice"><input type="checkbox" data-role-application-id="${application}" ${applications.includes(application) ? 'checked' : ''} ${systemRole ? 'disabled title="System role application families cannot be changed."' : ''}> ${escapeHtml(workforceApplicationLabel(application))}</label>`).join(''))}
               </div></div>
-          font_family: state.font_family,
               <label class="cu-row wide"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea class="cs-in" data-role-description placeholder="${(globalThis.PlatformLanguage?.text("settings","m_2cf91f4abee660","Who should receive this role and what it enables") ?? "Who should receive this role and what it enables")}">${String(escapeHtml(role.description || ''))}</textarea></label>
             </div>
             <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_64fb5b5e093e03","Default app experience") ?? "Default app experience")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_3e099da1ba6813","These views appear by default. Individual users can still inherit, show, or hide each one.") ?? "These views appear by default. Individual users can still inherit, show, or hide each one.")}</div></div>

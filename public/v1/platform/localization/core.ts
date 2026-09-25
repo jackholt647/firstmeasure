@@ -1,6 +1,7 @@
 import { IntlMessageFormat } from "intl-messageformat";
 
-export const SUPPORTED_LOCALES = ["en-US", "en-GB"] as const;
+import { SUPPORTED_LOCALES } from "./languages.js";
+export { SUPPORTED_LOCALES } from "./languages.js";
 export type Locale = typeof SUPPORTED_LOCALES[number];
 export type LanguageContext = {
   locale: Locale; measurement_system: "imperial" | "metric";

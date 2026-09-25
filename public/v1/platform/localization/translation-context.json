@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "glossary": {
+    "FirstMate": "Product/platform brand; do not translate.",
+    "FirstMeasure": "Property measurement/report service brand; do not translate.",
+    "organization/company": "The customer business account, not an individual user.",
+    "report": "A property measurement deliverable, usually roof or exterior measurements; other namespaces may use report for analytics.",
+    "roof pitch": "The slope or steepness of a roof, not a sales pitch.",
+    "credit": "In FirstMeasure billing, prepaid account value spent on reports, not lending or academic credit.",
+    "order": "In report checkout, a purchased report request. In sorting controls it can mean sequence; use per-message context.",
+    "lead": "In sales/canvassing, a prospective customer.",
+    "scope": "In construction documents, the description of work to perform.",
+    "branch": "An organizational subdivision or office, unless a technical context explicitly says otherwise.",
+    "channel": "A group messaging conversation in communications features.",
+    "issued document": "A finalized document whose language and measurements are frozen at issue time."
+  },
+  "namespaces": {
+    "billing": "FirstMeasure prepaid report-credit purchase, balance and checkout.",
+    "measurements": "Property roof/exterior measurement reports and ordering.",
+    "reports": "Labels and spelling terms in FirstMeasure property measurement output.",
+    "settings": "Personal preferences and company administration. Distinguish employee settings from organization defaults.",
+    "channels-ui": "Inline team messaging and message translation controls.",
+    "documents": "Business document authoring, templates, issuing and viewing.",
+    "canvassing": "Map-based door-to-door prospecting and property/contact tracking.",
+    "errors": "User-visible API failures; preserve the meaning and do not translate error-code keys.",
+    "terminology": "Default names of business entities/features. Keys identify their application/domain.",
+    "notifications": "Company document delivery email text. Preserve recipient names, document types and URLs passed as placeholders."
+  },
+  "messages": {
+    "settings/company_language_inherit": {
+      "source_hash": "0c37f0b01259ba70da0543ad954d5e00dc9afe1bd3ab9e9262c0d9d4a12d1a5c",
+      "meaning": "Dropdown choice that follows the current company language instead of fixing a personal override.",
+      "placeholders": {
+        "name": "Display name of the current company language, for example English (UK)."
+      },
+      "constraints": [
+        "Keep concise for a dropdown."
+      ]
+    },
+    "settings/company_language_label": {
+      "source_hash": "c0ba7f0ef33368b2e9917a1404f64e7917ed530f51382e16297e1f3144638879",
+      "meaning": "Field label for the company default output language, independent of personal interface language."
+    },
+    "settings/company_language_heading": {
+      "source_hash": "13aeae48dad930e5dbaa5cd20e4e009f17590ae525768617968a1825ecabc19f",
+      "meaning": "Company settings card heading for default document/report language and measurement units."
+    },
+    "notifications/document_greeting": {
+      "source_hash": "f3e727d3ef43f67b9a8624e005aafa3e59e8908b92afa6ac678fc253b93b2101",
+      "meaning": "Greeting in a document delivery email.",
+      "placeholders": {
+        "name": "Recipient display name; preserve the supplied value."
+      }
+    },
+    "notifications/document_ready": {
+      "source_hash": "e19dbacebebe85cf361fcb19ae76a7cb4bb4c20fbd8332e40f2c13b3e362a58d",
+      "meaning": "Document delivery email announcing an issued document is ready for review.",
+      "placeholders": {
+        "type": "Document type supplied at runtime, such as proposal or invoice; avoid assuming its grammatical gender."
+      }
+    },
+    "notifications/document_link": {
+      "source_hash": "51f806068f69b3b1bf2c12f35d186faae6f3b8a4f54c2bad809747ebb7b6f0be",
+      "meaning": "Document delivery email call to action followed by the document URL.",
+      "placeholders": {
+        "url": "Document review URL; preserve exactly."
+      }
+    }
+  }
+}

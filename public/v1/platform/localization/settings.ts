@@ -2,9 +2,10 @@ import { organizationProfile } from "../../commerce/profile.js";
 import { z } from "zod";
 import { readDocument } from "../storage.js";
 import { isAppFlagEnabled } from "../app_flags.js";
+import { SUPPORTED_LOCALES } from "./languages.js";
 import { resolveContext } from "./core.js";
 
-export const localeSchema = z.enum(["en-US", "en-GB"]);
+export const localeSchema = z.enum(SUPPORTED_LOCALES);
 export const localizationSchema = z.object({
   locale: localeSchema.optional(),
   measurement_system: z.enum(["imperial", "metric"]).optional(),
