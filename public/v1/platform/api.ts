@@ -1,3 +1,5 @@
+import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
+import { messageTranslationPreferences } from "./localization/message-preferences.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
@@ -181,7 +183,7 @@ import { resolveContext } from "./localization/core.js";
 const objectBodySchema = z.object({}).passthrough();
 const userPreferencesSchema = z.object({
   interface_locale: localeSchema.nullable().optional(),
-  language: z.enum(["en", "es", "fr", "de", "pt", "it", "nl", "pl", "ru", "uk", "ar", "hi", "bn", "ur", "zh", "ja", "ko", "vi", "th", "id", "tl", "tr", "he"]).optional(),
+  language: z.union([z.enum(TRANSLATION_CODES), z.literal("en")]).nullable().optional(),
   auto_translate_messages: z.boolean().optional(),
   sidebar_width: z.number().int().min(220).max(420).optional()
 }).strict();
@@ -936,7 +938,7 @@ app.get("/auth/google/config", async () => ({
       ok: true,
       preferences: {
         interface_locale: preferences.interface_locale ?? null,
-        language: cleanText(preferences.language || "en").toLowerCase(),
+        ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)),
         auto_translate_messages: preferences.auto_translate_messages === true,
         sidebar_width: Number.isInteger(preferences.sidebar_width) ? preferences.sidebar_width : 250
       }
@@ -951,12 +953,12 @@ app.get("/auth/google/config", async () => ({
     const preferences = {
       ...current,
       interface_locale: patch.interface_locale !== undefined ? patch.interface_locale : current.interface_locale ?? null,
-      language: cleanText(patch.language ?? current.language ?? "en").toLowerCase(),
+      language: patch.language === undefined ? current.language ?? null : patch.language === null ? null : normalizeTranslationLanguage(patch.language),
       auto_translate_messages: patch.auto_translate_messages ?? current.auto_translate_messages === true,
       sidebar_width: patch.sidebar_width ?? (Number.isInteger(current.sidebar_width) ? current.sidebar_width : 250)
     };
     await patchIdentity(ctx.identityId, { preferences });
-    return { ok: true, preferences };
+    return { ok: true, preferences: { ...preferences, ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)) } };
   });
 
   app.post("/auth/register", async (request, reply) => {

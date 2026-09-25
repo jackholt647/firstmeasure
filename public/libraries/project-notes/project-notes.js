@@ -615,7 +615,7 @@
     const expanded = new Set();
     const projectOf = () => (typeof getProject === 'function' ? getProject() : getProject);
     const noteForCard = (project, noteId) => timeline(project).find((note) => note.id === noteId);
-    const languageName = (code) => ({ en:'English', es:'Spanish', fr:'French', de:'German', pt:'Portuguese', it:'Italian', nl:'Dutch', pl:'Polish', ru:'Russian', uk:'Ukrainian', ar:'Arabic', hi:'Hindi', bn:'Bengali', ur:'Urdu', zh:'Chinese', ja:'Japanese', ko:'Korean', vi:'Vietnamese', th:'Thai', id:'Indonesian', tl:'Filipino', tr:'Turkish', he:'Hebrew' })[code] || code || 'another language';
+    const languageName = (code) => ({ en:'English', 'en-US':'English (US)', 'en-GB':'English (UK)', es:'Spanish', fr:'French', de:'German', pt:'Portuguese', it:'Italian', nl:'Dutch', pl:'Polish', ru:'Russian', uk:'Ukrainian', ar:'Arabic', hi:'Hindi', bn:'Bengali', ur:'Urdu', zh:'Chinese', ja:'Japanese', ko:'Korean', vi:'Vietnamese', th:'Thai', id:'Indonesian', tl:'Filipino', tr:'Turkish', he:'Hebrew' })[code] || code || 'another language';
     const noteTextElement = (card) => card.querySelector('[data-project-note-text],p:not(.pn-removed-copy),.r-note-text,.dialer-note-text,.mt-note-text');
     const paintTranslation = (card, note) => {
       if (!card || !note?.translation?.available || note.deleted_at) return;

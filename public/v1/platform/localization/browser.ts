@@ -1,3 +1,5 @@
+import { LANGUAGE_PACKS, TRANSLATION_LANGUAGES } from "./languages.js";
+import { createDeveloperTester } from "./developer-tester.js";
 import { createLanguage, resolveContext, SUPPORTED_LOCALES, type CatalogBundle, type LanguageContext } from "./core.js";
 
 const root = window as any;
@@ -11,6 +13,9 @@ let company: Record<string, unknown> = {};
 let personal: Record<string, unknown> = {};
 let enabled = false;
 let index: Promise<any> | undefined;
+const tester = createDeveloperTester({ context: () => engine.context(), ensureAll: async () => { const metadata = await manifest(); await ensure(Object.keys(metadata.namespaces)); } });
+function register(bundle: CatalogBundle) { engine.register(bundle); tester.register(bundle); }
+function text(namespace: string, key: string, fallback = key, values: any = {}) { return tester.text(namespace, key, fallback, values, () => engine.text(namespace, key, fallback, values)); }
 function manifest() {
   return index ??= fetch(`${base}manifest.json`, { cache: "no-cache" }).then(r => { if (!r.ok) throw Error("Language catalog unavailable"); return r.json(); }).catch(error => { index = undefined; throw error; });
 }
@@ -21,10 +26,11 @@ async function ensure(namespaces: string[] = []) {
     if (!metadata.namespaces[namespace]) return; // Empty apps share the platform catalog.
     if (!loaded.has(namespace)) loaded.set(namespace, fetch(`${base}${metadata.namespaces[namespace]}`).then(async r => {
       if (!r.ok) throw Error(`Language catalog unavailable: ${namespace}`);
-      engine.register(await r.json() as CatalogBundle);
+      register(await r.json() as CatalogBundle);
     }).catch(error => { loaded.delete(namespace); throw error; }));
     return loaded.get(namespace);
   }));
+  tester.repaint();
 }
 function configure(next: { company?: Record<string, unknown>; personal?: Record<string, unknown>; context?: LanguageContext }) {
   if (next.company) company = { ...next.company };
@@ -32,8 +38,9 @@ function configure(next: { company?: Record<string, unknown>; personal?: Record<
   const context = next.context || resolveContext(company, enabled ? personal : {});
   engine.configure(context);
   document.documentElement.lang = context.locale;
-  document.documentElement.dir = "ltr"; // All currently released locales are LTR.
+  document.documentElement.dir = LANGUAGE_PACKS.find(pack => pack.code === context.locale)?.direction || "ltr";
   root.dispatchEvent(new CustomEvent("fm:language:updated", { detail: { context } }));
+  tester.repaint();
   return context;
 }
 async function refresh() {
@@ -47,9 +54,9 @@ async function refresh() {
   return engine.context();
 }
 root.PlatformLanguage = {
-  ...engine, configure, refresh, ensure, enabled: () => enabled, supportedLocales: SUPPORTED_LOCALES,
-  forApp(namespace: string) { return { ...engine, text: (key: string, fallback: string, values?: any) => engine.text(namespace, key, fallback, values) }; }
+  ...engine, text, register, configure, refresh, ensure, tester: tester.api, enabled: () => enabled, supportedLocales: SUPPORTED_LOCALES, supportedLanguages: LANGUAGE_PACKS, translationLanguages: TRANSLATION_LANGUAGES, companyContext: () => ({ ...company }),
+  forApp(namespace: string) { return { ...engine, text: (key: string, fallback: string, values?: any) => text(namespace, key, fallback, values) }; }
 };
 // Source-owned UI strings only. User values never pass through a page-wide replacement.
-root.FMText = (namespace: string, key: string, fallback: string, values?: any) => engine.text(namespace, key, fallback, values);
+root.FMText = (namespace: string, key: string, fallback: string, values?: any) => text(namespace, key, fallback, values);
 root.addEventListener("fm:user-preferences:updated", (event: any) => configure({ personal: event.detail?.preferences || {} }));

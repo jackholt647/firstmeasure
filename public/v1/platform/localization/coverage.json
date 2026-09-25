@@ -1,7 +1,7 @@
 {
-  "files": 153,
-  "namespaces": 89,
-  "messages": 8574,
+  "files": 158,
+  "namespaces": 90,
+  "messages": 8988,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -158,6 +158,20 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/apps/documents/module-editor.js",
+      "namespace": "documents",
+      "references": 0,
+      "candidates": 52,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/apps/documents/program-panel.js",
+      "namespace": "documents",
+      "references": 0,
+      "candidates": 76,
+      "edits": 16
+    },
+    {
       "file": "public/libraries/apps/documents/project.js",
       "namespace": "documents",
       "references": 221,
@@ -209,7 +223,7 @@
     {
       "file": "public/libraries/apps/firstmeasure/order/exteriors.js",
       "namespace": "firstmeasure",
-      "references": 26,
+      "references": 23,
       "candidates": 0,
       "edits": 0
     },
@@ -238,8 +252,8 @@
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
       "references": 119,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 35,
+      "edits": 27
     },
     {
       "file": "public/libraries/apps/money/project.js",
@@ -301,8 +315,8 @@
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
       "references": 171,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 15,
+      "edits": 15
     },
     {
       "file": "public/libraries/apps/project-schedule/panel.js",
@@ -391,7 +405,7 @@
     {
       "file": "public/libraries/apps/settings/company.js",
       "namespace": "settings",
-      "references": 1725,
+      "references": 1708,
       "candidates": 0,
       "edits": 0
     },
@@ -457,6 +471,13 @@
       "references": 73,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/platform-billing.js",
+      "namespace": "settings",
+      "references": 0,
+      "candidates": 90,
+      "edits": 26
     },
     {
       "file": "public/libraries/apps/settings/scope-artifacts.js",
@@ -860,7 +881,7 @@
     {
       "file": "public/libraries/platform-assistant/platform-assistant.js",
       "namespace": "platform-assistant",
-      "references": 11,
+      "references": 4,
       "candidates": 0,
       "edits": 0
     },
@@ -879,7 +900,21 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/platform-commerce/platform-commerce.js",
+      "namespace": "platform-commerce",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/platform-notifications/platform-notifications.js",
+      "namespace": "platform-notifications",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-notifications/platform-push.js",
       "namespace": "platform-notifications",
       "references": 0,
       "candidates": 0,
