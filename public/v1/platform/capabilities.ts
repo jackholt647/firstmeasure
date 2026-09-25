@@ -146,7 +146,7 @@ export type CapabilityPreset = {
 
 const firstMeasureCapabilities = new Set([
   "mobile.app_download", "mobile.developer_downloads",
-  "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.billing", "apps.referrals",
+  "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.notifications", "apps.billing", "apps.referrals",
   "platform.left_column_apps", "platform.separate_user_section", "platform.cobrand_sidebar_logo",
   "platform.left_column_expansion_mode", "platform.always_collapsible_left_column",
   "platform.new_button_mode", "platform.new_button_items", "platform.left_column_default_mode",

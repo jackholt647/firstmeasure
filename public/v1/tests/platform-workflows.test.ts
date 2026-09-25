@@ -21,6 +21,7 @@ before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-platform-test-"));
   process.env.NODE_ENV = "test";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");
   process.env.FIRSTMEASURE_STORAGE_ROOT = path.join(storageRoot, "firstmeasure");
@@ -1179,6 +1180,11 @@ test("Deposit payment fires the roof scope's celebration binding", async () => {
 test("Notifications target roles and preserve per-user state", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
+  const device = await client.request("POST", `/v1/platform/organizations/${orgId}/notification-devices`, {
+    platform: "android", token: "test_fcm_registration_token_1234567890", branch_id: "default"
+  });
+  assert.equal(device.device.platform, "android");
+  assert.equal((await client.raw("GET", `/v1/platform/organizations/${orgId}/notification_devices`)).statusCode, 400);
   await client.request("POST", `/v1/platform/organizations/${orgId}/notifications`, {
     id: "notification_role_test",
     title: "Role notification",
@@ -1192,6 +1198,7 @@ test("Notifications target roles and preserve per-user state", async () => {
   assert.equal(visible.notifications.length, 1);
   assert.equal(visible.unread_count, 1);
   assert.equal(visible.notifications[0].push_log.length, 1);
+  assert.equal(visible.notifications[0].category, "system");
 
   await client.request("PATCH", `/v1/platform/organizations/${orgId}/notifications/notification_role_test/user-state`, { seen: true });
   const seen = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
@@ -1209,11 +1216,28 @@ test("Notifications target roles and preserve per-user state", async () => {
   const restored = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
   assert.equal(restored.notifications.length, 1);
   assert.equal(restored.notifications[0].user_state.dismissed_at, undefined);
+
+  const preferences = await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app: { system: false }, push: { system: false } });
+  assert.equal(preferences.preferences.in_app.system, false);
+  assert.equal((await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`)).notifications.length, 0);
+  assert.equal((await client.request("GET", `/v1/platform/organizations/${orgId}/notifications/notification_role_test`)).notification.data.id, "notification_role_test");
+  await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app: { system: true } });
+  const deviceRemoved = await client.request("DELETE", `/v1/platform/organizations/${orgId}/notification-devices/${device.device.id}`);
+  assert.equal(deviceRemoved.ok, true);
+
+  await client.request("POST", `/v1/platform/organizations/${orgId}/notifications`, { id: "notification_private_test", title: "Private", target_user_ids: ["user_someone_else"] });
+  const deniedRead = await client.raw("GET", `/v1/platform/organizations/${orgId}/notifications/notification_private_test`);
+  const deniedState = await client.raw("PATCH", `/v1/platform/organizations/${orgId}/notifications/notification_private_test/user-state`, { seen: true });
+  assert.equal(deniedRead.statusCode, 404);
+  assert.equal(deniedState.statusCode, 404);
 });
 
 test("mention events create notifications, including self-mentions", async () => {
   const client = createSessionClient();
   const { orgId, userId, email } = await register(client);
+  await client.request("POST", `/v1/platform/organizations/${orgId}/notification-devices`, {
+    platform: "android", token: "test_fcm_self_mention_token_1234567890", branch_id: "default"
+  });
   const mentioned = await client.request("POST", `/v1/platform/organizations/${orgId}/tagging/mention-events`, {
     source: "project_note",
     target_user_ids: [userId],
@@ -1240,6 +1264,39 @@ test("mention events create notifications, including self-mentions", async () =>
   assert.equal(visible.notifications[0].kind, "mention");
   assert.equal(visible.notifications[0].context.mention_source, "project_note");
   assert.equal(visible.notifications[0].context.project_id, "project_self_mention");
+});
+
+test("Measurements report delivery and cancellation notify the ordering user", async () => {
+  const client = createSessionClient();
+  const { orgId, email } = await register(client, false);
+  const { isAppFlagEnabled } = await import("../platform/app_flags.js");
+  assert.equal(await isAppFlagEnabled(orgId, "apps", "notifications"), true);
+  assert.equal(await isAppFlagEnabled(orgId, "apps", "firstmeasure"), true);
+  await client.request("POST", `/v1/platform/organizations/${orgId}/notification-devices`, {
+    platform:"android", token:"test_fcm_measurements_token_1234567890", branch_id:"default"
+  });
+  await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { push:{ "measurements.report_delivered":false } });
+  const { createProject, patchManifest, updateStatus } = await import("../firstmeasure/storage.js");
+  const first = (await createProject({ id:`measurement_delivery_${Date.now()}`, address:"123 Test Street", organization_ref:{ id:orgId }, issuer:{ email } })).manifest;
+  await updateStatus(first.id, "completed");
+  assert.equal((await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`)).notifications.length, 0, "QA completion is not customer delivery");
+  await patchManifest(first.id, { delivery:{ report_sent_at:"2026-09-25T12:00:00Z" } });
+  await patchManifest(first.id, { delivery:{ report_sent_at:"2026-09-25T12:00:00Z" } });
+  const delivered = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal(delivered.notifications.filter((item: any) => item.preference_key === "measurements.report_delivered").length, 1);
+  assert.equal(delivered.notifications.find((item: any) => item.preference_key === "measurements.report_delivered").push_log.length, 0);
+  const second = (await createProject({ id:`measurement_cancel_${Date.now()}`, address:"456 Test Street", organization_ref:{ id:orgId }, issuer:{ email } })).manifest;
+  await updateStatus(second.id, "cancelled");
+  const canceled = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal(canceled.notifications.filter((item: any) => item.preference_key === "measurements.report_canceled").length, 1);
+  assert.equal(canceled.notifications.find((item: any) => item.preference_key === "measurements.report_canceled").push_log.length, 1);
+  await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app:{ "measurements.report_delivered":false } });
+  const filtered = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal(filtered.notifications.some((item: any) => item.preference_key === "measurements.report_delivered"), false);
+  assert.equal(filtered.notifications.some((item: any) => item.preference_key === "measurements.report_canceled"), true);
+  const { saveGlobal } = await import("../platform/storage.js");
+  await saveGlobal(orgId, { data:{ app_flags:{ apps:{ notifications:false } } } });
+  assert.equal((await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`)).notifications.length, 0);
 });
 
 test("Action items are org-scoped, assignment-filtered, and keep per-user state", async () => {

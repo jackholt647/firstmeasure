@@ -62,6 +62,15 @@ const definitions: CapabilityDefinition[] = [
   { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"], default: false },
   // --- Apps: top-level product surfaces -----------------------------------
   {
+    key: "apps.notifications",
+    kind: "feature",
+    icon: "fa-bell",
+    category: "Platform & Appearance",
+    label: "Notifications",
+    description: "Personal notification preferences and delivery across the portal and phone apps.",
+    default: true
+  },
+  {
     key: "apps.projects",
     kind: "app",
     icon: "fa-folder-open",
