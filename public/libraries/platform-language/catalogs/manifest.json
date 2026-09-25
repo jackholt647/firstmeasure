@@ -51,7 +51,8 @@
     "errors",
     "notifications",
     "mobile",
-    "google-auth"
+    "google-auth",
+    "payments-setup"
   ],
   "namespaces": {
     "billing": "billing.ec312cf4714fc955.json",
@@ -64,7 +65,7 @@
     "crew": "crew.3efca112cd1e6ab7.json",
     "customer-portal": "customer-portal.5900e204186640e9.json",
     "docs": "docs.57a030c0bb95ef56.json",
-    "documents": "documents.a9cac18c9cfe8caa.json",
+    "documents": "documents.2544f8f6596fbbab.json",
     "equipment": "equipment.914041af1c3368a6.json",
     "feedback": "feedback.e7b04cf3ffd218e1.json",
     "financials": "financials.0a035da5b724a50e.json",
@@ -73,13 +74,13 @@
     "help": "help.55276247195351d8.json",
     "invoices": "invoices.31ddacfe00d67d1b.json",
     "materials": "materials.76f1f1ae2a7e3b25.json",
-    "measurements": "measurements.0bc252ce121465b9.json",
+    "measurements": "measurements.bf40380057b23eda.json",
     "money": "money.447f0c483a446247.json",
     "onboarding": "onboarding.64438331d025e04e.json",
     "payroll": "payroll.aae11d1b20ebc137.json",
     "photos": "photos.bcacb94f3b10e5d7.json",
     "project-map": "project-map.839646037797cfe8.json",
-    "project-request": "project-request.d2ae2c710db86f39.json",
+    "project-request": "project-request.078391bc9c89f3d9.json",
     "project-schedule": "project-schedule.7ed70839a4bbdb4d.json",
     "projects": "projects.80ac33ff23e5bbd0.json",
     "promo-inject": "promo-inject.caae4f003ca89a72.json",
@@ -88,7 +89,7 @@
     "referrals": "referrals.539447f97cefbb6c.json",
     "sales": "sales.0bac020c3c13d23a.json",
     "scheduling": "scheduling.ee5632e580e183bb.json",
-    "settings": "settings.8ad61e544f33ed27.json",
+    "settings": "settings.2b73e86f25cbefc1.json",
     "signatures": "signatures.4342212097367804.json",
     "smoke": "smoke.e66e5ad34942ef02.json",
     "stats": "stats.02b0262e46ca8462.json",
@@ -126,7 +127,7 @@
     "markup": "markup.0ccef8bf2c232a53.json",
     "platform-api": "platform-api.6ce7a04d9d302a44.json",
     "platform-assistant": "platform-assistant.008303c2905aa28f.json",
-    "platform-banners": "platform-banners.224aa2124546470b.json",
+    "platform-banners": "platform-banners.a0bde2b75f0995b5.json",
     "platform-scheduling": "platform-scheduling.8cf34dd00ef47264.json",
     "platform-ui": "platform-ui.f6c53c6bd59b4839.json",
     "portal-widgets": "portal-widgets.7612009c5d27d3e1.json",
@@ -139,9 +140,10 @@
     "web-widgets": "web-widgets.d185a3c977547c83.json",
     "window-manager": "window-manager.1686b5e969ac1648.json",
     "reports": "reports.2631a3576fe2c48c.json",
-    "errors": "errors.6fb77660646da3e6.json",
+    "errors": "errors.370c14c5f3971db3.json",
     "notifications": "notifications.7e2136ac1d78bb3f.json",
     "mobile": "mobile.9391bf1cc7ff306f.json",
-    "google-auth": "google-auth.d182d37f7adbff2e.json"
+    "google-auth": "google-auth.d182d37f7adbff2e.json",
+    "payments-setup": "payments-setup.e096a8f84cc33f23.json"
   }
 }

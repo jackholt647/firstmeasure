@@ -12,6 +12,15 @@
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
+  function languageOptions(selected, { inherit = false, translation = false, companyLocale } = {}) {
+    const service = window.PlatformLanguage;
+    const packs = service?.supportedLanguages || [];
+    const choices = translation ? (service?.translationLanguages || []) : packs;
+    const company = companyLocale || service?.companyContext?.().locale || 'en-US';
+    const companyName = packs.find(pack => pack.code === company)?.label || company;
+    const inherited = inherit ? `<option value="" ${!selected ? 'selected' : ''}>${escapeHtml(window.PlatformLanguage.text('settings','company_language_inherit','Use company language (' + companyName + ')',{name:companyName}))}</option>` : '';
+    return inherited + choices.map(({code,label}) => `<option value="${escapeHtml(code)}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
   const DEFAULT_LOGO = '/images/logo_red.png';
   const SAMPLE_DIAGRAM = 'media/sample_diagram.png';
   const LS_KEY = 'fm_org_theme_v1';
@@ -1302,7 +1311,6 @@
       primary: brandingColors.primary ?? brandingColors.accent ?? liveTheme?.primary ?? DEFAULT_PRIMARY,
       secondary: brandingColors.secondary ?? liveTheme?.secondary ?? DEFAULT_SECONDARY,
       palette: brandingColors.palette,
-      font_family: o?.branding?.typography?.document_font_family || 'Montserrat',
       logo_display: normalizeLogoDisplay(o?.branding?.logo_display),
       company_email: contact.email || '',
       company_phone: contact.phone || '',
@@ -1351,7 +1359,6 @@
         if (branchColors.primary || branchColors.accent) result.primary = branchColors.primary || branchColors.accent;
         if (branchColors.secondary) result.secondary = branchColors.secondary;
         if (Array.isArray(branchColors.palette)) result.palette = branchColors.palette;
-        if (branchBrand.typography?.document_font_family) result.font_family = branchBrand.typography.document_font_family;
         if (branchBrand.logo_display) result.logo_display = normalizeLogoDisplay(branchBrand.logo_display);
       }
       if (orgId && window.PlatformAPI?.branchModules?.get) {
@@ -1362,18 +1369,16 @@
         if (styleColors.primary || styleColors.accent) result.primary = styleColors.primary || styleColors.accent;
         if (styleColors.secondary) result.secondary = styleColors.secondary;
         if (Array.isArray(styleColors.palette)) result.palette = styleColors.palette;
-        if (styleBrand.typography?.document_font_family) result.font_family = styleBrand.typography.document_font_family;
         if (styleBrand.logo_display) result.logo_display = normalizeLogoDisplay(styleBrand.logo_display);
         const styleLogo = logoFromBranding(styleBrand, orgId);
         if (shouldReplaceLogo(result.logo, styleLogo)) result.logo = styleLogo;
       }
     } catch(e) {}
     result.palette = normalizeBrandPalette(result.palette, result.primary, result.secondary);
-    result.font_family = result.font_family || 'Montserrat';
     result.logo_display = normalizeLogoDisplay(result.logo_display);
     return result;
   }
-  async function saveOrg({ name, primary, secondary, palette, font_family, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
+  async function saveOrg({ name, primary, secondary, palette, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
     const orgId = currentOrgId();
     if (!orgId) return { ok:false, error:'Missing organization.' };
     if (window.PlatformAPI?.branches?.get && window.PlatformAPI?.branches?.save) {
@@ -1394,7 +1399,6 @@
         },
         branding: {
           ...(branch.branding || {}),
-          typography: { ...(branch.branding?.typography || {}), document_font_family: font_family || 'Montserrat' },
           logo: existingBranchLogo && existingBranchLogo !== DEFAULT_LOGO ? existingBranchLogo : companyLogoForSave(),
           logo_display: normalizeLogoDisplay(logo_display),
           colors: {
@@ -1427,7 +1431,6 @@
           companyName: name ?? styleData.companyName ?? '',
           branding: {
             ...(styleData.branding || {}),
-            typography: { ...(styleData.branding?.typography || {}), document_font_family: font_family || 'Montserrat' },
             logo_display: normalizeLogoDisplay(logo_display),
             colors: {
               ...(styleData.branding?.colors || {}),
@@ -1439,7 +1442,7 @@
           }
         }, { kind: 'branch_presentation_style', source: 'company_settings' });
       }
-    } catch(e) { return { ok:false, error:e?.message || 'Could not save brand settings.' }; }
+    } catch(e) {}
     return { ok:true };
   }
   async function saveReportSettings({ general, customer }){
@@ -1665,7 +1668,6 @@
     `;
   }
   const DEFAULT_VISIBLE_APP_FLAGS = {
-    apps: ['firstmeasure', 'notifications'],
     mobile: [],
     platform: [],
     scheduling: ['routing', 'gantt'],
@@ -1786,14 +1788,6 @@
       description: (globalThis.PlatformLanguage?.text("settings","m_08c15cae3c4b7b","Show the Apps/To Do switcher and today's action-item list in the portal left column.") ?? "Show the Apps/To Do switcher and today's action-item list in the portal left column.")
     },
     {
-      key: 'assistant.sidebar_tab',
-      group: 'assistant',
-      flag: 'sidebar_tab',
-      defaultValue: false,
-      label: 'Agents in Left Column',
-      description: 'Show agent conversations in an Agents tab in the desktop portal left column.'
-    },
-    {
       key: 'platform.left_column_default_mode',
       group: 'platform',
       flag: 'left_column_default_mode',
@@ -1804,8 +1798,7 @@
       options: [
         ['apps', 'Apps'],
         ['todo', 'To Do'],
-        ['channels', 'Channels'],
-        ['agents', 'Agents']
+        ['channels', 'Channels']
       ]
     },
     {
@@ -2235,20 +2228,21 @@
     const canScopeTemplates = canCompany && appFlag('platform', 'expanded_access') && appFlag('apps', 'projects');
     const canCallWorkflows = canCompany && appFlag('calls', 'app');
     const canStorage = canCompany && storageLimitsEnabled();
-    const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
+    const canSmsSettings = canCompany && appFlag('platform', 'sms_settings');
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
-    const canAssistant = (appFlag('apps', 'assistant') || window.FirstMatePlatformBilling?.configured('apps', 'assistant')) && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
+    const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
-    const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
-    // Every signed-in member can manage their own notification preferences.
+    if (!canMySettings && !canCompany && !canPayments && !canCustomFields && !canUsers && !canPayroll && !canReports && !canBilling && !canForms && !canPricebook && !canProposalSettings && !canDocuments && !canConfiguration && !canScheduling && !canTerminology && !canCrews && !canScopeFlags && !canCallWorkflows && !canStorage && !canSmsSettings && !canDomains && !canAssistant && !canAppFlags) {
+      panel.innerHTML = `<div style="padding:20px; text-align:center; color:#666; font-weight:800;">${(globalThis.PlatformLanguage?.text("settings","m_3d547d220b69f5","Access Denied") ?? "Access Denied")}</div>`;
+      return;
+    }
     // Canonical Settings information architecture. A new broad Settings page
     // is declared exactly once here: stable route id, permission/flag gate,
     // icon, title, subtitle, and its existing pane ids. The shared shell below
     // derives navigation, headings, accessibility, and active state from it.
     const settingsSections = [
       { id:'my_settings', allowed:canMySettings, icon:'fas fa-user-gear', title:(globalThis.PlatformLanguage?.text("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_005931f3534c4a","Personal preferences for your account.") ?? "Personal preferences for your account."), tabId:'csTabMySettings', paneId:'csPaneMySettings' },
-      { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:'Notifications', subtitle:'Choose which updates appear here and on your phone.', tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
@@ -2274,22 +2268,21 @@
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
       { id:'proposals', allowed:canProposalSettings, icon:'fas fa-file-signature', term:'proposals.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_3129f3f0e39249","Proposals") ?? "Proposals"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_5f72a4f87b9f6a","Set branch defaults for new proposals.") ?? "Set branch defaults for new proposals."), tabId:'csTabProposals', paneId:'csPaneProposals' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
-      { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
+      { id:'billing', allowed:canBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
       { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
     ];
+    settingsSections.push({ id:'platform_billing', allowed:appFlag('platform','platform_billing') && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags), icon:'fas fa-file-invoice-dollar', title:'Platform Billing', subtitle:'Platform subscriptions, usage, storage charges and invoices.', tabId:'csTabPlatformBilling', paneId:'csPanePlatformBilling' });
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
     const sectionTitle = (section) => section ? (section.term ? terminologyLabel(section.term, section.title) : section.title) : '';
     const defaultActiveTab = sectionFor('my_settings')?.id || availableSettingsSections[0]?.id || 'my_settings';
     if (viewState.activeTab === 'lead_import') viewState.activeTab = 'forms';
-    if (viewState.activeTab === 'platform_billing') viewState.activeTab = 'billing';
     if (viewState.activeTab === 'crm' || viewState.activeTab === 'custom_fields' || viewState.activeTab === 'terminology') viewState.activeTab = 'configuration';
     if (['automations', 'scope_templates', 'scope_flags'].includes(viewState.activeTab)) viewState.activeTab = 'project_scopes';
     if (viewState.activeTab === 'call_workflows') viewState.activeTab = 'calls';
     const tabAllowed = (tab) => !!sectionFor(tab);
     const normalizeSettingsLocation = (location = {}) => {
       const normalized = { ...location };
-      if (normalized.sub === 'platform_billing') normalized.sub = 'billing';
       if (normalized.sub === 'call_workflows') { normalized.sub = 'calls'; normalized.settingsView = ''; }
       if (normalized.sub === 'crm') {
         if (normalized.settingsView === 'calls') { normalized.sub = 'calls'; normalized.settingsView = ''; }
@@ -2366,7 +2359,6 @@
       primary:liveTheme?.primary || DEFAULT_PRIMARY,
       secondary:liveTheme?.secondary || DEFAULT_SECONDARY,
       palette:defaultBrandPalette(liveTheme?.primary || DEFAULT_PRIMARY, liveTheme?.secondary || DEFAULT_SECONDARY),
-      font_family:'Montserrat',
       logo_display:normalizeLogoDisplay(null),
       company_email:'',
       company_phone:'',
@@ -2956,9 +2948,6 @@
       .company-settings-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
       .company-settings-grid.without-report-preview{grid-template-columns:minmax(0,1fr)}
       .company-settings-left{display:grid;gap:10px}
-      .company-brand-heading{border-top:1px solid #e4e7ec;padding-top:12px;color:#101828;font-size:13px;font-weight:1000}
-      .company-font-card{max-width:calc(50% - 5px)}
-      @media(max-width:700px){.company-font-card{max-width:none}}
       .company-brand-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
       .company-brand-row>.company-settings-card{min-width:0}
       .company-settings-card{border:1px solid #e4e7ec;border-radius:16px;background:#fff;overflow:hidden}
@@ -4738,7 +4727,6 @@
     window.FirstMateSettingsPages?.installAutosave?.(panel, { source:'company-settings', inputDelay:350 });
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
-    const paneNotifications = $('#csPaneNotifications', panel);
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);
@@ -4770,39 +4758,7 @@
     const panePricebook = $('#csPanePricebook', panel);
     const paneProposals = $('#csPaneProposals', panel);
     const paneForms = $('#csPaneForms', panel);
-    const billingPane = $('#csPaneBilling', panel);
-    if (billingPane && canPlatformBilling) {
-      billingPane.innerHTML = '<div data-billing-legacy data-settings-autosave="off" hidden></div><section data-billing-workspace></section>';
-    }
-    const paneBilling = billingPane;
-    function renderPlatformBilling(){
-      const host = billingPane?.querySelector('[data-billing-workspace]');
-      if (!canPlatformBilling || !host || host._billingMount) return;
-      window.FirstMatePlatformBilling?.mountWorkspace(host, {
-        orgId:currentOrgId(),
-        credits:canBilling ? {
-          statement:fetchMonthlyStatement,
-          describe:row=>({title:msLedgerTitle(row),detail:msLedgerSub(row)}),
-          refreshBalance:()=>window.Portal?.credits?.refreshCredits?.(),
-          settings:()=>({enabled:renderBilling._base?.enabled ?? !!state.billing?.auto_topup?.enabled,
-            amount:renderBilling._base?.amt ?? state.billing?.auto_topup?.topup_dollars ?? BILL_MIN,
-            threshold:renderBilling._base?.th ?? state.billing?.auto_topup?.threshold_dollars ?? BILL_MIN,
-            card:state.billing?.stripe?.last4 ? `${state.billing.stripe.brand || 'Card'} ending in ${state.billing.stripe.last4}` : ''}),
-          open:()=>{
-            renderBilling();
-            const storage=billingPane.querySelector('[data-billing-legacy]');
-            const card=storage?.querySelector('#blEnableToggle')?.closest('.bl-card');
-            if(!card)return;
-            const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Credit auto top-up');
-            dialog.innerHTML='<header class="bw-head"><h3>Credit auto top-up</h3><button type="button" data-close>Done</button></header>';
-            host.querySelector('.bw').appendChild(dialog);dialog.appendChild(card);
-            dialog.querySelector('[data-close]').onclick=()=>dialog.close();
-            dialog.addEventListener('close',()=>{storage.appendChild(card);dialog.remove();void host._billingRefresh?.();},{once:true});
-            dialog.showModal();
-          }
-        } : null
-      });
-    }
+    const paneBilling = $('#csPaneBilling', panel);
     const tabCompany  = $('#csTabCompany', panel);
     const tabMySettings = $('#csTabMySettings', panel);
     const tabPayments = $('#csTabPayments', panel);
@@ -6167,7 +6123,6 @@
       const orgId = currentOrgId();
       paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
-        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
         const profile = profiles[0] || smsPrefillProfile({}, setup);
@@ -9420,11 +9375,7 @@
           if (result?.merchant_config) mp.config = result.merchant_config; else await loadConfig();
           await loadApplication();
           renderSection();
-          if (!mcText(result?.link?.url)) {
-            showToast('Application already submitted', 'Your payment application status is shown here.', true);
-            return;
-          }
-          openHostedApplication(mcText(result.link.url));
+          openHostedApplication(mcText(result?.link?.url));
           showToast((globalThis.PlatformLanguage?.text("settings","m_84852f47418b64","Continue at Forward") ?? "Continue at Forward"), (globalThis.PlatformLanguage?.text("settings","m_faf05e18c07567","Fill out and submit the application on Forward's hosted page — this pane tracks the status.") ?? "Fill out and submit the application on Forward's hosted page — this pane tracks the status."), true);
         })().finally(() => { mp.hostedSignupPromise = null; });
         return mp.hostedSignupPromise;
@@ -12002,17 +11953,42 @@
       }
       renderCallWorkflowWorkspace();
     }
-    async function openStorageCheckoutModal(){
-      const billing=window.FirstMatePlatformBilling;
-      if(!billing?.isEnabled() || !canPlatformBilling){ window.alert('Ask a billing administrator to enable storage subscriptions for your organization.');return; }
-      try { if(await billing.choose({orgId:currentOrgId(),productId:'storage'}))await renderStorage(); }
-      catch(error){ window.alert(error.message || 'Could not load storage plans.'); }
+    function openStorageCheckoutModal(){
+      document.getElementById('storageCheckoutModal')?.remove();
+      const back = document.createElement('div');
+      back.id = 'storageCheckoutModal';
+      back.className = 'storage-checkout-backdrop';
+      back.innerHTML = `
+        <div class="storage-checkout-modal" role="dialog" aria-modal="true" aria-labelledby="storageCheckoutTitle">
+          <div class="storage-checkout-head">
+            <div>
+              <strong id="storageCheckoutTitle">${(globalThis.PlatformLanguage?.text("settings","m_fd0221a1d87d1d","Get More Storage") ?? "Get More Storage")}</strong>
+              <span>${(globalThis.PlatformLanguage?.text("settings","m_eba5a2ca652c52","Storage checkout options will appear here.") ?? "Storage checkout options will appear here.")}</span>
+            </div>
+            <button type="button" class="storage-checkout-close" data-storage-checkout-close aria-label="${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="storage-checkout-body">${(globalThis.PlatformLanguage?.text("settings","m_66ecec49f56389","Checkout placeholder") ?? "Checkout placeholder")}</div>
+      </div>`;
+      document.body.appendChild(back);
+      let modalHandle = null;
+      const close = () => {
+        modalHandle?.unregister?.();
+        modalHandle = null;
+        back.remove();
+      };
+      back.querySelector('[data-storage-checkout-close]')?.addEventListener('click', close);
+      modalHandle = window.Portal?.modals?.register?.(back, {
+        id: 'company-storage-checkout',
+        closeOnEscape: true,
+        closeOnBackdrop: true,
+        onClose: close
+      }) || null;
     }
     async function renderStorage(){
       if (!paneStorage) return;
       const orgId = String(window.__APP?.userOrgId || '').trim();
       const limitBytes = storageLimitBytes();
-      const purchasable = purchasableStorageEnabled() || window.FirstMatePlatformBilling?.configured('platform','purchasable_storage');
+      const purchasable = purchasableStorageEnabled();
       paneStorage.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8ab7baf4c8b004","Loading media storage usage...") ?? "Loading media storage usage...")}</p></div>`;
       let usage = null;
       try {
@@ -14031,7 +14007,6 @@
         else delete titleNode.dataset.settingsTerminologyKey;
       }
       if (which === 'my_settings' && canMySettings) renderMySettings();
-      if (which === 'notifications') renderNotificationSettings();
       if (which === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
       if (which === 'users' && canUsers) refreshUsers();
       if (which === 'money' && canPayments) renderMoneySettings();
@@ -14058,68 +14033,10 @@
       if (which === 'proposals' && canProposalSettings) renderProposalSettings();
       if (which === 'forms' && canForms) renderForms();
       if (which === 'billing' && canBilling) renderBilling();
-      if (which === 'billing') renderPlatformBilling();
+      if (which === 'platform_billing' && sectionFor('platform_billing')) window.FirstMatePlatformBilling?.mount(panel.querySelector('#csPanePlatformBilling'), {orgId:currentOrgId()});
       scheduleSettingsSubtabsSync();
     }
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
-    async function renderNotificationSettings(){
-      if (!paneNotifications) return;
-      paneNotifications.innerHTML = '<div class="my-settings-status">Loading notification preferences…</div>';
-      try {
-        const result = await window.PlatformAPI.notifications.preferences(currentOrgId());
-        const preferences = result.preferences || {};
-        const categories = window.PlatformPush?.categories || [
-          ['leads','Leads'],['messages','Messages'],['mentions','Mentions'],['tasks','Tasks'],
-          ['scheduling','Scheduling'],['payments','Payments'],['celebrations','Celebrations'],['system','System']
-        ];
-        const measurements = appFlag('apps', 'firstmeasure') ? [
-          ['measurements.report_delivered','Report delivered'],
-          ['measurements.report_revised','Corrected report delivered'],
-          ['measurements.report_canceled','Order canceled'],
-          ['measurements.report_rejected','Order rejected'],
-          ['measurements.report_status','Order progress']
-        ] : [];
-        const otherUpdates = appFlag('platform', 'expanded_access') ? categories.filter(([id]) => ({
-          leads:appFlag('apps','crm'), messages:appFlag('apps','messaging') || appFlag('apps','channels'),
-          mentions:appFlag('apps','projects'), tasks:appFlag('apps','projects'),
-          scheduling:appFlag('platform','scheduling'), payments:appFlag('apps','billing'),
-          celebrations:appFlag('apps','projects'), system:true
-        })[id]) : [];
-        const preferenceRows = (rows) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 70px 70px;gap:8px;align-items:center;margin-top:14px"><span></span><strong>In app</strong><strong>Push</strong>
-          ${rows.map(([id,label]) => `<span>${escapeHtml(label)}</span><input type="checkbox" data-notification-surface="in_app" data-notification-key="${id}" ${preferences.in_app?.[id] !== false ? 'checked' : ''}><input type="checkbox" data-notification-surface="push" data-notification-key="${id}" ${preferences.push?.[id] ? 'checked' : ''}>`).join('')}
-        </div>`;
-        paneNotifications.innerHTML = `<div class="my-settings-shell">
-          <div class="my-settings-hero"><div class="my-settings-icon"><i class="fas fa-bell"></i></div><div><h3>Notifications</h3><p>Choose what appears in the bell on every device and what is sent to your phone.</p></div></div>
-          <div class="cs-note">Phone push also requires permission in iOS or Android settings. Your choices apply to your account on every device.</div>
-          ${measurements.length ? `<div class="my-settings-group"><h4>Measurements</h4>${preferenceRows(measurements)}</div>` : ''}
-          ${otherUpdates.length ? `<div class="my-settings-group"><h4>Other updates</h4>${preferenceRows(otherUpdates)}</div>` : ''}
-          <div class="li-actions"><button class="cs-btn primary" type="button" data-notification-save>Save notification settings</button>${window.PlatformPush?.available?.() ? '<button class="cs-btn" type="button" data-notification-enable>Enable phone push</button><button class="cs-btn" type="button" data-notification-disable>Disable on this phone</button>' : ''}<span class="my-settings-status" data-notification-status></span></div>
-        </div>`;
-        paneNotifications.querySelector('[data-notification-save]')?.addEventListener('click', async (event) => {
-          const button = event.currentTarget;
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          const patch = { in_app:{}, push:{} };
-          paneNotifications.querySelectorAll('[data-notification-key]').forEach((input) => { patch[input.dataset.notificationSurface][input.dataset.notificationKey] = input.checked; });
-          try {
-            button.disabled = true;
-            await window.PlatformAPI.notifications.savePreferences(currentOrgId(), patch);
-            await window.PlatformNotifications?.load?.(currentOrgId(), { branchId:currentBranchId(), includeDismissed:true, silent:true });
-            status.textContent = 'Saved';
-          } catch (error) { status.textContent = error?.message || 'Could not save preferences.'; }
-          finally { button.disabled = false; }
-        });
-        paneNotifications.querySelector('[data-notification-enable]')?.addEventListener('click', async () => {
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          try { const result = await window.PlatformPush.enable(); status.textContent = result.granted ? 'Phone push enabled' : (result.reason || 'Allow notifications in your phone settings.'); }
-          catch (error) { status.textContent = error?.message || 'Phone push could not be enabled.'; }
-        });
-        paneNotifications.querySelector('[data-notification-disable]')?.addEventListener('click', async () => {
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          try { await window.PlatformPush.disable(); status.textContent = 'Phone push disabled on this device'; }
-          catch (error) { status.textContent = error?.message || 'Could not disable phone push.'; }
-        });
-      } catch (error) { paneNotifications.innerHTML = `<div class="my-settings-status" style="color:#b42318">${escapeHtml(error?.message || 'Notification settings could not be loaded.')}</div>`; }
-    }
     window.Portal?.navigation?.registerHandler?.('company-settings', {
       priority:350,
       apply:(route) => {
@@ -14138,16 +14055,9 @@
       paneMySettings.innerHTML = `<div class="my-settings-status"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_5dfbfde9b4da49"," Loading your settings…") ?? " Loading your settings…")}</div>`;
       try {
         const result = await window.PlatformAPI?.preferences?.get?.();
-        const preferences = result?.preferences || { language:'en', auto_translate_messages:false, sidebar_width:250 };
+        const preferences = result?.preferences || { language:null, auto_translate_messages:false, sidebar_width:250 };
         const sidebarWidthApi = window.Portal?.sidebarWidth;
         const sidebarWidth = sidebarWidthApi?.normalize?.(preferences.sidebar_width) || 250;
-        const languages = [
-          ['en','English'],['es','Español'],['fr','Français'],['de','Deutsch'],['pt','Português'],
-          ['it','Italiano'],['nl','Nederlands'],['pl','Polski'],['ru','Русский'],['uk','Українська'],
-          ['ar','العربية'],['hi','हिन्दी'],['bn','বাংলা'],['ur','اردو'],['zh','中文'],
-          ['ja','日本語'],['ko','한국어'],['vi','Tiếng Việt'],['th','ไทย'],['id','Bahasa Indonesia'],
-          ['tl','Filipino'],['tr','Türkçe'],['he','עברית']
-        ];
         paneMySettings.innerHTML = `
           <div class="my-settings-shell">
             <div class="my-settings-hero">
@@ -14157,11 +14067,11 @@
             <div class="my-settings-group">
               <h4>${(globalThis.PlatformLanguage?.text("settings","m_7be4e66b6de94c","Language &amp; translation") ?? "Language &amp; translation")}</h4>
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_6a345cd0072503","Interface language") ?? "Interface language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_338ca4c4d53ee1","Use the company language or choose your own. Reports use the company language.") ?? "Use the company language or choose your own. Reports use the company language.")}</small></span>
-                <select class="cs-in" data-interface-locale><option value="" ${String(!preferences.interface_locale ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_ad35e6104bfe0c","Use company language") ?? "Use company language")}</option><option value="en-US" ${String(preferences.interface_locale === 'en-US' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_0f09b3ed9128db","English (United States)") ?? "English (United States)")}</option><option value="en-GB" ${String(preferences.interface_locale === 'en-GB' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_58ac1532c90295","English (United Kingdom)") ?? "English (United Kingdom)")}</option></select>
+                <select class="cs-in" data-interface-locale>${languageOptions(preferences.interface_locale, {inherit:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_1c783adbd1d4a5","Message translation language") ?? "Message translation language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_c7cb58bc75e592","Messages in other detected languages can be translated into this language.") ?? "Messages in other detected languages can be translated into this language.")}</small></span>
-                <select class="cs-in" data-my-language>${String(languages.map(([code,label]) => `<option value="${code}" ${preferences.language === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join(''))}</select>
+                <select class="cs-in" data-my-language>${languageOptions(preferences.language, {inherit:true, translation:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_c4030f56eb495c","Show translations automatically") ?? "Show translations automatically")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_4405a3f8c91aac","Foreign-language messages open translated. You can still toggle each message back to its original text.") ?? "Foreign-language messages open translated. You can still toggle each message back to its original text.")}</small></span>
@@ -14178,15 +14088,11 @@
                 </span>
               </label>
             </div>
-            ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
             <div class="li-actions">
               <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
-        paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
-          window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
-        });
         if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
         const sidebarWidthInput = paneMySettings.querySelector('[data-my-sidebar-width]');
         const sidebarWidthOutput = paneMySettings.querySelector('[data-my-sidebar-width-output]');
@@ -14203,7 +14109,7 @@
             const previousLocale = window.PlatformLanguage?.context?.().locale;
             const saved = await window.PlatformAPI.preferences.patch({
               ...(paneMySettings.querySelector('[data-interface-locale]') ? { interface_locale: paneMySettings.querySelector('[data-interface-locale]').value || null } : {}),
-              language: paneMySettings.querySelector('[data-my-language]').value,
+              language: paneMySettings.querySelector('[data-my-language]').value || null,
               auto_translate_messages: paneMySettings.querySelector('[data-my-auto-translate]').checked,
               sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth)
             });
@@ -14449,20 +14355,8 @@
       });
     }
 
-    async function renderAssistantSettings(){
+    function renderAssistantSettings(){
       if (!paneAssistant) return;
-      if (!document.getElementById('fm-assistant-settings-switches')) {
-        const style = document.createElement('style');
-        style.id = 'fm-assistant-settings-switches';
-        style.textContent = `#csPaneAssistant input[type=checkbox]{appearance:none;-webkit-appearance:none;order:2;flex:0 0 auto;width:42px;height:24px;margin:0 0 0 auto!important;border:0;border-radius:999px;background:#cbd5e1;position:relative;cursor:pointer;transition:background .15s ease}#csPaneAssistant input[type=checkbox]:before{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #10182833;transition:transform .15s ease}#csPaneAssistant input[type=checkbox]:checked{background:var(--primary-readable,var(--primary,#175cd3))}#csPaneAssistant input[type=checkbox]:checked:before{transform:translateX(18px)}#csPaneAssistant input[type=checkbox]:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#175cd3));outline-offset:3px}`;
-        document.head.appendChild(style);
-      }
-      try {
-        if (await window.FirstMatePlatformBilling?.setup(paneAssistant, {orgId:currentOrgId(),canView:canPlatformBilling,capabilityKeys:['apps.assistant'],onReady:renderAssistantSettings})) return;
-      } catch (error) {
-        paneAssistant.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load subscription setup.')}</div>`;
-        return;
-      }
       if (!window.AssistantAPI) {
         paneAssistant.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_509d484132439c","Assistant settings failed to load.") ?? "Assistant settings failed to load.")}</div>`;
         return;
@@ -14475,7 +14369,7 @@
       paneAssistant.innerHTML = `<div class="cs-note" style="padding:18px;">${(globalThis.PlatformLanguage?.text("settings","m_0637168da6416c","Loading assistant settings...") ?? "Loading assistant settings...")}</div>`;
       const toggleRow = (key, label, hint, checked) => `
         <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f2f4f7;cursor:pointer;">
-          <input type="checkbox" role="switch" data-assistant-key="${key}" ${checked ? 'checked' : ''}>
+          <input type="checkbox" data-assistant-key="${key}" ${checked ? 'checked' : ''} style="margin-top:3px;">
           <span style="display:flex;flex-direction:column;gap:2px;">
             <strong style="color:#101828;font-weight:800;">${escapeHtml(label)}</strong>
             <small style="color:#667085;">${escapeHtml(hint)}</small>
@@ -14591,7 +14485,7 @@
         ]);
         const profile = profileResult.profile || {};
         const memories = Array.isArray(memoryResult.memories) ? memoryResult.memories : [];
-        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;">Use saved memories in my conversations<input type="checkbox" role="switch" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}></label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
+        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;"><input type="checkbox" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}>Use saved memories in my conversations</label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
         host.querySelector('[data-profile-save]')?.addEventListener('click', async () => {
           const status = host.querySelector('[data-profile-status]');
           try { await window.AssistantAPI.profile.save(currentOrgId(), { instructions:host.querySelector('[data-user-instructions]').value, memory_enabled:host.querySelector('[data-memory-enabled]').checked }); status.textContent = 'Saved.'; }
@@ -14646,7 +14540,7 @@
                 <div style="border-top:1px solid #f2f4f7;padding:12px 0;display:grid;gap:8px;" data-agent-card="${escapeHtml(agent.id)}">
                   <div style="display:flex;align-items:center;gap:10px;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;">
-                      <input type="checkbox" role="switch" data-agent-enabled ${settings.enabled !== false ? 'checked' : ''}>
+                      <input type="checkbox" data-agent-enabled ${settings.enabled !== false ? 'checked' : ''}>
                       <strong style="color:#101828;font-weight:850;">${escapeHtml(agent.title)}</strong>
                     </label>
                     <input type="text" data-agent-name value="${escapeHtml(settings.display_name || agent.title)}" maxlength="80" style="width:200px;border:1px solid #d0d5dd;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;">
@@ -16344,11 +16238,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             </section>
             ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
             <section class="company-settings-card" aria-labelledby="csLocalizationHeading">
-              <div class="company-settings-card-head"><strong id="csLocalizationHeading">Measurements and language</strong></div>
+              <div class="company-settings-card-head"><strong id="csLocalizationHeading">${escapeHtml(window.PlatformLanguage.text('settings','company_language_heading','Company language and measurements'))}</strong><i class="fas fa-circle-info company-settings-card-help" tabindex="0" role="button" aria-label="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help_label','About company language and measurements'))}" data-fm-tooltip="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}" title="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}"></i></div>
               <div class="company-settings-card-body company-localization-grid">
                 <label class="cs-field"><span>Measurements</span><select id="csMeasurementSystem"><option value="imperial">Imperial (feet and squares)</option><option value="metric">Metric (metres and square metres)</option></select></label>
-                <label class="cs-field"><span>Language</span><select id="csReportLanguage"><option value="en-US">English (United States)</option><option value="en-GB">English (United Kingdom)</option></select></label>
-                <div class="cs-note">Language applies across the platform and to new reports. Personal interface preferences can override it. Existing reports keep their ordered language and units.</div>
+                <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
               </div>
             </section>` : '')}
             <div class="company-brand-row">
@@ -16461,7 +16354,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             <button type="button" class="cu-subtab ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view="people" role="tab" aria-selected="${String(viewState.usersSubtab === 'people')}"><i class="fas fa-users"></i><span>${String(escapeHtml(terminologyLabel('settings.people_view', 'People')))}</span></button>
             ${String(canManageAccess ? `<button type="button" class="cu-subtab ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view="access" role="tab" aria-selected="${viewState.usersSubtab === 'access'}"><i class="fas fa-user-shield"></i><span>${escapeHtml(terminologyLabel('settings.roles_access_view', 'Roles & access'))}</span><small data-access-role-count>0</small></button>` : '')}
           </nav>
-            <div class="company-brand-heading">Brand Kit</div>
 
           <section class="cu-view ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view-panel="people" ${String(viewState.usersSubtab === 'people' ? '' : 'hidden')}>
             <div class="cu-list-toolbar">
@@ -16515,15 +16407,11 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     }
     // **** Billing pane ----
     if (canBilling && paneBilling) {
-      (canPlatformBilling ? billingPane.querySelector('[data-billing-legacy]') : paneBilling).innerHTML = `
+      paneBilling.innerHTML = `
         <div class="bl-wrap">
           <div class="bl-card" style="margin-bottom:16px;">
             <div class="bl-row" style="align-items:center;">
               <div class="bl-left">
-            <section class="company-settings-card company-font-card">
-              <div class="company-settings-card-head"><strong>Company font</strong><span>Default for new documents and templates</span></div>
-              <div class="company-settings-card-body"><label class="cs-field"><span>Font family</span><select id="csBrandFont">${String(['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3','Arial'].map(font => `<option value="${font}">${font}</option>`).join(''))}</select></label></div>
-            </section>
                 <span class="bl-pill"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("settings","m_f406e9348b023b"," Measurement credit") ?? " Measurement credit")}</span>
                 <span class="cs-note credits-sub-target" style="margin:0;">${(globalThis.PlatformLanguage?.text("settings","m_0f620c04296518","Available balance for measurement orders.") ?? "Available balance for measurement orders.")}</span>
               </div>
@@ -16550,20 +16438,20 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               </div>
               <div class="bl-divider"></div>
               <div id="blControls">
-                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb_currency",`
-                  Minimum auto top-up values are ${v0}.
+                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb",`
+                  Minimum auto top-up values are $${v0}.
                 `,{v0}) ?? `
-                  Minimum auto top-up values are ${v0}.
-                `)(window.PlatformCommerce.credit(BILL_MIN))}</div>
+                  Minimum auto top-up values are $${v0}.
+                `)(BILL_MIN)}</div>
                 <div class="bl-row">
                   <div class="bl-left">
                     <span class="bl-pill"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</span>
-                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08_currency",`Minimum ${v1}`,{v1}) ?? `Minimum ${v1}`)(window.PlatformCommerce.credit(BILL_MIN))}</span>
+                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08",`Minimum $${v1}`,{v1}) ?? `Minimum $${v1}`)(BILL_MIN)}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blThMinus" type="button"><i class="fas fa-minus"></i></button>
                     <div class="bl-moneyWrap">
-                      <span class="usd">${window.PlatformCommerce.current().credit_display==='credits'?'credits':window.PlatformCommerce.current().currency}</span>
+                      <span class="usd">$</span>
                       <input class="cs-in bl-money" id="blThreshold" inputmode="numeric" placeholder="${String(BILL_MIN)}">
                     </div>
                     <button class="bl-stepBtn" id="blThPlus" type="button"><i class="fas fa-plus"></i></button>
@@ -16572,12 +16460,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
                 <div class="bl-row">
                   <div class="bl-left">
                     <span class="bl-pill"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</span>
-                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8_currency",`Minimum ${v3}`,{v3}) ?? `Minimum ${v3}` )(window.PlatformCommerce.credit(BILL_MIN))}</span>
+                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8",`Minimum $${v3}`,{v3}) ?? `Minimum $${v3}`)(BILL_MIN)}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blAmtMinus" type="button"><i class="fas fa-minus"></i></button>
                     <div class="bl-moneyWrap">
-                      <span class="usd">${window.PlatformCommerce.current().credit_display==='credits'?'credits':window.PlatformCommerce.current().currency}</span>
+                      <span class="usd">$</span>
                       <input class="cs-in bl-money" id="blTopup" inputmode="numeric" placeholder="${String(BILL_MIN)}">
                     </div>
                     <button class="bl-stepBtn" id="blAmtPlus" type="button"><i class="fas fa-plus"></i></button>
@@ -16639,92 +16527,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
         </div>
       `;
-    }
-    // The FirstMeasure workspace has one scroll owner: its history list.
-    if (canBilling && !canPlatformBilling && paneBilling) {
-      paneBilling.classList.add('fm-credit-fit');
-      injectCSS('billing_viewport_fit', `
-        #tab_company_settings:has(.fm-credit-fit.active),.cs-wrap:has(.fm-credit-fit.active),.cs-layout:has(.fm-credit-fit.active),.cs-main:has(.fm-credit-fit.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
-        .cs-main>.cs-card:has(.fm-credit-fit.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
-        #csPaneBilling.fm-credit-fit.active{height:100%;min-height:0;overflow:hidden}
-        #csPaneBilling.fm-credit-fit .bl-wrap{height:100%;max-width:none;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;min-height:0}
-        #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card{margin:0!important;padding:10px 14px}
-        #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-row{margin:0}
-        #csPaneBilling.fm-credit-fit .bl-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:12px}
-        #csPaneBilling.fm-credit-fit .bh-card{display:flex;flex-direction:column;min-height:0;margin:0;padding:12px}
-        #csPaneBilling.fm-credit-fit .bh-list{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;margin-top:8px}
-        #csPaneBilling.fm-credit-fit .bh-top{flex-shrink:0}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card{padding:12px;min-width:0}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-row{flex-wrap:nowrap;gap:8px;margin-top:8px}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-left{gap:4px;min-width:0}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-pill{padding:0;border:0;background:none;border-radius:0}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-ctrl{flex-wrap:nowrap;gap:4px}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-money{width:76px}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-stepBtn{padding:8px}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-divider{margin:9px 0}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-toggleLine{padding:8px;margin-top:8px}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .cs-btn{padding:8px 10px}
-        #csPaneBilling.fm-credit-fit .ms-card{margin:0;padding:10px 12px;min-width:0}
-        #csPaneBilling.fm-credit-fit .ms-sub{display:none}
-        #csPaneBilling.fm-credit-fit .ms-top{gap:6px}
-        #csPaneBilling.fm-credit-fit .ms-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:8px}
-        #csPaneBilling.fm-credit-fit .ms-stat{min-width:0;padding:7px;border-radius:6px}
-        #csPaneBilling.fm-credit-fit .ms-statLabel{font-size:9px;letter-spacing:0}
-        #csPaneBilling.fm-credit-fit .ms-statVal{font-size:17px;margin-top:3px}
-        #csPaneBilling.fm-credit-fit .ms-actions{margin-top:7px;gap:8px}
-        #csPaneBilling.fm-credit-fit .ms-actions .cs-btn{padding:6px 10px;min-height:30px}
-        #csPaneBilling.fm-credit-fit .fm-credit-settings{display:none}
-        #csPaneBilling.fm-credit-fit dialog{width:min(600px,calc(100% - 24px));max-height:90dvh;overflow:auto;border:1px solid #d0d5dd;border-radius:12px;padding:18px;color:inherit}
-        #csPaneBilling.fm-credit-fit dialog::backdrop{background:#10182888}
-        #csPaneBilling.fm-credit-fit dialog>.bl-card{border:0;box-shadow:none;padding:0;margin-top:12px}
-        @media(max-width:1100px),(max-height:730px){
-          #csPaneBilling.fm-credit-fit .bl-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:8px}
-          #csPaneBilling.fm-credit-fit .bl-grid>.bl-card{display:none}
-          #csPaneBilling.fm-credit-fit .fm-credit-settings{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
-          #csPaneBilling.fm-credit-fit .bl-wrap{gap:8px}
-          #csPaneBilling.fm-credit-fit .bh-sub{display:none}
-        }
-        @media(max-width:1100px){
-          .cs-layout:has(.fm-credit-fit.active){display:flex;flex-direction:column}
-          .cs-layout:has(.fm-credit-fit.active)>.cs-heading,.cs-layout:has(.fm-credit-fit.active)>.cs-sidebar{flex:0 0 auto}
-          .cs-main:has(.fm-credit-fit.active){flex:1;min-height:0;height:auto}
-        }
-        @media(max-width:600px){
-          .cs-main>.cs-card:has(.fm-credit-fit.active){padding:8px 12px}
-          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card{padding:8px}
-          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-row{display:flex;flex-wrap:nowrap;gap:8px}
-          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-left{display:none}
-          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-ctrl{display:flex;width:100%;justify-content:space-between;align-items:center}
-          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .credits-value:before{content:'Measurement credits';display:block;font-size:11px;font-weight:500;margin-bottom:4px}
-          #csPaneBilling.fm-credit-fit .ms-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:6px}
-          #csPaneBilling.fm-credit-fit .ms-stat{padding:5px}
-          #csPaneBilling.fm-credit-fit .ms-statVal{font-size:15px}
-          #csPaneBilling.fm-credit-fit .ms-h{font-size:13px}
-          #csPaneBilling.fm-credit-fit .ms-monthLabel{font-size:12px;min-width:110px}
-          #csPaneBilling.fm-credit-fit .ms-navBtn{padding:6px}
-          #csPaneBilling.fm-credit-fit .bh-card{padding:8px}
-          #csPaneBilling.fm-credit-fit .bh-top .bh-btn{width:auto;min-height:30px;padding:5px 8px}
-        }
-      `);
-      const grid=paneBilling.querySelector('.bl-grid');
-      const summary=document.createElement('div');summary.className='fm-credit-settings';
-      summary.innerHTML='<span data-credit-topup-summary>Credit auto top-up</span><button type="button" class="cs-btn ghost" data-credit-settings>Manage</button>';
-      grid.prepend(summary);
-      summary.querySelector('button').onclick=()=>{
-        const card=grid.querySelector('.bl-card');if(!card)return;
-        const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Credit auto top-up');
-        dialog.setAttribute('data-settings-autosave','off');
-        dialog.innerHTML='<button type="button" class="cs-btn ghost" data-close>Done</button>';
-        paneBilling.appendChild(dialog);dialog.appendChild(card);
-        dialog.querySelector('[data-close]').onclick=()=>dialog.close();
-        dialog.addEventListener('close',()=>{grid.insertBefore(card,grid.querySelector('.bh-card'));dialog.remove();updateCreditFitSummary();},{once:true});
-        dialog.showModal();
-      };
-    }
-    function updateCreditFitSummary(){
-      const target=paneBilling?.querySelector('[data-credit-topup-summary]');if(!target)return;
-      const saved=renderBilling._base;
-      target.textContent=saved?.enabled ? `Auto top-up: ${window.PlatformCommerce.credit(saved.amt)} below ${window.PlatformCommerce.credit(saved.th)}` : 'Credit auto top-up: Off';
     }
     // **** Floating menu element (users) ----
     floatingMenu = document.createElement('div');
@@ -16866,8 +16668,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const csAlternateLogoList = $('#csAlternateLogoList', paneCompany);
       if (writeInputs){
         const units = $('#csMeasurementSystem', paneCompany), language = $('#csReportLanguage', paneCompany);
-        if (units) units.value = state.report_preferences?.measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
-        if (language) language.value = state.report_preferences?.report_language || 'en-US';
+        if (units) units.value = state.report_preferences?.measurement_system || window.PlatformLanguage?.companyContext?.().measurement_system || (window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'metric_measurements') ? 'metric' : 'imperial');
+        if (language) language.value = state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale || 'en-US';
         if(csName) csName.value = state.name;
         if(csPrimary) csPrimary.value = clampHex(state.primary, DEFAULT_PRIMARY);
         if(csSecondary) csSecondary.value = clampHex(state.secondary, DEFAULT_SECONDARY);
@@ -16957,7 +16759,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const wrap = $('#rpToggles', paneReports);
       if (wrap) {
         wrap.className = 'rp-sections';
-      const csBrandFont = $('#csBrandFont', paneCompany);
         wrap.innerHTML = sections.map(section => `
           <section class="rp-section">
             <div class="rp-sectionHead">
@@ -16982,7 +16783,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             btn.classList.toggle('on', next);
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');
-        if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
             const st = btn.querySelector('.rp-state');
             if (st) st.textContent = next ? 'On' : 'Off';
           });
@@ -17135,9 +16935,9 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
     }
     function msLedgerAmountText(row){
       const delta = msMoney(row?.delta);
-      if (delta > 0) return `+${window.PlatformCommerce.credit(delta)}`;
-      if (delta < 0) return `-${window.PlatformCommerce.credit(Math.abs(delta))}`;
-      return window.PlatformCommerce.credit(0);
+      if (delta > 0) return `+$${msMoneyText(delta)}`;
+      if (delta < 0) return `-$${msMoneyText(Math.abs(delta))}`;
+      return '$0';
     }
     function msCsvCell(value){
       return `"${String(value ?? '').replace(/"/g, '""')}"`;
@@ -17147,7 +16947,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       return Array.isArray(d.transactions) ? d.transactions : (Array.isArray(d.ledger) ? d.ledger : []);
     }
     async function msLoadMonth(month, year, forceRefresh){
-      if (canPlatformBilling) return;
       if (!canBilling || !paneBilling) return;
       const key = msCacheKey(month, year);
       const summaryEl = $('#msSummary', paneBilling);
@@ -17204,15 +17003,15 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
-            <div class="ms-statVal">+${String(window.PlatformCommerce.credit(totalIn))}</div>
+            <div class="ms-statVal">+$${String(msMoneyText(totalIn))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_84a960ac02e33a","Orders / Debits") ?? "Orders / Debits")}</div>
-            <div class="ms-statVal">${String(window.PlatformCommerce.credit(totalOut))}</div>
+            <div class="ms-statVal">$${String(msMoneyText(totalOut))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_705ca6f25ef6d8","Net Change") ?? "Net Change")}</div>
-            <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</div>
+            <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}$${String(msMoneyText(Math.abs(net)))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_320155f7cd8ad0","Order Count") ?? "Order Count")}</div>
@@ -17251,12 +17050,12 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       } else {
         const rows = orders.map((o, idx) => {
           const stCls = msStatusClass(o.status);
-          const costTxt = o.rejected ? `<span style="opacity:.45;">${window.PlatformCommerce.credit(0)}</span>` : `${window.PlatformCommerce.credit(o.cost || 0)}`;
+          const costTxt = o.rejected ? '<span style="opacity:.45;">$0</span>' : `$${o.cost || 0}`;
 
           // Reimbursement cell: show amount for rejected orders, dash for others
           const reimb = o.rejected ? (parseFloat(o.reimbursed_amount ?? o.cost ?? 0) || 0) : 0;
           const reimbTxt = o.rejected
-            ? `<span style="color:#1e7e34; font-weight:1000;">+${window.PlatformCommerce.credit(reimb)}</span>`
+            ? `<span style="color:#1e7e34; font-weight:1000;">+$${reimb}</span>`
             : '<span style="opacity:.3;">-</span>';
 
           // Optional rejection reason sub-line under address
@@ -17304,7 +17103,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
 
       // Footer: show total + reimbursement summary
       const reimbFooter = totalReimbursed > 0
-        ? ` &nbsp;&middot;&nbsp; Reimbursed: <b style="color:#1e7e34;">+${window.PlatformCommerce.credit(totalReimbursed)}</b>`
+        ? ` &nbsp;&middot;&nbsp; Reimbursed: <b style="color:#1e7e34;">+$${totalReimbursed}</b>`
         : '';
 
       back.innerHTML = `
@@ -17315,7 +17114,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32_currency",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>$${String(total)}</b>${String(reimbFooter)}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -17434,7 +17233,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e_currency",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}$${String(msMoneyText(Math.abs(net)))}</b></div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -17590,7 +17389,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         return (v.enabled !== !!b.enabled) || (v.th !== b.th) || (v.amt !== b.amt);
       }
       function setMinimumMessage(text, isWarning){
-        const nextText = text || `Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`;
+        const nextText = text || `Minimum auto top-up values are $${BILL_MIN}.`;
         if (blMinimumNote) blMinimumNote.textContent = nextText;
         if (blStatus) blStatus.textContent = text || '';
         if (blStatus) blStatus.style.color = isWarning ? '#b26a00' : '';
@@ -17611,8 +17410,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           return;
         }
         elSummary.style.display = '';
-        elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58_currency",`If your balance falls below ${v0}, we will automatically add ${v1} to your account.`,{v0,v1}) ?? `If your balance falls below ${v0}, we will automatically add ${v1} to your account.`)(window.PlatformCommerce.credit(thNow),window.PlatformCommerce.credit(amtNow));
-        elSummary.textContent += ` Each top-up charges ${window.PlatformCommerce.cash(amtNow)}. ${window.PlatformCommerce.estimate(amtNow)}`;
+        elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58",`If your balance falls below $${v0}, we will automatically add $${v1} to your account.`,{v0,v1}) ?? `If your balance falls below $${v0}, we will automatically add $${v1} to your account.`)(thNow,amtNow);
       }
       // Payment method row behavior
       const cardNote = $('#blCardNote', paneBilling);
@@ -17743,7 +17541,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           const v = Math.max(BILL_MIN, n || BILL_MIN);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`, true);
+          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are $${BILL_MIN}.`, true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -17755,7 +17553,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           inputEl.value = String(v);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the ${window.PlatformCommerce.credit(BILL_MIN)} minimum.`, true);
+          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the $${BILL_MIN} minimum.`, true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -17811,7 +17609,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               return;
             }
             renderBilling._base = { enabled: v.enabled, th: v.th, amt: v.amt, _orgId: state.id };
-            updateCreditFitSummary();
             state.billing.auto_topup.enabled = v.enabled;
             state.billing.auto_topup.threshold_dollars = v.th;
             state.billing.auto_topup.topup_dollars = v.amt;
@@ -17837,7 +17634,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
                 return;
               }
               renderBilling._base = { enabled: v.enabled, th: v.th, amt: v.amt, _orgId: state.id };
-            updateCreditFitSummary();
               state.billing.auto_topup.enabled = v.enabled;
               state.billing.auto_topup.threshold_dollars = v.th;
               state.billing.auto_topup.topup_dollars = v.amt;
@@ -17886,9 +17682,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           renderBilling();
         });
       }
-      updateCreditFitSummary();
       // ---------- RIGHT SIDE: Billing History ----------
-      const bhList = canPlatformBilling ? null : $('#bhList', paneBilling);
+      const bhList = $('#bhList', paneBilling);
       const bhStatus = $('#bhStatus', paneBilling);
       const bhReload = $('#bhReload', paneBilling);
       if (!renderBilling.__css_patched){
@@ -17951,7 +17746,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             ts: ev.ts_utc,
             title: (globalThis.PlatformLanguage?.text("settings","m_65a3284ee46864","Auto top-up completed") ?? "Auto top-up completed"),
             sub: by ? `Triggered by ${by}` : 'Payment processed',
-            amountTxt: (topup > 0 ? `+${window.PlatformCommerce.credit(topup)}` : '')
+            amountTxt: (topup > 0 ? `+$${msMoneyText(topup)}` : '')
           };
         }
         return null;
@@ -17988,7 +17783,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         } else if (isPayment){
           title = 'Payment received';
           const cents = nInt(row?.amount_total);
-          if (cents != null && cents > 0) sub = `Charged ${window.PlatformCommerce.credit(cents / 100)}`;
+          if (cents != null && cents > 0) sub = `Charged $${msMoneyText(cents / 100)}`;
           const sid = row?.session_id ? String(row.session_id) : '';
           if (sid) sub = sub ? `${sub} - Ref ${sid.slice(-8)}` : `Ref ${sid.slice(-8)}`;
           const by = row?.by_email ? String(row.by_email) : '';
@@ -18141,10 +17936,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       }
       void loadHistory(false);
       // ---------- MONTHLY STATEMENT wiring ----------
-      if (!canPlatformBilling) {
-        wireStatementControls();
-        void msLoadMonth(msState.month, msState.year, false);
-      }
+      wireStatementControls();
+      void msLoadMonth(msState.month, msState.year, false);
     }
     // **** Company bindings ----
     if (canCompany) {
@@ -18519,7 +18312,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         const permissionCount = Object.values(rolePermissions).filter((allowed) => allowed === true).length;
         return `<details class="cu-role-card" ${String(draft ? 'open data-access-role-draft' : `data-access-role-id="${escapeHtml(roleId)}"`)} data-application="${String(escapeHtml(applicationMode))}">
           <summary>
-        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
             <span class="cu-role-icon"><i class="fas ${String(applicationMode === 'hybrid' ? 'fa-layer-group' : applicationMode === 'field' ? 'fa-mobile-screen-button' : 'fa-desktop')}"></i></span>
             <span class="cu-role-summary"><b>${String(escapeHtml(workforceText(role.name, draft ? 'New role' : roleId)))}</b><span>${String(escapeHtml(draft ? 'Configure a reusable role' : `${applicationLabel} / ${systemRole ? 'System role' : roleId}`))}</span></span>
             <span class="cu-role-counts"><span>${((v5) => globalThis.PlatformLanguage?.text("settings","m_fc34c12e76b6c1",`${v5} views`,{v5}) ?? `${v5} views`)(appCount)}</span><span>${String(rolePermissions['*'] === true ? 'All permissions' : `${permissionCount} permissions`)}</span>${String(!draft ? `<span>rev ${escapeHtml(String(role.revision || 0))}</span>` : '')}</span>
@@ -18530,7 +18322,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               <div class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_b08bf56c8979ef","Application families") ?? "Application families")}</span><div class="cu-choice-list">
                 ${String(['management', 'field'].map((application) => `<label class="cu-workforce-choice"><input type="checkbox" data-role-application-id="${application}" ${applications.includes(application) ? 'checked' : ''} ${systemRole ? 'disabled title="System role application families cannot be changed."' : ''}> ${escapeHtml(workforceApplicationLabel(application))}</label>`).join(''))}
               </div></div>
-          font_family: state.font_family,
               <label class="cu-row wide"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea class="cs-in" data-role-description placeholder="${(globalThis.PlatformLanguage?.text("settings","m_2cf91f4abee660","Who should receive this role and what it enables") ?? "Who should receive this role and what it enables")}">${String(escapeHtml(role.description || ''))}</textarea></label>
             </div>
             <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_64fb5b5e093e03","Default app experience") ?? "Default app experience")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_3e099da1ba6813","These views appear by default. Individual users can still inherit, show, or hide each one.") ?? "These views appear by default. Individual users can still inherit, show, or hide each one.")}</div></div>
@@ -19764,7 +19555,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       if (canProposalSettings && activeTab === 'proposals') renderProposalSettings();
       if (canForms && activeTab === 'forms') renderForms();
       if (canBilling) renderBilling();
-      if (activeTab === 'billing') renderPlatformBilling();
+      if (activeTab === 'platform_billing' && sectionFor('platform_billing')) window.FirstMatePlatformBilling?.mount(panel.querySelector('#csPanePlatformBilling'), {orgId:currentOrgId()});
       if (canUsers && activeTab === 'users') refreshUsers();
     })();
   }
