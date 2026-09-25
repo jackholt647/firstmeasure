@@ -469,6 +469,16 @@
     return String(action.kind || '').trim() === 'open_project' && !!String(action.project_id || action.projectId || '').trim();
   }
 
+  async function openMeasurementReportNotification(item = {}){
+    const action = item.frontend_action && typeof item.frontend_action === 'object' ? item.frontend_action : {};
+    if (action.kind !== 'open_measurement_report') return false;
+    const projectId = String(action.project_id || item.context?.project_id || '').trim();
+    window.Portal?.navigation?.navigate?.({ tab:'viewer' }, { source:'measurement-notification' });
+    await window.Portal?.modules?.viewer?.refresh?.(true);
+    if (projectId) window.Portal?.modules?.viewer?.openProjectById?.(projectId);
+    return true;
+  }
+
   function mentionNotificationRoute(item = {}){
     if (String(item?.kind || '').toLowerCase() !== 'mention') return null;
     const action = item.frontend_action && typeof item.frontend_action === 'object' ? item.frontend_action : {};
@@ -852,6 +862,17 @@
     }
   }
 
+  async function openNotificationItem(item){
+    if (!item) return;
+    window.PlatformNotifications?.markSeen(orgId(), item.id, notificationLoadOptions({ reload:true })).catch(() => null);
+    if (openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
+      closeNotificationMenus();
+    } else if (notificationOpensProject(item) || isLeadNotification(item)) {
+      await openNotificationProject(item);
+      closeNotificationMenus();
+    }
+  }
+
   function bindNotificationList(list, notifications){
     if (!list) return;
     list.querySelectorAll('[data-attention-note-id]').forEach((node) => {
@@ -864,21 +885,7 @@
     list.querySelectorAll('[data-note-id]').forEach((node) => {
       node.addEventListener('click', async () => {
         const item = notifications.find((entry) => String(entry.id) === String(node.dataset.noteId));
-        window.PlatformNotifications?.markSeen(orgId(), node.dataset.noteId, notificationLoadOptions({ reload:true })).catch(() => null);
-        if (openChatNotification(item)) {
-          closeNotificationMenus();
-        } else if (openMerchantPortalNotification(item)) {
-          closeNotificationMenus();
-        } else if (await openCommsNotification(item)) {
-          closeNotificationMenus();
-        } else if (openChannelMessageNotification(item)) {
-          closeNotificationMenus();
-        } else if (openMentionNotification(item)) {
-          closeNotificationMenus();
-        } else if (notificationOpensProject(item) || isLeadNotification(item)) {
-          await openNotificationProject(item);
-          closeNotificationMenus();
-        }
+        await openNotificationItem(item);
       });
     });
     list.querySelectorAll('[data-dismiss-note]').forEach((button) => {
@@ -1035,6 +1042,16 @@
     updateAssistantVisibility(true);
     window.addEventListener('fm:capabilities:updated', () => { updateAssistantVisibility(); updateMessagesVisibility(); });
     window.PlatformNotifications?.subscribe(renderNotifications);
+    window.addEventListener('fm:notification:open', async (event) => {
+      const id = String(event.detail?.id || '');
+      if (!id) return;
+      const state = await window.PlatformNotifications?.load(orgId(), notificationLoadOptions({ silent:true })).catch(() => null);
+      let item = state?.notifications?.find((entry) => String(entry.id) === id);
+      if (!item) item = (await window.PlatformAPI?.notifications?.get?.(orgId(), id).catch(() => null))?.notification?.data;
+      if (item) { await openNotificationItem(item); sessionStorage.removeItem('firstmate_pending_notification'); }
+    });
+    const pendingNotification = sessionStorage.getItem('firstmate_pending_notification');
+    if (pendingNotification) window.dispatchEvent(new CustomEvent('fm:notification:open', { detail:{ id:pendingNotification } }));
     // Re-render the menus whenever the attention feed changes so pinned rows
     // stay current; unread counts still come from PlatformNotifications only.
     window.PlatformBanners?.subscribe?.(() => renderNotifications());

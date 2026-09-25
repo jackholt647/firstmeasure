@@ -60,5 +60,6 @@
     event.preventDefault();fetch(link.href).then(r=>r.blob()).then(blob=>saveFile(blob,link.download||'download')).catch(error=>root.dispatchEvent(new CustomEvent('fm:phone:error',{detail:{message:error.message}})));
   },true);
   root.PhoneFeatures=Object.freeze({version:1,ready,isNative:()=>!!transport(),info:()=>info,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,
-    haptic:()=>transport()?request('haptic'):Promise.resolve(),openSettings:()=>request('settings'),authenticate:()=>request('authenticate')});
+    haptic:()=>transport()?request('haptic'):Promise.resolve(),openSettings:()=>request('settings'),authenticate:()=>request('authenticate'),
+    pushStatus:()=>request('pushStatus'),pushRegister:()=>request('pushRegister'),pushUnregister:()=>request('pushUnregister')});
 })(window);

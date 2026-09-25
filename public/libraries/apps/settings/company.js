@@ -1665,6 +1665,7 @@
     `;
   }
   const DEFAULT_VISIBLE_APP_FLAGS = {
+    apps: ['firstmeasure', 'notifications'],
     mobile: [],
     platform: [],
     scheduling: ['routing', 'gantt'],
@@ -2240,16 +2241,14 @@
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
-    if (!canMySettings && !canCompany && !canPayments && !canCustomFields && !canUsers && !canPayroll && !canReports && !canBilling && !canPlatformBilling && !canForms && !canPricebook && !canProposalSettings && !canDocuments && !canConfiguration && !canScheduling && !canTerminology && !canCrews && !canScopeFlags && !canCallWorkflows && !canStorage && !canSmsSettings && !canDomains && !canAssistant && !canAppFlags) {
-      panel.innerHTML = `<div style="padding:20px; text-align:center; color:#666; font-weight:800;">${(globalThis.PlatformLanguage?.text("settings","m_3d547d220b69f5","Access Denied") ?? "Access Denied")}</div>`;
-      return;
-    }
+    // Every signed-in member can manage their own notification preferences.
     // Canonical Settings information architecture. A new broad Settings page
     // is declared exactly once here: stable route id, permission/flag gate,
     // icon, title, subtitle, and its existing pane ids. The shared shell below
     // derives navigation, headings, accessibility, and active state from it.
     const settingsSections = [
       { id:'my_settings', allowed:canMySettings, icon:'fas fa-user-gear', title:(globalThis.PlatformLanguage?.text("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_005931f3534c4a","Personal preferences for your account.") ?? "Personal preferences for your account."), tabId:'csTabMySettings', paneId:'csPaneMySettings' },
+      { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:'Notifications', subtitle:'Choose which updates appear here and on your phone.', tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
@@ -4739,6 +4738,7 @@
     window.FirstMateSettingsPages?.installAutosave?.(panel, { source:'company-settings', inputDelay:350 });
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
+    const paneNotifications = $('#csPaneNotifications', panel);
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);
@@ -14031,6 +14031,7 @@
         else delete titleNode.dataset.settingsTerminologyKey;
       }
       if (which === 'my_settings' && canMySettings) renderMySettings();
+      if (which === 'notifications') renderNotificationSettings();
       if (which === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
       if (which === 'users' && canUsers) refreshUsers();
       if (which === 'money' && canPayments) renderMoneySettings();
@@ -14061,6 +14062,64 @@
       scheduleSettingsSubtabsSync();
     }
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
+    async function renderNotificationSettings(){
+      if (!paneNotifications) return;
+      paneNotifications.innerHTML = '<div class="my-settings-status">Loading notification preferences…</div>';
+      try {
+        const result = await window.PlatformAPI.notifications.preferences(currentOrgId());
+        const preferences = result.preferences || {};
+        const categories = window.PlatformPush?.categories || [
+          ['leads','Leads'],['messages','Messages'],['mentions','Mentions'],['tasks','Tasks'],
+          ['scheduling','Scheduling'],['payments','Payments'],['celebrations','Celebrations'],['system','System']
+        ];
+        const measurements = appFlag('apps', 'firstmeasure') ? [
+          ['measurements.report_delivered','Report delivered'],
+          ['measurements.report_revised','Corrected report delivered'],
+          ['measurements.report_canceled','Order canceled'],
+          ['measurements.report_rejected','Order rejected'],
+          ['measurements.report_status','Order progress']
+        ] : [];
+        const otherUpdates = appFlag('platform', 'expanded_access') ? categories.filter(([id]) => ({
+          leads:appFlag('apps','crm'), messages:appFlag('apps','messaging') || appFlag('apps','channels'),
+          mentions:appFlag('apps','projects'), tasks:appFlag('apps','projects'),
+          scheduling:appFlag('platform','scheduling'), payments:appFlag('apps','billing'),
+          celebrations:appFlag('apps','projects'), system:true
+        })[id]) : [];
+        const preferenceRows = (rows) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 70px 70px;gap:8px;align-items:center;margin-top:14px"><span></span><strong>In app</strong><strong>Push</strong>
+          ${rows.map(([id,label]) => `<span>${escapeHtml(label)}</span><input type="checkbox" data-notification-surface="in_app" data-notification-key="${id}" ${preferences.in_app?.[id] !== false ? 'checked' : ''}><input type="checkbox" data-notification-surface="push" data-notification-key="${id}" ${preferences.push?.[id] ? 'checked' : ''}>`).join('')}
+        </div>`;
+        paneNotifications.innerHTML = `<div class="my-settings-shell">
+          <div class="my-settings-hero"><div class="my-settings-icon"><i class="fas fa-bell"></i></div><div><h3>Notifications</h3><p>Choose what appears in the bell on every device and what is sent to your phone.</p></div></div>
+          <div class="cs-note">Phone push also requires permission in iOS or Android settings. Your choices apply to your account on every device.</div>
+          ${measurements.length ? `<div class="my-settings-group"><h4>Measurements</h4>${preferenceRows(measurements)}</div>` : ''}
+          ${otherUpdates.length ? `<div class="my-settings-group"><h4>Other updates</h4>${preferenceRows(otherUpdates)}</div>` : ''}
+          <div class="li-actions"><button class="cs-btn primary" type="button" data-notification-save>Save notification settings</button>${window.PlatformPush?.available?.() ? '<button class="cs-btn" type="button" data-notification-enable>Enable phone push</button><button class="cs-btn" type="button" data-notification-disable>Disable on this phone</button>' : ''}<span class="my-settings-status" data-notification-status></span></div>
+        </div>`;
+        paneNotifications.querySelector('[data-notification-save]')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          const status = paneNotifications.querySelector('[data-notification-status]');
+          const patch = { in_app:{}, push:{} };
+          paneNotifications.querySelectorAll('[data-notification-key]').forEach((input) => { patch[input.dataset.notificationSurface][input.dataset.notificationKey] = input.checked; });
+          try {
+            button.disabled = true;
+            await window.PlatformAPI.notifications.savePreferences(currentOrgId(), patch);
+            await window.PlatformNotifications?.load?.(currentOrgId(), { branchId:currentBranchId(), includeDismissed:true, silent:true });
+            status.textContent = 'Saved';
+          } catch (error) { status.textContent = error?.message || 'Could not save preferences.'; }
+          finally { button.disabled = false; }
+        });
+        paneNotifications.querySelector('[data-notification-enable]')?.addEventListener('click', async () => {
+          const status = paneNotifications.querySelector('[data-notification-status]');
+          try { const result = await window.PlatformPush.enable(); status.textContent = result.granted ? 'Phone push enabled' : (result.reason || 'Allow notifications in your phone settings.'); }
+          catch (error) { status.textContent = error?.message || 'Phone push could not be enabled.'; }
+        });
+        paneNotifications.querySelector('[data-notification-disable]')?.addEventListener('click', async () => {
+          const status = paneNotifications.querySelector('[data-notification-status]');
+          try { await window.PlatformPush.disable(); status.textContent = 'Phone push disabled on this device'; }
+          catch (error) { status.textContent = error?.message || 'Could not disable phone push.'; }
+        });
+      } catch (error) { paneNotifications.innerHTML = `<div class="my-settings-status" style="color:#b42318">${escapeHtml(error?.message || 'Notification settings could not be loaded.')}</div>`; }
+    }
     window.Portal?.navigation?.registerHandler?.('company-settings', {
       priority:350,
       apply:(route) => {

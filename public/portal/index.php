@@ -2132,6 +2132,7 @@ session_write_close();
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-notifications/platform-push.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-banners/platform-banners.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-action-items/platform-action-items.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-tags/platform-tags.js?v=<?= $ver ?>"></script>

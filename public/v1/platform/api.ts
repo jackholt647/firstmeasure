@@ -73,6 +73,7 @@ import {
   switchRememberedPlatformAccount
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
+import { categoryForNotification, deliverNotificationPush, normalizeNotificationPreferences, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
 import { customerPortalDocumentId as portalDocumentIdFor, normalizePortalSettings, publicPortalSettings, type PortalSettings } from "./portal_settings.js";
 // Side-effect import: registers the portal.* server widget resolvers into the
@@ -270,7 +271,6 @@ const GENERIC_PLATFORM_COLLECTIONS = new Set([
   "customers",
   "users",
   "branch",
-  NOTIFICATION_COLLECTION,
   "activity",
   CUSTOMER_PORTAL_COLLECTION,
   "calendar_events"
@@ -2350,6 +2350,34 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, ...result };
   });
 
+  app.get("/organizations/:orgId/notification-preferences", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const user = await readDocument(orgId, "users", ctx.userId);
+    return { ok: true, preferences: normalizeNotificationPreferences(asObject(user.data).notification_preferences) };
+  });
+
+  app.patch("/organizations/:orgId/notification-preferences", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    return { ok: true, preferences: await saveNotificationPreferences(orgId, ctx.userId, objectBodySchema.parse(request.body ?? {})) };
+  });
+
+  app.post("/organizations/:orgId/notification-devices", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const device = await registerNotificationDevice(orgId, ctx.userId, { ...objectBodySchema.parse(request.body ?? {}), branch_id: ctx.branchId || "default" });
+    reply.code(201);
+    return { ok: true, device };
+  });
+
+  app.delete("/organizations/:orgId/notification-devices/:deviceId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    await unregisterNotificationDevice(orgId, ctx.userId, getParam(request.params, "deviceId"));
+    return { ok: true };
+  });
+
   app.post("/organizations/:orgId/notifications", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(NOTIFICATION_COLLECTION) });
@@ -2509,10 +2537,12 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/notifications/:notificationId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const notificationId = getParam(request.params, "notificationId");
+    await requireVisibleNotification(orgId, ctx.userId, notificationId, ctx.branchId);
     return {
       ok: true,
-      notification: await readDocument(orgId, NOTIFICATION_COLLECTION, getParam(request.params, "notificationId"))
+      notification: await readDocument(orgId, NOTIFICATION_COLLECTION, notificationId)
     };
   });
 
@@ -2520,7 +2550,9 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const body = objectBodySchema.parse(request.body ?? {});
-    const state = await setUserNotificationState(orgId, ctx.userId, getParam(request.params, "notificationId"), body);
+    const notificationId = getParam(request.params, "notificationId");
+    await requireVisibleNotification(orgId, ctx.userId, notificationId, ctx.branchId);
+    const state = await setUserNotificationState(orgId, ctx.userId, notificationId, body);
     return { ok: true, state };
   });
 
@@ -3174,7 +3206,7 @@ export async function createPlatformLead(orgId: string, input: PlatformLeadInput
       status: "active",
       channel: "passive",
       kind: "passive",
-      push: notificationInput.push === true,
+      push: notificationInput.push !== false,
       passive: notificationInput.passive !== false,
       manual_dismissible: notificationInput.manual_dismissible === true,
       target_user_ids: normalizeStringArray(notificationInput.target_user_ids),
@@ -3862,6 +3894,8 @@ function normalizeNotification(input: Record<string, unknown>) {
     status: String(input.status || "active"),
     channel: String(input.channel || "passive"),
     kind: String(input.kind || "passive"),
+    category: categoryForNotification(input),
+    preference_key: String(input.preference_key || input.preferenceKey || ""),
     push: input.push === true,
     passive: input.passive !== false,
     manual_dismissible: input.manual_dismissible !== false && input.manualDismissible !== false,
@@ -3887,34 +3921,32 @@ function userRoleIds(user: Record<string, unknown>) {
   return roles;
 }
 
-async function resolveNotificationRecipients(orgId: string, notification: Record<string, unknown>) {
-  const targetUserIds = new Set(normalizeStringArray(notification.target_user_ids));
-  const targetRoleIds = new Set(normalizeStringArray(notification.target_role_ids));
-  const docs = await listDocuments(orgId, "users");
-  const users = docs.map((doc) => ({ id: String(doc.id || ""), ...asObject(doc.data) }));
-  return users.filter((user) => {
-    if (targetUserIds.has(String(user.id))) return true;
-    if ([...targetRoleIds].some((roleId) => userRoleIds(user).includes(roleId))) return true;
-    return !targetUserIds.size && !targetRoleIds.size;
-  });
-}
-
 export async function createPlatformNotification(orgId: string, input: Record<string, unknown>) {
   const notification = normalizeNotification(input);
-  if (notification.push) {
-    const recipients = await resolveNotificationRecipients(orgId, notification);
-    notification.push_log = recipients.map((user) => ({
-      user_id: user.id,
-      at: new Date().toISOString(),
-      status: "logged_only"
-    }));
+  let saved;
+  try {
+    saved = await upsertDocument(orgId, NOTIFICATION_COLLECTION, {
+      id: notification.id,
+      data: notification,
+      metadata: { kind: "platform_notification", source: notification.source }
+    }, { createOnly: true });
+  } catch (error) {
+    if (error instanceof PlatformError && error.code === "document_exists") return await readDocument(orgId, NOTIFICATION_COLLECTION, notification.id);
+    throw error;
   }
-  const saved = await upsertDocument(orgId, NOTIFICATION_COLLECTION, {
-    id: notification.id,
-    data: notification,
-    metadata: { kind: "platform_notification", source: notification.source }
-  }, { replace: true });
+  if (notification.push) {
+    const log = await deliverNotificationPush(orgId, notification).catch((error) => {
+      console.error("notification push dispatch failed", error);
+      return [{ at: new Date().toISOString(), status: "error" }];
+    });
+    if (log.length) return await upsertDocument(orgId, NOTIFICATION_COLLECTION, { id: notification.id, data: { ...notification, push_log: log }, metadata: saved.metadata }, { replace: true });
+  }
   return saved;
+}
+
+async function requireVisibleNotification(orgId: string, userId: string, notificationId: string, branchId: string) {
+  const result = await listVisibleNotifications(orgId, userId, { includeDismissed: true, branchId, ignorePreferences: true });
+  if (!result.notifications.some((item) => item.id === notificationId)) throw notFound("notification_not_found", "Notification not found.");
 }
 
 async function setUserNotificationState(orgId: string, userId: string, notificationId: string, patch: Record<string, unknown>) {
@@ -3953,7 +3985,9 @@ async function setUserNotificationState(orgId: string, userId: string, notificat
   return next;
 }
 
-async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string } = {}) {
+async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean } = {}) {
+  if (!await isAppFlagEnabled(orgId, "apps", "notifications")) return { notifications: [], unread_count: 0, active_count: 0 };
+  const measurementsEnabled = await isAppFlagEnabled(orgId, "apps", "firstmeasure");
   const [userDoc, notificationDocs] = await Promise.all([
     readDocument(orgId, "users", userId),
     listDocuments(orgId, NOTIFICATION_COLLECTION)
@@ -3961,11 +3995,14 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
   const user = { id: userId, ...asObject(userDoc.data) };
   const states = asObject(asObject(userDoc.data).notification_state);
   const roles = new Set(userRoleIds(user));
+  const preferences = normalizeNotificationPreferences(asObject(userDoc.data).notification_preferences);
   const notifications = notificationDocs
     .map((doc) => ({ document: doc, data: asObject(doc.data) }))
     .filter(({ data }) => String(data.status || "active") === "active")
     .filter(({ data }) => data.passive !== false)
+    .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
+    .filter(({ data }) => options.ignorePreferences || preferences.in_app[preferenceKeyForNotification(data)])
     .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
     .filter(({ data }) => {
       const targetUserIds = normalizeStringArray(data.target_user_ids);
@@ -4737,6 +4774,20 @@ export async function processProjectEventLifecycleForOrg(orgId: string, candidat
           event
         }
       });
+      if (cleanText(event.event_type_default_id || event.kind) === "sales_appointment") {
+        await createPlatformNotification(orgId, {
+          id: `notification_appointment_followup_${document.id}_${cleanText(event.id)}`,
+          title: "Sales appointment finished",
+          body: `Follow up on ${cleanText(project.title || project.address || "this project")}.`,
+          kind: "appointment_followup", category: "scheduling", push: true,
+          branch_id: cleanText(project.branch_id || "default"),
+          target_user_ids: normalizeStringArray(event.assigned_user_ids),
+          target_role_ids: normalizeStringArray(event.assigned_user_ids).length ? [] : ["sales_appointments"],
+          source: "project.event.completed",
+          frontend_action: { kind: "open_project", project_id: document.id },
+          context: { project_id: document.id, event_id: event.id }
+        });
+      }
     }
     if (changed) {
       const latest = await readDocument(orgId, "projects", String(document.id));

@@ -939,10 +939,7 @@ export async function createWorkNotification(orgId: string, branchId: string, pr
     created_at: now,
     updated_at: now
   };
-  const saved = await upsertDocument(orgId, "notifications", {
-    id,
-    data,
-    metadata: { kind: "platform_notification", source: data.source }
-  }, { replace: true });
+  const { createPlatformNotification } = await import("../../platform/api.js");
+  const saved = await createPlatformNotification(orgId, data);
   return { ...data, revision: saved.revision };
 }
