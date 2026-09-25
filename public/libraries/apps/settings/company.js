@@ -1839,6 +1839,14 @@
       description: (globalThis.PlatformLanguage?.text("settings","m_2d894b062b10e8","Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.") ?? "Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.")
     },
     {
+      key: 'platform.resizable_left_column',
+      group: 'platform',
+      flag: 'resizable_left_column',
+      defaultValue: true,
+      label: 'Drag to Resize Left Column',
+      description: 'Drag the right edge of the left column to set its width. Dragging also locks a compact column open.'
+    },
+    {
       key: 'platform.cobrand_sidebar_logo',
       group: 'platform',
       flag: 'cobrand_sidebar_logo',
@@ -4748,6 +4756,14 @@
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
     const paneNotifications = $('#csPaneNotifications', panel);
+    window.addEventListener('fm:user-preferences:updated', (event) => {
+      const width = window.Portal?.sidebarWidth?.normalize?.(event?.detail?.preferences?.sidebar_width);
+      const input = paneMySettings?.querySelector('[data-my-sidebar-width]');
+      const output = paneMySettings?.querySelector('[data-my-sidebar-width-output]');
+      if (!width || !input || !output) return;
+      input.value = String(width);
+      output.textContent = `${width}px`;
+    });
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);
@@ -16412,64 +16428,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
               </div>
             </section>` : '')}
-            <div class="company-brand-row">
-            <section class="company-settings-card">
-                <div class="company-settings-card-head">
-                  <strong>${(globalThis.PlatformLanguage?.text("settings","m_6bb25348173069","Color palette") ?? "Color palette")}</strong>
-                  <i class="fas fa-circle-info company-settings-card-help" data-fm-tooltip="${String(extendedPalette ? 'Primary and secondary style the UI. Supporting colors are available in visual editors.' : 'Primary and secondary colors style your company branding.')}" title="${String(extendedPalette ? 'Primary and secondary style the UI. Supporting colors are available in visual editors.' : 'Primary and secondary colors style your company branding.')}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_490cbf5945b3f8","About the company color palette") ?? "About the company color palette")}"></i>
-                </div>
-                <div class="company-settings-card-body">
-                  <div class="brand-color-main">
-                    <div class="brand-color-control">
-                      <input type="color" class="cs-color" id="csPrimary">
-                      <div class="brand-color-copy"><label for="csPrimaryHex">${(globalThis.PlatformLanguage?.text("settings","m_0c92722f162cbd","Primary · UI") ?? "Primary · UI")}</label><span class="cs-chip" id="csPrimaryChip"><span class="hash">#</span><input id="csPrimaryHex" maxlength="6" autocomplete="off" spellcheck="false"></span></div>
-                    </div>
-                    <div class="brand-color-control">
-                      <input type="color" class="cs-color" id="csSecondary">
-                      <div class="brand-color-copy"><label for="csSecondaryHex">${(globalThis.PlatformLanguage?.text("settings","m_390a15f2a6d920","Secondary · UI") ?? "Secondary · UI")}</label><span class="cs-chip" id="csSecondaryChip"><span class="hash">#</span><input id="csSecondaryHex" maxlength="6" autocomplete="off" spellcheck="false"></span></div>
-                    </div>
-                  </div>
-${String(extendedPalette ? `                  <div class="brand-palette-strip" id="csPaletteStrip" aria-label="Six-color company palette"></div>
-                  <div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="csGeneratePalette"><i class="fas fa-rotate"></i> Regenerate palette from logo</button></div>` : '')}
-                </div>
-            </section>
-            <section class="company-settings-card">
-                <div class="company-settings-card-head">
-                  <strong>${(globalThis.PlatformLanguage?.text("settings","m_a63c5a4c25569b","Logo") ?? "Logo")}</strong>
-                  <i class="fas fa-circle-info company-settings-card-help" data-fm-tooltip="${String(advancedLogos ? 'Manage the primary logo, alternate versions, and how logos appear on branded surfaces.' : 'Choose the company logo used on your reports.')}" title="${String(advancedLogos ? 'Manage the primary logo, alternate versions, and how logos appear on branded surfaces.' : 'Choose the company logo used on your reports.')}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_85de3f0cdfc46a","About company logos") ?? "About company logos")}"></i>
-                </div>
-                <div class="company-settings-card-body">
-                  <div class="logo-editor">
-                    <div class="logo-stage" id="csLogoStage"><img id="csLogoPreviewImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.text("settings","m_fc3b468d1ec4eb","Current company logo") ?? "Current company logo")}"></div>
-                    <div class="logo-main-controls">
-                      <strong>${(globalThis.PlatformLanguage?.text("settings","m_2c8fc5e11eaf62","Current logo") ?? "Current logo")}</strong>
-                      <div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_eb55056b53954c","Transparent PNG or SVG works best.") ?? "Transparent PNG or SVG works best.")}</div>
-                      <div class="cs-file"><label class="cs-btn ghost" for="csLogoFile"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.text("settings","m_ac8bf335945352"," Replace logo") ?? " Replace logo")}</label><input type="file" id="csLogoFile" accept="image/*"></div>
-                    </div>
-                  </div>
-${String(advancedLogos ? `                  <div class="alternate-logos">
-                    <div class="alternate-logos-head">
-                      <span class="alternate-logos-title">Alternate logos <i class="fas fa-circle-info company-settings-card-help" data-fm-tooltip="Reusable logo variations for proposals, web pages, and other branded media." title="Reusable logo variations for proposals, web pages, and other branded media."></i></span>
-                      <label class="alternate-logo-add" for="csAlternateLogoFiles"><i class="fas fa-plus"></i> Add<input type="file" id="csAlternateLogoFiles" accept="image/*" multiple></label>
-                    </div>
-                    <div class="alternate-logo-list" id="csAlternateLogoList"><span class="alternate-logo-empty">No alternate logos yet.</span></div>
-                  </div>
-                  <details class="company-advanced" id="csLogoAdvanced">
-                    <summary>Advanced logo appearance</summary>
-                    <div class="company-advanced-body">
-                      <div class="logo-advanced-grid">
-                        <label class="cs-field"><span>Background</span><div class="logo-background"><input type="color" id="csLogoBackground"><input type="text" id="csLogoBackgroundHex" maxlength="7" spellcheck="false" autocomplete="off"></div></label>
-                        <div class="cs-field"><span>Container shape</span><div class="logo-options">
-                          <label class="logo-choice"><input type="radio" name="csLogoShape" value="square"><span><i class="far fa-square"></i> Square</span></label>
-                          <label class="logo-choice"><input type="radio" name="csLogoShape" value="circle"><span><i class="far fa-circle"></i> Circle</span></label>
-                          <button type="button" class="logo-corners" id="csLogoCorners" aria-pressed="true"><i class="fas fa-border-all"></i> Rounded corners</button>
-                        </div></div>
-                      </div>
-                    </div>
-                  </details>` : '')}
-                </div>
-            </section>
-            </div>
+            <div class="company-brand-heading">Brand Kit</div>
+            ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos })}
             </div>
             ${String(reportsEnabled ? `<aside class="company-document-preview">
               <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i> Report preview</span></div>
@@ -16522,7 +16482,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             <button type="button" class="cu-subtab ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view="people" role="tab" aria-selected="${String(viewState.usersSubtab === 'people')}"><i class="fas fa-users"></i><span>${String(escapeHtml(terminologyLabel('settings.people_view', 'People')))}</span></button>
             ${String(canManageAccess ? `<button type="button" class="cu-subtab ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view="access" role="tab" aria-selected="${viewState.usersSubtab === 'access'}"><i class="fas fa-user-shield"></i><span>${escapeHtml(terminologyLabel('settings.roles_access_view', 'Roles & access'))}</span><small data-access-role-count>0</small></button>` : '')}
           </nav>
-            <div class="company-brand-heading">Brand Kit</div>
 
           <section class="cu-view ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view-panel="people" ${String(viewState.usersSubtab === 'people' ? '' : 'hidden')}>
             <div class="cu-list-toolbar">
@@ -16581,10 +16540,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           <div class="bl-card" style="margin-bottom:16px;">
             <div class="bl-row" style="align-items:center;">
               <div class="bl-left">
-            <section class="company-settings-card company-font-card">
-              <div class="company-settings-card-head"><strong>Company font</strong><span>Default for new documents and templates</span></div>
-              <div class="company-settings-card-body"><label class="cs-field"><span>Font family</span><select id="csBrandFont">${String(['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3','Arial'].map(font => `<option value="${font}">${font}</option>`).join(''))}</select></label></div>
-            </section>
                 <span class="bl-pill"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("settings","m_f406e9348b023b"," Measurement credit") ?? " Measurement credit")}</span>
                 <span class="cs-note credits-sub-target" style="margin:0;">${(globalThis.PlatformLanguage?.text("settings","m_0f620c04296518","Available balance for measurement orders.") ?? "Available balance for measurement orders.")}</span>
               </div>
@@ -16849,46 +16804,15 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         setImgSmart(img, key, { forceBust: force, bustKey: Date.now() });
       });
     }
-    function paletteTextColor(hex){
-      const value = clampHex(hex, '#000000').slice(1);
-      const r = parseInt(value.slice(0,2),16), g = parseInt(value.slice(2,4),16), b = parseInt(value.slice(4,6),16);
-      return ((r*299 + g*587 + b*114) / 1000) > 160 ? '#172033' : '#FFFFFF';
-    }
     function renderBrandPalette(){
       if (!paneCompany) return;
       state.palette = normalizeBrandPalette(state.palette, state.primary, state.secondary);
-      const strip = $('#csPaletteStrip', paneCompany);
-      if (strip) strip.innerHTML = state.palette.map((color,index)=>`
-        <label class="brand-palette-swatch ${String(index < 2 ? 'blessed' : '')}" style="--swatch:${String(escapeHtml(color))};--swatch-text:${String(paletteTextColor(color))}" title="${String(index === 0 ? 'Primary' : index === 1 ? 'Secondary' : `Support ${index-1}`)}: ${String(escapeHtml(color))}">
-          <input type="color" data-palette-direct="${String(index)}" value="${String(escapeHtml(color))}" aria-label="${((v7) => globalThis.PlatformLanguage?.text("settings","m_953e4a6603f5f1",`Edit ${v7} color`,{v7}) ?? `Edit ${v7} color`)(index === 0 ? 'primary' : index === 1 ? 'secondary' : `support ${index-1}`)}">
-          <span>${String(escapeHtml(color))}</span>
-        </label>
-      `).join('');
+      window.PlatformBrandKit.renderPalette(paneCompany, 'cs', state.palette);
     }
     function renderLogoAppearance(){
       if (!paneCompany) return;
       state.logo_display = normalizeLogoDisplay(state.logo_display);
-      const display = state.logo_display;
-      const stage = $('#csLogoStage', paneCompany);
-      const background = $('#csLogoBackground', paneCompany);
-      const backgroundHex = $('#csLogoBackgroundHex', paneCompany);
-      const corners = $('#csLogoCorners', paneCompany);
-      if (stage) {
-        stage.style.setProperty('--logo-bg', display.background_color);
-        stage.style.setProperty('--logo-radius', display.rounded_corners ? '14px' : '0px');
-        stage.classList.toggle('circle', display.shape === 'circle');
-      }
-      if (background) background.value = display.background_color;
-      if (backgroundHex) backgroundHex.value = display.background_color;
-      paneCompany.querySelectorAll('input[name="csLogoShape"]').forEach((input)=>{
-        input.checked = input.value === display.shape;
-      });
-      if (corners) {
-        corners.disabled = display.shape === 'circle';
-        corners.classList.toggle('active', display.rounded_corners && display.shape !== 'circle');
-        corners.setAttribute('aria-pressed', String(display.rounded_corners));
-        corners.innerHTML = `<i class="fas fa-border-all"></i> ${display.rounded_corners ? 'Rounded corners' : 'Square corners'}`;
-      }
+      window.PlatformBrandKit.renderLogoAppearance(paneCompany, 'cs', state.logo_display);
     }
     function persistTheme(){
       const theme = {
@@ -16912,6 +16836,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const csName = $('#csName', paneCompany);
       const csPrimary = $('#csPrimary', paneCompany);
       const csSecondary = $('#csSecondary', paneCompany);
+      const csBrandFont = $('#csBrandFont', paneCompany);
       const csPrimaryHex = $('#csPrimaryHex', paneCompany);
       const csSecondaryHex = $('#csSecondaryHex', paneCompany);
       const csCompanyEmail = $('#csCompanyEmail', paneCompany);
@@ -16936,6 +16861,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         if(csName) csName.value = state.name;
         if(csPrimary) csPrimary.value = clampHex(state.primary, DEFAULT_PRIMARY);
         if(csSecondary) csSecondary.value = clampHex(state.secondary, DEFAULT_SECONDARY);
+        if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
         if(csPrimaryHex) csPrimaryHex.value = clampHex(csPrimary.value, DEFAULT_PRIMARY).slice(1);
         if(csSecondaryHex) csSecondaryHex.value = clampHex(csSecondary.value, DEFAULT_SECONDARY).slice(1);
         if (csCompanyEmail) csCompanyEmail.value = state.company_email || '';
@@ -17022,7 +16948,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
       const wrap = $('#rpToggles', paneReports);
       if (wrap) {
         wrap.className = 'rp-sections';
-      const csBrandFont = $('#csBrandFont', paneCompany);
         wrap.innerHTML = sections.map(section => `
           <section class="rp-section">
             <div class="rp-sectionHead">
@@ -17047,7 +16972,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
             btn.classList.toggle('on', next);
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');
-        if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
             const st = btn.querySelector('.rp-state');
             if (st) st.textContent = next ? 'On' : 'Off';
           });
@@ -18246,6 +18170,44 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         postal_code: csCompanyPostalCode?.value,
         country: csCompanyCountry?.value || 'US'
       });
+      const brandRoot = paneCompany.querySelector('[data-brandkit-root="cs"]');
+      let brandSaveTimer = 0;
+      let brandSaveQueue = Promise.resolve();
+      const scheduleBrandSave = () => {
+        clearTimeout(brandSaveTimer);
+        csStatus.textContent = 'Saving Brand Kit…';
+        brandSaveTimer = window.setTimeout(() => {
+          const snapshot = {
+            name:state.name, primary:state.primary, secondary:state.secondary,
+            palette:[...state.palette], font_family:state.font_family || 'Montserrat',
+            logo_display:{ ...state.logo_display },
+            company_email:state.company_email, company_phone:state.company_phone,
+            company_address:state.company_address, company_business_address:state.company_business_address,
+            report_preferences:state.report_preferences
+          };
+          brandSaveQueue = brandSaveQueue.catch(() => {}).then(() => saveOrg(snapshot)).then((result) => {
+            if (!result.ok) throw new Error(result.error || 'Could not save Brand Kit.');
+            csStatus.textContent = 'Brand Kit saved';
+          }, (error) => {
+            csStatus.textContent = error?.message || 'Could not save Brand Kit.';
+            showToast('Brand Kit save failed', csStatus.textContent, false);
+          });
+        }, 400);
+      };
+      brandRoot?.addEventListener('input', (event) => {
+        const id = event.target?.id || '';
+        if (id === 'csBrandFont') state.font_family = event.target.value;
+        if (['csPrimaryHex','csSecondaryHex'].includes(id) && event.target.value.length !== 6) return;
+        if (id === 'csLogoBackgroundHex' && event.target.value.length !== 7) return;
+        if (['csPrimary','csSecondary','csPrimaryHex','csSecondaryHex','csLogoBackground','csLogoBackgroundHex'].includes(id)) scheduleBrandSave();
+      });
+      brandRoot?.addEventListener('change', (event) => {
+        if (event.target?.id === 'csBrandFont') { state.font_family = event.target.value; scheduleBrandSave(); }
+        if (event.target?.matches?.('[data-palette-direct], input[name="csLogoShape"]')) scheduleBrandSave();
+      });
+      brandRoot?.addEventListener('click', (event) => {
+        if (event.target?.closest?.('#csLogoCorners')) scheduleBrandSave();
+      });
       if(csSampleDiagram) setImgSmart(csSampleDiagram, SAMPLE_DIAGRAM, { forceBust:false });
       function wireHexChip(chip, input){
         if (!chip || !input) return;
@@ -18376,7 +18338,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           const fallbacks = defaultBrandPalette(state.primary, state.secondary).slice(2);
           state.palette = [state.primary, state.secondary, ...fallbacks.map((fallback,index)=>supporting[index] || fallback)];
           renderBrandPalette();
-          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), (globalThis.PlatformLanguage?.text("settings","m_bd51b5d44573bf","Four supporting colors were pulled from your logo. Save when ready.") ?? "Four supporting colors were pulled from your logo. Save when ready."), true);
+          scheduleBrandSave();
+          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), 'Four supporting colors were pulled from your logo and saved.', true);
         } catch(e) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || 'The logo colors could not be read.', false);
         } finally {
@@ -18384,34 +18347,8 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           csGeneratePalette.innerHTML = defaultHtml;
         }
       });
-      const alternateLogoItem = (item, index)=>{
-        if (window.PlatformAPI?.brandingMedia?.imageRef) {
-          return window.PlatformAPI.brandingMedia.imageRef(currentOrgId(), item, {
-            label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}`
-          });
-        }
-        return {
-          id:item?.id || item?.media_id || '',
-          src:item?.src || item?.url || '',
-          thumb:item?.thumb || item?.src || item?.url || '',
-          label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}`
-        };
-      };
-      const isAlternateLogo = (item)=>{
-        const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-        const owner = item?.owner && typeof item.owner === 'object' ? item.owner : {};
-        const purpose = String(metadata.purpose || metadata.branding_purpose || '').trim().toLowerCase();
-        const slot = String(owner.slot || item?.slot || '').trim().toLowerCase();
-        return purpose === 'alternate_logo' || slot === 'alternate_logo';
-      };
       const renderAlternateLogos = (items=[])=>{
-        if (!csAlternateLogoList) return;
-        const logos = items.filter(isAlternateLogo).map(alternateLogoItem);
-        csAlternateLogoList.innerHTML = logos.length ? logos.map((logo)=>`
-          <div class="alternate-logo-item" title="${escapeHtml(logo.label || 'Alternate logo')}">
-            <img src="${escapeHtml(portalAssetUrl(logo.thumb || logo.src))}" alt="${escapeHtml(logo.label || 'Alternate logo')}">
-          </div>
-        `).join('') : `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.text("settings","m_036dda0aa72306","No alternate logos yet.") ?? "No alternate logos yet.")}</span>`;
+        window.PlatformBrandKit.renderAlternates(paneCompany, 'cs', items);
       };
       const loadAlternateLogos = async ()=>{
         if (!csAlternateLogoList || !window.PlatformAPI?.brandingMedia?.list || !currentOrgId()) return;
@@ -18458,6 +18395,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         const toSaveName = String(csName.value || '').trim();
         state.primary = csPrimary.value;
         state.secondary = csSecondary.value;
+        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
         state.company_email = String(csCompanyEmail?.value || '').trim();
         state.company_phone = String(csCompanyPhone?.value || '').trim();
         state.company_business_address = readBusinessAddressInputs();
@@ -18468,6 +18406,7 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
           name: toSaveName,
           primary: state.primary,
           secondary: state.secondary,
+          font_family: state.font_family,
           ...(extendedPalette ? { palette: state.palette } : {}),
           ...(advancedLogos ? { logo_display: state.logo_display } : {}),
           company_email: state.company_email,
@@ -18569,7 +18508,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
         const permissionCount = Object.values(rolePermissions).filter((allowed) => allowed === true).length;
         return `<details class="cu-role-card" ${String(draft ? 'open data-access-role-draft' : `data-access-role-id="${escapeHtml(roleId)}"`)} data-application="${String(escapeHtml(applicationMode))}">
           <summary>
-        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
             <span class="cu-role-icon"><i class="fas ${String(applicationMode === 'hybrid' ? 'fa-layer-group' : applicationMode === 'field' ? 'fa-mobile-screen-button' : 'fa-desktop')}"></i></span>
             <span class="cu-role-summary"><b>${String(escapeHtml(workforceText(role.name, draft ? 'New role' : roleId)))}</b><span>${String(escapeHtml(draft ? 'Configure a reusable role' : `${applicationLabel} / ${systemRole ? 'System role' : roleId}`))}</span></span>
             <span class="cu-role-counts"><span>${((v5) => globalThis.PlatformLanguage?.text("settings","m_fc34c12e76b6c1",`${v5} views`,{v5}) ?? `${v5} views`)(appCount)}</span><span>${String(rolePermissions['*'] === true ? 'All permissions' : `${permissionCount} permissions`)}</span>${String(!draft ? `<span>rev ${escapeHtml(String(role.revision || 0))}</span>` : '')}</span>
@@ -18580,7 +18518,6 @@ ${String(advancedLogos ? `                  <div class="alternate-logos">
               <div class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_b08bf56c8979ef","Application families") ?? "Application families")}</span><div class="cu-choice-list">
                 ${String(['management', 'field'].map((application) => `<label class="cu-workforce-choice"><input type="checkbox" data-role-application-id="${application}" ${applications.includes(application) ? 'checked' : ''} ${systemRole ? 'disabled title="System role application families cannot be changed."' : ''}> ${escapeHtml(workforceApplicationLabel(application))}</label>`).join(''))}
               </div></div>
-          font_family: state.font_family,
               <label class="cu-row wide"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea class="cs-in" data-role-description placeholder="${(globalThis.PlatformLanguage?.text("settings","m_2cf91f4abee660","Who should receive this role and what it enables") ?? "Who should receive this role and what it enables")}">${String(escapeHtml(role.description || ''))}</textarea></label>
             </div>
             <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_64fb5b5e093e03","Default app experience") ?? "Default app experience")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_3e099da1ba6813","These views appear by default. Individual users can still inherit, show, or hide each one.") ?? "These views appear by default. Individual users can still inherit, show, or hide each one.")}</div></div>
