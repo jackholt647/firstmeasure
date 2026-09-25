@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 25 regional billing: [Persistent signup region, currencies and prices](deploy/digitalocean/development-regional-billing-20260925.md) records final development web release `4c059e5`. Regional backend hashes are verified across all four roles; 42 Linux tests, browser checks, public readiness and asset hashes passed. A live startup-order defect was corrected before completion. Production is unchanged.
+
 September 24 recurring subscriptions: [Automatic billing, configurable tiers and allowances](deploy/digitalocean/development-subscription-service-20260924.md) records billing release `91046fca06b533a381223366db14161ab78779d9`. Stripe checkout, prorated upgrades, cancellation/resumption, saved-card recovery, SMS caps and storage upgrades share the Billing workspace. SMS is $30/1,000 or $100/provisional 5,000 messages, with custom Enterprise. Production is unchanged.
 
 September 24 FirstMeasure billing fit: [History-only scrolling and visible monthly statement](deploy/digitalocean/development-billing-scroll-20260924.md) records `0068a9616c31d82ad74f3f3d1e58771a49ad308c` on development web and compatibility. Five deployed viewport checks confirmed no outer page overflow, independently scrolling history, and visible statement actions. Public readiness and asset hashes passed; production is unchanged.
