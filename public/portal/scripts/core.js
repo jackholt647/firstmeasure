@@ -232,7 +232,7 @@
     sidebarResizeGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
-      startWidth: normalizeSidebarWidth(getComputedStyle(document.documentElement).getPropertyValue('--sidebar')),
+      startWidth: normalizeSidebarWidth(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar'))),
       wasExpanded: sidebarCompactExpanded,
       revision: ++sidebarResizeRevision,
       fromToggle: event.currentTarget === sidebarCompactToggle,
