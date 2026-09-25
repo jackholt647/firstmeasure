@@ -388,9 +388,7 @@
     let reimbursementRows = [];
     let reimbursementQuery = '';
     const oid = orgId(context);
-    const preferenceKey = `fm:receipts:reimbursements-visible:${oid}:${cleanText(Portal.currentUser?.id, Portal.currentUser?.user_id)}`;
     let reimbursementsExpanded = true;
-    try { reimbursementsExpanded = window.localStorage?.getItem(preferenceKey) !== 'off'; } catch (_) {}
     root.classList.add('rb-global-app');
     root.classList.toggle('rb-reimbursements-collapsed', !reimbursementsExpanded);
     root.dataset.mobileView = 'receipts';
@@ -431,7 +429,6 @@
         if (toggle) {
           reimbursementsExpanded = toggle.hasAttribute('data-reimbursement-expand');
           root.classList.toggle('rb-reimbursements-collapsed', !reimbursementsExpanded);
-          try { window.localStorage?.setItem(preferenceKey, reimbursementsExpanded ? 'on' : 'off'); } catch (_) {}
           browserRoot.querySelector(reimbursementsExpanded ? '[data-reimbursement-collapse]' : '[data-reimbursement-expand]')?.focus();
           return;
         }
