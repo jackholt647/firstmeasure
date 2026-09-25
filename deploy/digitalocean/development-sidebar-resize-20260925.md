@@ -47,3 +47,18 @@ listener. Both nodes passed local readiness. Public sampling of that successor
 reached only `do-598520065` in 80 requests; the load balancer's backend routing
 was not changed by this task. The primary's public portal continues to serve
 the resize behavior.
+
+## Inward drag correction
+
+Follow-up source commit `13cbc99` fixes the drag origin when the sidebar's
+CSS width is a pixel string such as `420px`. The previous `Number()` conversion
+returned `NaN`, so an inward drag jumped to the 250 px default. The gesture now
+parses the pixel value before applying its movement delta. The fix was pushed
+to the same feature branch and applied as a one-file overlay over each node's
+then-current development release. The pool node activated
+`8fdcd1ab2cb565474ddd4fdd985e3813b5516daf` and the primary web node
+activated `9fe8c07b56488c58e69017c75d74358ad1614f4c`. Both passed local
+readiness and file-hash verification. The public dev URL served the corrected
+`core.js` with SHA-256
+`d7bf97611cb9333228fd55b022ccd2f1bf9cd391b1c494a706eb8fd5aea6fc67`.
+Rollout evidence is in ignored `output/sidebar-resize-inward-fix-20260925/`.
