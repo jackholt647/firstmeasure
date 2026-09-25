@@ -20,6 +20,9 @@ test('browser loads shared and disabled-app catalogs, retries failures, and gate
   context.window=context;vm.runInNewContext(source,context);
   const language=context.PlatformLanguage;
   await language.refresh();
+  assert.deepEqual(Array.from(language.supportedLanguages,pack=>pack.code),Array.from(language.supportedLocales));
+  assert.ok(language.translationLanguages.some(language=>language.code==='en-US'));assert.ok(language.translationLanguages.some(language=>language.code==='en-GB'));
+  assert.equal(language.companyContext().locale,'en-GB');
   assert.equal(context.document.documentElement.lang,'en-GB');
   await assert.rejects(language.ensure(['equipment']));
   await language.ensure(['equipment','crew','payroll','settings']);

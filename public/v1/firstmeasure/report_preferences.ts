@@ -1,3 +1,4 @@
+import { SUPPORTED_LOCALES } from "../platform/localization/languages.js";
 import { organizationProfile } from "../commerce/profile.js";
 import { z } from "zod";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
@@ -5,9 +6,9 @@ import { readDocument } from "../platform/storage.js";
 
 export const reportPreferencesSchema = z.object({
   measurement_system: z.enum(["imperial", "metric"]).optional(),
-  report_language: z.enum(["en-US", "en-GB"]).optional()
+  report_language: z.enum(SUPPORTED_LOCALES).optional()
 });
-export type ReportPreferences = { measurement_system: "imperial" | "metric"; report_language: "en-US" | "en-GB" };
+export type ReportPreferences = { measurement_system: "imperial" | "metric"; report_language: string };
 
 export function normalizeReportPreferences(input: Record<string, unknown> = {}): ReportPreferences {
   const value = reportPreferencesSchema.parse(input);
