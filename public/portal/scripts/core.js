@@ -196,6 +196,9 @@
         sidebarCompactOwners.delete(GLOBAL_COMPACT_SIDEBAR_OWNER);
       }
     }
+    document.getElementById('mainSidebar')?.classList.toggle(
+      'sidebar-resize-enabled', sidebarFlagValue('resizable_left_column', true) === true
+    );
     syncSidebarMode();
   }
 
@@ -207,9 +210,84 @@
     current(){ return sidebarCompactOwners.size > 0 ? 'compact' : 'expanded'; },
     expansionMode: sidebarTemporaryExpansionMode
   };
-  document.getElementById('sidebarCompactToggle')?.addEventListener('click', () => {
+  const sidebarCompactToggle = document.getElementById('sidebarCompactToggle');
+  const sidebarResizeEdge = document.getElementById('sidebarResizeEdge');
+  let sidebarResizeGesture = null;
+  let sidebarResizeRevision = 0;
+  let sidebarResizeSave = Promise.resolve();
+  let suppressSidebarToggleClick = false;
+  sidebarCompactToggle?.addEventListener('click', (event) => {
+    if (suppressSidebarToggleClick) {
+      suppressSidebarToggleClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     window.Portal.sidebarMode.toggleExpanded();
   });
+  function beginSidebarResize(event){
+    if (sidebarFlagValue('resizable_left_column', true) !== true ||
+        (event.pointerType === 'mouse' && event.button !== 0) ||
+        window.matchMedia('(max-width:820px)').matches) return;
+    sidebarResizeGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: normalizeSidebarWidth(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar'))),
+      wasExpanded: sidebarCompactExpanded,
+      revision: ++sidebarResizeRevision,
+      fromToggle: event.currentTarget === sidebarCompactToggle,
+      dragging: false
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function moveSidebarResize(event){
+    const gesture = sidebarResizeGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    if (!gesture.dragging && Math.abs(event.clientX - gesture.startX) < 5) return;
+    if (!gesture.dragging) {
+      gesture.dragging = true;
+      document.getElementById('mainSidebar')?.classList.add('sidebar-resizing');
+      if (!sidebarCompactExpanded) setSidebarCompactExpanded(true);
+    }
+    applySidebarWidth(gesture.startWidth + event.clientX - gesture.startX);
+    event.preventDefault();
+  }
+  async function finishSidebarResize(event, cancelled = false){
+    const gesture = sidebarResizeGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    sidebarResizeGesture = null;
+    document.getElementById('mainSidebar')?.classList.remove('sidebar-resizing');
+    if (!gesture.dragging) return;
+    if (gesture.fromToggle) {
+      suppressSidebarToggleClick = true;
+      setTimeout(() => { suppressSidebarToggleClick = false; }, 0);
+    }
+    if (cancelled) {
+      applySidebarWidth(gesture.startWidth);
+      if (!gesture.wasExpanded) setSidebarCompactExpanded(false);
+      return;
+    }
+    const width = applySidebarWidth(gesture.startWidth + event.clientX - gesture.startX);
+    try {
+      sidebarResizeSave = sidebarResizeSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ sidebar_width: width }));
+      const saved = await sidebarResizeSave;
+      if (gesture.revision !== sidebarResizeRevision) return;
+      if (window.Portal?.currentUser?.identity) window.Portal.currentUser.identity.preferences = saved.preferences;
+      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences:saved.preferences } }));
+    } catch (error) {
+      if (gesture.revision !== sidebarResizeRevision) return;
+      applySidebarWidth(gesture.startWidth);
+      if (!gesture.wasExpanded) setSidebarCompactExpanded(false);
+      window.Portal?.ui?.showToast?.('Could not save sidebar width', error?.message || 'Please try again.', false);
+      console.error('Could not save sidebar width', error);
+    }
+  }
+  for (const handle of [sidebarCompactToggle, sidebarResizeEdge]) {
+    handle?.addEventListener('pointerdown', beginSidebarResize);
+    handle?.addEventListener('pointermove', moveSidebarResize);
+    handle?.addEventListener('pointerup', (event) => { void finishSidebarResize(event); });
+    handle?.addEventListener('pointercancel', (event) => { void finishSidebarResize(event, true); });
+  }
   document.getElementById('mainSidebar')?.addEventListener('mouseenter', (event) => {
     event.currentTarget?.classList.remove('sidebar-compact-edge-held');
   });
