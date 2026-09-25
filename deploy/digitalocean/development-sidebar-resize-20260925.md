@@ -37,3 +37,13 @@ files on both nodes over `bc987ea`. Rolling back only one node to that baseline
 would produce mismatched sidebar behavior because its web and pool copies
 differed. Any rollback should preserve later concurrent work and align both
 web nodes on one verified release.
+
+After this rollout, concurrent development release
+`58113d59587a5a86ca3aab8177be62c9c6b86a42` reached both web nodes. A
+read-only audit found the same sidebar, window-manager and capability source
+and compiled hashes on both nodes, including the default-on flag. Its updated
+Company Settings script still contains the resize setting and width-preference
+listener. Both nodes passed local readiness. Public sampling of that successor
+reached only `do-598520065` in 80 requests; the load balancer's backend routing
+was not changed by this task. The primary's public portal continues to serve
+the resize behavior.
