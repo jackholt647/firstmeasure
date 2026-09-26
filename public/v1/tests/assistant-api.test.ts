@@ -454,3 +454,55 @@ test("threads are personal and capability-gated", async () => {
   const blocked = await client.raw("GET", `/v1/assistant/organizations/${orgId}/threads`);
   assert.equal(blocked.statusCode, 403);
 });
+
+test('notification assistant reuses preferences, creates durable filtered rules, and prevents duplicates', async()=>{
+ const client=createSessionClient(),{orgId}=await register(client),base=`/v1/assistant/organizations/${orgId}`;
+ const created=await client.request('POST',base+'/threads',{subject_id:'notifications'}),threadId=created.thread.id;
+ assert.equal(created.thread.subject_id,'notifications');
+ const configure={key:'event.document.signed',label:'Contract signed',description:'A contract was signed.',conditions_json:'{}',in_app:true,push:false};
+ const turn=async(args:Record<string,unknown>,inspect=true)=>{
+  const mock=mockOpenAI([...(inspect?[{output:[functionCall('inspect_notifications',{},'inspect')]}]:[]),{output:[functionCall('configure_notification',args,'configure')]},{output:[functionCall('report_result',{status:'success',summary:'Checked notification settings.'},'report')]},{output:[messageOutput('Checked notification settings.')]}]);
+  try{return await client.request('POST',`${base}/threads/${threadId}/messages`,{message:'Configure my notification.'});}finally{mock.restore();}
+ };
+ await turn(configure,false);
+ let prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);
+ assert.equal(prefs.preferences.in_app[configure.key],false,'inspection is required before mutation');
+ await turn(configure);
+ prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);
+ assert.equal(prefs.preferences.in_app[configure.key],true);assert.ok(prefs.custom_keys.includes(configure.key));
+ await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[configure.key]:false}});
+ assert.ok((await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`)).custom_keys.includes(configure.key),'disabled custom triggers stay visible');
+ const filtered={...configure,conditions_json:JSON.stringify({'payload.document_type':'contract'})};await turn(filtered);
+ const {readAutomationRules}=await import('../work/rules.js');
+ let custom=(await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_'));assert.equal(custom.length,1);
+ await turn({...filtered,label:'Another name for the same contract alert'});
+ custom=(await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_'));assert.equal(custom.length,1,'same event/conditions/recipient cannot be duplicated by renaming');
+ await turn({...filtered,conditions_json:JSON.stringify({'project.secret':'private'})});assert.equal((await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_')).length,1);
+ prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);const group=prefs.catalog.find((g:any)=>g.kind==='custom');assert.equal(group.definitions.length,1);const key=group.definitions[0].key;
+ const {upsertDocument}=await import('../platform/storage.js');await upsertDocument(orgId,'projects',{id:'notification_contract_project',data:{title:'Contract job'}});
+ const {emitWorkEvent}=await import('../work/engine.js');
+ for(const kind of ['invoice','contract','contract'])await emitWorkEvent({organization_id:orgId,branch_id:'default',project_id:'notification_contract_project',type:'document.signed',idempotency_key:'notification-contract-'+kind,payload:{document_type:kind}});
+ let notes=(await client.request('GET',`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((n:any)=>n.preference_key===key);assert.equal(notes.length,1,'filtered delivery matches and event replay is deduplicated');
+ await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[key]:false}});
+ notes=(await client.request('GET',`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((n:any)=>n.preference_key===key);assert.equal(notes.length,0);
+ await client.request('PUT',base+'/settings',{settings:{allow_actions:false}});await turn({...configure,in_app:true});
+ assert.equal((await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`)).preferences.in_app[configure.key],false,'assistant action opt-out is enforced');
+});
+
+test('focused notification chat works without expanded access and exposes only notification tools',async()=>{
+ const client=createSessionClient(),suffix=Date.now().toString(36);
+ const registered=await client.request('POST','/v1/platform/auth/register',{phone:nextTestPhone(),email:`notification-basic-${suffix}@example.test`,password:'correct horse battery staple',name:'Basic owner',company:'Basic notifications',organization_id:`org_notification_basic_${suffix}`});
+ const org=registered.organization.id,base=`/v1/platform/organizations/${org}/notification-assistant`;
+ const blocked=await client.raw('GET',`/v1/assistant/organizations/${org}/context`);assert.equal(blocked.statusCode,403);
+ const context=await client.request('GET',base);assert.equal(context.settings.enabled,true);
+ const thread=await client.request('POST',base+'/threads',{});
+ const mock=mockOpenAI([{output:[functionCall('inspect_notifications',{},'inspect')]},{output:[functionCall('configure_notification',{key:'measurements.report_delivered',label:'Report delivered',description:'Report ready',conditions_json:'{}',in_app:true,push:false},'configure')]},{output:[functionCall('report_result',{status:'success',summary:'Your report notification is configured.'},'report')]},{output:[messageOutput('Your report notification is configured.')]}]);
+ try{
+  await client.request('POST',`${base}/threads/${thread.thread.id}/messages`,{message:'Keep report delivery in app, without push.'});
+  assert.deepEqual((mock.calls[0] as any).tools.map((t:any)=>t.name).sort(),['configure_notification','inspect_notifications','report_result']);
+  const prefs=await client.request('GET',`/v1/platform/organizations/${org}/notification-preferences`);assert.equal(prefs.preferences.push['measurements.report_delivered'],false);
+ }finally{mock.restore();}
+ const other=createSessionClient();const {orgId}=await register(other);
+ assert.equal((await other.raw('GET',base+'/threads/'+thread.thread.id)).statusCode,403);
+ assert.equal((await other.raw('GET',`/v1/platform/organizations/${orgId}/notification-assistant/threads/${thread.thread.id}`)).statusCode,404);
+});

@@ -234,7 +234,9 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const thread = (await createThreadForAgent(ASSISTANT_AGENT_ID, {
       orgId,
       branchId: cleanText(body.branch_id) || ctx.branchId || "default",
-      actorUserId: ctx.userId
+      actorUserId: ctx.userId,
+      subjectId: body.subject_id === "notifications" ? "notifications" : undefined,
+      title: body.subject_id === "notifications" ? "Notification setup" : undefined
     }));
     return { ok: true, thread };
   });
