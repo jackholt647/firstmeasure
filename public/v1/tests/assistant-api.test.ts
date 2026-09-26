@@ -472,13 +472,15 @@ test('notification assistant reuses preferences, creates durable filtered rules,
  assert.equal(prefs.preferences.in_app[configure.key],true);assert.ok(prefs.custom_keys.includes(configure.key));
  await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[configure.key]:false}});
  assert.ok((await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`)).custom_keys.includes(configure.key),'disabled custom triggers stay visible');
- const filtered={...configure,conditions_json:JSON.stringify({'payload.document_type':'contract'})};await turn(filtered);
+ const filtered={...configure,in_app:false,conditions_json:JSON.stringify({'payload.document_type':'contract'})};await turn(filtered);
  const {readAutomationRules}=await import('../work/rules.js');
  let custom=(await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_'));assert.equal(custom.length,1);
  await turn({...filtered,label:'Another name for the same contract alert'});
  custom=(await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_'));assert.equal(custom.length,1,'same event/conditions/recipient cannot be duplicated by renaming');
  await turn({...filtered,conditions_json:JSON.stringify({'project.secret':'private'})});assert.equal((await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_')).length,1);
  prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);const group=prefs.catalog.find((g:any)=>g.kind==='custom');assert.equal(group.definitions.length,1);const key=group.definitions[0].key;
+ assert.equal(prefs.preferences.in_app[key],false);
+ await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[key]:true}});
  const {upsertDocument}=await import('../platform/storage.js');await upsertDocument(orgId,'projects',{id:'notification_contract_project',data:{title:'Contract job'}});
  const {emitWorkEvent}=await import('../work/engine.js');
  for(const kind of ['invoice','contract','contract'])await emitWorkEvent({organization_id:orgId,branch_id:'default',project_id:'notification_contract_project',type:'document.signed',idempotency_key:'notification-contract-'+kind,payload:{document_type:kind}});
