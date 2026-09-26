@@ -77,7 +77,7 @@ export const notificationAssistantTools:AgentTool[]=[
    if([args.label,args.description].some(v=>String(v).includes('{{')))throw Error('Use plain notification text, without template expressions.');
    if(!String(args.label).trim())throw Error('Give this notification a clear name.');
    const preferenceKey=workflowPreferenceKey(run.branchId,'organization-automations',id);
-   await saveAutomationRules(run.orgId,run.branchId,{expected_revision:snapshot.revision,rules:[...snapshot.rules,{id,title:args.label,explainer:args.description,enabled:true,customer_visible:true,event:definition.event,conditions:sorted,automation:'notification.create.v1',input:{title:args.label,body:args.description,target_user_ids:[run.userId],passive:args.in_app===true,push:args.push===true,custom_notification:true,custom_event:definition.event}}]});
+   await saveAutomationRules(run.orgId,run.branchId,{expected_revision:snapshot.revision,rules:[...snapshot.rules,{id,title:args.label,explainer:args.description,enabled:true,customer_visible:true,event:definition.event,conditions:sorted,automation:'notification.create.v1',input:{title:args.label,body:args.description,target_user_ids:[run.userId],passive:true,push:args.push===true,custom_notification:true,custom_event:definition.event}}]});
    await saveNotificationPreferences(run.orgId,run.userId,{in_app:{[preferenceKey]:args.in_app},push:{[preferenceKey]:args.push}},run.branchId);
    run.changeLog.push(`Created ${args.label} in Custom notifications.`);
    return {saved:true,key:preferenceKey,automation_id:id};
