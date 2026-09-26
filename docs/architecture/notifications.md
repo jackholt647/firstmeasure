@@ -62,8 +62,14 @@ Turning off a notification never disables the underlying workflow or its effects
 
 The preferences GET endpoint returns `catalog` and effective `preferences`; it is
 read-only and does not install scope templates. Both GET/PATCH accept `branch_id`.
-The UI renders this catalog with Apps and Workflows & scopes views, cross-view
-search, collapsible groups, 1–3 responsive columns, tooltips and accessible switches.
+The UI renders the authorized catalog with General and Workflows & scopes views,
+cross-view search, collapsible groups, tooltips and accessible switches. Presentation
+grouping is independent of app ownership: related events share activity categories,
+while broad direct-app controls appear under Miscellaneous. Cron and mock-payment
+events are omitted from the end-user settings, without changing automation events.
+Workflow categories and preference keys are preserved. All categories use the same
+responsive column count (three at 840px, two at 560px, otherwise one), with vertical
+dividers and balanced rows. Widths refer to the settings content area.
 Saves are serialized; failures retain pending changes and expose a Retry control.
 
 Native OS channels remain the existing broad categories. The larger catalog lives
