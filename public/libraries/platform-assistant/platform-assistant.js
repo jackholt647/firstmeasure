@@ -331,7 +331,10 @@
       .fma-head .fm-window-controls [data-window-action=close]{display:none;}
       .fma-head-title{flex:1;min-width:0;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .fma-drawer[data-window=full] .fma-head{position:absolute;top:10px;right:16px;z-index:4;width:auto;min-height:0;padding:0;border:0;background:transparent;}
-      .fma-drawer[data-window=full] .fma-head-title,.fma-drawer[data-window=full] .fma-head [data-fma=boardOpenDock]{display:none;}
+      .fma-drawer[data-window=full] .fma-head-title{display:none;}
+      .fma-visuals-toggle[aria-pressed=true]{color:var(--primary-readable,var(--primary,#175cd3));background:rgba(var(--primary-rgb,23,92,211),.1);}
+      .fma-drawer[data-window=full] .fma-head .fma-visuals-toggle{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
+      .fma-drawer[data-window=full] .fma-head .fma-visuals-toggle[aria-pressed=true]{background:rgba(var(--primary-rgb,23,92,211),.1);border-color:transparent;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls{gap:4px;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button:hover{background:#f2f4f7;}
@@ -353,15 +356,15 @@
       .fma-nav-head{flex:0 0 auto;display:flex;align-items:center;gap:2px;padding:6px 6px 4px 10px;min-height:38px;}
       .fma-nav-head .name{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-weight:800;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .fma-nav{flex:1;min-height:0;overflow:auto;padding:2px 6px 10px;display:flex;flex-direction:column;gap:2px;}
-      .fma-nav-item{width:100%;min-width:0;display:flex;align-items:center;gap:9px;text-align:left;border:0;border-radius:9px;padding:7px 8px;background:transparent;cursor:pointer;font:inherit;color:#101828;transition:background .12s ease;}
+      .fma-nav-item{flex:0 0 auto;flex-direction:row;justify-content:flex-start;height:auto;min-height:0;width:100%;min-width:0;display:flex;align-items:center;gap:9px;text-align:left;border:0;border-radius:9px;padding:7px 8px;background:transparent;cursor:pointer;font:inherit;color:#101828;transition:background .12s ease;}
       .fma-nav-item:hover{background:#eef1f5;}
       .fma-nav-item[aria-current=true]{background:rgba(var(--primary-rgb,23,92,211),.1);}
       .fma-nav-item .icon{flex:0 0 auto;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e4e7ec;color:#475467;font-size:11.5px;}
-      .fma-nav-item.main .icon{background:rgba(var(--primary-rgb,23,92,211),.1);border-color:transparent;}
+      .fma-nav-item.is-main .icon{background:rgba(var(--primary-rgb,23,92,211),.1);border-color:transparent;}
       .fma-nav-item .text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
       .fma-nav-item .name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .fma-nav-item .meta{font-size:11.5px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-      .fma-nav-item.paused .name,.fma-nav-item.done .name{color:#667085;}
+      .fma-nav-item.is-paused .name,.fma-nav-item.is-done .name{color:#667085;}
       .fma-section{display:flex;flex-direction:column;gap:1px;margin-top:8px;}
       .fma-section-head{display:flex;align-items:center;gap:6px;border:0;background:transparent;padding:4px 8px;border-radius:7px;cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#667085;}
       .fma-section-head:hover{background:#eef1f5;color:#344054;}
@@ -370,7 +373,6 @@
       .fma-section[data-collapsed=true] .fma-section-body{display:none;}
       .fma-section-head .count{margin-left:auto;font-weight:700;letter-spacing:0;}
       .fma-section-body{display:flex;flex-direction:column;gap:1px;}
-      .fma-nav-hint{font-size:12px;color:#667085;padding:4px 8px 6px;line-height:1.4;}
       .fma-nav-search{flex:0 0 auto;position:relative;padding:8px;border-top:1px solid #e4e7ec;}
       .fma-nav-search i{position:absolute;left:19px;top:50%;transform:translateY(-50%);color:#98a2b3;font-size:12px;pointer-events:none;}
       .fma-nav-search input{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;padding:8px 10px 8px 30px;font:inherit;font-size:13px;background:#fff;}
@@ -384,13 +386,10 @@
       /* Stage: dashboard | splitter | conversation. */
       .fma-stage{flex:1;min-height:0;display:flex;flex-direction:row;}
       .fma-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
-      .fma-thread-bar{display:none;flex:0 0 auto;align-items:center;gap:8px;min-height:54px;padding:10px 150px 4px 20px;box-sizing:border-box;}
+      .fma-thread-bar{display:none;flex:0 0 auto;align-items:center;gap:8px;min-height:54px;padding:10px 190px 4px 20px;box-sizing:border-box;}
       .fma-drawer[data-window=full] .fma-thread-bar{display:flex;}
       .fma-thread-bar .title{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .fma-thread-bar .sub{font-size:12px;color:#667085;white-space:nowrap;}
-      .fma-board-reopen{display:none;align-items:center;gap:7px;border:1px solid #e4e7ec;background:#fff;border-radius:999px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:700;color:#344054;cursor:pointer;}
-      .fma-board-reopen:hover{border-color:var(--primary-readable,var(--primary,#175cd3));color:var(--primary-readable,var(--primary,#175cd3));}
-      .fma-drawer[data-board=hidden] .fma-board-reopen{display:inline-flex;}
       .fma-board{display:none;flex:0 0 auto;width:var(--fma-board-w,50%);min-width:280px;max-width:72%;min-height:0;flex-direction:column;background:#f8fafc;}
       .fma-drawer[data-board=open] .fma-board{display:flex;}
       .fma-board-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;min-height:54px;padding:10px 12px 4px 20px;box-sizing:border-box;}
@@ -604,7 +603,7 @@
       <div class="fma-head">
         <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
         <span class="fma-head-title" data-fma="headTitle"></span>
-        <button type="button" class="fma-icon-btn ghost" data-fma="boardOpenDock" title="Open dashboard" aria-label="Open dashboard" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
+        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Hide visuals" aria-label="Hide visuals" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
       </div>
       <div class="fma-body" data-fma="body">
       <aside class="fma-sidebar" data-fma="sidebar" aria-label="Assistant conversations">
@@ -624,7 +623,7 @@
           </section>
           <div class="fma-split" data-fma="split" role="separator" aria-orientation="vertical" aria-label="Resize dashboard" tabindex="0"></div>
           <div class="fma-main">
-            <div class="fma-thread-bar"><span class="title" data-fma="barTitle"></span><span class="sub" data-fma="barSub"></span><button type="button" class="fma-board-reopen" data-fma="boardShow"><i class="fas fa-chart-pie" aria-hidden="true"></i><span data-fma="boardCount">Dashboard</span></button></div>
+            <div class="fma-thread-bar"><span class="title" data-fma="barTitle"></span><span class="sub" data-fma="barSub"></span></div>
             <div class="fma-msgs" data-fma="msgs"></div>
             <div class="fma-settings" data-fma="settingsPanel" style="display:none;"></div>
           </div>
@@ -657,7 +656,7 @@
       sidebar: q('sidebar'),
       sidebarToggle: q('history'),
       headTitle: q('headTitle'),
-      boardOpenDock: q('boardOpenDock'),
+      visualsToggle: q('visualsToggle'),
       navName: q('navName'),
       searchInput: q('searchInput'),
       stage: q('stage'),
@@ -666,7 +665,6 @@
       split: q('split'),
       barTitle: q('barTitle'),
       barSub: q('barSub'),
-      boardCount: q('boardCount'),
       msgs: q('msgs'),
       historyList: q('historyList'),
       settingsPanel: q('settingsPanel'),
@@ -753,8 +751,8 @@
       else void openThread(item.dataset.id);
     });
     q('boardHide').addEventListener('click', () => setBoardHidden(true));
-    q('boardShow').addEventListener('click', () => setBoardHidden(false));
-    els.boardOpenDock.addEventListener('click', () => { setBoardHidden(false); openFull(); });
+    // One toggle shows or hides visuals: the dashboard column in the full view, chart cards in the conversation otherwise.
+    els.visualsToggle.addEventListener('click', () => setBoardHidden(!state.boardHidden));
     els.boardItems.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-board-close]');
       if (!button) return;
@@ -829,11 +827,21 @@
     const next = boardOpen() ? 'open' : (boardAvailable() && count ? 'hidden' : 'none');
     els.drawer.dataset.board = next;
     els.drawer.style.setProperty('--fma-board-w', `${Math.min(70, Math.max(28, Number(state.boardWidth) || 50))}%`);
-    els.boardCount.textContent = count ? `Dashboard · ${count}` : 'Dashboard';
-    els.boardOpenDock.hidden = state.mode === 'full' || !count;
+    syncVisualsToggle();
     if (next === 'open') scheduleBoardRender();
     if (previous !== next && previous !== undefined) renderMessages({ keepScroll:true });
     else fitArtifacts(els.msgs);
+  }
+
+  function syncVisualsToggle(){
+    if (!els) return;
+    const count = state.dashboard.length;
+    const visible = !state.boardHidden;
+    const label = visible ? 'Hide visuals' : 'Show visuals';
+    els.visualsToggle.hidden = !count && !state.messages.some((message) => artifactsOf(message).length);
+    els.visualsToggle.setAttribute('aria-pressed', String(visible));
+    els.visualsToggle.title = count ? `${label} (${count})` : label;
+    els.visualsToggle.setAttribute('aria-label', label);
   }
 
   function scheduleBoardRender(options = {}){
@@ -935,7 +943,7 @@
     html += '</div>';
     const artifacts = artifactsOf(message);
     if (artifacts.length) {
-      const onBoard = els?.drawer?.dataset.board === 'open';
+      const onBoard = els?.drawer?.dataset.board === 'open' || state.boardHidden;
       const width = Math.max(220, Math.min(560, Math.floor(((els?.msgs?.clientWidth || 400) - 28) * 0.92 - 30)));
       html += artifacts.map((artifact) => onBoard
         ? `<button type="button" class="fma-artifact-chip${anim}" data-focus-artifact="${esc(artifact.id)}"><i class="fas fa-chart-column" aria-hidden="true"></i>${esc(artifact.title)}</button>`
@@ -1025,6 +1033,7 @@
     }
     els.msgs.innerHTML = parts.join('');
     fitArtifacts(els.msgs);
+    syncVisualsToggle();
     if (options.keepScroll) els.msgs.scrollTop = previousScroll;
     else if (state.view === 'agent' && !options.animateLast) els.msgs.scrollTop = 0;
     else scrollToBottom();
@@ -1126,20 +1135,20 @@
     const chats = sideChats().filter((thread) => !query || clean(thread.title || 'New conversation').toLowerCase().includes(query) || matchingIds.has(clean(thread.id)));
     const parts = [];
     if (mainId && (!query || 'main thread'.includes(query) || matchingIds.has(mainId))) {
-      parts.push(navItemHtml({ nav:'thread', id:mainId, name:'Main thread', meta:main.updated_at ? `Updated ${relativeTime(main.updated_at).toLowerCase()}` : '', icon:'<span class="fma-logo" aria-hidden="true"></span>', current:state.view !== 'agent' && state.threadId === mainId, extraClass:'main' }));
+      parts.push(navItemHtml({ nav:'thread', id:mainId, name:'Main thread', meta:main.updated_at ? `Updated ${relativeTime(main.updated_at).toLowerCase()}` : '', icon:'<span class="fma-logo" aria-hidden="true"></span>', current:state.view !== 'agent' && state.threadId === mainId, extraClass:'is-main' }));
     }
     const agentItems = agents.map((agent) => {
       const status = clean(agent.status);
       const icon = status === 'paused' ? 'fa-pause' : status === 'done' ? 'fa-check' : agent.last_run_status === 'failed' ? 'fa-triangle-exclamation' : 'fa-clock';
       const meta = status === 'paused' ? 'Paused' : status === 'done' ? 'Finished' : clean(agent.schedule_label);
-      return navItemHtml({ nav:'agent', id:clean(agent.id), name:agent.title, meta, icon:`<i class="fas ${icon}" aria-hidden="true"></i>`, current:state.view === 'agent' && state.agentId === clean(agent.id), extraClass:status });
+      return navItemHtml({ nav:'agent', id:clean(agent.id), name:agent.title, meta, icon:`<i class="fas ${icon}" aria-hidden="true"></i>`, current:state.view === 'agent' && state.agentId === clean(agent.id), extraClass:`is-${status || 'active'}` });
     }).join('');
     if (agents.length || !query) {
-      parts.push(sectionHtml('agents', 'Agents', agents.length, agentItems || '<div class="fma-nav-hint">Ask for anything on a schedule, like “every morning at 11, tell me how yesterday went.”</div>'));
+      parts.push(sectionHtml('agents', 'Agents', agents.length, agentItems));
     }
     const chatItems = chats.map((thread) => navItemHtml({ nav:'thread', id:clean(thread.id), name:clean(thread.title) || 'New conversation', meta:relativeTime(thread.updated_at), icon:'<i class="far fa-comment" aria-hidden="true"></i>', current:state.view !== 'agent' && clean(thread.id) === state.threadId }));
     if (chats.length || !query) {
-      parts.push(sectionHtml('chats', 'Side chats', chats.length, chatItems.join('') || '<div class="fma-nav-hint">Use + for a separate conversation.</div>'));
+      parts.push(sectionHtml('chats', 'Side chats', chats.length, chatItems.join('')));
     }
     if (query && !agents.length && !chats.length && !parts.length) parts.push('<div class="fma-empty">No matches.</div>');
     els.historyList.innerHTML = parts.join('');
@@ -1713,7 +1722,6 @@
       }
       if (Array.isArray(result.dashboard)) {
         state.dashboard = result.dashboard;
-        if (state.dashboard.length) { state.boardHidden = false; store('boardHidden', false); }
       }
       state.messages.push({
         id: clean(assistantMessage.id) || `local_${Date.now()}_a`,
