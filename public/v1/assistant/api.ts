@@ -16,7 +16,7 @@ import {
 } from "../agents/storage.js";
 import {
   agentConfigurationTurnNote, agentIdFromSubject, describeAssistantAgent, ensureAssistantMainThread, listAssistantAgents,
-  pinTurnArtifacts, queueAssistantAgentRun, readAssistantAgentDetail, readOwnedAssistantAgent
+  pinTurnArtifacts, queueAssistantAgentRun, readAssistantAgentDetail, readOwnedAssistantAgent, startAssistantAgentLane
 } from "./agent/agents.js";
 import {
   createThreadForAgent,
@@ -77,6 +77,7 @@ async function importOrgLegacyThreads(orgId: string) {
 }
 
 export const registerAssistantApi: FastifyPluginAsync = async (app) => {
+  startAssistantAgentLane(app.log);
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
       reply.code(400);
