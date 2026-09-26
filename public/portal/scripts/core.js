@@ -119,7 +119,7 @@
         window.Portal.currentUser.identity.preferences = preferences;
       }
       applySidebarWidth(preferences.sidebar_width);
-      applySidebarFeatureFlags();
+      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences } }));
     } catch (_) {
       // The wider default remains usable when preferences cannot be loaded.
     }
