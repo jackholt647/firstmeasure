@@ -342,3 +342,20 @@ test("a deleted agent's queued run is cancelled and its thread is gone", async (
   assert.equal((await ctx.client.raw("GET", `${ctx.base}/threads/${detail.agent.thread_id}`)).statusCode, 404);
   assert.equal((await ctx.client.raw("GET", `${ctx.base}/agents/${agentId}`)).statusCode, 404);
 });
+
+test("clarifying questions are not failures and the prompt carries the company clock", async () => {
+  const ctx = await setup();
+  const mock = mockOpenAI([
+    { output: [call("suggest_navigation", { label: "Open agents", kind: "tab", tab: "assistant" }, "n1")] },
+    { output: [call("report_result", { status: "needs_input", summary: "Which day?" }, "n2")] },
+    { output: [say("Which day did you mean?")] }
+  ]);
+  try {
+    const body = JSON.parse((await send(ctx, "remind me later")).body);
+    assert.equal(body.status, "success");
+    assert.equal(body.assistant_message.data.status, "needs_input");
+    assert.equal(body.actions.length, 1, "actions survive a clarifying question");
+    const system = String(mock.calls[0].input[0].content);
+    assert.match(system, /## Current time\nIt is .+ in the company's timezone \(.+\); wall-clock \d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+  } finally { mock.restore(); }
+});
