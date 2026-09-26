@@ -327,8 +327,8 @@
           if (slot.type === 'more') {
             return `
               <div class="ct-project-slot ct-more">
-                <strong>${((v0) => globalThis.PlatformLanguage?.text("contacts","m_bdd2018a2c9640",`... ${v0} more`,{v0}) ?? `... ${v0} more`)(escapeHtml(String(slot.more)))}</strong>
-                <small>${((v1) => globalThis.PlatformLanguage?.text("contacts","m_1ef3679187884e",`${v1} total projects`,{v1}) ?? `${v1} total projects`)(escapeHtml(String(contact.projectCount)))}</small>
+                <strong>${((v0) => globalThis.PlatformLanguage?.htmlText("contacts","m_bdd2018a2c9640",`... ${v0} more`,{v0}) ?? `... ${v0} more`)(escapeHtml(String(slot.more)))}</strong>
+                <small>${((v1) => globalThis.PlatformLanguage?.htmlText("contacts","m_1ef3679187884e",`${v1} total projects`,{v1}) ?? `${v1} total projects`)(escapeHtml(String(contact.projectCount)))}</small>
               </div>
             `;
           }
@@ -366,7 +366,7 @@
       contact.email ? `<a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>` : '',
       contact.phone ? `<a href="tel:${escapeHtml(phoneDigits(contact.phone))}">${escapeHtml(contact.phone)}</a>` : ''
     ].filter(Boolean);
-    return items.length ? items.join('<span class="ct-dot"></span>') : `<span>${(globalThis.PlatformLanguage?.text("contacts","m_c0b046415d9560","No email or phone") ?? "No email or phone")}</span>`;
+    return items.length ? items.join('<span class="ct-dot"></span>') : `<span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_c0b046415d9560","No email or phone") ?? "No email or phone")}</span>`;
   }
 
   function renderTile(contact){
@@ -383,7 +383,7 @@
           </button>
         </div>
         <div class="ct-card-meta">
-          <span><i class="fas fa-folder-open"></i>${((v5,v6) => globalThis.PlatformLanguage?.text("contacts","m_b51be3af96e69d",`${v5} project${v6}`,{v5,v6}) ?? `${v5} project${v6}`)(escapeHtml(String(contact.projectCount)),contact.projectCount === 1 ? '' : 's')}</span>
+          <span><i class="fas fa-folder-open"></i>${((v5,v6) => globalThis.PlatformLanguage?.htmlText("contacts","m_b51be3af96e69d",`${v5} project${v6}`,{v5,v6}) ?? `${v5} project${v6}`)(escapeHtml(String(contact.projectCount)),contact.projectCount === 1 ? '' : 's')}</span>
           <span>${String(escapeHtml(contact.latestDateLabel))}</span>
         </div>
         ${String(tagChips(contact))}
@@ -412,7 +412,7 @@
               <small>${escapeHtml(project.address || project.stage)}</small>
             </button>
           `).join('')}
-          ${more ? `<span class="ct-chip-more">${((v0) => globalThis.PlatformLanguage?.text("contacts","m_bdd2018a2c9640",`... ${v0} more`,{v0}) ?? `... ${v0} more`)(escapeHtml(String(more)))}</span>` : ''}
+          ${more ? `<span class="ct-chip-more">${((v0) => globalThis.PlatformLanguage?.htmlText("contacts","m_bdd2018a2c9640",`... ${v0} more`,{v0}) ?? `... ${v0} more`)(escapeHtml(String(more)))}</span>` : ''}
         </div>
         <div class="ct-list-count">${escapeHtml(String(contact.projectCount))}</div>
         <div class="ct-list-date">${escapeHtml(contact.latestDateLabel)}</div>
@@ -424,7 +424,7 @@
     const root = state.root?.querySelector('[data-ct-results]');
     if (!root) return;
     if (state.loading) {
-      root.innerHTML = `<div class="ct-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_88be2693eb38c7","Loading contacts...") ?? "Loading contacts...")}</span></div>`;
+      root.innerHTML = `<div class="ct-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_88be2693eb38c7","Loading contacts...") ?? "Loading contacts...")}</span></div>`;
       return;
     }
     if (state.error) {
@@ -440,7 +440,7 @@
       ? `
         <div class="ct-table">
           <div class="ct-table-head">
-            <span>${(globalThis.PlatformLanguage?.text("contacts","m_46c8aea84388c3","Contact") ?? "Contact")}</span><span>${(globalThis.PlatformLanguage?.text("contacts","m_19156e80fc8a6e","Projects") ?? "Projects")}</span><span>${(globalThis.PlatformLanguage?.text("contacts","m_0e8e453211814c","Count") ?? "Count")}</span><span>${(globalThis.PlatformLanguage?.text("contacts","m_125610f2e7ebc8","Latest") ?? "Latest")}</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_46c8aea84388c3","Contact") ?? "Contact")}</span><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_19156e80fc8a6e","Projects") ?? "Projects")}</span><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_0e8e453211814c","Count") ?? "Count")}</span><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_125610f2e7ebc8","Latest") ?? "Latest")}</span>
           </div>
           ${String(contacts.map(renderListRow).join(''))}
         </div>
@@ -458,7 +458,7 @@
       state.root.innerHTML = `
         <div class="ct-shell">
           <header class="ct-workspace-head">
-            <button class="ct-back" type="button" data-ct-workspace-back><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_41f0654d7535f1","Back to contacts") ?? "Back to contacts")}</span></button>
+            <button class="ct-back" type="button" data-ct-workspace-back><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_41f0654d7535f1","Back to contacts") ?? "Back to contacts")}</span></button>
             <div><h2>${String(isImport ? 'Import contacts' : 'Contact settings')}</h2><p>${String(isImport ? 'Bring contacts into FirstMate without leaving your contact list.' : 'Manage contact imports and review their history.')}</p></div>
           </header>
           <main class="ct-body ct-workspace-body"><div data-ct-settings-host></div></main>
@@ -466,7 +466,7 @@
       state.root.querySelector('[data-ct-workspace-back]')?.addEventListener('click', closeWorkspace);
       const host = state.root.querySelector('[data-ct-settings-host]');
       if (!window.FirstMateContactsSettings?.mount) {
-        host.innerHTML = `<div class="ct-state error"><i class="fas fa-triangle-exclamation"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_015c3ba3975f3f","Contact tools could not be loaded.") ?? "Contact tools could not be loaded.")}</span></div>`;
+        host.innerHTML = `<div class="ct-state error"><i class="fas fa-triangle-exclamation"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_015c3ba3975f3f","Contact tools could not be loaded.") ?? "Contact tools could not be loaded.")}</span></div>`;
         return;
       }
       state.settingsHandle = window.FirstMateContactsSettings.mount(host, {
@@ -484,25 +484,25 @@
       <div class="ct-shell">
         <header class="ct-top">
           <div class="ct-title">
-            <h2>${(globalThis.PlatformLanguage?.text("contacts","m_2bf043c3cce511","My Contacts") ?? "My Contacts")}</h2>
-            <span>${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("contacts","m_afe03e23d17afb",`${v0} contact${v1} from ${v2} project${v3}`,{v0,v1,v2,v3}) ?? `${v0} contact${v1} from ${v2} project${v3}`)(escapeHtml(String(visibleCount)),visibleCount === 1 ? '' : 's',escapeHtml(String(state.projects.length)),state.projects.length === 1 ? '' : 's')}</span>
+            <h2>${(globalThis.PlatformLanguage?.htmlText("contacts","m_2bf043c3cce511","My Contacts") ?? "My Contacts")}</h2>
+            <span>${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.htmlText("contacts","m_afe03e23d17afb",`${v0} contact${v1} from ${v2} project${v3}`,{v0,v1,v2,v3}) ?? `${v0} contact${v1} from ${v2} project${v3}`)(escapeHtml(String(visibleCount)),visibleCount === 1 ? '' : 's',escapeHtml(String(state.projects.length)),state.projects.length === 1 ? '' : 's')}</span>
           </div>
           <div class="ct-tools">
             <label class="ct-search">
               <i class="fas fa-search"></i>
-              <input id="ctSearch" type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.text("contacts","m_978eee3aa943f8","Search contacts or projects") ?? "Search contacts or projects")}">
+              <input id="ctSearch" type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("contacts","m_978eee3aa943f8","Search contacts or projects") ?? "Search contacts or projects")}">
               ${String(state.query ? `<button id="ctClearSearch" type="button" class="ct-clear" data-fm-tooltip="Clear search"><i class="fas fa-xmark"></i></button>` : '')}
             </label>
-            <select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.text("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
-              <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
-              <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
-              <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
+            <select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
+              <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
+              <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
+              <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
             </select>
-            <div class="ct-segment" aria-label="${(globalThis.PlatformLanguage?.text("contacts","m_0a1d4f60d2434b","View mode") ?? "View mode")}">
+            <div class="ct-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_0a1d4f60d2434b","View mode") ?? "View mode")}">
               <button id="ctViewTiles" type="button" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i></button>
               <button id="ctViewList" type="button" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i></button>
             </div>
-            <button type="button" class="ct-action" data-ct-open-import><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
+            <button type="button" class="ct-action" data-ct-open-import><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
             <button id="ctRefresh" type="button" class="ct-icon" data-fm-tooltip="Refresh"><i class="fas fa-rotate-right"></i></button>
           </div>
         </header>

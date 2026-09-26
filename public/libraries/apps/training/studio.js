@@ -151,7 +151,7 @@
   function modal(contentHtml, options = {}){
     const back = document.createElement('div');
     back.className = 'sty-modal-back';
-    back.innerHTML = `<div class="sty-modal" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="sty-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("training","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
+    back.innerHTML = `<div class="sty-modal" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="sty-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("training","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
     const close = () => { back.remove(); options.onClose?.(); };
     back.querySelector('.sty-modal-close').addEventListener('click', close);
     back.addEventListener('click', (event) => { if (event.target === back) close(); });
@@ -250,23 +250,23 @@
     /* ------------------------------------------------------------- top bar */
     const renderTop = () => {
       if (view.name === 'library') {
-        topEl.innerHTML = `<h1><i class="fas fa-chalkboard-user" style="color:var(--primary,#3b6ef6)"></i><span>${(globalThis.PlatformLanguage?.text("training","m_2b81e8bab27da3","Training Studio") ?? "Training Studio")}</span></h1>
-          <div class="sty-top-actions"><span class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_76bd8af197b721","Every course carries its own lessons, flashcard decks, and quizzes. Learners see them in the Training tab.") ?? "Every course carries its own lessons, flashcard decks, and quizzes. Learners see them in the Training tab.")}</span></div>`;
+        topEl.innerHTML = `<h1><i class="fas fa-chalkboard-user" style="color:var(--primary,#3b6ef6)"></i><span>${(globalThis.PlatformLanguage?.htmlText("training","m_2b81e8bab27da3","Training Studio") ?? "Training Studio")}</span></h1>
+          <div class="sty-top-actions"><span class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_76bd8af197b721","Every course carries its own lessons, flashcard decks, and quizzes. Learners see them in the Training tab.") ?? "Every course carries its own lessons, flashcard decks, and quizzes. Learners see them in the Training tab.")}</span></div>`;
         subtabsEl.innerHTML = '';
         return;
       }
       const editingItem = courseTab === 'flashcards' && deckDraft ? deckDraft : (courseTab === 'quizzes' && quizDraft ? quizDraft : null);
       topEl.innerHTML = `<h1>
-          <span class="sty-crumb" data-studio-back><i class="fas fa-arrow-left" style="margin-right:8px"></i>${(globalThis.PlatformLanguage?.text("training","m_38bf96aa90f8b3","Courses") ?? "Courses")}</span>
+          <span class="sty-crumb" data-studio-back><i class="fas fa-arrow-left" style="margin-right:8px"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_38bf96aa90f8b3","Courses") ?? "Courses")}</span>
           <i class="fas fa-chevron-right" style="font-size:10px;color:#c2c8da"></i>
           ${String(editingItem ? `<span class="sty-crumb" data-item-back>${esc(clean(draft?.title) || 'Untitled')}</span><i class="fas fa-chevron-right" style="font-size:10px;color:#c2c8da"></i><span>${esc(clean(editingItem.title) || 'Untitled')}</span>` : `<span>${esc(clean(draft?.title) || 'Untitled course')}</span>`)}
-          ${String(anyDirty() ? '<span class="sty-dirty-dot" title="Unsaved changes"></span>' : '')}
+          ${String(anyDirty() ? `<span class="sty-dirty-dot" title="${(globalThis.PlatformLanguage?.htmlText("training","m_b3ebdfc21e717e","Unsaved changes") ?? "Unsaved changes")}"></span>` : '')}
         </h1>
         <div class="sty-top-actions">
-          <button type="button" class="sty-btn" data-course-assign><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.text("training","m_7be9325277c249"," Assignments") ?? " Assignments")}</button>
-          <button type="button" class="sty-btn" data-course-progress><i class="fas fa-chart-simple"></i>${(globalThis.PlatformLanguage?.text("training","m_d0a5993c14f476"," Progress") ?? " Progress")}</button>
-          <button type="button" class="sty-btn" data-course-preview><i class="fas fa-mobile-screen"></i>${(globalThis.PlatformLanguage?.text("training","m_b132d62f39f2bd"," Preview lesson") ?? " Preview lesson")}</button>
-          <button type="button" class="sty-btn primary" data-studio-save><i class="fas fa-floppy-disk"></i>${((v2) => globalThis.PlatformLanguage?.text("training","m_d674f42f813a84",` Save${v2}`,{v2}) ?? ` Save${v2}`)(anyDirty() ? ' changes' : 'd')}</button>
+          <button type="button" class="sty-btn" data-course-assign><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_7be9325277c249"," Assignments") ?? " Assignments")}</button>
+          <button type="button" class="sty-btn" data-course-progress><i class="fas fa-chart-simple"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_d0a5993c14f476"," Progress") ?? " Progress")}</button>
+          <button type="button" class="sty-btn" data-course-preview><i class="fas fa-mobile-screen"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_b132d62f39f2bd"," Preview lesson") ?? " Preview lesson")}</button>
+          <button type="button" class="sty-btn primary" data-studio-save><i class="fas fa-floppy-disk"></i>${((v2) => globalThis.PlatformLanguage?.htmlText("training","m_d674f42f813a84",` Save${v2}`,{v2}) ?? ` Save${v2}`)(anyDirty() ? ' changes' : 'd')}</button>
         </div>`;
       const tabButton = (id, label, icon, count) => `<button type="button" class="sty-subtab ${courseTab === id ? 'active' : ''}" data-course-tab="${id}"><i class="fas ${icon}"></i>${label}${count != null ? `<span class="sty-count">${count}</span>` : ''}</button>`;
       subtabsEl.innerHTML = `<div class="sty-subtabs">
@@ -352,7 +352,7 @@
     /* ------------------------------------------------------------- library */
     const assignmentSummary = (subjectId) => {
       const rows = arr(assignmentsCache).filter((assignment) => clean(assignment.subject_kind) === 'course' && clean(assignment.subject_id) === clean(subjectId));
-      if (!rows.length) return `<span class="sty-pill gray"><i class="fas fa-user-slash"></i>${(globalThis.PlatformLanguage?.text("training","m_10001d8bbe16e5"," Not assigned") ?? " Not assigned")}</span>`;
+      if (!rows.length) return `<span class="sty-pill gray"><i class="fas fa-user-slash"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_10001d8bbe16e5"," Not assigned") ?? " Not assigned")}</span>`;
       const parts = rows.map((assignment) => {
         const kind = clean(assignment.target_kind);
         if (kind === 'everyone') return 'Everyone';
@@ -373,14 +373,14 @@
         return;
       }
       if (destroyed || view.name !== 'library') return;
-      const statusPill = (status) => status === 'published' ? `<span class="sty-pill green">${(globalThis.PlatformLanguage?.text("training","m_fcef580bdd8824","Published") ?? "Published")}</span>` : status === 'draft' ? `<span class="sty-pill gold">${(globalThis.PlatformLanguage?.text("training","m_9ce407c87de615","Draft") ?? "Draft")}</span>` : `<span class="sty-pill gray">${(globalThis.PlatformLanguage?.text("training","m_26b28a86126a93","Archived") ?? "Archived")}</span>`;
+      const statusPill = (status) => status === 'published' ? `<span class="sty-pill green">${(globalThis.PlatformLanguage?.htmlText("training","m_fcef580bdd8824","Published") ?? "Published")}</span>` : status === 'draft' ? `<span class="sty-pill gold">${(globalThis.PlatformLanguage?.htmlText("training","m_9ce407c87de615","Draft") ?? "Draft")}</span>` : `<span class="sty-pill gray">${(globalThis.PlatformLanguage?.htmlText("training","m_26b28a86126a93","Archived") ?? "Archived")}</span>`;
       bodyEl.innerHTML = `<div class="sty-grid">
         ${String(arr(courses).map((course) => `<button type="button" class="sty-card" data-open-course="${esc(course.id)}">
-          <div class="sty-card-head"><span class="sty-card-icon" style="background:${esc(clean(course.color) || '#3b6ef6')}"><i class="fas ${esc(clean(course.icon) || 'fa-book')}"></i></span><span style="min-width:0"><strong>${esc(course.title)}</strong><small>${arr(course.lessons).length} lesson${arr(course.lessons).length === 1 ? '' : 's'}</small></span></div>
+          <div class="sty-card-head"><span class="sty-card-icon" style="background:${esc(clean(course.color) || '#3b6ef6')}"><i class="fas ${esc(clean(course.icon) || 'fa-book')}"></i></span><span style="min-width:0"><strong>${esc(course.title)}</strong><small>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("training","m_d955510c14958a",`${v4} lesson${v5}`,{v4,v5}) ?? `${v4} lesson${v5}`)(arr(course.lessons).length,arr(course.lessons).length === 1 ? '' : 's')}</small></span></div>
           <p>${esc(course.description)}</p>
           <div class="sty-card-foot">${statusPill(clean(course.status))}${assignmentSummary(course.id)}</div>
         </button>`).join(''))}
-        <button type="button" class="sty-new-card" data-new-course><span><i class="fas fa-plus" style="font-size:20px;display:block;margin-bottom:8px"></i>${(globalThis.PlatformLanguage?.text("training","m_78d67f5c90a184","New course") ?? "New course")}</span></button>
+        <button type="button" class="sty-new-card" data-new-course><span><i class="fas fa-plus" style="font-size:20px;display:block;margin-bottom:8px"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_78d67f5c90a184","New course") ?? "New course")}</span></button>
       </div>`;
       bodyEl.querySelectorAll('[data-open-course]').forEach((button) => button.addEventListener('click', () => void openCourseEditor(button.dataset.openCourse)));
       bodyEl.querySelector('[data-new-course]').addEventListener('click', () => {
@@ -462,7 +462,7 @@
       const lesson = obj(arr(draft.lessons)[selectedLessonIndex]);
       const step = obj(arr(lesson.steps)[selectedStepIndex]);
       const head = bodyEl.querySelector('[data-phone-head]');
-      if (head) head.innerHTML = `<div style="width:34px;height:34px;border-radius:11px;background:${String(esc(clean(draft.color) || '#3b6ef6'))};color:#fff;display:grid;place-items:center;font-size:14px;flex:none"><i class="fas ${String(esc(clean(lesson.icon) || 'fa-book-open'))}"></i></div><div style="min-width:0"><div style="font-size:12.5px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${String(esc(lesson.title))}</div><div style="font-size:9.5px;font-weight:900;color:#8a92ab">${((v3,v4) => globalThis.PlatformLanguage?.text("training","m_1c153eb41064d3",`Page ${v3} of ${v4} &middot; live preview`,{v3,v4}) ?? `Page ${v3} of ${v4} &middot; live preview`)(selectedStepIndex + 1,arr(lesson.steps).length)}</div></div>`;
+      if (head) head.innerHTML = `<div style="width:34px;height:34px;border-radius:11px;background:${String(esc(clean(draft.color) || '#3b6ef6'))};color:#fff;display:grid;place-items:center;font-size:14px;flex:none"><i class="fas ${String(esc(clean(lesson.icon) || 'fa-book-open'))}"></i></div><div style="min-width:0"><div style="font-size:12.5px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${String(esc(lesson.title))}</div><div style="font-size:9.5px;font-weight:900;color:#8a92ab">${((v3,v4) => globalThis.PlatformLanguage?.htmlText("training","m_1c153eb41064d3",`Page ${v3} of ${v4} &middot; live preview`,{v3,v4}) ?? `Page ${v3} of ${v4} &middot; live preview`)(selectedStepIndex + 1,arr(lesson.steps).length)}</div></div>`;
       phoneBody.innerHTML = '';
       const stepHolder = document.createElement('div');
       stepHolder.className = 'trn-step';
@@ -471,13 +471,13 @@
       const registry = window.TrainingViewer?.stepKinds;
       const renderer = registry?.[clean(step.kind)];
       if (!renderer) {
-        stepHolder.innerHTML = `<div class="sty-state">${(globalThis.PlatformLanguage?.text("training","m_77520ac5703511","Load the Training app bundle to preview this step.") ?? "Load the Training app bundle to preview this step.")}</div>`;
+        stepHolder.innerHTML = `<div class="sty-state">${(globalThis.PlatformLanguage?.htmlText("training","m_77520ac5703511","Load the Training app bundle to preview this step.") ?? "Load the Training app bundle to preview this step.")}</div>`;
         return;
       }
       try {
         renderer.render(stepHolder, { step, context, course: draft, lesson, practice: true, controls: { setContinueEnabled(){}, setResult(){} } });
       } catch (_) {
-        stepHolder.innerHTML = `<div class="sty-state">${(globalThis.PlatformLanguage?.text("training","m_27be586f944244","Preview unavailable for this step.") ?? "Preview unavailable for this step.")}</div>`;
+        stepHolder.innerHTML = `<div class="sty-state">${(globalThis.PlatformLanguage?.htmlText("training","m_27be586f944244","Preview unavailable for this step.") ?? "Preview unavailable for this step.")}</div>`;
       }
     };
 
@@ -500,7 +500,7 @@
     const urlFieldHtml = (label, attrs, value, accept, options = {}) => `
       <label class="sty-field">${String(esc(label))}<span class="sty-url-row">
         ${String(options.textarea ? `<textarea ${attrs} placeholder="${esc(options.placeholder || 'https://...')}">${esc(value)}</textarea>` : `<input ${attrs} value="${esc(value)}" placeholder="${esc(options.placeholder || 'https://...')}">`)}
-        <button type="button" class="sty-btn sty-upload-btn" data-upload data-accept="${String(esc(accept))}" ${String(options.multiple ? 'data-multiple="1"' : '')} title="${(globalThis.PlatformLanguage?.text("training","m_0fd24c5d559419","Upload from your computer") ?? "Upload from your computer")}"><i class="fas fa-upload"></i></button>
+        <button type="button" class="sty-btn sty-upload-btn" data-upload data-accept="${String(esc(accept))}" ${String(options.multiple ? 'data-multiple="1"' : '')} title="${(globalThis.PlatformLanguage?.htmlText("training","m_0fd24c5d559419","Upload from your computer") ?? "Upload from your computer")}"><i class="fas fa-upload"></i></button>
       </span></label>`;
 
     const bindUploadButtons = (scope) => {
@@ -558,9 +558,9 @@
         <div class="sty-block-bar">
           <select data-block-type>${String(['text','heading','callout','image','gallery','video','document'].map((option) => `<option value="${option}" ${option === type ? 'selected' : ''}>${option[0].toUpperCase()}${option.slice(1)}</option>`).join(''))}</select>
           <div class="sty-block-tools">
-            <button type="button" class="sty-icon-btn" data-block-up title="${(globalThis.PlatformLanguage?.text("training","m_f51d0d563b4d76","Move up") ?? "Move up")}"><i class="fas fa-arrow-up"></i></button>
-            <button type="button" class="sty-icon-btn" data-block-down title="${(globalThis.PlatformLanguage?.text("training","m_8dda6677ff0f34","Move down") ?? "Move down")}"><i class="fas fa-arrow-down"></i></button>
-            <button type="button" class="sty-icon-btn danger" data-block-remove title="${(globalThis.PlatformLanguage?.text("training","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
+            <button type="button" class="sty-icon-btn" data-block-up title="${(globalThis.PlatformLanguage?.htmlText("training","m_f51d0d563b4d76","Move up") ?? "Move up")}"><i class="fas fa-arrow-up"></i></button>
+            <button type="button" class="sty-icon-btn" data-block-down title="${(globalThis.PlatformLanguage?.htmlText("training","m_8dda6677ff0f34","Move down") ?? "Move down")}"><i class="fas fa-arrow-down"></i></button>
+            <button type="button" class="sty-icon-btn danger" data-block-remove title="${(globalThis.PlatformLanguage?.htmlText("training","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
           </div>
         </div>
         ${String(fields)}
@@ -572,8 +572,8 @@
       return `<div class="sty-q-card" data-q-index="${String(questionIndex)}">
         <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span class="sty-q-num">${String(esc(options.noun || 'Question'))} ${String(questionIndex + 1)}</span>
           <select data-q-kind style="border:1px solid #d4d9e6;border-radius:8px;padding:5px 8px;font:inherit;font-size:11px;font-weight:900">
-            <option value="multiple_choice" ${String(kind === 'multiple_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_1ce8dae577783a","Multiple choice") ?? "Multiple choice")}</option>
-            <option value="text_input" ${String(kind === 'text_input' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_97a7a748922ee8","Typed answer") ?? "Typed answer")}</option>
+            <option value="multiple_choice" ${String(kind === 'multiple_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_1ce8dae577783a","Multiple choice") ?? "Multiple choice")}</option>
+            <option value="text_input" ${String(kind === 'text_input' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_97a7a748922ee8","Typed answer") ?? "Typed answer")}</option>
           </select>
           <div style="margin-left:auto;display:flex;gap:5px">
             <button type="button" class="sty-icon-btn" data-q-up><i class="fas fa-arrow-up"></i></button>
@@ -581,14 +581,14 @@
             <button type="button" class="sty-icon-btn danger" data-q-remove><i class="fas fa-trash"></i></button>
           </div>
         </div>
-        <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_3e34020d84068e","Prompt") ?? "Prompt")}<textarea data-q-field="prompt">${String(esc(question.prompt))}</textarea></label>
+        <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_3e34020d84068e","Prompt") ?? "Prompt")}<textarea data-q-field="prompt">${String(esc(question.prompt))}</textarea></label>
         ${String(kind === 'multiple_choice'
-          ? `<label class="sty-field">Choices — one per line, mark correct with *<textarea data-q-choices placeholder="*Correct answer\nWrong answer\nAnother wrong answer">${esc(choicesToText(question))}</textarea></label>`
-          : `<label class="sty-field">Accepted answers — one per line<textarea data-q-answers placeholder="answer\nalternate answer">${esc(arr(question.answers).join('\n'))}</textarea></label>
-             <label class="sty-check"><input type="checkbox" data-q-case ${question.case_sensitive === true ? 'checked' : ''}>Case sensitive</label>`)}
+          ? `<label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_b78866177f4cbb","Choices — one per line, mark correct with *") ?? "Choices — one per line, mark correct with *")}<textarea data-q-choices placeholder="${(globalThis.PlatformLanguage?.htmlText("training","m_0480e163246205","*Correct answer\nWrong answer\nAnother wrong answer") ?? "*Correct answer\nWrong answer\nAnother wrong answer")}">${esc(choicesToText(question))}</textarea></label>`
+          : `<label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_193151df26c547","Accepted answers — one per line") ?? "Accepted answers — one per line")}<textarea data-q-answers placeholder="${(globalThis.PlatformLanguage?.htmlText("training","m_a361a68f615ff0","answer\nalternate answer") ?? "answer\nalternate answer")}">${esc(arr(question.answers).join('\n'))}</textarea></label>
+             <label class="sty-check"><input type="checkbox" data-q-case ${question.case_sensitive === true ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("training","m_3fa90c685a2015","Case sensitive") ?? "Case sensitive")}</label>`)}
         <div class="sty-field-row">
           ${String(urlFieldHtml('Image (optional)', 'data-q-field="image"', clean(question.image), 'image/*'))}
-          <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_3639ce572473fc","Explanation after answering (optional)") ?? "Explanation after answering (optional)")}<input data-q-field="explanation" value="${String(esc(question.explanation))}"></label>
+          <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_3639ce572473fc","Explanation after answering (optional)") ?? "Explanation after answering (optional)")}<input data-q-field="explanation" value="${String(esc(question.explanation))}"></label>
         </div>
       </div>`;
     };
@@ -623,22 +623,22 @@
       let body = '';
       if (open && clean(step.kind) === 'content') {
         body = `<div data-blocks-holder style="display:grid;gap:9px">${String(arr(config.blocks).map((block, blockIndex) => blockEditorHtml(obj(block), blockIndex)).join(''))}</div>
-          <button type="button" class="sty-btn" data-block-add style="justify-self:start"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("training","m_d2da9449c9549c"," Add block") ?? " Add block")}</button>`;
+          <button type="button" class="sty-btn" data-block-add style="justify-self:start"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_d2da9449c9549c"," Add block") ?? " Add block")}</button>`;
       } else if (open && clean(step.kind) === 'quiz') {
         body = `<div class="sty-field-row">
-            <label class="sty-check" style="align-self:end"><input type="checkbox" data-quiz-required ${String(config.required === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("training","m_59471f0f13d1ab","Must pass to finish lesson") ?? "Must pass to finish lesson")}</label>
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_6d829b6d46b0fa","Pass mark %") ?? "Pass mark %")}<input type="number" min="0" max="100" data-quiz-pass value="${String(Number(config.pass_percent || 0))}"></label>
+            <label class="sty-check" style="align-self:end"><input type="checkbox" data-quiz-required ${String(config.required === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_59471f0f13d1ab","Must pass to finish lesson") ?? "Must pass to finish lesson")}</label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_6d829b6d46b0fa","Pass mark %") ?? "Pass mark %")}<input type="number" min="0" max="100" data-quiz-pass value="${String(Number(config.pass_percent || 0))}"></label>
           </div>
           <div data-questions-holder style="display:grid;gap:9px">${String(arr(config.questions).map((question, questionIndex) => questionEditorHtml(obj(question), questionIndex)).join(''))}</div>
-          <button type="button" class="sty-btn" data-question-add style="justify-self:start"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("training","m_01ad66ccfe3263"," Add question") ?? " Add question")}</button>`;
+          <button type="button" class="sty-btn" data-question-add style="justify-self:start"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_01ad66ccfe3263"," Add question") ?? " Add question")}</button>`;
       } else if (open && clean(step.kind) === 'flashcards') {
         body = `<div class="sty-field-row">
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_0be814cbeea592","Deck from this course") ?? "Deck from this course")}<select data-fc-deck><option value="">${(globalThis.PlatformLanguage?.text("training","m_5dc6431d529fdb","Choose a deck...") ?? "Choose a deck...")}</option>${String(arr(courseDecks).map((deck) => `<option value="${esc(deck.id)}" ${clean(config.deck_id) === clean(deck.id) ? 'selected' : ''}>${esc(deck.title)}</option>`).join(''))}</select></label>
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_669e1e42b35fa1","Mode") ?? "Mode")}<select data-fc-mode><option value="practice" ${String(clean(config.mode) !== 'test' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_364ab255aa7530","Practice (relaxed)") ?? "Practice (relaxed)")}</option><option value="test" ${String(clean(config.mode) === 'test' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_5dc495c0944648","Test (scored)") ?? "Test (scored)")}</option></select></label>
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_6d829b6d46b0fa","Pass mark %") ?? "Pass mark %")}<input type="number" min="0" max="100" data-fc-pass value="${String(Number(config.pass_percent || 0))}"></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_0be814cbeea592","Deck from this course") ?? "Deck from this course")}<select data-fc-deck><option value="">${(globalThis.PlatformLanguage?.htmlText("training","m_5dc6431d529fdb","Choose a deck...") ?? "Choose a deck...")}</option>${String(arr(courseDecks).map((deck) => `<option value="${esc(deck.id)}" ${clean(config.deck_id) === clean(deck.id) ? 'selected' : ''}>${esc(deck.title)}</option>`).join(''))}</select></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_669e1e42b35fa1","Mode") ?? "Mode")}<select data-fc-mode><option value="practice" ${String(clean(config.mode) !== 'test' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_364ab255aa7530","Practice (relaxed)") ?? "Practice (relaxed)")}</option><option value="test" ${String(clean(config.mode) === 'test' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_5dc495c0944648","Test (scored)") ?? "Test (scored)")}</option></select></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_6d829b6d46b0fa","Pass mark %") ?? "Pass mark %")}<input type="number" min="0" max="100" data-fc-pass value="${String(Number(config.pass_percent || 0))}"></label>
           </div>
-          <label class="sty-check"><input type="checkbox" data-fc-required ${String(config.required === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("training","m_e175c78934a195","Must pass to finish lesson (test mode only)") ?? "Must pass to finish lesson (test mode only)")}</label>
-          <p class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_aefb9e4e13c65f","Build decks in this course's Flashcard decks tab. The learner plays the deck without leaving the lesson.") ?? "Build decks in this course's Flashcard decks tab. The learner plays the deck without leaving the lesson.")}</p>`;
+          <label class="sty-check"><input type="checkbox" data-fc-required ${String(config.required === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_e175c78934a195","Must pass to finish lesson (test mode only)") ?? "Must pass to finish lesson (test mode only)")}</label>
+          <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_aefb9e4e13c65f","Build decks in this course's Flashcard decks tab. The learner plays the deck without leaving the lesson.") ?? "Build decks in this course's Flashcard decks tab. The learner plays the deck without leaving the lesson.")}</p>`;
       }
       return `<div class="sty-step-card" data-step-index="${String(stepIndex)}">
         <div class="sty-step-head" data-step-select>
@@ -646,13 +646,13 @@
           <strong>${String(esc(clean(step.title) || kindInfo.label))}</strong>
           <span class="sty-pill">${String(esc(kindInfo.label))}</span>
           <span class="sty-step-tools">
-            <button type="button" class="sty-icon-btn" data-step-up title="${(globalThis.PlatformLanguage?.text("training","m_f51d0d563b4d76","Move up") ?? "Move up")}"><i class="fas fa-arrow-up"></i></button>
-            <button type="button" class="sty-icon-btn" data-step-down title="${(globalThis.PlatformLanguage?.text("training","m_8dda6677ff0f34","Move down") ?? "Move down")}"><i class="fas fa-arrow-down"></i></button>
-            <button type="button" class="sty-icon-btn danger" data-step-remove title="${(globalThis.PlatformLanguage?.text("training","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
+            <button type="button" class="sty-icon-btn" data-step-up title="${(globalThis.PlatformLanguage?.htmlText("training","m_f51d0d563b4d76","Move up") ?? "Move up")}"><i class="fas fa-arrow-up"></i></button>
+            <button type="button" class="sty-icon-btn" data-step-down title="${(globalThis.PlatformLanguage?.htmlText("training","m_8dda6677ff0f34","Move down") ?? "Move down")}"><i class="fas fa-arrow-down"></i></button>
+            <button type="button" class="sty-icon-btn danger" data-step-remove title="${(globalThis.PlatformLanguage?.htmlText("training","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
           </span>
         </div>
         ${String(open ? `<div class="sty-step-body">
-          <label class="sty-field">Page title<input data-step-title value="${esc(step.title)}"></label>
+          <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_9d6a9a8ec4fce8","Page title") ?? "Page title")}<input data-step-title value="${esc(step.title)}"></label>
           ${body}
         </div>` : '')}
       </div>`;
@@ -667,41 +667,41 @@
       const unlock = obj(lesson.unlock);
       bodyEl.innerHTML = `<div class="sty-lessons-layout">
         <div class="sty-lessons-col"><div class="sty-panel">
-          <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.text("training","m_8dc5830045ba90","Lessons") ?? "Lessons")}</h3><button type="button" class="sty-icon-btn" data-lesson-add title="${(globalThis.PlatformLanguage?.text("training","m_3e2b9d1f4abefd","Add lesson") ?? "Add lesson")}"><i class="fas fa-plus"></i></button></div>
+          <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.htmlText("training","m_8dc5830045ba90","Lessons") ?? "Lessons")}</h3><button type="button" class="sty-icon-btn" data-lesson-add title="${(globalThis.PlatformLanguage?.htmlText("training","m_3e2b9d1f4abefd","Add lesson") ?? "Add lesson")}"><i class="fas fa-plus"></i></button></div>
           <div class="sty-panel-body" style="gap:7px">
             ${String(lessons.map((item, index) => `<div class="sty-lesson-item ${index === selectedLessonIndex ? 'active' : ''}" data-lesson-select="${index}">
               <span class="sty-lesson-title">${index + 1}. ${esc(item.title)}</span>
               <small>${arr(item.steps).length}p</small>
-              <button type="button" class="sty-icon-btn" data-lesson-up="${index}" title="Move up"><i class="fas fa-arrow-up"></i></button>
-              <button type="button" class="sty-icon-btn danger" data-lesson-remove="${index}" title="Remove"><i class="fas fa-trash"></i></button>
+              <button type="button" class="sty-icon-btn" data-lesson-up="${index}" title="${(globalThis.PlatformLanguage?.htmlText("training","m_f51d0d563b4d76","Move up") ?? "Move up")}"><i class="fas fa-arrow-up"></i></button>
+              <button type="button" class="sty-icon-btn danger" data-lesson-remove="${index}" title="${(globalThis.PlatformLanguage?.htmlText("training","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
             </div>`).join(''))}
           </div>
         </div></div>
 
         <div style="display:grid;gap:14px;min-width:0">
           <div class="sty-panel">
-            <div class="sty-panel-head"><h3>${((v1) => globalThis.PlatformLanguage?.text("training","m_ae924771d2bc8f",`Lesson ${v1} &middot; details`,{v1}) ?? `Lesson ${v1} &middot; details`)(selectedLessonIndex + 1)}</h3></div>
+            <div class="sty-panel-head"><h3>${((v1) => globalThis.PlatformLanguage?.htmlText("training","m_ae924771d2bc8f",`Lesson ${v1} &middot; details`,{v1}) ?? `Lesson ${v1} &middot; details`)(selectedLessonIndex + 1)}</h3></div>
             <div class="sty-panel-body">
               <div class="sty-field-row">
-                <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_035b1f46f2dc8c","Lesson title") ?? "Lesson title")}<input data-lesson-field="title" value="${String(esc(lesson.title))}"></label>
-                <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_1c13527c2c1332","Estimated minutes") ?? "Estimated minutes")}<input type="number" min="0" data-lesson-minutes value="${String(Number(lesson.minutes || 0))}"></label>
+                <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_035b1f46f2dc8c","Lesson title") ?? "Lesson title")}<input data-lesson-field="title" value="${String(esc(lesson.title))}"></label>
+                <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_1c13527c2c1332","Estimated minutes") ?? "Estimated minutes")}<input type="number" min="0" data-lesson-minutes value="${String(Number(lesson.minutes || 0))}"></label>
               </div>
-              <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_88548238c17e23","Summary — shown in the lesson bubble popup") ?? "Summary — shown in the lesson bubble popup")}<textarea data-lesson-field="summary">${String(esc(lesson.summary))}</textarea></label>
-              <div class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_debbc06ad0a4cb","Bubble icon") ?? "Bubble icon")}<div class="sty-icon-choices">${String(ICON_CHOICES.map((icon) => `<button type="button" class="sty-icon-choice ${clean(lesson.icon) === icon ? 'active' : ''}" data-lesson-icon="${icon}"><i class="fas ${icon}"></i></button>`).join(''))}</div></div>
+              <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_88548238c17e23","Summary — shown in the lesson bubble popup") ?? "Summary — shown in the lesson bubble popup")}<textarea data-lesson-field="summary">${String(esc(lesson.summary))}</textarea></label>
+              <div class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_debbc06ad0a4cb","Bubble icon") ?? "Bubble icon")}<div class="sty-icon-choices">${String(ICON_CHOICES.map((icon) => `<button type="button" class="sty-icon-choice ${clean(lesson.icon) === icon ? 'active' : ''}" data-lesson-icon="${icon}"><i class="fas ${icon}"></i></button>`).join(''))}</div></div>
               <div class="sty-field-row">
-                <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_28a0726422d859","Unlocks") ?? "Unlocks")}<select data-lesson-unlock-mode>
-                  <option value="previous" ${String(clean(unlock.mode) === 'previous' || !clean(unlock.mode) ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_8ff05b1dc09ea9","When previous lesson is done") ?? "When previous lesson is done")}</option>
-                  <option value="date" ${String(clean(unlock.mode) === 'date' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_d75e5c42beeaa1","On a set date") ?? "On a set date")}</option>
-                  <option value="manual" ${String(clean(unlock.mode) === 'manual' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_bfb2060d586c10","When I unlock it manually") ?? "When I unlock it manually")}</option>
+                <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_28a0726422d859","Unlocks") ?? "Unlocks")}<select data-lesson-unlock-mode>
+                  <option value="previous" ${String(clean(unlock.mode) === 'previous' || !clean(unlock.mode) ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_8ff05b1dc09ea9","When previous lesson is done") ?? "When previous lesson is done")}</option>
+                  <option value="date" ${String(clean(unlock.mode) === 'date' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_d75e5c42beeaa1","On a set date") ?? "On a set date")}</option>
+                  <option value="manual" ${String(clean(unlock.mode) === 'manual' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_bfb2060d586c10","When I unlock it manually") ?? "When I unlock it manually")}</option>
                 </select></label>
-                ${String(clean(unlock.mode) === 'date' ? `<label class="sty-field">Available on<input type="date" data-lesson-unlock-date value="${esc(unlock.available_on)}"></label>` : '')}
+                ${String(clean(unlock.mode) === 'date' ? `<label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_25cb1296b6f56d","Available on") ?? "Available on")}<input type="date" data-lesson-unlock-date value="${esc(unlock.available_on)}"></label>` : '')}
               </div>
-              ${String(clean(unlock.mode) === 'date' ? '<p class="sty-hint">You can override this date per person or crew from Assignments.</p>' : '')}
-              ${String(clean(unlock.mode) === 'manual' ? '<p class="sty-hint">Use the Progress panel to unlock this lesson per person when they are ready.</p>' : '')}
+              ${String(clean(unlock.mode) === 'date' ? `<p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_2f194a3b58094f","You can override this date per person or crew from Assignments.") ?? "You can override this date per person or crew from Assignments.")}</p>` : '')}
+              ${String(clean(unlock.mode) === 'manual' ? `<p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_0048a39d8517eb","Use the Progress panel to unlock this lesson per person when they are ready.") ?? "Use the Progress panel to unlock this lesson per person when they are ready.")}</p>` : '')}
             </div>
           </div>
           <div class="sty-panel">
-            <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.text("training","m_a6c13e38e7e96e","Pages") ?? "Pages")}</h3></div>
+            <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.htmlText("training","m_a6c13e38e7e96e","Pages") ?? "Pages")}</h3></div>
             <div class="sty-panel-body">
               <div style="display:grid;gap:9px" data-steps-holder>${String(steps.map((step, stepIndex) => stepEditorHtml(obj(step), stepIndex)).join(''))}</div>
               <div class="sty-add-row">${String(STEP_LIBRARY.map((item) => `<button type="button" class="sty-btn" data-step-add="${item.kind}" title="${esc(item.hint)}"><i class="fas ${item.icon}"></i> ${esc(item.label)}</button>`).join(''))}</div>
@@ -815,17 +815,17 @@
     /* ------------------------------------------------------- settings tab */
     const renderSettingsTab = () => {
       bodyEl.innerHTML = `<div class="sty-settings-wrap"><div class="sty-panel">
-        <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.text("training","m_54d42ca6fdd71a","Course settings") ?? "Course settings")}</h3></div>
+        <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.htmlText("training","m_54d42ca6fdd71a","Course settings") ?? "Course settings")}</h3></div>
         <div class="sty-panel-body" style="gap:14px">
-          <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_29dbd3d8b69f55","Title") ?? "Title")}<input data-course-field="title" value="${String(esc(draft.title))}"></label>
-          <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_800b99f7e9df59","Description — shown on the learner's course card") ?? "Description — shown on the learner's course card")}<textarea data-course-field="description">${String(esc(draft.description))}</textarea></label>
+          <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_29dbd3d8b69f55","Title") ?? "Title")}<input data-course-field="title" value="${String(esc(draft.title))}"></label>
+          <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_800b99f7e9df59","Description — shown on the learner's course card") ?? "Description — shown on the learner's course card")}<textarea data-course-field="description">${String(esc(draft.description))}</textarea></label>
           <div class="sty-field-row">
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_1352cafa75b8da","Status") ?? "Status")}<select data-course-field="status">${String(['draft','published','archived'].map((status) => `<option value="${status}" ${clean(draft.status) === status ? 'selected' : ''}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join(''))}</select></label>
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_d9bd00a9b123cc","Progression") ?? "Progression")}<select data-course-progression><option value="sequential" ${String(clean(obj(draft.settings).progression) !== 'free' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_85efb7487b4a9b","Lessons in order") ?? "Lessons in order")}</option><option value="free" ${String(clean(obj(draft.settings).progression) === 'free' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_868d735d29bde8","Any order") ?? "Any order")}</option></select></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_1352cafa75b8da","Status") ?? "Status")}<select data-course-field="status">${String(['draft','published','archived'].map((status) => `<option value="${status}" ${clean(draft.status) === status ? 'selected' : ''}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join(''))}</select></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_d9bd00a9b123cc","Progression") ?? "Progression")}<select data-course-progression><option value="sequential" ${String(clean(obj(draft.settings).progression) !== 'free' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_85efb7487b4a9b","Lessons in order") ?? "Lessons in order")}</option><option value="free" ${String(clean(obj(draft.settings).progression) === 'free' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_868d735d29bde8","Any order") ?? "Any order")}</option></select></label>
           </div>
-          <div class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_161a14d638c05f","Course color") ?? "Course color")}<div class="sty-swatches">${String(COLOR_CHOICES.map((color) => `<button type="button" class="sty-swatch ${clean(draft.color) === color ? 'active' : ''}" style="background:${color}" data-course-color="${color}"></button>`).join(''))}</div></div>
-          <div class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_3384b5593b13c1","Course icon") ?? "Course icon")}<div class="sty-icon-choices">${String(ICON_CHOICES.map((icon) => `<button type="button" class="sty-icon-choice ${clean(draft.icon) === icon ? 'active' : ''}" data-course-icon="${icon}"><i class="fas ${icon}"></i></button>`).join(''))}</div></div>
-          <p class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_bcd2f02abf608d","Draft courses are invisible to learners until published. \"Lessons in order\" is the classic path; \"Any order\" lets learners jump around (date and manual locks still apply).") ?? "Draft courses are invisible to learners until published. \"Lessons in order\" is the classic path; \"Any order\" lets learners jump around (date and manual locks still apply).")}</p>
+          <div class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_161a14d638c05f","Course color") ?? "Course color")}<div class="sty-swatches">${String(COLOR_CHOICES.map((color) => `<button type="button" class="sty-swatch ${clean(draft.color) === color ? 'active' : ''}" style="background:${color}" data-course-color="${color}"></button>`).join(''))}</div></div>
+          <div class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_3384b5593b13c1","Course icon") ?? "Course icon")}<div class="sty-icon-choices">${String(ICON_CHOICES.map((icon) => `<button type="button" class="sty-icon-choice ${clean(draft.icon) === icon ? 'active' : ''}" data-course-icon="${icon}"><i class="fas ${icon}"></i></button>`).join(''))}</div></div>
+          <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_bcd2f02abf608d","Draft courses are invisible to learners until published. \"Lessons in order\" is the classic path; \"Any order\" lets learners jump around (date and manual locks still apply).") ?? "Draft courses are invisible to learners until published. \"Lessons in order\" is the classic path; \"Any order\" lets learners jump around (date and manual locks still apply).")}</p>
         </div>
       </div></div>`;
       bodyEl.querySelectorAll('[data-course-field]').forEach((input) => bindField(input, (element) => { draft[element.dataset.courseField] = element.value; }));
@@ -843,9 +843,9 @@
     };
 
     const unlockSelectHtml = (item, attr) => `
-      <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_0ea1c466df3e1d","Learners can practice it") ?? "Learners can practice it")}<select ${String(attr)}>
-        <option value="" ${String(!clean(item.unlock_lesson_id) ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_cf28bae3ec2d31","Immediately (with the course)") ?? "Immediately (with the course)")}</option>
-        ${String(arr(draft?.lessons).map((lesson, index) => `<option value="${esc(lesson.id)}" ${clean(item.unlock_lesson_id) === clean(lesson.id) ? 'selected' : ''}>After lesson ${index + 1}: ${esc(lesson.title)}</option>`).join(''))}
+      <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_0ea1c466df3e1d","Learners can practice it") ?? "Learners can practice it")}<select ${String(attr)}>
+        <option value="" ${String(!clean(item.unlock_lesson_id) ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_cf28bae3ec2d31","Immediately (with the course)") ?? "Immediately (with the course)")}</option>
+        ${String(arr(draft?.lessons).map((lesson, index) => `<option value="${esc(lesson.id)}" ${clean(item.unlock_lesson_id) === clean(lesson.id) ? 'selected' : ''}>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("training","m_f69d0f8963ca4e",`After lesson ${v2}: ${v3}`,{v2,v3}) ?? `After lesson ${v2}: ${v3}`)(index + 1,esc(lesson.title))}</option>`).join(''))}
       </select></label>`;
 
     const renderMaterialList = (kind) => {
@@ -853,22 +853,22 @@
       const items = isDeck ? courseDecks : courseQuizzes;
       const unit = isDeck ? 'card' : 'question';
       if (!clean(draft.id)) {
-        bodyEl.innerHTML = `<div class="sty-state"><div><i class="fas fa-floppy-disk" style="font-size:22px;display:block;margin-bottom:10px;color:#aab2c8"></i>${((v0) => globalThis.PlatformLanguage?.text("training","m_a91b3837cb3a3d",`Save the course first, then add ${v0} to it.`,{v0}) ?? `Save the course first, then add ${v0} to it.`)(isDeck ? 'flashcard decks' : 'practice quizzes')}</div></div>`;
+        bodyEl.innerHTML = `<div class="sty-state"><div><i class="fas fa-floppy-disk" style="font-size:22px;display:block;margin-bottom:10px;color:#aab2c8"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_a91b3837cb3a3d",`Save the course first, then add ${v0} to it.`,{v0}) ?? `Save the course first, then add ${v0} to it.`)(isDeck ? 'flashcard decks' : 'practice quizzes')}</div></div>`;
         return;
       }
       bodyEl.innerHTML = `<div class="sty-settings-wrap" style="width:min(760px,100%)"><div class="sty-panel">
-        <div class="sty-panel-head"><h3>${((v0) => globalThis.PlatformLanguage?.text("training","m_486a3e91c48da8",`${v0} in this course`,{v0}) ?? `${v0} in this course`)(isDeck ? 'Flashcard decks' : 'Practice quizzes')}</h3><button type="button" class="sty-btn" data-item-new><i class="fas fa-plus"></i>${((v1) => globalThis.PlatformLanguage?.text("training","m_00f53955e385f7",` New ${v1}`,{v1}) ?? ` New ${v1}`)(isDeck ? 'deck' : 'quiz')}</button></div>
+        <div class="sty-panel-head"><h3>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_486a3e91c48da8",`${v0} in this course`,{v0}) ?? `${v0} in this course`)(isDeck ? 'Flashcard decks' : 'Practice quizzes')}</h3><button type="button" class="sty-btn" data-item-new><i class="fas fa-plus"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("training","m_00f53955e385f7",` New ${v1}`,{v1}) ?? ` New ${v1}`)(isDeck ? 'deck' : 'quiz')}</button></div>
         <div class="sty-panel-body" style="gap:9px">
           ${String(arr(items).length ? arr(items).map((item) => {
             const count = arr(isDeck ? item.cards : item.questions).length;
             return `<button type="button" class="sty-list-row" data-item-open="${esc(item.id)}">
               <span class="sty-list-icon" style="background:${esc(clean(item.color) || '#3b6ef6')}"><i class="fas ${esc(clean(item.icon) || (isDeck ? 'fa-layer-group' : 'fa-bolt'))}"></i></span>
-              <span class="sty-list-copy"><strong>${esc(item.title)}</strong><span>${count} ${unit}${count === 1 ? '' : 's'} &middot; ${esc(unlockLabel(item))}${!isDeck ? ` &middot; pass ${Number(item.pass_percent || 0)}%` : ''}</span></span>
+              <span class="sty-list-copy"><strong>${esc(item.title)}</strong><span>${((v4,v5,v6,v7,v8) => globalThis.PlatformLanguage?.htmlText("training","m_f5fe0e6eb39d5a",`${v4} ${v5}${v6} &middot; ${v7}${v8}`,{v4,v5,v6,v7,v8}) ?? `${v4} ${v5}${v6} &middot; ${v7}${v8}`)(count,unit,count === 1 ? '' : 's',esc(unlockLabel(item)),!isDeck ? ` &middot; pass ${Number(item.pass_percent || 0)}%` : '')}</span></span>
               ${clean(item.status) !== 'published' ? `<span class="sty-pill ${clean(item.status) === 'draft' ? 'gold' : 'gray'}">${esc(item.status)}</span>` : ''}
               <i class="fas fa-chevron-right" style="color:#c2c8da;font-size:12px"></i>
             </button>`;
-          }).join('') : `<div class="sty-state" style="min-height:110px">No ${isDeck ? 'decks' : 'quizzes'} yet. Learners see them in the ${isDeck ? 'Flashcards' : 'Quizzes'} tab, grouped under this course.</div>`)}
-          <p class="sty-hint">${((v3,v4) => globalThis.PlatformLanguage?.text("training","m_b3bae27161850d",`Each ${v3} is available with the course immediately, or unlocks when a lesson you pick is completed. ${v4}`,{v3,v4}) ?? `Each ${v3} is available with the course immediately, or unlocks when a lesson you pick is completed. ${v4}`)(isDeck ? 'deck' : 'quiz',isDeck ? 'Decks can also be played inside lessons via a Flashcards page.' : 'Learners always get a free practice mode; scored runs are tracked.')}</p>
+          }).join('') : `<div class="sty-state" style="min-height:110px">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("training","m_a633ca55a7ab6d",`No ${v0} yet. Learners see them in the ${v1} tab, grouped under this course.`,{v0,v1}) ?? `No ${v0} yet. Learners see them in the ${v1} tab, grouped under this course.`)(isDeck ? 'decks' : 'quizzes',isDeck ? 'Flashcards' : 'Quizzes')}</div>`)}
+          <p class="sty-hint">${((v3,v4) => globalThis.PlatformLanguage?.htmlText("training","m_b3bae27161850d",`Each ${v3} is available with the course immediately, or unlocks when a lesson you pick is completed. ${v4}`,{v3,v4}) ?? `Each ${v3} is available with the course immediately, or unlocks when a lesson you pick is completed. ${v4}`)(isDeck ? 'deck' : 'quiz',isDeck ? 'Decks can also be played inside lessons via a Flashcards page.' : 'Learners always get a free practice mode; scored runs are tracked.')}</p>
         </div>
       </div></div>`;
       bodyEl.querySelector('[data-item-new]').addEventListener('click', () => {
@@ -902,25 +902,25 @@
     const cardEditorHtml = (card, cardIndex) => {
       const kind = clean(card.kind || 'flip');
       return `<div class="sty-q-card" data-card-index="${String(cardIndex)}">
-        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span class="sty-q-num">${((v1) => globalThis.PlatformLanguage?.text("training","m_774cc8ee5713f2",`Card ${v1}`,{v1}) ?? `Card ${v1}`)(cardIndex + 1)}</span>
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span class="sty-q-num">${((v1) => globalThis.PlatformLanguage?.htmlText("training","m_774cc8ee5713f2",`Card ${v1}`,{v1}) ?? `Card ${v1}`)(cardIndex + 1)}</span>
           <select data-card-kind style="border:1px solid #d4d9e6;border-radius:8px;padding:5px 8px;font:inherit;font-size:11px;font-weight:900">
-            <option value="flip" ${String(kind === 'flip' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_f7a30ffd0f39dd","Flip card") ?? "Flip card")}</option>
-            <option value="multiple_choice" ${String(kind === 'multiple_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_1ce8dae577783a","Multiple choice") ?? "Multiple choice")}</option>
-            <option value="text_input" ${String(kind === 'text_input' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("training","m_97a7a748922ee8","Typed answer") ?? "Typed answer")}</option>
+            <option value="flip" ${String(kind === 'flip' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_f7a30ffd0f39dd","Flip card") ?? "Flip card")}</option>
+            <option value="multiple_choice" ${String(kind === 'multiple_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_1ce8dae577783a","Multiple choice") ?? "Multiple choice")}</option>
+            <option value="text_input" ${String(kind === 'text_input' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_97a7a748922ee8","Typed answer") ?? "Typed answer")}</option>
           </select>
           <div style="margin-left:auto;display:flex;gap:5px"><button type="button" class="sty-icon-btn danger" data-card-remove><i class="fas fa-trash"></i></button></div>
         </div>
         <div class="sty-field-row">
-          <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_a722e74eac8e97","Front text") ?? "Front text")}<textarea data-card-field="front_text">${String(esc(card.front_text))}</textarea></label>
+          <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_a722e74eac8e97","Front text") ?? "Front text")}<textarea data-card-field="front_text">${String(esc(card.front_text))}</textarea></label>
           ${String(urlFieldHtml('Front image (optional)', 'data-card-field="front_image"', clean(card.front_image), 'image/*'))}
         </div>
         ${String(kind === 'flip' ? `<div class="sty-field-row">
-            <label class="sty-field">Back text<textarea data-card-field="back_text">${esc(card.back_text)}</textarea></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_ec4337fa512c0f","Back text") ?? "Back text")}<textarea data-card-field="back_text">${esc(card.back_text)}</textarea></label>
             ${urlFieldHtml('Back image (optional)', 'data-card-field="back_image"', clean(card.back_image), 'image/*')}
           </div>` : '')}
-        ${String(kind === 'multiple_choice' ? `<label class="sty-field">Choices — one per line, mark correct with *<textarea data-card-choices>${esc(choicesToText(card))}</textarea></label>` : '')}
-        ${String(kind === 'text_input' ? `<label class="sty-field">Accepted answers — one per line<textarea data-card-answers>${esc(arr(card.answers).join('\n'))}</textarea></label>
-          <label class="sty-check"><input type="checkbox" data-card-case ${card.case_sensitive === true ? 'checked' : ''}>Case sensitive</label>` : '')}
+        ${String(kind === 'multiple_choice' ? `<label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_b78866177f4cbb","Choices — one per line, mark correct with *") ?? "Choices — one per line, mark correct with *")}<textarea data-card-choices>${esc(choicesToText(card))}</textarea></label>` : '')}
+        ${String(kind === 'text_input' ? `<label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_193151df26c547","Accepted answers — one per line") ?? "Accepted answers — one per line")}<textarea data-card-answers>${esc(arr(card.answers).join('\n'))}</textarea></label>
+          <label class="sty-check"><input type="checkbox" data-card-case ${card.case_sensitive === true ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("training","m_3fa90c685a2015","Case sensitive") ?? "Case sensitive")}</label>` : '')}
       </div>`;
     };
 
@@ -929,23 +929,23 @@
       deckDraft.cards = cards;
       bodyEl.innerHTML = `<div class="sty-two-col">
         <div class="sty-panel">
-          <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.text("training","m_fdd11a4ce45617","Deck") ?? "Deck")}</h3><button type="button" class="sty-btn" data-item-list><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("training","m_2748b1c5b52172"," All decks") ?? " All decks")}</button></div>
+          <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.htmlText("training","m_fdd11a4ce45617","Deck") ?? "Deck")}</h3><button type="button" class="sty-btn" data-item-list><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_2748b1c5b52172"," All decks") ?? " All decks")}</button></div>
           <div class="sty-panel-body">
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_29dbd3d8b69f55","Title") ?? "Title")}<input data-item-field="title" value="${String(esc(deckDraft.title))}"></label>
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_aa136ecb65672f","Description") ?? "Description")}<textarea data-item-field="description">${String(esc(deckDraft.description))}</textarea></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_29dbd3d8b69f55","Title") ?? "Title")}<input data-item-field="title" value="${String(esc(deckDraft.title))}"></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_aa136ecb65672f","Description") ?? "Description")}<textarea data-item-field="description">${String(esc(deckDraft.description))}</textarea></label>
             ${String(unlockSelectHtml(deckDraft, 'data-item-unlock'))}
             <div class="sty-field-row">
-              <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_1352cafa75b8da","Status") ?? "Status")}<select data-item-field="status">${String(['draft','published','archived'].map((status) => `<option value="${status}" ${clean(deckDraft.status) === status ? 'selected' : ''}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join(''))}</select></label>
-              <label class="sty-check" style="align-self:end"><input type="checkbox" data-deck-shuffle ${String(deckDraft.shuffle !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("training","m_982dfa819fddc9","Shuffle each run") ?? "Shuffle each run")}</label>
+              <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_1352cafa75b8da","Status") ?? "Status")}<select data-item-field="status">${String(['draft','published','archived'].map((status) => `<option value="${status}" ${clean(deckDraft.status) === status ? 'selected' : ''}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join(''))}</select></label>
+              <label class="sty-check" style="align-self:end"><input type="checkbox" data-deck-shuffle ${String(deckDraft.shuffle !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_982dfa819fddc9","Shuffle each run") ?? "Shuffle each run")}</label>
             </div>
-            <div class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_db7002926d9977","Color") ?? "Color")}<div class="sty-swatches">${String(COLOR_CHOICES.map((color) => `<button type="button" class="sty-swatch ${clean(deckDraft.color) === color ? 'active' : ''}" style="background:${color}" data-item-color="${color}"></button>`).join(''))}</div></div>
-            <button type="button" class="sty-btn" data-deck-import><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.text("training","m_63e8110d87c398"," Bulk import cards") ?? " Bulk import cards")}</button>
-            <p class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_1a9e7ad2c04417","No limit on deck size — import hundreds of cards at once if you like.") ?? "No limit on deck size — import hundreds of cards at once if you like.")}</p>
+            <div class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_db7002926d9977","Color") ?? "Color")}<div class="sty-swatches">${String(COLOR_CHOICES.map((color) => `<button type="button" class="sty-swatch ${clean(deckDraft.color) === color ? 'active' : ''}" style="background:${color}" data-item-color="${color}"></button>`).join(''))}</div></div>
+            <button type="button" class="sty-btn" data-deck-import><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_63e8110d87c398"," Bulk import cards") ?? " Bulk import cards")}</button>
+            <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_1a9e7ad2c04417","No limit on deck size — import hundreds of cards at once if you like.") ?? "No limit on deck size — import hundreds of cards at once if you like.")}</p>
           </div>
         </div>
         <div class="sty-panel">
-          <div class="sty-panel-head"><h3>${((v6,v7) => globalThis.PlatformLanguage?.text("training","m_2701620d090407",`${v6} card${v7}`,{v6,v7}) ?? `${v6} card${v7}`)(cards.length,cards.length === 1 ? '' : 's')}</h3><button type="button" class="sty-icon-btn" data-card-add title="${(globalThis.PlatformLanguage?.text("training","m_4fcae81d15d3ac","Add card") ?? "Add card")}"><i class="fas fa-plus"></i></button></div>
-          <div class="sty-panel-body">${String(cards.map((card, cardIndex) => cardEditorHtml(obj(card), cardIndex)).join('') || '<div class="sty-state" style="min-height:100px">No cards yet — add one or bulk import.</div>')}</div>
+          <div class="sty-panel-head"><h3>${((v6,v7) => globalThis.PlatformLanguage?.htmlText("training","m_2701620d090407",`${v6} card${v7}`,{v6,v7}) ?? `${v6} card${v7}`)(cards.length,cards.length === 1 ? '' : 's')}</h3><button type="button" class="sty-icon-btn" data-card-add title="${(globalThis.PlatformLanguage?.htmlText("training","m_4fcae81d15d3ac","Add card") ?? "Add card")}"><i class="fas fa-plus"></i></button></div>
+          <div class="sty-panel-body">${String(cards.map((card, cardIndex) => cardEditorHtml(obj(card), cardIndex)).join('') || `<div class="sty-state" style="min-height:100px">${(globalThis.PlatformLanguage?.htmlText("training","m_d2948f3723a855","No cards yet — add one or bulk import.") ?? "No cards yet — add one or bulk import.")}</div>`)}</div>
         </div>
       </div>`;
       bodyEl.querySelector('[data-item-list]').addEventListener('click', async () => {
@@ -961,10 +961,10 @@
       bodyEl.querySelectorAll('[data-item-color]').forEach((button) => button.addEventListener('click', () => { deckDraft.color = button.dataset.itemColor; markDirty('deck'); render(); }));
       bodyEl.querySelector('[data-card-add]').addEventListener('click', () => { cards.push({ id: localId('card'), kind: 'flip', front_text: '', front_image: '', back_text: '', back_image: '', choices: [], correct_choice_ids: [], answers: [], case_sensitive: false }); markDirty('deck'); render(); });
       bodyEl.querySelector('[data-deck-import]').addEventListener('click', () => {
-        const dialog = modal(`<h2>${(globalThis.PlatformLanguage?.text("training","m_1e5f51be1ab015","Bulk import cards") ?? "Bulk import cards")}</h2>
-          <p class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_cd7b3c7c697d7f","One card per line. Separate front and back with a pipe. A back with several answers separated by ; becomes a typed-answer card.") ?? "One card per line. Separate front and back with a pipe. A back with several answers separated by ; becomes a typed-answer card.")}<br><br><b>${(globalThis.PlatformLanguage?.text("training","m_83a89e35422029","What is a square? | 100 square feet") ?? "What is a square? | 100 square feet")}</b>${(globalThis.PlatformLanguage?.text("training","m_4e0e7ea31562a7"," → flip card") ?? " → flip card")}<br><b>${(globalThis.PlatformLanguage?.text("training","m_751e1ffd494cc1","Pitch of 6 rise per 12 run? | 6/12 ; six twelve") ?? "Pitch of 6 rise per 12 run? | 6/12 ; six twelve")}</b>${(globalThis.PlatformLanguage?.text("training","m_c843936e4fde47"," → typed answer") ?? " → typed answer")}</p>
-          <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_e3c621800e2eda","Cards") ?? "Cards")}<textarea data-import-text style="min-height:220px" placeholder="${(globalThis.PlatformLanguage?.text("training","m_77ba4903989f42","Front | Back") ?? "Front | Back")}"></textarea></label>
-          <button type="button" class="sty-btn primary" data-import-go><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.text("training","m_edab924c40c4ae"," Import") ?? " Import")}</button>`);
+        const dialog = modal(`<h2>${(globalThis.PlatformLanguage?.htmlText("training","m_1e5f51be1ab015","Bulk import cards") ?? "Bulk import cards")}</h2>
+          <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_cd7b3c7c697d7f","One card per line. Separate front and back with a pipe. A back with several answers separated by ; becomes a typed-answer card.") ?? "One card per line. Separate front and back with a pipe. A back with several answers separated by ; becomes a typed-answer card.")}<br><br><b>${(globalThis.PlatformLanguage?.htmlText("training","m_83a89e35422029","What is a square? | 100 square feet") ?? "What is a square? | 100 square feet")}</b>${(globalThis.PlatformLanguage?.htmlText("training","m_4e0e7ea31562a7"," → flip card") ?? " → flip card")}<br><b>${(globalThis.PlatformLanguage?.htmlText("training","m_751e1ffd494cc1","Pitch of 6 rise per 12 run? | 6/12 ; six twelve") ?? "Pitch of 6 rise per 12 run? | 6/12 ; six twelve")}</b>${(globalThis.PlatformLanguage?.htmlText("training","m_c843936e4fde47"," → typed answer") ?? " → typed answer")}</p>
+          <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_e3c621800e2eda","Cards") ?? "Cards")}<textarea data-import-text style="min-height:220px" placeholder="${(globalThis.PlatformLanguage?.htmlText("training","m_77ba4903989f42","Front | Back") ?? "Front | Back")}"></textarea></label>
+          <button type="button" class="sty-btn primary" data-import-go><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_edab924c40c4ae"," Import") ?? " Import")}</button>`);
         dialog.el.querySelector('[data-import-go]').addEventListener('click', () => {
           const lines = clean(dialog.el.querySelector('[data-import-text]').value).split('\n').map((line) => line.trim()).filter((line) => line.includes('|'));
           lines.forEach((line) => {
@@ -1001,23 +1001,23 @@
       quizDraft.questions = questions;
       bodyEl.innerHTML = `<div class="sty-two-col">
         <div class="sty-panel">
-          <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.text("training","m_aeef2847f8a286","Quiz") ?? "Quiz")}</h3><button type="button" class="sty-btn" data-item-list><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("training","m_bd23557c384869"," All quizzes") ?? " All quizzes")}</button></div>
+          <div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.htmlText("training","m_aeef2847f8a286","Quiz") ?? "Quiz")}</h3><button type="button" class="sty-btn" data-item-list><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_bd23557c384869"," All quizzes") ?? " All quizzes")}</button></div>
           <div class="sty-panel-body">
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_29dbd3d8b69f55","Title") ?? "Title")}<input data-item-field="title" value="${String(esc(quizDraft.title))}"></label>
-            <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_aa136ecb65672f","Description") ?? "Description")}<textarea data-item-field="description">${String(esc(quizDraft.description))}</textarea></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_29dbd3d8b69f55","Title") ?? "Title")}<input data-item-field="title" value="${String(esc(quizDraft.title))}"></label>
+            <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_aa136ecb65672f","Description") ?? "Description")}<textarea data-item-field="description">${String(esc(quizDraft.description))}</textarea></label>
             ${String(unlockSelectHtml(quizDraft, 'data-item-unlock'))}
             <div class="sty-field-row">
-              <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_1352cafa75b8da","Status") ?? "Status")}<select data-item-field="status">${String(['draft','published','archived'].map((status) => `<option value="${status}" ${clean(quizDraft.status) === status ? 'selected' : ''}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join(''))}</select></label>
-              <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_6d829b6d46b0fa","Pass mark %") ?? "Pass mark %")}<input type="number" min="0" max="100" data-quiz-pass-percent value="${String(Number(quizDraft.pass_percent || 0))}"></label>
+              <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_1352cafa75b8da","Status") ?? "Status")}<select data-item-field="status">${String(['draft','published','archived'].map((status) => `<option value="${status}" ${clean(quizDraft.status) === status ? 'selected' : ''}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join(''))}</select></label>
+              <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_6d829b6d46b0fa","Pass mark %") ?? "Pass mark %")}<input type="number" min="0" max="100" data-quiz-pass-percent value="${String(Number(quizDraft.pass_percent || 0))}"></label>
             </div>
-            <label class="sty-check"><input type="checkbox" data-quiz-shuffle ${String(quizDraft.shuffle !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("training","m_f685d6e71edcf9","Shuffle question order") ?? "Shuffle question order")}</label>
-            <div class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_db7002926d9977","Color") ?? "Color")}<div class="sty-swatches">${String(COLOR_CHOICES.map((color) => `<button type="button" class="sty-swatch ${clean(quizDraft.color) === color ? 'active' : ''}" style="background:${color}" data-item-color="${color}"></button>`).join(''))}</div></div>
-            <p class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_9ace388ac0d2c0","Learners always get a free practice mode — scored runs are tracked toward their best.") ?? "Learners always get a free practice mode — scored runs are tracked toward their best.")}</p>
+            <label class="sty-check"><input type="checkbox" data-quiz-shuffle ${String(quizDraft.shuffle !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("training","m_f685d6e71edcf9","Shuffle question order") ?? "Shuffle question order")}</label>
+            <div class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_db7002926d9977","Color") ?? "Color")}<div class="sty-swatches">${String(COLOR_CHOICES.map((color) => `<button type="button" class="sty-swatch ${clean(quizDraft.color) === color ? 'active' : ''}" style="background:${color}" data-item-color="${color}"></button>`).join(''))}</div></div>
+            <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_9ace388ac0d2c0","Learners always get a free practice mode — scored runs are tracked toward their best.") ?? "Learners always get a free practice mode — scored runs are tracked toward their best.")}</p>
           </div>
         </div>
         <div class="sty-panel">
-          <div class="sty-panel-head"><h3>${((v7,v8) => globalThis.PlatformLanguage?.text("training","m_71ddddba568046",`${v7} question${v8}`,{v7,v8}) ?? `${v7} question${v8}`)(questions.length,questions.length === 1 ? '' : 's')}</h3><button type="button" class="sty-icon-btn" data-question-add title="${(globalThis.PlatformLanguage?.text("training","m_4eff0bb666e3cc","Add question") ?? "Add question")}"><i class="fas fa-plus"></i></button></div>
-          <div class="sty-panel-body" data-questions-holder>${String(questions.map((question, questionIndex) => questionEditorHtml(obj(question), questionIndex)).join('') || '<div class="sty-state" style="min-height:100px">No questions yet.</div>')}</div>
+          <div class="sty-panel-head"><h3>${((v7,v8) => globalThis.PlatformLanguage?.htmlText("training","m_71ddddba568046",`${v7} question${v8}`,{v7,v8}) ?? `${v7} question${v8}`)(questions.length,questions.length === 1 ? '' : 's')}</h3><button type="button" class="sty-icon-btn" data-question-add title="${(globalThis.PlatformLanguage?.htmlText("training","m_4eff0bb666e3cc","Add question") ?? "Add question")}"><i class="fas fa-plus"></i></button></div>
+          <div class="sty-panel-body" data-questions-holder>${String(questions.map((question, questionIndex) => questionEditorHtml(obj(question), questionIndex)).join('') || `<div class="sty-state" style="min-height:100px">${(globalThis.PlatformLanguage?.htmlText("training","m_3a1f39b0dafa70","No questions yet.") ?? "No questions yet.")}</div>`)}</div>
         </div>
       </div>`;
       bodyEl.querySelector('[data-item-list]').addEventListener('click', async () => {
@@ -1046,7 +1046,7 @@
       const subjectId = clean(draft?.id);
       if (!subjectId) { showToast((globalThis.PlatformLanguage?.text("training","m_2b81e8bab27da3","Training Studio") ?? "Training Studio"), (globalThis.PlatformLanguage?.text("training","m_5098eead37a634","Save the course first, then assign it.") ?? "Save the course first, then assign it."), false); return; }
       await loadUsersAndRoles();
-      const dialog = modal(`<h2>${((v0) => globalThis.PlatformLanguage?.text("training","m_4234df11d3b9ed",`Who gets "${v0}"?`,{v0}) ?? `Who gets "${v0}"?`)(esc(clean(draft.title)))}</h2><div data-assign-body>${String(stateHtml('Loading assignments'))}</div>`);
+      const dialog = modal(`<h2>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_4234df11d3b9ed",`Who gets "${v0}"?`,{v0}) ?? `Who gets "${v0}"?`)(esc(clean(draft.title)))}</h2><div data-assign-body>${String(stateHtml('Loading assignments'))}</div>`);
       const body = dialog.el.querySelector('[data-assign-body]');
       const renderAssignments = async () => {
         let rows = [];
@@ -1056,22 +1056,22 @@
         const targetLabel = (assignment) => {
           const kind = clean(assignment.target_kind);
           if (kind === 'everyone') return '<i class="fas fa-globe" style="margin-right:7px;color:#3b6ef6"></i>Everyone in the company';
-          if (kind === 'role') return `<i class="fas fa-people-group" style="margin-right:7px;color:#8b5cf6"></i>${((v0) => globalThis.PlatformLanguage?.text("training","m_45f6cdc49194fd",`Role: ${v0} `,{v0}) ?? `Role: ${v0} `)(esc(roleName(assignment.target_id)))}<span class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_d3a96e8fe9e955","(auto-assigns new people with this role)") ?? "(auto-assigns new people with this role)")}</span>`;
+          if (kind === 'role') return `<i class="fas fa-people-group" style="margin-right:7px;color:#8b5cf6"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_45f6cdc49194fd",`Role: ${v0} `,{v0}) ?? `Role: ${v0} `)(esc(roleName(assignment.target_id)))}<span class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_d3a96e8fe9e955","(auto-assigns new people with this role)") ?? "(auto-assigns new people with this role)")}</span>`;
           return `<i class="fas fa-user" style="margin-right:7px;color:#10b981"></i>${esc(userName(assignment.target_id))}`;
         };
         body.innerHTML = `
-          <div style="display:grid;gap:8px">${String(rows.length ? rows.map((assignment) => `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--sty-line);border-radius:12px;padding:11px 13px;font-size:12.5px;font-weight:900"><span style="flex:1;min-width:0">${targetLabel(assignment)}</span><button type="button" class="sty-icon-btn danger" data-assign-remove="${esc(assignment.id)}" title="Remove"><i class="fas fa-trash"></i></button></div>`).join('') : '<div class="sty-state" style="min-height:70px">Nobody is assigned this course yet.</div>')}</div>
-          <div class="sty-panel" style="margin-top:14px"><div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.text("training","m_0c4f1a53222382","Add assignment") ?? "Add assignment")}</h3></div><div class="sty-panel-body">
+          <div style="display:grid;gap:8px">${String(rows.length ? rows.map((assignment) => `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--sty-line);border-radius:12px;padding:11px 13px;font-size:12.5px;font-weight:900"><span style="flex:1;min-width:0">${targetLabel(assignment)}</span><button type="button" class="sty-icon-btn danger" data-assign-remove="${esc(assignment.id)}" title="${(globalThis.PlatformLanguage?.htmlText("training","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button></div>`).join('') : `<div class="sty-state" style="min-height:70px">${(globalThis.PlatformLanguage?.htmlText("training","m_4fbc9436add0ed","Nobody is assigned this course yet.") ?? "Nobody is assigned this course yet.")}</div>`)}</div>
+          <div class="sty-panel" style="margin-top:14px"><div class="sty-panel-head"><h3>${(globalThis.PlatformLanguage?.htmlText("training","m_0c4f1a53222382","Add assignment") ?? "Add assignment")}</h3></div><div class="sty-panel-body">
             <div class="sty-field-row">
-              <label class="sty-field">${(globalThis.PlatformLanguage?.text("training","m_2fc446609c007c","Assign to") ?? "Assign to")}<select data-assign-kind>
-                <option value="everyone">${(globalThis.PlatformLanguage?.text("training","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option>
-                <option value="role">${(globalThis.PlatformLanguage?.text("training","m_664f4fcb2d98d2","A role (auto-assigns new hires)") ?? "A role (auto-assigns new hires)")}</option>
-                <option value="user">${(globalThis.PlatformLanguage?.text("training","m_1a0c18366790ea","A specific person") ?? "A specific person")}</option>
+              <label class="sty-field">${(globalThis.PlatformLanguage?.htmlText("training","m_2fc446609c007c","Assign to") ?? "Assign to")}<select data-assign-kind>
+                <option value="everyone">${(globalThis.PlatformLanguage?.htmlText("training","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option>
+                <option value="role">${(globalThis.PlatformLanguage?.htmlText("training","m_664f4fcb2d98d2","A role (auto-assigns new hires)") ?? "A role (auto-assigns new hires)")}</option>
+                <option value="user">${(globalThis.PlatformLanguage?.htmlText("training","m_1a0c18366790ea","A specific person") ?? "A specific person")}</option>
               </select></label>
-              <label class="sty-field" data-assign-target-wrap hidden>${(globalThis.PlatformLanguage?.text("training","m_1d72d3bf6c7947","Target") ?? "Target")}<select data-assign-target></select></label>
+              <label class="sty-field" data-assign-target-wrap hidden>${(globalThis.PlatformLanguage?.htmlText("training","m_1d72d3bf6c7947","Target") ?? "Target")}<select data-assign-target></select></label>
             </div>
-            <button type="button" class="sty-btn primary" data-assign-add style="justify-self:start"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("training","m_2f703b36cfa00f"," Assign course") ?? " Assign course")}</button>
-            <p class="sty-hint">${(globalThis.PlatformLanguage?.text("training","m_7f8059c12d5f41","Role assignments make a course automatic — e.g. a safety course for every crew member, or Sales 101 for every salesperson. New hires with the role get it with zero setup. The course's decks and quizzes ride along automatically.") ?? "Role assignments make a course automatic — e.g. a safety course for every crew member, or Sales 101 for every salesperson. New hires with the role get it with zero setup. The course's decks and quizzes ride along automatically.")}</p>
+            <button type="button" class="sty-btn primary" data-assign-add style="justify-self:start"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_2f703b36cfa00f"," Assign course") ?? " Assign course")}</button>
+            <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_7f8059c12d5f41","Role assignments make a course automatic — e.g. a safety course for every crew member, or Sales 101 for every salesperson. New hires with the role get it with zero setup. The course's decks and quizzes ride along automatically.") ?? "Role assignments make a course automatic — e.g. a safety course for every crew member, or Sales 101 for every salesperson. New hires with the role get it with zero setup. The course's decks and quizzes ride along automatically.")}</p>
           </div></div>`;
         const kindSelect = body.querySelector('[data-assign-kind]');
         const targetWrap = body.querySelector('[data-assign-target-wrap]');
@@ -1079,8 +1079,8 @@
         const refreshTargets = () => {
           const kind = kindSelect.value;
           targetWrap.hidden = kind === 'everyone';
-          if (kind === 'role') targetSelect.innerHTML = (rolesCache || []).map((role) => `<option value="${esc(role.id)}">${esc(role.name)}</option>`).join('') || `<option value="">${(globalThis.PlatformLanguage?.text("training","m_78d09dc3043e9f","No roles found") ?? "No roles found")}</option>`;
-          if (kind === 'user') targetSelect.innerHTML = (usersCache || []).map((user) => `<option value="${esc(user.id)}">${esc(user.name)}</option>`).join('') || `<option value="">${(globalThis.PlatformLanguage?.text("training","m_01f6ba3a9805ec","No people found") ?? "No people found")}</option>`;
+          if (kind === 'role') targetSelect.innerHTML = (rolesCache || []).map((role) => `<option value="${esc(role.id)}">${esc(role.name)}</option>`).join('') || `<option value="">${(globalThis.PlatformLanguage?.htmlText("training","m_78d09dc3043e9f","No roles found") ?? "No roles found")}</option>`;
+          if (kind === 'user') targetSelect.innerHTML = (usersCache || []).map((user) => `<option value="${esc(user.id)}">${esc(user.name)}</option>`).join('') || `<option value="">${(globalThis.PlatformLanguage?.htmlText("training","m_01f6ba3a9805ec","No people found") ?? "No people found")}</option>`;
         };
         kindSelect.addEventListener('change', refreshTargets);
         refreshTargets();
@@ -1113,7 +1113,7 @@
     async function openProgress(){
       if (!clean(draft?.id)) { showToast((globalThis.PlatformLanguage?.text("training","m_2b81e8bab27da3","Training Studio") ?? "Training Studio"), (globalThis.PlatformLanguage?.text("training","m_03ac091b427199","Save the course first.") ?? "Save the course first."), false); return; }
       await loadUsersAndRoles();
-      const dialog = modal(`<h2>${((v0) => globalThis.PlatformLanguage?.text("training","m_39c98dee119336",`Progress — ${v0}`,{v0}) ?? `Progress — ${v0}`)(esc(clean(draft.title)))}</h2><div data-progress-body>${String(stateHtml('Crunching the numbers'))}</div>`);
+      const dialog = modal(`<h2>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_39c98dee119336",`Progress — ${v0}`,{v0}) ?? `Progress — ${v0}`)(esc(clean(draft.title)))}</h2><div data-progress-body>${String(stateHtml('Crunching the numbers'))}</div>`);
       const body = dialog.el.querySelector('[data-progress-body]');
       const renderReport = async () => {
         let report;
@@ -1129,22 +1129,22 @@
           .map((row) => ({ id: clean(obj(row).user_id), name: userName(obj(row).user_id), row: obj(row) }));
         const everyone = [...knownUsers, ...extraUsers];
         body.innerHTML = `
-          <div style="overflow-x:auto"><table class="sty-table"><thead><tr><th>${(globalThis.PlatformLanguage?.text("training","m_23d5e0c82a8304","Person") ?? "Person")}</th>${String(lessons.map((lesson, index) => `<th title="${esc(lesson.title)}">${index + 1}${clean(obj(lesson.unlock).mode) === 'manual' ? ' <i class="fas fa-key" style="color:#c9a227"></i>' : ''}</th>`).join(''))}<th>${(globalThis.PlatformLanguage?.text("training","m_8cb6b086a0e69c","Done") ?? "Done")}</th></tr></thead>
+          <div style="overflow-x:auto"><table class="sty-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("training","m_23d5e0c82a8304","Person") ?? "Person")}</th>${String(lessons.map((lesson, index) => `<th title="${esc(lesson.title)}">${index + 1}${clean(obj(lesson.unlock).mode) === 'manual' ? ' <i class="fas fa-key" style="color:#c9a227"></i>' : ''}</th>`).join(''))}<th>${(globalThis.PlatformLanguage?.htmlText("training","m_8cb6b086a0e69c","Done") ?? "Done")}</th></tr></thead>
           <tbody>${String(everyone.map((user) => {
             const completed = arr(user.row.completed_lesson_ids).map(clean);
             const manual = arr(user.row.manual_unlock_lesson_ids).map(clean);
             return `<tr><td style="white-space:nowrap">${esc(user.name)}</td>${lessons.map((lesson) => {
               const lessonId = clean(lesson.id);
-              if (completed.includes(lessonId)) return '<td><span class="sty-progress-cell done" title="Completed"><i class="fas fa-check"></i></span></td>';
+              if (completed.includes(lessonId)) return `<td><span class="sty-progress-cell done" title="${(globalThis.PlatformLanguage?.htmlText("training","m_3c4d2141b2fa1c","Completed") ?? "Completed")}"><i class="fas fa-check"></i></span></td>`;
               if (clean(obj(lesson.unlock).mode) === 'manual') {
                 return manual.includes(lessonId)
-                  ? `<td><button type="button" class="sty-progress-cell unlockable" data-relock="${esc(lessonId)}" data-user="${esc(user.id)}" title="Unlocked — click to re-lock"><i class="fas fa-lock-open"></i></button></td>`
-                  : `<td><button type="button" class="sty-progress-cell unlockable" data-unlock="${esc(lessonId)}" data-user="${esc(user.id)}" title="Locked — click to unlock for ${esc(user.name)}"><i class="fas fa-lock"></i></button></td>`;
+                  ? `<td><button type="button" class="sty-progress-cell unlockable" data-relock="${esc(lessonId)}" data-user="${esc(user.id)}" title="${(globalThis.PlatformLanguage?.htmlText("training","m_ce4c59ad444965","Unlocked — click to re-lock") ?? "Unlocked — click to re-lock")}"><i class="fas fa-lock-open"></i></button></td>`
+                  : `<td><button type="button" class="sty-progress-cell unlockable" data-unlock="${esc(lessonId)}" data-user="${esc(user.id)}" title="${((v2) => globalThis.PlatformLanguage?.htmlText("training","m_c07c2e73eec73b",`Locked — click to unlock for ${v2}`,{v2}) ?? `Locked — click to unlock for ${v2}`)(esc(user.name))}"><i class="fas fa-lock"></i></button></td>`;
               }
-              return '<td><span class="sty-progress-cell open" title="Not completed"><i class="fas fa-minus"></i></span></td>';
+              return `<td><span class="sty-progress-cell open" title="${(globalThis.PlatformLanguage?.htmlText("training","m_3f26ea68ed8339","Not completed") ?? "Not completed")}"><i class="fas fa-minus"></i></span></td>`;
             }).join('')}<td style="font-weight:1000">${Number(user.row.percent_complete || 0)}%</td></tr>`;
           }).join(''))}</tbody></table></div>
-          <p class="sty-hint" style="margin-top:10px"><i class="fas fa-key" style="color:#c9a227"></i>${(globalThis.PlatformLanguage?.text("training","m_01b92ff235d614"," marks manual-unlock lessons — click a padlock to unlock or re-lock that lesson for that person.") ?? " marks manual-unlock lessons — click a padlock to unlock or re-lock that lesson for that person.")}</p>`;
+          <p class="sty-hint" style="margin-top:10px"><i class="fas fa-key" style="color:#c9a227"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_01b92ff235d614"," marks manual-unlock lessons — click a padlock to unlock or re-lock that lesson for that person.") ?? " marks manual-unlock lessons — click a padlock to unlock or re-lock that lesson for that person.")}</p>`;
         body.querySelectorAll('[data-unlock]').forEach((button) => button.addEventListener('click', async () => {
           try { await api().manage.unlockLesson(orgId(context), clean(draft.id), button.dataset.unlock, button.dataset.user); await renderReport(); }
           catch (error) { showToast((globalThis.PlatformLanguage?.text("training","m_2b81e8bab27da3","Training Studio") ?? "Training Studio"), statusError(error), false); }

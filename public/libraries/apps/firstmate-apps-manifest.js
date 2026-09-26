@@ -544,8 +544,9 @@
     },
     {
       id: 'portal.assistant',
+      terminologyKey: 'assistant.portal_tab',
       package: 'assistant',
-      title: 'FirstMate Assistant',
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
       icon: 'fa-wand-magic-sparkles',
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
@@ -570,6 +571,7 @@
     },
     {
       id: 'portal.feedback',
+      terminologyKey: 'feedback.portal_tab',
       package: 'feedback',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"),
       icon: 'fa-star',
@@ -593,7 +595,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260720-custom-fields-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260725-contact-import-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260926-settings-dependency'), versionedBundle('settings/company.js', '20260924-subscription-service-v2')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260720-custom-fields-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260725-contact-import-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260926-settings-dependency'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260924-subscription-service-v2')]
     },
     {
       id: 'portal.crew_overview',
@@ -697,6 +699,7 @@
     },
     {
       id: 'project.sales_overview',
+      terminologyKey: 'sales.overview_tab',
       package: 'sales',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_d8d2e84c5e4d8b","Visit") ?? "Visit"),
       icon: 'fa-house',
@@ -711,6 +714,7 @@
     },
     {
       id: 'project.crew_overview',
+      terminologyKey: 'crew.overview_tab',
       package: 'crew',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_d8d2e84c5e4d8b","Visit") ?? "Visit"),
       icon: 'fa-house',
@@ -781,6 +785,7 @@
     },
     {
       id: 'project.crew_checklists',
+      terminologyKey: 'checklists.crew_project_tab',
       package: 'crew',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_4890d3d11dc3eb","Checklists") ?? "Checklists"),
       icon: 'fa-list-check',
@@ -794,6 +799,7 @@
     },
     {
       id: 'project.field_customer',
+      terminologyKey: 'contacts.field_customer_tab',
       package: 'field_visit',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_ae8e4953e07d70","Customer") ?? "Customer"),
       icon: 'fa-address-card',
@@ -808,6 +814,7 @@
     },
     {
       id: 'project.crew_signatures',
+      terminologyKey: 'signatures.crew_project_tab',
       package: 'signatures',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_222066ef57ae0e","Work") ?? "Work"),
       icon: 'fa-diagram-project',

@@ -247,14 +247,14 @@
     drawer.hidden = true;
     drawer.innerHTML = `
       <div class="fma-head">
-        <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="Conversations" aria-label="Open conversations" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
+        <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
       </div>
       <div class="fma-body" data-fma="body">
-      <aside class="fma-sidebar" data-fma="sidebar" aria-label="Conversations">
-        <div class="fma-sidebar-head"><h2>Conversations</h2><button type="button" class="fma-icon-btn" data-fma="search" title="Search conversations" aria-label="Search conversations"><i class="fas fa-magnifying-glass" aria-hidden="true"></i></button></div>
-        <div class="fma-sidebar-search" data-fma="searchWrap" hidden><input type="search" data-fma="searchInput" placeholder="Search conversations" aria-label="Search conversations"></div>
+      <aside class="fma-sidebar" data-fma="sidebar" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}">
+        <div class="fma-sidebar-head"><h2>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}</h2><button type="button" class="fma-icon-btn" data-fma="search" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_7812bba394b201","Search conversations") ?? "Search conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_7812bba394b201","Search conversations") ?? "Search conversations")}"><i class="fas fa-magnifying-glass" aria-hidden="true"></i></button></div>
+        <div class="fma-sidebar-search" data-fma="searchWrap" hidden><input type="search" data-fma="searchInput" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_7812bba394b201","Search conversations") ?? "Search conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_7812bba394b201","Search conversations") ?? "Search conversations")}"></div>
         <div class="fma-history" data-fma="historyList"></div>
-        <div class="fma-sidebar-foot"><button type="button" class="fma-new" data-fma="new"><i class="fas fa-plus" aria-hidden="true"></i> New conversation</button><button type="button" class="fma-icon-btn" data-fma="settings" title="Assistant settings" aria-label="Assistant settings"><i class="fas fa-gear" aria-hidden="true"></i></button></div>
+        <div class="fma-sidebar-foot"><button type="button" class="fma-new" data-fma="new"><i class="fas fa-plus" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_e0149c28c913d4"," New conversation") ?? " New conversation")}</button><button type="button" class="fma-icon-btn" data-fma="settings" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_4de5354dc7d33d","Assistant settings") ?? "Assistant settings")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_4de5354dc7d33d","Assistant settings") ?? "Assistant settings")}"><i class="fas fa-gear" aria-hidden="true"></i></button></div>
       </aside>
       <div class="fma-content" data-fma="content">
       <div class="fma-msgs" data-fma="msgs"></div>
@@ -262,13 +262,13 @@
       <div class="fma-composer" data-fma="composer">
         <div class="fma-attachments" data-fma="attachments"></div>
         <div class="fma-compose-shell">
-          <button type="button" class="fma-compose-icon" data-fma="attach" title="Add files or camera photo" aria-label="Add files or camera photo"><i class="fas fa-plus" aria-hidden="true"></i></button>
-          <textarea data-fma="input" rows="1" placeholder="${(globalThis.PlatformLanguage?.text("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...")}"></textarea>
-          <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="Discard recording" aria-label="Discard recording"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><canvas class="fma-wave" data-fma="wave" aria-hidden="true"></canvas></div>
-          <button type="button" class="fma-compose-icon" data-fma="mic" title="Dictate" aria-label="Dictate"><i class="fas fa-microphone" aria-hidden="true"></i></button>
-          <button type="button" class="fma-send" data-fma="send" title="Send" aria-label="Send"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
+          <button type="button" class="fma-compose-icon" data-fma="attach" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cfbd7d8d189cab","Add files or camera photo") ?? "Add files or camera photo")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cfbd7d8d189cab","Add files or camera photo") ?? "Add files or camera photo")}"><i class="fas fa-plus" aria-hidden="true"></i></button>
+          <textarea data-fma="input" rows="1" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...")}"></textarea>
+          <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><canvas class="fma-wave" data-fma="wave" aria-hidden="true"></canvas></div>
+          <button type="button" class="fma-compose-icon" data-fma="mic" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}"><i class="fas fa-microphone" aria-hidden="true"></i></button>
+          <button type="button" class="fma-send" data-fma="send" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c23a056552a09f","Send") ?? "Send")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
         </div>
-        <div class="fma-attach-menu" data-fma="attachMenu" hidden><button type="button" data-fma="pickFile"><i class="fas fa-paperclip" aria-hidden="true"></i> Upload files</button><button type="button" data-fma="pickCamera"><i class="fas fa-camera" aria-hidden="true"></i> Take photo</button></div>
+        <div class="fma-attach-menu" data-fma="attachMenu" hidden><button type="button" data-fma="pickFile"><i class="fas fa-paperclip" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_09c2e180e4119b"," Upload files") ?? " Upload files")}</button><button type="button" data-fma="pickCamera"><i class="fas fa-camera" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cd5157f3b879c4"," Take photo") ?? " Take photo")}</button></div>
         <input type="file" data-fma="fileInput" multiple hidden><input type="file" data-fma="cameraInput" accept="image/*,video/*" capture="environment" hidden>
       </div>
       </div>
@@ -300,7 +300,7 @@
     assistantWindow = window.FirstMateWindows.attach({
       element:drawer, header:drawer.querySelector('.fma-head'),
       body:drawer.querySelector('[data-fma="body"]'), host,
-      contentTarget:document.getElementById('mainPanels'), name:'assistant', label:'FirstMate Assistant',
+      contentTarget:document.getElementById('mainPanels'), name:'assistant', label:(globalThis.PlatformLanguage?.text("platform-assistant","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
       mode:'docked', dockWidth:440, width:760, height:650, mobileFullDock:true,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || document.querySelector('.platform-topbar')?.offsetHeight || 0,
       onChange:({mode}) => {
@@ -409,7 +409,7 @@
     let html = `<div class="fma-msg assistant${anim}${failed ? ' failed' : ''}">${renderMarkdown(message.content)}`;
     const changes = array(data.changes).map(clean).filter(Boolean);
     if (changes.length) {
-      html += `<div class="fma-msg-changes"><div class="label">${(globalThis.PlatformLanguage?.text("platform-assistant","m_c46a636ed38aee","What changed") ?? "What changed")}</div>${String(changes.map((entry) => `<div class="row"><i class="fas fa-check" style="font-size:10px;color:#12b76a;"></i><span>${esc(entry)}</span></div>`).join(''))}</div>`;
+      html += `<div class="fma-msg-changes"><div class="label">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c46a636ed38aee","What changed") ?? "What changed")}</div>${String(changes.map((entry) => `<div class="row"><i class="fas fa-check" style="font-size:10px;color:#12b76a;"></i><span>${esc(entry)}</span></div>`).join(''))}</div>`;
     }
     html += '</div>';
     const actions = array(data.actions);
@@ -430,7 +430,7 @@
       <div class="fma-welcome fma-anim">
         <span class="fma-logo"></span>
         <div class="hi">${String(esc(state.assistantName))}</div>
-        <div class="hint">${(globalThis.PlatformLanguage?.text("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
+        <div class="hint">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
         <div class="fma-suggests">${String(suggestions.map((entry) => `<button type="button" class="fma-suggest">${esc(entry)}</button>`).join(''))}</div>
       </div>
     `;
@@ -447,7 +447,7 @@
       });
     }
     if (state.pending) {
-      parts.push(`<div class="fma-pending"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.text("platform-assistant","m_186fc46dfb3cc0","Working") ?? "Working")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span></div>`);
+      parts.push(`<div class="fma-pending"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_186fc46dfb3cc0","Working") ?? "Working")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span></div>`);
     }
     els.msgs.innerHTML = parts.join('');
     els.msgs.querySelectorAll('.fma-suggest').forEach((button) => {
@@ -492,7 +492,7 @@
   function renderHistory(){
     if (!els) return;
     const matchingIds = new Set(state.historyMatches.map((match) => clean(match.thread_id)));
-    const items = state.threads.filter((thread) => !state.historyQuery || clean(thread.title || 'New conversation').toLowerCase().includes(state.historyQuery) || matchingIds.has(clean(thread.id))).map((thread) => `
+    const items = state.threads.filter((thread) => !state.historyQuery || clean(thread.title || (globalThis.PlatformLanguage?.text("platform-assistant","m_84e4d3109d655d","New conversation") ?? "New conversation")).toLowerCase().includes(state.historyQuery) || matchingIds.has(clean(thread.id))).map((thread) => `
       <button type="button" class="fma-history-item" data-thread-id="${esc(clean(thread.id))}" aria-current="${clean(thread.id) === state.threadId}">
         <div class="name">${esc(clean(thread.title) || 'New conversation')}</div>
         <div class="meta">${esc(clean(thread.updated_at).slice(0, 10))}</div>
@@ -556,7 +556,7 @@
   async function renderSettings(){
     const panel = els?.settingsPanel;
     if (!panel || !window.AssistantAPI) return;
-    panel.innerHTML = '<p>Loading assistant settings…</p>';
+    panel.innerHTML = `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c2e87241c916fb","Loading assistant settings…") ?? "Loading assistant settings…")}</p>`;
     try {
       const canManage = window.Portal?.util?.hasPerm?.('manage_company_settings') === true;
       const [profileResult, memoryResult] = await Promise.all([
@@ -580,30 +580,30 @@
         ...(canManage ? [['capabilities','Capabilities'],['agents','Agents'],['advanced','Advanced']] : [])
       ];
       if (!tabs.some(([id]) => id === state.settingsTab)) state.settingsTab = 'personalization';
-      const companyPersonalization = organization ? `<div class="fma-settings-card"><h3>Company assistant</h3><small>These instructions apply to everyone in your organization.</small><label>Assistant name<input type="text" maxlength="80" data-fma-setting="assistantName" value="${esc(organization.assistant_name || '')}"></label><label>Organization instructions<textarea rows="4" maxlength="4000" data-fma-setting="organizationInstructions">${esc(organization.custom_instructions || '')}</textarea></label><button type="button" class="fma-settings-primary" data-fma-setting="saveCompanyPersonalization">Save company personalization</button><span class="fma-status" data-fma-status="company-personalization" role="status"></span></div>` : (canManage ? '<p>Company settings could not be loaded.</p>' : '');
+      const companyPersonalization = organization ? `<div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_975acccacf1e54","Company assistant") ?? "Company assistant")}</h3><small>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_992c8a57f040ed","These instructions apply to everyone in your organization.") ?? "These instructions apply to everyone in your organization.")}</small><label>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_809927621a5934","Assistant name") ?? "Assistant name")}<input type="text" maxlength="80" data-fma-setting="assistantName" value="${esc(organization.assistant_name || '')}"></label><label>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_e83b9355dd6244","Organization instructions") ?? "Organization instructions")}<textarea rows="4" maxlength="4000" data-fma-setting="organizationInstructions">${esc(organization.custom_instructions || '')}</textarea></label><button type="button" class="fma-settings-primary" data-fma-setting="saveCompanyPersonalization">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_bb125d88779f84","Save company personalization") ?? "Save company personalization")}</button><span class="fma-status" data-fma-status="company-personalization" role="status"></span></div>` : (canManage ? `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_0fe3fd49f654b6","Company settings could not be loaded.") ?? "Company settings could not be loaded.")}</p>` : '');
       const scope = object(organization?.data_scope);
-      const capabilityControls = organization ? `<div class="fma-settings-card"><h3>Assistant availability</h3>${toggle('companyEnabled','Assistant enabled','Master switch for the organization.',organization.enabled !== false)}</div>
-        <div class="fma-settings-card"><h3>What it can do</h3>
+      const capabilityControls = organization ? `<div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_bf315a1afc532a","Assistant availability") ?? "Assistant availability")}</h3>${toggle('companyEnabled','Assistant enabled','Master switch for the organization.',organization.enabled !== false)}</div>
+        <div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_bda1d0ed0e9469","What it can do") ?? "What it can do")}</h3>
           ${toggle('allowActions','Take actions','Create to-dos, move stages, schedule events and trigger automations.',organization.allow_actions !== false)}
           ${toggle('allowNotes','Post project notes','Write internal project notes when asked.',organization.allow_notes !== false)}
           ${toggle('allowMessaging','Send customer messages','Requires chat confirmation and the messaging feature.',organization.allow_messaging === true)}
-        </div><div class="fma-settings-card"><h3>What it can see</h3>
+        </div><div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_a4de02818ea054","What it can see") ?? "What it can see")}</h3>
           ${toggle('scopeProjects','Projects','Project details and stages.',scope.projects !== false)}
           ${toggle('scopeContacts','Contacts','Customer and contact search.',scope.contacts !== false)}
           ${toggle('scopeStats','Stats','Business metrics.',scope.stats !== false)}
           ${toggle('scopeDocuments','Documents','Proposals, invoices, contracts and reports.',scope.documents !== false)}
           ${toggle('scopeSchedule','Schedule','Calendar and project events.',scope.schedule !== false)}
           ${toggle('scopeActivity','Activity feed','Recent platform events.',scope.activity !== false)}
-        </div><button type="button" class="fma-settings-primary" data-fma-setting="saveCapabilities">Save capabilities</button><span class="fma-status" data-fma-status="capabilities" role="status"></span>` : '<p>Capability settings could not be loaded.</p>';
+        </div><button type="button" class="fma-settings-primary" data-fma-setting="saveCapabilities">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_9eb682a2c55c41","Save capabilities") ?? "Save capabilities")}</button><span class="fma-status" data-fma-status="capabilities" role="status"></span>` : `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_4de38269f020cf","Capability settings could not be loaded.") ?? "Capability settings could not be loaded.")}</p>`;
       const agentControls = agents.length ? agents.map((agent) => {
         const settings = object(agent.settings);
-        return `<div class="fma-settings-card" data-agent-id="${esc(agent.id)}"><h3>${esc(agent.title || agent.id)}</h3><small>${esc(agent.description || '')}</small>${toggle('agentEnabled','Enabled','Available to permitted users.',settings.enabled !== false)}<label>Display name<input type="text" maxlength="80" data-agent-name value="${esc(settings.display_name || agent.title || '')}"></label><label>Company instructions<textarea rows="3" data-agent-instructions>${esc(settings.custom_instructions || '')}</textarea></label><details><summary>Advanced configuration</summary><small>All settings published by this agent. Changes are validated by the agent service.</small><textarea rows="8" data-agent-advanced spellcheck="false">${esc(JSON.stringify(settings, null, 2))}</textarea></details><button type="button" class="fma-settings-primary" data-agent-save>Save agent</button><span class="fma-status" data-agent-status role="status"></span></div>`;
-      }).join('') : (agentsAvailable ? '<p>No other agent settings are available.</p>' : '<p>Registered agent settings could not be loaded.</p>');
-      panel.innerHTML = `<button type="button" data-fma-setting="back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back to conversation</button><h2>Assistant settings</h2>
-        <nav class="fma-settings-tabs" role="tablist" aria-label="Assistant settings">${tabs.map(([id,label]) => `<button type="button" role="tab" data-settings-tab="${id}" aria-selected="${state.settingsTab === id}">${label}</button>`).join('')}</nav>
-        <section class="fma-settings-section" data-settings-section="personalization" data-active="${state.settingsTab === 'personalization'}" role="tabpanel"><div class="fma-settings-card"><h3>Your instructions</h3><small>These apply only when the assistant talks with you.</small><label>Your instructions<textarea data-fma-setting="instructions" rows="5" maxlength="4000">${esc(profile.instructions || '')}</textarea></label><button type="button" class="fma-settings-primary" data-fma-setting="savePersonalization">Save your instructions</button><span class="fma-status" data-fma-status="personalization" role="status"></span></div>${companyPersonalization}</section>
-        <section class="fma-settings-section" data-settings-section="memory" data-active="${state.settingsTab === 'memory'}" role="tabpanel"><div class="fma-settings-card"><h3>Memory</h3><small>Turning memory off keeps your saved entries but leaves them out of conversations.</small>${toggle('memoryEnabled','Use saved memories','Apply your saved memories in future conversations.',profile.memory_enabled !== false)}<button type="button" class="fma-settings-primary" data-fma-setting="saveMemoryPreference">Save memory preference</button><span class="fma-status" data-fma-status="memory" role="status"></span></div><div class="fma-settings-card"><h3>Saved memories</h3><div data-fma-setting="memories">${memories.length ? memories.map((memory) => `<div class="fma-memory"><input type="text" maxlength="500" value="${esc(memory.content || '')}" data-memory-id="${esc(memory.id)}"><button type="button" data-memory-save="${esc(memory.id)}" aria-label="Save memory">Save</button><button type="button" data-memory-delete="${esc(memory.id)}" aria-label="Delete memory">Delete</button></div>`).join('') : '<p>No saved memories.</p>'}</div><div class="fma-memory"><input type="text" maxlength="500" data-fma-setting="newMemory" placeholder="Add a memory"><button type="button" data-fma-setting="addMemory">Add</button></div>${memories.length ? '<button type="button" data-fma-setting="clearMemories">Clear all memories</button>' : ''}<span class="fma-status" data-fma-status="memories" role="status"></span></div></section>
-        ${canManage ? `<section class="fma-settings-section" data-settings-section="capabilities" data-active="${state.settingsTab === 'capabilities'}" role="tabpanel">${capabilityControls}</section><section class="fma-settings-section" data-settings-section="agents" data-active="${state.settingsTab === 'agents'}" role="tabpanel">${agentControls}</section><section class="fma-settings-section" data-settings-section="advanced" data-active="${state.settingsTab === 'advanced'}" role="tabpanel"><div class="fma-settings-card"><h3>Platform-wide instructions</h3><small>These apply to the global assistant in every organization. Only a verified platform administrator can edit them.</small>${globalInstructions ? `<textarea rows="6" maxlength="8000" data-fma-setting="globalInstructions" ${globalInstructions.can_edit ? '' : 'readonly'}>${esc(globalInstructions.instructions || '')}</textarea>${globalInstructions.can_edit ? '<button type="button" class="fma-settings-primary" data-fma-setting="saveGlobal">Save platform instructions</button>' : '<small>Read only for your account.</small>'}` : '<p>Platform instructions could not be loaded.</p>'}<span class="fma-status" data-fma-status="advanced" role="status"></span></div></section>` : ''}`;
+        return `<div class="fma-settings-card" data-agent-id="${esc(agent.id)}"><h3>${esc(agent.title || agent.id)}</h3><small>${esc(agent.description || '')}</small>${toggle('agentEnabled','Enabled','Available to permitted users.',settings.enabled !== false)}<label>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_7a4ba138f3b6f4","Display name") ?? "Display name")}<input type="text" maxlength="80" data-agent-name value="${esc(settings.display_name || agent.title || '')}"></label><label>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_bc5d173815594c","Company instructions") ?? "Company instructions")}<textarea rows="3" data-agent-instructions>${esc(settings.custom_instructions || '')}</textarea></label><details><summary>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_b9b3b75efb2e5b","Advanced configuration") ?? "Advanced configuration")}</summary><small>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_a54b24f3d8bfd4","All settings published by this agent. Changes are validated by the agent service.") ?? "All settings published by this agent. Changes are validated by the agent service.")}</small><textarea rows="8" data-agent-advanced spellcheck="false">${esc(JSON.stringify(settings, null, 2))}</textarea></details><button type="button" class="fma-settings-primary" data-agent-save>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_eb898cb9de4f41","Save agent") ?? "Save agent")}</button><span class="fma-status" data-agent-status role="status"></span></div>`;
+      }).join('') : (agentsAvailable ? `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_550bb66d5a8c16","No other agent settings are available.") ?? "No other agent settings are available.")}</p>` : `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c3ac03b1b09d39","Registered agent settings could not be loaded.") ?? "Registered agent settings could not be loaded.")}</p>`);
+      panel.innerHTML = `<button type="button" data-fma-setting="back"><i class="fas fa-arrow-left" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_a023e5056abb84"," Back to conversation") ?? " Back to conversation")}</button><h2>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_4de5354dc7d33d","Assistant settings") ?? "Assistant settings")}</h2>
+        <nav class="fma-settings-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_4de5354dc7d33d","Assistant settings") ?? "Assistant settings")}">${tabs.map(([id,label]) => `<button type="button" role="tab" data-settings-tab="${id}" aria-selected="${state.settingsTab === id}">${label}</button>`).join('')}</nav>
+        <section class="fma-settings-section" data-settings-section="personalization" data-active="${state.settingsTab === 'personalization'}" role="tabpanel"><div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_d96f4155237338","Your instructions") ?? "Your instructions")}</h3><small>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_092e2683575a85","These apply only when the assistant talks with you.") ?? "These apply only when the assistant talks with you.")}</small><label>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_d96f4155237338","Your instructions") ?? "Your instructions")}<textarea data-fma-setting="instructions" rows="5" maxlength="4000">${esc(profile.instructions || '')}</textarea></label><button type="button" class="fma-settings-primary" data-fma-setting="savePersonalization">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_0bbb4f72e85c31","Save your instructions") ?? "Save your instructions")}</button><span class="fma-status" data-fma-status="personalization" role="status"></span></div>${companyPersonalization}</section>
+        <section class="fma-settings-section" data-settings-section="memory" data-active="${state.settingsTab === 'memory'}" role="tabpanel"><div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_578a27272b6da5","Memory") ?? "Memory")}</h3><small>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_9f04c33765b8fd","Turning memory off keeps your saved entries but leaves them out of conversations.") ?? "Turning memory off keeps your saved entries but leaves them out of conversations.")}</small>${toggle('memoryEnabled','Use saved memories','Apply your saved memories in future conversations.',profile.memory_enabled !== false)}<button type="button" class="fma-settings-primary" data-fma-setting="saveMemoryPreference">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_67b519a6ab6e3c","Save memory preference") ?? "Save memory preference")}</button><span class="fma-status" data-fma-status="memory" role="status"></span></div><div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_eb56489e082fd9","Saved memories") ?? "Saved memories")}</h3><div data-fma-setting="memories">${memories.length ? memories.map((memory) => `<div class="fma-memory"><input type="text" maxlength="500" value="${esc(memory.content || '')}" data-memory-id="${esc(memory.id)}"><button type="button" data-memory-save="${esc(memory.id)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_668e4dc30d7670","Save memory") ?? "Save memory")}">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_5bab3e72de1ebf","Save") ?? "Save")}</button><button type="button" data-memory-delete="${esc(memory.id)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ff0fb6e523ab6f","Delete memory") ?? "Delete memory")}">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_4fc60207629a44","Delete") ?? "Delete")}</button></div>`).join('') : `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_06d02b720eb265","No saved memories.") ?? "No saved memories.")}</p>`}</div><div class="fma-memory"><input type="text" maxlength="500" data-fma-setting="newMemory" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_0a3f7a80f1c622","Add a memory") ?? "Add a memory")}"><button type="button" data-fma-setting="addMemory">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c807a71e1c06f5","Add") ?? "Add")}</button></div>${memories.length ? `<button type="button" data-fma-setting="clearMemories">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c33cd2765f45dc","Clear all memories") ?? "Clear all memories")}</button>` : ''}<span class="fma-status" data-fma-status="memories" role="status"></span></div></section>
+        ${canManage ? `<section class="fma-settings-section" data-settings-section="capabilities" data-active="${state.settingsTab === 'capabilities'}" role="tabpanel">${capabilityControls}</section><section class="fma-settings-section" data-settings-section="agents" data-active="${state.settingsTab === 'agents'}" role="tabpanel">${agentControls}</section><section class="fma-settings-section" data-settings-section="advanced" data-active="${state.settingsTab === 'advanced'}" role="tabpanel"><div class="fma-settings-card"><h3>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8bad1d5a384a61","Platform-wide instructions") ?? "Platform-wide instructions")}</h3><small>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_47f6055ec0c66b","These apply to the global assistant in every organization. Only a verified platform administrator can edit them.") ?? "These apply to the global assistant in every organization. Only a verified platform administrator can edit them.")}</small>${globalInstructions ? `<textarea rows="6" maxlength="8000" data-fma-setting="globalInstructions" ${globalInstructions.can_edit ? '' : 'readonly'}>${esc(globalInstructions.instructions || '')}</textarea>${globalInstructions.can_edit ? `<button type="button" class="fma-settings-primary" data-fma-setting="saveGlobal">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_384a9ef1063a0c","Save platform instructions") ?? "Save platform instructions")}</button>` : `<small>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_7f751dac11a734","Read only for your account.") ?? "Read only for your account.")}</small>`}` : `<p>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_1c6353bbf054b2","Platform instructions could not be loaded.") ?? "Platform instructions could not be loaded.")}</p>`}<span class="fma-status" data-fma-status="advanced" role="status"></span></div></section>` : ''}`;
       panel.querySelector('[data-fma-setting="back"]')?.addEventListener('click', () => setView('chat'));
       panel.querySelectorAll('[data-settings-tab]').forEach((tab) => tab.addEventListener('click', () => {
         state.settingsTab = tab.dataset.settingsTab;
@@ -613,12 +613,12 @@
       const value = (key) => panel.querySelector(`[data-fma-setting="${key}"]`)?.checked === true;
       const run = async (key, operation, refresh = false) => {
         const status = panel.querySelector(`[data-fma-status="${key}"]`);
-        if (status) status.textContent = 'Saving…';
+        if (status) status.textContent = (globalThis.PlatformLanguage?.text("platform-assistant","m_ea600c018fb36c","Saving…") ?? "Saving…");
         try {
           const result = await operation();
           if (refresh) await renderSettings();
           const currentStatus = els?.settingsPanel?.querySelector(`[data-fma-status="${key}"]`);
-          if (currentStatus) currentStatus.textContent = 'Saved.';
+          if (currentStatus) currentStatus.textContent = (globalThis.PlatformLanguage?.text("platform-assistant","m_47bbabb50774cf","Saved.") ?? "Saved.");
           return result;
         }
         catch (error) { if (status) status.textContent = error?.message || 'Could not save.'; return null; }
@@ -663,14 +663,14 @@
       }));
       panel.querySelectorAll('[data-memory-delete]').forEach((button) => button.addEventListener('click', () => run('memories', () => window.AssistantAPI.memories.remove(orgId(), button.dataset.memoryDelete), true)));
       panel.querySelector('[data-fma-setting="clearMemories"]')?.addEventListener('click', () => {
-        if (window.confirm('Delete all your saved assistant memories?')) void run('memories', () => window.AssistantAPI.memories.clear(orgId()), true);
+        if (window.confirm((globalThis.PlatformLanguage?.text("platform-assistant","m_6c1b290f1ddee9","Delete all your saved assistant memories?") ?? "Delete all your saved assistant memories?"))) void run('memories', () => window.AssistantAPI.memories.clear(orgId()), true);
       });
       panel.querySelector('[data-fma-setting="saveGlobal"]')?.addEventListener('click', () => run('advanced', () => window.AssistantAPI.globalInstructions.save(orgId(), panel.querySelector('[data-fma-setting="globalInstructions"]').value)));
       panel.querySelectorAll('[data-agent-id]').forEach((card) => card.querySelector('[data-agent-save]')?.addEventListener('click', async () => {
         const id = card.dataset.agentId;
         const status = card.querySelector('[data-agent-status]');
         const current = agents.find((agent) => clean(agent.id) === id);
-        if (status) status.textContent = 'Saving…';
+        if (status) status.textContent = (globalThis.PlatformLanguage?.text("platform-assistant","m_ea600c018fb36c","Saving…") ?? "Saving…");
         try {
           const advanced = JSON.parse(card.querySelector('[data-agent-advanced]').value);
           if (!advanced || typeof advanced !== 'object' || Array.isArray(advanced)) throw new Error('Advanced configuration must be a JSON object.');
@@ -681,7 +681,7 @@
           });
           if (current) current.settings = result.settings;
           card.querySelector('[data-agent-advanced]').value = JSON.stringify(result.settings, null, 2);
-          if (status) status.textContent = 'Saved.';
+          if (status) status.textContent = (globalThis.PlatformLanguage?.text("platform-assistant","m_47bbabb50774cf","Saved.") ?? "Saved.");
         } catch (error) { if (status) status.textContent = error?.message || 'Could not save.'; }
       }));
     } catch (error) { panel.textContent = error?.message || 'Assistant settings could not be loaded.'; }
@@ -719,7 +719,7 @@
 
   function renderAttachments(){
     if (!els) return;
-    els.attachments.innerHTML = state.attachments.map((file, index) => `<div class="fma-attachment"><i class="fas fa-paperclip" aria-hidden="true"></i><span title="${esc(file.name)}">${esc(file.name)}</span><button type="button" data-remove-attachment="${index}" aria-label="Remove ${esc(file.name)}">×</button></div>`).join('');
+    els.attachments.innerHTML = state.attachments.map((file, index) => `<div class="fma-attachment"><i class="fas fa-paperclip" aria-hidden="true"></i><span title="${esc(file.name)}">${esc(file.name)}</span><button type="button" data-remove-attachment="${index}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f2da0f4d54d9d9",`Remove ${v3}`,{v3}) ?? `Remove ${v3}`)(esc(file.name))}">×</button></div>`).join('');
     els.attachments.querySelectorAll('[data-remove-attachment]').forEach((button) => button.addEventListener('click', () => {
       state.attachments.splice(Number(button.dataset.removeAttachment), 1);
       renderAttachments();
@@ -730,15 +730,15 @@
   function addAttachments(files){
     const selected = [...(files || [])];
     const tooLarge = selected.find((file) => file.size > 20 * 1024 * 1024);
-    if (tooLarge) { window.alert('Each attachment must be 20 MB or smaller.'); return; }
-    if (state.attachments.length + selected.length > 5) { window.alert('You can add up to five files per message.'); return; }
+    if (tooLarge) { window.alert((globalThis.PlatformLanguage?.text("platform-assistant","m_b8260fe0ac27fe","Each attachment must be 20 MB or smaller.") ?? "Each attachment must be 20 MB or smaller.")); return; }
+    if (state.attachments.length + selected.length > 5) { window.alert((globalThis.PlatformLanguage?.text("platform-assistant","m_72df9a36df6a82","You can add up to five files per message.") ?? "You can add up to five files per message.")); return; }
     state.attachments.push(...selected);
     renderAttachments();
   }
 
   async function startRecording(){
     if (recorder || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      if (!recorder) window.alert('Microphone recording is unavailable in this browser.');
+      if (!recorder) window.alert((globalThis.PlatformLanguage?.text("platform-assistant","m_b4537274ad53bc","Microphone recording is unavailable in this browser.") ?? "Microphone recording is unavailable in this browser."));
       return;
     }
     try {
@@ -758,12 +758,12 @@
         updateComposer();
         if (state.discardRecording) { state.discardRecording = false; return; }
         try {
-          els.input.placeholder = 'Transcribing…';
+          els.input.placeholder = (globalThis.PlatformLanguage?.text("platform-assistant","m_2719912047786a","Transcribing…") ?? "Transcribing…");
           const result = await window.AssistantAPI.transcribe(orgId(), new File([blob], 'dictation.webm', {type:blob.type}));
           els.input.value = [els.input.value, clean(result.transcription?.text)].filter(Boolean).join(' ');
           els.input.focus();
         } catch (error) { window.alert(error?.message || 'Dictation failed.'); }
-        finally { els.input.placeholder = 'Ask about anything in your workspace...'; updateComposer(); }
+        finally { els.input.placeholder = (globalThis.PlatformLanguage?.text("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace..."); updateComposer(); }
       }, {once:true});
       recorder.start();
       recordingStarted = Date.now();

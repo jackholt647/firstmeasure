@@ -381,7 +381,7 @@
           </div>
           <div class="fm-attention-topbar-right">
             ${entry.cta_label ? '<button type="button" class="fm-attention-topbar-cta" data-attention-cta></button>' : ''}
-            ${entry.dismissible?.topbar === true ? `<button type="button" class="fm-attention-topbar-dismiss" data-attention-dismiss aria-label="${(globalThis.PlatformLanguage?.text("platform-banners","m_54fe29d1908de6","Dismiss") ?? "Dismiss")}"><i class="fas fa-times" aria-hidden="true"></i></button>` : ''}
+            ${entry.dismissible?.topbar === true ? `<button type="button" class="fm-attention-topbar-dismiss" data-attention-dismiss aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-banners","m_54fe29d1908de6","Dismiss") ?? "Dismiss")}"><i class="fas fa-times" aria-hidden="true"></i></button>` : ''}
           </div>
         </div>
       `;

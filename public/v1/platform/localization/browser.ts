@@ -1,5 +1,6 @@
 import { LANGUAGE_PACKS, TRANSLATION_LANGUAGES } from "./languages.js";
 import { createDeveloperTester } from "./developer-tester.js";
+import { canonicalTerm } from './terminology.js';
 import { createLanguage, resolveContext, SUPPORTED_LOCALES, type CatalogBundle, type LanguageContext } from "./core.js";
 
 const root = window as any;
@@ -14,8 +15,10 @@ let personal: Record<string, unknown> = {};
 let enabled = false;
 let index: Promise<any> | undefined;
 const tester = createDeveloperTester({ context: () => engine.context(), ensureAll: async () => { const metadata = await manifest(); await ensure(Object.keys(metadata.namespaces)); } });
-function register(bundle: CatalogBundle) { engine.register(bundle); tester.register(bundle); }
+const registered:CatalogBundle[]=[];
+function register(bundle: CatalogBundle) { registered.push(bundle); engine.register(bundle); tester.register(bundle); }
 function text(namespace: string, key: string, fallback = key, values: any = {}) { return tester.text(namespace, key, fallback, values, () => engine.text(namespace, key, fallback, values)); }
+function htmlText(namespace: string, key: string, fallback = key, values: any = {}) { return tester.text(namespace, key, fallback, values, () => engine.text(namespace, key, fallback, values)); }
 function manifest() {
   return index ??= fetch(`${base}manifest.json`, { cache: "no-cache" }).then(r => { if (!r.ok) throw Error("Language catalog unavailable"); return r.json(); }).catch(error => { index = undefined; throw error; });
 }
@@ -54,8 +57,10 @@ async function refresh() {
   return engine.context();
 }
 root.PlatformLanguage = {
-  ...engine, text, register, configure, refresh, ensure, tester: tester.api, enabled: () => enabled, supportedLocales: SUPPORTED_LOCALES, supportedLanguages: LANGUAGE_PACKS, translationLanguages: TRANSLATION_LANGUAGES, companyContext: () => ({ ...company }),
-  forApp(namespace: string) { return { ...engine, text: (key: string, fallback: string, values?: any) => text(namespace, key, fallback, values) }; }
+  canonicalTerm,
+  previewTerminology(locale:string,mappings:any) { const preview=createLanguage({...engine.context(),locale}); for(const bundle of registered)preview.register(bundle); preview.setTerminology(mappings); return preview; },
+  ...engine, text, htmlText, register, configure, refresh, ensure, tester: tester.api, enabled: () => enabled, supportedLocales: SUPPORTED_LOCALES, supportedLanguages: LANGUAGE_PACKS, translationLanguages: TRANSLATION_LANGUAGES, companyContext: () => ({ ...company }),
+  forApp(namespace: string) { return { ...engine, text: (key: string, fallback: string, values?: any) => text(namespace, key, fallback, values), htmlText:(key:string,fallback:string,values?:any)=>htmlText(namespace,key,fallback,values) }; }
 };
 // Source-owned UI strings only. User values never pass through a page-wide replacement.
 root.FMText = (namespace: string, key: string, fallback: string, values?: any) => text(namespace, key, fallback, values);

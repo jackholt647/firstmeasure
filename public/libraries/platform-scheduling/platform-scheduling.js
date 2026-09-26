@@ -795,7 +795,7 @@
 
   function labelFor(config, namespace, id){
     const labels = objectValue(config?.mappings?.labels?.[namespace]);
-    return cleanText(labels[id]) || humanizeKey(id);
+    return window.PlatformTerminology?.get?.(`${namespace}.${id}`, cleanText(labels[id]) || humanizeKey(id), { mappings:config?.mappings }) || cleanText(labels[id]) || humanizeKey(id);
   }
 
   function allStandardRoleIds(){

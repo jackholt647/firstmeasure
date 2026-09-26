@@ -965,8 +965,8 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-refund-note">
         <i class="fas fa-circle-info"></i>
         <div>
-          <strong>${(globalThis.PlatformLanguage?.text("measurements","m_3dca766d8d4a3f","Expedite refund applied") ?? "Expedite refund applied")}</strong>
-          <span>${((v0,v1) => globalThis.PlatformLanguage?.text("measurements","m_38f7ce984e43b2",`${v0} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${v1}`,{v0,v1}) ?? `${v0} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${v1}`)(escapeHtml(amountText),at)}</span>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_3dca766d8d4a3f","Expedite refund applied") ?? "Expedite refund applied")}</strong>
+          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_38f7ce984e43b2",`${v0} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${v1}`,{v0,v1}) ?? `${v0} We missed the expedited delivery window, but your report is still being completed as quickly as possible.${v1}`)(escapeHtml(amountText),at)}</span>
         </div>
       </div>`;
   }
@@ -1163,20 +1163,20 @@ window.PlatformCommerce.onReady(function(){
     return `
       <div class="r-report-pending">
         <div class="r-report-pending-card${String(expedited ? ' is-expedited' : '')}">
-          ${String(expedited ? '<h3 class="r-pending-title is-expedited"><i class="fas fa-bolt"></i> Expedited</h3>' : `<i class="fas fa-circle-notch fa-spin"></i><h3>${title}</h3>`)}
+          ${String(expedited ? `<h3 class="r-pending-title is-expedited"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54ba2332f79022"," Expedited") ?? " Expedited")}</h3>` : `<i class="fas fa-circle-notch fa-spin"></i><h3>${title}</h3>`)}
           ${String(reportExpediteRefundNoticeHtml())}
-          <div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.text("measurements","m_1352cafa75b8da","Status") ?? "Status")}</strong><span>${String(escapeHtml(statusLabel))}</span></div>
-          ${String(deliveryText ? `<div class="r-pending-detail"><strong>Estimated delivery</strong><span>${escapeHtml(deliveryText)}</span></div>` : '')}
-          ${String(expedited ? '<p>Expedited reports begin work immediately.</p>' : (showExpediteUpgrade ? `
+          <div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_1352cafa75b8da","Status") ?? "Status")}</strong><span>${String(escapeHtml(statusLabel))}</span></div>
+          ${String(deliveryText ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c486a31c8bace9","Estimated delivery") ?? "Estimated delivery")}</strong><span>${escapeHtml(deliveryText)}</span></div>` : '')}
+          ${String(expedited ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_73f0c7891fb978","Expedited reports begin work immediately.") ?? "Expedited reports begin work immediately.")}</p>` : (showExpediteUpgrade ? `
             <div class="r-pending-actions">
-              ${closed ? '<p>Expediting is unavailable while we are closed.</p>' : (!pricingReady && hasFasterOption ? '<p>Checking current expedite pricing...</p>' : (hasFasterOption ? '<p>Need it sooner? Expedite this order from now.</p>' : '<p>This project is already being worked on, so expediting is too late.</p>'))}
+              ${closed ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_a224df77674f7b","Expediting is unavailable while we are closed.") ?? "Expediting is unavailable while we are closed.")}</p>` : (!pricingReady && hasFasterOption ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_9fa315d0910b1c","Checking current expedite pricing...") ?? "Checking current expedite pricing...")}</p>` : (hasFasterOption ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c188f7f88aef46","Need it sooner? Expedite this order from now.") ?? "Need it sooner? Expedite this order from now.")}</p>` : `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_03fb30e02367e6","This project is already being worked on, so expediting is too late.") ?? "This project is already being worked on, so expediting is too late.")}</p>`))}
               <div class="r-pending-action-row">
                 ${options.map(({ option, disabled, delta, priceLoading }) => {
                   const selected = option.key === pendingExpediteSelection && !disabled;
                   return `<button type="button" class="r-pending-action${selected ? ' selected' : ''}" data-select-upgrade-expedite="${escapeHtml(option.key)}" aria-pressed="${selected ? 'true' : 'false'}" ${disabled ? 'disabled' : ''}><span class="r-pending-action-copy"><strong>${escapeHtml(reportExpediteDurationLabel(option))}</strong><span>${escapeHtml(reportExpediteCustomerPromiseLabel(option))}</span></span>${pendingExpeditePriceHtml(delta, priceLoading)}</button>`;
                 }).join('')}
               </div>
-              ${selectedUpgrade ? `<button type="button" class="r-pending-expedite-confirm" data-confirm-upgrade-expedite="${escapeHtml(selectedUpgrade.option.key)}">Expedite Report${selectedUpgradeLabel ? ` - ${escapeHtml(selectedUpgradeLabel)}` : ''}</button>` : ''}
+              ${selectedUpgrade ? `<button type="button" class="r-pending-expedite-confirm" data-confirm-upgrade-expedite="${escapeHtml(selectedUpgrade.option.key)}">${((v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_83fc76d4bd7a18",`Expedite Report${v1}`,{v1}) ?? `Expedite Report${v1}`)(selectedUpgradeLabel ? ` - ${escapeHtml(selectedUpgradeLabel)}` : '')}</button>` : ''}
             </div>` : ''))}
           ${String(showCancellation ? `
           <div class="r-pending-actions">
@@ -1194,7 +1194,7 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-report-pending-card">
           <i class="fas fa-circle-notch fa-spin"></i>
           <h3>${String(escapeHtml(title))}</h3>
-          <p>${(globalThis.PlatformLanguage?.text("measurements","m_1562c7e202c869","We are checking for the report file. It will appear here as soon as it is available.") ?? "We are checking for the report file. It will appear here as soon as it is available.")}</p>
+          <p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_1562c7e202c869","We are checking for the report file. It will appear here as soon as it is available.") ?? "We are checking for the report file. It will appear here as soon as it is available.")}</p>
         </div>
       </div>`;
   }
@@ -1205,12 +1205,12 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card is-cancelled">
           <i class="fas fa-ban"></i>
-          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_54d5979c45b1b7","Report Canceled") ?? "Report Canceled")}</h3>
-          <p>${(globalThis.PlatformLanguage?.text("measurements","m_33644b43620c6e","This report order was canceled and is no longer being processed.") ?? "This report order was canceled and is no longer being processed.")}</p>
-          ${String(refunded > 0 ? `<div class="r-pending-detail"><strong>Refunded</strong><span>${escapeHtml(fmtCredit(refunded))} returned to credits</span></div>` : '')}
+          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54d5979c45b1b7","Report Canceled") ?? "Report Canceled")}</h3>
+          <p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_33644b43620c6e","This report order was canceled and is no longer being processed.") ?? "This report order was canceled and is no longer being processed.")}</p>
+          ${String(refunded > 0 ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_5b10b90b175d30","Refunded") ?? "Refunded")}</strong><span>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_ef6b67b1fdf6fa",`${v0} returned to credits`,{v0}) ?? `${v0} returned to credits`)(escapeHtml(fmtCredit(refunded)))}</span></div>` : '')}
           <div class="r-pending-actions">
-            <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.text("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
-            <div class="r-pending-note">${(globalThis.PlatformLanguage?.text("measurements","m_8d314bb37e9478","This starts a new report order for this same project and replaces the canceled order in this workflow.") ?? "This starts a new report order for this same project and replaces the canceled order in this workflow.")}</div>
+            <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.htmlText("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
+            <div class="r-pending-note">${(globalThis.PlatformLanguage?.htmlText("measurements","m_8d314bb37e9478","This starts a new report order for this same project and replaces the canceled order in this workflow.") ?? "This starts a new report order for this same project and replaces the canceled order in this workflow.")}</div>
           </div>
         </div>
       </div>`;
@@ -1221,11 +1221,11 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card is-cancelled">
           <i class="fas fa-ban"></i>
-          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_c0ac8e9dcbb76e","Report Not Active") ?? "Report Not Active")}</h3>
-          <p>${(globalThis.PlatformLanguage?.text("measurements","m_0b59c6485f1f46","This report stayed in submitted state and is no longer being processed.") ?? "This report stayed in submitted state and is no longer being processed.")}</p>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c0ac8e9dcbb76e","Report Not Active") ?? "Report Not Active")}</h3>
+          <p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_0b59c6485f1f46","This report stayed in submitted state and is no longer being processed.") ?? "This report stayed in submitted state and is no longer being processed.")}</p>
           <div class="r-pending-actions">
-            <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.text("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
-            <div class="r-pending-note">${(globalThis.PlatformLanguage?.text("measurements","m_8f93537ac57dc8","This starts a new report order for this same project and replaces the stalled order in this workflow.") ?? "This starts a new report order for this same project and replaces the stalled order in this workflow.")}</div>
+            <button type="button" class="r-pending-reorder" data-reorder-report-order>${(globalThis.PlatformLanguage?.htmlText("measurements","m_3280c01ce70efa","Order this report again") ?? "Order this report again")}</button>
+            <div class="r-pending-note">${(globalThis.PlatformLanguage?.htmlText("measurements","m_8f93537ac57dc8","This starts a new report order for this same project and replaces the stalled order in this workflow.") ?? "This starts a new report order for this same project and replaces the stalled order in this workflow.")}</div>
           </div>
         </div>
       </div>`;
@@ -1369,9 +1369,9 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card is-rejected">
           <i class="fas fa-circle-exclamation"></i>
-          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</h3>
           <p>${String(escapeHtml(copy))}</p>
-          ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>Reimbursed</strong><span>${escapeHtml(fmtCredit(refundAmount))} returned to credits</span></div>` : '')}
+          ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54833ca7291df9","Reimbursed") ?? "Reimbursed")}</strong><span>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_ef6b67b1fdf6fa",`${v0} returned to credits`,{v0}) ?? `${v0} returned to credits`)(escapeHtml(fmtCredit(refundAmount)))}</span></div>` : '')}
           ${String(reorderType ? `
           <div class="r-pending-actions">
             <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(`Reorder as ${reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)}`)}</button>
@@ -1418,9 +1418,9 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-report-debug-disabled">
           <div class="r-report-debug-card">
             <i class="fas fa-file-pdf"></i>
-            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_142f468bf7b0e6","PDF preview disabled") ?? "PDF preview disabled")}</h3>
-            <p>${(globalThis.PlatformLanguage?.text("measurements","m_2e4271049dbb8a","The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.") ?? "The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.")}</p>
-            ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Open PDF</a>` : '')}
+            <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_142f468bf7b0e6","PDF preview disabled") ?? "PDF preview disabled")}</h3>
+            <p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_2e4271049dbb8a","The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.") ?? "The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.")}</p>
+            ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_39f4f4e9015b56"," Open PDF") ?? " Open PDF")}</a>` : '')}
           </div>
         </div>`;
     }
@@ -2250,10 +2250,10 @@ window.PlatformCommerce.onReady(function(){
     const measurementsSection = reportComplete && metrics.length ? `
       <section class="r-report-summary-section" style="grid-column:1 / -1">
         <h4>
-          <span class="r-report-summary-heading"><i class="fas fa-ruler"></i>${(globalThis.PlatformLanguage?.text("measurements","m_ae873abaa56707","Measurements") ?? "Measurements")}</span>
+          <span class="r-report-summary-heading"><i class="fas fa-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ae873abaa56707","Measurements") ?? "Measurements")}</span>
           <span class="r-report-summary-heading-spacer"></span>
           <button type="button" class="r-report-summary-download" data-download-measurements-csv>
-            <i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("measurements","m_cbfd4ec6ae463e"," CSV\n          ") ?? " CSV\n          ")}</button>
+            <i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_cbfd4ec6ae463e"," CSV\n          ") ?? " CSV\n          ")}</button>
         </h4>
         <div class="r-report-summary-metrics">
           ${String(metrics.map((metric) => `
@@ -2275,17 +2275,17 @@ window.PlatformCommerce.onReady(function(){
             <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · Ordered ${escapeHtml(formatDate(orderedAt))}` : '')}</p>
           </div>
           <div class="r-report-summary-status"><i class="fas fa-ruler-combined"></i>${String(escapeHtml(status))}</div>
-          ${reportComplete && window.FirstMeasureAPI?.roofMeasurements?.import ? '<button type="button" class="r-report-summary-download" data-import-project-measurements>Refresh project measurements</button>' : ''}
+          ${reportComplete && window.FirstMeasureAPI?.roofMeasurements?.import ? `<button type="button" class="r-report-summary-download" data-import-project-measurements>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ac054a09eee4ed","Refresh project measurements") ?? "Refresh project measurements")}</button>` : ''}
         </div>
         <div class="r-report-summary-grid">
           <section class="r-report-summary-section">
-            <h4><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports")}</h4>
+            <h4><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_fc81637c875032","Reports") ?? "Reports")}</h4>
             <div class="r-report-summary-list">
               ${String(reports.map((row) => `
                 <div class="r-report-summary-row">
                   <div>
                     <strong>${escapeHtml(row.label)}</strong>
-                    <span>${escapeHtml(row.detail)}${row.url ? ` <a class="r-report-summary-link" href="${escapeHtml(row.url)}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i>Open</a>` : ''}</span>
+                    <span>${escapeHtml(row.detail)}${row.url ? ` <a class="r-report-summary-link" href="${escapeHtml(row.url)}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c25cc66b28cc9d","Open") ?? "Open")}</a>` : ''}</span>
                   </div>
                   <div class="r-report-summary-pill ${reportSummaryStatusClass(row)}">${escapeHtml(reportSummaryStatusLabel(row))}</div>
                 </div>
@@ -2293,20 +2293,20 @@ window.PlatformCommerce.onReady(function(){
             </div>
           </section>
           <section class="r-report-summary-section">
-            <h4><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("measurements","m_b73185deef6d79","Delivery") ?? "Delivery")}</h4>
+            <h4><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_b73185deef6d79","Delivery") ?? "Delivery")}</h4>
             <div class="r-report-summary-delivery">
               <div class="r-report-summary-field">
-                <span>${(globalThis.PlatformLanguage?.text("measurements","m_128a07d5f51b97","Email sent") ?? "Email sent")}</span>
+                <span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_128a07d5f51b97","Email sent") ?? "Email sent")}</span>
                 <strong>${String(escapeHtml(delivery.sentAtLabel))}</strong>
               </div>
-              ${String(delivery.to ? `<div class="r-report-summary-field"><span>Recipient</span><strong>${escapeHtml(delivery.to)}</strong></div>` : '')}
+              ${String(delivery.to ? `<div class="r-report-summary-field"><span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_830d1a5d8aebbb","Recipient") ?? "Recipient")}</span><strong>${escapeHtml(delivery.to)}</strong></div>` : '')}
               <div class="r-report-summary-field">
-                <span>${(globalThis.PlatformLanguage?.text("measurements","m_75c322757c6a34","CC") ?? "CC")}</span>
-                <div class="r-report-summary-cc">${String(delivery.cc.length ? delivery.cc.map((email) => `<b>${escapeHtml(email)}</b>`).join('') : '<strong>None</strong>')}</div>
+                <span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_75c322757c6a34","CC") ?? "CC")}</span>
+                <div class="r-report-summary-cc">${String(delivery.cc.length ? delivery.cc.map((email) => `<b>${escapeHtml(email)}</b>`).join('') : `<strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_2d4ff8a83b1b5c","None") ?? "None")}</strong>`)}</div>
               </div>
               <div class="r-report-summary-field">
-                <span>${(globalThis.PlatformLanguage?.text("measurements","m_b1c0b8eeaaa582","Technician notes") ?? "Technician notes")}</span>
-                ${String(delivery.notes ? `<div class="r-report-summary-notes">${escapeHtml(delivery.notes)}</div>` : '<strong>None</strong>')}
+                <span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_b1c0b8eeaaa582","Technician notes") ?? "Technician notes")}</span>
+                ${String(delivery.notes ? `<div class="r-report-summary-notes">${escapeHtml(delivery.notes)}</div>` : `<strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_2d4ff8a83b1b5c","None") ?? "None")}</strong>`)}
               </div>
             </div>
           </section>
@@ -2342,8 +2342,8 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-code"></i>
-          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_f6e3ea78764e00","XML Model") ?? "XML Model")}</h3>
-          <button type="button" class="r-pending-action" data-download-xml${String(disabled)}>${(globalThis.PlatformLanguage?.text("measurements","m_5dbea2cd894e65","\n            Download XML Model\n            ") ?? "\n            Download XML Model\n            ")}<span>${(globalThis.PlatformLanguage?.text("measurements","m_0d8b06fc130a00","model_data.xml") ?? "model_data.xml")}</span>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_f6e3ea78764e00","XML Model") ?? "XML Model")}</h3>
+          <button type="button" class="r-pending-action" data-download-xml${String(disabled)}>${(globalThis.PlatformLanguage?.htmlText("measurements","m_5dbea2cd894e65","\n            Download XML Model\n            ") ?? "\n            Download XML Model\n            ")}<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_0d8b06fc130a00","model_data.xml") ?? "model_data.xml")}</span>
           </button>
         </div>
       </div>`;
@@ -2438,7 +2438,7 @@ window.PlatformCommerce.onReady(function(){
 
   function weatherReportOrderButtonHtml(){
     const total = weatherReportTotalPrice();
-    return `Add for ${String(escapeHtml(fmtCredit(total)))}<span>${(globalThis.PlatformLanguage?.text("measurements","m_6a656f97b4af69_currency","Delivered with this project") ?? "Delivered with this project")}</span>`;
+    return `Add for ${String(escapeHtml(fmtCredit(total)))}<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_6a656f97b4af69_currency","Delivered with this project") ?? "Delivered with this project")}</span>`;
   }
 
   function weatherReportPanelHtml(){
@@ -2452,10 +2452,10 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-report-pending">
           <div class="r-report-pending-card">
             <i class="fas fa-circle-exclamation"></i>
-            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_acaf0ab348f166","Weather Report Failed") ?? "Weather Report Failed")}</h3>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_acaf0ab348f166","Weather Report Failed") ?? "Weather Report Failed")}</h3>
             <p>${String(escapeHtml(info.error || 'The weather report could not be generated. You can try again from here.'))}</p>
             <div class="r-pending-actions">
-              <button type="button" class="r-pending-action" data-order-weather-report>${(globalThis.PlatformLanguage?.text("measurements","m_ef39ad5e614a24","Try again") ?? "Try again")}<span>${(globalThis.PlatformLanguage?.text("measurements","m_c9a1176cf5d932","No additional charge") ?? "No additional charge")}</span></button>
+              <button type="button" class="r-pending-action" data-order-weather-report>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ef39ad5e614a24","Try again") ?? "Try again")}<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c9a1176cf5d932","No additional charge") ?? "No additional charge")}</span></button>
             </div>
           </div>
         </div>`;
@@ -2466,12 +2466,12 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-report-pending">
           <div class="r-report-pending-card">
             <i class="fas ${String(waitingOnReport ? 'fa-clock' : 'fa-circle-notch fa-spin')}"></i>
-            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_e40941fb0d6e43","Historical Weather Report") ?? "Historical Weather Report")}</h3>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_e40941fb0d6e43","Historical Weather Report") ?? "Historical Weather Report")}</h3>
             <p>${String(escapeHtml(waitingOnReport
               ? 'The weather report is ordered and will generate after the FirstMeasure report is complete.'
               : 'The historical severe-weather report is generating. It will appear here when it is ready.'))}</p>
             <div class="r-pending-actions">
-              <button type="button" class="r-pending-action" data-check-weather-report>${(globalThis.PlatformLanguage?.text("measurements","m_104c237a5bdb0d","Check status") ?? "Check status")}<span>${(globalThis.PlatformLanguage?.text("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span></button>
+              <button type="button" class="r-pending-action" data-check-weather-report>${(globalThis.PlatformLanguage?.htmlText("measurements","m_104c237a5bdb0d","Check status") ?? "Check status")}<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span></button>
             </div>
           </div>
         </div>`;
@@ -2480,8 +2480,8 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-cloud-bolt"></i>
-          <h3>${(globalThis.PlatformLanguage?.text("measurements","m_7a99290177feb6","Add Historical Weather") ?? "Add Historical Weather")}</h3>
-          <p>${(globalThis.PlatformLanguage?.text("measurements","m_369e85f31b0f37","Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.") ?? "Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.")}</p>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_7a99290177feb6","Add Historical Weather") ?? "Add Historical Weather")}</h3>
+          <p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_369e85f31b0f37","Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.") ?? "Add a property-specific history of hail, wind, and tornado events with nearby event records and map-style exhibits.")}</p>
           <div class="r-pending-actions">
             <button type="button" class="r-pending-action" data-order-weather-report>${String(weatherReportOrderButtonHtml())}</button>
           </div>
@@ -2539,7 +2539,7 @@ window.PlatformCommerce.onReady(function(){
   async function checkWeatherReportStatus(button){
     const projectId = activeMeasurementProjectId();
     if (!projectId) return;
-    const original = button?.innerHTML || `Check status<span>${(globalThis.PlatformLanguage?.text("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span>`;
+    const original = button?.innerHTML || `Check status<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span>`;
     if (button) {
       button.disabled = true;
       button.innerHTML = 'Checking...';
@@ -2696,9 +2696,9 @@ window.PlatformCommerce.onReady(function(){
           <div class="r-report-support-empty">
             <div class="r-report-support-empty-card">
               <i class="fas fa-headset"></i>
-              <h3>${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</h3>
-              <p>${(globalThis.PlatformLanguage?.text("measurements","m_19c61a671d3e0c","Need help with this report? Send a support request and attach photos if they help explain the issue.") ?? "Need help with this report? Send a support request and attach photos if they help explain the issue.")}</p>
-              <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.text("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
+              <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</h3>
+              <p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_19c61a671d3e0c","Need help with this report? Send a support request and attach photos if they help explain the issue.") ?? "Need help with this report? Send a support request and attach photos if they help explain the issue.")}</p>
+              <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
             </div>
           </div>
         </div>`;
@@ -2710,7 +2710,7 @@ window.PlatformCommerce.onReady(function(){
             <h3>${String(supportOnly ? 'Support' : 'Changes Pending')}</h3>
             <p>${String(supportOnly ? 'Your support messages for this returned report are listed here.' : 'Your returned report stays available while these requests are reviewed.')}</p>
           </div>
-          <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.text("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
+          <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
         </div>
         <div class="r-report-change-list">
           ${String(requests.map((request) => {
@@ -2732,11 +2732,11 @@ window.PlatformCommerce.onReady(function(){
                 </div>
                 ${request.notes ? `<div class="r-report-change-notes">${escapeHtml(request.notes)}</div>` : ''}
                 <div class="r-report-change-facts">
-                  ${isIssue ? '<span><i class="fas fa-circle-info"></i>Support will reach out if needed</span>' : '<span><i class="fas fa-clock"></i>Waiting for review</span>'}
-                  ${pins ? `<span><i class="fas fa-location-dot"></i>${pins} pin${pins === 1 ? '' : 's'}</span>` : ''}
-                  ${photos ? `<span><i class="fas fa-image"></i>${photos} photo${photos === 1 ? '' : 's'}</span>` : ''}
-                  ${charge > 0 ? `<span><i class="fas fa-credit-card"></i>${escapeHtml(fmtCredit(charge))} charged</span>` : '<span><i class="fas fa-dollar-sign"></i>No charge</span>'}
-                  ${expedite ? '<span><i class="fas fa-bolt"></i>Rushed</span>' : ''}
+                  ${isIssue ? `<span><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_26e481284994c4","Support will reach out if needed") ?? "Support will reach out if needed")}</span>` : `<span><i class="fas fa-clock"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_070240177031fb","Waiting for review") ?? "Waiting for review")}</span>`}
+                  ${pins ? `<span><i class="fas fa-location-dot"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_4f521257e8b2fe",`${v0} pin${v1}`,{v0,v1}) ?? `${v0} pin${v1}`)(pins,pins === 1 ? '' : 's')}</span>` : ''}
+                  ${photos ? `<span><i class="fas fa-image"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_9389ebcecf7d63",`${v0} photo${v1}`,{v0,v1}) ?? `${v0} photo${v1}`)(photos,photos === 1 ? '' : 's')}</span>` : ''}
+                  ${charge > 0 ? `<span><i class="fas fa-credit-card"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_7a3353837db839",`${v0} charged`,{v0}) ?? `${v0} charged`)(escapeHtml(fmtCredit(charge)))}</span>` : `<span><i class="fas fa-dollar-sign"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_09e2ef001aaeed","No charge") ?? "No charge")}</span>`}
+                  ${expedite ? `<span><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_e6c18c6b98e998","Rushed") ?? "Rushed")}</span>` : ''}
                 </div>
               </div>`;
           }).join(''))}
@@ -2817,7 +2817,7 @@ window.PlatformCommerce.onReady(function(){
       button = document.createElement('button');
       button.type = 'button';
       button.className = 'r-report-followup-open';
-      button.innerHTML = `<i class="fas fa-headset"></i><span>${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</span>`;
+      button.innerHTML = `<i class="fas fa-headset"></i><span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</span>`;
       body.appendChild(button);
     }
     const visible = !!activeMeasurementProjectId();
@@ -2943,7 +2943,7 @@ window.PlatformCommerce.onReady(function(){
     const mount = document.getElementById('rReportFollowupMap');
     if (!mount || !reportRequestModalState || reportRequestModalState.type !== 'additional_structure') return;
     if (!window.google?.maps?.Map || !window.google?.maps?.Marker) {
-      mount.innerHTML = `<div class="r-report-pending"><div class="r-report-pending-card"><i class="fas fa-location-dot"></i><h3>${(globalThis.PlatformLanguage?.text("measurements","m_16323505c5525a","Map unavailable") ?? "Map unavailable")}</h3><p>${(globalThis.PlatformLanguage?.text("measurements","m_5694e9fa5fef44","Google Maps is still loading. Close and reopen this request in a moment.") ?? "Google Maps is still loading. Close and reopen this request in a moment.")}</p></div></div>`;
+      mount.innerHTML = `<div class="r-report-pending"><div class="r-report-pending-card"><i class="fas fa-location-dot"></i><h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_16323505c5525a","Map unavailable") ?? "Map unavailable")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_5694e9fa5fef44","Google Maps is still loading. Close and reopen this request in a moment.") ?? "Google Maps is still loading. Close and reopen this request in a moment.")}</p></div></div>`;
       return;
     }
     const existingPins = reportRequestExistingPins();
@@ -3072,13 +3072,13 @@ window.PlatformCommerce.onReady(function(){
     const newPins = reportRequestNewPins();
     const freeRush = showRush && normalizeReportExpediteKey(reportRequestModalState.expedite) !== 'standard_3_6' && freeExpediteUses() > 0;
     overlay.innerHTML = `
-      <div class="r-report-followup-card${String(isAdditional ? ' is-additional' : '')}" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}">
+      <div class="r-report-followup-card${String(isAdditional ? ' is-additional' : '')}" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}">
         <div class="r-report-followup-top">
           <div>
-            <h3>${(globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</h3>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</h3>
             <p>${String(escapeHtml(meta.note))}</p>
           </div>
-          <button type="button" class="r-report-followup-close" data-report-followup-close aria-label="${(globalThis.PlatformLanguage?.text("measurements","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          <button type="button" class="r-report-followup-close" data-report-followup-close aria-label="${(globalThis.PlatformLanguage?.htmlText("measurements","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
         <div class="r-report-followup-types">
           ${String(['change_correction','additional_structure','report_issue'].map((key) => {
@@ -3093,52 +3093,52 @@ window.PlatformCommerce.onReady(function(){
         </div>
         <form class="r-report-followup-form${String(isAdditional ? ' is-additional' : '')}" data-report-followup-form>
           <div class="r-report-followup-field">
-            <label for="rReportFollowupNotes">${(globalThis.PlatformLanguage?.text("measurements","m_b3ecc234f63212","Details") ?? "Details")}</label>
+            <label for="rReportFollowupNotes">${(globalThis.PlatformLanguage?.htmlText("measurements","m_b3ecc234f63212","Details") ?? "Details")}</label>
             <textarea id="rReportFollowupNotes" rows="6" placeholder="${String(escapeHtml(meta.title))}">${String(escapeHtml(reportRequestModalState.notes || ''))}</textarea>
           </div>
           <div class="r-report-followup-field">
-            <label for="rReportFollowupPhotos">${(globalThis.PlatformLanguage?.text("measurements","m_be4cfb58b9c4d7","Photos") ?? "Photos")}</label>
+            <label for="rReportFollowupPhotos">${(globalThis.PlatformLanguage?.htmlText("measurements","m_be4cfb58b9c4d7","Photos") ?? "Photos")}</label>
             <input id="rReportFollowupPhotos" type="file" accept="image/*" multiple>
           </div>
           ${String(isAdditional ? `
             <div class="r-report-followup-field r-report-followup-map-field">
-              <label>Structures</label>
+              <label>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4169276a19a978","Structures") ?? "Structures")}</label>
               <div class="r-report-followup-map-wrap">
                 <div class="r-report-followup-map" id="rReportFollowupMap"></div>
                 <div class="r-report-followup-map-foot">
                   <div class="r-report-followup-map-legend">
-                    <span class="old"><i></i>${existingPins.length} existing locked</span>
-                    <span class="new"><i></i><span data-followup-new-count>${newPins.length}</span> new requested</span>
+                    <span class="old"><i></i>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_a393a699069384",`${v0} existing locked`,{v0}) ?? `${v0} existing locked`)(existingPins.length)}</span>
+                    <span class="new"><i></i><span data-followup-new-count>${newPins.length}</span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_a6c6b605dd031c"," new requested") ?? " new requested")}</span>
                   </div>
-                  <button type="button" class="r-report-followup-map-clear" data-followup-clear-new-pins ${newPins.length ? '' : 'disabled'}>Clear new pins</button>
+                  <button type="button" class="r-report-followup-map-clear" data-followup-clear-new-pins ${newPins.length ? '' : 'disabled'}>${(globalThis.PlatformLanguage?.htmlText("measurements","m_3bf61c2b260fe3","Clear new pins") ?? "Clear new pins")}</button>
                 </div>
               </div>
             </div>
             <div class="r-report-followup-grid">
               <div class="r-report-followup-field">
-                <label>Additional structures</label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("measurements","m_b5d24979f6c9ac","Additional structures") ?? "Additional structures")}</label>
                 <div class="r-report-followup-count-display" data-followup-count-display>${escapeHtml(String(reportRequestStructureCount()))}</div>
               </div>
               <div class="r-report-followup-summary">
-                <span>${escapeHtml(TYPE_META[projectType]?.label || projectType)} request</span>
+                <span>${((v4) => globalThis.PlatformLanguage?.htmlText("measurements","m_bc2c6ca75b128e",`${v4} request`,{v4}) ?? `${v4} request`)(escapeHtml(TYPE_META[projectType]?.label || projectType))}</span>
                 <strong data-followup-price>${charge > 0 ? `${escapeHtml(fmtCredit(charge))}` : ''}</strong>
               </div>
             </div>
             ${showRush ? `
               <div class="r-report-followup-field">
-                <label>Delivery</label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("measurements","m_b73185deef6d79","Delivery") ?? "Delivery")}</label>
                 <div class="r-report-followup-expedite">
                   ${reportRequestExpediteOptions().map((option) => {
                     const selected = normalizeReportExpediteKey(reportRequestModalState.expedite) === option.key;
                     const window = reportExpediteCustomerPromiseLabel(option);
-                    return `<button type="button" class="${selected ? 'active' : ''}" data-followup-expedite="${escapeHtml(option.key)}">${escapeHtml(option.key === 'standard_3_6' ? 'Standard' : reportExpediteDurationLabel(option))}<span>${escapeHtml(window)} · ${escapeHtml(reportExpediteDeltaLabel(option, projectType))} each</span></button>`;
+                    return `<button type="button" class="${selected ? 'active' : ''}" data-followup-expedite="${escapeHtml(option.key)}">${escapeHtml(option.key === 'standard_3_6' ? 'Standard' : reportExpediteDurationLabel(option))}<span>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("measurements","m_c235f24fecb516",`${v3} · ${v4} each`,{v3,v4}) ?? `${v3} · ${v4} each`)(escapeHtml(window),escapeHtml(reportExpediteDeltaLabel(option, projectType)))}</span></button>`;
                   }).join('')}
                 </div>
               </div>` : ''}
-            <div class="r-report-followup-note" data-followup-pin-note>Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${newPins.length ? ` ${newPins.length} new pin${newPins.length === 1 ? '' : 's'} will be attached.` : ''}${freeRush ? ` Free expedite applied. ${freeExpediteUses()} free expedite use${freeExpediteUses() === 1 ? '' : 's'} available.` : ''}</div>` : '')}
+            <div class="r-report-followup-note" data-followup-pin-note>${((v7,v8) => globalThis.PlatformLanguage?.htmlText("measurements","m_a44d68de40e025",`Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${v7}${v8}`,{v7,v8}) ?? `Click the map to place each additional structure. Existing structures are shown in gray and cannot be moved.${v7}${v8}`)(newPins.length ? ` ${newPins.length} new pin${newPins.length === 1 ? '' : 's'} will be attached.` : '',freeRush ? ` Free expedite applied. ${freeExpediteUses()} free expedite use${freeExpediteUses() === 1 ? '' : 's'} available.` : '')}</div>` : '')}
           <div class="r-report-followup-error" id="rReportFollowupError"></div>
           <div class="r-report-followup-actions">
-            <button type="button" class="r-report-followup-secondary" data-report-followup-close>${(globalThis.PlatformLanguage?.text("measurements","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="button" class="r-report-followup-secondary" data-report-followup-close>${(globalThis.PlatformLanguage?.htmlText("measurements","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             <button type="submit" class="r-report-followup-submit" ${String(isAdditional && !newPins.length ? 'disabled' : '')}>${String(charge > 0 ? `Submit - ${escapeHtml(fmtCredit(charge))}` : 'Submit')}</button>
           </div>
         </form>
@@ -3921,11 +3921,11 @@ window.PlatformCommerce.onReady(function(){
         try {
           await window.FirstMeasureAPI.roofMeasurements.import(activeBaseProject || {});
           measurementSummaryMetricCache.clear();
-          showToast('Measurements refreshed', 'Report values were refreshed. Manual overrides were preserved.', true);
+          showToast((globalThis.PlatformLanguage?.text("measurements","m_ee2e95ef4a2d84","Measurements refreshed") ?? "Measurements refreshed"), (globalThis.PlatformLanguage?.text("measurements","m_52f356edab1915","Report values were refreshed. Manual overrides were preserved.") ?? "Report values were refreshed. Manual overrides were preserved."), true);
           renderMeasurementsPanel();
         } catch (error) {
           button.disabled = false;
-          showToast('Measurements unavailable', error?.message || 'The report could not be imported.', false);
+          showToast((globalThis.PlatformLanguage?.text("measurements","m_81c35a6db09047","Measurements unavailable") ?? "Measurements unavailable"), error?.message || 'The report could not be imported.', false);
         }
       });
     });

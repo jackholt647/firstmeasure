@@ -365,20 +365,20 @@
         <div class="promo-modal-win">
           <div class="promo-modal-top">
             <div class="promo-modal-head">
-              <h2 class="promo-modal-title">${(globalThis.PlatformLanguage?.text("promo-inject","m_eb9ce81bc40229","Thank you for choosing FirstMate!") ?? "Thank you for choosing FirstMate!")}</h2>
-              <div class="promo-modal-subtitle">${(globalThis.PlatformLanguage?.text("promo-inject","m_f63e22c5463880","Get up to 50% bonus credit when you load your account today.") ?? "Get up to 50% bonus credit when you load your account today.")}</div>
-              <div class="promo-modal-expiry"><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.text("promo-inject","m_feff91ced3b954"," Offer expires in ") ?? " Offer expires in ")}<span id="promoModalExpiry">00:00:00</span></div>
+              <h2 class="promo-modal-title">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_eb9ce81bc40229","Thank you for choosing FirstMate!") ?? "Thank you for choosing FirstMate!")}</h2>
+              <div class="promo-modal-subtitle">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_f63e22c5463880","Get up to 50% bonus credit when you load your account today.") ?? "Get up to 50% bonus credit when you load your account today.")}</div>
+              <div class="promo-modal-expiry"><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_feff91ced3b954"," Offer expires in ") ?? " Offer expires in ")}<span id="promoModalExpiry">00:00:00</span></div>
             </div>
             <button class="promo-modal-close" id="promoBonusClose" type="button" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="promo-modal-body">
             <div class="promo-tier-grid" id="promoTierGrid"></div>
             <div class="promo-modal-actions">
-              <div class="promo-modal-selection" id="promoSummaryNote">${(globalThis.PlatformLanguage?.text("promo-inject","m_5683072373aec0","Select an option to continue to Stripe checkout.") ?? "Select an option to continue to Stripe checkout.")}</div>
+              <div class="promo-modal-selection" id="promoSummaryNote">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_5683072373aec0","Select an option to continue to Stripe checkout.") ?? "Select an option to continue to Stripe checkout.")}</div>
               <div class="promo-side-error" id="promoSummaryError"></div>
               <div class="promo-action-group">
-                <button class="promo-side-ghost" id="promoCheckoutCancel" type="button">${(globalThis.PlatformLanguage?.text("promo-inject","m_2d4675a22ab6bd","Not now") ?? "Not now")}</button>
-                <button class="promo-side-btn" id="promoCheckoutBtn" type="button">${(globalThis.PlatformLanguage?.text("promo-inject","m_0878467cb960ff","Continue to Checkout") ?? "Continue to Checkout")}</button>
+                <button class="promo-side-ghost" id="promoCheckoutCancel" type="button">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_2d4675a22ab6bd","Not now") ?? "Not now")}</button>
+                <button class="promo-side-btn" id="promoCheckoutBtn" type="button">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_0878467cb960ff","Continue to Checkout") ?? "Continue to Checkout")}</button>
               </div>
             </div>
           </div>
@@ -447,14 +447,14 @@
           <div class="promo-tier-main">
             <div class="promo-tier-main-block">
               <div class="promo-tier-main-value">${String(formatMoney(tier.customerPays || 0))}</div>
-              <div class="promo-tier-label">${(globalThis.PlatformLanguage?.text("promo-inject","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</div>
+              <div class="promo-tier-label">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</div>
             </div>
             <div class="promo-tier-main-block">
               <div class="promo-tier-value">${String(formatMoney(tier.bonus || 0))}</div>
-              <div class="promo-tier-value-label">${(globalThis.PlatformLanguage?.text("promo-inject","m_d24a472aa5dc24","Free Credits") ?? "Free Credits")}</div>
+              <div class="promo-tier-value-label">${(globalThis.PlatformLanguage?.htmlText("promo-inject","m_d24a472aa5dc24","Free Credits") ?? "Free Credits")}</div>
             </div>
           </div>
-          <div class="promo-tier-bonus">${((v4,v5) => globalThis.PlatformLanguage?.text("promo-inject","m_58ccc0c2abd0fc",`${v4} total, ${v5}% bonus`,{v4,v5}) ?? `${v4} total, ${v5}% bonus`)(formatMoney(tier.total || 0),Math.round(tier.matchPercent || 0))}</div>
+          <div class="promo-tier-bonus">${((v4,v5) => globalThis.PlatformLanguage?.htmlText("promo-inject","m_58ccc0c2abd0fc",`${v4} total, ${v5}% bonus`,{v4,v5}) ?? `${v4} total, ${v5}% bonus`)(formatMoney(tier.total || 0),Math.round(tier.matchPercent || 0))}</div>
         </button>
       `;
     }).join('');

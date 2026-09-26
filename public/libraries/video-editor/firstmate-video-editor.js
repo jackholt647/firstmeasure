@@ -262,7 +262,7 @@
           <strong title="${String(escapeHtml(this.title))}"><i class="fas fa-clapperboard" style="margin-right:8px;color:#94a3b8"></i>${String(escapeHtml(this.title))}</strong>
           <div class="fm-video-editor-head-actions">
             <button type="button" class="fm-video-editor-iconbtn" data-ve-reset data-fm-tooltip="Reset all edits"><i class="fas fa-rotate-left"></i></button>
-            <button type="button" class="fm-video-editor-iconbtn" data-ve-close aria-label="${(globalThis.PlatformLanguage?.text("video-editor","m_031b2e8c9c1d7f","Close editor") ?? "Close editor")}"><i class="fas fa-times"></i></button>
+            <button type="button" class="fm-video-editor-iconbtn" data-ve-close aria-label="${(globalThis.PlatformLanguage?.htmlText("video-editor","m_031b2e8c9c1d7f","Close editor") ?? "Close editor")}"><i class="fas fa-times"></i></button>
           </div>
         </div>
         <div class="fm-video-editor-stage" data-ve-stage>
@@ -270,20 +270,20 @@
             <canvas data-ve-canvas></canvas>
             <div class="fm-video-editor-overlay" data-ve-overlay></div>
           </div>
-          <div class="fm-video-editor-loading" data-ve-loading><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("video-editor","m_9436da07c68314"," Loading video…") ?? " Loading video…")}</div>
+          <div class="fm-video-editor-loading" data-ve-loading><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_9436da07c68314"," Loading video…") ?? " Loading video…")}</div>
         </div>
         <div class="fm-video-editor-panel">
           <div class="fm-video-editor-subbar" data-ve-subbar hidden></div>
           <div class="fm-video-editor-tools">
-            <button type="button" class="fm-video-editor-tool" data-ve-tool="crop"><i class="fas fa-crop-simple"></i><span>${(globalThis.PlatformLanguage?.text("video-editor","m_6d84414c70b27c","Crop") ?? "Crop")}</span></button>
-            <button type="button" class="fm-video-editor-tool" data-ve-rotate><i class="fas fa-rotate-right"></i><span>${(globalThis.PlatformLanguage?.text("video-editor","m_fc42f4452e070c","Rotate") ?? "Rotate")}</span></button>
-            <button type="button" class="fm-video-editor-tool" data-ve-flip><i class="fas fa-left-right"></i><span>${(globalThis.PlatformLanguage?.text("video-editor","m_a27e7d67c060b4","Flip") ?? "Flip")}</span></button>
+            <button type="button" class="fm-video-editor-tool" data-ve-tool="crop"><i class="fas fa-crop-simple"></i><span>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_6d84414c70b27c","Crop") ?? "Crop")}</span></button>
+            <button type="button" class="fm-video-editor-tool" data-ve-rotate><i class="fas fa-rotate-right"></i><span>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_fc42f4452e070c","Rotate") ?? "Rotate")}</span></button>
+            <button type="button" class="fm-video-editor-tool" data-ve-flip><i class="fas fa-left-right"></i><span>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_a27e7d67c060b4","Flip") ?? "Flip")}</span></button>
             <button type="button" class="fm-video-editor-tool" data-ve-tool="speed"><i class="fas fa-gauge-high"></i><span data-ve-speed-label>1x</span></button>
-            <button type="button" class="fm-video-editor-tool" data-ve-tool="volume"><i class="fas fa-volume-high" data-ve-volume-icon></i><span>${(globalThis.PlatformLanguage?.text("video-editor","m_c28ec04f0667fb","Audio") ?? "Audio")}</span></button>
-            <button type="button" class="fm-video-editor-tool" data-ve-add-text><i class="fas fa-font"></i><span>${(globalThis.PlatformLanguage?.text("video-editor","m_124287f184b88b","Text") ?? "Text")}</span></button>
+            <button type="button" class="fm-video-editor-tool" data-ve-tool="volume"><i class="fas fa-volume-high" data-ve-volume-icon></i><span>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_c28ec04f0667fb","Audio") ?? "Audio")}</span></button>
+            <button type="button" class="fm-video-editor-tool" data-ve-add-text><i class="fas fa-font"></i><span>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_124287f184b88b","Text") ?? "Text")}</span></button>
           </div>
           <div class="fm-video-editor-timeline">
-            <button type="button" class="fm-video-editor-play" data-ve-play aria-label="${(globalThis.PlatformLanguage?.text("video-editor","m_c997552a7cb8dd","Play or pause") ?? "Play or pause")}"><i class="fas fa-play"></i></button>
+            <button type="button" class="fm-video-editor-play" data-ve-play aria-label="${(globalThis.PlatformLanguage?.htmlText("video-editor","m_c997552a7cb8dd","Play or pause") ?? "Play or pause")}"><i class="fas fa-play"></i></button>
             <div class="fm-video-editor-time" data-ve-time>0:00 / 0:00</div>
             <div class="fm-video-editor-track" data-ve-track>
               <canvas data-ve-filmstrip></canvas>
@@ -296,9 +296,9 @@
             </div>
           </div>
           <div class="fm-video-editor-foot">
-            <div class="fm-video-editor-hint" data-ve-hint>${(globalThis.PlatformLanguage?.text("video-editor","m_8d18ba0d495cb2","Drag the white handles to trim. Add text, crop, rotate, or change speed, then save as a new clip.") ?? "Drag the white handles to trim. Add text, crop, rotate, or change speed, then save as a new clip.")}</div>
+            <div class="fm-video-editor-hint" data-ve-hint>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_8d18ba0d495cb2","Drag the white handles to trim. Add text, crop, rotate, or change speed, then save as a new clip.") ?? "Drag the white handles to trim. Add text, crop, rotate, or change speed, then save as a new clip.")}</div>
             <div class="fm-video-editor-foot-actions">
-              <button type="button" class="fm-video-editor-btn" data-ve-cancel>${(globalThis.PlatformLanguage?.text("video-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+              <button type="button" class="fm-video-editor-btn" data-ve-cancel>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
               <button type="button" class="fm-video-editor-btn primary" data-ve-save><i class="fas fa-floppy-disk"></i> ${String(escapeHtml(this.saveLabel))}</button>
             </div>
           </div>
@@ -761,7 +761,7 @@
       } else if (tool === 'volume') {
         bar.innerHTML = `
           <button type="button" class="fm-video-editor-chip${String(this.state.muted ? ' active' : '')}" data-ve-mute><i class="fas fa-volume-xmark"></i> ${String(this.state.muted ? 'Unmute' : 'Mute')}</button>
-          <label>${(globalThis.PlatformLanguage?.text("video-editor","m_5dcf36afbc163c","Volume ") ?? "Volume ")}<input type="range" min="0" max="1" step="0.05" value="${String(this.state.volume)}" data-ve-volume ${String(this.state.muted ? 'disabled' : '')}></label>`;
+          <label>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_5dcf36afbc163c","Volume ") ?? "Volume ")}<input type="range" min="0" max="1" step="0.05" value="${String(this.state.volume)}" data-ve-volume ${String(this.state.muted ? 'disabled' : '')}></label>`;
         bar.querySelector('[data-ve-mute]').addEventListener('click', () => {
           this.state.muted = !this.state.muted;
           this.video.muted = this.state.muted;
@@ -929,10 +929,10 @@
       }
       bar.hidden = false;
       bar.innerHTML = `
-        <input type="text" class="fm-video-editor-text-input" data-ve-text-value value="${String(escapeHtml(text.text))}" maxlength="120" placeholder="${(globalThis.PlatformLanguage?.text("video-editor","m_26c21323be63c8","Overlay text") ?? "Overlay text")}">
+        <input type="text" class="fm-video-editor-text-input" data-ve-text-value value="${String(escapeHtml(text.text))}" maxlength="120" placeholder="${(globalThis.PlatformLanguage?.htmlText("video-editor","m_26c21323be63c8","Overlay text") ?? "Overlay text")}">
         ${String(TEXT_COLORS.map((color) => `<button type="button" class="fm-video-editor-swatch${text.color === color ? ' active' : ''}" data-ve-text-color="${color}" style="background:${color}"></button>`).join(''))}
-        <label>${(globalThis.PlatformLanguage?.text("video-editor","m_1de443df83a86d","Size ") ?? "Size ")}<input type="range" min="0.03" max="0.16" step="0.005" value="${String(text.size)}" data-ve-text-size></label>
-        <button type="button" class="fm-video-editor-chip" data-ve-text-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("video-editor","m_09a65903b3217c"," Remove") ?? " Remove")}</button>`;
+        <label>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_1de443df83a86d","Size ") ?? "Size ")}<input type="range" min="0.03" max="0.16" step="0.005" value="${String(text.size)}" data-ve-text-size></label>
+        <button type="button" class="fm-video-editor-chip" data-ve-text-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_09a65903b3217c"," Remove") ?? " Remove")}</button>`;
       const input = bar.querySelector('[data-ve-text-value]');
       input.addEventListener('input', () => {
         text.text = input.value;
@@ -1084,10 +1084,10 @@
       this.exportOverlay.className = 'fm-video-editor-export';
       this.exportOverlay.innerHTML = `
         <i class="fas fa-clapperboard" style="font-size:26px;color:#94a3b8"></i>
-        <strong data-ve-export-label>${(globalThis.PlatformLanguage?.text("video-editor","m_1e73e3d186f159","Rendering video…") ?? "Rendering video…")}</strong>
+        <strong data-ve-export-label>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_1e73e3d186f159","Rendering video…") ?? "Rendering video…")}</strong>
         <div class="fm-video-editor-progress"><i data-ve-export-bar></i></div>
-        <span data-ve-export-detail>${(globalThis.PlatformLanguage?.text("video-editor","m_bc7e11e4421412","This happens right in your browser.") ?? "This happens right in your browser.")}</span>
-        <button type="button" class="fm-video-editor-btn" data-ve-export-cancel>${(globalThis.PlatformLanguage?.text("video-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
+        <span data-ve-export-detail>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_bc7e11e4421412","This happens right in your browser.") ?? "This happens right in your browser.")}</span>
+        <button type="button" class="fm-video-editor-btn" data-ve-export-cancel>${(globalThis.PlatformLanguage?.htmlText("video-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
       this.el.appendChild(this.exportOverlay);
       this.exportOverlay.querySelector('[data-ve-export-cancel]').addEventListener('click', () => this.cancelExport());
     }

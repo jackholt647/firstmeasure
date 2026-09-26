@@ -72,13 +72,13 @@
     overlay = document.createElement('div');
     overlay.id = OVERLAY_ID;
     overlay.innerHTML = `
-      <div class="fm-dev-panel" role="dialog" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_e90a6ca0f04bc7","Developer overlay") ?? "Developer overlay")}">
+      <div class="fm-dev-panel" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_e90a6ca0f04bc7","Developer overlay") ?? "Developer overlay")}">
         <div class="fm-dev-head">
           <div>
-            <h2 class="fm-dev-title">${(globalThis.PlatformLanguage?.text("platform","m_13a3e8ef637e73","Developer Overlay") ?? "Developer Overlay")}</h2>
-            <div class="fm-dev-sub">${(globalThis.PlatformLanguage?.text("platform","m_625c99f798a799","Testing harness for local Platform state. Shortcut: Ctrl+Alt+Shift+D.") ?? "Testing harness for local Platform state. Shortcut: Ctrl+Alt+Shift+D.")}</div>
+            <h2 class="fm-dev-title">${(globalThis.PlatformLanguage?.htmlText("platform","m_13a3e8ef637e73","Developer Overlay") ?? "Developer Overlay")}</h2>
+            <div class="fm-dev-sub">${(globalThis.PlatformLanguage?.htmlText("platform","m_625c99f798a799","Testing harness for local Platform state. Shortcut: Ctrl+Alt+Shift+D.") ?? "Testing harness for local Platform state. Shortcut: Ctrl+Alt+Shift+D.")}</div>
           </div>
-          <button type="button" class="fm-dev-close" data-dev-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          <button type="button" class="fm-dev-close" data-dev-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
         <div class="fm-dev-body" id="fmDevBody"></div>
       </div>
@@ -136,12 +136,12 @@
     const activeCount = users.filter((user) => !isDisabled(user)).length;
     setBody(`
       <div class="fm-dev-note">
-        <strong>${(globalThis.PlatformLanguage?.text("platform","m_6b5b2e232fcbf1","Sales team testing:") ?? "Sales team testing:")}</strong>${(globalThis.PlatformLanguage?.text("platform","m_442e5bb7f9a6a9"," disabling users writes ") ?? " disabling users writes ")}<code>${(globalThis.PlatformLanguage?.text("platform","m_fdef3188a04aba","status: disabled") ?? "status: disabled")}</code>${(globalThis.PlatformLanguage?.text("platform","m_8be0765431602e"," to the Platform users collection.\n        Scheduling ignores disabled users, so refresh after changes to test single-person versus team scheduling.\n      ") ?? " to the Platform users collection.\n        Scheduling ignores disabled users, so refresh after changes to test single-person versus team scheduling.\n      ")}</div>
+        <strong>${(globalThis.PlatformLanguage?.htmlText("platform","m_6b5b2e232fcbf1","Sales team testing:") ?? "Sales team testing:")}</strong>${(globalThis.PlatformLanguage?.htmlText("platform","m_442e5bb7f9a6a9"," disabling users writes ") ?? " disabling users writes ")}<code>${(globalThis.PlatformLanguage?.htmlText("platform","m_fdef3188a04aba","status: disabled") ?? "status: disabled")}</code>${(globalThis.PlatformLanguage?.htmlText("platform","m_8be0765431602e"," to the Platform users collection.\n        Scheduling ignores disabled users, so refresh after changes to test single-person versus team scheduling.\n      ") ?? " to the Platform users collection.\n        Scheduling ignores disabled users, so refresh after changes to test single-person versus team scheduling.\n      ")}</div>
       <div class="fm-dev-actions">
-        <button type="button" class="fm-dev-btn primary" data-dev-refresh>${(globalThis.PlatformLanguage?.text("platform","m_78973ce0cf3403","Refresh") ?? "Refresh")}</button>
-        <button type="button" class="fm-dev-btn" data-dev-enable-all>${(globalThis.PlatformLanguage?.text("platform","m_f534b48b6c2bc5","Enable all users") ?? "Enable all users")}</button>
+        <button type="button" class="fm-dev-btn primary" data-dev-refresh>${(globalThis.PlatformLanguage?.htmlText("platform","m_78973ce0cf3403","Refresh") ?? "Refresh")}</button>
+        <button type="button" class="fm-dev-btn" data-dev-enable-all>${(globalThis.PlatformLanguage?.htmlText("platform","m_f534b48b6c2bc5","Enable all users") ?? "Enable all users")}</button>
       </div>
-      <div class="fm-dev-note">${((v0,v1) => globalThis.PlatformLanguage?.text("platform","m_d1a9f6cf8afe5f",`${v0} active user${v1} in org `,{v0,v1}) ?? `${v0} active user${v1} in org `)(activeCount,activeCount === 1 ? '' : 's')}<code>${String(escapeHtml(orgId()))}</code>.</div>
+      <div class="fm-dev-note">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("platform","m_d1a9f6cf8afe5f",`${v0} active user${v1} in org `,{v0,v1}) ?? `${v0} active user${v1} in org `)(activeCount,activeCount === 1 ? '' : 's')}<code>${String(escapeHtml(orgId()))}</code>.</div>
       ${String(users.map((user) => `
         <div class="fm-dev-row">
           <div>
@@ -151,7 +151,7 @@
           <span class="fm-dev-pill ${isDisabled(user) ? 'disabled' : ''}">${isDisabled(user) ? 'Disabled' : 'Active'}</span>
           <div class="fm-dev-actions">
             <button type="button" class="fm-dev-btn" data-dev-toggle="${escapeHtml(user.id)}">${isDisabled(user) ? 'Enable' : 'Disable'}</button>
-            <button type="button" class="fm-dev-btn" data-dev-solo="${escapeHtml(user.id)}">Solo</button>
+            <button type="button" class="fm-dev-btn" data-dev-solo="${escapeHtml(user.id)}">${(globalThis.PlatformLanguage?.htmlText("platform","m_6f00fe3f2607af","Solo") ?? "Solo")}</button>
           </div>
         </div>
       `).join(''))}
@@ -176,7 +176,7 @@
   }
 
   async function refresh(){
-    setBody(`<div class="fm-dev-note">${(globalThis.PlatformLanguage?.text("platform","m_04a0edc9e3c3b4","Loading users...") ?? "Loading users...")}</div>`);
+    setBody(`<div class="fm-dev-note">${(globalThis.PlatformLanguage?.htmlText("platform","m_04a0edc9e3c3b4","Loading users...") ?? "Loading users...")}</div>`);
     try {
       renderUsers(await listUsers());
     } catch (error) {

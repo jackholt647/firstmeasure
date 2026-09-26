@@ -73,7 +73,9 @@
     "m_4f524800833039": " Refresh",
     "m_d220fd8b0204c9": " App",
     "m_0d3ee333048643": "Refresh failed",
-    "m_5998d9f05fec0a": "Canvassing unavailable"
+    "m_5998d9f05fec0a": "Canvassing unavailable",
+    "m_c97dbb6c0270fb": "Create Lead",
+    "m_4fc60207629a44": "Delete"
   },
   "channels": {
     "m_15c39359df33c7": "Conversation window",
@@ -149,7 +151,31 @@
     "m_e195500186cfc6": "Ask about any conversation across email, texts, and chat — or ask me to draft replies and book appointments.",
     "m_4a042d7afc906b": "Comms AI",
     "m_da993921863718": "Close AI sidebar",
-    "m_48227f599c3b37": "Ask across every inbox…"
+    "m_48227f599c3b37": "Ask across every inbox…",
+    "m_7dda15c6130ec4": "Open the full page snapshot",
+    "m_9449db765fed60": {
+      "message": "Snapshot of the {v2} page",
+      "format": "icu"
+    },
+    "m_988ee1f492eadd": " Suggest reply",
+    "m_968c5927fb7bbe": " Polish draft",
+    "m_aaebd7ccba0b30": "Project",
+    "m_507ae57ed3fadd": "Not linked to a project.",
+    "m_edde92f52694e3": "Linked CRM contact",
+    "m_18b3c5f568522e": "Verified portal customer",
+    "m_cd4f4ce4ad9196": "Viewing now",
+    "m_bd729b58b6893c": {
+      "message": "{v1} • {v2} messages",
+      "format": "icu"
+    },
+    "m_49ebc2dd5098c0": "None from this visitor.",
+    "m_910ec381effe5e": "Possibly the same visitor",
+    "m_fe8a5736f9bbac": "Ask AI",
+    "m_0d8180a62bfe82": "Working…",
+    "m_56327b9c55c17c": {
+      "message": "Same network • last seen {v1}",
+      "format": "icu"
+    }
   },
   "checklists": {
     "m_892c2703c8b0d7": "Complete item",
@@ -249,7 +275,32 @@
     "m_acae62bc1e44fc": "Checklist item",
     "m_ce722f06631579": "Enter an item title.",
     "m_3dd0af0b6f7be5": "Delete this checklist item?",
-    "m_4890d3d11dc3eb": "Checklists"
+    "m_4890d3d11dc3eb": "Checklists",
+    "m_16bae870307854": "A note is required before this item can be marked bad.",
+    "m_118dadd0134a17": " Photos",
+    "m_541ac1617a8425": " Videos",
+    "m_dc154253e89b9b": {
+      "message": "{v2}/1 attached",
+      "format": "icu"
+    },
+    "m_e03dcbe5245216": {
+      "message": "{v0}/1 attached",
+      "format": "icu"
+    },
+    "m_8ff6951a5684a0": " Record audio",
+    "m_94594916e042ac": "No evidence attached yet.",
+    "m_5f680e6eb92fdb": {
+      "message": " Deleted {v0}",
+      "format": "icu"
+    },
+    "m_ba4c0181dbbab5": "Everyone",
+    "m_14b5d0674601b3": "Scope filters",
+    "m_ef04a14ddff020": "Additional filters are inherited from the scope definition.",
+    "m_60869a53c82d79": "Loading types…",
+    "m_e35d44ebe92c7e": "Loading people…",
+    "m_0559904744409b": "No eligible people found",
+    "m_274d5307ddcfc4": "Create the list with just your voice.",
+    "m_2d8f75a3258628": "Create the list with just your voice"
   },
   "comms": {
     "m_f6ab2f58b94a8e": "Customer call workspace",
@@ -466,7 +517,166 @@
     "m_fce6f5da417d22": {
       "message": "Restore the previous voice route for {v0}? SMS and number ownership are preserved.",
       "format": "icu"
-    }
+    },
+    "m_0594685d991928": "Check provider status",
+    "m_c27c615bb5fb5f": {
+      "message": "{v0} could not finish. Your call record is saved. ",
+      "format": "icu"
+    },
+    "m_6bf817428776f2": "Retry saved work",
+    "m_0675e6689d03c4": {
+      "message": "{v0} Answer",
+      "format": "icu"
+    },
+    "m_0bba16c1fd1444": "Decline",
+    "m_9dd0f47c454eb7": "Consultation in progress. The customer is on hold with your teammate.",
+    "m_61a1d24eba2d59": "Leave consultation",
+    "m_a5d2ced26e1d6f": {
+      "message": "{v8} Keypad",
+      "format": "icu"
+    },
+    "m_63420f2e9bb582": {
+      "message": "{v10} Transfer",
+      "format": "icu"
+    },
+    "m_121a37c1f0d952": {
+      "message": "{v11} End call",
+      "format": "icu"
+    },
+    "m_d29bbd8b50abe3": {
+      "message": "{v0} Project",
+      "format": "icu"
+    },
+    "m_1ba8da8140fc77": {
+      "message": "{v1} Schedule",
+      "format": "icu"
+    },
+    "m_b1ce44f713880b": {
+      "message": "{v2} Message",
+      "format": "icu"
+    },
+    "m_d6f0ce6293e8d9": {
+      "message": "{v0} Link project",
+      "format": "icu"
+    },
+    "m_71ef1099bbe0fc": "Stop recording",
+    "m_9aa1bceb154d29": "External phone keeps your lists, scripts, notes, and follow-ups together. It does not record audio or measure call duration.",
+    "m_4b023574d976a1": {
+      "message": "Open {v1} in your phone app",
+      "format": "icu"
+    },
+    "m_d885eb7f0cdaa0": "Call notes ",
+    "m_d59c66e54984e5": "What happened? Capture decisions, concerns, and next steps.",
+    "m_8b5406d39b44c7": "Refresh appointments",
+    "m_aa5c78e69f24d8": "Saving the outcome and updating linked work…",
+    "m_80ad5d823ed757": "Skip for now",
+    "m_6b7aea73ef8d46": "Save outcome",
+    "m_db479b7b19a749": "Next contact",
+    "m_f15ce71ba3db6f": "Recording & transcript",
+    "m_d9605e0a2440b7": "AI drafts waiting for review",
+    "m_5efa8e436e84a7": "No communications on this project yet.",
+    "m_2de5206655064d": {
+      "message": "{v4} message{v5}",
+      "format": "icu"
+    },
+    "m_4aeca6bca783d6": "No email threads yet.",
+    "m_7dda15c6130ec4": "Open the full page snapshot",
+    "m_9449db765fed60": {
+      "message": "Snapshot of the {v2} page",
+      "format": "icu"
+    },
+    "m_86ab4afbbbb82b": "Dictate",
+    "m_25af8c4f012bc1": "No text threads yet.",
+    "m_ceb00ee26ffd50": "No messages match that search.",
+    "m_de3e46c965f4d6": "Ask anything about this project’s communications — or ask me to reply, schedule, or follow up.",
+    "m_9b382173066415": "AI for this project",
+    "m_f21cbc2e6a63ee": "Project-specific instructions, e.g. “Customer prefers texts, never call before noon.”",
+    "m_6ad499fc7305f0": "Email in",
+    "m_d06e1f42fcf0c7": "Text in",
+    "m_eb57b9fe518a5c": {
+      "message": "Search {v0}…",
+      "format": "icu"
+    },
+    "m_f45808974d5c6c": {
+      "message": "Search {v2}",
+      "format": "icu"
+    },
+    "m_ba4c0181dbbab5": "Everyone",
+    "m_b67cf521d59f4e": "Assigned to me",
+    "m_86e8933389c299": "Filter communications",
+    "m_40cff21caa1d37": {
+      "message": "{v5} · {v6} attempts{v7}",
+      "format": "icu"
+    },
+    "m_b8709b1e358b5b": {
+      "message": "{v1} Call",
+      "format": "icu"
+    },
+    "m_27136d1254783a": "Open project",
+    "m_311782bd3f826d": {
+      "message": "Open call with {v9}",
+      "format": "icu"
+    },
+    "m_6bbb7fa896d95e": "Disconnect",
+    "m_29c001bf32675e": "Connect phone",
+    "m_7e2b833eb93e72": {
+      "message": "API key {v1}",
+      "format": "icu"
+    },
+    "m_c44348f334815f": {
+      "message": "Webhook {v3}",
+      "format": "icu"
+    },
+    "m_48df9cc7d2597f": "Disconnect voice",
+    "m_f40a10e6605e49": "Connect an existing Telnyx number owned by your organization.",
+    "m_87b6348e540fe4": {
+      "message": "Move {v3} earlier",
+      "format": "icu"
+    },
+    "m_652b4c40c034df": {
+      "message": "Move {v5} later",
+      "format": "icu"
+    },
+    "m_e39395bde94565": "to",
+    "m_dafd667b9462d6": {
+      "message": "{v3} opening time",
+      "format": "icu"
+    },
+    "m_71fcc7bfe28d9c": {
+      "message": "{v6} closing time",
+      "format": "icu"
+    },
+    "m_bb149956784ab5": {
+      "message": "{v0} {v1} · {v2} billed legs",
+      "format": "icu"
+    },
+    "m_375702deaa1da5": "Review call",
+    "m_5a654ad9b6d2e3": "Appointment",
+    "m_465e01a14d53fd": {
+      "message": "Linked work ({v0})",
+      "format": "icu"
+    },
+    "m_759c2a8bdbdc02": "Select only the obligations this call resolves.",
+    "m_cfbb844d8f17be": {
+      "message": "Follow up with {v0}",
+      "format": "icu"
+    },
+    "m_84873f911741da": {
+      "message": "Follow-up: {v0} · {v1}",
+      "format": "icu"
+    },
+    "m_2c58f3119aa8a0": {
+      "message": "Drafted {v1} reply",
+      "format": "icu"
+    },
+    "m_54fe29d1908de6": "Dismiss",
+    "m_c0888d774a9fc5": "Auto-reply: company default",
+    "m_d398221c829b80": "Auto-reply: off for this project",
+    "m_4fa2295071335a": "Auto-reply: draft for review",
+    "m_ff3f10c06cefde": "Auto-reply: send automatically",
+    "m_54e60445f18e2e": "Needs wrap-up",
+    "m_b5fb8bf1811355": "Skipped this session",
+    "m_5c4af3e82b50ff": "Linked follow-up"
   },
   "contacts": {
     "m_bdd2018a2c9640": {
@@ -521,7 +731,11 @@
     },
     "m_86ecafe542db8d": "Loading projects...",
     "m_3d87fe0f297c41": "No projects are linked to this contact yet.",
-    "m_27136d1254783a": "Open project"
+    "m_27136d1254783a": "Open project",
+    "m_69337ba9a988cf": {
+      "message": "Remove tag {v2}",
+      "format": "icu"
+    }
   },
   "crew": {
     "m_b0bb1e74e2a6d3": "Review",
@@ -710,7 +924,39 @@
     "m_3dd0af0b6f7be5": "Delete this checklist item?",
     "m_d8d2e84c5e4d8b": "Visit",
     "m_5842802f6c8cbb": "Payments",
-    "m_4890d3d11dc3eb": "Checklists"
+    "m_4890d3d11dc3eb": "Checklists",
+    "m_007c1319e7f391": "Before you finish",
+    "m_24724e052f3eaf": " Log hours",
+    "m_7d9240ca995f28": "Still needs attention",
+    "m_4eb5305d6a5157": {
+      "message": "{v0} overdue",
+      "format": "icu"
+    },
+    "m_ee019548f0f938": "Upload receipts",
+    "m_40206ff6752102": "Mixed formats supported",
+    "m_cd5157f3b879c4": " Take photo",
+    "m_b8cff41364db04": " Choose files",
+    "m_c023f5308157d7": "Showing the newest payroll records. Choose a narrower date range to review older earnings.",
+    "m_bdafd7318e7a2b": "Deliveries",
+    "m_106189435c8ab8": "No items yet.",
+    "m_089095261636d7": "Include item",
+    "m_05f179e4bf5630": "Item description",
+    "m_70e19044e29070": "Item total",
+    "m_4e17cec39aa192": "No line items were found. You can still keep the receipt and add items manually.",
+    "m_bfcaea81bcc4ed": {
+      "message": "{v1} &middot; {v2}",
+      "format": "icu"
+    },
+    "m_16bae870307854": "A note is required before this item can be marked bad.",
+    "m_e05fb49213187a": "Record",
+    "m_4560726249d4c1": "How was this paid?",
+    "m_d20774f2762b5c": "Company card — no reimbursement",
+    "m_d1c49c6ea46580": "Personal funds — request reimbursement",
+    "m_db332aed2a2790": "Project (optional)",
+    "m_ca5b642c8cc4c2": "Office / unassigned",
+    "m_63b99552978591": "Note (optional)",
+    "m_3d7a838b7b1fce": "What was purchased and why?",
+    "m_4b012fc82f667a": "Sign & pay"
   },
   "customer-portal": {
     "m_fc865c9558abcb": "Preview unavailable",
@@ -765,7 +1011,396 @@
     "m_45f01ee4eaf862": "Customer portal media sharing is disabled for this organization.",
     "m_61f3d0db590ab0": "Customer Portal",
     "m_929b0824765a0f": "Share only the project information and media this customer should be able to see.",
-    "m_e6d980684bc615": "Customer portal sections"
+    "m_e6d980684bc615": "Customer portal sections",
+    "m_b59a8704909b48": "Thanks for your feedback!",
+    "m_d96baabfa23bb5": "We appreciate you taking the time to share how we did.",
+    "m_aaebd7ccba0b30": "Project",
+    "m_9dabc5bf3cc45f": {
+      "message": "Project {v1} of {v2}",
+      "format": "icu"
+    },
+    "m_7c3f944e31579f": {
+      "message": "{v0}\n\nContinue with this payment?",
+      "format": "icu"
+    },
+    "m_d7c7704979ef7e": "For",
+    "m_3742924668fb10": "Close",
+    "m_1e72217cf350a0": "To do",
+    "m_6f3dd34cc86d1a": "No documents have been shared yet.",
+    "m_27faa26cc36a51": "Open PDF",
+    "m_2f5ece5412be45": "Loading document...",
+    "m_b6143b01996f97": "Change selections",
+    "m_4944e59816b60a": "Download PDF",
+    "m_1552b0ceca5d2f": "Loading your next step...",
+    "m_29e9e478faa698": "This workflow is unavailable right now.",
+    "m_8db10c474f07bf": "We could not display this document. Try the PDF download instead.",
+    "m_53a041bcb32505": "This page is no longer available.",
+    "m_9e40e28f8f02bf": "Loading page...",
+    "m_953902899d3492": "Loading additional content...",
+    "m_c5de8ef577c35b": "Additional project information",
+    "m_d14cee5bf47399": "This page could not be displayed.",
+    "m_eeea87e651d027": "We could not display this page.",
+    "m_3aa492a028ffec": {
+      "message": "{v0} starts",
+      "format": "icu"
+    },
+    "m_6c90b1263e9718": {
+      "message": "{v0} ends",
+      "format": "icu"
+    },
+    "m_9b03ccb29ba168": "Summary",
+    "m_fc05a804bd034c": "Schedule",
+    "m_be4cfb58b9c4d7": "Photos",
+    "m_4890d3d11dc3eb": "Checklists",
+    "m_3129f3f0e39249": "Proposals",
+    "m_5842802f6c8cbb": "Payments",
+    "m_5d7c7ad6033624": "Documents",
+    "m_83e0a1f309f1da": "Your List",
+    "m_cbf335f6f216cb": "There are no customer checklists for this project.",
+    "m_3a4227555210a4": "Project checklists",
+    "m_fa42021034be38": "Review project requirements and complete any items assigned to you.",
+    "m_40810d498e9130": {
+      "message": "{v0} item{v1}",
+      "format": "icu"
+    },
+    "m_fc1e961a30dda0": {
+      "message": "Your {v1}",
+      "format": "icu"
+    },
+    "m_f6b7da8a87b6f1": {
+      "message": "{v2} shared",
+      "format": "icu"
+    },
+    "m_95fc1f316a2ff0": "Remove from your portal",
+    "m_8c81124e22a7c7": "There is nothing for you to review right now.",
+    "m_c807a71e1c06f5": "Add",
+    "m_aaa2ee703d7129": " Note",
+    "m_41e6541f249367": " Photo\n            ",
+    "m_e4d3be6cbd9935": " Voice note",
+    "m_3258349622fb52": "What still needs attention?",
+    "m_482a59f0ab071d": "Add a note — what and where, so we know exactly what you mean",
+    "m_dfee3e11e94a69": "Photo required",
+    "m_ade220f511614f": "Completed by your project team",
+    "m_8d4c4c8ca31676": "Attach a photo or video",
+    "m_bb95b36b4a2d24": "Record a voice note",
+    "m_79a02ecd535f66": "Remove item",
+    "m_47b529f4d0d67c": "Sign by typing your full name",
+    "m_ed127afed23720": " Typing your name here acts as your electronic signature.",
+    "m_cbef679b21abb4": "Cancel",
+    "m_2d2dbe7ed3c8d7": "Your full name",
+    "m_3ea0f07c7208c2": "Remove attachment",
+    "m_c14c496968828b": "Remove this file from your portal? Your team will still have the copy you sent.",
+    "m_e54fc1b3a14807": "Comments",
+    "m_ab7ec8db303996": "Signed",
+    "m_e685fe954b1758": "Expired",
+    "m_5a654ad9b6d2e3": "Appointment",
+    "m_9acd909e2fe732": "Project work",
+    "m_b73185deef6d79": "Delivery",
+    "m_bbc23b96fbceb8": "Estimated completion",
+    "m_2813f320a63b94": "Equipment",
+    "m_d0a9ffb325f8e6": "Schedule item",
+    "m_3c4d2141b2fa1c": "Completed",
+    "m_9863f11d60b2fa": "Cancelled",
+    "m_849879a8ce169d": "Estimated",
+    "m_2ac28976b8db5d": "Confirmed",
+    "m_6abe57e6a307d5": "Scheduled",
+    "m_cfdfd98281fe33": "Reschedule",
+    "m_9d34bd5770c394": "Change requested",
+    "m_930abf685ff598": {
+      "message": "{v0} · Waiting for your project team",
+      "format": "icu"
+    },
+    "m_e8d22a9dc42a20": "View details",
+    "m_43067df3130286": "Your crew",
+    "m_c363847b614349": "Note from your project team",
+    "m_cf9de2133057c7": "No shared schedule items yet",
+    "m_f663bd7bdd9738": "Your project team will add appointments, work dates, and deliveries here when they are ready to share.",
+    "m_d3ce763a1f0c3c": {
+      "message": "{v2} {v3} completed item{v4}",
+      "format": "icu"
+    },
+    "m_7ec6b5fa6e6101": "Nothing else is scheduled right now",
+    "m_d4221c855ab72e": "Your project team will add new dates here as they are booked.",
+    "m_8aa1e8a45b3645": "Your project schedule",
+    "m_65859ed0b87a92": "Appointments, work dates, deliveries, and milestones shared with you by the project team.",
+    "m_a252dca8e10e56": "Live availability",
+    "m_b7d09c4268b709": "Select a day and time",
+    "m_dab29091546ce2": {
+      "message": "{v0} is currently {v1}.",
+      "format": "icu"
+    },
+    "m_dd0c616953d455": "&times;",
+    "m_536cb6c5df6ea4": "Close rescheduling",
+    "m_1d8655e967c464": "Proposal",
+    "m_1ac05f4d4b72bb": "This proposal does not have visible pages yet.",
+    "m_c5c6ef59360f85": "proposal",
+    "m_4179d6a52dbc38": "Enter your full legal name first.",
+    "m_d7e234c292fbdf": "Draw your signature first.",
+    "m_4f18ff488f2b1a": "Proposal payment",
+    "m_a14cd2f6e65048": "Total proposal",
+    "m_fff5ed13d61dc6": "Payment type",
+    "m_e2f600c5c92df9": "Download Invoice",
+    "m_a59fd86ded6b33": "On-site Appointment",
+    "m_6a3f8bad875169": {
+      "message": "Waiting for proposal from {v0}",
+      "format": "icu"
+    },
+    "m_136ea8d1e76d4e": "Review Proposal",
+    "m_e4071e980bc3be": "Sign Proposal",
+    "m_0ce46f50b62634": "Waiting to Schedule Work",
+    "m_07731eeca61b2c": "Next Steps",
+    "m_439013dd427ec5": "All steps completed",
+    "m_1c0a2df5e45970": {
+      "message": "Deposit paid and document complete. {v0}",
+      "format": "icu"
+    },
+    "m_894309a0cbf8a4": "Deposit",
+    "m_e0c8002adc5c4c": {
+      "message": "{v0} past payment{v1}",
+      "format": "icu"
+    },
+    "m_e9bdfa04394498": "Past Payments",
+    "m_e1c61a4a8eafe5": "Upcoming Payments",
+    "m_d1a9c20cfd1c38": "Proposal renderer",
+    "m_d9a8c9c7287681": "Pricing",
+    "m_9403c7637d4905": "Total",
+    "m_23bdcfd5ce7509": "Authorization",
+    "m_3f1d84e4324628": "Terms",
+    "m_61509e0741be13": "Prepared For",
+    "m_cb120770e6931f": "Prepared By",
+    "m_2a0b11100c22a4": "Date",
+    "m_709d4ebff0e0da": "Tap to Sign",
+    "m_fd7326e5624473": "Terms and Conditions",
+    "m_61e1bda0af7448": "Project Summary",
+    "m_e8e493437c1a17": "Complete",
+    "m_42a79e2410d827": "All steps have been completed.",
+    "m_329ac9c65a8d4f": "Deposit Required",
+    "m_820584a42a2392": "Your document is complete. Pay the required deposit now, or choose pay later and return to this portal when ready.",
+    "m_2fc5623e2a7511": "Subtotal",
+    "m_265aee5b3f6c36": "Sales tax",
+    "m_965e02232118b4": "Deposit due now",
+    "m_d25cd157a5f668": "Pay later",
+    "m_c0dfc541f509df": "Action needed",
+    "m_5027e872187e98": "Review and Sign",
+    "m_46a6d933f18958": "Full legal name",
+    "m_3596ea9d43e3fe": "Adopt Signature",
+    "m_7b01fd6e01b114": "Sign Current Location",
+    "m_be7d5cd4b892cc": "Complete Document",
+    "m_816925f7bf0230": "Type your name",
+    "m_871659bb2df660": "Download",
+    "m_441fd948b74354": "Print",
+    "m_540960bbc1cecc": "Project Total",
+    "m_3b5499286714d1": "Proposal options",
+    "m_2d0d8d9462a4bf": {
+      "message": "Choose {v0}",
+      "format": "icu"
+    },
+    "m_006a6357c44020": {
+      "message": "Sign Location {v0}",
+      "format": "icu"
+    },
+    "m_c9757e72b2461d": "Deposit Payment",
+    "m_3c318c8d1f9b1a": "Timeline",
+    "m_aa6a24e15dfc1d": "Proposal document",
+    "m_474c1095f06ee2": "ACH payment",
+    "m_8506755b32ab8f": "Account holder name",
+    "m_308a9ca41691ca": "Routing number",
+    "m_a2ee1cfe84c2c3": "Account type",
+    "m_8f2aa52d7e253b": "Checking",
+    "m_5b503699d80ad2": "Savings",
+    "m_b028fb8bb8ac0a": "Account number",
+    "m_3e51d57ae99ede": "Confirm account",
+    "m_2c721c4e180145": "I authorize this ACH debit from the bank account above for the payment amount shown.",
+    "m_abd8f8fbf164f0": "Run Mock ACH",
+    "m_4fce17318219ed": "Jordan Smith",
+    "m_b1011e3f2fdec3": "4-17 digits",
+    "m_ec1fbf411120da": "Retype account",
+    "m_997bb5a9e56d22": "Card payment",
+    "m_3a7bcfa366c064": "Name on card",
+    "m_cbbfb3da2ddfde": "Card number",
+    "m_95af41e20221e6": "Expiration",
+    "m_7e7759fb0c36df": "CVC",
+    "m_37e7c561258701": "Billing ZIP",
+    "m_d3dceece330aad": "Run Mock Card",
+    "m_65c801480ef4cc": "MM",
+    "m_4cbe3961dabf19": "YY",
+    "m_efee8a08306ce6": "Payment schedule",
+    "m_c433668bcc52bd": {
+      "message": "Processing {v0}...",
+      "format": "icu"
+    },
+    "m_4ebcfc3178def9": "Please keep this window open while the payment is authorized.",
+    "m_44d5a64ac2cb37": "Email receipt",
+    "m_e8132bd7b152df": "You can always download the paid invoice from the payments tab in the customer portal.",
+    "m_fb8bbfd84024fc": "Email receipt to",
+    "m_121372231b5699": "Back",
+    "m_95239266490f34": "Send Receipt",
+    "m_f76567c2a072ff": "Payment went through",
+    "m_e2efa10c479b61": {
+      "message": "Paid invoice {v0} for {v1} is ready.",
+      "format": "icu"
+    },
+    "m_e68bac6d7f6b86": "Email Receipt",
+    "m_8cb6b086a0e69c": "Done",
+    "m_775452a1b021e2": {
+      "message": "{v0} due now",
+      "format": "icu"
+    },
+    "m_255a20d5b0faf6": {
+      "message": "Total proposal {v2}",
+      "format": "icu"
+    },
+    "m_5d0e8d2336b9f7": "Rename checklist item",
+    "m_99a5678d0457d5": {
+      "message": "Remove \"{v0}\" from this checklist?",
+      "format": "icu"
+    },
+    "m_1b25feb43c2ac7": "Secure sharing",
+    "m_ae859d82d60e2f": "Share this portal",
+    "m_9a539416db22b5": "Create a separate read-only link you can revoke at any time.",
+    "m_be36a6c37ec133": "Active links",
+    "m_8676752f96a9e1": {
+      "message": "{v0} active",
+      "format": "icu"
+    },
+    "m_f0961726127fd4": "New link",
+    "m_3f7a95b3e0ac2d": "Revoke access for this shared link? Anyone using it will be blocked immediately.",
+    "m_46c8aea84388c3": "Contact",
+    "m_ed04c65845180f": "Phone",
+    "m_54e5b0a0f75f6f": {
+      "message": "{v0} - Customer Portal",
+      "format": "icu"
+    },
+    "m_46ba04ea07c935": "Customer portal",
+    "m_9bc843cc6db724": "DL",
+    "m_881cec332c3933": "Portal unavailable",
+    "m_45c67f3cceb08b": "Revoke",
+    "m_66e820442a227d": "No active guest links.",
+    "m_f1a62c3e12aeb7": "Syncing...",
+    "m_d0dd61f9c0e1d2": "Ready",
+    "m_c0e1c0020eb1c5": "Checklist",
+    "m_73b4896766269d": "Customer can edit items",
+    "m_59839e02479775": {
+      "message": "Voice: {v0}",
+      "format": "icu"
+    },
+    "m_f35187c447e727": " Update with voice",
+    "m_f57dd121e0c901": {
+      "message": "{v1} item",
+      "format": "icu"
+    },
+    "m_c0db38fc6a92a6": {
+      "message": "Completed {v0}{v1}",
+      "format": "icu"
+    },
+    "m_22f99c71c3518b": "Rename item",
+    "m_5bab3e72de1ebf": "Save",
+    "m_dd30440abc8a5f": {
+      "message": "Add an optional note{v0}",
+      "format": "icu"
+    },
+    "m_e4575c3afa82e7": {
+      "message": "{v0} attachment{v1}",
+      "format": "icu"
+    },
+    "m_515c843668de04": "This checklist does not have any items yet.",
+    "m_4d801afb3ef0c9": "Add item",
+    "m_8df519ddf54757": "Add a checklist item",
+    "m_136464fd464ca5": "No photos or videos have been shared yet.",
+    "m_1592c59e8f4105": "View all photos",
+    "m_2582ee52db69a8": {
+      "message": "You have not shared any {v0} yet.",
+      "format": "icu"
+    },
+    "m_ba84599d22236c": {
+      "message": "Add {v1}",
+      "format": "icu"
+    },
+    "m_c0b9222208da40": {
+      "message": "{v0} of {v1} items",
+      "format": "icu"
+    },
+    "m_6daba3159863bd": "No comments yet.",
+    "m_a1fae7010dc311": "Post",
+    "m_5f653f8674d42f": "Add a note about this photo",
+    "m_408fc41eaeca5e": "No proposals have been shared yet.",
+    "m_8909a45759c871": "Open proposal viewer",
+    "m_a82b0c04ed7c6d": "About estimated dates",
+    "m_3c2ce151ddfa49": "Completion dates are estimates and may change as work progresses, materials arrive, or site conditions are evaluated.",
+    "m_7554582861da00": "Checking the team's schedule...",
+    "m_a0ddbb329b8073": "We account for crew capacity, travel, and existing appointments.",
+    "m_cf5da3d176fd45": "No times are currently available.",
+    "m_592a85bf276861": "Please contact the project team and they will help find a time.",
+    "m_572a7eddc49d5d": "Available times",
+    "m_200b9625435cb9": {
+      "message": "{v6} option{v7}",
+      "format": "icu"
+    },
+    "m_e00042c00a517d": "Available appointment days",
+    "m_72aab2b513b1bb": "Previous month",
+    "m_5f5bc76acbb8de": "Next month",
+    "m_cd2ba3a3109e4c": "Payments Due",
+    "m_2b8c3448fa87a1": "Amount",
+    "m_d0f1699dbcd6a5": "Payment",
+    "m_aef512969e5846": "Past payments will appear here after payment.",
+    "m_3dac4d5769efeb": "Due",
+    "m_67a787a69b32eb": "No upcoming payments are listed yet.",
+    "m_4ac63021b2f118": "No line items are listed.",
+    "m_2623cdf12d340d": "Please review and sign where indicated to approve this proposal.",
+    "m_43de2cbe4e2d92": "Terms and conditions are included with this proposal.",
+    "m_4b755562a3aeb3": "Your signature",
+    "m_2e88df13ca7101": "Type",
+    "m_aef70f7de91a93": "Draw",
+    "m_a681bd2aa1a02e": "Typed signature",
+    "m_8bc981b41d852c": "Clear drawing",
+    "m_d85aa8eaad2c33": "Signature method",
+    "m_713a36d7bac43c": "Draw signature",
+    "m_6ee93b46bc2e99": "Payment approved",
+    "m_728fb7f31e01d1": "Receipt sent.",
+    "m_8ba0c3ca97c22e": "No active shared links yet. Create one below.",
+    "m_37c79388722d91": "Every shared link is read-only and can be revoked at any time.",
+    "m_3a40524c98ef0c": "What can they see?",
+    "m_4a787b188bf71f": "Full portal view",
+    "m_74c1e9e812db22": "Home overview, next steps, schedule, photos, and shared checklists",
+    "m_ca88698f97c379": "Project updates",
+    "m_54d132dbe479fd": "Schedule and project photos only",
+    "m_a732f0e6f2ff31": "Photos only",
+    "m_293ea1f0357b3f": "Only photos and videos shared by your project team",
+    "m_b7df67ad2e041b": "Who is this for?",
+    "m_eeb6aeb8f8e837": "Link expires",
+    "m_35304e673f218d": "Never",
+    "m_3360960154af20": "In 7 days",
+    "m_4f5de1560523f2": "In 30 days",
+    "m_6a09d6fe97cbe5": "In 90 days",
+    "m_ea94057aa2a5e7": "In 1 year",
+    "m_15b3e5ee9b709c": "Preview Mode",
+    "m_7090eed673e7f9": "Shared read-only view",
+    "m_fafa5cd97e183b": "Share portal",
+    "m_c92214e41976a3": "&lt;",
+    "m_6d53ddeac23dcc": "&gt;",
+    "m_bb31fd73cbfe3b": "Previous",
+    "m_5e03a7c216f500": "Next",
+    "m_5f5fdaa335973b": {
+      "message": "Describe this {v0}",
+      "format": "icu"
+    },
+    "m_f8954a5cc7e32f": {
+      "message": "{v0} slot{v1}",
+      "format": "icu"
+    },
+    "m_45aa9c3e173f6b": "Pay Now",
+    "m_96c4ad96a3b2dc": "Link ready",
+    "m_c25cc66b28cc9d": "Open",
+    "m_db7262351f2b24": {
+      "message": "Link for {v1}",
+      "format": "icu"
+    },
+    "m_19156e80fc8a6e": "Projects",
+    "m_ab9ea00a86d35b": "Only this project",
+    "m_eb7c8d245a5259": {
+      "message": "All {v0} projects",
+      "format": "icu"
+    }
   },
   "docs": {
     "m_fc54001a0cc000": "Receipts",
@@ -817,7 +1452,8 @@
     "m_96834d2fc9c9a5": "New",
     "m_4e93753901b18e": "New document",
     "m_87d1844aa0e8e0": "Project Docs",
-    "m_e1f126038d5b27": "Docs"
+    "m_e1f126038d5b27": "Docs",
+    "m_150d3abea54c2f": "Workflows"
   },
   "documents": {
     "m_939ec72e8123ba": "Dictate into document",
@@ -1391,7 +2027,88 @@
     "m_74ad498594c0ac": "Initial inputs (JSON)",
     "m_bf364e4e682d22": "Save scope version",
     "m_bbad3c5157576d": "Entire plan",
-    "m_9d5f6a454749fd": "Scope version saved. New plans use this version."
+    "m_9d5f6a454749fd": "Scope version saved. New plans use this version.",
+    "m_77f0e7c9e9d01d": " These measurements drive this document’s line-item pricing:",
+    "m_ebfc9ac0d87754": "No measurements yet. Load them from the project, or paste JSON.",
+    "m_687e1653230514": " Clear",
+    "m_13991f0e0abcf7": "No payment schedule. Add milestones, or use the quick preset.",
+    "m_9ca9dace4f122f": " Upload",
+    "m_ce16922c5208b8": "Void",
+    "m_813b8ed311685d": "Uploaded document",
+    "m_a455a7684d29a0": "The original file preview is unavailable.",
+    "m_fec4097d4bf7d9": " Open original",
+    "m_bca8cdb5e1c6ee": "No fields yet — add the ones this contract should capture.",
+    "m_190d905262b4b5": " Signed on paper",
+    "m_538911e46eb471": " Not signed",
+    "m_460ba393b619a1": "Signer name",
+    "m_76cc5b3407a65a": "This document has no signature fields.",
+    "m_a213af3a6be2cc": " Confirm &amp; apply",
+    "m_8c43f5efc8b00c": "This template has no inputs — you can add data later from the editor’s Data panel.",
+    "m_6132f8a9f6606d": " Agent",
+    "m_3f7a6d0c7b9c29": " Theme",
+    "m_4986fc99e268e8": " Amend → Change Order",
+    "m_a919d34f0dcde5": {
+      "message": " This document is {v0} and locked. {v1}",
+      "format": "icu"
+    },
+    "m_ade5cd0266b010": {
+      "message": "Remove {v1}",
+      "format": "icu"
+    },
+    "m_95299bfa43bab3": " Add variant",
+    "m_0fceeb48a2f9ea": "No published themes yet — create them in Doc Studio.",
+    "m_1c093aace018f2": "This document has no data inputs. Params defined on its template will appear here.",
+    "m_3b9617d28d534e": "Scope line items",
+    "m_f02be43cb91cd2": "Included",
+    "m_aded42d45a9ae8": "No line items yet. Load them from the project scope, pick from the pricebook, or add a row.",
+    "m_8803dece55359d": " Add",
+    "m_18c4bf2309f871": "No pricebook items matched.",
+    "m_caa1a5770356df": " Workflows",
+    "m_8c3b47976bfe5d": " Themes",
+    "m_a93919b739869a": "Folder actions",
+    "m_f358efad68d29a": " Default",
+    "m_401488cd49adb7": "Preset",
+    "m_b485bf55fda42c": {
+      "message": "Revision {v0}",
+      "format": "icu"
+    },
+    "m_c2ca11a09530eb": "No earlier versions yet",
+    "m_7b5b72178f4987": "Earlier revisions appear here after the document is saved.",
+    "m_716c0be5c7a7c1": "Describe it to the design copilot (optional)",
+    "m_a7231e6357e05e": "Describe the pages and content you want the agent to build",
+    "m_037e435ae78813": "Or upload examples (optional — PDFs or photos of your current documents)",
+    "m_3dfffa1326b3b2": "With examples the copilot recreates your existing paperwork as a reusable template and you refine it in the editor.",
+    "m_5fefe65ff8c93c": {
+      "message": "{v2}% scheduled{v3}",
+      "format": "icu"
+    },
+    "m_6d35930a509b39": "key",
+    "m_2916afbfb15e22": {
+      "message": "No {v0} defined",
+      "format": "icu"
+    },
+    "m_be16c4e5e5045b": "Widget catalog unavailable.",
+    "m_f2596a5b512721": " Definition",
+    "m_d25b1c5a0763a5": {
+      "message": "{v2} master",
+      "format": "icu"
+    },
+    "m_ce1ba13960e5a4": "Font",
+    "m_4a865202ec83d1": "Display font",
+    "m_e48a7a8cb723d4": "Body font",
+    "m_ee1682e862f8af": "Size (pt)",
+    "m_042fa8aa1f88ce": "Weight",
+    "m_32bba26e16a9fa": "Color token or value",
+    "m_f43f474e0880c4": "This theme has no named paragraph styles yet.",
+    "m_cc628dc7255aec": {
+      "message": "{v0} (pt)",
+      "format": "icu"
+    },
+    "m_5d86a0fb6c1652": {
+      "message": " {v0} measurement{v1} still needed",
+      "format": "icu"
+    },
+    "m_35f2a632435630": "Milestone"
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -1508,6 +2225,70 @@
     "m_09b6f65ba14e08": "Pickup condition",
     "m_cd1fcdebee4a30": {
       "message": "{v0} uploaded; {v1} file{v2} could not be uploaded.",
+      "format": "icu"
+    },
+    "m_9dcf532652aff4": {
+      "message": "{v2} hrs · {v3} booking{v4}",
+      "format": "icu"
+    },
+    "m_c36ee4d32d5250": {
+      "message": "{v7} hrs",
+      "format": "icu"
+    },
+    "m_9dca7208c23ebd": "Nothing due",
+    "m_e7ed7f9a36d69f": "Service programs surface here as units come due.",
+    "m_e4c782cff2c193": "No open work orders",
+    "m_9e7d3c417a9f0a": "Repairs and scheduled service live here.",
+    "m_b062ab3bae8734": "Recently closed",
+    "m_64f0a4bd315670": "No programs yet",
+    "m_4ce644341d17a4": "Programs generate due-service reminders by days or meter intervals.",
+    "m_74ebb184b114fb": {
+      "message": "Checked out{v0}",
+      "format": "icu"
+    },
+    "m_77e68572349ca5": "Crop photo",
+    "m_feb926c42d3f6e": "Facility access instructions",
+    "m_113d0683ef8084": "Vehicle details",
+    "m_250d080790e059": "Purchase details",
+    "m_b01d4473f12ba7": "Lease details",
+    "m_d6855debf20509": "Rental details",
+    "m_e9231d9e50eeb6": "Condition notes",
+    "m_b78805965a7319": " Add condition note",
+    "m_c3609786a5300a": " Add pictures or videos",
+    "m_9cb588baa72829": " Check in",
+    "m_243d5332cd629a": " Check out",
+    "m_2320e2a7e9e439": "Restore type",
+    "m_5d91136e35ab88": {
+      "message": "Restore {v1}",
+      "format": "icu"
+    },
+    "m_86fa9ca9739918": "Edit type",
+    "m_eb14156d1fca4c": {
+      "message": "Edit {v1}",
+      "format": "icu"
+    },
+    "m_470e4e0712ef94": "Archive type",
+    "m_3a8f16229de187": {
+      "message": "Archive {v3}",
+      "format": "icu"
+    },
+    "m_f4c0b2cd481788": " Active types",
+    "m_7cef72fe83add5": " New type",
+    "m_dfa94b8d6efc4d": "Restore facility",
+    "m_74805cc67e2143": "Edit facility",
+    "m_bb24a8500b97f7": "Archive facility",
+    "m_ba02871d0ed562": " Active facilities",
+    "m_6468e0ad5b1770": " New facility",
+    "m_0ee677e8200886": "Classification",
+    "m_0ecd09516ac094": "Address (optional)",
+    "m_bd935bf52d86b9": "Access instructions (optional)",
+    "m_251e51ba7e4761": "Start typing an address",
+    "m_b9e346d068c27a": "Gate code, entrance, parking, or check-in details",
+    "m_b0bf3a608a0071": "Describe existing damage or condition…",
+    "m_4b4ba3b5b6d01b": "Remove note",
+    "m_f643f568915438": "Remove",
+    "m_6ad3acf5f9a1a2": {
+      "message": "Pickup condition {v1}",
       "format": "icu"
     }
   },
@@ -1647,7 +2428,60 @@
     "m_644de3ea02521d": "Undated exposure reserved ",
     "m_5469184513c8bc": "Amount ",
     "m_5b1cdca9bcee11": "Status ",
-    "m_21043cdf9f50a0": "Known / accrued "
+    "m_21043cdf9f50a0": "Known / accrued ",
+    "m_23929ba4ba84dd": "Today",
+    "m_b0ae4f18f932d9": {
+      "message": "Previous {v0}",
+      "format": "icu"
+    },
+    "m_b68752fb081712": {
+      "message": "Next {v2}",
+      "format": "icu"
+    },
+    "m_179cb3b2ebc4a4": "Financial period",
+    "m_aaebd7ccba0b30": "Project",
+    "m_fc05a804bd034c": "Schedule",
+    "m_1352cafa75b8da": "Status",
+    "m_73dcec25fe9540": "Projected revenue",
+    "m_7373a19a37d7ad": "Projected profit",
+    "m_ef60edbf5a1f9d": "Profit by period end",
+    "m_20bdfc21d23edc": "Customer owed",
+    "m_190ca7354b9101": "Margin",
+    "m_1b49840a75aaa9": "No active financial projects yet",
+    "m_85c9cfa72b36e5": "Signed project revenue and costs will appear here.",
+    "m_86ad4a76e7e7ca": "Revenue",
+    "m_f958c97b3b0835": "Expenses",
+    "m_2a0b11100c22a4": "Date",
+    "m_d0f1699dbcd6a5": "Payment",
+    "m_2b8c3448fa87a1": "Amount",
+    "m_376b722115b602": "Cleared",
+    "m_48c87e92d9d697": "Everything is reconciled",
+    "m_5d9f37d6b39f0b": "New settled payments will appear here until they are confirmed at the bank.",
+    "m_235f562209bebd": "Nothing cleared yet",
+    "m_ee8402a52321c5": "Payments you confirm will collect here.",
+    "m_1d5ea39cc421fc": "Invoice",
+    "m_bd8c29e4635878": "Gross",
+    "m_6f891fbf3f7955": "Fee",
+    "m_8870b67246b7d9": "Net",
+    "m_45a12095bc0b48": "No member transactions",
+    "m_5dab4fe427ad02": "This payout has no linked payment records.",
+    "m_47196f1d949c20": "Payout",
+    "m_6c208c0cd6af0f": "Fees",
+    "m_f380e9e06ef4c2": "No payouts match this filter",
+    "m_b759a25796c125": "Try another status.",
+    "m_7d3d62ef16a1b9": "No payouts yet",
+    "m_ecc1491e849fb1": "Payouts will appear once payment processing is live.",
+    "m_6480ed19528b5a": "Reason",
+    "m_9212d954ad54f9": "Opened",
+    "m_215c03ede9f243": "No disputes",
+    "m_74fdbdbe1b1c64": "Chargebacks reported by the processor will appear here.",
+    "m_0a7cadb6874455": "No transactions in this period",
+    "m_37e5136c07c1cb": "Undated commitments will appear here too.",
+    "m_211d60bfa491e9": "Load more",
+    "m_039ac323d0b72f": "No new movement on this day.",
+    "m_261de3b5b52111": " Load more projects",
+    "m_63c93dd0696f86": " Respond at Forward",
+    "m_c6cab8e36e851b": "Dispute evidence is submitted on the processor's secure merchant portal"
   },
   "firstmate-apps-manifest": {
     "m_1a8d3340c06415": "My Projects",
@@ -1697,7 +2531,8 @@
     "m_cb6d983a4aeec4": "Credit Bonus Promotion",
     "m_e6531c84500a50": "Referrals",
     "m_e0ddf988d08b23": "Pricebook Bridge",
-    "m_f0cd67d228d884": "Tutorial"
+    "m_f0cd67d228d884": "Tutorial",
+    "m_4aaef822b47692": "FirstMate Assistant"
   },
   "firstmeasure": {
     "m_0747045bf3d919": "New Project",
@@ -1784,7 +2619,151 @@
     },
     "m_d2a894582092f8": "Roof Only",
     "m_0980d65c27cd2f": "Full Structure",
-    "m_09612fd6ab85db": "Report scope"
+    "m_09612fd6ab85db": "Report scope",
+    "m_dc6a60d7bb3581": "Next ",
+    "m_76f61845dd2aea": "STREET",
+    "m_e4b02dd6cf2314": "House angle guide",
+    "m_48cd840a98035f": "Upload",
+    "m_86d43ca533f4ae": "Retry camera",
+    "m_8247c56c226358": "Live rear camera preview",
+    "m_c7a97e0bb50632": "Upload photos",
+    "m_1a58fdc6bb20bf": "Photos for this angle",
+    "m_6555da398c64e6": "Take photo",
+    "m_014da584de30ed": {
+      "message": "House {v0} · View {v1} of 8",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} of House",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} of the house; front faces the street",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Primary",
+    "m_48a9cdd2af44f4": "Retry",
+    "m_173c36d4fce52b": "Uploading photo",
+    "m_06170cce538389": "Remove photo",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} photo{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Exterior reference photos",
+    "m_1ca9bec888658a": "Exterior upload photos",
+    "m_acaf0eb128605e": "Drop photos to upload",
+    "m_42e91ae7dddc18": "Loading Photos…",
+    "m_8941c9a5445fb9": "Exterior uploads",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} photos",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "{v1} assigned",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Uploading {v3} photo{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "{v1} unassigned{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Show all photos",
+    "m_9138e9cdd68343": "Drag photos here",
+    "m_bf0345adc5299e": "Required angles",
+    "m_02b18934a68584": "Additional photos",
+    "m_8411c93e5b0adf": "Total photos",
+    "m_be4cfb58b9c4d7": "Photos",
+    "m_0dc366a939cb1d": "Structure",
+    "m_a32cdb9d1056f2": "Tap a position below to assign.",
+    "m_05a79c7def4dac": "Keep as extra",
+    "m_59741c3f6d31f8": "Deselect",
+    "m_9506f115fde6af": "BACK",
+    "m_4042bd99ed30d1": "FRONT ↓",
+    "m_9e22418c14100e": "House viewed from above, front at bottom",
+    "m_7665c7cfa6ea36": {
+      "message": "{v4} {v5} photo",
+      "format": "icu"
+    },
+    "m_5802bbe967d5c6": {
+      "message": "{v3} photos",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Tap to upload",
+    "m_484b63459c1357": "Estimated wait time right now",
+    "m_7b8bab306cc5c2": {
+      "message": "{v2} hr estimate",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 hrs",
+    "m_e731322b674a97": "24 hrs",
+    "m_e7f79de4539e22": {
+      "message": "{v5} per structure + selected delivery fee{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Loading prices…",
+    "m_f27fa22720bb9a": "Property",
+    "m_dccbe8abe35b17": "Property type",
+    "m_ae8e4953e07d70": "Customer",
+    "m_3fd6a5025f8036": "Report details",
+    "m_9b208988dee1f1": "Drop to upload photos",
+    "m_50904398019722": " Add contact",
+    "m_c9a026ebb1be8c": "Property Type",
+    "m_908c0715a481b7": "Property address",
+    "m_1f6129f59f143b": "Property Address",
+    "m_29f3cc51016963": "Project Type",
+    "m_417e1dad6a313e": "Start typing an address or click the map...",
+    "m_5c6d435494fefd": "Build a Proposal",
+    "m_e5aee059bf2f35": "Schedule Appointment",
+    "m_bd6349111bdda5": "Proposal Agent",
+    "m_a2d8046f355c56": "Generate Proposal Draft",
+    "m_289b2e5bec972c": "Use the prompt to describe the scope, tone, included photos, and anything the customer should see.",
+    "m_7ceca87ce420be": "Toggle Proposal Agent",
+    "m_84f47d747cfe44": "Tell the Proposal Agent what to include in this proposal...",
+    "m_18fc56365bd838": "Dictate prompt",
+    "m_09ee09a435f087": "Newest",
+    "m_5a704a0a365cf0": "Oldest",
+    "m_971bee4a6a3550": "Add Note ",
+    "m_5e715bf9880366": "Who can see it?",
+    "m_d068fb68fb07d2": "Everybody",
+    "m_3fe33cd11f8a29": "History",
+    "m_fa1d10be2766ee": " Add note",
+    "m_6643d210319486": "Filter notes",
+    "m_5bfaf42a1f7ef2": "Sort notes",
+    "m_81cd5cfdb71ce1": "Choose who can see this note",
+    "m_3bad1b1f1d93ba": "Add an internal note… Use @name or @email to tag someone.",
+    "m_14d6270ea986dc": "View note history",
+    "m_d3fd8350167dd9": "Upload media to note",
+    "m_dd978d5c5b3bd9": "Record audio note",
+    "m_5bbba2df4ff973": "Internal Notes ",
+    "m_2b31fcca2dfee1": "Expand internal notes",
+    "m_69afca2b27d860": "Internal notes for your own reference...",
+    "m_3f912aeb9ec149": {
+      "message": "House {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "House {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Structure {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Selected photo",
+    "m_0dd87f826c8c39": "Retry upload",
+    "m_94fef39d56d52f": {
+      "message": "Remove {v1} photo",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Add photos",
+    "m_b51f2220e8185c": "Expedited",
+    "m_0f0032d7c26618": "Notes for Technician",
+    "m_0b730c79a5c5eb": "CC for Reports",
+    "m_bc21fa8a42be31": "Internal Notes",
+    "m_100206f83a1d97": "Test preview only. Add all eight views per structure before placing an order."
   },
   "help": {
     "m_0db6efc53ab2ed": "Need a hand?",
@@ -1882,7 +2861,30 @@
     "m_8c92e8f6e62299": " Needs invoicing ",
     "m_b78c21a6c3a083": " History",
     "m_fae86dba7fee35": "Invoice views",
-    "m_74b68c454b06a0": "Invoices"
+    "m_74b68c454b06a0": "Invoices",
+    "m_377b9133edb7df": "Production hold",
+    "m_3102505341c544": {
+      "message": "{v0} day{v1} late",
+      "format": "icu"
+    },
+    "m_3295375618ae5e": {
+      "message": "Production hold{v0}. Work is blocked until this invoice is paid.",
+      "format": "icu"
+    },
+    "m_b86224ec4ecf12": {
+      "message": "({v0} paid)",
+      "format": "icu"
+    },
+    "m_3cbef3959281c7": {
+      "message": "Sales tax ({v0}%)",
+      "format": "icu"
+    },
+    "m_6fb905a7568bab": {
+      "message": " Last {v0} to {v1} · {v2}",
+      "format": "icu"
+    },
+    "m_b994bd2b738d8c": " Reminder",
+    "m_fdb7ef8e6fc7a5": " Void"
   },
   "materials": {
     "m_c44abe253b114a": "Shingles",
@@ -2133,7 +3135,35 @@
     "m_6c9ffb3d517f10": "Note saved",
     "m_3b44027b035a28": "Project note added to the history.",
     "m_eba695c553b0b3": "Upload failed",
-    "m_8373af9614b53c": "Audio note failed"
+    "m_8373af9614b53c": "Audio note failed",
+    "m_c9170d09831e64": "No scope lists",
+    "m_7b94d3b02679a9": "Loading scope...",
+    "m_db7002926d9977": "Color",
+    "m_d9b2666bd68237": "Pay type",
+    "m_78337592690145": {
+      "message": "No {v1} in this category.",
+      "format": "icu"
+    },
+    "m_7d0042dbf4f2fd": {
+      "message": "{v1} / {v2} per {v3}",
+      "format": "icu"
+    },
+    "m_c807a71e1c06f5": "Add",
+    "m_d8588ab21f5ab1": "No price book items",
+    "m_c40b3b565133d9": "Record delivery",
+    "m_67b21c25dc288b": "No orders",
+    "m_61f2453696af37": " Edit scheduled deliveries",
+    "m_1fcb173e99effe": "Edit note",
+    "m_4b4ba3b5b6d01b": "Remove note",
+    "m_4eb6b190c37dac": "No project notes yet.",
+    "m_9138375c2ce3e1": "This scope does not define any resource lists.",
+    "m_4d90bde666c93e": " Saved from the project scope",
+    "m_7bdd98e65148d7": "No measurements were saved with this scope.",
+    "m_2d1233007f5250": "Custom fields",
+    "m_2280f0c13c04b8": " Project custom fields selected for Scope",
+    "m_5cb10fcf024aeb": "Hours",
+    "m_1cb199acd2ef5f": "Estimated project hours per person",
+    "m_32485d4a3101c8": "Estimated hours per person"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -2306,7 +3336,11 @@
     },
     "m_ee2e95ef4a2d84": "Measurements refreshed",
     "m_52f356edab1915": "Report values were refreshed. Manual overrides were preserved.",
-    "m_81c35a6db09047": "Measurements unavailable"
+    "m_81c35a6db09047": "Measurements unavailable",
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} each",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -2529,7 +3563,88 @@
     "m_5bedad4ed70b66": "Payment receipt is not available yet.",
     "m_a3f7efd048a5e3": "Could not open receipt PDF.",
     "m_be2e9e776e4eb5": "Paid expenses cannot be removed.",
-    "m_cf842ec2f4d524": "Remove this expense from the project ledger?"
+    "m_cf842ec2f4d524": "Remove this expense from the project ledger?",
+    "m_02d86b107dab82": {
+      "message": "Proposal {v0}",
+      "format": "icu"
+    },
+    "m_5d261af8b2f864": "Signed proposals will create a payment schedule here.",
+    "m_532da653e82875": " Take a payment",
+    "m_bff24e5273ad55": {
+      "message": "Max {v0}",
+      "format": "icu"
+    },
+    "m_a2239f83587677": {
+      "message": "Next: {v0}",
+      "format": "icu"
+    },
+    "m_983bf1b2477ef9": "Nothing currently due",
+    "m_208c4198c8a54d": " Resume",
+    "m_44354fd97a2d3b": " Pause",
+    "m_dabe106055ac5a": {
+      "message": "{v0} remaining",
+      "format": "icu"
+    },
+    "m_d2511833396209": "Project profitability",
+    "m_65ed6dd2cd3755": "Read only",
+    "m_206d31a7c795c4": " Back",
+    "m_393f42326e2feb": "Job Cost Report",
+    "m_4944e59816b60a": "Download PDF",
+    "m_b5d1b0a9e5df00": "Download invoice PDF",
+    "m_ca63ad9e7bd119": "Generated invoices and receipts will appear here for later download or sending.",
+    "m_550b7d26b3185a": {
+      "message": " Add {v2} Item",
+      "format": "icu"
+    },
+    "m_bc56ecde282801": "Custom Item",
+    "m_309ab34822da96": "Enter your own title and amount",
+    "m_de57c6dbd2a74d": "Add a scheduled payment or custom item.",
+    "m_9007c34fd0a5f1": "Issue Date",
+    "m_0c1007c4897c83": "Due Date",
+    "m_5fc958dc34a771": "Render PDF as Paid in Full",
+    "m_2fc5623e2a7511": "Subtotal",
+    "m_78996580b607e8": "Invoice Note",
+    "m_43aa9dd685b9c2": " Generate & Download",
+    "m_28357bbbd10ed8": " Generate an Email",
+    "m_edfaf579e9ff18": "Render PDF as paid in full",
+    "m_55f3a56daa8b6d": "Optional customer-facing note",
+    "m_4a2a505a5bbbf3": "Service history",
+    "m_4e8f8a4c0b061d": {
+      "message": "{v4} past · {v5} generated",
+      "format": "icu"
+    },
+    "m_ddae45be1df721": "Next visit",
+    "m_ba64a9ebd09edc": {
+      "message": "{v7} and profit",
+      "format": "icu"
+    },
+    "m_fe458d515cd5e5": "Create a recurring item in the Schedule tab to track its visits, billing, and profitability here.",
+    "m_765dbb9399c7b0": "Expense",
+    "m_ab3df34a8730df": "Receipt",
+    "m_bb25aead557549": " This file matches an existing receipt. Confirm it represents a separate expense before applying.",
+    "m_c2957dd4e77e96": {
+      "message": "{v0} extracted line item{v1}",
+      "format": "icu"
+    },
+    "m_3da310a72a66f6": "No project expense lists are available yet.",
+    "m_1732bef68652df": " Apply Receipt",
+    "m_9bb3c5d2f3cba3": "No entries match the selected filters.",
+    "m_195a4194ae3004": "Refund payment",
+    "m_9f730179119121": "Reconciled — confirmed against the bank",
+    "m_df797772cfebc8": "View All Payments",
+    "m_c8727d4f0f18cb": {
+      "message": "Pay {v2}",
+      "format": "icu"
+    },
+    "m_5653ae6b626e24": "Email invoice",
+    "m_e65ad3ae9c59eb": "Enable Tax",
+    "m_fe1e7bdf39922d": "Tax Percentage",
+    "m_3c60eff258a89d": "Enable sales tax",
+    "m_9920e005677da9": "Tax",
+    "m_b2fb01c421663c": "Recurring service",
+    "m_7e8ea8edb916d5": "Unmark cleared",
+    "m_6b2beea2d9ae5c": "Mark cleared at the bank",
+    "m_4ab97a813f8f30": "Mark Due"
   },
   "onboarding": {
     "m_a0d673c98d109b": "Order Reports",
@@ -2639,7 +3754,11 @@
     "m_8342e19eddc030": "We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.",
     "m_2fbb4b11eb7b6f": "Email address",
     "m_3a7c6bd31cf96e": "Verification code",
-    "m_a455a4668ee54d": "\n            Verify &amp; enter portal "
+    "m_a455a4668ee54d": "\n            Verify &amp; enter portal ",
+    "m_bc9847e2ca77cb": "Auto Top-up",
+    "m_db0d748a115fcb": "Keep my account funded automatically.",
+    "m_cc2003d4e4237c": " Top up when below",
+    "m_56c6c9cbb10acb": " Auto top-up amount"
   },
   "payroll": {
     "m_4a04382820d2e1": "Other",
@@ -2843,7 +3962,92 @@
     "m_3aa3842fbcac51": "Role title, e.g. Estimator",
     "m_3f2cfab584c5da": "Commission override saved",
     "m_713b694ba3a309": "The payroll audit trail includes this adjustment.",
-    "m_a892f130d3e97d": "Could not override commission"
+    "m_a892f130d3e97d": "Could not override commission",
+    "m_3a1fcb262241b6": {
+      "message": "{v7} accrued{v8}",
+      "format": "icu"
+    },
+    "m_3a6702885321a2": {
+      "message": "No {v1} in this payroll.",
+      "format": "icu"
+    },
+    "m_2f3f472e8e62f5": " Request approval",
+    "m_727ff89ac91c2c": " Approve as me",
+    "m_3623d3650448b8": " Finalize",
+    "m_53e326dbad918f": " Reopen & refresh",
+    "m_fcd00a57679317": " Mark all Run",
+    "m_d651b7fabc83ec": " Mark all Paid",
+    "m_5e03a7c216f500": "Next",
+    "m_108e207af73dd4": {
+      "message": "Recognize when {v4}",
+      "format": "icu"
+    },
+    "m_1047f11ac8a4bb": {
+      "message": "Cutoff {v5}",
+      "format": "icu"
+    },
+    "m_a96c7f61f8c7f7": {
+      "message": "{v6}% max clawback",
+      "format": "icu"
+    },
+    "m_2e88df13ca7101": "Type",
+    "m_a6b5da8bcb27c3": "Breakdown",
+    "m_bd8c29e4635878": "Gross",
+    "m_3a9e6fbb77c33d": "Deductions",
+    "m_8870b67246b7d9": "Net",
+    "m_9c2b37dfc8a2bc": "Paid at",
+    "m_90b886ed23af83": {
+      "message": "{v5} break",
+      "format": "icu"
+    },
+    "m_3657f854b9eb94": "Correct times",
+    "m_e778558ac68c5b": "Individual",
+    "m_479431cbbc40d0": "Employee",
+    "m_1614e347d92a28": "Independent contractor",
+    "m_f4fa20da324a5e": "Payroll schedule",
+    "m_5c694b39fd19fa": "Net days",
+    "m_5bab3e72de1ebf": "Save",
+    "m_be15c0d3344497": "Subcontractor company",
+    "m_ede7d31c438e08": "Subcontractor",
+    "m_088a5b83330ee2": "Payment cycle",
+    "m_005dc0671667db": "No workforce or subcontractor records are available.",
+    "m_8075e240b169cf": "Payroll run",
+    "m_2cbe3b91007939": " Prepare all CSVs",
+    "m_a0690426e42dfc": " Prepare all PDFs",
+    "m_95e5a181459c0f": "There are no payroll runs to export yet.",
+    "m_31a1ef86f4e30c": " Create a payroll batch first, then return here to select it.",
+    "m_4f7069fe2ff90f": "Go to upcoming payroll",
+    "m_8d1ab2a786950e": "Start date",
+    "m_75319fcfef3f5e": "End date",
+    "m_9d0a9ac6e12896": " Download CSV",
+    "m_932226afd1106e": " Download PDF",
+    "m_b1d072b88aab39": {
+      "message": "{v4} record{v5}",
+      "format": "icu"
+    },
+    "m_826f820584789d": " Download again",
+    "m_cb7a285d33e9b2": "No reports have been prepared yet. Choose a report above to create the first one.",
+    "m_f643f568915438": "Remove",
+    "m_01fb957fae27d9": "No payees assigned yet.",
+    "m_5640a82dc88247": {
+      "message": "{v0}% of {v1} total commission",
+      "format": "icu"
+    },
+    "m_bebbfb93134c88": {
+      "message": "Effective {v0}",
+      "format": "icu"
+    },
+    "m_fb4ec7a8e31951": "Override",
+    "m_20e98d8035ad4e": "Final amount",
+    "m_6480ed19528b5a": "Reason",
+    "m_27d5f2020ffae7": "Save override",
+    "m_cbef679b21abb4": "Cancel",
+    "m_a7ee2c02dfc73f": "Required audit reason",
+    "m_057f4863918f13": "No projected or accrued commissions on this project yet.",
+    "m_7c1f625b211f5e": " Finalize payroll",
+    "m_46e47f1706df0c": "Active",
+    "m_57bfc714f983ad": "Unallocated",
+    "m_5fab133a50e126": " Approve"
   },
   "photos": {
     "m_fc54001a0cc000": "Receipts",
@@ -2992,7 +4196,11 @@
     "m_fd0221a1d87d1d": "Get More Storage",
     "m_eba5a2ca652c52": "Storage checkout options will appear here.",
     "m_66ecec49f56389": "Checkout placeholder",
-    "m_424ce81c07dac7": "Storage limit reached"
+    "m_424ce81c07dac7": "Storage limit reached",
+    "m_0c94f4868222d9": "Loose",
+    "m_1aa394ac627daa": "Comfortable",
+    "m_e5eb6280bafc65": "Compact",
+    "m_db473980ea71b2": "List"
   },
   "project-map": {
     "m_85092cc71d4661": "Shrink",
@@ -3221,7 +4429,9 @@
     "m_2767483f4609c6": " Finish and Send",
     "m_a1cb9492b60b7f": " Next Signature",
     "m_be4cfb58b9c4d7": "Photos",
-    "m_8fda0d4db92a17": " Create without a project"
+    "m_8fda0d4db92a17": " Create without a project",
+    "terminology_new_project": "New Project",
+    "terminology_project_title": "Project title"
   },
   "project-schedule": {
     "m_88e13d64071885": "Schedule locked",
@@ -3403,7 +4613,13 @@
     "m_e3f33bfdf56cf1": "Checking availability…",
     "m_f40ba07aaa433a": "Availability unavailable",
     "m_a7c91be49bc6e0": "Equipment must be released after it is assigned.",
-    "m_a47e2e5f42303b": "Project Schedule"
+    "m_a47e2e5f42303b": "Project Schedule",
+    "m_afdcb90e88cf30": "Allow the customer to choose another live available time",
+    "m_4657bb8aa4b1c4": " New Group",
+    "m_6c097c79cef08a": "Cancel series",
+    "m_c83325bf2fc045": "Include items",
+    "m_6af109c4fd5ab7": " Lock appointment time",
+    "m_05017f54f07448": "Untitled"
   },
   "projects": {
     "m_f6128467e18fe0": "Note:",
@@ -3582,7 +4798,22 @@
     "m_9402b38f071830": "Sort projects",
     "m_f022fa62257ce9": "Jane Smith",
     "m_564fe2da7605fa": "jane@example.com",
-    "m_7247f8e5fa0e91": "Order standard report"
+    "m_7247f8e5fa0e91": "Order standard report",
+    "m_219853c2fec210": "Try ordering a full report to get measurements for this structure.",
+    "m_d2a894582092f8": "Roof Only",
+    "m_16e6b2fac22e7e": "Roof &amp; Gutters",
+    "m_5ee37aecb582b4": " Manual",
+    "m_f86eb4b8f9ea2c": "Manual movement is on",
+    "m_fe74e5ffd55b04": "Drag a project card to another stage.",
+    "m_48afb49c6f40c4": "Board",
+    "m_39f4f4e9015b56": " Open PDF",
+    "m_d091a3a21d5851": {
+      "message": " Order Full Report - ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Pitches On",
+    "m_97f68e5486c2f8": "Search address, contact…",
+    "m_af80d9cead6991": "Search projects"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -3908,7 +5139,60 @@
     "m_f35a14165cc920": "The prompt UI is ready; model generation can be wired into this action next.",
     "m_bbe27879ebf26c": "Dictation unavailable",
     "m_79af74d554f5a6": "This browser does not expose speech recognition here.",
-    "m_9964312e9c85ac": "Project Proposals"
+    "m_9964312e9c85ac": "Project Proposals",
+    "m_c82963ef8940ce": "Summary page",
+    "m_700473b6840e61": "Remove co-brand logo",
+    "m_fccaa3fc954540": "Use",
+    "m_1a29aea570fbc4": "Qty",
+    "m_8edfc0dd24bef1": "Unit $",
+    "m_ae8e4953e07d70": "Customer",
+    "m_ca125d59fcd810": "Option name",
+    "m_e847735cf5a416": "Zoom",
+    "m_709d4ebff0e0da": "Tap to Sign",
+    "m_9edc96d5f6e438": "Company Representative",
+    "m_ccb84c048a1a17": "Sales Tax",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Payment schedule is {v0}%. It must add up to 100%.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "No media uploaded yet",
+    "m_a5e1cd4c41f31c": "This project does not have any photos or videos yet.",
+    "m_7f88f89133cbc4": "Type the signer name",
+    "m_16dcd60135fed3": "Draw your signature here",
+    "m_506191e24dd383": "Clear",
+    "m_b5828f5fd0c36d": "No proposals yet",
+    "m_7feb0c701cff3e": "Create the first draft, then duplicate it when you want variants.",
+    "m_8934bbea9ff9ad": {
+      "message": "Step {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Add shingle",
+    "m_a28421203810c9": "Search the price book and add another customer-visible option.",
+    "m_581e6e2a759706": "Close add shingle",
+    "m_f3189dbe87971a": "Search shingle price book",
+    "m_4a3589501ecc1f": "Discount name",
+    "m_792f935ba82291": "Discount value",
+    "m_691d860b768692": "Remove discount",
+    "m_0254795a80cfc0": "No discounts added yet.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Remove {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Custom workflow to be defined.",
+    "m_7fcfaa1f4fcd66": "\n                      Email required to send\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "No customer email is on this project yet.",
+    "m_c10134dc02336b": "\n                Email required to send\n                ",
+    "m_cbb41dfafd178f": "Include customer portal link",
+    "m_a9fa064a3c9985": "Allow customer to sign multiple proposals",
+    "m_5cc367ea2b4774": {
+      "message": "Page {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Delete",
+    "m_af64ff308ca58e": "Delete page",
+    "m_bdf76cad510e9f": "Remove option",
+    "m_fba496098e9a0f": "No matching shingles found."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Unassigned receipts",
@@ -3939,7 +5223,26 @@
     "m_278f0bef2a1d90": "Could not update reimbursement",
     "m_62447276077f46": "Could not load receipts",
     "m_744a0502e08506": "Receipts issue",
-    "m_fc54001a0cc000": "Receipts"
+    "m_fc54001a0cc000": "Receipts",
+    "m_a852fafeb99a24": " Open file",
+    "m_77c08e212dd0d0": "Previous receipt",
+    "m_b4f6c3430f3ec3": "Next receipt",
+    "m_f6d9f950804547": "Extracted line items",
+    "m_92403ccf65b2eb": " Review & apply",
+    "m_f3ad10eaad3ccf": " Download",
+    "m_781de7a205b1d0": "Reimbursements",
+    "m_9a563e6b6f15b2": "Expand employee reimbursements",
+    "m_2d9318e2038bd3": "Expand reimbursements",
+    "m_6a0ffa83b5a0c5": "Collapse employee reimbursements",
+    "m_09c3605b3ff316": "Collapse reimbursements",
+    "m_375bd26258fc80": "Receipt sections",
+    "m_154be17d295d02": "View receipt",
+    "m_77a8431eb85292": "No reimbursement requests need attention.",
+    "m_c9b1ea38a0439f": "Approve for payroll",
+    "m_8180e02b2aad08": "Approve off-cycle",
+    "m_1a65650a5b609f": "Needs info",
+    "m_caf34b0bba6d77": "Reject",
+    "m_57b192d717bef7": "Mark paid"
   },
   "referrals": {
     "m_affc7678ff50a4": "Refer a friend and get a $100 Visa gift card.",
@@ -3996,7 +5299,27 @@
     "m_6d21d1db92b8a6": "Follow-ups",
     "m_de7d6168ae1ad6": "Notes",
     "m_d8d2e84c5e4d8b": "Visit",
-    "m_fc05a804bd034c": "Schedule"
+    "m_fc05a804bd034c": "Schedule",
+    "m_1390c17284de2d": {
+      "message": "({v0} late)",
+      "format": "icu"
+    },
+    "m_7d814e419cd412": "Coming up",
+    "m_5fe01108f83039": " New",
+    "m_da96fc7ac6b2fa": "What needs doing?",
+    "m_3dac4d5769efeb": "Due",
+    "m_ed28d6fb9ea58c": "Channel",
+    "m_8d4eaa0da004be": "Call",
+    "m_124287f184b88b": "Text",
+    "m_5d2b9327181e33": "Email",
+    "m_cbef679b21abb4": "Cancel",
+    "m_cd06f62a7707a3": "Add follow-up",
+    "m_bf01c40d236456": "Call the customer back",
+    "m_b41d2411422a87": "Unclaimed (your role)",
+    "m_8726cf189a9d40": "Other earnings",
+    "m_e48ae8574d9d08": "Earnings by project",
+    "m_43f2c4d59757a1": "Stage",
+    "m_012735d675a8d5": "Lead status"
   },
   "scheduling": {
     "m_40cdabf6fe63f1": "No slots available for this day because this day is turned off.",
@@ -4235,7 +5558,68 @@
     "m_e9f71e12236d72": "Projects to Schedule",
     "m_d957e47b7fba31": "Close projects to schedule",
     "m_59ae500cc30197": "Dashboard unavailable",
-    "m_4249990706c50e": "Scheduling"
+    "m_4249990706c50e": "Scheduling",
+    "m_85c85d8d0ddcb3": "No material deliveries waiting to be scheduled.",
+    "m_788928fd084fda": "No available vehicles.",
+    "m_c71ee644be52a3": "Booked elsewhere in this window",
+    "m_e97309f102e999": "No equipment on this event.",
+    "m_c637d35dfeb2ed": "Add equipment…",
+    "m_f22c771a404a1e": "Require a type without choosing a specific unit. Scope sets can populate the same requirement fields.",
+    "m_9f3d23d05302f4": "Required equipment type…",
+    "m_00ee416bc52e89": "Required quantity",
+    "m_1794d866e6d945": "Add equipment requirement",
+    "m_1c69c58f6eed2f": "Add requirement",
+    "m_e9f168b05e36e6": "Hours before",
+    "m_3b546ab0f78697": "At",
+    "m_8af1d7ae3a4dbf": "Customer requested a change",
+    "m_ca28a4d7fe5428": {
+      "message": "Requested {v0}. The current appointment remains reserved until this is reviewed.",
+      "format": "icu"
+    },
+    "m_0bba16c1fd1444": "Decline",
+    "m_b7af2068fe4024": "Approve change",
+    "m_746250c5372a9a": " Share this appointment with the customer to show the portal action.",
+    "m_0a906f5bfd87a7": "Nobody else is eligible for this event type.",
+    "m_14bec9b094ca21": "Recurring",
+    "m_477ebb1c6c5f83": "Repeats",
+    "m_093d55e6272fc0": "Weekly",
+    "m_d7014f792d2583": "Monthly",
+    "m_03e59d03617275": "Quarterly",
+    "m_ef289ba5429ef5": "Yearly",
+    "m_aa2628166dd6f2": "Daily",
+    "m_b25bba33f32e79": "Every",
+    "m_949158d13efad4": "Ends",
+    "m_35304e673f218d": "Never",
+    "m_ab4cb92c128c9b": "On a date",
+    "m_58e24f3e842b25": "After a number of times",
+    "m_75319fcfef3f5e": "End date",
+    "m_328e02d666e842": "Occurrences",
+    "m_0c10cb9ccabd39": "Not ordered yet",
+    "m_a043dc814fd7c4": "Share with customer",
+    "m_ab1e5a7c9771dd": "Off by default. Choose exactly what appears in the customer portal.",
+    "m_aa81c572cfc2fb": "Show the event title ",
+    "m_8e8f7e1056f5d2": {
+      "message": "(turn off to show only “{v5}”)",
+      "format": "icu"
+    },
+    "m_0a4066db1bfb68": "Show the assigned crew or team member",
+    "m_413958fd110fa8": "Customer-facing note",
+    "m_447a66c6fb0f03": "Customer sharing details",
+    "m_3bfd292017bba4": "Add details the customer should see when they open this event",
+    "m_90a374781263be": "Search to assign a project",
+    "m_89250227eee734": "Create a new project",
+    "m_90e27d705bee80": " Delete",
+    "m_438062886ff2f5": "View Project",
+    "m_8b9aa12deed5b3": "No projects waiting to be placed.",
+    "m_80fdf3a3a8501b": "Items shown",
+    "m_4a04382820d2e1": "Other",
+    "m_92e47dd97f2a57": "Schedules to show",
+    "m_3955ac79d2d28d": "Days before",
+    "m_07092d81e20aa1": "Charge each time",
+    "m_8392c3fac72956": "Bill cadence",
+    "m_1afa80926cecc4": "Cost per visit",
+    "m_50ffa923d4cef5": "Assign a project to add recurring billing and per-visit costs.",
+    "m_cea9172cdfbc16": "This is part of an existing series. Saving changes updates future occurrences."
   },
   "settings": {
     "m_a54bc20fe42cea": " Loading your board…",
@@ -6917,7 +8301,608 @@
     "m_10836fee7d848c": "SMS Enterprise",
     "m_fdb931154a90d3": "Need a larger allowance? Contact your account team for a custom monthly plan.",
     "m_3be71fb0bc5d46": "No additional subscriptions are available.",
-    "m_db8eb97cb6c0a3": "Loading billing…"
+    "m_db8eb97cb6c0a3": "Loading billing…",
+    "m_f10f6937a95bb3": "No boards found yet. Create a scope template first, then come back here to automate it.",
+    "m_a31fb14e70bd87": "&nbsp; Trashed boards are hidden from daily work but keep every version and all existing project history. Restore them at any time.",
+    "m_4d94ff9b7ef503": {
+      "message": "Stage {v2}",
+      "format": "icu"
+    },
+    "m_f8e3874860785b": "Data & behavior",
+    "m_c38b42b9122e62": "Private",
+    "m_274532f34bdf27": "No channels yet — create the first one.",
+    "m_b9e88dd13732d2": "No project messages yet.",
+    "m_da83a9a54ee065": "Customer replies land on the matching project automatically.",
+    "m_56d30ef96f433f": "The company inbox is provisioned the first time email is used.",
+    "m_5a9115e4033cb3": "Notifications",
+    "m_c5f15c570faa05": "Choose which updates appear here and on your phone.",
+    "m_547bfda0c7f70d": "App download",
+    "m_18f3026e47ac02": "FirstMeasure on your phone.",
+    "m_8f492e9d154d37": "Credit auto top-up",
+    "m_8cb6b086a0e69c": "Done",
+    "m_41c5620d127a91": " Check Delivery",
+    "m_d0d19cbf76feca": "Verification Code",
+    "m_2335584aef9f38": " Verify Code",
+    "m_cda0acf85ca254": "Enter code",
+    "m_90f42b1bb46b45": {
+      "message": "{v1} SMS features selected {v2}",
+      "format": "icu"
+    },
+    "m_41c79afa10b8c9": " Continue Setup",
+    "m_dc6a60d7bb3581": "Next ",
+    "m_a50e2076d26969": " Submit Registration",
+    "m_d544a95aa33846": {
+      "message": "{v1} KB",
+      "format": "icu"
+    },
+    "m_0150f0a441f9d7": {
+      "message": "{v2} · {v3}% confidence{v4}",
+      "format": "icu"
+    },
+    "m_bc7b189271d609": "Unit price",
+    "m_4b91b73dae1ff3": "Unit",
+    "m_74e64bea0a67c7": "Your generated draft will appear here.",
+    "m_79ae271f1578cf": "Merge selected",
+    "m_1d0dc4b718bcdb": "Replace pricebook",
+    "m_0b2aa0314e8f6d": "Default sales tax percentage",
+    "m_8b074f96fceb24": " Simulate hosted submission",
+    "m_4fcae4650da3d8": " Settle payout batch",
+    "m_22b15c2b0d5703": " Create test dispute",
+    "m_be512b26264241": "Application already submitted",
+    "m_a5e87892447248": "Your payment application status is shown here.",
+    "m_21540e72978cf2": " Sandbox",
+    "m_451c3ad8119d0c": "The underwriter needs more information before this application can be approved. Review the requested items, add your response, then upload the documents on Forward's secure application page — it reopens pre-filled with everything you entered.",
+    "m_053144b11a8523": "Your response",
+    "m_ad1d53b291b9be": " Send response and continue at Forward",
+    "m_2c0d713a078db4": "Describe the documents you are providing or add context for the underwriter...",
+    "m_d283641511165a": {
+      "message": " This application was {v0}. Contact support if you believe this is in error.",
+      "format": "icu"
+    },
+    "m_381a82e98db727": "Your application was submitted and is being reviewed by the underwriting team. Most applications receive a decision within 1-2 business days.",
+    "m_4e9c360ef0798e": "Payments activity, settlements, and disputes live on the processor's merchant portal — the button signs you in with a one-time link, no password needed.",
+    "m_28fbfb1af12f7c": " Open merchant portal",
+    "m_a639cb2e60f2c6": {
+      "message": "Owner {v1}",
+      "format": "icu"
+    },
+    "m_e6f3166c35784b": " Control signer",
+    "m_7f106c70ab99f2": "Date of birth",
+    "m_2e3a395c74df21": "SSN",
+    "m_72df5238e74483": "Ownership %",
+    "m_29dbd3d8b69f55": "Title",
+    "m_b37cb512cbb017": "Home address",
+    "m_96ca5a6ea0866c": "State",
+    "m_9cf1c8728b353c": "9 digits",
+    "m_74a0cef3ef59f4": "No processing plans are available.",
+    "m_d074d20cdb6eb1": "No required documents configured.",
+    "m_a4bcdf09ecca61": "Compensation override",
+    "m_d248c450100477": " Archive",
+    "m_37a2946aba9d92": {
+      "message": "No {v0} assigned yet.",
+      "format": "icu"
+    },
+    "m_ab6055c71030ce": {
+      "message": "Add someone when this {v1} is ready.",
+      "format": "icu"
+    },
+    "m_4f1a61ef0749c1": {
+      "message": "{v0} compensation fallback",
+      "format": "icu"
+    },
+    "m_cdb2a1886fa926": {
+      "message": "{v0} compensation",
+      "format": "icu"
+    },
+    "m_40bc5e5c088e3f": "Display names are managed by language in Configuration → Terminology.",
+    "m_98ed5b5d193fc7": "Save types and tags",
+    "m_dd4bec4cdf5607": "No permission sets found.",
+    "m_733c0e2fb3d12f": "No people available.",
+    "m_2b8d971887e4e1": "No person tags defined.",
+    "m_ee34aaafe6042f": "No resource groups available.",
+    "m_045b0820ae0bdf": "No group tags defined.",
+    "m_542257a8f4f947": "Enable Customer Self-Scheduling in Features to expose this surface.",
+    "m_7717bf7b3c535c": "Enable Guided SMS & Email Rescheduling in Features to use this workflow.",
+    "m_07d951ea2e4612": "Enable Agent Scheduling Tools in Features before these controls take effect.",
+    "m_3de8a43e413ae1": "Capacity mode",
+    "m_d4cdd638a9c724": "One crew/unit",
+    "m_209b57cc87cef1": "Available members",
+    "m_e4b87b81619561": "Fixed quantity",
+    "m_e7335dc464c357": "Capacity",
+    "m_7faade94d753e9": "Extra buffer",
+    "m_31bf1b8d096f43": "Create a crew or resource group to configure group-specific capacity.",
+    "m_e6bed00d4f6f15": "Enable Resource Availability Rules in Features before these controls take effect.",
+    "m_d2459194a46e7e": "New call list",
+    "m_335dad2bd6cab9": "Ask a billing administrator to enable storage subscriptions for your organization.",
+    "m_78bdab1b2bb741": " Get More Storage",
+    "m_22b23eeb11de02": "Default entry scope",
+    "m_8ce59f5a5ea286": "New lead fallback",
+    "m_c2148f600b3d3b": "Enabled",
+    "m_37a3ec57dec673": {
+      "message": "{v2} scope{v3}",
+      "format": "icu"
+    },
+    "m_d6fb906e8a70fc": "No enabled project scopes match this search. Add one from the library or create one from scratch.",
+    "m_a1da01affaa0b2": "Remove group",
+    "m_f600cf97e7d65f": "Use automatic group",
+    "m_f4dd8c54ee169c": " Rules run top to bottom. Field paths can target any initial project data, such as ",
+    "m_27d19ac0b61dab": "lead_source.kind",
+    "m_14fc42a8d9805b": " or ",
+    "m_0c8da029db57e0": "lead.interest",
+    "m_2520371f6ccf3f": " Add routing rule",
+    "m_26f464891dc563": "Suggested for you",
+    "m_f1ada39218659d": "Common starting points based on the workflows available to your organization.",
+    "m_2e9f0ba3103b8b": "All templates",
+    "m_44a5ff56b668ac": "Use any template as a base, whether or not you already have a version enabled.",
+    "m_6816641c8be5cb": {
+      "message": "{v0} template{v1}",
+      "format": "icu"
+    },
+    "m_7b6c48a953be29": "No library templates match this search. You can still create a scope from scratch.",
+    "m_559432023f1af1": "Custom policy (Advanced definition)",
+    "m_b34bc38922c9c5": "Voice behavior",
+    "m_ae98c60b8482aa": "Editing by voice also requires list editing.",
+    "m_ae59d279066e5c": "Complete only",
+    "m_9f2ea34fbdb3b1": "Complete + edit",
+    "m_5add49ec578635": {
+      "message": "Rule {v0}",
+      "format": "icu"
+    },
+    "m_e3db7b9f3bfbce": "Custom calculation · maintained in Developer ",
+    "m_9a9ac18eccfd93": "Open Developer",
+    "m_401488cd49adb7": "Preset",
+    "m_629eaaf9caef92": "Percentage of basis",
+    "m_1f866df0898207": "Percentage after discounts",
+    "m_40874c1a8e0f28": "Discount-tiered",
+    "m_6c4835f9ae892e": "Fixed amount",
+    "m_256869f39b5ac2": "Selected line items",
+    "m_403efd8bd83f5b": "Limits, adjustments & eligible items",
+    "m_a11f94d22d6fd9": "Minimum ($)",
+    "m_b5785f150fc836": "Maximum ($)",
+    "m_2b0f820ba8bc39": "Fixed adjustment ($)",
+    "m_a24e1dd0661041": "Subtract proposal discounts from basis",
+    "m_48363c67b24212": "Include line item IDs",
+    "m_231689dd880d1f": "Exclude line item IDs",
+    "m_523a8deb2ddb22": "Exclude categories",
+    "m_b0f397577697c2": "Exclude tags",
+    "m_13c5d009a4501d": "Comma-separated; blank includes all",
+    "m_3bf08acd7526ca": "permit, financing_fee",
+    "m_35eadf90ecae3d": "Permits, Financing",
+    "m_89718d924c2aae": "noncommissionable",
+    "m_a5facc76d24f93": "Payment label",
+    "m_fc9978bb0c9be1": "Share (%)",
+    "m_0ff4f256371726": "Due event",
+    "m_3c4d2141b2fa1c": "Completed",
+    "m_705b16f536b804": "Started",
+    "m_b1c83e1c455163": "Remove scheduled payment",
+    "m_a053838ddccdfa": "No commission rules. Add a rule below.",
+    "m_a8385ff2b17195": "Automatically assign",
+    "m_cec752a2e856fc": "Manually on each project",
+    "m_fa37d49652896a": "Person assigned to the sales appointment",
+    "m_8a28d061ce0f90": "Person who scheduled the sales appointment",
+    "m_a154366ca56b94": "No scope-level roles yet.",
+    "m_9863f11d60b2fa": "Cancelled",
+    "m_b0f8e6e3f8102d": "No board columns are configured. Stage nodes under the first work-plan root define the columns.",
+    "m_92e98ae6a8fe9b": "Scope name",
+    "m_d85a941de2dd2c": "Instructions & notes",
+    "m_2d60b0c7f80b48": "Scope color",
+    "m_c495752f4558ae": "Scope icon",
+    "m_1e5a266eb26011": "Let customers reschedule their appointments. Individual appointments can override these defaults.",
+    "m_47efc69cb47f31": "Customer can reschedule by default",
+    "m_50b01da4e1a5de": "Applies live availability, assignment, capacity, buffer, and travel rules.",
+    "m_0c5d84545b19af": "Maximum customer changes",
+    "m_7b14070e3b44d2": "Customer chooses resource",
+    "m_d404ebcd52b855": "Change review",
+    "m_b3c55cbce7a7de": "Review configuration",
+    "m_b83ec893c3ca17": " Notify staff whenever a customer reschedules",
+    "m_0c00990fe70135": " Add a project to-do when approval is required",
+    "m_93359c06cccfee": {
+      "message": "{v0} work nodes",
+      "format": "icu"
+    },
+    "m_f361e1c250ff11": {
+      "message": "{v1} proposal inputs",
+      "format": "icu"
+    },
+    "m_023342e9dffd00": {
+      "message": "{v2} resource lists",
+      "format": "icu"
+    },
+    "m_29c733afb70414": {
+      "message": "Version {v3}",
+      "format": "icu"
+    },
+    "m_4fe20dd434f3aa": "Scope definition",
+    "m_2847bce37ce3cc": "Stable IDs, custom functions, metadata, and configuration. Valid changes auto-save.",
+    "m_e28c52ce582afc": "Scope definition JSON",
+    "m_9fcd284c27613f": "No scope templates are configured for this branch.",
+    "m_39239cb31c7b5e": "No apps are available for this organization.",
+    "m_cf464174e488f8": {
+      "message": "Location for {v3}",
+      "format": "icu"
+    },
+    "m_0e0816cc65cb74": "No full apps are available for this organization.",
+    "m_05ab2afef176e7": "Search features…",
+    "m_2f10650fabf493": "Built-in",
+    "m_8982ea068adaf1": "Signup default",
+    "m_4b9ac6e109db0a": "Use at signup",
+    "m_deb10a9a4158b1": "Update from current",
+    "m_9df9882cf648fb": "System",
+    "m_24bfd239048801": "Your set",
+    "m_446edd2609d8ee": "Switch to this set",
+    "m_5546a92389e386": "Archive",
+    "m_0090d5b8755954": {
+      "message": "{v0} Sets",
+      "format": "icu"
+    },
+    "m_09f5582d192f36": "Loading notification preferences…",
+    "m_830d26ef67ddef": "Selected triggers",
+    "m_234080acc28117": "Default order",
+    "m_bc2e8c60e0a22b": "Name A–Z",
+    "m_3c1fce6ec7289b": "Enabled first",
+    "m_ab990404258fda": "Add custom",
+    "m_675cdc60e59266": "FirstMate assistant",
+    "m_5ede774dc3f22a": "Retry saving",
+    "m_17663ddda6cb68": "Notification groups",
+    "m_6cf855fe25eb63": "Search notifications…",
+    "m_9a4e62cc36b0a5": "Search notifications and categories",
+    "m_b61a549dc0bd64": "Sort notifications",
+    "m_5b25a812504adc": "Notification assistant",
+    "m_92897a3e307a52": "Notification conversation",
+    "m_40ecd11f3f31cb": "Describe your custom notification",
+    "m_79e509d3cc58f8": "Describe your notification…",
+    "m_8afbfeae955a57": "Notification",
+    "m_ac1052388993fc": "In app",
+    "m_beeb4b3fee68a1": "Push",
+    "m_72b107c03a2294": "No notifications declared in this workflow yet.",
+    "m_d88f1fd665ce8e": "No notifications here yet. Describe what you need to the FirstMate assistant to add one.",
+    "m_df3c479fb5f083": "Describe a notification you&#39;d like to receive",
+    "m_cd644ee227567f": " I’ll check what already exists, then help you configure it.",
+    "m_b683b7eadfeb6e": "FirstMate is working…",
+    "m_249d1f14fb2a4d": "Wait for your notification choices to finish saving, then send.",
+    "m_292b7ebd649d77": "Left column",
+    "m_d14f58ab8ec89a": "Choose the tabs and layout you see. These preferences only affect your account.",
+    "m_1a291e7380a4b2": "Default tab",
+    "m_8e6a32a6e55da1": "Opens when you enter the portal, if available.",
+    "m_4bec39f8fa90dd": "To Dos",
+    "m_4380914ceeac71": "Agents",
+    "m_4c565950971cc1": "Temporary expansion",
+    "m_cc91515ec0ede8": "Choose how the compact rail expands on hover.",
+    "m_2bb9b8e0d8a0ae": "Resize page",
+    "m_a974f0e4a935ab": "Overlap page",
+    "m_1a243695cb00b1": "The company-wide assistant in the top bar. Powered by GPT-6 Luna. Its published data and actions follow each user's permissions.",
+    "m_e83b9355dd6244": "Organization instructions",
+    "m_8bad1d5a384a61": "Platform-wide instructions",
+    "m_2eb20eed245d34": "These apply to the global assistant in every company. Only a platform administrator can edit them.",
+    "m_15fa0ce01cb4c7": "Loading your assistant preferences...",
+    "m_085c989e5be0a9": "Your assistant instructions",
+    "m_b40faf5a1d330e": "These apply only when the assistant talks with you. Platform rules and company instructions still apply.",
+    "m_13afa1aaa54ff7": "Use saved memories in my conversations",
+    "m_5fba4c5fcd5a8e": "Save my preferences",
+    "m_eb56489e082fd9": "Saved memories",
+    "m_46f9598265937b": "You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.",
+    "m_0a3f7a80f1c622": "Add a memory",
+    "m_6c1b290f1ddee9": "Delete all your saved assistant memories?",
+    "m_960f70cf4ed64a": "Company instructions for this agent...",
+    "m_54eb8e1b237591": "Image",
+    "m_4706f0b38fd6b6": "On",
+    "m_38e15f7a2dd540": "Brand Kit",
+    "m_3cfab293c8c008": " Invite person",
+    "m_ae615734419eb6": "Roles &amp; default access",
+    "m_91244bdaa8204c": "Create reusable starting points for app visibility and permissions.",
+    "m_1f1ad34d149fdf": "Loading access roles...",
+    "m_0e74f1bca1ead4": "Manage",
+    "m_ae9d8c44e49371": {
+      "message": " Each top-up charges {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_6fd299432247c1": "Saving Brand Kit…",
+    "m_600e1e15c4efd9": "Brand Kit saved",
+    "m_569b229b85507e": "Brand Kit save failed",
+    "m_eb048f8fda1f67": "Four supporting colors were pulled from your logo and saved.",
+    "m_b9b9bca729d6db": {
+      "message": "rev {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "No active access roles.",
+    "m_77a0c5b9d8ac90": " You",
+    "m_dbbdf490d785ff": {
+      "message": "{v0} contact{v1} in this file match contacts you already have (by email, phone, or name).",
+      "format": "icu"
+    },
+    "m_69337ba9a988cf": {
+      "message": "Remove tag {v2}",
+      "format": "icu"
+    },
+    "m_d674899969da48": "Days",
+    "m_c18bd9b7e40fc5": "Weeks",
+    "m_49edaae2aeec64": "Months",
+    "m_6c8ff1f276e6ec": "Keep repeating the final interval",
+    "m_1ae07271ca1ccb": "Stop automatic attempts",
+    "m_978ac8f171e6cb": "Add at least one attempt interval.",
+    "m_fb1fb4c99cf558": "Add at least one quick option.",
+    "m_acf892860eeea9": {
+      "message": "/ {v1} yr",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "Unavailable",
+    "m_4cf18dcb73c18f": "Transfer price",
+    "m_4d60013fef9dbb": {
+      "message": "{v0} USD",
+      "format": "icu"
+    },
+    "m_0dbf10eeda5484": "Term",
+    "m_ebde2cac915f72": "Registrant",
+    "m_d540cb574bf54c": "No transfer or purchase.",
+    "m_306264fc95bf71": "Test mode.",
+    "m_2c10be3701f2a3": "Final confirmation.",
+    "m_e64a543b1d8328": "New website name ",
+    "m_99786b12078773": "Main Website",
+    "m_0007afaec666fd": "Copy DNS values",
+    "m_4ce77002a418e4": "Send reminder email",
+    "m_310a794dc5d358": "Domain purchasing is not configured.",
+    "m_0c9c4c4df16b0c": " Existing-domain connections remain available, but registration and transfer require server credentials and encryption.",
+    "m_6e11ef5cf54adb": "No domains have been added yet.",
+    "m_46f4295156601c": "Manage website routing, renewal protection, nameservers, privacy, and transfers.",
+    "m_5280d67fd63d3b": {
+      "message": " Open {v1}",
+      "format": "icu"
+    },
+    "m_45b749fc916282": " Saving domain changes...",
+    "m_c25cc66b28cc9d": "Open",
+    "m_cd62fc8a4b19b2": "Not connected",
+    "m_e0769df0810a0d": " Transfer out",
+    "m_eb768df1328610": {
+      "message": "Needs {v0}.",
+      "format": "icu"
+    },
+    "m_79d73034c60bb9": "Unsaved behavior changes.",
+    "m_d37d1ea8014ce9": "Invite customers who rate ",
+    "m_6389d8e47068f3": " stars &middot; everyone else lands on the private thank-you",
+    "m_3a0286aa106f2b": "With review invitation",
+    "m_52830c4072ae13": "Destinations",
+    "m_e09715b775ce9e": " Add user",
+    "m_3bd856aa3b4d37": "Anchor pay date",
+    "m_7ee15b229eba08": {
+      "message": "{v6} assignments",
+      "format": "icu"
+    },
+    "m_4182a9b15ec365": "No matching people or groups",
+    "m_3d1fdecac7eb00": {
+      "message": "Showing the first {v0} of {v1}. Refine your search to narrow the list.",
+      "format": "icu"
+    },
+    "m_a14385e683eb0e": "No one is assigned yet",
+    "m_4db70f96e6fe6c": "Add the company default, a person, role, crew, or subcontractor to use this pay schedule.",
+    "m_a1209799a6f896": " Back to payroll",
+    "m_e416185c2f3c2d": {
+      "message": "{v2} / mo",
+      "format": "icu"
+    },
+    "m_317fc5761f1086": "Account credit applied",
+    "m_b92d0e5b299359": {
+      "message": "{v0} credit will apply to future automatic charges.",
+      "format": "icu"
+    },
+    "m_754dd129516941": "Included usage & additional charges",
+    "m_892ed269e11560": "Usage is billed separately after each calendar month.",
+    "m_2eb7f2575b528b": "Review & add",
+    "m_c26a9e0e8e1cee": "Ask a billing administrator to add this subscription.",
+    "m_88b6fb7b2f6258": "No plans are available yet.",
+    "m_52528484a2cb0a": "Ask a billing administrator to change your plan.",
+    "m_ffbe4a2f9aa9ea": {
+      "message": "{v0} · Payment pending",
+      "format": "icu"
+    },
+    "m_05745195593c90": "Resume checkout",
+    "m_6a2fe69eaafe9f": "Cancel checkout",
+    "m_0046334b86727f": "Current charges",
+    "m_12d50764e4cc8d": "Billing month",
+    "m_0b03fbf3d6be5c": "Monthly subscriptions renew until cancelled. Subscription fees are paid in advance. Usage is invoiced after each UTC calendar month.",
+    "m_73dcf45557c06c": "Estimated charges to date",
+    "m_fdea3e96458f2e": {
+      "message": "{v2} · before tax",
+      "format": "icu"
+    },
+    "m_1bd1280139dec2": "Monthly subscription",
+    "m_7bc0c63829d4ef": {
+      "message": "{v4} subscriptions · usage billed separately",
+      "format": "icu"
+    },
+    "m_50f65ea023b1f8": "Stored media",
+    "m_bf4efcfe808da6": {
+      "message": "{v7} Storage charges use the time-weighted average of retained media, including generated renditions.",
+      "format": "icu"
+    },
+    "m_11fe5f1cf9f759": "Your subscriptions",
+    "m_20514b78cbb3fe": "Activating a subscription accepts its listed monthly and usage prices. Cancelling preserves access through the paid period.",
+    "m_55d9856d6193bd": "Available subscriptions",
+    "m_74b68c454b06a0": "Invoices",
+    "m_43cb49958e46e0": "Subscription payments appear below. Usage invoices close 72 hours after month end.",
+    "m_bfc26d73cc2169": "Pricing catalog",
+    "m_4c0ad3fe7d6590": "Install standard offers",
+    "m_2a303bd2dff33a": "Connect any eligible app or feature to a price. Publish a new version to offer new prices; existing subscriptions retain their accepted version.",
+    "m_ffc31714e77445": "Create a price version",
+    "m_8fd0bf675dbb09": "Product ID",
+    "m_a708d5bea521df": "Plan key",
+    "m_cbcbe99f6ca982": "Feature or app",
+    "m_7a9c4ac8f4d33c": "Highlights (one per line)",
+    "m_db46fe507bb7cc": "Included outgoing SMS",
+    "m_1a4da31e4feffd": "Storage allowance (GB)",
+    "m_d3f316d81bcdf4": " Placeholder offer",
+    "m_eba1e35456b2e3": "Monthly price (USD)",
+    "m_22b82705c2f085": " Require an active subscription when commercial access checks are enabled",
+    "m_29f4c62e9cdbfd": "Usage prices",
+    "m_35288aadd41483": "For storage, use 1073741824 units to price a GiB-month. An empty usage list and a $0 monthly price makes this product free.",
+    "m_c1b46ec140ff0f": "Regional price overrides (JSON, optional)",
+    "m_47d50fce42474c": "Add usage price",
+    "m_79283af42d24b8": "Save draft price",
+    "m_c288aa14c0940e": "agents",
+    "m_a629ad49887645": "AI agents",
+    "m_187ce4ba70d089": "&#123;\"international\":&#123;\"EUR\":&#123;\"monthly_cents\":6000,\"rates\":[]&#125;&#125;&#125;",
+    "m_c187167ff5c140": "Account controls",
+    "m_4918b0be6a1ff3": "Start collecting usage before enabling subscription requirements. Commercial access checks apply only to published paid products.",
+    "m_1e8ccb9a680234": "Access checks: ",
+    "m_95b1630a335e24": "Start usage monitoring",
+    "m_75e3876e493f83": "Close a billing period",
+    "m_f60fd07a7aa58f": "The month must have ended at least 72 hours ago. This creates an immutable invoice and never charges a card automatically.",
+    "m_bbb89e49fa1636": "Create invoice",
+    "m_6d11996dad789d": "Audit history",
+    "m_30ae8c014e6dad": "Net measurement-credit change",
+    "m_1f74dd24cb4d00": "Measurement credits",
+    "m_25defdf23c11ab": "Credit change",
+    "m_f13f26c1a045c0": "View invoice / receipt",
+    "m_bb6c9ee9e35fe4": "Charged automatically to your subscription payment method.",
+    "m_605c6b5b605fa3": "Billing administration",
+    "m_a3144fad58241a": "Add credit",
+    "m_244d61bf046fac": "Available for measurement orders",
+    "m_00e8b97d36a6f6": "Add subscription",
+    "m_597ab49831da50": " / mo",
+    "m_957a6f6c7658ee": {
+      "message": "SMS · {v0} / {v1} messages",
+      "format": "icu"
+    },
+    "m_d1b297470a5dd9": {
+      "message": "{v0} GB storage allowance",
+      "format": "icu"
+    },
+    "m_500d4ee8f1c260": {
+      "message": "{v0} GiB stored · measured {v1}",
+      "format": "icu"
+    },
+    "m_b40f1424846f60": "Storage has not been measured yet.",
+    "m_9a425b6a25c93c": {
+      "message": " · {v1} units · {v2} included",
+      "format": "icu"
+    },
+    "m_40871c5251aafa": "No metered charges for this month.",
+    "m_09201a93bdd513": {
+      "message": "Updated {v0}{v1}",
+      "format": "icu"
+    },
+    "m_3d4e0ef315c2f5": "Late usage is awaiting an operator adjustment.",
+    "m_37d817d2c9cda7": "Credit payment method",
+    "m_e533bb7d7acf97": "Payment timing",
+    "m_7c85b87c3cfdeb": "Manage payment details",
+    "m_03b91c30daa799": "Your automatic payment needs attention. Update your payment method to restore renewal.",
+    "m_bd7f019058c519": "Inactive rule",
+    "m_db3ddffe021438": "Requires explicit work-item targeting",
+    "m_b4cc6d9b173a93": " Edit",
+    "m_4ca2373c8d6084": "Availability follows the settings above.",
+    "m_00b155d51e1628": "No explicit automation binding is attached. See the creation timing above.",
+    "m_3c297368e87c27": {
+      "message": "{v0} additional events can match with explicit targeting",
+      "format": "icu"
+    },
+    "m_a2485d21b9fb36": "Connected artifacts",
+    "m_0282992bcb8c61": "Document use to edit",
+    "m_6951dc634f0b13": "At this work item",
+    "m_2e76779b05955d": "Whole scope",
+    "m_7839757fa5e4ee": "Starts",
+    "m_9a840e1cebc7e8": "Completes",
+    "m_3c3a8c8bc7c229": "Becomes ready (work item only)",
+    "m_fd4c83cd4f03a4": "Only if (optional conditions)",
+    "m_603ba7cef2a943": "Finish the pending scope changes before editing artifacts.",
+    "m_2fb1c704eabe82": {
+      "message": " Add {v1}",
+      "format": "icu"
+    },
+    "m_ca88ed9c340900": "Handler unavailable",
+    "m_da7e1f852c2ae0": "Explore resulting event ",
+    "m_6b1a344f4e34c8": {
+      "message": "On failure: {v0}.",
+      "format": "icu"
+    },
+    "m_08f57c2861cb9b": "No parameters are documented for this action.",
+    "m_b66bef8d909043": "All boards",
+    "m_77a68aeefc18fe": "No specific documents were listed.",
+    "m_0ac4db5232d5ab": "Remove owner",
+    "m_4b26fa05c4c75f": {
+      "message": "No active {v0} yet.",
+      "format": "icu"
+    },
+    "m_924bb8d0a06645": "No matching scopes in this group.",
+    "m_96ec0f428fd44d": "Rule name",
+    "m_8ea15c3c9b6b15": "Send to",
+    "m_e3fbd46ed1ed15": "Match",
+    "m_2850cdd91ef21b": "All conditions",
+    "m_f4f45b054cd13d": "Any condition",
+    "m_42882b0e5b46b3": " Add condition",
+    "m_a87220739b51f5": "Remove rule",
+    "m_b2f7a6ae01ecc8": "No field rules yet. The fallback scope will be used.",
+    "m_56cc7fcbed29ba": "Fixed amount ($)",
+    "m_344f9a56adce24": "Basis",
+    "m_eed2f2b0590056": "Proposal total",
+    "m_88510d98e03db0": "Proposal subtotal",
+    "m_10f5f33a0b49a0": "Collected revenue",
+    "m_0655e4b3743f9a": "Forecast profit",
+    "m_24c904032f348c": "Rate (%)",
+    "m_ca33cc0403fa69": "Discount tiers",
+    "m_9be2bf7021df3e": "Edit tiers in Developer",
+    "m_b5c97212f374f0": "Default role",
+    "m_67a684215c78f2": "Remove recipient role",
+    "m_73b0c8c3bf826d": "Enable Customer Self-Scheduling in Features before this scope default takes effect.",
+    "m_c7fc7c3f3d684d": "Enable push on this phone",
+    "m_d93434462ad831": "Disable on this phone",
+    "m_ad67aa00bf8277": {
+      "message": "About {v1}",
+      "format": "icu"
+    },
+    "m_55d8ae7dbe87c6": "AI assistant",
+    "m_f0ed135b34b3ad": "Manage your instructions and saved memories.",
+    "m_198e9b07255891": "Open assistant settings",
+    "m_384a9ef1063a0c": "Save platform instructions",
+    "m_5bab3e72de1ebf": "Save",
+    "m_06d02b720eb265": "No saved memories.",
+    "m_df4c9025f9cc03": "Clear all",
+    "m_6e9ebf535758d8": "Business address",
+    "m_bbe1447b5d3e67": "Used to prefill domain registration and 10DLC business verification.",
+    "m_ac137f394a3447": "Street address",
+    "m_c549239597ab7a": "Suite, unit, etc. (optional)",
+    "m_ae873abaa56707": "Measurements",
+    "m_455c24bfeb9092": "Imperial (feet and squares)",
+    "m_ef3e6a234d5a73": "Metric (metres and square metres)",
+    "m_4ca221574beb0d": " Report preview",
+    "m_a09f6a051adb2f": "Company logo in report preview",
+    "m_8eec608d18828f": "Sample roof diagram",
+    "m_1dad4c0b509712": "No destinations yet — add where great reviews should go.",
+    "m_7d171830df3356": "Adding",
+    "m_451fd3e6236867": {
+      "message": "{v0}: {v1} included; {v2} per {v3}.",
+      "format": "icu"
+    },
+    "m_a39b1dd4537af5": "No platform charges for this period. Features without a published paid price remain free.",
+    "m_2b41caabb7575a": "Additional usage arrived after this invoice closed. An operator can review an adjustment; the issued invoice stays fixed.",
+    "m_b9212a81675232": {
+      "message": "Started {v3}{v4}",
+      "format": "icu"
+    },
+    "m_819228d75540c2": "No subscriptions yet.",
+    "m_48541eb57111b7": "No paid products have been published.",
+    "m_8e96075e6e6ba2": {
+      "message": "Subscription · {v0}",
+      "format": "icu"
+    },
+    "m_85b72121315715": "View charges",
+    "m_6551a3a3cb9454": "Your issued invoices will appear here.",
+    "m_d478c25755d7b2": "Publish price",
+    "m_1df8644ce6c2a7": "No billing changes yet.",
+    "m_41a735201029e0": "Change plan",
+    "m_7955d897b871f4": "Cancel renewal",
+    "m_c485f14d425751": "Resume renewal",
+    "m_9a8564cbc0bf4d": "Included usage & rates",
+    "m_ff784893bd09c3": "Project field",
+    "m_58115ff5785d0b": "Operator",
+    "m_8261c51a7fc95c": "Remove condition",
+    "m_2cdb9154dbfb8c": {
+      "message": "{v0}%–{v1} discount → {v2}% commission",
+      "format": "icu"
+    },
+    "m_ed5dd86bc49fce": "Collected automatically from your subscription payment method.",
+    "m_8627da27267494": {
+      "message": "{v0}: {v1} included; {v2} per {v3} units.",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -6961,7 +8946,18 @@
     "m_649dd47ec9c618": "Send to portal",
     "m_962095051f86a1": "Sent to portal",
     "m_9acd909e2fe732": "Project work",
-    "m_222066ef57ae0e": "Work"
+    "m_222066ef57ae0e": "Work",
+    "m_18f4bab14c1217": "No available workflows match that search.",
+    "m_ef71068fcf4003": "Does this replace earlier work?",
+    "m_c25cc66b28cc9d": "Open",
+    "m_fa63ef6069048a": "Send to customer portal",
+    "m_788d9f90e20689": "Cancel this work…",
+    "m_7c0b81b4d913ff": "On-site quote",
+    "m_5b9378df7220c1": "Edit",
+    "m_68c760d3b53c89": {
+      "message": "Cancel “{v1}”…",
+      "format": "icu"
+    }
   },
   "smoke": {
     "m_7b2459374254fa": {
@@ -6997,7 +8993,8 @@
     "m_762cdf6fd5abc9": "Magnet sweep complete",
     "m_7bce998ebd4129": "Smoke receipt",
     "m_691187e28aba8e": "Materials",
-    "m_2175240180a38e": "Pending"
+    "m_2175240180a38e": "Pending",
+    "m_2abd9c35cff819": "none"
   },
   "stats": {
     "m_660a3c1af32a63": "No data for this period",
@@ -7046,7 +9043,18 @@
     "m_f5ffc0afa0f574": "Stats assistant",
     "m_262ffc4610efbc": "Drag to resize",
     "m_3742924668fb10": "Close",
-    "m_bd451534def6c4": "Stats"
+    "m_bd451534def6c4": "Stats",
+    "m_1ceddb8b63f512": "Start from",
+    "m_10c61184707116": "Blank — build it with the assistant",
+    "m_8ec95914a0006b": "Create an empty view, then describe what you want to see.",
+    "m_5934f6da3456df": "Delete view",
+    "m_5bab3e72de1ebf": "Save",
+    "m_df7920138f71f7": "General",
+    "m_872b5ed945ab78": "No conversations yet",
+    "m_d8d206799cb842": "Working on it",
+    "m_74d08a454b2676": "Back to conversation",
+    "m_a2d1808c7ed0ea": "More options",
+    "m_84e4d3109d655d": "New conversation"
   },
   "tab-promos": {
     "m_5c4fb8df281140": "FirstMate",
@@ -7315,7 +9323,67 @@
     },
     "m_23d5e0c82a8304": "Person",
     "m_8cb6b086a0e69c": "Done",
-    "m_01b92ff235d614": " marks manual-unlock lessons — click a padlock to unlock or re-lock that lesson for that person."
+    "m_01b92ff235d614": " marks manual-unlock lessons — click a padlock to unlock or re-lock that lesson for that person.",
+    "m_cc74e4e6c905ec": "Check",
+    "m_6811d3b07a9ed6": "Type your answer",
+    "m_36e9b2465c46f9": {
+      "message": "{v1} unlocked",
+      "format": "icu"
+    },
+    "m_166e9cfce5d7c3": {
+      "message": "{v7}/{v8} lessons{v9}",
+      "format": "icu"
+    },
+    "m_fae85eae9a5dc4": "START",
+    "m_16bcb758a076ba": {
+      "message": " Best {v0}%",
+      "format": "icu"
+    },
+    "m_8d6d455de32d3c": {
+      "message": " {v0} previous run{v1}",
+      "format": "icu"
+    },
+    "m_4e20b8927f6c81": {
+      "message": " {v0} attempt{v1}",
+      "format": "icu"
+    },
+    "m_b3ebdfc21e717e": "Unsaved changes",
+    "m_d955510c14958a": {
+      "message": "{v4} lesson{v5}",
+      "format": "icu"
+    },
+    "m_b78866177f4cbb": "Choices — one per line, mark correct with *",
+    "m_0480e163246205": "*Correct answer\nWrong answer\nAnother wrong answer",
+    "m_193151df26c547": "Accepted answers — one per line",
+    "m_3fa90c685a2015": "Case sensitive",
+    "m_a361a68f615ff0": "answer\nalternate answer",
+    "m_9d6a9a8ec4fce8": "Page title",
+    "m_25cb1296b6f56d": "Available on",
+    "m_2f194a3b58094f": "You can override this date per person or crew from Assignments.",
+    "m_0048a39d8517eb": "Use the Progress panel to unlock this lesson per person when they are ready.",
+    "m_f69d0f8963ca4e": {
+      "message": "After lesson {v2}: {v3}",
+      "format": "icu"
+    },
+    "m_f5fe0e6eb39d5a": {
+      "message": "{v4} {v5}{v6} &middot; {v7}{v8}",
+      "format": "icu"
+    },
+    "m_a633ca55a7ab6d": {
+      "message": "No {v0} yet. Learners see them in the {v1} tab, grouped under this course.",
+      "format": "icu"
+    },
+    "m_ec4337fa512c0f": "Back text",
+    "m_d2948f3723a855": "No cards yet — add one or bulk import.",
+    "m_3a1f39b0dafa70": "No questions yet.",
+    "m_4fbc9436add0ed": "Nobody is assigned this course yet.",
+    "m_3c4d2141b2fa1c": "Completed",
+    "m_ce4c59ad444965": "Unlocked — click to re-lock",
+    "m_c07c2e73eec73b": {
+      "message": "Locked — click to unlock for {v2}",
+      "format": "icu"
+    },
+    "m_3f26ea68ed8339": "Not completed"
   },
   "tutorial": {
     "m_ebaa6f2e6577fa": "Welcome!",
@@ -7471,7 +9539,42 @@
       "format": "icu"
     },
     "m_6f4c8d92d84a45": "Loading version",
-    "m_05ae2c72e46837": "Couldn’t load this version"
+    "m_05ae2c72e46837": "Couldn’t load this version",
+    "m_63c86c5bf4a1b7": "Are you sure?",
+    "m_2db04ed62445d8": "Published pages appear as tabs in your customer portal",
+    "m_a9bb69bf4fa53f": "Hosted website",
+    "m_9b03ccb29ba168": "Summary",
+    "m_97af778bd995b1": "In portal",
+    "m_dd2479d2b169d7": "Header menu",
+    "m_279be10a5e8139": "Footer menu",
+    "m_f1956e2233bd27": "Visible",
+    "m_1519fbdf5b87ed": "Home",
+    "m_d423f790e25aa6": "Show this page as a tab in your customer portal",
+    "m_0f092ca7d72f68": "Show in header menu",
+    "m_a606bea45e84d6": "Show in footer menu",
+    "m_fbc252f2b3b59e": "Visible on the live site",
+    "m_e3fecb7ffcdc8c": "Set as home page",
+    "m_448f96fcde9319": " Live URL",
+    "m_e9747fd9a688ef": " Live chat",
+    "m_29aeeed68dba2e": "Show the chat widget on this site",
+    "m_144bbb11f388a8": "Uses your FirstMate live-chat widget.",
+    "m_3dac2af4770318": "Chat widget key",
+    "m_f6e3be5d9f4ed5": "Find this under Settings → Live Chat → Widget.",
+    "m_b861d33d8cee56": "wk_…",
+    "m_1b9b45cf9e351d": "Customer portal templates",
+    "m_a1e9e1f8008f0c": "Opening page",
+    "m_9d086cd5a7a42c": "Couldn’t open this page",
+    "m_2399ec3b4373a0": "This is a site chrome page — it renders on every page of your site and stays out of menus.",
+    "m_d58b8139dce2e2": "SEO title",
+    "m_d7ec3a61f94e39": "SEO description",
+    "m_dc9e45a6bb3a6b": "View this version",
+    "m_08616cb653b89e": "Restore to draft",
+    "m_c47e91f90ebbb4": "No pages yet",
+    "m_3bac4fc9dda8bb": "Show in customer portal",
+    "m_c08285256579b0": "Your customers see this page as a portal tab. Turn off to hide it without unpublishing.",
+    "m_2bc98ea7cc4e03": "Adds this page to your site’s header navigation.",
+    "m_864ba051ae8d35": "Visible on your live site",
+    "m_29131610b16909": "Turn off to hide this page without unpublishing."
   },
   "platform": {
     "m_b126ae2c9d98e9": "App access is not enabled",
@@ -7574,7 +9677,22 @@
     "m_6d30e375168449": {
       "message": "{v0} unread &middot; {v1} total",
       "format": "icu"
-    }
+    },
+    "m_9a00fb620ffc1d": "Could not save sidebar width",
+    "m_854ab579641f94": "Agent conversations are loading…",
+    "m_86ec40fa3f9758": "Turn Off",
+    "m_4aaef822b47692": "FirstMate Assistant",
+    "m_c411108185658e": {
+      "message": "{v1} FirstMate Assistant",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} FirstMate Assistant",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Billing settings could not be loaded. ",
+    "m_48a9cdd2af44f4": "Retry",
+    "m_6f00fe3f2607af": "Solo"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Office",
@@ -7816,7 +9934,21 @@
     "m_47839980185da7": "Remove from channel",
     "m_3c7ae517773d5c": "Added",
     "m_b0afebe3886365": "Topic",
-    "m_7e784f9b5540ab": "error"
+    "m_7e784f9b5540ab": "error",
+    "m_55e29000de24ef": "Recording for this huddle",
+    "m_4dda343a2c2609": "These choices apply if this starts a new huddle. An existing huddle keeps the recording policy it started with.",
+    "m_d6b91b318d8042": "Record this huddle",
+    "m_9aa73a62da062e": "Everyone sees a recording indicator while retention is active.",
+    "m_c0fafd4c71c164": "Include video and shared screens",
+    "m_4834f9fc9896d5": "When off, the retained recording contains mixed audio only.",
+    "m_954a04d61ae9d6": "Restore",
+    "m_e6bd48170f22a4": "Unread",
+    "m_d755d71a468c5b": "Huddle recording defaults",
+    "m_bf4b6a6fbea876": "People can override these defaults before starting each huddle.",
+    "m_0827b63560c6ad": "Record huddles by default",
+    "m_d9afd0516e2f66": "Retain the conversation recording in this channel.",
+    "m_1a1fcea0103f82": "Include video and shared screens by default",
+    "m_3f8ca37e692c8c": "Turn this off to retain mixed audio only unless the starter opts in."
   },
   "platform-action-items": {
     "m_3c4d2141b2fa1c": "Completed",
@@ -7974,7 +10106,12 @@
     "m_048b624b01eed1": "Choose month",
     "m_c7c9d0d1ba2803": "Go to today",
     "m_bb31fd73cbfe3b": "Previous",
-    "m_5e03a7c216f500": "Next"
+    "m_5e03a7c216f500": "Next",
+    "m_6af109c4fd5ab7": " Lock appointment time",
+    "m_87d3f1a9ae9c3e": " Smart scroll",
+    "m_c59e80991af608": "Choose month and year",
+    "m_f9835510940421": "Month",
+    "m_844068116c424b": "Year"
   },
   "doc-widgets": {
     "m_3742924668fb10": "Close",
@@ -8073,7 +10210,17 @@
     "m_aebf4bbf60e0d3": "Include system rows (commissions, payroll labor)",
     "m_611ff0e7569d4d": "Payment history",
     "m_a7916d70f75a35": "Include outgoing payments",
-    "m_6878b2125403ba": "Report table"
+    "m_6878b2125403ba": "Report table",
+    "m_cbcae1403d8359": "Send this document to its assigned signers before collecting signatures.",
+    "m_c42b6e188d23fe": "This stops electronic signing for this agreement. You can ask the sender for a paper process. Reason (optional):",
+    "m_4b30d733b357e0": "Open the agreement PDF and confirm your consent before signing.",
+    "m_e0738da2d77758": "The presenter must confirm that the assigned signer is present and personally signing.",
+    "m_cb90a26bea1aec": "Recording signature…",
+    "m_b420b6f775b7b3": "Adopt & sign",
+    "m_9348de0f5286f1": "Signer role ID",
+    "m_520c97bcf01862": "Shared position: field keys (comma separated)",
+    "m_6d28672303118a": "Shared position: signer role IDs in the same order",
+    "m_801bfb52a7d68d": "Required signature"
   },
   "field-visit": {
     "m_ae8e4953e07d70": "Customer",
@@ -8110,7 +10257,15 @@
     "m_3dbf4d87db5138": "Property & project",
     "m_5a654ad9b6d2e3": "Appointment",
     "m_d6113dda50d96c": "Project notes",
-    "m_bf1271de7156aa": "Loading customer information"
+    "m_bf1271de7156aa": "Loading customer information",
+    "m_34ac7f9c427ea4": " Call",
+    "m_04006b369ea5a3": " Arrival confirmed",
+    "m_67a8b9c727ff77": "Open customer workflow",
+    "m_2e6670ed312621": "Customer follow-up",
+    "m_d8d2e84c5e4d8b": "Visit",
+    "m_8513532cca77d9": "No customer contact information is available.",
+    "m_aaebd7ccba0b30": "Project",
+    "m_5fad3819c6e85c": "Open directions"
   },
   "payment-intake": {
     "m_176d224f76f11e": "Visa ending in 4242",
@@ -8151,7 +10306,11 @@
     "m_3742924668fb10": "Close",
     "m_c094604d7b92f1": "Processing payment...",
     "m_2f639ee25d94d2": "Please keep this window open.",
-    "m_8cb6b086a0e69c": "Done"
+    "m_8cb6b086a0e69c": "Done",
+    "m_ea4c400c014ca3": "Choose a payment method to continue.",
+    "m_2c721c4e180145": "I authorize this ACH debit from the bank account above for the payment amount shown.",
+    "m_e9a6566891f25b": "Save this bank account for future payments.",
+    "m_13463f6c0ed33a": "Save this card for future payments."
   },
   "communications-templates": {
     "m_ed956bd0cbfa79": "First name",
@@ -8184,6 +10343,8 @@
     "contacts.primary_contact": "Primary Contact",
     "contacts.linked_projects": "Linked Projects",
     "contacts.activity": "Activity",
+    "contacts.settings_tab": "Contacts",
+    "contacts.field_customer_tab": "Customer",
     "photos.portal_tab": "Feed",
     "photos.project_tab": "Photos",
     "photos.photos_view": "Photos",
@@ -8332,6 +10493,8 @@
     "financials.margin": "Margin",
     "financials.revenue": "Revenue",
     "financials.expenses": "Expenses",
+    "financials.reconcile_view": "Reconcile",
+    "financials.payouts_view": "Payouts",
     "payroll.portal_tab": "Payroll",
     "payroll.settings_tab": "Payroll",
     "payroll.upcoming_view": "Upcoming payroll",
@@ -8358,6 +10521,8 @@
     "scheduling.visit": "Visit",
     "scheduling.shift": "Shift",
     "scheduling.assignment": "Assignment",
+    "scheduling.gantt_view": "Gantt",
+    "scheduling.sales_portal_tab": "Schedule",
     "calls.portal_tab": "Calls",
     "calls.workflows_settings_tab": "Call Workflows",
     "calls.call": "Call",
@@ -8396,23 +10561,26 @@
     "crew.clock_in": "Clock In",
     "crew.clock_out": "Clock Out",
     "crew.break": "Break",
+    "crew.overview_tab": "Visit",
     "earnings.crew_portal_tab": "Earnings",
     "earnings.crew_project_tab": "Earnings",
     "earnings.earnings": "Earnings",
     "earnings.owed": "Owed",
     "earnings.paid": "Paid",
     "earnings.projected": "Projected",
+    "earnings.sales_portal_tab": "Earnings",
     "payments.crew_project_tab": "Payments",
     "payments.payment": "Payment",
     "payments.payments": "Payments",
     "change_orders.crew_project_tab": "Change Orders",
     "change_orders.change_order": "Change Order",
     "change_orders.change_orders": "Change Orders",
-    "checklists.crew_project_tab": "Checklist",
+    "checklists.crew_project_tab": "Checklists",
     "checklists.checklist": "Checklist",
     "checklists.checklists": "Checklists",
     "checklists.checklist_item": "Checklist Item",
     "checklists.checklist_items": "Checklist Items",
+    "checklists.project_tab": "Checklists",
     "equipment.portal_tab": "Equipment",
     "equipment.settings_tab": "Equipment",
     "equipment.fleet_view": "Fleet",
@@ -8480,6 +10648,14 @@
     "reports.period": "Period",
     "workforce.settings_tab": "Crews and Subcontractors",
     "workforce.organization_connections_view": "Organization Connections",
+    "workforce.resource_group_singular": "Crew",
+    "workforce.resource_group_plural": "Crews",
+    "workforce.worker_singular": "Crew Member",
+    "workforce.worker_plural": "Crew Members",
+    "workforce.organization_connection_singular": "Subcontractor",
+    "workforce.organization_connection_plural": "Subcontractors",
+    "workforce.management_application": "Main App",
+    "workforce.field_application": "Crew App",
     "settings.portal_tab": "Settings",
     "settings.company_tab": "Company",
     "settings.users_tab": "Users",
@@ -8490,13 +10666,46 @@
     "settings.storage_tab": "Storage",
     "settings.sms_tab": "SMS",
     "settings.feature_flags_tab": "Feature Flags",
+    "settings.feedback_tab": "Feedback",
+    "settings.live_chat_tab": "Live Chat",
+    "settings.comms_tab": "Communications",
+    "settings.assistant_tab": "AI Agents",
+    "settings.channels_tab": "Channels",
+    "settings.domains_tab": "Domains & Hosting",
     "billing.settings_tab": "Billing",
     "billing.subscription": "Subscription",
     "billing.plan": "Plan",
     "billing.billing_contact": "Billing Contact",
     "billing.invoice": "Invoice",
     "billing.payment_method": "Payment Method",
-    "ui.routing_mode": "Routing"
+    "ui.routing_mode": "Routing",
+    "work.phase": "Phase",
+    "work.phases": "Phases",
+    "work.stage": "Stage",
+    "work.stages": "Stages",
+    "work.task": "To-do",
+    "work.tasks": "To-dos",
+    "work.board": "Board",
+    "work.boards": "Boards",
+    "roles.sales_appointments": "Sales Appointments",
+    "roles.inside_sales": "Inside Sales",
+    "event_types.sales_appointment": "Sales Appointment",
+    "event_types.sales_follow_up": "Sales Follow-up",
+    "event_types.project_work": "Project Work",
+    "event_types.material_delivery": "Material Delivery",
+    "web_editor.tab": "Web Editor",
+    "comms.project_tab": "Comms",
+    "training.portal_tab": "Training",
+    "training.studio_portal_tab": "Training Studio",
+    "invoices.portal_tab": "Invoices",
+    "stats.portal_tab": "Stats",
+    "chat.portal_tab": "Communications",
+    "channels.portal_tab": "Channels",
+    "sales.today_portal_tab": "Today",
+    "sales.overview_tab": "Visit",
+    "assistant.portal_tab": "FirstMate Assistant",
+    "feedback.portal_tab": "Feedback",
+    "signatures.crew_project_tab": "Work"
   },
   "shared": {
     "save": "Save",
@@ -8524,7 +10733,10 @@
     "m_db9ad85fae0711": "Sign in to another account",
     "m_8652b533cc3e38": "Your account stays available on this device.",
     "m_8efe45acfa8fb0": "The login form is still loading. Please try again.",
-    "m_094189125cc8c4": "Sign out of every remembered account on this device?"
+    "m_094189125cc8c4": "Sign out of every remembered account on this device?",
+    "m_4e344333f91142": "Sign in again",
+    "m_f746e9f1038aa3": "Current account",
+    "m_dcf9d5e2347ad8": "No saved accounts yet."
   },
   "agent-chat": {
     "m_c46a636ed38aee": "What changed"
@@ -8622,7 +10834,8 @@
     "m_c98e98ebafeaae": "Remove audio note",
     "m_deddf0a9a92a81": " Audio note",
     "m_ee4f1bcb190626": "Play audio note",
-    "m_927f9140952c71": "Audio progress"
+    "m_927f9140952c71": "Audio progress",
+    "m_dd978d5c5b3bd9": "Record audio note"
   },
   "calls-runtime": {
     "m_339c302b354c0a": "Input: "
@@ -8660,7 +10873,8 @@
     "m_0891b6d3299aa3": "Canvassing Users",
     "m_cf106559e52254": "Loading...",
     "m_a3f9a6b065b2d8": "Optional",
-    "m_a19a5f28971e25": "No canvassing users yet."
+    "m_a19a5f28971e25": "No canvassing users yet.",
+    "m_c97dbb6c0270fb": "Create Lead"
   },
   "chat-embed": {
     "m_16d35abc7a6b88": "Minimize chat",
@@ -8676,7 +10890,10 @@
     "m_6cb9c39d67a388": "Start chat",
     "m_7c6ebe768edfcf": "Leave your email and we’ll follow up:",
     "m_5d2b9327181e33": "Email",
-    "m_3b439645b0b1ae": "Name (optional)"
+    "m_3b439645b0b1ae": "Name (optional)",
+    "m_2cb43f3b6430c4": "Powered by FirstMate",
+    "m_8cf345002184e5": "Name",
+    "m_ed04c65845180f": "Phone"
   },
   "custom-fields": {
     "m_e9a41937fd46ec": "Short text",
@@ -8744,7 +10961,111 @@
       "message": "Delete “{v0}”?",
       "format": "icu"
     },
-    "m_cf2c70cfda409b": "Delete failed"
+    "m_cf2c70cfda409b": "Delete failed",
+    "m_bef35d39862f43": "Whole number",
+    "m_6b8036f0a8ff49": "Structured dictionary",
+    "m_57ded27157600a": "Structured array",
+    "m_a3a60eac02d6c7": "Maximum nesting reached.",
+    "m_a2e8a87d54d82e": {
+      "message": "Item {v0}",
+      "format": "icu"
+    },
+    "m_f643f568915438": "Remove",
+    "m_17807234c6caba": "Add entry",
+    "m_be0c75317a1197": "JSON value",
+    "m_381d3151ab93af": "Loading value…",
+    "m_18b0668b09a1f2": "Save this field to enter its value.",
+    "m_3fee877037bebf": "Save value",
+    "m_ef39ad5e614a24": "Try again",
+    "m_afe31578587330": "Save custom fields",
+    "m_de761ed0e7c3f1": "Manage the information saved for your organization, projects, and contacts.",
+    "m_d20af8e8ec43c2": " Add field",
+    "m_c201cfcf3ec944": "Field scope",
+    "m_671579c4c003f4": "Save the field below, then enter its value here.",
+    "m_0b54d9361ff7b4": {
+      "message": "New {v0} field",
+      "format": "icu"
+    },
+    "m_c5a59651e9ca2f": {
+      "message": "Show this field while viewing and editing a {v0}.",
+      "format": "icu"
+    },
+    "m_f128466a8caddb": "The schema must be valid JSON.",
+    "m_760d07fa7dc65f": "No fields yet",
+    "m_3518958e29f544": "Use Add field to create your first field.",
+    "m_9a288b62f4362e": "Current value",
+    "m_f070f5aa3901f5": " What should people see?",
+    "m_e41c9b6634e3aa": "Field name",
+    "m_30d69f0bb84476": "Used on",
+    "m_19156e80fc8a6e": "Projects",
+    "m_84b7f792c9d048": "Organization",
+    "m_6fe082da60f3b0": "Contacts",
+    "m_67b299ee8d0d62": "Helpful description ",
+    "m_82710819dd8da8": "(optional)",
+    "m_f0ebd864567d9e": "Placeholder or toggle wording ",
+    "m_817b5495dbf621": " How should people answer?",
+    "m_c77ecb33d21e44": " Choices",
+    "m_12f838600d730e": "Choice shown to people",
+    "m_2c078b4e5e3896": "Saved value ",
+    "m_9843402d556eeb": " Add choice",
+    "m_9c08edb112c438": "The saved value is filled automatically from the choice name unless you provide one.",
+    "m_3116869bf8a647": " Calculation",
+    "m_f10e6b2e02d839": "Formula",
+    "m_bb19a5edd19102": "Use another numeric field’s key inside double braces. Basic arithmetic and parentheses are supported.",
+    "m_e401a18d1f0811": " Number limits ",
+    "m_a98b9d676a49f1": "Minimum",
+    "m_47cfe16c393bbc": "Maximum",
+    "m_87cb6fb0a41c03": "Step",
+    "m_05fb7dcb3179a3": "Subfields and item rules",
+    "m_0e91ac64aa1bcc": "JSON Schema",
+    "m_a48897118cb076": " Preview",
+    "m_5b36a7157336fc": "People will see",
+    "m_737026ffd48d0a": "Scope workspace",
+    "m_51346fc718fb3c": "Show a read-only value alongside measurements.",
+    "m_bbcc1c701ee884": "Store in the background",
+    "m_5b23cea3dc5736": "Keep integration data without showing an input.",
+    "m_10bd4359b657f4": "Available in calculations",
+    "m_a524481aeb415c": "Use ",
+    "m_efe46e192e9efa": " in project formulas.",
+    "m_ae555ec13b612d": "Answer required",
+    "m_b0099c7536de33": "Prompt for an answer when this field is shown.",
+    "m_65ed6dd2cd3755": "Read only",
+    "m_b47971b986d6f1": "Show the value without allowing manual changes.",
+    "m_d73cb459adbb79": "Field is active",
+    "m_0273e24524d849": "Turn this off to hide it without deleting data.",
+    "m_ad2fdd51513838": " Advanced setup",
+    "m_a70257a3773b55": "Read permission (optional)",
+    "m_6a55e0cf2d90e8": "Write permission (optional)",
+    "m_20b337b2d236d1": " Private publication (company settings permission unless a read permission is specified)",
+    "m_f303576609f833": "Minimum length",
+    "m_d260f7efa1371a": "Maximum length",
+    "m_6b51a8a26cde66": "Validation pattern (optional)",
+    "m_1e626e43ebe1a7": "Stable data path",
+    "m_d1dcac9d0b262a": "Dots create nested groups, such as ",
+    "m_c9af278c1e5a3d": "assignments.estimator",
+    "m_1f7b0d62df0233": ". Avoid changing this after launch.",
+    "m_11dd4e12ef3854": "Field width",
+    "m_6cf6e1c920f030": "Half row",
+    "m_7e336e8ad529f7": "Full row",
+    "m_e659fc78c53999": "Which project scopes?",
+    "m_9878efb1fc52a8": "All scopes",
+    "m_e7bcd589e08dd7": "Only selected scopes",
+    "m_57ae77c753c6bf": "Scope IDs, keys, or names",
+    "m_bfcbd339764266": " Save changes",
+    "m_ddcb58dfb35c6f": " Delete field",
+    "m_8e1fd88e019325": "Example: Roof material",
+    "m_ccd3ead388103e": "Explain what to enter or why it matters",
+    "m_5a60afabbd0833": "Example answer or short instruction",
+    "m_d71bdb1b5e587a": "Field type",
+    "m_3adc861bca73f6": "{{labor_hours}} * {{hourly_rate}}",
+    "m_61708f5a2ce411": "Any",
+    "m_da7c1c116de3fd": "roofing, siding",
+    "m_a98c12675bc2ba": "Field settings ",
+    "m_034318a364da0f": "Name, type, and validation",
+    "m_f2da0f4d54d9d9": {
+      "message": "Remove {v3}",
+      "format": "icu"
+    }
   },
   "doc-agent": {
     "m_e7f0edd8a4b5be": "Start a new conversation",
@@ -9239,7 +11560,33 @@
     },
     "m_e0e3ad4a347a83": "Preview submitted. No data was saved.",
     "m_cba194e8b06163": "Workflow preview",
-    "m_6c20fde3fabebb": "Flow"
+    "m_6c20fde3fabebb": "Flow",
+    "m_5d86a0fb6c1652": {
+      "message": " {v0} measurement{v1} still needed",
+      "format": "icu"
+    },
+    "m_687e1653230514": " Clear",
+    "m_f51d0d563b4d76": "Move up",
+    "m_8dda6677ff0f34": "Move down",
+    "m_e635189453de2e": "Remove block",
+    "m_8c7d055c8d2a9d": "No project photos are available — paste an image URL instead.",
+    "m_4adeb3f53bdf71": "No project photos available — paste an image URL below.",
+    "m_83915801b47db5": "Line item",
+    "m_f643f568915438": "Remove",
+    "m_c38fcf1b64a2ea": " Pricebook",
+    "m_74c8aa88118d1c": "Attach photo or video",
+    "m_c25cc66b28cc9d": "Open",
+    "m_a979f59edfcd90": " Live preview",
+    "m_2d8510904d5879": "Fit",
+    "m_cec49be42c7614": "The preview updates as you answer.",
+    "m_acf282d479dddf": "Zoom out",
+    "m_b4e9fa5595e7cf": "Fit width",
+    "m_a593d968057ce9": "Zoom in",
+    "m_acf1841e689f24": "Refresh preview",
+    "m_627546e4279386": "Choices",
+    "m_f309f6468d8a53": "Layout",
+    "m_9843402d556eeb": " Add choice",
+    "m_11cf7fd40040a9": "IF"
   },
   "insights": {
     "m_89b8c4efe6661d": "Insight",
@@ -9303,7 +11650,11 @@
     },
     "m_cf106559e52254": "Loading...",
     "m_f421881d6849f4": "Choose an appointment time.",
-    "m_29c533fc9b2923": "Sending..."
+    "m_29c533fc9b2923": "Sending...",
+    "m_05e62bd7763d00": "Tell us about your project",
+    "m_12e617b6b10c5c": "Project details",
+    "m_aef6b181d478e2": "Choose a day",
+    "m_a16cfd85cfd122": "Message"
   },
   "markup": {
     "m_0b10d3bd82b959": "Clear markup from this photo?",
@@ -9371,7 +11722,68 @@
     "m_c46a636ed38aee": "What changed",
     "m_8247ee406cbbd6": "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.",
     "m_186fc46dfb3cc0": "Working",
-    "m_ee81752261cfa1": "Conversations"
+    "m_ee81752261cfa1": "Conversations",
+    "m_e0149c28c913d4": " New conversation",
+    "m_09c2e180e4119b": " Upload files",
+    "m_cd5157f3b879c4": " Take photo",
+    "m_f421bede1a732b": "Open conversations",
+    "m_7812bba394b201": "Search conversations",
+    "m_4de5354dc7d33d": "Assistant settings",
+    "m_cfbd7d8d189cab": "Add files or camera photo",
+    "m_46a483e740de95": "Discard recording",
+    "m_86ab4afbbbb82b": "Dictate",
+    "m_4aaef822b47692": "FirstMate Assistant",
+    "m_c2e87241c916fb": "Loading assistant settings…",
+    "m_975acccacf1e54": "Company assistant",
+    "m_992c8a57f040ed": "These instructions apply to everyone in your organization.",
+    "m_809927621a5934": "Assistant name",
+    "m_e83b9355dd6244": "Organization instructions",
+    "m_bb125d88779f84": "Save company personalization",
+    "m_0fe3fd49f654b6": "Company settings could not be loaded.",
+    "m_bf315a1afc532a": "Assistant availability",
+    "m_bda1d0ed0e9469": "What it can do",
+    "m_a4de02818ea054": "What it can see",
+    "m_9eb682a2c55c41": "Save capabilities",
+    "m_4de38269f020cf": "Capability settings could not be loaded.",
+    "m_7a4ba138f3b6f4": "Display name",
+    "m_bc5d173815594c": "Company instructions",
+    "m_b9b3b75efb2e5b": "Advanced configuration",
+    "m_a54b24f3d8bfd4": "All settings published by this agent. Changes are validated by the agent service.",
+    "m_eb898cb9de4f41": "Save agent",
+    "m_550bb66d5a8c16": "No other agent settings are available.",
+    "m_c3ac03b1b09d39": "Registered agent settings could not be loaded.",
+    "m_a023e5056abb84": " Back to conversation",
+    "m_d96f4155237338": "Your instructions",
+    "m_092e2683575a85": "These apply only when the assistant talks with you.",
+    "m_0bbb4f72e85c31": "Save your instructions",
+    "m_578a27272b6da5": "Memory",
+    "m_9f04c33765b8fd": "Turning memory off keeps your saved entries but leaves them out of conversations.",
+    "m_67b519a6ab6e3c": "Save memory preference",
+    "m_eb56489e082fd9": "Saved memories",
+    "m_c807a71e1c06f5": "Add",
+    "m_0a3f7a80f1c622": "Add a memory",
+    "m_ea600c018fb36c": "Saving…",
+    "m_47bbabb50774cf": "Saved.",
+    "m_6c1b290f1ddee9": "Delete all your saved assistant memories?",
+    "m_f2da0f4d54d9d9": {
+      "message": "Remove {v3}",
+      "format": "icu"
+    },
+    "m_b8260fe0ac27fe": "Each attachment must be 20 MB or smaller.",
+    "m_72df9a36df6a82": "You can add up to five files per message.",
+    "m_b4537274ad53bc": "Microphone recording is unavailable in this browser.",
+    "m_2719912047786a": "Transcribing…",
+    "m_5bab3e72de1ebf": "Save",
+    "m_4fc60207629a44": "Delete",
+    "m_668e4dc30d7670": "Save memory",
+    "m_ff0fb6e523ab6f": "Delete memory",
+    "m_06d02b720eb265": "No saved memories.",
+    "m_c33cd2765f45dc": "Clear all memories",
+    "m_8bad1d5a384a61": "Platform-wide instructions",
+    "m_47f6055ec0c66b": "These apply to the global assistant in every organization. Only a verified platform administrator can edit them.",
+    "m_384a9ef1063a0c": "Save platform instructions",
+    "m_7f751dac11a734": "Read only for your account.",
+    "m_1c6353bbf054b2": "Platform instructions could not be loaded."
   },
   "platform-banners": {
     "m_54fe29d1908de6": "Dismiss",
@@ -9660,7 +12072,51 @@
     "m_eaf7ef3b5e4c26": {
       "message": "New {v0}",
       "format": "icu"
-    }
+    },
+    "m_649af0b3e6a287": " Shared SKU",
+    "m_5891e83bec4041": "Variant value",
+    "m_f643f568915438": "Remove",
+    "m_ac692197f53f04": {
+      "message": "Remove {v11}",
+      "format": "icu"
+    },
+    "m_4bb040d6eed43e": "Use as organization defaults",
+    "m_30f7a1f6144a8b": {
+      "message": "Override · ${v0} derived",
+      "format": "icu"
+    },
+    "m_4b740d0b3ec319": {
+      "message": "{v0} selected",
+      "format": "icu"
+    },
+    "m_f7d6b0ee8161ec": "Set price",
+    "m_ab9800b8d9efcf": "Add amount",
+    "m_5ae7d1e0a7a5a7": "Multiply",
+    "m_84ac5d6905b22c": "Clear overrides",
+    "m_9417f96a1856fa": "Apply",
+    "m_2b8c3448fa87a1": "Amount",
+    "m_0c242b0aeb8983": {
+      "message": "${v0} calculated",
+      "format": "icu"
+    },
+    "m_e99357cd3f5464": "Calculated",
+    "m_bfef4acac3e486": " Restore calculated values",
+    "m_2ab2275eebff83": "Follow updates",
+    "m_e6201ff1d8fc60": "Freeze reference",
+    "m_5c4fb8df281140": "FirstMate",
+    "m_84b7f792c9d048": "Organization",
+    "m_a66599d9c29a1c": "Difference",
+    "m_967cca6a8dadc5": "No matching items",
+    "m_8803dece55359d": " Add",
+    "m_e521f24b8e8450": "Behavior",
+    "m_fc695e7338eb0c": "Valid for",
+    "m_d1521758bf5fc0": "days",
+    "m_268c68e00bc263": "Policy mode",
+    "m_1ae2e36c490aad": "Expiration days",
+    "m_2b4c8581905cea": "Price adjustment",
+    "m_a5c134422e313c": "Price operation",
+    "m_121e5e9145c2a4": "Adjustment",
+    "m_d453ffba808085": "Choose color"
   },
   "project-notes": {
     "m_5bef95cb2a0d72": "Call note",
@@ -9692,7 +12148,9 @@
   },
   "setup-wizard": {
     "m_121372231b5699": "Back",
-    "m_3742924668fb10": "Close"
+    "m_3742924668fb10": "Close",
+    "m_b06faf127e1505": "Setup",
+    "m_db664f55e13784": "Finish this step:"
   },
   "video-editor": {
     "m_6ddc97e52c9c21": "Free",
@@ -9874,7 +12332,32 @@
     "m_a593d968057ce9": "Zoom in",
     "m_8829c3be8f32be": "Fit full device",
     "m_c3d1e6af0b83a6": "Calibrate physical size",
-    "m_59e5dfc107e498": "Physical size calibration"
+    "m_59e5dfc107e498": "Physical size calibration",
+    "m_63c86c5bf4a1b7": "Are you sure?",
+    "m_d2439aea71763b": " Add section",
+    "m_c72b58e579a8da": " Notes",
+    "m_3063bb8265a841": {
+      "message": "All {v0}",
+      "format": "icu"
+    },
+    "m_46dda4b220331f": "Enter fullscreen preview",
+    "m_2e946e56333eb5": "Fullscreen preview",
+    "m_77fbbf5fe2790a": " Page notes",
+    "m_27d3454ef187b1": "Close notes",
+    "m_ac5943b986cf7a": "Working notes for this page — visible to your team only, never on the live page.",
+    "m_0dc15a35e4943f": "Recently used",
+    "m_b89b95a8c655d5": "Nothing matches that search.",
+    "m_307895e7f32fcc": "No widgets match that search.",
+    "m_2408ba9ce6062b": "Upload alternate logo versions under Settings → Company and they appear here.",
+    "m_e4e0caabc92f90": "Bring forward",
+    "m_53feb04c690a79": "Send backward",
+    "m_28e00c7c9062c6": "Bring to front",
+    "m_407ac92ba9c16c": "Send to back",
+    "m_e5f077ac74adc9": "Nothing in this section yet.",
+    "m_c56f1a3e5da225": {
+      "message": "Rename {v0}",
+      "format": "icu"
+    }
   },
   "web-widgets": {
     "m_1519fbdf5b87ed": "Home",
@@ -11021,5 +13504,80 @@
     "m_071609c9efaf0f": "Close payment setup",
     "m_5823063ec74807": "Forward merchant application",
     "m_ccb52891bb8ff6": "Your payment application has already been submitted."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Color palette",
+    "m_0c92722f162cbd": "Primary · UI",
+    "m_390a15f2a6d920": "Secondary · UI",
+    "m_dba346dfc1916b": "Company font",
+    "m_4d9e1ae19fc002": "Default for new documents and templates",
+    "m_5c6ac1b0faeaa0": "Font family",
+    "m_a63c5a4c25569b": "Logo",
+    "m_2c8fc5e11eaf62": "Current logo",
+    "m_eb55056b53954c": "Transparent PNG or SVG works best.",
+    "m_ac8bf335945352": " Replace logo",
+    "m_6cac172119f732": "Primary and secondary style the interface. Supporting colors are available in visual editors.",
+    "m_490cbf5945b3f8": "About the company color palette",
+    "m_b8391ad75bc163": "Manage the company logo and its appearance on branded surfaces.",
+    "m_85de3f0cdfc46a": "About company logos",
+    "m_fc3b468d1ec4eb": "Current company logo",
+    "m_953e4a6603f5f1": {
+      "message": "Edit {v7} color",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "No alternate logos yet.",
+    "m_695aa2f7da3152": " Regenerate palette from logo",
+    "m_629cca6181934e": "Six-color company palette",
+    "m_c0838c60ccd34f": "Alternate logos ",
+    "m_8803dece55359d": " Add",
+    "m_e3681835cc6b25": "Advanced logo appearance",
+    "m_986685f23ed459": "Background",
+    "m_76e5c668843400": "Container shape",
+    "m_eb37afb3b23761": " Square",
+    "m_3562c63d47eca1": " Circle",
+    "m_895bf3964e7990": " Rounded corners",
+    "m_57f5beffb19542": "Reusable logo variations for proposals, web pages, and other branded media."
+  },
+  "platform-terminology": {
+    "m_12b5f179fb821e": "Loading terminology…",
+    "m_234080acc28117": "Default order",
+    "m_bc2e8c60e0a22b": "Name A–Z",
+    "m_ed2d563fb700a2": "Customized first",
+    "m_b15608589d5d5e": "Expand all",
+    "m_914fea3baa7e29": "Collapse all",
+    "m_aaa6c34ec7c5f6": "Ask FirstMate",
+    "m_476258b6589494": "Discard drafts",
+    "m_1d368860f0287e": "Save changes",
+    "m_868ad61e67325e": "Choose your company's wording within each language. Related phrases inherit the nouns below unless you give a phrase its own override. Record names and customer content stay as written.",
+    "m_675cdc60e59266": "FirstMate assistant",
+    "m_0cc40d08ccd2e6": "Search terminology",
+    "m_601ba2e6a837d5": "Search terms, wording, or categories…",
+    "m_0495b8ffa4f564": "Terminology language",
+    "m_2214fec01a0253": "Sort terminology",
+    "m_84a5c92260d495": "FirstMate terminology assistant",
+    "m_84e4d3109d655d": "New conversation",
+    "m_55f2be4527b564": "Ask FirstMate about terminology",
+    "m_b217116d876bcc": "Help me rename projects to jobs…",
+    "m_c23a056552a09f": "Send",
+    "m_3caf9f78765300": {
+      "message": "{v15} · Default: {v16}",
+      "format": "icu"
+    },
+    "m_c3b8bdb48b4995": {
+      "message": "About {v4}",
+      "format": "icu"
+    },
+    "m_877a326e38c3e1": "Use language default",
+    "m_37625ef2a31f61": {
+      "message": "Use inherited wording for {v14}",
+      "format": "icu"
+    },
+    "m_fdc74f82249d53": "Use inherited wording",
+    "m_2612e9801ebcfb": "No matching terminology.",
+    "m_36deb482609e0c": "Drafts discarded.",
+    "m_192927f784b51b": "Saved. Related labels use this wording when rendered.",
+    "m_c0213caa44cf14": "What does your team call things?",
+    "m_4ee94fcdd8437b": "Find a label, understand where it appears, or ask for a rename. I’ll prepare drafts for you to review and save.",
+    "m_b683b7eadfeb6e": "FirstMate is working…"
   }
 }

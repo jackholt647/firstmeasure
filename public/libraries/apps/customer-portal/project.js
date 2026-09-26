@@ -173,7 +173,7 @@
     return `
       <div class="r-cp-thumb${String(mediaHtml ? '' : ' failed')}">
         ${String(mediaHtml)}
-        <span class="r-cp-fallback"><i class="fas ${String(fallbackIcon)}"></i><span>${(globalThis.PlatformLanguage?.text("customer-portal","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</span></span>
+        <span class="r-cp-fallback"><i class="fas ${String(fallbackIcon)}"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</span></span>
         <span class="r-cp-check"><i class="fas fa-check"></i></span>
       </div>
     `;
@@ -554,7 +554,7 @@
           <time>${escapeHtml(formatWhen(group.last) || 'No time')}</time>
         </div>
         <div class="r-cp-visitor-counts">
-          ${actionCounts.length ? actionCounts.map(([label, value]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join('') : `<span><b>0</b>${(globalThis.PlatformLanguage?.text("customer-portal","m_6067958dea3386","Actions") ?? "Actions")}</span>`}
+          ${actionCounts.length ? actionCounts.map(([label, value]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join('') : `<span><b>0</b>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6067958dea3386","Actions") ?? "Actions")}</span>`}
         </div>
         <div class="r-cp-visitor-window">
           ${group.first && group.last ? `${escapeHtml(formatWhen(group.first))} - ${escapeHtml(formatWhen(group.last))}` : 'Timeline unavailable'}
@@ -575,7 +575,7 @@
   }
 
   function activityHtml(events = []){
-    if (!events.length) return `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.text("customer-portal","m_397f550437b4ad","No customer portal activity yet.") ?? "No customer portal activity yet.")}</div>`;
+    if (!events.length) return `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_397f550437b4ad","No customer portal activity yet.") ?? "No customer portal activity yet.")}</div>`;
     const groups = activityGroups(events);
     return `
       ${activityStatsHtml(events, groups)}
@@ -608,46 +608,46 @@
     const overviewHtml = `
       <div class="r-cp-links">
         <div class="r-cp-link-card">
-          <span>${(globalThis.PlatformLanguage?.text("customer-portal","m_8f8f3196e91e22","Live customer link") ?? "Live customer link")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8f8f3196e91e22","Live customer link") ?? "Live customer link")}</span>
           <input readonly value="${String(escapeHtml(liveUrl))}">
           <div class="r-cp-actions">
-            <button type="button" data-cp-copy="live">${(globalThis.PlatformLanguage?.text("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
-            <a href="mailto:${String(escapeHtml(portal.customer?.email || ''))}?subject=${String(encodeURIComponent('Your project portal'))}&body=${String(encodeURIComponent(liveUrl))}">${(globalThis.PlatformLanguage?.text("customer-portal","m_5d2b9327181e33","Email") ?? "Email")}</a>
-            <button type="button" data-cp-qr>${(globalThis.PlatformLanguage?.text("customer-portal","m_194f593f8d0a16","Download QR") ?? "Download QR")}</button>
+            <button type="button" data-cp-copy="live">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
+            <a href="mailto:${String(escapeHtml(portal.customer?.email || ''))}?subject=${String(encodeURIComponent('Your project portal'))}&body=${String(encodeURIComponent(liveUrl))}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5d2b9327181e33","Email") ?? "Email")}</a>
+            <button type="button" data-cp-qr>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_194f593f8d0a16","Download QR") ?? "Download QR")}</button>
           </div>
         </div>
         <div class="r-cp-link-card preview">
-          <span>${(globalThis.PlatformLanguage?.text("customer-portal","m_4556b229717606","Preview link") ?? "Preview link")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4556b229717606","Preview link") ?? "Preview link")}</span>
           <input readonly value="${String(escapeHtml(previewUrl))}">
           <div class="r-cp-actions">
-            <button type="button" data-cp-copy="preview">${(globalThis.PlatformLanguage?.text("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
-            <a href="${String(escapeHtml(previewUrl))}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.text("customer-portal","m_f25442be2eb9d3","Open Preview") ?? "Open Preview")}</a>
+            <button type="button" data-cp-copy="preview">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
+            <a href="${String(escapeHtml(previewUrl))}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f25442be2eb9d3","Open Preview") ?? "Open Preview")}</a>
           </div>
         </div>
       </div>
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_6904cbcb4bf953","Customer sharing") ?? "Customer sharing")}</strong><button type="button" data-cp-sharing-toggle="${String(customerSharingEnabled ? 'off' : 'on')}">${String(customerSharingEnabled ? 'Disable new links' : 'Enable secure sharing')}</button></div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6904cbcb4bf953","Customer sharing") ?? "Customer sharing")}</strong><button type="button" data-cp-sharing-toggle="${String(customerSharingEnabled ? 'off' : 'on')}">${String(customerSharingEnabled ? 'Disable new links' : 'Enable secure sharing')}</button></div>
       <div class="r-cp-sharing-admin">
         <p>${String(customerSharingEnabled ? 'The customer can create revocable, read-only links with optional expiration. Guest links never include payments, signatures, approvals, or editing.' : 'Customer-created guest links are off for this project. Staff can still view and revoke existing links.')}</p>
-        ${String(activeGuestLinks.length ? `<div class="r-cp-share-list">${activeGuestLinks.map((item) => `<div><span><strong>${escapeHtml(item.label || 'Shared access')}</strong><small>${escapeHtml(String(item.preset || '').replace(/_/g, ' '))} · ${item.expires_at ? `expires ${escapeHtml(formatWhen(new Date(item.expires_at), { includeYear:true }))}` : 'never expires'}</small></span><button type="button" data-cp-revoke-share="${escapeHtml(item.id)}">Revoke</button></div>`).join('')}</div>` : '<div class="r-cp-empty">No active guest links.</div>')}
+        ${String(activeGuestLinks.length ? `<div class="r-cp-share-list">${activeGuestLinks.map((item) => `<div><span><strong>${escapeHtml(item.label || 'Shared access')}</strong><small>${escapeHtml(String(item.preset || '').replace(/_/g, ' '))} · ${item.expires_at ? `expires ${escapeHtml(formatWhen(new Date(item.expires_at), { includeYear:true }))}` : 'never expires'}</small></span><button type="button" data-cp-revoke-share="${escapeHtml(item.id)}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45c67f3cceb08b","Revoke") ?? "Revoke")}</button></div>`).join('')}</div>` : `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_66e820442a227d","No active guest links.") ?? "No active guest links.")}</div>`)}
       </div>
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_d3e2a22ddb5f09","Appointment self-service") ?? "Appointment self-service")}</strong><button type="button" data-cp-rescheduling-toggle="${String(customerReschedulingEnabled ? 'off' : 'on')}">${String(customerReschedulingEnabled ? 'Turn off' : 'Enable rescheduling')}</button></div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d3e2a22ddb5f09","Appointment self-service") ?? "Appointment self-service")}</strong><button type="button" data-cp-rescheduling-toggle="${String(customerReschedulingEnabled ? 'off' : 'on')}">${String(customerReschedulingEnabled ? 'Turn off' : 'Enable rescheduling')}</button></div>
       <div class="r-cp-sharing-admin"><p>${String(customerReschedulingEnabled ? 'When an upcoming appointment is also enabled by its scheduling policy, the customer can choose from live available times in this portal.' : 'Customers cannot reschedule from this project portal. Confirmation and staff-managed scheduling continue to work normally.')}</p></div>
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_736894e3c896cd","Portal History") ?? "Portal History")}</strong><button type="button" data-cp-refresh>${(globalThis.PlatformLanguage?.text("customer-portal","m_78973ce0cf3403","Refresh") ?? "Refresh")}</button></div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_736894e3c896cd","Portal History") ?? "Portal History")}</strong><button type="button" data-cp-refresh>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_78973ce0cf3403","Refresh") ?? "Refresh")}</button></div>
       <div class="r-cp-events">${String(activityHtml(state.portal.activity))}</div>
     `;
     const mediaHtml = mediaEnabled ? `
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_2c7fddee1414af","Media Sharing") ?? "Media Sharing")}</strong><span>${((v0,v1) => globalThis.PlatformLanguage?.text("customer-portal","m_4dab4512a74cfd",`${v0} shared / ${v1} unshared`,{v0,v1}) ?? `${v0} shared / ${v1} unshared`)(sharedPhotos.length,unsharedPhotos.length)}</span></div>
+      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2c7fddee1414af","Media Sharing") ?? "Media Sharing")}</strong><span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_4dab4512a74cfd",`${v0} shared / ${v1} unshared`,{v0,v1}) ?? `${v0} shared / ${v1} unshared`)(sharedPhotos.length,unsharedPhotos.length)}</span></div>
       <div class="r-cp-media-board">
         <section class="r-cp-media-box">
           <div class="r-cp-media-box-head">
             <div class="r-cp-media-box-title">
-              <strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_a7a7382d100092","Shared Media") ?? "Shared Media")}</strong>
-              <span>${((v2,v3) => globalThis.PlatformLanguage?.text("customer-portal","m_5c8fe5927480d3",`${v2} selected of ${v3}`,{v2,v3}) ?? `${v2} selected of ${v3}`)(sharedSelected,sharedPhotos.length)}</span>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a7a7382d100092","Shared Media") ?? "Shared Media")}</strong>
+              <span>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_5c8fe5927480d3",`${v2} selected of ${v3}`,{v2,v3}) ?? `${v2} selected of ${v3}`)(sharedSelected,sharedPhotos.length)}</span>
             </div>
             <div class="r-cp-media-box-actions">
-              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="shared"${String(loadingAttr || (!sharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="shared"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-bulk="unshare"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-link-slash"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_48203573600b0c","Unshare selected") ?? "Unshare selected")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="shared"${String(loadingAttr || (!sharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="shared"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-bulk="unshare"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-link-slash"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_48203573600b0c","Unshare selected") ?? "Unshare selected")}</button>
             </div>
           </div>
           ${String(mediaGridHtml(sharedPhotos, 'shared'))}
@@ -655,27 +655,27 @@
         <section class="r-cp-media-box">
           <div class="r-cp-media-box-head">
             <div class="r-cp-media-box-title">
-              <strong>${(globalThis.PlatformLanguage?.text("customer-portal","m_011f74477ef775","Unshared Media") ?? "Unshared Media")}</strong>
-              <span>${((v8,v9) => globalThis.PlatformLanguage?.text("customer-portal","m_a40ec62159b706",`${v8} selected of ${v9}`,{v8,v9}) ?? `${v8} selected of ${v9}`)(unsharedSelected,unsharedPhotos.length)}</span>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_011f74477ef775","Unshared Media") ?? "Unshared Media")}</strong>
+              <span>${((v8,v9) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_a40ec62159b706",`${v8} selected of ${v9}`,{v8,v9}) ?? `${v8} selected of ${v9}`)(unsharedSelected,unsharedPhotos.length)}</span>
             </div>
             <div class="r-cp-media-box-actions">
-              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="unshared"${String(loadingAttr || (!unsharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="unshared"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
-              <button type="button" class="r-cp-bulk-btn primary" data-cp-bulk="share"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.text("customer-portal","m_d7f1181b9fe7a7","Share selected") ?? "Share selected")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="unshared"${String(loadingAttr || (!unsharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
+              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="unshared"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
+              <button type="button" class="r-cp-bulk-btn primary" data-cp-bulk="share"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d7f1181b9fe7a7","Share selected") ?? "Share selected")}</button>
             </div>
           </div>
           ${String(mediaGridHtml(unsharedPhotos, 'unshared'))}
         </section>
       </div>
-    ` : `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.text("customer-portal","m_45f01ee4eaf862","Customer portal media sharing is disabled for this organization.") ?? "Customer portal media sharing is disabled for this organization.")}</div>`;
+    ` : `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45f01ee4eaf862","Customer portal media sharing is disabled for this organization.") ?? "Customer portal media sharing is disabled for this organization.")}</div>`;
     root.innerHTML = `
       <div class="r-cp-wrap">
         <div class="r-cp-head">
-          <div><h3>${(globalThis.PlatformLanguage?.text("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</h3><p>${(globalThis.PlatformLanguage?.text("customer-portal","m_929b0824765a0f","Share only the project information and media this customer should be able to see.") ?? "Share only the project information and media this customer should be able to see.")}</p></div>
-          ${String(state.portal.loading ? '<span class="r-cp-pill">Syncing...</span>' : '<span class="r-cp-pill">Ready</span>')}
+          <div><h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_929b0824765a0f","Share only the project information and media this customer should be able to see.") ?? "Share only the project information and media this customer should be able to see.")}</p></div>
+          ${String(state.portal.loading ? `<span class="r-cp-pill">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f1a62c3e12aeb7","Syncing...") ?? "Syncing...")}</span>` : `<span class="r-cp-pill">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</span>`)}
         </div>
         ${String(state.portal.error ? `<div class="r-cp-error">${escapeHtml(state.portal.error)}</div>` : '')}
-        <nav class="r-cp-subtabs" aria-label="${(globalThis.PlatformLanguage?.text("customer-portal","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
+        <nav class="r-cp-subtabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
           <button type="button" class="${String(activeSubtab === 'overview' ? 'active' : '')}" data-cp-subtab="overview" aria-selected="${String(activeSubtab === 'overview' ? 'true' : 'false')}"><i class="fas fa-chart-line"></i><span>${String(escapeHtml(window.Portal?.terminology?.get?.('customer_portal.overview_view', 'Overview') || 'Overview'))}</span></button>
           <button type="button" class="${String(activeSubtab === 'media' ? 'active' : '')}" data-cp-subtab="media" aria-selected="${String(activeSubtab === 'media' ? 'true' : 'false')}"${String(mediaEnabled ? '' : ' disabled')}><i class="fas fa-images"></i><span>${String(escapeHtml(window.Portal?.terminology?.get?.('customer_portal.media_view', 'Media') || 'Media'))}</span></button>
         </nav>

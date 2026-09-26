@@ -239,9 +239,9 @@
           <strong>${String(esc(firstText(options.name, 'Theme')))}${String(options.current ? ' <i class="fas fa-circle-check"></i>' : '')}</strong>
           ${String(fonts ? `<small>${esc(fonts)}</small>` : '')}
           <span class="fmdx-theme-dots">
-            <i style="background:var(--fm-primary,#2563EB)" title="${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}"></i>
-            <i style="background:var(--fm-accent,#0EA5E9)" title="${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}"></i>
-            <i style="background:var(--fm-text,#111827)" title="${(globalThis.PlatformLanguage?.text("documents","m_124287f184b88b","Text") ?? "Text")}"></i>
+            <i style="background:var(--fm-primary,#2563EB)" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_2436076ece8629","Primary") ?? "Primary")}"></i>
+            <i style="background:var(--fm-accent,#0EA5E9)" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_12ab6737efe605","Accent") ?? "Accent")}"></i>
+            <i style="background:var(--fm-text,#111827)" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_124287f184b88b","Text") ?? "Text")}"></i>
           </span>
         </span>
       </button>`;
@@ -301,7 +301,7 @@
   function openModal(contentHtml, options = {}){
     const back = document.createElement('div');
     back.className = 'fmdx-modal-back';
-    back.innerHTML = `<div class="fmdx-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmdx-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("documents","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
+    back.innerHTML = `<div class="fmdx-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmdx-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
     const close = () => { back.remove(); options.onClose?.(); };
     back.querySelector('.fmdx-modal-close').addEventListener('click', close);
     back.addEventListener('mousedown', (event) => { if (event.target === back) close(); });
@@ -778,32 +778,32 @@
         <div class="fmdx-shell">
           <header class="fmdx-top">
             <div class="fmdx-top-title">
-              <strong><i class="fas fa-pen-ruler" style="color:var(--fmdx-primary)"></i>${(globalThis.PlatformLanguage?.text("documents","m_817205ba789887"," Doc Studio") ?? " Doc Studio")}</strong>
-              <span>${(globalThis.PlatformLanguage?.text("documents","m_267b761027be3d","Design the templates and themes behind every document your team sends") ?? "Design the templates and themes behind every document your team sends")}</span>
+              <strong><i class="fas fa-pen-ruler" style="color:var(--fmdx-primary)"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_817205ba789887"," Doc Studio") ?? " Doc Studio")}</strong>
+              <span>${(globalThis.PlatformLanguage?.htmlText("documents","m_267b761027be3d","Design the templates and themes behind every document your team sends") ?? "Design the templates and themes behind every document your team sends")}</span>
             </div>
             <div class="fmdx-top-actions">
-              ${String(capabilityEnabled('documents.advanced_definition_editing') ? '<button type="button" class="fmdx-btn" data-document-modules>Document modules</button>' : '')}
+              ${String(capabilityEnabled('documents.advanced_definition_editing') ? `<button type="button" class="fmdx-btn" data-document-modules>${(globalThis.PlatformLanguage?.htmlText("documents","m_68b21459ee2100","Document modules") ?? "Document modules")}</button>` : '')}
               ${String(isFolderTab()
-                ? '<button type="button" class="fmdx-btn primary" data-new-folder-item><i class="fas fa-plus"></i> New</button>'
+                ? `<button type="button" class="fmdx-btn primary" data-new-folder-item><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_5fe01108f83039"," New") ?? " New")}</button>`
                 : state.tab === 'templates'
-                  ? '<button type="button" class="fmdx-btn primary" data-new-template><i class="fas fa-plus"></i> New template</button>'
+                  ? `<button type="button" class="fmdx-btn primary" data-new-template><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc61a22aa7a62e"," New template") ?? " New template")}</button>`
                   : state.tab === 'workflows' && canAuthorWorkflows
-                    ? '<button type="button" class="fmdx-btn primary" data-new-workflow><i class="fas fa-plus"></i> New workflow</button>'
+                    ? `<button type="button" class="fmdx-btn primary" data-new-workflow><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_71fab9f4454614"," New workflow") ?? " New workflow")}</button>`
                     : state.tab === 'themes' && canAuthorThemes
-                      ? '<button type="button" class="fmdx-btn primary" data-new-theme><i class="fas fa-plus"></i> New theme</button>'
+                      ? `<button type="button" class="fmdx-btn primary" data-new-theme><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_015bb33b569839"," New theme") ?? " New theme")}</button>`
                       : '')}
             </div>
           </header>
           <div class="fmdx-subtabs">
-            <button type="button" class="fmdx-subtab ${String(state.tab === 'templates' ? 'active' : '')}" data-tab="templates"><i class="fas fa-file-invoice"></i>${(globalThis.PlatformLanguage?.text("documents","m_2244ba6af1dcfc"," Templates") ?? " Templates")}</button>
-            ${String(canAuthorWorkflows ? `<button type="button" class="fmdx-subtab ${state.tab === 'workflows' ? 'active' : ''}" data-tab="workflows"><i class="fas fa-list-check"></i> Workflows</button>` : '')}
-            ${String(canAuthorThemes ? `<button type="button" class="fmdx-subtab ${state.tab === 'themes' ? 'active' : ''}" data-tab="themes"><i class="fas fa-palette"></i> Themes</button>` : '')}
+            <button type="button" class="fmdx-subtab ${String(state.tab === 'templates' ? 'active' : '')}" data-tab="templates"><i class="fas fa-file-invoice"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_2244ba6af1dcfc"," Templates") ?? " Templates")}</button>
+            ${String(canAuthorWorkflows ? `<button type="button" class="fmdx-subtab ${state.tab === 'workflows' ? 'active' : ''}" data-tab="workflows"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_caa1a5770356df"," Workflows") ?? " Workflows")}</button>` : '')}
+            ${String(canAuthorThemes ? `<button type="button" class="fmdx-subtab ${state.tab === 'themes' ? 'active' : ''}" data-tab="themes"><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_8c3b47976bfe5d"," Themes") ?? " Themes")}</button>` : '')}
             ${String(folders.map((folder) => `
               <button type="button" class="fmdx-subtab ${state.tab === `folder:${cleanText(folder.id)}` ? 'active' : ''}" data-tab="folder:${esc(folder.id)}">
                 <i class="fas ${esc(firstText(folder.icon, 'fa-folder'))}"></i> ${esc(firstText(folder.label, 'Folder'))}
-                ${folder.system === true ? '' : `<span class="fmdx-subtab-kebab" role="button" tabindex="0" data-folder-menu="${esc(folder.id)}" title="Folder actions" aria-label="Actions for ${esc(firstText(folder.label, 'folder'))}"><i class="fas fa-ellipsis"></i></span>`}
+                ${folder.system === true ? '' : `<span class="fmdx-subtab-kebab" role="button" tabindex="0" data-folder-menu="${esc(folder.id)}" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_a93919b739869a","Folder actions") ?? "Folder actions")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("documents","m_4ced6981451d49",`Actions for ${v1}`,{v1}) ?? `Actions for ${v1}`)(esc(firstText(folder.label, 'folder')))}"><i class="fas fa-ellipsis"></i></span>`}
               </button>`).join(''))}
-            ${String(canCreateFolders() ? '<button type="button" class="fmdx-subtab fmdx-subtab-add" data-new-folder title="New folder" aria-label="New folder"><i class="fas fa-plus"></i></button>' : '')}
+            ${String(canCreateFolders() ? `<button type="button" class="fmdx-subtab fmdx-subtab-add" data-new-folder title="${(globalThis.PlatformLanguage?.htmlText("documents","m_cc38a3691907b3","New folder") ?? "New folder")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_cc38a3691907b3","New folder") ?? "New folder")}"><i class="fas fa-plus"></i></button>` : '')}
           </div>
           <div class="fmdx-body" data-studio-body></div>
         </div>`;
@@ -830,19 +830,19 @@
       root.querySelector('[data-new-theme]')?.addEventListener('click', () => openNewThemeModal());
       root.querySelector('[data-document-modules]')?.addEventListener('click', async () => {
         try { const modules = await import(new URL('./module-editor.js', SCRIPT_URL).href); await modules.openModuleEditor(orgId()); }
-        catch (error) { showToast('Document modules', errorMessage(error), false); }
+        catch (error) { showToast((globalThis.PlatformLanguage?.text("documents","m_68b21459ee2100","Document modules") ?? "Document modules"), errorMessage(error), false); }
       });
       const body = root.querySelector('[data-studio-body]');
       if (state.loading && state.templates === null) {
-        body.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_c867f3b4567afc","Loading studio") ?? "Loading studio")}</strong></div>`;
+        body.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_c867f3b4567afc","Loading studio") ?? "Loading studio")}</strong></div>`;
         return;
       }
       if (state.loadError?.missing || !api()) {
-        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-plug-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_ba70ff7085cae0","Documents service unavailable") ?? "Documents service unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_4643897f23dcba","The documents API client is not loaded for this session.") ?? "The documents API client is not loaded for this session.")}</span></div>`;
+        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-plug-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_ba70ff7085cae0","Documents service unavailable") ?? "Documents service unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_4643897f23dcba","The documents API client is not loaded for this session.") ?? "The documents API client is not loaded for this session.")}</span></div>`;
         return;
       }
       if (state.loadError) {
-        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-cloud-bolt"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_e7ab9059cb9989","Couldn’t load the studio") ?? "Couldn’t load the studio")}</strong><span>${String(esc(errorMessage(state.loadError, '')))}</span><button type="button" class="fmdx-btn" data-retry><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.text("documents","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
+        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-cloud-bolt"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_e7ab9059cb9989","Couldn’t load the studio") ?? "Couldn’t load the studio")}</strong><span>${String(esc(errorMessage(state.loadError, '')))}</span><button type="button" class="fmdx-btn" data-retry><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
         body.querySelector('[data-retry]')?.addEventListener('click', () => loadLists());
         return;
       }
@@ -855,7 +855,7 @@
     function renderTemplateList(body){
       const all = arrayValue(state.templates).filter((t) => cleanText(t.status).toLowerCase() !== 'archived');
       if (!all.length) {
-        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-file-circle-plus"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_01b6cbbf151638","No templates yet") ?? "No templates yet")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_620050b9f2a4e1","Create your first document template — proposals, contracts, invoices — and every project can issue from it.") ?? "Create your first document template — proposals, contracts, invoices — and every project can issue from it.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_fc61a22aa7a62e"," New template") ?? " New template")}</button></div>`;
+        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-file-circle-plus"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_01b6cbbf151638","No templates yet") ?? "No templates yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_620050b9f2a4e1","Create your first document template — proposals, contracts, invoices — and every project can issue from it.") ?? "Create your first document template — proposals, contracts, invoices — and every project can issue from it.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc61a22aa7a62e"," New template") ?? " New template")}</button></div>`;
         body.querySelector('[data-empty-new]')?.addEventListener('click', () => openNewTemplateModal());
         return;
       }
@@ -872,7 +872,7 @@
       });
       const chipsHtml = `
         <div class="fmdx-filter-chips">
-          <button type="button" class="fmdx-filter-chip ${String(state.typeFilter ? '' : 'active')}" data-filter-type="">${(globalThis.PlatformLanguage?.text("documents","m_51faf42a72af3e","All types") ?? "All types")}</button>
+          <button type="button" class="fmdx-filter-chip ${String(state.typeFilter ? '' : 'active')}" data-filter-type="">${(globalThis.PlatformLanguage?.htmlText("documents","m_51faf42a72af3e","All types") ?? "All types")}</button>
           ${String(typesPresent.map((type) => `
             <button type="button" class="fmdx-filter-chip ${state.typeFilter === type ? 'active' : ''}" data-filter-type="${esc(type)}">
               <i class="fas ${esc(typeIcon(type, state.catalog?.types))}"></i> ${esc(typeLabel(type, state.catalog?.types))}
@@ -894,13 +894,13 @@
               </div>
               <div class="foot">
                 ${String(statusChip(tpl.status))}
-                ${String(isDefault ? '<span class="fmdx-chip plain" style="color:#8a6400"><i class="fas fa-star" style="font-size:9px"></i> Default</span>' : '')}
-                ${String(objectValue(tpl.metadata).preset ? '<span class="fmdx-chip plain">Preset</span>' : '')}
+                ${String(isDefault ? `<span class="fmdx-chip plain" style="color:#8a6400"><i class="fas fa-star" style="font-size:9px"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f358efad68d29a"," Default") ?? " Default")}</span>` : '')}
+                ${String(objectValue(tpl.metadata).preset ? `<span class="fmdx-chip plain">${(globalThis.PlatformLanguage?.htmlText("documents","m_401488cd49adb7","Preset") ?? "Preset")}</span>` : '')}
                 <span style="margin-left:auto;display:inline-flex;gap:5px">
-                  <button type="button" class="fmdx-icon-btn" data-tpl-edit title="${(globalThis.PlatformLanguage?.text("documents","m_5b9378df7220c1","Edit") ?? "Edit")}"><i class="fas fa-pen"></i></button>
+                  <button type="button" class="fmdx-icon-btn" data-tpl-edit title="${(globalThis.PlatformLanguage?.htmlText("documents","m_5b9378df7220c1","Edit") ?? "Edit")}"><i class="fas fa-pen"></i></button>
                   <button type="button" class="fmdx-icon-btn ${String(isDefault ? 'active' : '')}" data-tpl-default title="${String(isDefault ? 'Org default for this type' : 'Set as org default for this type')}" ${String(isDefault ? 'disabled' : '')}><i class="${String(isDefault ? 'fas' : 'far')} fa-star"></i></button>
-                  <button type="button" class="fmdx-icon-btn" data-tpl-duplicate title="${(globalThis.PlatformLanguage?.text("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
-                  <button type="button" class="fmdx-icon-btn danger" data-tpl-archive title="${(globalThis.PlatformLanguage?.text("documents","m_5546a92389e386","Archive") ?? "Archive")}"><i class="fas fa-box-archive"></i></button>
+                  <button type="button" class="fmdx-icon-btn" data-tpl-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
+                  <button type="button" class="fmdx-icon-btn danger" data-tpl-archive title="${(globalThis.PlatformLanguage?.htmlText("documents","m_5546a92389e386","Archive") ?? "Archive")}"><i class="fas fa-box-archive"></i></button>
                 </span>
               </div>
             </div>`;
@@ -978,7 +978,7 @@
     function renderThemeList(body){
       const themes = arrayValue(state.themes).filter((t) => cleanText(t.status).toLowerCase() !== 'archived');
       if (!themes.length) {
-        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-palette"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_879da400b922a1","No themes yet") ?? "No themes yet")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_ff2de1607328d0","Themes carry your colors, fonts, and page chrome — one theme restyles every document type together.") ?? "Themes carry your colors, fonts, and page chrome — one theme restyles every document type together.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_015bb33b569839"," New theme") ?? " New theme")}</button></div>`;
+        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-palette"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_879da400b922a1","No themes yet") ?? "No themes yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_ff2de1607328d0","Themes carry your colors, fonts, and page chrome — one theme restyles every document type together.") ?? "Themes carry your colors, fonts, and page chrome — one theme restyles every document type together.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_015bb33b569839"," New theme") ?? " New theme")}</button></div>`;
         body.querySelector('[data-empty-new]')?.addEventListener('click', () => openNewThemeModal());
         return;
       }
@@ -990,7 +990,7 @@
           const swatches = ['primary', 'accent', 'text'].map((key) => `<span style="width:18px;height:18px;border-radius:6px;border:1px solid rgba(15,23,42,.12);background:${esc(tokenColor(colors[key], key === 'text' ? '#111827' : '#2563EB'))}"></span>`).join('');
           return `
             <div class="fmdx-tpl-card" data-theme-card="${String(esc(theme.id))}" style="--fm-primary:${String(esc(primary))};--fm-accent:${String(esc(accent))};position:relative">
-              <button type="button" class="fmdx-icon-btn" data-theme-actions title="${(globalThis.PlatformLanguage?.text("documents","m_45b6adab52d821","Theme actions") ?? "Theme actions")}" aria-label="${((v3) => globalThis.PlatformLanguage?.text("documents","m_30396c80099968",`Actions for ${v3}`,{v3}) ?? `Actions for ${v3}`)(esc(firstText(theme.name, 'theme')))}" style="position:absolute;right:10px;top:10px;z-index:2"><i class="fas fa-ellipsis"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-theme-actions title="${(globalThis.PlatformLanguage?.htmlText("documents","m_45b6adab52d821","Theme actions") ?? "Theme actions")}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("documents","m_30396c80099968",`Actions for ${v3}`,{v3}) ?? `Actions for ${v3}`)(esc(firstText(theme.name, 'theme')))}" style="position:absolute;right:10px;top:10px;z-index:2"><i class="fas fa-ellipsis"></i></button>
               <div class="head" data-theme-open style="padding-right:34px">
                 <span class="icon" style="background:linear-gradient(135deg,${String(esc(primary))} 0 50%,${String(esc(accent))} 50%);color:${String(esc(readableOnColor(primary)))}"><i class="fas fa-palette"></i></span>
                 <div style="min-width:0">
@@ -1214,14 +1214,14 @@
       const folderId = cleanText(folder.id);
       const items = state.folderItems[folderId];
       if (!Array.isArray(items)) {
-        body.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_ef1731c651caee","Loading folder") ?? "Loading folder")}</strong></div>`;
+        body.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_ef1731c651caee","Loading folder") ?? "Loading folder")}</strong></div>`;
         loadFolderItems(folderId).then(() => {
           if (!state.destroyed && state.view === 'list' && state.tab === `folder:${folderId}`) render();
         });
         return;
       }
       if (!items.length) {
-        body.innerHTML = `<div class="fmdx-state"><i class="fas ${String(esc(firstText(folder.icon, 'fa-folder')))}"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_2da7c8038631f3","Nothing here yet") ?? "Nothing here yet")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_e1d2bb78d22ce9","Upload media or files, or design a document — everything in this folder stays organized in one place.") ?? "Upload media or files, or design a document — everything in this folder stays organized in one place.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_5fe01108f83039"," New") ?? " New")}</button></div>`;
+        body.innerHTML = `<div class="fmdx-state"><i class="fas ${String(esc(firstText(folder.icon, 'fa-folder')))}"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_2da7c8038631f3","Nothing here yet") ?? "Nothing here yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_e1d2bb78d22ce9","Upload media or files, or design a document — everything in this folder stays organized in one place.") ?? "Upload media or files, or design a document — everything in this folder stays organized in one place.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_5fe01108f83039"," New") ?? " New")}</button></div>`;
         body.querySelector('[data-empty-new]')?.addEventListener('click', () => openNewFolderItemModal(folder));
         return;
       }
@@ -1232,7 +1232,7 @@
           const thumbUrl = type === 'media' ? mediaRefUrl(item.media_ref, 'original') : '';
           return `
             <div class="fmdx-tpl-card" data-folder-item-card="${String(esc(item.id))}" style="position:relative">
-              <button type="button" class="fmdx-icon-btn" data-item-actions title="${(globalThis.PlatformLanguage?.text("documents","m_fd0f574164b88e","Item actions") ?? "Item actions")}" aria-label="${((v1) => globalThis.PlatformLanguage?.text("documents","m_4ced6981451d49",`Actions for ${v1}`,{v1}) ?? `Actions for ${v1}`)(esc(firstText(item.name, 'item')))}" style="position:absolute;right:10px;top:10px;z-index:2"><i class="fas fa-ellipsis"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-item-actions title="${(globalThis.PlatformLanguage?.htmlText("documents","m_fd0f574164b88e","Item actions") ?? "Item actions")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("documents","m_4ced6981451d49",`Actions for ${v1}`,{v1}) ?? `Actions for ${v1}`)(esc(firstText(item.name, 'item')))}" style="position:absolute;right:10px;top:10px;z-index:2"><i class="fas fa-ellipsis"></i></button>
               <div class="fmdx-item-thumb" data-item-open>
                 ${String(thumbUrl
                   ? `<img src="${esc(thumbUrl)}" alt="" loading="lazy">`
@@ -1358,7 +1358,7 @@
           scale: Math.min(1, available / (baseWidthPt * (96 / 72)))
         });
       } catch (error) {
-        holder.innerHTML = `<div class="fmdx-state" style="margin:auto;border:0;background:transparent"><i class="fas fa-triangle-exclamation" style="color:#f5b357"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.text("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
+        holder.innerHTML = `<div class="fmdx-state" style="margin:auto;border:0;background:transparent"><i class="fas fa-triangle-exclamation" style="color:#f5b357"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
       }
     }
 
@@ -1432,31 +1432,31 @@
     }
 
     function openNewFolderItemModal(folder){
-      const modal = openModal(`<h2><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_5fe01108f83039"," New") ?? " New")}</h2><div data-nfi-body></div>`);
+      const modal = openModal(`<h2><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_5fe01108f83039"," New") ?? " New")}</h2><div data-nfi-body></div>`);
       const body = modal.el.querySelector('[data-nfi-body]');
       function renderChooser(){
         body.innerHTML = `
-          <p class="fmdx-data-hint" style="margin-top:0">${((v0) => globalThis.PlatformLanguage?.text("documents","m_8c389572b3287f",`Add to “${v0}”.`,{v0}) ?? `Add to “${v0}”.`)(esc(firstText(folder.label, 'this folder')))}</p>
+          <p class="fmdx-data-hint" style="margin-top:0">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_8c389572b3287f",`Add to “${v0}”.`,{v0}) ?? `Add to “${v0}”.`)(esc(firstText(folder.label, 'this folder')))}</p>
           <div class="fmdx-pick-grid">
             <button type="button" class="fmdx-pick-card" data-nfi-kind="media">
               <span class="fmdx-pick-icon"><i class="fas fa-image"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.text("documents","m_1e937a69c1930d","Media upload") ?? "Media upload")}</strong>
-              <small>${(globalThis.PlatformLanguage?.text("documents","m_f2720b2e2418c7","Photos & videos, stored with thumbnails") ?? "Photos & videos, stored with thumbnails")}</small>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_1e937a69c1930d","Media upload") ?? "Media upload")}</strong>
+              <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_f2720b2e2418c7","Photos & videos, stored with thumbnails") ?? "Photos & videos, stored with thumbnails")}</small>
             </button>
             <button type="button" class="fmdx-pick-card" data-nfi-kind="file">
               <span class="fmdx-pick-icon"><i class="fas fa-file-arrow-up"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.text("documents","m_ac237ff655738b","Document upload") ?? "Document upload")}</strong>
-              <small>${(globalThis.PlatformLanguage?.text("documents","m_9098a26abe330f","PDFs & files, stored as-is") ?? "PDFs & files, stored as-is")}</small>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_ac237ff655738b","Document upload") ?? "Document upload")}</strong>
+              <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_9098a26abe330f","PDFs & files, stored as-is") ?? "PDFs & files, stored as-is")}</small>
             </button>
             <button type="button" class="fmdx-pick-card" data-nfi-kind="document">
               <span class="fmdx-pick-icon"><i class="fas fa-file-lines"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.text("documents","m_9c9b98b1f4e8c9","Document") ?? "Document")}</strong>
-              <small>${(globalThis.PlatformLanguage?.text("documents","m_cae6c3227293b0","Page-based, opens in the document editor") ?? "Page-based, opens in the document editor")}</small>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_9c9b98b1f4e8c9","Document") ?? "Document")}</strong>
+              <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_cae6c3227293b0","Page-based, opens in the document editor") ?? "Page-based, opens in the document editor")}</small>
             </button>
             <button type="button" class="fmdx-pick-card" data-nfi-kind="visual_document">
               <span class="fmdx-pick-icon"><i class="fas fa-object-group"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.text("documents","m_61a718221ec5f8","Visual document") ?? "Visual document")}</strong>
-              <small>${(globalThis.PlatformLanguage?.text("documents","m_24c9fe24d3a98f","Free-flowing canvas, opens in the visual editor") ?? "Free-flowing canvas, opens in the visual editor")}</small>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_61a718221ec5f8","Visual document") ?? "Visual document")}</strong>
+              <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_24c9fe24d3a98f","Free-flowing canvas, opens in the visual editor") ?? "Free-flowing canvas, opens in the visual editor")}</small>
             </button>
           </div>`;
         body.querySelectorAll('[data-nfi-kind]').forEach((btn) => btn.addEventListener('click', () => {
@@ -1472,10 +1472,10 @@
       function renderNameStep(kind){
         const meta = ITEM_TYPE_META[kind] || ITEM_TYPE_META.document;
         body.innerHTML = `
-          <label class="fmdx-field"><span>${((v0) => globalThis.PlatformLanguage?.text("documents","m_52472813510e82",`${v0} name`,{v0}) ?? `${v0} name`)(esc(meta.label))}</span><input type="text" data-nfi-name placeholder="${(globalThis.PlatformLanguage?.text("documents","m_1a03e2f4ec7099","e.g. Company Brochure") ?? "e.g. Company Brochure")}"></label>
+          <label class="fmdx-field"><span>${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_52472813510e82",`${v0} name`,{v0}) ?? `${v0} name`)(esc(meta.label))}</span><input type="text" data-nfi-name placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_1a03e2f4ec7099","e.g. Company Brochure") ?? "e.g. Company Brochure")}"></label>
           <div class="fmdx-modal-foot">
-            <button type="button" class="fmdx-btn" data-nfi-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("documents","m_206d31a7c795c4"," Back") ?? " Back")}</button>
-            <button type="button" class="fmdx-btn primary" data-nfi-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_93873c9aca2d63"," Create & design") ?? " Create & design")}</button>
+            <button type="button" class="fmdx-btn" data-nfi-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+            <button type="button" class="fmdx-btn primary" data-nfi-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_93873c9aca2d63"," Create & design") ?? " Create & design")}</button>
           </div>`;
         const input = body.querySelector('[data-nfi-name]');
         body.querySelector('[data-nfi-back]')?.addEventListener('click', () => renderChooser());
@@ -1603,14 +1603,14 @@
         <div class="fmdx-shell">
           <div class="fmdx-studio-editor" data-studio-item-screen>
             <header class="fmdx-editor-top">
-              <button type="button" class="fmdx-icon-btn" data-item-back title="${(globalThis.PlatformLanguage?.text("documents","m_9a8ae4bb33e74e","Back to folder") ?? "Back to folder")}"><i class="fas fa-arrow-left"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-item-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9a8ae4bb33e74e","Back to folder") ?? "Back to folder")}"><i class="fas fa-arrow-left"></i></button>
               <input class="fmdx-doc-title-input" data-item-name value="${String(esc(firstText(item.name, 'Untitled')))}" spellcheck="false">
               <span class="fmdx-chip plain"><i class="fas ${String(esc(meta.icon))}" style="font-size:9px"></i> ${String(esc(meta.label))}</span>
-              <span class="fmdx-save-state" data-item-save-state>${(globalThis.PlatformLanguage?.text("documents","m_8942ebbfe02463","Saves automatically") ?? "Saves automatically")}</span>
+              <span class="fmdx-save-state" data-item-save-state>${(globalThis.PlatformLanguage?.htmlText("documents","m_8942ebbfe02463","Saves automatically") ?? "Saves automatically")}</span>
             </header>
             <div class="fmdx-editor-main">
               <div class="fmdx-editor-canvas" data-item-canvas>
-                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${((v3) => globalThis.PlatformLanguage?.text("documents","m_b9453f8651aeec",`Opening ${v3}`,{v3}) ?? `Opening ${v3}`)(esc(meta.label.toLowerCase()))}</strong></div>
+                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${((v3) => globalThis.PlatformLanguage?.htmlText("documents","m_b9453f8651aeec",`Opening ${v3}`,{v3}) ?? `Opening ${v3}`)(esc(meta.label.toLowerCase()))}</strong></div>
               </div>
             </div>
           </div>
@@ -1698,7 +1698,7 @@
         rename: () => { const input = state.folderItemHeader?.querySelector('[data-item-name]'); input?.focus(); input?.select(); },
         move: () => {
           const choices = arrayValue(state.folders).filter((folder) => cleanText(folder.id) !== cleanText(state.folderItem?.folder_id));
-          const modal = openModal(`<h2><i class="fas fa-folder-tree"></i>${(globalThis.PlatformLanguage?.text("documents","m_f560ff2bcfdb50"," Move document") ?? " Move document")}</h2><label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_9636a74fb73e2d","Destination folder") ?? "Destination folder")}</span><select data-move-folder>${String(choices.map((folder) => `<option value="${esc(folder.id)}">${esc(folder.label)}</option>`).join(''))}</select></label><div class="fmdx-modal-actions"><button type="button" class="fmdx-btn" data-move-cancel>${(globalThis.PlatformLanguage?.text("documents","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="fmdx-btn primary" data-move-save ${String(choices.length ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.text("documents","m_552d55b4b2e140","Move") ?? "Move")}</button></div>`);
+          const modal = openModal(`<h2><i class="fas fa-folder-tree"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f560ff2bcfdb50"," Move document") ?? " Move document")}</h2><label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_9636a74fb73e2d","Destination folder") ?? "Destination folder")}</span><select data-move-folder>${String(choices.map((folder) => `<option value="${esc(folder.id)}">${esc(folder.label)}</option>`).join(''))}</select></label><div class="fmdx-modal-actions"><button type="button" class="fmdx-btn" data-move-cancel>${(globalThis.PlatformLanguage?.htmlText("documents","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="fmdx-btn primary" data-move-save ${String(choices.length ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_552d55b4b2e140","Move") ?? "Move")}</button></div>`);
           modal.el.querySelector('[data-move-cancel]')?.addEventListener('click', modal.close);
           modal.el.querySelector('[data-move-save]')?.addEventListener('click', async () => {
             const folderId = cleanText(modal.el.querySelector('[data-move-folder]')?.value);
@@ -1711,13 +1711,13 @@
         },
         versions: async () => {
           const item = state.folderItem || {};
-          const modal = openModal(`<h2><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.text("documents","m_b5edeb48c05298"," Version history") ?? " Version history")}</h2><div class="fmdx-state" style="margin:0" data-item-versions><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_086b015c3e8bf8","Loading saved versions") ?? "Loading saved versions")}</strong></div>`);
+          const modal = openModal(`<h2><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b5edeb48c05298"," Version history") ?? " Version history")}</h2><div class="fmdx-state" style="margin:0" data-item-versions><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_086b015c3e8bf8","Loading saved versions") ?? "Loading saved versions")}</strong></div>`);
           const result = await api().folders.items.versions(orgId(), item.folder_id, item.id);
           const versions = arrayValue(result.versions || result.items);
           const host = modal.el.querySelector('[data-item-versions]');
           if (!host) return;
           host.className = '';
-          host.innerHTML = `<div class="fmdx-menu-note">${((v0,v1) => globalThis.PlatformLanguage?.text("documents","m_3a1a837e75bcde",`Current revision ${v0} · saved ${v1}`,{v0,v1}) ?? `Current revision ${v0} · saved ${v1}`)(Number(item.revision || 1),esc(item.updated_at ? timeAgo(item.updated_at) : 'just now'))}</div>${String(versions.length ? versions.map((version) => `<div class="fmdx-list-row"><div><strong>Revision ${Number(version.source_revision || 0)}</strong><small>${esc(version.captured_at ? timeAgo(version.captured_at) : '')} · ${esc(firstText(version.updated_by_user_id, 'Autosave'))}</small></div></div>`).join('') : '<div class="fmdx-state" style="margin:0"><strong>No earlier versions yet</strong><span>Earlier revisions appear here after the document is saved.</span></div>')}`;
+          host.innerHTML = `<div class="fmdx-menu-note">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("documents","m_3a1a837e75bcde",`Current revision ${v0} · saved ${v1}`,{v0,v1}) ?? `Current revision ${v0} · saved ${v1}`)(Number(item.revision || 1),esc(item.updated_at ? timeAgo(item.updated_at) : 'just now'))}</div>${String(versions.length ? versions.map((version) => `<div class="fmdx-list-row"><div><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_b485bf55fda42c",`Revision ${v0}`,{v0}) ?? `Revision ${v0}`)(Number(version.source_revision || 0))}</strong><small>${esc(version.captured_at ? timeAgo(version.captured_at) : '')} · ${esc(firstText(version.updated_by_user_id, 'Autosave'))}</small></div></div>`).join('') : `<div class="fmdx-state" style="margin:0"><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_c2ca11a09530eb","No earlier versions yet") ?? "No earlier versions yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_7b5b72178f4987","Earlier revisions appear here after the document is saved.") ?? "Earlier revisions appear here after the document is saved.")}</span></div>`)}`;
         },
         trash: async () => { await archiveFolderItem(state.folderItem); await closeFolderItemEditor({ fromRoute:true }); },
         agent: ({ task } = {}) => {
@@ -1736,7 +1736,7 @@
       try { state.folderItemAgent?.destroy?.(); } catch (e) {}
       state.folderItemAgent = null;
       if (!window.FMDocAgentPanel?.create) {
-        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.text("documents","m_b81cd219469c9b","The document copilot library is not loaded.") ?? "The document copilot library is not loaded.")}</span></div>`;
+        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_b81cd219469c9b","The document copilot library is not loaded.") ?? "The document copilot library is not loaded.")}</span></div>`;
         return;
       }
       const kickoff = firstText(state.pendingFolderItemAgentTask);
@@ -1787,7 +1787,7 @@
       const canvas = root.querySelector('[data-item-canvas]');
       if (!canvas || !state.folderItemDef) return;
       if (!window.FMDocEditor?.mount) {
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-pen-ruler"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_a501de9d8db031","The document editor library is not loaded for this session.") ?? "The document editor library is not loaded for this session.")}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-pen-ruler"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_a501de9d8db031","The document editor library is not loaded for this session.") ?? "The document editor library is not loaded for this session.")}</span></div>`;
         return;
       }
       canvas.innerHTML = '';
@@ -1844,7 +1844,7 @@
         });
       } catch (error) {
         console.warn('FMDocEditor mount failed', error);
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
       }
     }
 
@@ -1889,11 +1889,11 @@
         ? state.catalog.types
         : Object.keys(TYPE_ICONS).filter((k) => k !== 'receipt').map((id) => ({ id, label: typeLabel(id), icon: TYPE_ICONS[id] }));
       let selectedType = '';
-      const modal = openModal(`<h2><i class="fas fa-file-circle-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_fc61a22aa7a62e"," New template") ?? " New template")}</h2><div data-nt-body></div>`);
+      const modal = openModal(`<h2><i class="fas fa-file-circle-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc61a22aa7a62e"," New template") ?? " New template")}</h2><div data-nt-body></div>`);
       const body = modal.el.querySelector('[data-nt-body]');
       function renderBody(){
         body.innerHTML = `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_61cd09102e4af8","Document type") ?? "Document type")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_61cd09102e4af8","Document type") ?? "Document type")}</p>
           <div class="fmdx-pick-grid" style="margin-bottom:14px">
             ${String(types.map((type) => {
               const id = firstText(type.id, type.type);
@@ -1903,16 +1903,16 @@
               </button>`;
             }).join(''))}
           </div>
-          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_c4b7cbfdc9b700","Template name") ?? "Template name")}</span><input type="text" data-nt-name placeholder="${(globalThis.PlatformLanguage?.text("documents","m_a3fa22cfb77342","e.g. Roofing Proposal") ?? "e.g. Roofing Proposal")}" value="${String(selectedType ? esc(`${typeLabel(selectedType, types)} Template`) : '')}"></label>
-          ${String(capabilityEnabled('documents.agent') ? '<label class="fmdx-field"><span>Describe it to the design copilot (optional)</span><textarea data-nt-brief rows="3" placeholder="Describe the pages and content you want the agent to build"></textarea></label>' : '')}
-          ${String(capabilityEnabled('documents.agent') && capabilityEnabled('documents.ingestion') ? '<label class="fmdx-field"><span>Or upload examples (optional — PDFs or photos of your current documents)</span><input type="file" data-nt-files multiple accept="application/pdf,image/jpeg,image/png,image/webp"></label>' : '')}
+          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_c4b7cbfdc9b700","Template name") ?? "Template name")}</span><input type="text" data-nt-name placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_a3fa22cfb77342","e.g. Roofing Proposal") ?? "e.g. Roofing Proposal")}" value="${String(selectedType ? esc(`${typeLabel(selectedType, types)} Template`) : '')}"></label>
+          ${String(capabilityEnabled('documents.agent') ? `<label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_716c0be5c7a7c1","Describe it to the design copilot (optional)") ?? "Describe it to the design copilot (optional)")}</span><textarea data-nt-brief rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_a7231e6357e05e","Describe the pages and content you want the agent to build") ?? "Describe the pages and content you want the agent to build")}"></textarea></label>` : '')}
+          ${String(capabilityEnabled('documents.agent') && capabilityEnabled('documents.ingestion') ? `<label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_037e435ae78813","Or upload examples (optional — PDFs or photos of your current documents)") ?? "Or upload examples (optional — PDFs or photos of your current documents)")}</span><input type="file" data-nt-files multiple accept="application/pdf,image/jpeg,image/png,image/webp"></label>` : '')}
           <label style="display:${String(capabilityEnabled('documents.agent') && capabilityEnabled('documents.ingestion') ? 'flex' : 'none')};align-items:flex-start;gap:8px;margin:2px 0 8px;font-size:12.5px;color:#344054;cursor:pointer">
             <input type="checkbox" data-nt-upload-intake style="margin-top:2px">
-            <span><strong>${(globalThis.PlatformLanguage?.text("documents","m_a8ed0c6ffb232c","Paper-upload template") ?? "Paper-upload template")}</strong>${(globalThis.PlatformLanguage?.text("documents","m_948818a6bffdc0"," — the document stays on paper. Instead of recreating pages, the copilot drafts the ") ?? " — the document stays on paper. Instead of recreating pages, the copilot drafts the ")}<em>${(globalThis.PlatformLanguage?.text("documents","m_52ef509a9e98db","fields to capture") ?? "fields to capture")}</em>${(globalThis.PlatformLanguage?.text("documents","m_d413785abac736"," from each uploaded contract (parties, dates, prices, signatures); you adjust them visually in the editor.") ?? " from each uploaded contract (parties, dates, prices, signatures); you adjust them visually in the editor.")}</span>
+            <span><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_a8ed0c6ffb232c","Paper-upload template") ?? "Paper-upload template")}</strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_948818a6bffdc0"," — the document stays on paper. Instead of recreating pages, the copilot drafts the ") ?? " — the document stays on paper. Instead of recreating pages, the copilot drafts the ")}<em>${(globalThis.PlatformLanguage?.htmlText("documents","m_52ef509a9e98db","fields to capture") ?? "fields to capture")}</em>${(globalThis.PlatformLanguage?.htmlText("documents","m_d413785abac736"," from each uploaded contract (parties, dates, prices, signatures); you adjust them visually in the editor.") ?? " from each uploaded contract (parties, dates, prices, signatures); you adjust them visually in the editor.")}</span>
           </label>
-          ${String(capabilityEnabled('documents.agent') && capabilityEnabled('documents.ingestion') ? '<p class="fmdx-data-hint" style="margin:0">With examples the copilot recreates your existing paperwork as a reusable template and you refine it in the editor.</p>' : '')}
+          ${String(capabilityEnabled('documents.agent') && capabilityEnabled('documents.ingestion') ? `<p class="fmdx-data-hint" style="margin:0">${(globalThis.PlatformLanguage?.htmlText("documents","m_3dfffa1326b3b2","With examples the copilot recreates your existing paperwork as a reusable template and you refine it in the editor.") ?? "With examples the copilot recreates your existing paperwork as a reusable template and you refine it in the editor.")}</p>` : '')}
           <div class="fmdx-modal-foot">
-            <button type="button" class="fmdx-btn primary" data-nt-create ${String(selectedType ? '' : 'disabled')}><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_93873c9aca2d63"," Create & design") ?? " Create & design")}</button>
+            <button type="button" class="fmdx-btn primary" data-nt-create ${String(selectedType ? '' : 'disabled')}><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_93873c9aca2d63"," Create & design") ?? " Create & design")}</button>
           </div>`;
         body.querySelectorAll('[data-nt-type]').forEach((btn) => btn.addEventListener('click', () => { selectedType = btn.dataset.ntType; renderBody(); }));
         body.querySelector('[data-nt-create]')?.addEventListener('click', async (event) => {
@@ -2097,22 +2097,22 @@
       const rows = normalizedTemplateScheduleDefaults();
       const percentTotal = rows.reduce((sum, row) => sum + Number(row.percent || 0), 0);
       return `
-        <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_99e59c09f40339","Payment schedule defaults") ?? "Payment schedule defaults")}</p>
-        <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_09f013bfbb44c0","These percentage milestones are copied into every document created from this template and resolved against that document's contract total.") ?? "These percentage milestones are copied into every document created from this template and resolved against that document's contract total.")}</p>
+        <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_99e59c09f40339","Payment schedule defaults") ?? "Payment schedule defaults")}</p>
+        <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_09f013bfbb44c0","These percentage milestones are copied into every document created from this template and resolved against that document's contract total.") ?? "These percentage milestones are copied into every document created from this template and resolved against that document's contract total.")}</p>
         <div class="fmdx-rich-card" data-template-schedule>
           ${String(rows.length ? `<div class="fmdx-sched-rows">
             ${rows.map((row, index) => `<div class="fmdx-sched-row" data-template-schedule-row="${index}">
-              <input type="text" data-template-schedule-label value="${esc(row.label)}" placeholder="Milestone">
+              <input type="text" data-template-schedule-label value="${esc(row.label)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_35f2a632435630","Milestone") ?? "Milestone")}">
               <span style="display:flex;align-items:center;gap:4px"><input type="number" data-template-schedule-percent min="0" max="100" step="0.5" value="${esc(row.percent)}"><b>%</b></span>
               <select data-template-schedule-due>${TEMPLATE_SCHEDULE_DUE_OPTIONS.map((option) => `<option value="${esc(option.value)}" ${row.due_rule === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select>
-              <button type="button" class="fmdx-icon-btn" data-template-schedule-remove title="Remove"><i class="fas fa-trash"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-template-schedule-remove title="${(globalThis.PlatformLanguage?.htmlText("documents","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
             </div>`).join('')}
           </div>
-          <p class="fmdx-data-hint" style="${Math.abs(percentTotal - 100) > 0.001 ? 'color:#b42318' : ''}">${percentTotal}% scheduled${Math.abs(percentTotal - 100) > 0.001 ? ' — percentages should total 100%' : ' — ready'}</p>`
+          <p class="fmdx-data-hint" style="${Math.abs(percentTotal - 100) > 0.001 ? 'color:#b42318' : ''}">${((v2,v3) => globalThis.PlatformLanguage?.htmlText("documents","m_5fefe65ff8c93c",`${v2}% scheduled${v3}`,{v2,v3}) ?? `${v2}% scheduled${v3}`)(percentTotal,Math.abs(percentTotal - 100) > 0.001 ? ' — percentages should total 100%' : ' — ready')}</p>`
           : `<p class="fmdx-data-hint">${param ? 'No default schedule is defined, so new documents receive an empty schedule.' : 'This template has no payment schedule param yet.'}</p>`)}
           <div class="fmdx-rich-actions">
-            <button type="button" class="fmdx-btn ghost tiny" data-template-schedule-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_00a6dac3bb30c9"," Add milestone") ?? " Add milestone")}</button>
-            <button type="button" class="fmdx-btn ghost tiny" data-template-schedule-preset><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("documents","m_e718d425696681"," 30% deposit / 70% completion") ?? " 30% deposit / 70% completion")}</button>
+            <button type="button" class="fmdx-btn ghost tiny" data-template-schedule-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_00a6dac3bb30c9"," Add milestone") ?? " Add milestone")}</button>
+            <button type="button" class="fmdx-btn ghost tiny" data-template-schedule-preset><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_e718d425696681"," 30% deposit / 70% completion") ?? " 30% deposit / 70% completion")}</button>
           </div>
         </div>`;
     }
@@ -2194,7 +2194,7 @@
     function mountTemplateAgent(host){
       destroyTemplateAgent();
       if (!window.FMDocAgentPanel?.create) {
-        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.text("documents","m_85a6a9fb425b48","The design copilot library is not loaded.") ?? "The design copilot library is not loaded.")}</span></div>`;
+        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_85a6a9fb425b48","The design copilot library is not loaded.") ?? "The design copilot library is not loaded.")}</span></div>`;
         return;
       }
       const kickoffBrief = firstText(state.pendingAgentBrief);
@@ -2266,7 +2266,7 @@
 
     async function openTemplateVersionHistory(){
       const template = state.template || {};
-      const modal = openModal(`<h2><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.text("documents","m_b5edeb48c05298"," Version history") ?? " Version history")}</h2><div class="fmdx-state" style="margin:0" data-template-versions><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_905104b843270d","Loading published versions") ?? "Loading published versions")}</strong></div>`);
+      const modal = openModal(`<h2><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b5edeb48c05298"," Version history") ?? " Version history")}</h2><div class="fmdx-state" style="margin:0" data-template-versions><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_905104b843270d","Loading published versions") ?? "Loading published versions")}</strong></div>`);
       const host = modal.el.querySelector('[data-template-versions]');
       try {
         const result = await api().templates.versions(orgId(), template.id);
@@ -2276,9 +2276,9 @@
         host.className = '';
         host.innerHTML = versions.length ? versions.map((version) => `
           <div class="fmdx-list-row">
-            <div><strong>${((v0) => globalThis.PlatformLanguage?.text("documents","m_1fc6063a32f556",`Version ${v0}`,{v0}) ?? `Version ${v0}`)(Number(version.version || 0))}</strong><small>${String(esc([version.published_at ? timeAgo(version.published_at) : '', firstText(version.published_by_name, version.published_by_user_id)].filter(Boolean).join(' · ') || 'Published'))}</small></div>
-            <button type="button" class="fmdx-btn" data-template-version="${String(Number(version.version || 0))}"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("documents","m_d13b90e9d4a614"," Restore draft") ?? " Restore draft")}</button>
-          </div>`).join('') : `<div class="fmdx-state" style="margin:0"><strong>${(globalThis.PlatformLanguage?.text("documents","m_3367c266935d72","No published versions yet") ?? "No published versions yet")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_91d2192179ff34","Publish the template to create its first version.") ?? "Publish the template to create its first version.")}</span></div>`;
+            <div><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_1fc6063a32f556",`Version ${v0}`,{v0}) ?? `Version ${v0}`)(Number(version.version || 0))}</strong><small>${String(esc([version.published_at ? timeAgo(version.published_at) : '', firstText(version.published_by_name, version.published_by_user_id)].filter(Boolean).join(' · ') || 'Published'))}</small></div>
+            <button type="button" class="fmdx-btn" data-template-version="${String(Number(version.version || 0))}"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_d13b90e9d4a614"," Restore draft") ?? " Restore draft")}</button>
+          </div>`).join('') : `<div class="fmdx-state" style="margin:0"><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_3367c266935d72","No published versions yet") ?? "No published versions yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_91d2192179ff34","Publish the template to create its first version.") ?? "Publish the template to create its first version.")}</span></div>`;
         host.querySelectorAll('[data-template-version]').forEach((button) => button.addEventListener('click', async () => {
           button.disabled = true;
           try {
@@ -2297,7 +2297,7 @@
           }
         }));
       } catch (error) {
-        if (host) host.innerHTML = `<div class="fmdx-state" style="margin:0"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_6d6adea169cb64","History unavailable") ?? "History unavailable")}</strong><span>${String(esc(errorMessage(error, 'Could not load template versions.')))}</span></div>`;
+        if (host) host.innerHTML = `<div class="fmdx-state" style="margin:0"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_6d6adea169cb64","History unavailable") ?? "History unavailable")}</strong><span>${String(esc(errorMessage(error, 'Could not load template versions.')))}</span></div>`;
       }
     }
 
@@ -2309,21 +2309,21 @@
         <div class="fmdx-shell">
           <div class="fmdx-studio-editor" data-studio-tpl-screen>
             <header class="fmdx-editor-top">
-              <button type="button" class="fmdx-icon-btn" data-tpl-back title="${(globalThis.PlatformLanguage?.text("documents","m_9df2e6130a5af3","Back to templates") ?? "Back to templates")}"><i class="fas fa-arrow-left"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-tpl-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9df2e6130a5af3","Back to templates") ?? "Back to templates")}"><i class="fas fa-arrow-left"></i></button>
               <input class="fmdx-doc-title-input" data-tpl-name value="${String(esc(firstText(tpl.name, 'Untitled template')))}" spellcheck="false">
               ${String(statusChip(tpl.status))}
               <span class="fmdx-chip plain">v${String(Number(tpl.current_version || 0))}</span>
               <span class="fmdx-save-state" data-tpl-save-state></span>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-                <button type="button" class="fmdx-btn" data-tpl-schema><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("documents","m_6b124d14be8596"," Setup") ?? " Setup")}</button>
-                ${String(capabilityEnabled('documents.agent') ? '<button type="button" class="fmdx-btn" data-tpl-agent><i class="fas fa-wand-magic-sparkles"></i> Agent</button>' : '')}
-                <button type="button" class="fmdx-btn" data-tpl-save><i class="fas fa-floppy-disk"></i>${(globalThis.PlatformLanguage?.text("documents","m_c723e1998b1b0a"," Save draft") ?? " Save draft")}</button>
-                <button type="button" class="fmdx-btn primary" data-tpl-publish><i class="fas fa-rocket"></i>${(globalThis.PlatformLanguage?.text("documents","m_920f7e99dda4ea"," Publish") ?? " Publish")}</button>
+                <button type="button" class="fmdx-btn" data-tpl-schema><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6b124d14be8596"," Setup") ?? " Setup")}</button>
+                ${String(capabilityEnabled('documents.agent') ? `<button type="button" class="fmdx-btn" data-tpl-agent><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>` : '')}
+                <button type="button" class="fmdx-btn" data-tpl-save><i class="fas fa-floppy-disk"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c723e1998b1b0a"," Save draft") ?? " Save draft")}</button>
+                <button type="button" class="fmdx-btn primary" data-tpl-publish><i class="fas fa-rocket"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_920f7e99dda4ea"," Publish") ?? " Publish")}</button>
               </div>
             </header>
             <div class="fmdx-editor-main">
               <div class="fmdx-editor-canvas" data-tpl-canvas>
-                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_dbcfeaabac54d0","Opening template") ?? "Opening template")}</strong></div>
+                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_dbcfeaabac54d0","Opening template") ?? "Opening template")}</strong></div>
               </div>
             </div>
           </div>
@@ -2357,7 +2357,7 @@
       const canvas = root.querySelector('[data-tpl-canvas]');
       if (!canvas || !state.definition) return;
       if (!window.FMDocEditor?.mount) {
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-pen-ruler"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_73ce6add79b014","The document editor library is not loaded — the schema panel still works, and Save/Publish persist it.") ?? "The document editor library is not loaded — the schema panel still works, and Save/Publish persist it.")}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-pen-ruler"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_73ce6add79b014","The document editor library is not loaded — the schema panel still works, and Save/Publish persist it.") ?? "The document editor library is not loaded — the schema panel still works, and Save/Publish persist it.")}</span></div>`;
         return;
       }
       canvas.innerHTML = '';
@@ -2395,7 +2395,7 @@
           // Right-tray tabs: Inspect (editor-owned) + Setup + Agent.
           sidePanels: [
             { id: 'setup', label: (globalThis.PlatformLanguage?.text("documents","m_b06faf127e1505","Setup") ?? "Setup"), render: (host) => { state.schemaPanelHost = host; renderSchemaPanel(); } },
-            { id: 'program', label: 'Data & behavior', render: async host => {
+            { id: 'program', label: (globalThis.PlatformLanguage?.text("documents","m_f8e3874860785b","Data & behavior") ?? "Data & behavior"), render: async host => {
               const { mountProgramPanel } = await import('/libraries/apps/documents/program-panel.js');
               if (!host.isConnected) return;
               await mountProgramPanel(host, { organizationId: orgId(), getProgram: () => currentTemplateDefinition().program, onChange(program) {
@@ -2426,7 +2426,7 @@
         });
       } catch (error) {
         console.warn('FMDocEditor mount failed', error);
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
       }
     }
 
@@ -2435,20 +2435,20 @@
       const typeDisabled = (type) => (type === 'signature' && !capabilityEnabled('documents.esign')) || ((type === 'payment' || type === 'payment_schedule') && !capabilityEnabled('documents.payments'));
       return `
         <table class="fmdx-schema-table">
-          <thead><tr><th>${(globalThis.PlatformLanguage?.text("documents","m_76608e0c91e510","Key") ?? "Key")}</th><th>${(globalThis.PlatformLanguage?.text("documents","m_2e88df13ca7101","Type") ?? "Type")}</th><th>${(globalThis.PlatformLanguage?.text("documents","m_9fd79f4276d659","Label") ?? "Label")}</th><th title="${(globalThis.PlatformLanguage?.text("documents","m_db97f048cd99aa","Required") ?? "Required")}">${(globalThis.PlatformLanguage?.text("documents","m_3bea324566aaf7","Req") ?? "Req")}</th><th></th></tr></thead>
+          <thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("documents","m_76608e0c91e510","Key") ?? "Key")}</th><th>${(globalThis.PlatformLanguage?.htmlText("documents","m_2e88df13ca7101","Type") ?? "Type")}</th><th>${(globalThis.PlatformLanguage?.htmlText("documents","m_9fd79f4276d659","Label") ?? "Label")}</th><th title="${(globalThis.PlatformLanguage?.htmlText("documents","m_db97f048cd99aa","Required") ?? "Required")}">${(globalThis.PlatformLanguage?.htmlText("documents","m_3bea324566aaf7","Req") ?? "Req")}</th><th></th></tr></thead>
           <tbody>
             ${String(rows.map((row, index) => `
               <tr data-schema-row="${index}">
-                <td style="width:30%"><input type="text" data-schema-key value="${esc(row.key)}" placeholder="key"></td>
+                <td style="width:30%"><input type="text" data-schema-key value="${esc(row.key)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_6d35930a509b39","key") ?? "key")}"></td>
                 <td style="width:26%"><select data-schema-type>${types.map((t) => `<option value="${esc(t)}" ${row.type === t ? 'selected' : ''} ${typeDisabled(t) ? 'disabled' : ''}>${esc(t)}${typeDisabled(t) ? ' (disabled)' : ''}</option>`).join('')}</select></td>
-                <td><input type="text" data-schema-label value="${esc(row.label)}" placeholder="Label"></td>
+                <td><input type="text" data-schema-label value="${esc(row.label)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_9fd79f4276d659","Label") ?? "Label")}"></td>
                 <td style="width:34px;text-align:center"><input type="checkbox" data-schema-required ${row.required ? 'checked' : ''}></td>
-                <td style="width:30px"><button type="button" class="fmdx-icon-btn danger" data-schema-remove title="Remove" style="width:24px;height:24px;font-size:9px"><i class="fas fa-xmark"></i></button></td>
+                <td style="width:30px"><button type="button" class="fmdx-icon-btn danger" data-schema-remove title="${(globalThis.PlatformLanguage?.htmlText("documents","m_f643f568915438","Remove") ?? "Remove")}" style="width:24px;height:24px;font-size:9px"><i class="fas fa-xmark"></i></button></td>
               </tr>`).join(''))}
-            ${String(rows.length ? '' : `<tr><td colspan="5" style="text-align:center;color:#98a2b3;font-weight:850;padding:12px">No ${kind} defined</td></tr>`)}
+            ${String(rows.length ? '' : `<tr><td colspan="5" style="text-align:center;color:#98a2b3;font-weight:850;padding:12px">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_2916afbfb15e22",`No ${v0} defined`,{v0}) ?? `No ${v0} defined`)(kind)}</td></tr>`)}
           </tbody>
         </table>
-        <button type="button" class="fmdx-btn" data-schema-add style="align-self:flex-start;min-height:30px;font-size:10.5px"><i class="fas fa-plus"></i>${((v2) => globalThis.PlatformLanguage?.text("documents","m_1c6236376deabc",` Add ${v2}`,{v2}) ?? ` Add ${v2}`)(kind === 'outputs' ? 'output' : 'param')}</button>`;
+        <button type="button" class="fmdx-btn" data-schema-add style="align-self:flex-start;min-height:30px;font-size:10.5px"><i class="fas fa-plus"></i>${((v2) => globalThis.PlatformLanguage?.htmlText("documents","m_1c6236376deabc",` Add ${v2}`,{v2}) ?? ` Add ${v2}`)(kind === 'outputs' ? 'output' : 'param')}</button>`;
     }
 
     function renderSchemaPanel(){
@@ -2460,44 +2460,44 @@
       const profileOptions = (selected) => PROFILE_OPTIONS.map((p) => `<option value="${esc(p)}" ${selected === p ? 'selected' : ''}>${esc(p)}</option>`).join('');
       side.innerHTML = `
         <div class="fmdx-data-head">
-          <strong><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("documents","m_0dd25c7f3e2f90"," Template setup") ?? " Template setup")}</strong>
+          <strong><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_0dd25c7f3e2f90"," Template setup") ?? " Template setup")}</strong>
         </div>
         <div class="fmdx-data-body">
-          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_40cc89e053e04d","Params are the data a document asks for when it’s issued — they drive bound text and widgets. Outputs are what it produces: signatures, payments, form values.") ?? "Params are the data a document asks for when it’s issued — they drive bound text and widgets. Outputs are what it produces: signatures, payments, form values.")}</p>
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_c1ae131a4dce26","Params") ?? "Params")}</p>
+          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_40cc89e053e04d","Params are the data a document asks for when it’s issued — they drive bound text and widgets. Outputs are what it produces: signatures, payments, form values.") ?? "Params are the data a document asks for when it’s issued — they drive bound text and widgets. Outputs are what it produces: signatures, payments, form values.")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_c1ae131a4dce26","Params") ?? "Params")}</p>
           <div data-schema-params style="display:flex;flex-direction:column;gap:8px"></div>
           ${String(templateScheduleDefaultsHtml())}
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_2fba86d9405c0d","Outputs") ?? "Outputs")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_2fba86d9405c0d","Outputs") ?? "Outputs")}</p>
           <div data-schema-outputs style="display:flex;flex-direction:column;gap:8px"></div>
 
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_a1006c93fe3cbe","Edit policy") ?? "Edit policy")}</p>
-          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_7d6bfc0f2725e2","What downstream editors may touch when a document is issued from this template. The policy travels with the template.") ?? "What downstream editors may touch when a document is issued from this template. The policy travels with the template.")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_a1006c93fe3cbe","Edit policy") ?? "Edit policy")}</p>
+          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_7d6bfc0f2725e2","What downstream editors may touch when a document is issued from this template. The policy travels with the template.") ?? "What downstream editors may touch when a document is issued from this template. The policy travels with the template.")}</p>
           <div class="fmdx-form-grid" style="grid-template-columns:1fr 1fr">
-            <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_dbc7ded34a0363","Base profile") ?? "Base profile")}</span><select data-policy-base>${String(profileOptions(policy.base_profile))}</select></label>
-            <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_97b8ded915cbaa","Max profile (unlock)") ?? "Max profile (unlock)")}</span><select data-policy-max>${String(profileOptions(policy.max_profile))}</select></label>
+            <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_dbc7ded34a0363","Base profile") ?? "Base profile")}</span><select data-policy-base>${String(profileOptions(policy.base_profile))}</select></label>
+            <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_97b8ded915cbaa","Max profile (unlock)") ?? "Max profile (unlock)")}</span><select data-policy-max>${String(profileOptions(policy.max_profile))}</select></label>
           </div>
-          <label class="fmdx-check"><input type="checkbox" data-policy-unlock ${String(policy.unlock.allowed ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("documents","m_c5050a2ff26fd7"," Allow unlocking up to the max profile") ?? " Allow unlocking up to the max profile")}</label>
-          <label class="fmdx-check"><input type="checkbox" data-policy-pages ${String(policy.features.page_manage ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("documents","m_f88ecce01514b2"," Allow adding / removing pages") ?? " Allow adding / removing pages")}</label>
+          <label class="fmdx-check"><input type="checkbox" data-policy-unlock ${String(policy.unlock.allowed ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_c5050a2ff26fd7"," Allow unlocking up to the max profile") ?? " Allow unlocking up to the max profile")}</label>
+          <label class="fmdx-check"><input type="checkbox" data-policy-pages ${String(policy.features.page_manage ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_f88ecce01514b2"," Allow adding / removing pages") ?? " Allow adding / removing pages")}</label>
           <div>
-            <p class="fmdx-data-hint" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.text("documents","m_e87692862927f0","Insertable widgets (none checked = all allowed):") ?? "Insertable widgets (none checked = all allowed):")}</p>
+            <p class="fmdx-data-hint" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("documents","m_e87692862927f0","Insertable widgets (none checked = all allowed):") ?? "Insertable widgets (none checked = all allowed):")}</p>
             <div style="display:flex;flex-direction:column;gap:4px;max-height:150px;overflow:auto;border:1px solid #eef0f6;border-radius:10px;padding:8px">
               ${String(widgets.length ? widgets.map((widget) => {
                 const id = firstText(widget.id, widget.widget_id);
                 return `<label class="fmdx-check" style="min-height:0"><input type="checkbox" data-policy-widget="${esc(id)}" ${policy.features.widget_insert.includes(id) ? 'checked' : ''}> ${esc(firstText(widget.title, id))}</label>`;
-              }).join('') : '<span class="fmdx-data-hint">Widget catalog unavailable.</span>')}
+              }).join('') : `<span class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_be16c4e5e5045b","Widget catalog unavailable.") ?? "Widget catalog unavailable.")}</span>`)}
             </div>
           </div>
 
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_456f2a38f6360b","Sample data") ?? "Sample data")}</p>
-          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_36ffd77f66c8b6","Feeds the canvas’ binding previews (") ?? "Feeds the canvas’ binding previews (")}<code>${(globalThis.PlatformLanguage?.text("documents","m_5cf416ec8739f9","params.*") ?? "params.*")}</code>, <code>${(globalThis.PlatformLanguage?.text("documents","m_f9efec060a8721","customer.*") ?? "customer.*")}</code>${(globalThis.PlatformLanguage?.text("documents","m_46cf5e3f679f8c",") so the design reads like a real issued document.") ?? ") so the design reads like a real issued document.")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_456f2a38f6360b","Sample data") ?? "Sample data")}</p>
+          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_36ffd77f66c8b6","Feeds the canvas’ binding previews (") ?? "Feeds the canvas’ binding previews (")}<code>${(globalThis.PlatformLanguage?.htmlText("documents","m_5cf416ec8739f9","params.*") ?? "params.*")}</code>, <code>${(globalThis.PlatformLanguage?.htmlText("documents","m_f9efec060a8721","customer.*") ?? "customer.*")}</code>${(globalThis.PlatformLanguage?.htmlText("documents","m_46cf5e3f679f8c",") so the design reads like a real issued document.") ?? ") so the design reads like a real issued document.")}</p>
           <textarea data-sample-json spellcheck="false" style="width:100%;min-height:140px;border:1px solid #d4d9e6;border-radius:10px;padding:9px 11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;font-weight:600;line-height:1.5;color:#111827;background:#fbfcfe">${String(esc(JSON.stringify(objectValue(state.sampleParams), null, 2)))}</textarea>
           <div style="display:flex;gap:7px;flex-wrap:wrap">
-            <button type="button" class="fmdx-btn" data-sample-regen style="min-height:30px;font-size:10.5px"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("documents","m_8f6f92ef00448a"," Regenerate from schema") ?? " Regenerate from schema")}</button>
-            <button type="button" class="fmdx-btn" data-sample-apply style="min-height:30px;font-size:10.5px"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.text("documents","m_d8c6b198f1978f"," Apply to preview") ?? " Apply to preview")}</button>
+            <button type="button" class="fmdx-btn" data-sample-regen style="min-height:30px;font-size:10.5px"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_8f6f92ef00448a"," Regenerate from schema") ?? " Regenerate from schema")}</button>
+            <button type="button" class="fmdx-btn" data-sample-apply style="min-height:30px;font-size:10.5px"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_d8c6b198f1978f"," Apply to preview") ?? " Apply to preview")}</button>
           </div>
         </div>
         <div class="fmdx-data-foot">
-          <button type="button" class="fmdx-btn primary" data-schema-apply><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("documents","m_068dadf3cb9dc7"," Apply to draft") ?? " Apply to draft")}</button>
+          <button type="button" class="fmdx-btn primary" data-schema-apply><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_068dadf3cb9dc7"," Apply to draft") ?? " Apply to draft")}</button>
         </div>`;
       side.querySelector('[data-schema-apply]')?.addEventListener('click', () => {
         syncSchemaRows(side);
@@ -2638,7 +2638,7 @@
     function renderWorkflowList(body){
       const workflows = arrayValue(state.workflows).filter((w) => cleanText(w.status).toLowerCase() !== 'archived');
       if (!workflows.length) {
-        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-list-check"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_a5f2d1a7c197e8","No workflows yet") ?? "No workflows yet")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_010acc914dcb68","Workflows are the guided steppers reps and customers walk through — they fill the same params and outputs the document renders.") ?? "Workflows are the guided steppers reps and customers walk through — they fill the same params and outputs the document renders.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_71fab9f4454614"," New workflow") ?? " New workflow")}</button></div>`;
+        body.innerHTML = `<div class="fmdx-state"><i class="fas fa-list-check"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_a5f2d1a7c197e8","No workflows yet") ?? "No workflows yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_010acc914dcb68","Workflows are the guided steppers reps and customers walk through — they fill the same params and outputs the document renders.") ?? "Workflows are the guided steppers reps and customers walk through — they fill the same params and outputs the document renders.")}</span><button type="button" class="fmdx-btn primary" data-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_71fab9f4454614"," New workflow") ?? " New workflow")}</button></div>`;
         body.querySelector('[data-empty-new]')?.addEventListener('click', () => openNewWorkflowModal());
         return;
       }
@@ -2654,11 +2654,11 @@
             </div>
             <div class="foot">
               ${String(statusChip(workflow.status))}
-              ${String(objectValue(workflow.metadata).preset ? '<span class="fmdx-chip plain">Preset</span>' : '')}
+              ${String(objectValue(workflow.metadata).preset ? `<span class="fmdx-chip plain">${(globalThis.PlatformLanguage?.htmlText("documents","m_401488cd49adb7","Preset") ?? "Preset")}</span>` : '')}
               <span style="margin-left:auto;display:inline-flex;gap:5px">
-                <button type="button" class="fmdx-icon-btn" data-wf-edit title="${(globalThis.PlatformLanguage?.text("documents","m_5b9378df7220c1","Edit") ?? "Edit")}"><i class="fas fa-pen"></i></button>
-                <button type="button" class="fmdx-icon-btn" data-wf-duplicate title="${(globalThis.PlatformLanguage?.text("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
-                <button type="button" class="fmdx-icon-btn danger" data-wf-archive title="${(globalThis.PlatformLanguage?.text("documents","m_5546a92389e386","Archive") ?? "Archive")}"><i class="fas fa-box-archive"></i></button>
+                <button type="button" class="fmdx-icon-btn" data-wf-edit title="${(globalThis.PlatformLanguage?.htmlText("documents","m_5b9378df7220c1","Edit") ?? "Edit")}"><i class="fas fa-pen"></i></button>
+                <button type="button" class="fmdx-icon-btn" data-wf-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
+                <button type="button" class="fmdx-icon-btn danger" data-wf-archive title="${(globalThis.PlatformLanguage?.htmlText("documents","m_5546a92389e386","Archive") ?? "Archive")}"><i class="fas fa-box-archive"></i></button>
               </span>
             </div>
           </div>`).join('')}
@@ -2722,18 +2722,18 @@
     function openNewWorkflowModal(){
       const sources = arrayValue(state.workflows).filter((w) => cleanText(w.status).toLowerCase() !== 'archived');
       let sourceId = '';
-      const modal = openModal(`<h2><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.text("documents","m_71fab9f4454614"," New workflow") ?? " New workflow")}</h2><div data-wf-body></div>`, { className: 'narrow' });
+      const modal = openModal(`<h2><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_71fab9f4454614"," New workflow") ?? " New workflow")}</h2><div data-wf-body></div>`, { className: 'narrow' });
       const body = modal.el.querySelector('[data-wf-body]');
       function renderBody(){
         body.innerHTML = `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_1ceddb8b63f512","Start from") ?? "Start from")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_1ceddb8b63f512","Start from") ?? "Start from")}</p>
           <div class="fmdx-filter-chips" style="margin-bottom:14px">
-            <button type="button" class="fmdx-filter-chip ${String(sourceId ? '' : 'active')}" data-wf-source="">${(globalThis.PlatformLanguage?.text("documents","m_2416f559649d73","Blank workflow") ?? "Blank workflow")}</button>
+            <button type="button" class="fmdx-filter-chip ${String(sourceId ? '' : 'active')}" data-wf-source="">${(globalThis.PlatformLanguage?.htmlText("documents","m_2416f559649d73","Blank workflow") ?? "Blank workflow")}</button>
             ${String(sources.map((workflow) => `<button type="button" class="fmdx-filter-chip ${sourceId === cleanText(workflow.id) ? 'active' : ''}" data-wf-source="${esc(workflow.id)}">${esc(firstText(workflow.name, 'Workflow'))}</button>`).join(''))}
           </div>
-          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_ae07d3959ed6a0","Workflow name") ?? "Workflow name")}</span><input type="text" data-wf-name placeholder="${(globalThis.PlatformLanguage?.text("documents","m_72a0e216fbae38","e.g. HVAC Start-Work Signature") ?? "e.g. HVAC Start-Work Signature")}" value="${String(esc(sourceId ? `${firstText(sources.find((w) => cleanText(w.id) === sourceId)?.name, 'Workflow')} (copy)` : ''))}"></label>
-          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_552be4c8c79e7c","Describe it to the copilot (optional)") ?? "Describe it to the copilot (optional)")}</span><textarea data-wf-brief rows="3" placeholder="${(globalThis.PlatformLanguage?.text("documents","m_cf3ea4c7e55f21","e.g. Field rep measures the roof, picks line items, customer reviews, signs, and pays a 25% deposit — the agent builds the steps and you refine together") ?? "e.g. Field rep measures the roof, picks line items, customer reviews, signs, and pays a 25% deposit — the agent builds the steps and you refine together")}"></textarea></label>
-          <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn primary" data-wf-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_b784be7d40f6fd"," Create workflow") ?? " Create workflow")}</button></div>`;
+          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_ae07d3959ed6a0","Workflow name") ?? "Workflow name")}</span><input type="text" data-wf-name placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_72a0e216fbae38","e.g. HVAC Start-Work Signature") ?? "e.g. HVAC Start-Work Signature")}" value="${String(esc(sourceId ? `${firstText(sources.find((w) => cleanText(w.id) === sourceId)?.name, 'Workflow')} (copy)` : ''))}"></label>
+          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_552be4c8c79e7c","Describe it to the copilot (optional)") ?? "Describe it to the copilot (optional)")}</span><textarea data-wf-brief rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_cf3ea4c7e55f21","e.g. Field rep measures the roof, picks line items, customer reviews, signs, and pays a 25% deposit — the agent builds the steps and you refine together") ?? "e.g. Field rep measures the roof, picks line items, customer reviews, signs, and pays a 25% deposit — the agent builds the steps and you refine together")}"></textarea></label>
+          <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn primary" data-wf-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b784be7d40f6fd"," Create workflow") ?? " Create workflow")}</button></div>`;
         body.querySelectorAll('[data-wf-source]').forEach((btn) => btn.addEventListener('click', () => {
           sourceId = btn.dataset.wfSource || '';
           renderBody();
@@ -2840,11 +2840,11 @@
       if (!host) return;
       const definition = objectValue(currentWorkflowDefinition());
       host.innerHTML = `
-        <div class="fmdx-data-head"><strong><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.text("documents","m_cb3ffee428ed81"," Workflow definition") ?? " Workflow definition")}</strong></div>
+        <div class="fmdx-data-head"><strong><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cb3ffee428ed81"," Workflow definition") ?? " Workflow definition")}</strong></div>
         <div class="fmdx-data-body">
-          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_2b7026aa5bda31","The shared visual editor owns page and element design. This JSON contains the same workflow contract, conditions, and the visual page documents.") ?? "The shared visual editor owns page and element design. This JSON contains the same workflow contract, conditions, and the visual page documents.")}</p>
+          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_2b7026aa5bda31","The shared visual editor owns page and element design. This JSON contains the same workflow contract, conditions, and the visual page documents.") ?? "The shared visual editor owns page and element design. This JSON contains the same workflow contract, conditions, and the visual page documents.")}</p>
           <textarea class="fmdx-wf-json" data-wf-definition-json spellcheck="false" style="min-height:420px">${String(esc(JSON.stringify(definition, null, 2)))}</textarea>
-          <button type="button" class="fmdx-btn primary" data-wf-definition-apply><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("documents","m_71b6a6dfb3851c"," Apply definition") ?? " Apply definition")}</button>
+          <button type="button" class="fmdx-btn primary" data-wf-definition-apply><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_71b6a6dfb3851c"," Apply definition") ?? " Apply definition")}</button>
         </div>`;
       host.querySelector('[data-wf-definition-apply]')?.addEventListener('click', () => {
         try {
@@ -2864,7 +2864,7 @@
       destroyWorkflowAgent();
       if (!hostEl) return;
       if (!window.FMDocAgentPanel?.create) {
-        hostEl.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.text("documents","m_85a6a9fb425b48","The design copilot library is not loaded.") ?? "The design copilot library is not loaded.")}</span></div>`;
+        hostEl.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_85a6a9fb425b48","The design copilot library is not loaded.") ?? "The design copilot library is not loaded.")}</span></div>`;
         return;
       }
       const kickoffBrief = state.workflowDef ? firstText(state.pendingAgentBrief) : '';
@@ -2927,7 +2927,7 @@
       const canvas = root.querySelector('[data-wf-canvas]');
       if (!canvas || !state.workflowDef) return;
       if (!window.FMWorkflowEditor?.mount) {
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_effa54f1cbb776","The shared workflow wrapper is not loaded.") ?? "The shared workflow wrapper is not loaded.")}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_effa54f1cbb776","The shared workflow wrapper is not loaded.") ?? "The shared workflow wrapper is not loaded.")}</span></div>`;
         return;
       }
       canvas.innerHTML = '';
@@ -2948,7 +2948,7 @@
           collaboration: { actor: editorActor() },
           sidePanels: [
             ...(capabilityEnabled('documents.advanced_definition_editing') ? [{ id: 'definition', label: (globalThis.PlatformLanguage?.text("documents","m_1846607b19e14c","Definition") ?? "Definition"), render: renderWorkflowDefinitionPanel }] : []),
-            { id: 'program', label: 'Data & behavior', render: async host => {
+            { id: 'program', label: (globalThis.PlatformLanguage?.text("documents","m_f8e3874860785b","Data & behavior") ?? "Data & behavior"), render: async host => {
               const { mountProgramPanel } = await import('/libraries/apps/documents/program-panel.js');
               if (!host.isConnected) return;
               await mountProgramPanel(host, { organizationId: orgId(), getProgram: () => currentWorkflowDefinition().program, onChange(program) {
@@ -2978,7 +2978,7 @@
         });
       } catch (error) {
         console.warn('FMWorkflowEditor mount failed', error);
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
       }
     }
 
@@ -2992,20 +2992,20 @@
         <div class="fmdx-shell">
           <div class="fmdx-studio-editor" data-studio-workflow-screen>
             <header class="fmdx-editor-top">
-              <button type="button" class="fmdx-icon-btn" data-wf-back title="${(globalThis.PlatformLanguage?.text("documents","m_02976e3fab1e2d","Back to workflows") ?? "Back to workflows")}"><i class="fas fa-arrow-left"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-wf-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_02976e3fab1e2d","Back to workflows") ?? "Back to workflows")}"><i class="fas fa-arrow-left"></i></button>
               <input class="fmdx-doc-title-input" data-wf-name value="${String(esc(firstText(workflow.name, 'Untitled workflow')))}" spellcheck="false">
               ${String(statusChip(workflow.status))}
               <span class="fmdx-chip plain">v${String(Number(workflow.current_version || 0))}</span>
               <span class="fmdx-save-state" data-wf-save-state></span>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-                ${String(capabilityEnabled('documents.advanced_definition_editing') ? '<button type="button" class="fmdx-btn" data-wf-definition><i class="fas fa-code"></i> Definition</button>' : '')}
-                ${String(capabilityEnabled('documents.agent') ? '<button type="button" class="fmdx-btn" data-wf-agent><i class="fas fa-wand-magic-sparkles"></i> Agent</button>' : '')}
-                <button type="button" class="fmdx-btn primary" data-wf-publish><i class="fas fa-rocket"></i>${(globalThis.PlatformLanguage?.text("documents","m_920f7e99dda4ea"," Publish") ?? " Publish")}</button>
+                ${String(capabilityEnabled('documents.advanced_definition_editing') ? `<button type="button" class="fmdx-btn" data-wf-definition><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f2596a5b512721"," Definition") ?? " Definition")}</button>` : '')}
+                ${String(capabilityEnabled('documents.agent') ? `<button type="button" class="fmdx-btn" data-wf-agent><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>` : '')}
+                <button type="button" class="fmdx-btn primary" data-wf-publish><i class="fas fa-rocket"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_920f7e99dda4ea"," Publish") ?? " Publish")}</button>
               </div>
             </header>
             <div class="fmdx-editor-main">
               <div class="fmdx-editor-canvas" data-wf-canvas>
-                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_ea1987b091d45d","Opening shared visual editor") ?? "Opening shared visual editor")}</strong></div>
+                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_ea1987b091d45d","Opening shared visual editor") ?? "Opening shared visual editor")}</strong></div>
               </div>
             </div>
           </div>
@@ -3034,12 +3034,12 @@
     function openNewThemeModal(){
       const sources = arrayValue(state.themes).filter((t) => cleanText(t.status).toLowerCase() !== 'archived');
       let sourceId = firstText(sources[0]?.id);
-      const modal = openModal(`<h2><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.text("documents","m_015bb33b569839"," New theme") ?? " New theme")}</h2><div data-th-body></div>`, { className: 'narrow' });
+      const modal = openModal(`<h2><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_015bb33b569839"," New theme") ?? " New theme")}</h2><div data-th-body></div>`, { className: 'narrow' });
       const body = modal.el.querySelector('[data-th-body]');
       function renderBody(){
         const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);
         body.innerHTML = `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_1ceddb8b63f512","Start from") ?? "Start from")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_1ceddb8b63f512","Start from") ?? "Start from")}</p>
           <div class="fmdx-pick-grid" style="margin-bottom:14px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
             ${String(sources.map((theme) => themeCardHtml({
               definition: objectValue(theme.definition),
@@ -3060,8 +3060,8 @@
               current: !sourceId
             }))}
           </div>
-          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_4a008c5725873c","Theme name") ?? "Theme name")}</span><input type="text" data-th-name placeholder="${(globalThis.PlatformLanguage?.text("documents","m_c46945258b07c0","e.g. Company Blue") ?? "e.g. Company Blue")}" value="${String(esc(sourceId ? `${firstText(sources.find((t) => cleanText(t.id) === sourceId)?.name, 'Theme')} (copy)` : ''))}"></label>
-          <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn primary" data-th-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_cfb6e8e16b6d82"," Create theme") ?? " Create theme")}</button></div>`;
+          <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_4a008c5725873c","Theme name") ?? "Theme name")}</span><input type="text" data-th-name placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_c46945258b07c0","e.g. Company Blue") ?? "e.g. Company Blue")}" value="${String(esc(sourceId ? `${firstText(sources.find((t) => cleanText(t.id) === sourceId)?.name, 'Theme')} (copy)` : ''))}"></label>
+          <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn primary" data-th-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cfb6e8e16b6d82"," Create theme") ?? " Create theme")}</button></div>`;
         body.querySelectorAll('[data-th-source]').forEach((btn) => btn.addEventListener('click', () => {
           sourceId = btn.dataset.thSource || '';
           renderBody();
@@ -3125,14 +3125,14 @@
         <div class="fmdx-shell">
           <div class="fmdx-studio-editor" data-studio-theme-screen>
             <header class="fmdx-editor-top">
-              <button type="button" class="fmdx-icon-btn" data-theme-back title="${(globalThis.PlatformLanguage?.text("documents","m_c5d5c7818c12b1","Back to themes") ?? "Back to themes")}"><i class="fas fa-arrow-left"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-theme-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_c5d5c7818c12b1","Back to themes") ?? "Back to themes")}"><i class="fas fa-arrow-left"></i></button>
               <input class="fmdx-doc-title-input" data-theme-name value="${String(esc(firstText(theme.name, 'Untitled theme')))}" spellcheck="false">
               ${String(statusChip(theme.status))}
               <span class="fmdx-chip plain">v${String(Number(theme.current_version || 0))}</span>
               <span class="fmdx-save-state" data-theme-save-state></span>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-                <button type="button" class="fmdx-btn" data-theme-save><i class="fas fa-floppy-disk"></i>${(globalThis.PlatformLanguage?.text("documents","m_c723e1998b1b0a"," Save draft") ?? " Save draft")}</button>
-                <button type="button" class="fmdx-btn primary" data-theme-publish><i class="fas fa-rocket"></i>${(globalThis.PlatformLanguage?.text("documents","m_920f7e99dda4ea"," Publish") ?? " Publish")}</button>
+                <button type="button" class="fmdx-btn" data-theme-save><i class="fas fa-floppy-disk"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c723e1998b1b0a"," Save draft") ?? " Save draft")}</button>
+                <button type="button" class="fmdx-btn primary" data-theme-publish><i class="fas fa-rocket"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_920f7e99dda4ea"," Publish") ?? " Publish")}</button>
               </div>
             </header>
             <div class="fmdx-editor-main" style="padding:16px;gap:16px">
@@ -3143,7 +3143,7 @@
                 <div style="display:flex;flex-direction:column;gap:8px;min-height:0">
                   <div class="fmdx-filter-chips" style="margin:0">
                     ${String(['cover', 'body', 'pricing', 'signature'].map((role) => `
-                      <button type="button" class="fmdx-filter-chip ${state.themePreviewRole === role ? 'active' : ''}" data-preview-role="${esc(role)}">${esc(role.replace(/\b\w/, (c) => c.toUpperCase()))} master</button>`).join(''))}
+                      <button type="button" class="fmdx-filter-chip ${state.themePreviewRole === role ? 'active' : ''}" data-preview-role="${esc(role)}">${((v2) => globalThis.PlatformLanguage?.htmlText("documents","m_d25b1c5a0763a5",`${v2} master`,{v2}) ?? `${v2} master`)(esc(role.replace(/\b\w/, (c) => c.toUpperCase())))}</button>`).join(''))}
                   </div>
                   <div class="fmdx-theme-preview" data-theme-preview style="flex:1"></div>
                 </div>
@@ -3212,26 +3212,26 @@
         </label>`;
       form.innerHTML = `
         <div class="fmdx-panel">
-          <div class="fmdx-panel-head"><h3><i class="fas fa-droplet"></i>${(globalThis.PlatformLanguage?.text("documents","m_817d950b6e11d1"," Colors") ?? " Colors")}</h3></div>
+          <div class="fmdx-panel-head"><h3><i class="fas fa-droplet"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_817d950b6e11d1"," Colors") ?? " Colors")}</h3></div>
           <div class="fmdx-panel-body">
             <div class="fmdx-form-grid" style="grid-template-columns:repeat(2,1fr)">
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}</span><input type="color" data-theme-color="primary" value="${String(esc(tokenColor(colors.primary, '#2563EB')))}"></label>
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}</span><input type="color" data-theme-color="accent" value="${String(esc(tokenColor(colors.accent, '#0EA5E9')))}"></label>
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_124287f184b88b","Text") ?? "Text")}</span><input type="color" data-theme-color="text" value="${String(esc(tokenColor(colors.text, '#111827')))}"></label>
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_847e8d8b0827a3","Muted") ?? "Muted")}</span><input type="color" data-theme-color="muted" value="${String(esc(tokenColor(colors.muted, '#667085')))}"></label>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_2436076ece8629","Primary") ?? "Primary")}</span><input type="color" data-theme-color="primary" value="${String(esc(tokenColor(colors.primary, '#2563EB')))}"></label>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_12ab6737efe605","Accent") ?? "Accent")}</span><input type="color" data-theme-color="accent" value="${String(esc(tokenColor(colors.accent, '#0EA5E9')))}"></label>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_124287f184b88b","Text") ?? "Text")}</span><input type="color" data-theme-color="text" value="${String(esc(tokenColor(colors.text, '#111827')))}"></label>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_847e8d8b0827a3","Muted") ?? "Muted")}</span><input type="color" data-theme-color="muted" value="${String(esc(tokenColor(colors.muted, '#667085')))}"></label>
             </div>
-            <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_02accb56c8c3c2","New themes start with the company primary and secondary colors. These values belong to this theme and can be changed independently.") ?? "New themes start with the company primary and secondary colors. These values belong to this theme and can be changed independently.")}</p>
+            <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_02accb56c8c3c2","New themes start with the company primary and secondary colors. These values belong to this theme and can be changed independently.") ?? "New themes start with the company primary and secondary colors. These values belong to this theme and can be changed independently.")}</p>
           </div>
         </div>
         <div class="fmdx-panel">
-          <div class="fmdx-panel-head"><h3><i class="fas fa-font"></i>${(globalThis.PlatformLanguage?.text("documents","m_2938c2d8b7c6f0"," Typography") ?? " Typography")}</h3></div>
+          <div class="fmdx-panel-head"><h3><i class="fas fa-font"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_2938c2d8b7c6f0"," Typography") ?? " Typography")}</h3></div>
           <div class="fmdx-panel-body">
             ${String(fontSelect('display', fonts.display))}
             ${String(fontSelect('body', fonts.body))}
           </div>
         </div>
         <div class="fmdx-panel">
-          <div class="fmdx-panel-head"><h3><i class="fas fa-paragraph"></i>${(globalThis.PlatformLanguage?.text("documents","m_bcdc8639e0042a"," Paragraph styles") ?? " Paragraph styles")}</h3></div>
+          <div class="fmdx-panel-head"><h3><i class="fas fa-paragraph"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_bcdc8639e0042a"," Paragraph styles") ?? " Paragraph styles")}</h3></div>
           <div class="fmdx-panel-body">
             ${String(Object.entries(typeStyles).length ? Object.entries(typeStyles).map(([key, rawStyle]) => {
               const style = objectValue(rawStyle);
@@ -3243,23 +3243,23 @@
               return `<div class="fmdx-theme-style" data-theme-style-row="${esc(key)}">
                 <strong style="font-family:${esc(family)};font-size:${esc(Math.min(20, Math.max(11, size)))}px;font-weight:${esc(weight)};color:${esc(color)}">${esc(styleLabel(key))}</strong>
                 <div class="fmdx-form-grid" style="grid-template-columns:1.35fr .65fr .8fr">
-                  <label class="fmdx-field"><span>Font</span><select data-theme-style-family="${esc(key)}"><option value="var(--fm-display-font)" ${family === 'var(--fm-display-font)' ? 'selected' : ''}>Display font</option><option value="var(--fm-body-font)" ${family === 'var(--fm-body-font)' ? 'selected' : ''}>Body font</option>${fontOptions.filter((font) => !['var(--fm-display-font)','var(--fm-body-font)'].includes(font)).map((font) => `<option value="${esc(font)}" ${family === font ? 'selected' : ''}>${esc(font)}</option>`).join('')}${knownFamilies.includes(family) || !family ? '' : `<option value="${esc(family)}" selected>${esc(family)}</option>`}</select></label>
-                  <label class="fmdx-field"><span>Size (pt)</span><input type="number" min="5" max="96" step="0.5" data-theme-style-size="${esc(key)}" value="${esc(size)}"></label>
-                  <label class="fmdx-field"><span>Weight</span><select data-theme-style-weight="${esc(key)}">${[300,400,500,600,700,800,900].map((value) => `<option value="${value}" ${weight === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+                  <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_ce1ba13960e5a4","Font") ?? "Font")}</span><select data-theme-style-family="${esc(key)}"><option value="var(--fm-display-font)" ${family === 'var(--fm-display-font)' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_4a865202ec83d1","Display font") ?? "Display font")}</option><option value="var(--fm-body-font)" ${family === 'var(--fm-body-font)' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_e48a7a8cb723d4","Body font") ?? "Body font")}</option>${fontOptions.filter((font) => !['var(--fm-display-font)','var(--fm-body-font)'].includes(font)).map((font) => `<option value="${esc(font)}" ${family === font ? 'selected' : ''}>${esc(font)}</option>`).join('')}${knownFamilies.includes(family) || !family ? '' : `<option value="${esc(family)}" selected>${esc(family)}</option>`}</select></label>
+                  <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_ee1682e862f8af","Size (pt)") ?? "Size (pt)")}</span><input type="number" min="5" max="96" step="0.5" data-theme-style-size="${esc(key)}" value="${esc(size)}"></label>
+                  <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_042fa8aa1f88ce","Weight") ?? "Weight")}</span><select data-theme-style-weight="${esc(key)}">${[300,400,500,600,700,800,900].map((value) => `<option value="${value}" ${weight === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
                 </div>
-                <label class="fmdx-field"><span>Color token or value</span><input type="text" data-theme-style-color="${esc(key)}" value="${esc(color)}"></label>
+                <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_32bba26e16a9fa","Color token or value") ?? "Color token or value")}</span><input type="text" data-theme-style-color="${esc(key)}" value="${esc(color)}"></label>
               </div>`;
-            }).join('') : '<p class="fmdx-data-hint">This theme has no named paragraph styles yet.</p>')}
+            }).join('') : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_f43f474e0880c4","This theme has no named paragraph styles yet.") ?? "This theme has no named paragraph styles yet.")}</p>`)}
           </div>
         </div>
         <div class="fmdx-panel">
-          <div class="fmdx-panel-head"><h3><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("documents","m_e88048f2ad0658"," Page margins") ?? " Page margins")}</h3></div>
+          <div class="fmdx-panel-head"><h3><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_e88048f2ad0658"," Page margins") ?? " Page margins")}</h3></div>
           <div class="fmdx-panel-body">
             <div class="fmdx-form-grid" style="grid-template-columns:repeat(2,1fr)">
-              ${String(['top', 'right', 'bottom', 'left'].map((side) => `<label class="fmdx-field"><span>${esc(side.replace(/^./, (letter) => letter.toUpperCase()))} (pt)</span><input type="number" min="0" step="1" data-theme-margin="${esc(side)}" value="${esc(marginValue(side))}"></label>`).join(''))}
+              ${String(['top', 'right', 'bottom', 'left'].map((side) => `<label class="fmdx-field"><span>${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_cc628dc7255aec",`${v0} (pt)`,{v0}) ?? `${v0} (pt)`)(esc(side.replace(/^./, (letter) => letter.toUpperCase())))}</span><input type="number" min="0" step="1" data-theme-margin="${esc(side)}" value="${esc(marginValue(side))}"></label>`).join(''))}
             </div>
-            <p class="fmdx-data-hint">${((v8) => globalThis.PlatformLanguage?.text("documents","m_a5a6b1afc4e52a",`Editing margins for the ${v8} page master. Final previews and documents fit page content inside this safe area.`,{v8}) ?? `Editing margins for the ${v8} page master. Final previews and documents fit page content inside this safe area.`)(esc(state.themePreviewRole))}</p>
-            <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_07ef896042f6e9","Element gap (pt)") ?? "Element gap (pt)")}</span><input type="number" min="0" step="1" data-theme-spacing="gap_pt" value="${String(esc(Number(spacing.gap_pt ?? 12)))}"></label>
+            <p class="fmdx-data-hint">${((v8) => globalThis.PlatformLanguage?.htmlText("documents","m_a5a6b1afc4e52a",`Editing margins for the ${v8} page master. Final previews and documents fit page content inside this safe area.`,{v8}) ?? `Editing margins for the ${v8} page master. Final previews and documents fit page content inside this safe area.`)(esc(state.themePreviewRole))}</p>
+            <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_07ef896042f6e9","Element gap (pt)") ?? "Element gap (pt)")}</span><input type="number" min="0" step="1" data-theme-spacing="gap_pt" value="${String(esc(Number(spacing.gap_pt ?? 12)))}"></label>
           </div>
         </div>`;
       form.querySelectorAll('[data-theme-color]').forEach((input) => input.addEventListener('input', () => {
@@ -3314,7 +3314,7 @@
       const holder = root.querySelector('[data-theme-preview]');
       if (!holder || !state.themeDef) return;
       if (!window.FMDocRenderer?.render) {
-        holder.innerHTML = `<div class="fmdx-state" style="margin:auto;border:0;background:transparent"><i class="fas fa-eye-slash" style="color:#9aa6bd"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.text("documents","m_784a1d2a6595a5","Live preview unavailable") ?? "Live preview unavailable")}</strong><span style="color:#9aa6bd">${(globalThis.PlatformLanguage?.text("documents","m_97e3a8c68504bb","The document renderer library is not loaded.") ?? "The document renderer library is not loaded.")}</span></div>`;
+        holder.innerHTML = `<div class="fmdx-state" style="margin:auto;border:0;background:transparent"><i class="fas fa-eye-slash" style="color:#9aa6bd"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_784a1d2a6595a5","Live preview unavailable") ?? "Live preview unavailable")}</strong><span style="color:#9aa6bd">${(globalThis.PlatformLanguage?.htmlText("documents","m_97e3a8c68504bb","The document renderer library is not loaded.") ?? "The document renderer library is not loaded.")}</span></div>`;
         return;
       }
       try { state.themePreviewHandle?.destroy?.(); } catch (e) {}
@@ -3331,7 +3331,7 @@
           scale
         });
       } catch (error) {
-        holder.innerHTML = `<div class="fmdx-state" style="margin:auto;border:0;background:transparent"><i class="fas fa-triangle-exclamation" style="color:#f5b357"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.text("documents","m_9ea764e73f367a","Preview failed") ?? "Preview failed")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
+        holder.innerHTML = `<div class="fmdx-state" style="margin:auto;border:0;background:transparent"><i class="fas fa-triangle-exclamation" style="color:#f5b357"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_9ea764e73f367a","Preview failed") ?? "Preview failed")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
       }
     }
 

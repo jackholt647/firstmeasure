@@ -2835,8 +2835,8 @@
             const replyAuthor = commentAuthor(reply.author);
             return '<div class="fmde-comment-reply"><div class="fmde-comment-head"><span class="fmde-comment-avatar">' + esc(actorInitials(replyAuthor)) + '</span><span class="fmde-comment-who"><strong>' + esc(replyAuthor.name) + '</strong><time>' + esc(commentTime(reply.created_at)) + '</time></span></div>' + (safeCommentText(reply.text) ? '<div class="fmde-comment-text">' + esc(safeCommentText(reply.text)) + '</div>' : "") + '</div>';
           }).join("") +
-          `<div class="fmde-comment-compose"><input type="text" aria-label="${(globalThis.PlatformLanguage?.text("doc-editor","m_801ae6a3c93085","Reply to comment") ?? "Reply to comment")}" placeholder="${(globalThis.PlatformLanguage?.text("doc-editor","m_7b1d560830d655","Reply…") ?? "Reply…")}"><button type="button">${(globalThis.PlatformLanguage?.text("doc-editor","m_b7aa8fbdbd8d21","Reply") ?? "Reply")}</button></div>` +
-          `<div class="fmde-comment-actions"><button type="button" data-resolve-comment>${(globalThis.PlatformLanguage?.text("doc-editor","m_0ce2fbc97d05b4","Resolve") ?? "Resolve")}</button></div>`;
+          `<div class="fmde-comment-compose"><input type="text" aria-label="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_801ae6a3c93085","Reply to comment") ?? "Reply to comment")}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_7b1d560830d655","Reply…") ?? "Reply…")}"><button type="button">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_b7aa8fbdbd8d21","Reply") ?? "Reply")}</button></div>` +
+          `<div class="fmde-comment-actions"><button type="button" data-resolve-comment>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_0ce2fbc97d05b4","Resolve") ?? "Resolve")}</button></div>`;
         dom.stage.appendChild(card);
         const blockRect = blockEl.getBoundingClientRect();
         const page = blockEl.closest(".fmdoc-page");
@@ -2882,10 +2882,10 @@
           const author = collaborationActor();
           const card = el("aside", { class: "fmde-comment-card fmde-comment-draft", "data-comment-draft": "" });
           card.innerHTML =
-            '<div class="fmde-comment-head"><span class="fmde-comment-avatar">' + esc(actorInitials(author)) + '</span><span class="fmde-comment-who"><strong>' + esc(author.name) + `</strong><time>${(globalThis.PlatformLanguage?.text("doc-editor","m_d3df5263d67356","New comment") ?? "New comment")}</time></span></div>` +
+            '<div class="fmde-comment-head"><span class="fmde-comment-avatar">' + esc(actorInitials(author)) + '</span><span class="fmde-comment-who"><strong>' + esc(author.name) + `</strong><time>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_d3df5263d67356","New comment") ?? "New comment")}</time></span></div>` +
             (draft.quote ? '<blockquote class="fmde-comment-quote">' + esc(draft.quote) + '</blockquote>' : "") +
-            ("<textarea aria-label=\"" + (globalThis.PlatformLanguage?.text("doc-editor","m_198a6682f7940c","Comment") ?? "Comment") + "\" placeholder=\"" + (globalThis.PlatformLanguage?.text("doc-editor","m_8637281815b15c","Add a comment…") ?? "Add a comment…") + "\"></textarea>") +
-            `<div class="fmde-comment-actions"><button type="button" data-cancel-comment>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" data-save-comment disabled>${(globalThis.PlatformLanguage?.text("doc-editor","m_198a6682f7940c","Comment") ?? "Comment")}</button></div>`;
+            ("<textarea aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("doc-editor","m_198a6682f7940c","Comment") ?? "Comment") + "\" placeholder=\"" + (globalThis.PlatformLanguage?.htmlText("doc-editor","m_8637281815b15c","Add a comment…") ?? "Add a comment…") + "\"></textarea>") +
+            `<div class="fmde-comment-actions"><button type="button" data-cancel-comment>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" data-save-comment disabled>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_198a6682f7940c","Comment") ?? "Comment")}</button></div>`;
           dom.stage.appendChild(card);
           const blockRect = blockEl.getBoundingClientRect();
           const page = blockEl.closest(".fmdoc-page");
@@ -2945,9 +2945,9 @@
         const card = el("aside", { class: "fmde-comment-card fmde-suggestion-card", "data-suggestion-id": String(raw.id || "") });
         card.innerHTML =
           '<div class="fmde-comment-head"><span class="fmde-comment-avatar">' + esc(actorInitials(author)) + '</span><span class="fmde-comment-who"><strong>' + esc(author.name) + ' suggested</strong><time>' + esc(commentTime(raw.created_at)) + '</time></span></div>' +
-          `<div class="fmde-suggestion-change"><b>${(globalThis.PlatformLanguage?.text("doc-editor","m_c313c42d1f7a10","From") ?? "From")}</b><span class="fmde-suggestion-before">` + esc(raw.before_text || "") + `</span><b>${(globalThis.PlatformLanguage?.text("doc-editor","m_af8bc9e774b68c","To") ?? "To")}</b><span class="fmde-suggestion-after">` + esc(raw.replacement || "(delete)") + '</span></div>' +
+          `<div class="fmde-suggestion-change"><b>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_c313c42d1f7a10","From") ?? "From")}</b><span class="fmde-suggestion-before">` + esc(raw.before_text || "") + `</span><b>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_af8bc9e774b68c","To") ?? "To")}</b><span class="fmde-suggestion-after">` + esc(raw.replacement || "(delete)") + '</span></div>' +
           (raw.note ? '<div class="fmde-comment-text" style="margin-top:7px">' + esc(raw.note) + '</div>' : "") +
-          `<div class="fmde-comment-actions"><button type="button" data-reject-suggestion>${(globalThis.PlatformLanguage?.text("doc-editor","m_caf34b0bba6d77","Reject") ?? "Reject")}</button><button type="button" data-accept-suggestion>${(globalThis.PlatformLanguage?.text("doc-editor","m_b550215be01e52","Accept") ?? "Accept")}</button></div>`;
+          `<div class="fmde-comment-actions"><button type="button" data-reject-suggestion>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_caf34b0bba6d77","Reject") ?? "Reject")}</button><button type="button" data-accept-suggestion>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_b550215be01e52","Accept") ?? "Accept")}</button></div>`;
         dom.stage.appendChild(card);
         const blockRect = blockEl.getBoundingClientRect();
         const page = blockEl.closest(".fmdoc-page");
@@ -9240,7 +9240,7 @@
       frequent.appendChild(frequentRow);
       menu.appendChild(frequent);
       if (typeof options.onRemoveImage === "function") {
-        const removeImage = el("button", { type: "button", class: "fmde-color-remove-image", html: iconSvg("trash") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_bb985683a1745d","Remove background image") ?? "Remove background image")}</span>` });
+        const removeImage = el("button", { type: "button", class: "fmde-color-remove-image", html: iconSvg("trash") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_bb985683a1745d","Remove background image") ?? "Remove background image")}</span>` });
         removeImage.addEventListener("click", function () { closeMenu(); options.onRemoveImage(); });
         menu.appendChild(removeImage);
       }
@@ -9322,7 +9322,7 @@
 
     function showWordCount() {
       const stats = documentTextStats();
-      showEditorDialog("Word count", '<div class="fmde-dialog-grid"><div><strong>' + stats.words + `</strong>${(globalThis.PlatformLanguage?.text("doc-editor","m_9cfe68a1a461bd"," words") ?? " words")}</div><div><strong>` + stats.characters + `</strong>${(globalThis.PlatformLanguage?.text("doc-editor","m_694353e5faf102"," characters") ?? " characters")}</div><div><strong>` + stats.charactersNoSpaces + `</strong>${(globalThis.PlatformLanguage?.text("doc-editor","m_496f2db24d5790"," characters excluding spaces") ?? " characters excluding spaces")}</div></div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`);
+      showEditorDialog("Word count", '<div class="fmde-dialog-grid"><div><strong>' + stats.words + `</strong>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9cfe68a1a461bd"," words") ?? " words")}</div><div><strong>` + stats.characters + `</strong>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_694353e5faf102"," characters") ?? " characters")}</div><div><strong>` + stats.charactersNoSpaces + `</strong>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_496f2db24d5790"," characters excluding spaces") ?? " characters excluding spaces")}</div></div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`);
     }
 
     // ---- find & replace (Docs parity: navigation + highlight + match case) ----
@@ -9399,15 +9399,15 @@
       state.findSession = session;
       const panel = applyEditorBranding(el("div", { class: "fmde-find-panel", role: "dialog", "aria-label": "Find and replace" }));
       panel.innerHTML =
-        `<div class="fmde-find-row"><input data-find-text placeholder="${(globalThis.PlatformLanguage?.text("doc-editor","m_7d4411d2eb6bae","Find in document") ?? "Find in document")}" aria-label="${(globalThis.PlatformLanguage?.text("doc-editor","m_7d4411d2eb6bae","Find in document") ?? "Find in document")}">` +
-        `<span class="fmde-find-count" data-find-count>${(globalThis.PlatformLanguage?.text("doc-editor","m_8fe614199d45ec","0 of 0") ?? "0 of 0")}</span>` +
-        ("<button type=\"button\" class=\"fmde-btn\" data-find-prev title=\"" + (globalThis.PlatformLanguage?.text("doc-editor","m_7bb92b42521a48","Previous match") ?? "Previous match") + "\">") + iconSvg("chevleft") + '</button>' +
-        ("<button type=\"button\" class=\"fmde-btn\" data-find-next title=\"" + (globalThis.PlatformLanguage?.text("doc-editor","m_56fa9b425ac7d4","Next match") ?? "Next match") + "\">") + iconSvg("chevright") + '</button>' +
-        ("<button type=\"button\" class=\"fmde-btn\" data-find-close title=\"" + (globalThis.PlatformLanguage?.text("doc-editor","m_3742924668fb10","Close") ?? "Close") + "\">") + iconSvg("x") + '</button></div>' +
-        `<div class="fmde-find-row"><input data-replace-text placeholder="${(globalThis.PlatformLanguage?.text("doc-editor","m_15e0cb625dcebb","Replace with") ?? "Replace with")}" aria-label="${(globalThis.PlatformLanguage?.text("doc-editor","m_15e0cb625dcebb","Replace with") ?? "Replace with")}">` +
-        `<button type="button" class="fmde-btn fmde-btn-labeled" data-replace-one>${(globalThis.PlatformLanguage?.text("doc-editor","m_4432ffeeddd964","Replace") ?? "Replace")}</button>` +
-        `<button type="button" class="fmde-btn fmde-btn-labeled" data-replace-all>${(globalThis.PlatformLanguage?.text("doc-editor","m_f486a497c3f970","Replace all") ?? "Replace all")}</button></div>` +
-        `<label class="fmde-find-case"><input type="checkbox" data-find-case>${(globalThis.PlatformLanguage?.text("doc-editor","m_f6501bf56ae612"," Match case") ?? " Match case")}</label>`;
+        `<div class="fmde-find-row"><input data-find-text placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_7d4411d2eb6bae","Find in document") ?? "Find in document")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_7d4411d2eb6bae","Find in document") ?? "Find in document")}">` +
+        `<span class="fmde-find-count" data-find-count>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8fe614199d45ec","0 of 0") ?? "0 of 0")}</span>` +
+        ("<button type=\"button\" class=\"fmde-btn\" data-find-prev title=\"" + (globalThis.PlatformLanguage?.htmlText("doc-editor","m_7bb92b42521a48","Previous match") ?? "Previous match") + "\">") + iconSvg("chevleft") + '</button>' +
+        ("<button type=\"button\" class=\"fmde-btn\" data-find-next title=\"" + (globalThis.PlatformLanguage?.htmlText("doc-editor","m_56fa9b425ac7d4","Next match") ?? "Next match") + "\">") + iconSvg("chevright") + '</button>' +
+        ("<button type=\"button\" class=\"fmde-btn\" data-find-close title=\"" + (globalThis.PlatformLanguage?.htmlText("doc-editor","m_3742924668fb10","Close") ?? "Close") + "\">") + iconSvg("x") + '</button></div>' +
+        `<div class="fmde-find-row"><input data-replace-text placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_15e0cb625dcebb","Replace with") ?? "Replace with")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_15e0cb625dcebb","Replace with") ?? "Replace with")}">` +
+        `<button type="button" class="fmde-btn fmde-btn-labeled" data-replace-one>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_4432ffeeddd964","Replace") ?? "Replace")}</button>` +
+        `<button type="button" class="fmde-btn fmde-btn-labeled" data-replace-all>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_f486a497c3f970","Replace all") ?? "Replace all")}</button></div>` +
+        `<label class="fmde-find-case"><input type="checkbox" data-find-case>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_f6501bf56ae612"," Match case") ?? " Match case")}</label>`;
       dom.root.appendChild(panel);
       dom.findPanel = panel;
       const findInput = panel.querySelector("[data-find-text]");
@@ -9564,10 +9564,10 @@
         };
       };
       const styleCards = [{ id: "", name: "No style", description: (globalThis.PlatformLanguage?.text("doc-editor","m_1d608b0726d77f","Plain page without decorative chrome") ?? "Plain page without decorative chrome"), preview: "none", version: 1, setup: pageSetupForStyle(null, { top: 72, right: 72, bottom: 72, left: 72 }) }].concat(styleThemes.map(function (theme) { const id = theme.id || theme.theme_id; const alias = aliases[id] || {}; return { id: id, name: alias.name || theme.name || id, description: theme.description || "Apply this page style", preview: alias.preview || "simple", version: theme.version || theme.current_version || 1, setup: pageSetupForStyle(theme, alias.margins_pt) }; }));
-      const html = `<section class="fmde-template-section"><div class="fmde-page-section-head"><h3>${(globalThis.PlatformLanguage?.text("doc-editor","m_4495434b41ec4e","Page style") ?? "Page style")}</h3><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_5193d553b4ad9e","Choose the visual treatment for every page. Your document content is preserved.") ?? "Choose the visual treatment for every page. Your document content is preserved.")}</span></div><div class="fmde-template-grid">` + styleCards.map(function (style) { return '<button type="button" class="fmde-template-card fmde-style-card' + (style.id === currentThemeId ? ' selected' : '') + '" data-theme-id="' + esc(style.id) + '" data-theme-version="' + esc(style.version) + '"><span class="fmde-template-preview ' + esc(style.preview) + '"><i></i><i></i><i></i></span><b>' + esc(style.name) + '</b><small>' + esc(style.description) + '</small></button>'; }).join("") + '</div></section>' +
-        `<section class="fmde-page-options"><div class="fmde-page-section-head"><h3>${(globalThis.PlatformLanguage?.text("doc-editor","m_54c1f2ff02a0e7","Page format") ?? "Page format")}</h3><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_ac1d07223bdf50","Choose a starting margin preset or enter each side precisely.") ?? "Choose a starting margin preset or enter each side precisely.")}</span></div><div class="fmde-page-presets"><button type="button" data-margin-preset="normal"><b>${(globalThis.PlatformLanguage?.text("doc-editor","m_9a27adafe8f638","Normal") ?? "Normal")}</b><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_a894ef24605cb2","1 in all sides") ?? "1 in all sides")}</span></button><button type="button" data-margin-preset="narrow"><b>${(globalThis.PlatformLanguage?.text("doc-editor","m_32a5871815538b","Narrow") ?? "Narrow")}</b><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_9623c74afaa2bb","0.5 in all sides") ?? "0.5 in all sides")}</span></button><button type="button" data-margin-preset="wide"><b>${(globalThis.PlatformLanguage?.text("doc-editor","m_9246870f32f935","Wide") ?? "Wide")}</b><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_0a74a91f67d09a","1 in vertical, 2 in horizontal") ?? "1 in vertical, 2 in horizontal")}</span></button></div>` +
-        `<div class="fmde-dialog-grid fmde-page-grid"><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_b128ef8b7d700d","Paper size") ?? "Paper size")}<select data-page-size><option value="letter">${(globalThis.PlatformLanguage?.text("doc-editor","m_cfd7e44a195bbf","Letter (8.5 × 11 in)") ?? "Letter (8.5 × 11 in)")}</option><option value="legal">${(globalThis.PlatformLanguage?.text("doc-editor","m_1e81213c70c664","Legal (8.5 × 14 in)") ?? "Legal (8.5 × 14 in)")}</option><option value="a4">${(globalThis.PlatformLanguage?.text("doc-editor","m_ad6459807c5700","A4 (8.27 × 11.69 in)") ?? "A4 (8.27 × 11.69 in)")}</option><option value="custom">${(globalThis.PlatformLanguage?.text("doc-editor","m_6edcf7d7d41112","Custom") ?? "Custom")}</option></select></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_94e1ced461b291","Orientation") ?? "Orientation")}<select data-page-orientation><option value="portrait">${(globalThis.PlatformLanguage?.text("doc-editor","m_f00ff8e935b5c7","Portrait") ?? "Portrait")}</option><option value="landscape">${(globalThis.PlatformLanguage?.text("doc-editor","m_2cb32e3d02e5f4","Landscape") ?? "Landscape")}</option></select></label><label data-custom-width>${(globalThis.PlatformLanguage?.text("doc-editor","m_9e862d6918de50","Width (in)") ?? "Width (in)")}<input type="number" min="2" step="0.01" data-page-width></label><label data-custom-height>${(globalThis.PlatformLanguage?.text("doc-editor","m_cb2cea2cc10249","Height (in)") ?? "Height (in)")}<input type="number" min="2" step="0.01" data-page-height></label></div><div class="fmde-page-color-row"><label class="fmde-page-color-field"><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_6bf0fde24555a0","Page color") ?? "Page color")}</span><input class="fmde-page-color-swatch" type="color" data-page-color></label><label class="fmde-page-color-toggle"><input type="checkbox" data-page-color-show>${(globalThis.PlatformLanguage?.text("doc-editor","m_b19ed196a1c77c"," Show page color") ?? " Show page color")}</label></div>` +
-        `<h3 class="fmde-dialog-subhead">${(globalThis.PlatformLanguage?.text("doc-editor","m_9849bdadabb6fc","Margins (inches)") ?? "Margins (inches)")}</h3><div class="fmde-page-margin-grid"><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_daab28e9def67b","Top") ?? "Top")}<input type="number" min="0" step="0.01" data-margin-top></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_ebdd2a01ebccd1","Bottom") ?? "Bottom")}<input type="number" min="0" step="0.01" data-margin-bottom></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_5795191103b183","Left") ?? "Left")}<input type="number" min="0" step="0.01" data-margin-left></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_78a58a617fa010","Right") ?? "Right")}<input type="number" min="0" step="0.01" data-margin-right></label></div></section><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-page-apply>${(globalThis.PlatformLanguage?.text("doc-editor","m_8d9acfab4d9414","Apply setup") ?? "Apply setup")}</button></div>`;
+      const html = `<section class="fmde-template-section"><div class="fmde-page-section-head"><h3>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_4495434b41ec4e","Page style") ?? "Page style")}</h3><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_5193d553b4ad9e","Choose the visual treatment for every page. Your document content is preserved.") ?? "Choose the visual treatment for every page. Your document content is preserved.")}</span></div><div class="fmde-template-grid">` + styleCards.map(function (style) { return '<button type="button" class="fmde-template-card fmde-style-card' + (style.id === currentThemeId ? ' selected' : '') + '" data-theme-id="' + esc(style.id) + '" data-theme-version="' + esc(style.version) + '"><span class="fmde-template-preview ' + esc(style.preview) + '"><i></i><i></i><i></i></span><b>' + esc(style.name) + '</b><small>' + esc(style.description) + '</small></button>'; }).join("") + '</div></section>' +
+        `<section class="fmde-page-options"><div class="fmde-page-section-head"><h3>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_54c1f2ff02a0e7","Page format") ?? "Page format")}</h3><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ac1d07223bdf50","Choose a starting margin preset or enter each side precisely.") ?? "Choose a starting margin preset or enter each side precisely.")}</span></div><div class="fmde-page-presets"><button type="button" data-margin-preset="normal"><b>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9a27adafe8f638","Normal") ?? "Normal")}</b><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_a894ef24605cb2","1 in all sides") ?? "1 in all sides")}</span></button><button type="button" data-margin-preset="narrow"><b>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_32a5871815538b","Narrow") ?? "Narrow")}</b><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9623c74afaa2bb","0.5 in all sides") ?? "0.5 in all sides")}</span></button><button type="button" data-margin-preset="wide"><b>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9246870f32f935","Wide") ?? "Wide")}</b><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_0a74a91f67d09a","1 in vertical, 2 in horizontal") ?? "1 in vertical, 2 in horizontal")}</span></button></div>` +
+        `<div class="fmde-dialog-grid fmde-page-grid"><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_b128ef8b7d700d","Paper size") ?? "Paper size")}<select data-page-size><option value="letter">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cfd7e44a195bbf","Letter (8.5 × 11 in)") ?? "Letter (8.5 × 11 in)")}</option><option value="legal">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_1e81213c70c664","Legal (8.5 × 14 in)") ?? "Legal (8.5 × 14 in)")}</option><option value="a4">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ad6459807c5700","A4 (8.27 × 11.69 in)") ?? "A4 (8.27 × 11.69 in)")}</option><option value="custom">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_6edcf7d7d41112","Custom") ?? "Custom")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_94e1ced461b291","Orientation") ?? "Orientation")}<select data-page-orientation><option value="portrait">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_f00ff8e935b5c7","Portrait") ?? "Portrait")}</option><option value="landscape">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_2cb32e3d02e5f4","Landscape") ?? "Landscape")}</option></select></label><label data-custom-width>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9e862d6918de50","Width (in)") ?? "Width (in)")}<input type="number" min="2" step="0.01" data-page-width></label><label data-custom-height>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cb2cea2cc10249","Height (in)") ?? "Height (in)")}<input type="number" min="2" step="0.01" data-page-height></label></div><div class="fmde-page-color-row"><label class="fmde-page-color-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_6bf0fde24555a0","Page color") ?? "Page color")}</span><input class="fmde-page-color-swatch" type="color" data-page-color></label><label class="fmde-page-color-toggle"><input type="checkbox" data-page-color-show>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_b19ed196a1c77c"," Show page color") ?? " Show page color")}</label></div>` +
+        `<h3 class="fmde-dialog-subhead">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9849bdadabb6fc","Margins (inches)") ?? "Margins (inches)")}</h3><div class="fmde-page-margin-grid"><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_daab28e9def67b","Top") ?? "Top")}<input type="number" min="0" step="0.01" data-margin-top></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ebdd2a01ebccd1","Bottom") ?? "Bottom")}<input type="number" min="0" step="0.01" data-margin-bottom></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_5795191103b183","Left") ?? "Left")}<input type="number" min="0" step="0.01" data-margin-left></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_78a58a617fa010","Right") ?? "Right")}<input type="number" min="0" step="0.01" data-margin-right></label></div></section><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-page-apply>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8d9acfab4d9414","Apply setup") ?? "Apply setup")}</button></div>`;
       showEditorDialog("Page setup", html, function (dialog, close) {
         dialog.classList.add("fmde-page-setup-dialog");
         let selectedThemeId = currentThemeId;
@@ -9635,7 +9635,7 @@
 
     function showDownloadDialog() {
       const formats = [{ id: "pdf", title: (globalThis.PlatformLanguage?.text("doc-editor","m_c58d9f36a0eab4","PDF document") ?? "PDF document"), ext: ".pdf" }, { id: "doc", title: (globalThis.PlatformLanguage?.text("doc-editor","m_b4afdfdbedc631","Microsoft Word") ?? "Microsoft Word"), ext: ".doc" }, { id: "txt", title: (globalThis.PlatformLanguage?.text("doc-editor","m_ddfce0780d27c8","Plain text") ?? "Plain text"), ext: ".txt" }, { id: "json", title: (globalThis.PlatformLanguage?.text("doc-editor","m_005d5fd3ae02aa","FirstMate source") ?? "FirstMate source"), ext: ".json" }];
-      showEditorDialog("Download", `<p class="fmde-dialog-note">${(globalThis.PlatformLanguage?.text("doc-editor","m_3cce5afa472e9a","Choose a format for this document.") ?? "Choose a format for this document.")}</p><div class="fmde-download-grid">` + formats.map(function (f) { return '<button type="button" data-download-format="' + f.id + '"><b>' + f.title + '</b><span>' + f.ext + '</span></button>'; }).join("") + `</div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button></div>`, function (dialog, close) {
+      showEditorDialog("Download", `<p class="fmde-dialog-note">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_3cce5afa472e9a","Choose a format for this document.") ?? "Choose a format for this document.")}</p><div class="fmde-download-grid">` + formats.map(function (f) { return '<button type="button" data-download-format="' + f.id + '"><b>' + f.title + '</b><span>' + f.ext + '</span></button>'; }).join("") + `</div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button></div>`, function (dialog, close) {
         dialog.querySelectorAll("[data-download-format]").forEach(function (button) { button.addEventListener("click", function () { invokeDocumentAction("download", { format: button.dataset.downloadFormat }); close(); }); });
       });
     }
@@ -9645,7 +9645,7 @@
       // First open (nothing stored yet) defaults to SHOW — opening this dialog
       // means the user wants numbers; only an explicit legacy false keeps Hide.
       const config = current && typeof current === "object" ? current : { enabled: current === undefined || current === null ? true : !!current, position: "footer", align: "center", format: "{page}", start: 1, first_page: true };
-      showEditorDialog("Page numbers", `<div class="fmde-dialog-grid fmde-page-grid"><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_92999b4236dd11","Display") ?? "Display")}<select data-pn-enabled><option value="true">${(globalThis.PlatformLanguage?.text("doc-editor","m_91646ccec53044","Show page numbers") ?? "Show page numbers")}</option><option value="false">${(globalThis.PlatformLanguage?.text("doc-editor","m_4a1a4ccd2f8e1b","Hide page numbers") ?? "Hide page numbers")}</option></select></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_78ff1aaef0c389","Position") ?? "Position")}<select data-pn-position><option value="header">${(globalThis.PlatformLanguage?.text("doc-editor","m_5024c72b09c78a","Header") ?? "Header")}</option><option value="footer">${(globalThis.PlatformLanguage?.text("doc-editor","m_cd4ea6358d65b3","Footer") ?? "Footer")}</option></select></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_54e993b429a6f7","Alignment") ?? "Alignment")}<select data-pn-align><option value="left">${(globalThis.PlatformLanguage?.text("doc-editor","m_5795191103b183","Left") ?? "Left")}</option><option value="center">${(globalThis.PlatformLanguage?.text("doc-editor","m_8d654a8b9cba56","Center") ?? "Center")}</option><option value="right">${(globalThis.PlatformLanguage?.text("doc-editor","m_78a58a617fa010","Right") ?? "Right")}</option></select></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_cdf11b397d38fc","Format") ?? "Format")}<select data-pn-format><option value="{page}">1</option><option value="Page {page}">${(globalThis.PlatformLanguage?.text("doc-editor","m_6bb8069fae869e","Page 1") ?? "Page 1")}</option><option value="Page {page} of {pages}">${(globalThis.PlatformLanguage?.text("doc-editor","m_ae03a526dcffae","Page 1 of 5") ?? "Page 1 of 5")}</option></select></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_7f079c853890c3","Start at") ?? "Start at")}<input type="number" min="1" data-pn-start></label><label class="fmde-check-label"><input type="checkbox" data-pn-first>${(globalThis.PlatformLanguage?.text("doc-editor","m_ecc67dfae558ad"," Show on first page") ?? " Show on first page")}</label></div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-pn-apply>${(globalThis.PlatformLanguage?.text("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
+      showEditorDialog("Page numbers", `<div class="fmde-dialog-grid fmde-page-grid"><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_92999b4236dd11","Display") ?? "Display")}<select data-pn-enabled><option value="true">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_91646ccec53044","Show page numbers") ?? "Show page numbers")}</option><option value="false">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_4a1a4ccd2f8e1b","Hide page numbers") ?? "Hide page numbers")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_78ff1aaef0c389","Position") ?? "Position")}<select data-pn-position><option value="header">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_5024c72b09c78a","Header") ?? "Header")}</option><option value="footer">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cd4ea6358d65b3","Footer") ?? "Footer")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_54e993b429a6f7","Alignment") ?? "Alignment")}<select data-pn-align><option value="left">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_5795191103b183","Left") ?? "Left")}</option><option value="center">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8d654a8b9cba56","Center") ?? "Center")}</option><option value="right">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_78a58a617fa010","Right") ?? "Right")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cdf11b397d38fc","Format") ?? "Format")}<select data-pn-format><option value="{page}">1</option><option value="Page {page}">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_6bb8069fae869e","Page 1") ?? "Page 1")}</option><option value="Page {page} of {pages}">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ae03a526dcffae","Page 1 of 5") ?? "Page 1 of 5")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_7f079c853890c3","Start at") ?? "Start at")}<input type="number" min="1" data-pn-start></label><label class="fmde-check-label"><input type="checkbox" data-pn-first>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ecc67dfae558ad"," Show on first page") ?? " Show on first page")}</label></div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-pn-apply>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
         dialog.querySelector("[data-pn-enabled]").value = String(config.enabled !== false); dialog.querySelector("[data-pn-position]").value = config.position || "footer"; dialog.querySelector("[data-pn-align]").value = config.align || "center"; dialog.querySelector("[data-pn-format]").value = config.format || "{page}"; dialog.querySelector("[data-pn-start]").value = Number(config.start) || 1; dialog.querySelector("[data-pn-first]").checked = config.first_page !== false;
         dialog.querySelector("[data-pn-apply]").addEventListener("click", function () { runCommands([{ type: "doc.set", prop: "metadata.page_numbers", value: { enabled: dialog.querySelector("[data-pn-enabled]").value === "true", position: dialog.querySelector("[data-pn-position]").value, align: dialog.querySelector("[data-pn-align]").value, format: dialog.querySelector("[data-pn-format]").value, start: Math.max(1, Number(dialog.querySelector("[data-pn-start]").value) || 1), first_page: dialog.querySelector("[data-pn-first]").checked } }], "page-numbers"); close(); });
       });
@@ -9672,7 +9672,7 @@
         ["Insert & navigate", [["Page break","Ctrl/⌘ Enter"],["Comment","Ctrl/⌘ Alt M"],["Next page","Page Down"],["Previous page","Page Up"],["Document start","Ctrl/⌘ Home"],["Document end","Ctrl/⌘ End"]]]
       ];
       const rows = groups.map(function (group) { return '<section class="fmde-shortcut-section" data-shortcut-section><h3>' + esc(group[0]) + '</h3>' + group[1].map(function (entry) { return '<div class="fmde-shortcut-row" data-shortcut-row data-search="' + esc((entry[0] + " " + entry[1]).toLowerCase()) + '"><span>' + esc(entry[0]) + '</span><kbd>' + esc(entry[1]) + '</kbd></div>'; }).join("") + '</section>'; }).join("");
-      showEditorDialog("Keyboard shortcuts", `<input class="fmde-shortcut-search" data-shortcut-search placeholder="${(globalThis.PlatformLanguage?.text("doc-editor","m_832195f9710eff","Search shortcuts") ?? "Search shortcuts")}" aria-label="${(globalThis.PlatformLanguage?.text("doc-editor","m_9943264d3c34e2","Search keyboard shortcuts") ?? "Search keyboard shortcuts")}"><div class="fmde-shortcut-list">` + rows + `</div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
+      showEditorDialog("Keyboard shortcuts", `<input class="fmde-shortcut-search" data-shortcut-search placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_832195f9710eff","Search shortcuts") ?? "Search shortcuts")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9943264d3c34e2","Search keyboard shortcuts") ?? "Search keyboard shortcuts")}"><div class="fmde-shortcut-list">` + rows + `</div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
         const input = dialog.querySelector("[data-shortcut-search]"); input.addEventListener("input", function () { const q = input.value.trim().toLowerCase(); dialog.querySelectorAll("[data-shortcut-row]").forEach(function (row) { row.hidden = !!q && !row.dataset.search.includes(q); }); dialog.querySelectorAll("[data-shortcut-section]").forEach(function (section) { section.hidden = !section.querySelector("[data-shortcut-row]:not([hidden])"); }); }); input.focus();
       });
     }
@@ -10365,7 +10365,7 @@
       tools.appendChild(dom.visualCornersBtn);
       const fontTools = el("div", { class: "fmde-visual-font-tools" });
       dom.visualFontTools = fontTools;
-      dom.visualFontBtn = el("button", { type: "button", class: "fmde-btn fmde-btn-labeled fmde-fontselect", html: `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_0b2df5dd63cc66","Arial") ?? "Arial")}</span>` + iconSvg("chevdown"), title: (globalThis.PlatformLanguage?.text("doc-editor","m_ce1ba13960e5a4","Font") ?? "Font") });
+      dom.visualFontBtn = el("button", { type: "button", class: "fmde-btn fmde-btn-labeled fmde-fontselect", html: `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_0b2df5dd63cc66","Arial") ?? "Arial")}</span>` + iconSvg("chevdown"), title: (globalThis.PlatformLanguage?.text("doc-editor","m_ce1ba13960e5a4","Font") ?? "Font") });
       dom.visualFontBtn.addEventListener("click", function () {
         showMenu(dom.visualFontBtn, catalogFonts().map(function (font) { return { label: font.label, labelHtml: '<span style="font-family:' + esc(font.value) + '">' + esc(font.label) + "</span>", onClick: function () { setVisualTextValue("family", canonicalFontFamily(font.value)); } }; }));
       });
@@ -10461,7 +10461,7 @@
         if (canEscalate) {
           const unlockBtn = el("button", {
             type: "button", class: "fmde-btn fmde-btn-labeled fmde-btn-unlock",
-            html: iconSvg("unlock") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_9b9004a80420ab","Unlock design") ?? "Unlock design")}</span>`,
+            html: iconSvg("unlock") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9b9004a80420ab","Unlock design") ?? "Unlock design")}</span>`,
             title: "Switch to " + maxProfile + " editing"
           });
           unlockBtn.addEventListener("click", function () {
@@ -10484,7 +10484,7 @@
         const historyBtn = el("button", {
           type: "button",
           class: "fmde-btn fmde-btn-labeled fmde-version-history-btn",
-          html: iconSvg("fa-clock-rotate-left") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_3fe33cd11f8a29","History") ?? "History")}</span>`,
+          html: iconSvg("fa-clock-rotate-left") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_3fe33cd11f8a29","History") ?? "History")}</span>`,
           title: (globalThis.PlatformLanguage?.text("doc-editor","m_a86cbfff424ed3","Version history") ?? "Version history"),
           "aria-label": "Version history"
         });
@@ -10587,7 +10587,7 @@
           });
         }
         if (hasPublish) {
-          const publish = el("button", { type: "button", class: "fmde-btn fmde-btn-labeled fmde-host-publish", html: iconSvg("fa-rocket") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_aa817c98b65c06","Publish") ?? "Publish")}</span>`, title: (globalThis.PlatformLanguage?.text("doc-editor","m_aa817c98b65c06","Publish") ?? "Publish"), "aria-label": "Publish", "data-ed-publish": "" });
+          const publish = el("button", { type: "button", class: "fmde-btn fmde-btn-labeled fmde-host-publish", html: iconSvg("fa-rocket") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_aa817c98b65c06","Publish") ?? "Publish")}</span>`, title: (globalThis.PlatformLanguage?.text("doc-editor","m_aa817c98b65c06","Publish") ?? "Publish"), "aria-label": "Publish", "data-ed-publish": "" });
           publish.disabled = typeof actions.canPublish === "function" ? !actions.canPublish() : false;
           publish.addEventListener("click", function () { invokeDocumentAction("publish", { button: publish }); });
           actionGroup.appendChild(publish);
@@ -10600,7 +10600,7 @@
         dom.btnDictate = el("button", {
           type: "button",
           class: "fmde-btn fmde-btn-labeled" + (state.dictating ? " active" : ""),
-          html: iconSvg("microphone") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}</span>`,
+          html: iconSvg("microphone") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}</span>`,
           title: (globalThis.PlatformLanguage?.text("doc-editor","m_870291f01feab4","Dictate into the selected text section") ?? "Dictate into the selected text section"),
           "aria-label": "Dictate into the selected text section"
         });
@@ -10617,7 +10617,7 @@
         const button = el("button", {
           type: "button",
           class: "fmde-btn fmde-btn-labeled fmde-preview-agent-btn" + (active ? " active" : ""),
-          html: iconSvg("pencil") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_b8071e017821d8","Agent") ?? "Agent")}</span>`,
+          html: iconSvg("pencil") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_b8071e017821d8","Agent") ?? "Agent")}</span>`,
           title: (globalThis.PlatformLanguage?.text("doc-editor","m_6d4641df98e619","Edit with Agent while previewing") ?? "Edit with Agent while previewing"),
           "aria-label": "Edit with Agent while previewing",
           "aria-pressed": active ? "true" : "false"
@@ -10706,7 +10706,7 @@
       const styleBtn = el("button", {
         type: "button",
         class: "fmde-btn fmde-btn-labeled fmde-styleselect",
-        html: `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_e102d8b8651cc4","Normal text") ?? "Normal text")}</span>` + iconSvg("chevdown"),
+        html: `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_e102d8b8651cc4","Normal text") ?? "Normal text")}</span>` + iconSvg("chevdown"),
         title: (globalThis.PlatformLanguage?.text("doc-editor","m_a0790240ef66f9","Apply a named style to the selected paragraphs") ?? "Apply a named style to the selected paragraphs")
       });
       const showStyleChoices = function (anchor) {
@@ -11436,10 +11436,10 @@
         if (h.level) return Math.max(0, h.level - 1);
         return 0;
       };
-      dom.outlinePanel.innerHTML = `<div class="fmde-outline-head"><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_c465e5aeb79832","Outline") ?? "Outline")}</span><button type="button" class="fmde-btn" data-outline-close title="${(globalThis.PlatformLanguage?.text("doc-editor","m_e2d65666df10e5","Close outline") ?? "Close outline")}">` + iconSvg("x") + "</button></div>" +
+      dom.outlinePanel.innerHTML = `<div class="fmde-outline-head"><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_c465e5aeb79832","Outline") ?? "Outline")}</span><button type="button" class="fmde-btn" data-outline-close title="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_e2d65666df10e5","Close outline") ?? "Close outline")}">` + iconSvg("x") + "</button></div>" +
         (headings.length
           ? headings.map(function (h) { return '<button type="button" class="fmde-outline-item" data-outline-block="' + esc(h.block_id) + '" style="padding-left:' + (10 + levelOf(h) * 14) + 'px">' + esc(h.text.slice(0, 64)) + "</button>"; }).join("")
-          : `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_a439fb27be304b","Headings you add to the document will appear here.") ?? "Headings you add to the document will appear here.")}</div>`);
+          : `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_a439fb27be304b","Headings you add to the document will appear here.") ?? "Headings you add to the document will appear here.")}</div>`);
       dom.outlinePanel.querySelector("[data-outline-close]").addEventListener("click", function () { state.showOutline = false; renderOutlinePanel(); });
       dom.outlinePanel.addEventListener("click", function (ev) {
         const item = ev.target && ev.target.closest ? ev.target.closest("[data-outline-block]") : null;
@@ -11461,12 +11461,12 @@
     function showVersionHistoryDialog() {
       const api = opts.versionsApi;
       if (!api) { invokeDocumentAction("versions"); return; }
-      showEditorDialog("Version history", `<div class="fmde-version-tools"><input data-version-name placeholder="${(globalThis.PlatformLanguage?.text("doc-editor","m_3036003f9a87e7","Name this version (optional)") ?? "Name this version (optional)")}"><button type="button" class="fmde-btn fmde-btn-labeled" data-version-save>${(globalThis.PlatformLanguage?.text("doc-editor","m_9c1f4d04461822","Save version now") ?? "Save version now")}</button></div><div class="fmde-version-list" data-version-list><div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_d2da77452877dd","Loading…") ?? "Loading…")}</div></div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
+      showEditorDialog("Version history", `<div class="fmde-version-tools"><input data-version-name placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_3036003f9a87e7","Name this version (optional)") ?? "Name this version (optional)")}"><button type="button" class="fmde-btn fmde-btn-labeled" data-version-save>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9c1f4d04461822","Save version now") ?? "Save version now")}</button></div><div class="fmde-version-list" data-version-list><div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_d2da77452877dd","Loading…") ?? "Loading…")}</div></div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
         const list = dialog.querySelector("[data-version-list]");
         const reload = function () {
           Promise.resolve(api.list()).then(function (result) {
             const rows = (result && result.checkpoints) || result || [];
-            list.innerHTML = rows.length ? "" : `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_14daba3d4ddb00","No saved versions yet.") ?? "No saved versions yet.")}</div>`;
+            list.innerHTML = rows.length ? "" : `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_14daba3d4ddb00","No saved versions yet.") ?? "No saved versions yet.")}</div>`;
             for (const row of rows) {
               const item = el("div", { class: "fmde-version-row" });
               const when = new Date(row.created_at);
@@ -11481,7 +11481,7 @@
                   for (const added of diff.added_blocks || []) parts.push('<div class="fmde-diff-row"><span class="fmde-diff-add">' + esc(added.text) + "</span></div>");
                   for (const removed of diff.removed_blocks || []) parts.push('<div class="fmde-diff-row"><span class="fmde-diff-del">' + esc(removed.text) + "</span></div>");
                   if (diff.other_changes) parts.push('<div class="fmde-outline-empty">' + esc(String(diff.other_changes)) + " layout/structure change(s) not shown</div>");
-                  showEditorDialog("Changes since “" + (row.name || "this version") + "”", '<div class="fmde-diff-body">' + (parts.join("") || `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_1c573ea6f2a987","No text changes.") ?? "No text changes.")}</div>`) + `</div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_3742924668fb10","Close") ?? "Close")}</button></div>`);
+                  showEditorDialog("Changes since “" + (row.name || "this version") + "”", '<div class="fmde-diff-body">' + (parts.join("") || `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_1c573ea6f2a987","No text changes.") ?? "No text changes.")}</div>`) + `</div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_3742924668fb10","Close") ?? "Close")}</button></div>`);
                 }).catch(function () { showStatus("Could not load the comparison", true); });
               });
               actions.appendChild(diffBtn);
@@ -11501,7 +11501,7 @@
               item.appendChild(actions);
               list.appendChild(item);
             }
-          }).catch(function () { list.innerHTML = `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_5728db08fb4ccc","Version history is unavailable here.") ?? "Version history is unavailable here.")}</div>`; });
+          }).catch(function () { list.innerHTML = `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_5728db08fb4ccc","Version history is unavailable here.") ?? "Version history is unavailable here.")}</div>`; });
         };
         dialog.querySelector("[data-version-save]").addEventListener("click", function () {
           const name = dialog.querySelector("[data-version-name]").value;
@@ -11719,7 +11719,7 @@
     function showSpellingPanel() {
       if (dom.spellPanel) { runSpellingScan(); return; }
       dom.spellPanel = el("div", { class: "fmde-spell-panel", role: "dialog", "aria-label": "Spelling and grammar" });
-      dom.spellPanel.innerHTML = `<div class="fmde-spell-head"><span>${(globalThis.PlatformLanguage?.text("doc-editor","m_a55896ccf1a9ae","Spelling & grammar") ?? "Spelling & grammar")}</span><button type="button" class="fmde-btn" data-spell-close title="${(globalThis.PlatformLanguage?.text("doc-editor","m_3742924668fb10","Close") ?? "Close")}">` + iconSvg("x") + `</button></div><div class="fmde-spell-list" data-spell-list><div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_4e930690c170d1","Checking…") ?? "Checking…")}</div></div>`;
+      dom.spellPanel.innerHTML = `<div class="fmde-spell-head"><span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_a55896ccf1a9ae","Spelling & grammar") ?? "Spelling & grammar")}</span><button type="button" class="fmde-btn" data-spell-close title="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_3742924668fb10","Close") ?? "Close")}">` + iconSvg("x") + `</button></div><div class="fmde-spell-list" data-spell-list><div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_4e930690c170d1","Checking…") ?? "Checking…")}</div></div>`;
       dom.spellPanel.querySelector("[data-spell-close]").addEventListener("click", closeSpellingPanel);
       dom.root.appendChild(dom.spellPanel);
       state.languageIgnored = state.languageIgnored || new Set();
@@ -11732,7 +11732,7 @@
       ensureLanguage().then(function (lib) {
         if (!dom.spellPanel) return;
         if (!lib) {
-          list.innerHTML = `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_ed82d5cae258b0","The language engine isn't loaded here.") ?? "The language engine isn't loaded here.")}</div>`;
+          list.innerHTML = `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ed82d5cae258b0","The language engine isn't loaded here.") ?? "The language engine isn't loaded here.")}</div>`;
           return;
         }
         const issues = [];
@@ -11752,7 +11752,7 @@
         refreshLanguageHighlights(issues);
         list.innerHTML = "";
         if (!issues.length) {
-          list.innerHTML = `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.text("doc-editor","m_6afe7a5077fb26","No issues found — looking good.") ?? "No issues found — looking good.")}</div>`;
+          list.innerHTML = `<div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_6afe7a5077fb26","No issues found — looking good.") ?? "No issues found — looking good.")}</div>`;
           return;
         }
         for (const issue of issues.slice(0, 60)) {
@@ -12097,12 +12097,12 @@
       const border = current.border || {};
       const sides = border.sides || { top: true, bottom: true, left: true, right: true };
       showEditorDialog("Borders & shading", '<div class="fmde-dialog-grid">' +
-        `<div class="fmde-border-sides"><label class="fmde-check-label"><input type="checkbox" data-bs-top>${(globalThis.PlatformLanguage?.text("doc-editor","m_8de9b34523a9a7"," Top") ?? " Top")}</label><label class="fmde-check-label"><input type="checkbox" data-bs-bottom>${(globalThis.PlatformLanguage?.text("doc-editor","m_c1fe1adbd0c534"," Bottom") ?? " Bottom")}</label><label class="fmde-check-label"><input type="checkbox" data-bs-left>${(globalThis.PlatformLanguage?.text("doc-editor","m_0da18624bf3204"," Left") ?? " Left")}</label><label class="fmde-check-label"><input type="checkbox" data-bs-right>${(globalThis.PlatformLanguage?.text("doc-editor","m_7305c0133dad10"," Right") ?? " Right")}</label></div>` +
-        `<label>${(globalThis.PlatformLanguage?.text("doc-editor","m_d59821adea404c","Border width (pt)") ?? "Border width (pt)")}<input type="number" min="0" max="6" step="0.25" data-bs-width></label>` +
-        `<label>${(globalThis.PlatformLanguage?.text("doc-editor","m_7899f3ce77edbc","Border color") ?? "Border color")}<input type="color" data-bs-color></label>` +
-        `<label>${(globalThis.PlatformLanguage?.text("doc-editor","m_e9440ca6ce0675","Paragraph shading") ?? "Paragraph shading")}<input type="color" data-bs-shading></label>` +
-        `<label class="fmde-check-label"><input type="checkbox" data-bs-noshading>${(globalThis.PlatformLanguage?.text("doc-editor","m_5bff5268dce981"," No shading") ?? " No shading")}</label>` +
-        `</div><div class="fmde-dialog-actions"><button type="button" data-bs-remove>${(globalThis.PlatformLanguage?.text("doc-editor","m_60d31e040797af","Remove all") ?? "Remove all")}</button><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-bs-apply>${(globalThis.PlatformLanguage?.text("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
+        `<div class="fmde-border-sides"><label class="fmde-check-label"><input type="checkbox" data-bs-top>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8de9b34523a9a7"," Top") ?? " Top")}</label><label class="fmde-check-label"><input type="checkbox" data-bs-bottom>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_c1fe1adbd0c534"," Bottom") ?? " Bottom")}</label><label class="fmde-check-label"><input type="checkbox" data-bs-left>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_0da18624bf3204"," Left") ?? " Left")}</label><label class="fmde-check-label"><input type="checkbox" data-bs-right>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_7305c0133dad10"," Right") ?? " Right")}</label></div>` +
+        `<label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_d59821adea404c","Border width (pt)") ?? "Border width (pt)")}<input type="number" min="0" max="6" step="0.25" data-bs-width></label>` +
+        `<label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_7899f3ce77edbc","Border color") ?? "Border color")}<input type="color" data-bs-color></label>` +
+        `<label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_e9440ca6ce0675","Paragraph shading") ?? "Paragraph shading")}<input type="color" data-bs-shading></label>` +
+        `<label class="fmde-check-label"><input type="checkbox" data-bs-noshading>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_5bff5268dce981"," No shading") ?? " No shading")}</label>` +
+        `</div><div class="fmde-dialog-actions"><button type="button" data-bs-remove>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_60d31e040797af","Remove all") ?? "Remove all")}</button><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-bs-apply>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
         dialog.querySelector("[data-bs-top]").checked = sides.top !== false;
         dialog.querySelector("[data-bs-bottom]").checked = sides.bottom !== false;
         dialog.querySelector("[data-bs-left]").checked = sides.left !== false;
@@ -12141,7 +12141,7 @@
         const block = found && ((found.node.props && found.node.props.blocks) || []).find(function (b) { return b.id === caret.block_id; });
         if (block) current = block;
       }
-      showEditorDialog("Custom spacing", `<div class="fmde-dialog-grid"><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_e01866f596bc6b","Line spacing") ?? "Line spacing")}<input type="number" min="0.5" max="4" step="0.05" data-spacing-line></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_6eec932389dec3","Space before paragraph (pt)") ?? "Space before paragraph (pt)")}<input type="number" min="0" max="144" step="1" data-spacing-before></label><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_be19f2dc73c114","Space after paragraph (pt)") ?? "Space after paragraph (pt)")}<input type="number" min="0" max="144" step="1" data-spacing-after></label></div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-spacing-apply>${(globalThis.PlatformLanguage?.text("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
+      showEditorDialog("Custom spacing", `<div class="fmde-dialog-grid"><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_e01866f596bc6b","Line spacing") ?? "Line spacing")}<input type="number" min="0.5" max="4" step="0.05" data-spacing-line></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_6eec932389dec3","Space before paragraph (pt)") ?? "Space before paragraph (pt)")}<input type="number" min="0" max="144" step="1" data-spacing-before></label><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_be19f2dc73c114","Space after paragraph (pt)") ?? "Space after paragraph (pt)")}<input type="number" min="0" max="144" step="1" data-spacing-after></label></div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-spacing-apply>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
         dialog.querySelector("[data-spacing-line]").value = num(current.line_height, 1.15);
         dialog.querySelector("[data-spacing-before]").value = num(current.space_before_pt, 0);
         dialog.querySelector("[data-spacing-after]").value = num(current.space_after_pt, 0);
@@ -12177,7 +12177,7 @@
           return '<button type="button" class="fmde-specialchar" data-sc-char="' + esc(entry[0]) + '" data-sc-name="' + esc(entry[1].toLowerCase()) + '" title="' + esc(entry[1]) + '">' + esc(entry[0]) + '</button>';
         }).join("") + '</div></section>';
       }).join("");
-      showEditorDialog("Special characters", `<input class="fmde-shortcut-search" data-sc-search placeholder="${(globalThis.PlatformLanguage?.text("doc-editor","m_babc8b87dc8837","Search by name (e.g. arrow, euro, check)") ?? "Search by name (e.g. arrow, euro, check)")}" aria-label="${(globalThis.PlatformLanguage?.text("doc-editor","m_45699ee8a161b1","Search special characters") ?? "Search special characters")}"><div class="fmde-specialchar-list">` + sections + `</div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
+      showEditorDialog("Special characters", `<input class="fmde-shortcut-search" data-sc-search placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_babc8b87dc8837","Search by name (e.g. arrow, euro, check)") ?? "Search by name (e.g. arrow, euro, check)")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_45699ee8a161b1","Search special characters") ?? "Search special characters")}"><div class="fmde-specialchar-list">` + sections + `</div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
         const search = dialog.querySelector("[data-sc-search]");
         search.addEventListener("input", function () {
           const query = search.value.trim().toLowerCase();
@@ -12197,7 +12197,7 @@
     }
 
     function showSuggestEditDialog(target) {
-      showEditorDialog("Suggest an edit", `<p class="fmde-dialog-note">${(globalThis.PlatformLanguage?.text("doc-editor","m_22e8aabf845e54","Propose replacement text for:") ?? "Propose replacement text for:")}</p><blockquote class="fmde-suggest-quote">` + esc(target.quote) + `</blockquote><div class="fmde-dialog-grid"><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_15e0cb625dcebb","Replace with") ?? "Replace with")}<textarea rows="3" data-suggest-text></textarea></label></div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-suggest-apply>${(globalThis.PlatformLanguage?.text("doc-editor","m_ebfecbd5d432bb","Suggest") ?? "Suggest")}</button></div>`, function (dialog, close) {
+      showEditorDialog("Suggest an edit", `<p class="fmde-dialog-note">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_22e8aabf845e54","Propose replacement text for:") ?? "Propose replacement text for:")}</p><blockquote class="fmde-suggest-quote">` + esc(target.quote) + `</blockquote><div class="fmde-dialog-grid"><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_15e0cb625dcebb","Replace with") ?? "Replace with")}<textarea rows="3" data-suggest-text></textarea></label></div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-suggest-apply>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_ebfecbd5d432bb","Suggest") ?? "Suggest")}</button></div>`, function (dialog, close) {
         const input = dialog.querySelector("[data-suggest-text]");
         input.value = target.quote;
         const submit = function () {
@@ -12238,9 +12238,9 @@
       const targets = headings.map(function (h) { return { value: "#fmdoc-block:" + h.block_id, label: (h.style_ref || "Heading") + " — " + h.text.slice(0, 60) }; })
         .concat(bookmarks.map(function (b, index) { return { value: "#fmdoc-bookmark:" + b.id, label: "Bookmark " + (index + 1) }; }));
       const targetsHtml = targets.length
-        ? `<label>${(globalThis.PlatformLanguage?.text("doc-editor","m_f7d34a2e4f2908","Or link to a heading or bookmark") ?? "Or link to a heading or bookmark")}<select data-link-target><option value="">${(globalThis.PlatformLanguage?.text("doc-editor","m_9972aefa5fac0b","Choose in this document…") ?? "Choose in this document…")}</option>` + targets.map(function (t) { return '<option value="' + esc(t.value) + '">' + esc(t.label) + "</option>"; }).join("") + "</select></label>"
+        ? `<label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_f7d34a2e4f2908","Or link to a heading or bookmark") ?? "Or link to a heading or bookmark")}<select data-link-target><option value="">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9972aefa5fac0b","Choose in this document…") ?? "Choose in this document…")}</option>` + targets.map(function (t) { return '<option value="' + esc(t.value) + '">' + esc(t.label) + "</option>"; }).join("") + "</select></label>"
         : "";
-      showEditorDialog("Insert link", `<div class="fmde-dialog-grid"><label>${(globalThis.PlatformLanguage?.text("doc-editor","m_f3598d503abe19","Link URL") ?? "Link URL")}<input type="url" data-link-url placeholder="https://"></label>` + targetsHtml + `</div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.text("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-link-apply>${(globalThis.PlatformLanguage?.text("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
+      showEditorDialog("Insert link", `<div class="fmde-dialog-grid"><label>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_f3598d503abe19","Link URL") ?? "Link URL")}<input type="url" data-link-url placeholder="https://"></label>` + targetsHtml + `</div><div class="fmde-dialog-actions"><button type="button" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="primary" data-link-apply>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>`, function (dialog, close) {
         const input = dialog.querySelector("[data-link-url]");
         const targetSelect = dialog.querySelector("[data-link-target]");
         if (targetSelect) targetSelect.addEventListener("change", function () { if (targetSelect.value) input.value = targetSelect.value; });
@@ -12435,7 +12435,7 @@
         ] }
       ];
       dom.menuDefinitions = menuDefinitions;
-      dom.menuSearch = el("button", { type: "button", class: "fmde-menu-search-btn", html: iconSvg("zoomin") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_f00f13e882810c","Menus") ?? "Menus")}</span>`, title: (globalThis.PlatformLanguage?.text("doc-editor","m_f9b41a195a8735","Search the menus") ?? "Search the menus") });
+      dom.menuSearch = el("button", { type: "button", class: "fmde-menu-search-btn", html: iconSvg("zoomin") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_f00f13e882810c","Menus") ?? "Menus")}</span>`, title: (globalThis.PlatformLanguage?.text("doc-editor","m_f9b41a195a8735","Search the menus") ?? "Search the menus") });
       dom.menuSearch.addEventListener("click", function () { showMenuSearch(dom.menuSearch, menuDefinitions); });
       dom.menubar.appendChild(dom.menuSearch);
       for (const definition of menuDefinitions) {
@@ -12868,7 +12868,7 @@
       });
       body.appendChild(list);
       if (manage) {
-        const addBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("plus") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_4d405fa2a01074","Add page") ?? "Add page")}</span>` });
+        const addBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("plus") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_4d405fa2a01074","Add page") ?? "Add page")}</span>` });
         addBtn.addEventListener("click", function () {
           const currentIndex = pages.findIndex(function (page) { return page.id === state.currentPageId; });
           const page = M.createPage("body");
@@ -13363,7 +13363,7 @@
       const wrap = el("div", { class: "fmde-mediafield" });
       const label = value && (value.url || value.media_id) ? (value.media_id || String(value.url).split("/").pop() || "media") : "None";
       wrap.appendChild(el("span", { class: "fmde-media-name", text: String(label).slice(0, 26), title: value && value.url ? value.url : "" }));
-      const pick = el("button", { type: "button", class: "fmde-btn fmde-btn-labeled", html: iconSvg("image") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_bca9e3fd6cf405","Choose") ?? "Choose")}</span>` });
+      const pick = el("button", { type: "button", class: "fmde-btn fmde-btn-labeled", html: iconSvg("image") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_bca9e3fd6cf405","Choose") ?? "Choose")}</span>` });
       if (o.disabled || !(opts.media && typeof opts.media.pick === "function")) pick.disabled = true;
       pick.addEventListener("click", function () {
         Promise.resolve(opts.media.pick({ accept: o.accept || "image/*", mediaKind: o.mediaKind || "" })).then(function (ref) {
@@ -13493,7 +13493,7 @@
             }, "fmde-btn-sm"));
             wrap.appendChild(row);
           });
-          const add = el("button", { type: "button", class: "fmde-add-btn fmde-add-sm", html: iconSvg("plus") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_4d801afb3ef0c9","Add item") ?? "Add item")}</span>` });
+          const add = el("button", { type: "button", class: "fmde-add-btn fmde-add-sm", html: iconSvg("plus") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_4d801afb3ef0c9","Add item") ?? "Add item")}</span>` });
           add.addEventListener("click", function () {
             items.push("");
             onCommit(items.slice());
@@ -13695,7 +13695,7 @@
       }
       if (can("group")) {
         const actions = sectionBox(null);
-        const groupBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("group") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_94b143195db5cf","Group selection") ?? "Group selection")}</span>` });
+        const groupBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("group") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_94b143195db5cf","Group selection") ?? "Group selection")}</span>` });
         groupBtn.addEventListener("click", groupSelection);
         actions.body.appendChild(groupBtn);
         target.appendChild(actions.root);
@@ -13989,10 +13989,10 @@
         if (node.props && node.props.detached) {
           compBox.body.appendChild(el("div", { class: "fmde-compcard-note", text: "Detached instance — this copy is a fork and no longer follows the component definition." }));
         } else {
-          const editBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("pencil") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_79d80af74e4991","Edit component") ?? "Edit component")}</span>` });
+          const editBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("pencil") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_79d80af74e4991","Edit component") ?? "Edit component")}</span>` });
           editBtn.addEventListener("click", function () { openComponentCard(compName); });
           compBox.body.appendChild(editBtn);
-          const detachBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("ungroup") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_b7ce7d7c4247ff","Detach instance") ?? "Detach instance")}</span>` });
+          const detachBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("ungroup") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_b7ce7d7c4247ff","Detach instance") ?? "Detach instance")}</span>` });
           detachBtn.addEventListener("click", function () { detachComponentInstance(nodeId); });
           compBox.body.appendChild(detachBtn);
           compBox.body.appendChild(el("div", { class: "fmde-compcard-note", text: "Editing the component updates every instance. Detaching forks just this one." }));
@@ -14044,7 +14044,7 @@
 
         if (props.component) {
           const editBox = sectionBox(null);
-          const editBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("pencil") + `<span>${(globalThis.PlatformLanguage?.text("doc-editor","m_79d80af74e4991","Edit component") ?? "Edit component")}</span>` });
+          const editBtn = el("button", { type: "button", class: "fmde-add-btn", html: iconSvg("pencil") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_79d80af74e4991","Edit component") ?? "Edit component")}</span>` });
           editBtn.addEventListener("click", function () { openComponentCard(props.component); });
           editBox.body.appendChild(editBtn);
           editBox.body.appendChild(el("div", { class: "fmde-compcard-note", text: "Rows come from data — there is no per-row detach. Editing the component restyles every row." }));
