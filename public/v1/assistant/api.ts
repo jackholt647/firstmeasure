@@ -11,7 +11,13 @@ import "./agent/definition.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { PlatformError } from "../platform/errors.js";
 import { loadAgentSettings, saveAgentSettings } from "../agents/settings.js";
-import { importLegacyThreads } from "../agents/storage.js";
+import {
+  deleteAgentThread, importLegacyThreads, listAssistantDashboard, readAgentThread, removeAssistantDashboardItem, updateAgentSchedule
+} from "../agents/storage.js";
+import {
+  agentConfigurationTurnNote, agentIdFromSubject, describeAssistantAgent, ensureAssistantMainThread, listAssistantAgents,
+  pinTurnArtifacts, queueAssistantAgentRun, readAssistantAgentDetail, readOwnedAssistantAgent
+} from "./agent/agents.js";
 import {
   createThreadForAgent,
   listThreadsForAgent,
@@ -20,7 +26,7 @@ import {
 } from "../agents/runtime.js";
 import { ASSISTANT_AGENT_ID } from "./agent/definition.js";
 import { readInternalUser } from "../internal/storage.js";
-import { forbidden } from "../platform/errors.js";
+import { forbidden, notFound } from "../platform/errors.js";
 import {
   clearAssistantMemories, deleteAssistantMemory, globalAssistantInstructions,
   listAssistantMemories, readAssistantProfile, saveAssistantMemory,
@@ -93,7 +99,9 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       settings: "/organizations/:orgId/settings",
       profile: "/organizations/:orgId/profile",
       memories: "/organizations/:orgId/memories",
-      threads: "/organizations/:orgId/threads"
+      threads: "/organizations/:orgId/threads",
+      agents: "/organizations/:orgId/agents",
+      dashboard: "/organizations/:orgId/dashboard"
     }
   }));
 
@@ -102,11 +110,80 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
     (await importOrgLegacyThreads(orgId));
     const settings = await loadAgentSettings(ASSISTANT_AGENT_ID, orgId, ctx.branchId || "default");
+    const mainThread = await ensureAssistantMainThread(orgId, ctx.userId, ctx.branchId || "default");
     return {
       ok: true,
       settings: { enabled: settings.enabled !== false, assistant_name: cleanText(settings.assistant_name || settings.display_name) },
-      threads: (await listThreadsForAgent(ASSISTANT_AGENT_ID, orgId, { actorUserId: ctx.userId }))
+      main_thread: mainThread,
+      threads: (await listThreadsForAgent(ASSISTANT_AGENT_ID, orgId, { actorUserId: ctx.userId })),
+      agents: await listAssistantAgents(orgId, ctx.userId),
+      dashboard: await listAssistantDashboard(orgId, ctx.userId)
     };
+  });
+
+  // Personal agents: scheduled tasks created by the assistant on the user's behalf.
+  app.get("/organizations/:orgId/agents", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
+    return { ok: true, agents: await listAssistantAgents(orgId, ctx.userId) };
+  });
+
+  app.get("/organizations/:orgId/agents/:agentId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const detail = await readAssistantAgentDetail(orgId, ctx.userId, getParam(request.params, "agentId"));
+    if (!detail) throw notFound("assistant_agent_not_found", "This agent was not found.");
+    return { ok: true, ...detail };
+  });
+
+  app.patch("/organizations/:orgId/agents/:agentId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const body = z.object({ status: z.enum(["active", "paused"]).optional(), title: z.string().trim().min(1).max(32).optional() }).parse(request.body ?? {});
+    const entry = await readOwnedAssistantAgent(orgId, ctx.userId, getParam(request.params, "agentId"));
+    if (!entry) throw notFound("assistant_agent_not_found", "This agent was not found.");
+    const patch: Record<string, unknown> = {};
+    if (body.title) patch.title = body.title;
+    if (body.status) {
+      patch.status = body.status;
+      // Resuming must not replay occurrences missed while paused.
+      if (body.status === "active" && cleanText(entry.status) !== "active") patch.last_fired_at = new Date().toISOString();
+    }
+    const updated = Object.keys(patch).length ? await updateAgentSchedule(cleanText(entry.id), patch) : entry;
+    return { ok: true, agent: describeAssistantAgent(updated || entry) };
+  });
+
+  app.delete("/organizations/:orgId/agents/:agentId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const entry = await readOwnedAssistantAgent(orgId, ctx.userId, getParam(request.params, "agentId"));
+    if (!entry) throw notFound("assistant_agent_not_found", "This agent was not found.");
+    await updateAgentSchedule(cleanText(entry.id), { status: "cancelled" });
+    const thread = await readAgentThread(ASSISTANT_AGENT_ID, orgId, cleanText(entry.origin_thread_id));
+    if (thread && cleanText(thread.status) !== "working") await deleteAgentThread(ASSISTANT_AGENT_ID, orgId, cleanText(thread.id));
+    return { ok: true, deleted: true };
+  });
+
+  app.post("/organizations/:orgId/agents/:agentId/run", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const entry = await readOwnedAssistantAgent(orgId, ctx.userId, getParam(request.params, "agentId"));
+    if (!entry) throw notFound("assistant_agent_not_found", "This agent was not found.");
+    return { ok: true, queued: await queueAssistantAgentRun(entry) };
+  });
+
+  // The dashboard beside the chat: artifacts the assistant and agents produced.
+  app.get("/organizations/:orgId/dashboard", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
+    return { ok: true, dashboard: await listAssistantDashboard(orgId, ctx.userId) };
+  });
+
+  app.delete("/organizations/:orgId/dashboard/:itemId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    await removeAssistantDashboardItem(orgId, ctx.userId, getParam(request.params, "itemId"));
+    return { ok: true, dashboard: await listAssistantDashboard(orgId, ctx.userId) };
   });
 
   app.get("/organizations/:orgId/settings", async (request) => {
@@ -221,7 +298,8 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
     const body = objectSchema.parse(request.body ?? {});
     const threadId = getParam(request.params, "threadId");
-    (await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, threadId, ctx.userId));
+    const { thread } = await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, threadId, ctx.userId);
+    const turnNote = agentIdFromSubject(thread.subject_id) ? await agentConfigurationTurnNote(orgId, ctx.userId, thread) : "";
     const result = await runAgentTurn(ASSISTANT_AGENT_ID, {
       orgId,
       branchId: cleanText(body.branch_id) || ctx.branchId || "default",
@@ -229,8 +307,10 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       message: String(body.message ?? body.text ?? ""),
       ctx,
       actorUserId: ctx.userId,
-      actorName: cleanText((ctx.user as Record<string, unknown> | undefined)?.name)
+      actorName: cleanText((ctx.user as Record<string, unknown> | undefined)?.name),
+      ...(turnNote ? { turnNote } : {})
     });
-    return { ok: true, ...result };
+    const dashboard = await pinTurnArtifacts(orgId, ctx.userId, threadId, result);
+    return { ok: true, ...result, ...(dashboard ? { dashboard } : {}) };
   });
 };
