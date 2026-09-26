@@ -14026,7 +14026,57 @@
       paneNotifications.innerHTML='<div class="my-settings-status" role="status">Loading notification preferences…</div>';
       try {
         const result=await window.PlatformAPI.notifications.preferences(currentOrgId(),currentBranchId());
-        const groups=result.catalog||[], preferences=result.preferences||{in_app:{},push:{}};
+        // Presentation groups are independent of app ownership and delivery keys.
+        // Only regroup the authorized catalog returned by the server.
+        const activityGroups=[
+          ['measurements','Measurements',['measurement']],
+          ['projects','Projects & tasks',['project','work','recurrence','note']],
+          ['sales','Leads & sales',['lead','canvassing']],
+          ['documents','Documents & proposals',['document','proposal']],
+          ['communications','Communications',['communication','call','tagging']],
+          ['billing','Billing & payments',['payment','invoice','expense','receipt','payroll']],
+          ['field','Field work & materials',['crew','material','punch_list']],
+          ['customers','Customer activity',['customer','portal','feedback','media']],
+          ['miscellaneous','Miscellaneous',['organization','website']]
+        ];
+        const grouped=new Map(activityGroups.map(([id,label])=>[id,{id,label,kind:'app',definitions:[]}]));
+        const eventLabels={
+          'tagging.mentioned':'You were mentioned',
+          'communication.sent':'Message sent','communication.received':'Message received',
+          'communication.queued':'Message awaiting delivery','communication.scheduled':'Message scheduled',
+          'communication.delivery_updated':'Message delivery updated','communication.auto_replied':'Automatic reply sent',
+          'call.completed':'Call completed','document.ingested':'Document uploaded',
+          'document.output.recorded':'Document response received','receipt.extracted':'Receipt details read',
+          'proposal.esign.signature_adopted':'Signature style chosen','proposal.esign.slot_signed':'Individual signature added',
+          'proposal.esign.completed':'Proposal signing completed','proposal.snapshot_created':'Proposal version saved',
+          'work.node.timer':'Task reminder','work.node.status_changed':'Task status changed',
+          'work.node.due':'Task overdue','work.plan.stage_manually_set':'Project stage changed',
+          'recurrence.occurrence.completed':'Recurring visit completed','recurrence.occurrence.skipped':'Recurring visit skipped',
+          'recurrence.series.created':'Recurring schedule created','recurrence.series.canceled':'Recurring schedule canceled'
+        };
+        const eventDescriptions={
+          'work.plan.created':'A workflow was added to a project.',
+          'work.plan.started':'A project workflow started.',
+          'work.plan.completed':'All stages of a project workflow finished.',
+          'work.node.status_changed':'A task moved to another status.',
+          'work.node.timer':'A reminder set for a task became due.',
+          'proposal.snapshot_created':'A version of the proposal was saved.',
+          'feedback.rating.recorded':'A customer submitted their rating and feedback.'
+        };
+        for(const group of result.catalog||[]){
+          if(group.kind==='workflow')continue;
+          for(const definition of group.definitions){
+            const event=definition.event||(definition.key.startsWith('event.')?definition.key.slice(6):'');
+            if(event==='time.cron'||event==='proposal.payment.mock_succeeded')continue;
+            const prefix=event.split('.')[0];
+            const destination=group.id==='measurements'?'measurements':event?(activityGroups.find(([, ,prefixes])=>prefixes.includes(prefix))?.[0]||'miscellaneous'):'miscellaneous';
+            const label=eventLabels[event]||definition.label.replace(/^Work plan\b/i,'Workflow').replace(/^Work node\b/i,'Task').replace(/^Organization\b/i,'Company');
+            const description=eventDescriptions[event]||definition.description.replace(' Receive these events in your branch, subject to your access permissions.','');
+            grouped.get(destination).definitions.push({...definition,label,description});
+          }
+        }
+        const groups=[...grouped.values()].filter(g=>g.definitions.length).concat((result.catalog||[]).filter(g=>g.kind==='workflow'));
+        const preferences=result.preferences||{in_app:{},push:{}};
         const collapsed=new Set(), pending={in_app:{},push:{}};
         let section='app',query='',saving=false,columns=1;
         paneNotifications.innerHTML=`<style>
@@ -14045,8 +14095,9 @@
           #csPaneNotifications .nc-heading small{font-size:11px;color:#667085}
           #csPaneNotifications .nc-heading i{font-size:10px;color:#667085;transition:transform .15s}
           #csPaneNotifications .nc-heading[aria-expanded=false] i{transform:rotate(-90deg)}
-          #csPaneNotifications .nc-grid{display:grid;grid-template-columns:repeat(var(--nc-columns,1),minmax(0,1fr));padding:0 12px 8px;column-gap:20px}
-          #csPaneNotifications .nc-col{min-width:0}
+          #csPaneNotifications .nc-grid{display:grid;grid-template-columns:repeat(var(--nc-columns,1),minmax(0,1fr));padding:0 0 8px}
+          #csPaneNotifications .nc-col{min-width:0;padding:0 12px}
+          #csPaneNotifications .nc-col+.nc-col{border-left:1px solid #d0d5dd}
           #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 48px;align-items:center;gap:4px}
           #csPaneNotifications .nc-colhead{height:30px;color:#667085;font-size:10px;border-bottom:1px solid #eaecf0}
           #csPaneNotifications .nc-colhead span:not(:first-child){text-align:center}
@@ -14072,7 +14123,7 @@
           #csPaneNotifications [hidden]{display:none!important}
           @media(prefers-reduced-motion:reduce){#csPaneNotifications .nc-track,#csPaneNotifications .nc-track:after{transition:none}}
         </style><div class="nc-shell" data-settings-autosave="off">
-          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups"><button type="button" data-nc-tab="app" aria-pressed="true">Apps</button><button type="button" data-nc-tab="workflow" aria-pressed="false">Workflows & scopes</button></div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label></div>
+          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups"><button type="button" data-nc-tab="app" aria-pressed="true">General</button><button type="button" data-nc-tab="workflow" aria-pressed="false">Workflows & scopes</button></div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label></div>
           <div class="nc-list"></div><div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>Retry saving</button>
           ${window.PlatformPush?.available?.()?'<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>Enable push on this phone</button><button class="cs-btn" type="button" data-nc-disable>Disable on this phone</button></div>':''}
         </div>`;
@@ -14080,8 +14131,8 @@
         const draw=()=>{
           const shown=groups.filter(g=>query||g.kind===section).map(g=>({...g,visible:g.definitions.filter(d=>`${g.label} ${d.label} ${d.description}`.toLowerCase().includes(query))})).filter(g=>!query||g.visible.length||g.label.toLowerCase().includes(query));
           list.innerHTML=shown.map((g,index)=>{
-            const open=query||!collapsed.has(g.id),count=g.visible.length,n=Math.min(columns,Math.max(1,count)),size=Math.ceil(count/n);
-            return `<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>Notification</span><span>In app</span><span>Push</span></div>${g.visible.slice(col*size,(col+1)*size).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="About ${escapeHtml(d.label)}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:'<div class="nc-empty">No notifications declared in this workflow yet.</div>'}</div></section>`;
+            const open=query||!collapsed.has(g.id),count=g.visible.length,n=columns,size=Math.floor(count/n),extra=count%n;
+            return `<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>Notification</span><span>In app</span><span>Push</span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="About ${escapeHtml(d.label)}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:'<div class="nc-empty">No notifications declared in this workflow yet.</div>'}</div></section>`;
           }).join('')||'<div class="nc-empty">No matching notification categories.</div>';
         };
         const save=async()=>{
@@ -14106,7 +14157,7 @@
         shell.addEventListener('mouseover',positionTip);shell.addEventListener('focusin',positionTip);shell.addEventListener('click',positionTip);
         retry.addEventListener('click',save);
         for(const action of ['enable','disable'])shell.querySelector(`[data-nc-${action}]`)?.addEventListener('click',async event=>{event.currentTarget.disabled=true;try{const result=await window.PlatformPush[action]();status.textContent=action==='disable'?'Push disabled on this phone.':result?.granted?'Push enabled on this phone.':result?.reason||'Allow notifications in your phone settings.';}catch(error){status.textContent=error?.message||'Could not update phone notifications.';}finally{event.target.disabled=false;}});
-        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.clientWidth/340)));if(next!==columns){columns=next;draw();}};
+        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.clientWidth/280)));if(next!==columns){columns=next;draw();}};
         paneNotifications.__notificationResize=new ResizeObserver(resize);paneNotifications.__notificationResize.observe(shell);draw();resize();
       }catch(error){paneNotifications.innerHTML=`<div class="my-settings-status" role="alert">${escapeHtml(error?.message||'Notification settings could not be loaded.')}</div>`;}
     }
