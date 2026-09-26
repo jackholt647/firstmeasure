@@ -32,6 +32,7 @@ import type { AgentRun, AgentTool, AgentTurnResult } from "../../agents/types.js
 import { asArray, asObject, cleanText, nowIso, toolError, type JsonObject } from "../../agents/util.js";
 import { nextCronFire, parseScheduleAt } from "../../channels/agent.js";
 import { resolveOrganizationTimezone } from "../../platform/timezone.js";
+import { env } from "../../src/config/env.js";
 
 export const ASSISTANT_SURFACE = "assistant";
 const AGENT_ID = "assistant";
@@ -616,12 +617,24 @@ export async function runAssistantAgentJob(record: JsonObject, event: JsonObject
 // ── Dedicated lane ──────────────────────────────────────────────────────────
 
 let laneRunning = false;
+let laneTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Sweeps and runs only personal assistant agents. The platform heartbeat owner
- * calls it, so agents work where no platform worker is installed; the platform
- * worker also runs these jobs. Claims are transactional, so both can coexist.
+ * Every process that serves the assistant and can reach the model runs this
+ * lane, so agents work where no platform worker is installed. Schedule and job
+ * claims are transactional, so several web replicas and a platform worker can
+ * all run it without duplicating an occurrence.
  */
+export function startAssistantAgentLane(log?: { warn: (value: unknown, message?: string) => void }) {
+  if (laneTimer || env.isTest || process.env.ASSISTANT_AGENT_LANE_DISABLED === "1" || !cleanText(env.openaiApiKey)) return false;
+  laneTimer = setInterval(() => {
+    void runAssistantAgentLane().catch((error) => log?.warn({ err: error }, "Assistant agent lane failed."));
+  }, 15_000);
+  laneTimer.unref?.();
+  return true;
+}
+
+/** Sweeps and runs only personal assistant agents; dormant Channels wakeups are left alone. */
 export async function runAssistantAgentLane(now = new Date(), limit = 3) {
   if (laneRunning) return { queued: 0, handled: 0, skipped: true };
   laneRunning = true;
