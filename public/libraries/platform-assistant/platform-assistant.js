@@ -1700,8 +1700,11 @@
     state.pending = true;
     els.send.disabled = true;
     renderMessages({ animateLast:true });
+    let threadId = '';
+    let knownMessages = -1;
     try {
-      const threadId = await ensureThread();
+      threadId = await ensureThread();
+      try { knownMessages = array((await window.AssistantAPI.thread(orgId(), threadId)).messages).length; } catch (_) {}
       const attachments = [];
       for (const file of files) {
         const uploaded = await window.AssistantAPI.upload(orgId(), threadId, file);
@@ -1735,17 +1738,29 @@
         window.AssistantAPI.agents.list(orgId()).then((list) => { state.agents = array(list.agents); renderHistory(); }).catch(() => null);
       }
     } catch (error) {
-      state.attachments.unshift(...files);
+      const busy = clean(error?.code) === 'agent_thread_busy';
+      const lost = error?.name === 'TimeoutError' || error?.name === 'AbortError' || !error?.status || error.status >= 502;
+      if (busy) {
+        // Nothing was sent: give the text back and wait for the earlier request to finish.
+        state.messages.pop();
+        if (!clean(els.input.value)) els.input.value = text;
+      }
+      if ((busy || lost) && threadId && knownMessages >= 0 && await waitForReply(threadId, busy ? knownMessages : knownMessages + 1)) {
+        if (busy) state.attachments.unshift(...files);
+      } else {
+        state.attachments.unshift(...files);
+        state.messages.push({
+          id:`local_${Date.now()}_e`,
+          role:'assistant',
+          content: busy
+            ? 'I’m still finishing your previous request. Send this again in a moment.'
+            : lost
+              ? 'I lost the connection before your answer arrived. Your message may still be processing; reopen this conversation in a minute to check.'
+              : (clean(error?.message) || 'Something went wrong. Please try again.'),
+          data:{ status:'failed' }
+        });
+      }
       renderAttachments();
-      const offline = error?.name === 'TimeoutError' || error?.name === 'AbortError';
-      state.messages.push({
-        id:`local_${Date.now()}_e`,
-        role:'assistant',
-        content: offline
-          ? 'That took too long and timed out. Please try again — shorter questions help.'
-          : (clean(error?.message) || 'Something went wrong. Please try again.'),
-        data:{ status:'failed' }
-      });
     } finally {
       state.pending = false;
       if (els.send) els.send.disabled = false;
@@ -1757,6 +1772,28 @@
       els.input?.focus();
       updateComposer();
     }
+  }
+
+  /**
+   * After a dropped or timed-out request the server may still be working. Poll
+   * the thread until it is idle with a new reply (up to six minutes).
+   */
+  async function waitForReply(threadId, minimumMessages){
+    const deadline = Date.now() + 6 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      if (state.threadId !== threadId) return false;
+      try {
+        const result = await window.AssistantAPI.thread(orgId(), threadId);
+        const messages = mapThreadMessages(result.messages);
+        const last = messages[messages.length - 1];
+        if (clean(object(result.thread).status) !== 'working' && messages.length > minimumMessages && clean(last?.role) === 'assistant') {
+          state.messages = messages;
+          return true;
+        }
+      } catch (_) { /* keep waiting while the connection recovers */ }
+    }
+    return false;
   }
 
   // ── Public API ───────────────────────────────────────────────────────────
