@@ -584,3 +584,33 @@ test("chat artifacts are validated and pinned to the dashboard", async () => {
     assert.equal(reply.assistant_message.data.renders[0].kind, "metrics");
   } finally { mock.restore(); }
 });
+
+test("the heartbeat lane runs only personal assistant agents", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const context = await client.request("GET", `${base}/context`);
+  const agents = await import("../agents/storage.js");
+  const { runAssistantAgentLane } = await import("../assistant/agent/agents.js");
+  const thread = await agents.createAgentThread({ agent_id: "assistant", organization_id: orgId, subject_id: "agent:pending", title: "Tracker", created_by_user_id: context.main_thread.created_by_user_id });
+  const agent = await agents.createAgentSchedule({ agent_id: "assistant", organization_id: orgId, origin_thread_id: thread!.id, created_by_user_id: context.main_thread.created_by_user_id,
+    surface: "assistant", title: "Tracker", summary: "Tracks things.", instructions: "Say hello.", kind: "recurring", cron: "0 11 * * *", timezone: "UTC" });
+  await agents.updateAgentThread("assistant", orgId, String(thread!.id), { subject_id: `agent:${agent!.id}` });
+  const channelThread = await agents.createAgentThread({ agent_id: "assistant", organization_id: orgId, subject_id: "channel_x", title: "Channel" });
+  const channelSchedule = await agents.createAgentSchedule({ agent_id: "assistant", organization_id: orgId, origin_thread_id: channelThread!.id, origin_channel_id: "channel_x", kind: "once", fire_at: new Date(Date.now() - 60_000).toISOString(), instructions: "x" });
+
+  await client.request("POST", `${base}/agents/${agent!.id}/run`, {});
+  const run = mockOpenAI([
+    { output: [functionCall("report_result", { status: "success", summary: "Hello." }, "l1")] },
+    { output: [messageOutput("Hello from your tracker.")] }
+  ]);
+  try {
+    const result = await runAssistantAgentLane();
+    assert.equal(result.handled, 1);
+  } finally { run.restore(); }
+  assert.equal((await agents.readAgentSchedule(String(channelSchedule!.id)))?.status, "active", "channel schedules are left to the platform worker");
+  const main = await client.request("GET", `${base}/threads/${context.main_thread.id}`);
+  assert.equal(main.messages.at(-1).content, "Hello from your tracker.");
+  assert.equal(main.messages.at(-1).data.manual, true);
+  assert.equal((await client.request("GET", `${base}/agents/${agent!.id}`)).agent.last_result, "Hello from your tracker.");
+});

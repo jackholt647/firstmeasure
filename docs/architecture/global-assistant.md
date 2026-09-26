@@ -128,9 +128,12 @@ can compare with earlier ones. Schedules use the company timezone; recurring
 agents may run at most every 15 minutes, and a user may have 20 active or paused
 agents. Resuming or rescheduling does not replay missed occurrences.
 
-The shared channel scheduler on the worker role sweeps due schedules and routes
-`surface = 'assistant'` jobs to `assistant/agent/agents.ts` (Channels need not
-be enabled). A run executes in the agent thread as its creator through
+Agent occurrences are queued as `assistant_agent` wakeup jobs. The platform
+heartbeat owner runs a dedicated lane every 15 seconds that sweeps only assistant
+agent schedules and drains only those jobs, so agents work where no platform
+worker is installed (Channels need not be enabled, and dormant Channels wakeups
+are left alone). A platform worker, when installed, also runs these jobs; claims
+are transactional, so both can coexist. A run executes in the agent thread as its creator through
 `backgroundAuthContext`, so current permissions, capability and settings gates
 still apply. The reply is appended to the creator's main thread with
 `data.source = 'agent'`, its artifacts are pinned to the dashboard (replacing the
