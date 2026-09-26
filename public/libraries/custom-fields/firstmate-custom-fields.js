@@ -865,7 +865,7 @@
     try { settings = await load(options); }
     catch (error) { container.innerHTML = `<div class="cf-empty">${escapeHtml(error?.message || 'Custom fields are unavailable.')}</div>`; return; }
     let fields = settings.fields;
-    let scope = options.entity || 'organization';
+    let scope = options.entity || 'project';
     let selectedId = fields.find(f => f.entity === scope)?.id || '';
     const drafts = new Set();
 
@@ -877,7 +877,7 @@
       const numericTypes = new Set(['integer', 'number', 'currency', 'percentage', 'slider']);
       container.innerHTML = `<div class="cf-settings" data-settings-autosave="off">
         <div class="cf-settings-head"><div><h3>Custom fields</h3><p>Manage the information saved for your organization, projects, and contacts.</p></div><button type="button" class="cf-btn primary" data-cf-add="${scope}"><span aria-hidden="true">+</span> Add field</button></div>
-        <div class="cf-scope-bar" role="tablist" aria-label="Field scope">${[['organization','Organization'],['project','Projects'],['contact','Contacts']].map(([id,label]) => `<button type="button" role="tab" aria-selected="${scope === id}" class="cf-scope-tab" data-cf-scope="${id}">${label}<span>${fields.filter(f => f.entity === id).length}</span></button>`).join('')}</div>
+        <div class="cf-scope-bar" role="tablist" aria-label="Field scope">${[['project','Projects'],['contact','Contacts'],['organization','Organization']].map(([id,label]) => `<button type="button" role="tab" aria-selected="${scope === id}" class="cf-scope-tab" data-cf-scope="${id}">${label}<span>${fields.filter(f => f.entity === id).length}</span></button>`).join('')}</div>
         <p class="cf-scope-description">${scope === 'organization' ? 'Shared company information. Add a field, then enter its value here.' : `Define the fields people fill in on individual ${scope === 'project' ? 'projects' : 'contacts'}.`}</p>
         <div class="cf-layout${visible.length ? '' : ' is-empty'}"><aside class="cf-list-shell"><div class="cf-list-title"><span>${(globalThis.PlatformLanguage?.text("custom-fields","m_b6878598aff8e0","Your fields") ?? "Your fields")}</span><span>${String(visible.length)}</span></div><div class="cf-list">${String(visible.length ? visible.map((field) => {
           const type = TYPE_BY_VALUE.get(field.type) || TYPE_BY_VALUE.get('text');
@@ -898,8 +898,8 @@
             <section class="cf-section" data-cf-number-row${numericTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-ruler-combined"></i> Number limits <span class="cf-help">(optional)</span></div><div class="cf-form-grid"><div class="cf-row"><label>Minimum</label><input class="cf-in" type="number" step="any" name="min" value="${selected.min ?? ''}"></div><div class="cf-row"><label>Maximum</label><input class="cf-in" type="number" step="any" name="max" value="${selected.max ?? ''}"></div><div class="cf-row"><label>Step</label><input class="cf-in" type="number" step="any" min="0" name="step" value="${selected.step ?? ''}" placeholder="Any"></div><div class="cf-row" data-cf-currency${selected.type === 'currency' ? '' : ' hidden'}><label>Currency</label><select class="cf-in" name="currency">${['USD','CAD','EUR','GBP','AUD'].map((currency) => `<option value="${currency}"${selected.currency === currency ? ' selected' : ''}>${currency}</option>`).join('')}</select></div></div></section>
             <section class="cf-section" data-cf-schema-row${['object','array','json'].includes(selected.type) ? '' : ' hidden'}><div class="cf-section-title">Subfields and item rules</div><label>JSON Schema<textarea class="cf-in" name="schema" rows="8" spellcheck="false">${escapeHtml(JSON.stringify(selected.schema,null,2))}</textarea></label><span class="cf-help">Dictionary example: {"properties":{"count":{"type":"integer","minimum":0}},"required":["count"],"additionalProperties":false}. Array example: {"items":{"type":"object","properties":{"name":{"type":"string"}}}}. Formats: date, datetime, email, phone, url.</span></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-eye"></i> Preview</div><div class="cf-preview"><div class="cf-preview-label">People will see</div><div class="fm-cf-field" data-cf-preview><label>${escapeHtml(selected.label)}${selected.required ? ' <em>*</em>' : ''}</label>${inputHtml(selected, selected.default_value)}</div></div></section>
-            <section class="cf-section"><div class="cf-section-title"><i class="fas fa-location-dot"></i> Where should it appear?</div><div class="cf-toggles">
-              <label class="cf-toggle"><input type="checkbox" name="show_in_overview"${selected.show_in_overview ? ' checked' : ''}> <span><strong>Project or contact details</strong><br>Show this field while viewing and editing the record.</span></label>
+            <section class="cf-section"><div class="cf-section-title"><i class="fas fa-location-dot"></i> <span data-cf-display-heading>${selected.entity === 'organization' ? 'Field behavior' : 'Where should it appear?'}</span></div><div class="cf-toggles">
+              <label class="cf-toggle" data-cf-overview-toggle${selected.entity === 'organization' ? ' hidden' : ''}><input type="checkbox" name="show_in_overview"${selected.show_in_overview ? ' checked' : ''}> <span><strong data-cf-overview-label>${selected.entity === 'contact' ? 'Contact details' : 'Project details'}</strong><br><span data-cf-overview-help>${selected.entity === 'contact' ? 'Show this field while viewing and editing a contact.' : 'Show this field while viewing and editing a project.'}</span></span></label>
               <label class="cf-toggle" data-cf-scope-toggle${selected.entity === 'project' ? '' : ' hidden'}><input type="checkbox" name="show_in_scope"${selected.show_in_scope ? ' checked' : ''}> <span><strong>Scope workspace</strong><br>Show a read-only value alongside measurements.</span></label>
               <label class="cf-toggle"><input type="checkbox" name="background_only"${selected.background_only ? ' checked' : ''}> <span><strong>Store in the background</strong><br>Keep integration data without showing an input.</span></label>
               <label class="cf-toggle" data-cf-formula-toggle${['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(selected.type) ? '' : ' hidden'}><input type="checkbox" name="formula_available"${selected.formula_available ? ' checked' : ''}> <span><strong>Available in calculations</strong><br>Use <code>${escapeHtml(selected.formula_key)}</code> in project formulas.</span></label>
@@ -961,6 +961,10 @@
         form.querySelector('[data-cf-scope-mode]').hidden = entity !== 'project';
         form.querySelector('[data-cf-scopes]').hidden = entity !== 'project' || scopeMode !== 'selected';
         form.querySelector('[data-cf-scope-toggle]').hidden = entity !== 'project';
+        form.querySelector('[data-cf-overview-toggle]').hidden = entity === 'organization';
+        form.querySelector('[data-cf-overview-label]').textContent = entity === 'contact' ? 'Contact details' : 'Project details';
+        form.querySelector('[data-cf-overview-help]').textContent = `Show this field while viewing and editing a ${entity === 'contact' ? 'contact' : 'project'}.`;
+        form.querySelector('[data-cf-display-heading]').textContent = entity === 'organization' ? 'Field behavior' : 'Where should it appear?';
         form.querySelector('[data-cf-formula-toggle]').hidden = !['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(type);
         const label = cleanText(form.elements.label.value) || 'Untitled field';
         const draft = normalizeDefinition({
