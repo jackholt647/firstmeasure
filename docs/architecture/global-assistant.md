@@ -110,6 +110,45 @@ including video, are stored and shown in history but their contents are not
 analyzed by the model. Browser microphone dictation uses the same transcription
 service and places recognized text into the composer for review before send.
 
+## Main thread, agents and the dashboard
+
+Each user has one **main thread** (`agent_threads.subject_id = 'main'`), created
+on first `context` read inside a store transaction. Other personal threads are
+**side chats**. The navigation lists the main thread, a collapsible **Agents**
+section and a collapsible **Side chats** section; new side chat and settings are
+in its header and search is at its bottom.
+
+An **agent** is a personal scheduled task the assistant creates with
+`create_agent` (also `list_agents`, `update_agent`, `delete_agent`,
+`run_agent_now`). It is an `agent_schedules` row with `surface = 'assistant'`,
+a short title, a summary and run instructions, plus its own thread
+(`subject_id = 'agent:<schedule id>'`). That thread holds the configuration chat
+(the API adds the current setup to each turn) and the history of runs, so runs
+can compare with earlier ones. Schedules use the company timezone; recurring
+agents may run at most every 15 minutes, and a user may have 20 active or paused
+agents. Resuming or rescheduling does not replay missed occurrences.
+
+The shared channel scheduler on the worker role sweeps due schedules and routes
+`surface = 'assistant'` jobs to `assistant/agent/agents.ts` (Channels need not
+be enabled). A run executes in the agent thread as its creator through
+`backgroundAuthContext`, so current permissions, capability and settings gates
+still apply. The reply is appended to the creator's main thread with
+`data.source = 'agent'`, its artifacts are pinned to the dashboard (replacing the
+same agent's artifact with the same key), the schedule records the last result,
+and a push notification (`frontend_action.kind = 'open_assistant'`) opens the
+main thread. Delivery is in-app and push; agents do not send SMS.
+
+**Artifacts** are declarative specs from `create_artifact` (bar, line, pie,
+donut, metrics, table, text), validated server-side and drawn by the browser's
+own SVG/HTML renderer; model-authored HTML or script is never executed. Chat
+artifacts are pinned to the per-user `assistant_dashboard_items` table (12 most
+recent). In the full workspace the dashboard sits left of the conversation with
+an invisible, draggable divider; the composer stays centered beneath both. When
+the window is narrow, docked, or the dashboard is hidden, artifacts render
+inline in the conversation. Settings → Agents lists, pauses, resumes, runs and
+deletes a user's agents. Routes: `agents`, `agents/:id` (GET, PATCH, DELETE),
+`agents/:id/run`, `dashboard` and `dashboard/:itemId` under the organization prefix.
+
 ## Reliability
 
 The shared runtime stops after 16 rounds, 64 tool calls, or repeated identical
