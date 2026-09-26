@@ -2019,7 +2019,7 @@ session_write_close();
         <button type="button" class="sidebar-mode-tab active" id="sidebarAppsTab" role="tab" aria-selected="true" aria-controls="sidebarAppsPanel">Apps</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarTodoTab" role="tab" aria-selected="false" aria-controls="sidebarTodoPanel">To Do</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarChannelsTab" role="tab" aria-selected="false" aria-controls="sidebarChannelsPanel">Channels</button>
-        <button type="button" class="sidebar-mode-tab" id="sidebarAgentsTab" role="tab" aria-selected="false" aria-controls="sidebarAgentsPanel">Agents</button>
+        <button type="button" class="sidebar-mode-tab" id="sidebarAgentsTab" role="tab" aria-selected="false" aria-controls="sidebarAgentsPanel">AI</button>
       </div>
 
       <div class="sidebar-panel active" id="sidebarAppsPanel" role="tabpanel" aria-labelledby="sidebarAppsTab">
