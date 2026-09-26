@@ -4963,6 +4963,12 @@ function startPlatformHeartbeat(app: { log?: { warn: (value: unknown, message?: 
       .catch(error => app.log?.warn({err:error}, "Platform billing sweep failed."));
   }, HEARTBEAT_INTERVAL_MS);
   timer.unref?.();
+  // Personal assistant agents (scheduled tasks) run in the heartbeat owner; claims are transactional.
+  const assistantAgents = setInterval(() => {
+    void import("../assistant/agent/agents.js").then(({ runAssistantAgentLane }) => runAssistantAgentLane())
+      .catch(error => app.log?.warn({err:error}, "Assistant agent lane failed."));
+  }, 15_000);
+  assistantAgents.unref?.();
 }
 
 function getParam(params: unknown, key: string) {
