@@ -87,3 +87,45 @@ web `5e4a6a0` → `44a12c0381a5c0b8ce7665e11f124bad6fa38da5`, pool `dd9d049` →
 `a3e9f5adf5a45fae77e81ee4461ca4f321fd51c4`; worker and compatibility unchanged.
 Guarded staging/activation passed; the public asset SHA-256 is
 `aad36f0204eaec4918ba2fa232a3cf2b001ce0766e33b6584e0d233df061fbeb`.
+
+## Robustness QA and hardening
+
+Fault injection (`tests/assistant-robustness.test.ts`, 11 tests) and two live rounds
+against the real model (51 checks across the main thread, side chats, agent
+configuration chats, scheduled runs, Channels DM/mention and the notification
+assistant) found and fixed:
+
+- Raw provider errors, which can include key fragments, were shown to users. Users
+  now see plain messages; details stay in the run trace with keys redacted.
+- An impossible cron such as February 31 blocked the Node event loop for 56 s
+  (also affecting Channels `schedule_wakeup` and automation schedules). Cron search
+  now walks civil days with strict validation and cached formatters: under 1 ms,
+  identical results across zones and DST.
+- Blank, non-text and oversized messages reached the model; they are now rejected.
+- Turns could run about 32 minutes while the browser gave up at 160 s. Turns stop
+  after 5 minutes, and the browser waits for the reply after a timeout, dropped
+  connection or busy thread.
+- Clarifying questions and rule-based refusals were recorded as failures.
+  `report_result` has a `needs_input` status.
+- Relative times failed and the model asked for a timezone. The prompt and workspace
+  context now carry the company's local time and timezone.
+
+Behaviour confirmed live: sub-15-minute, invalid-date, past and invalid-hour requests
+are declined with a question; no system-prompt disclosure; no fabricated data;
+messaging-off respected; loop bait ends; concurrency is refused cleanly; relative
+reminders fire in the assistant and in Channels; no stuck threads or jobs.
+
+Releases: web `a042c677003ae9da1e142967d4f3e5d3081257ca`, pool
+`291c31d805b356b213892568bf080ac80d3e40da`, legacy
+`a1b2f83b6dbfc1bccdd86b4eda172c06eab977a9`, worker
+`7c50c5583ee0ee3d3b20433da93b27f35b79ca6f` (intermediate hardening releases
+`7427c8f`, `092b6ff`, `79d2eb2`, `67df4c4`).
+
+The live QA ran in an isolated in-process app on the first web node with temporary
+storage and throwaway companies; no development database rows or user accounts
+were created. The app's Channels, messaging and internal stores default to paths
+relative to the working directory, so the harness created `public/v1/storage`
+inside releases `7427c8f` and `a042c67` on that node (only QA data; the service
+never opened it; the pre-QA release had no such directory). It was removed and
+both web nodes re-verified. Future in-process harnesses must run from a copy or set
+those store roots.
