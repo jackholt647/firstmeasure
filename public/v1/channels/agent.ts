@@ -45,7 +45,7 @@ import {
   updateAgentAwait,
   updateAgentSchedule
 } from "../agents/storage.js";
-import { cronMatches, latestCronFire } from "../work/cron.js";
+import { findCronOccurrence, latestCronFire } from "../work/cron.js";
 import { resolveOrganizationTimezone, zonedInstant } from "../platform/timezone.js";
 import { loadAgentSettings } from "../agents/settings.js";
 import {
@@ -77,13 +77,8 @@ const MAX_ACTIVE_SCHEDULES_PER_THREAD = 12;
  * never-firing expressions).
  */
 export function nextCronFire(expression: string, timezone: string, from = new Date(), maxDays = MAX_SCHEDULE_DAYS) {
-  if (String(expression || "").trim().split(/\s+/).length !== 5) return "";
-  const start = Math.floor(from.getTime() / 60_000) * 60_000 + 60_000;
-  const end = from.getTime() + maxDays * 86_400_000;
-  for (let minute = start; minute <= end; minute += 60_000) {
-    if (cronMatches(expression, new Date(minute), timezone || undefined)) return new Date(minute).toISOString();
-  }
-  return "";
+  const start = Math.floor(from.getTime() / 60_000) * 60_000;
+  return findCronOccurrence(expression, start, from.getTime() + maxDays * 86_400_000, timezone || undefined, "asc");
 }
 
 const EXPLICIT_OFFSET_RE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
