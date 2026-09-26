@@ -36,7 +36,14 @@ public check; both nodes were verified directly.
 The follow-up dispatches the loaded preferences to Channels registration when
 the portal reloads. Both nodes passed guarded local readiness on `7a9b720`;
 six public readiness requests and the public `core.js` SHA-256 matched that
-final release.
+release.
+
+The left-column tab label was shortened from **Agents** to **AI** in source
+`26440da`. Both web nodes then advanced to immutable release
+`26440daf1f29e011867d27a74ccf1aeb99581c1c` with a one-file overlay of
+their live `index.php`, retaining the concurrent Brand Kit and resize markup.
+PHP lint passed, both node files matched the staged SHA-256, both local roles
+were ready, and six public readiness responses reported the new release.
 
 For rollback, first account for any later concurrent release. Restore each
 node's `/opt/firstmeasure/current` symlink to the previous release above,
