@@ -9,6 +9,11 @@
       "code": "en-GB",
       "label": "English (UK)",
       "direction": "ltr"
+    },
+    {
+      "code": "ja-JP",
+      "label": "日本語",
+      "direction": "ltr"
     }
   ],
   "translation_targets": [
