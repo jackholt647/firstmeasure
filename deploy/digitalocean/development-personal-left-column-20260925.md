@@ -1,6 +1,6 @@
 # Personal left-column preferences — development
 
-Source commits `38ae636` and `47c903e` are pushed on
+Source commits `38ae636`, `47c903e` and `7a9b720` are pushed on
 `codex/consolidated-firstmeasure-20260923`. The left-column Apps, To Dos,
 Channels, Agents, default tab, compact mode, expansion mode and drag-resize
 controls now live in Company Settings > My Settings. They save through the
@@ -10,9 +10,10 @@ layout switches. Assistant Settings no longer contains Conversation layout.
 Application and domain permissions still gate the underlying content.
 
 Both serving development web nodes advanced from release `060150a24dd4e70d62593a2fbe466a0f191e93e1`
-to immutable release `47c903e37a33c5601efb24c9e4bdf04f6c5429b3`. Each
-release inherited its exact live predecessor and overlaid 14 reviewed source
-and compiled-runtime files. The live predecessor contained concurrent drag
+to immutable release `47c903e37a33c5601efb24c9e4bdf04f6c5429b3`, followed by
+the one-file preference-load follow-up `7a9b72091794ed093dd63fb9373a199cc5a833dc`. Each
+release inherited its exact live predecessor; the first overlaid 14 reviewed
+source and compiled-runtime files. The live predecessor contained concurrent drag
 resize and Brand Kit work absent from the canonical source: the deployed
 `core.js` retains drag resize and reads its setting from personal preferences;
 the deployed `company.js` retains Brand Kit and adds the My Settings controls.
@@ -31,6 +32,11 @@ data and enforced outbound isolation. Twelve public readiness requests were
 healthy, and public Core, Settings, Assistant and Channels scripts matched the
 staged SHA-256 hashes. Load-balancer sampling selected one node in that short
 public check; both nodes were verified directly.
+
+The follow-up dispatches the loaded preferences to Channels registration when
+the portal reloads. Both nodes passed guarded local readiness on `7a9b720`;
+six public readiness requests and the public `core.js` SHA-256 matched that
+final release.
 
 For rollback, first account for any later concurrent release. Restore each
 node's `/opt/firstmeasure/current` symlink to the previous release above,
