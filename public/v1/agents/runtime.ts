@@ -105,6 +105,16 @@ async function executeTool(run: AgentRun, tools: AgentTool[], name: string, args
   }
 }
 
+/**
+ * Provider failures are shown to people in plain language. The provider's own
+ * text can include account or key details, so it stays in the internal trace.
+ */
+function modelFailureMessage(status: number, detail: string) {
+  if (status === 429) return "The AI service is busy right now. Please try again in a minute.";
+  if (status === 0 && /abort|timed? ?out/i.test(detail)) return "The AI service took too long to respond. Please try again.";
+  return "The AI service is unavailable right now. Please try again shortly.";
+}
+
 type LoopOutcome = {
   finalText: string;
   reported: { status: string; summary: string } | null;
@@ -120,7 +130,7 @@ async function executeLoop(
   run: AgentRun,
   tools: AgentTool[],
   conversation: JsonObject[],
-  options: { maxRounds: number; maxOutputTokens: number; retryOnRetryable: boolean; checkLease?: () => void }
+  options: { maxRounds: number; maxOutputTokens: number; retryOnRetryable: boolean; checkLease?: () => void; maxDurationMs?: number }
 ): Promise<LoopOutcome> {
   const actionTurnId = randomUUID();
   const model = definition.model();
@@ -145,15 +155,24 @@ async function executeLoop(
     max_output_tokens: options.maxOutputTokens
   });
 
+  const startedAt = Date.now();
+  const maxDurationMs = options.maxDurationMs ?? definition.loop?.maxDurationMs ?? 300_000;
   for (let round = 0; round < options.maxRounds; round += 1) {
     options.checkLease?.();
+    if (round > 0 && Date.now() - startedAt > maxDurationMs) {
+      outcome.loopError = "This request took too long and was stopped. Try asking for a smaller piece at a time.";
+      break;
+    }
     outcome.rounds = round + 1;
     let result = await requestOpenAIResponse(requestPayload(), { timeoutMs: model.timeoutMs ?? 120_000 });
     if (!result.ok && options.retryOnRetryable && isRetryableOpenAIStatus(result.status)) {
       result = await requestOpenAIResponse(requestPayload(), { timeoutMs: model.timeoutMs ?? 120_000 });
     }
     if (!result.ok) {
-      outcome.loopError = openAIErrorMessage(result, `${definition.title} is unavailable right now.`);
+      const detail = openAIErrorMessage(result, `${definition.title} is unavailable right now.`);
+      run.trace.push({ tool: "model", ok: false, status: result.status, error: traceValue(detail.replace(/sk-[A-Za-z0-9_*-]+/g, "sk-…"), 500), at: new Date().toISOString() });
+      console.warn(`[agents] ${definition.id} model request failed (${result.status || "network"})`);
+      outcome.loopError = modelFailureMessage(result.status, detail);
       break;
     }
     options.checkLease?.();
