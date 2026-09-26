@@ -134,7 +134,7 @@ export const scopeCustomFieldDefinitionSchema = jsonObjectSchema.extend({
   label: z.string().trim().min(1).max(300),
   description: z.string().max(4_000).optional(),
   type: z.enum([
-    "text", "multiline", "email", "phone", "url", "number", "currency", "percentage", "slider",
+    "text", "multiline", "email", "phone", "url", "number", "integer", "array", "object", "currency", "percentage", "slider",
     "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list",
     "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection",
     "assignable_subject"

@@ -2743,6 +2743,9 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "create") });
     const body = objectBodySchema.parse(request.body ?? {});
     if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
+    await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
+      (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
+    );
     const document = collection === "users"
       ? await createPlatformOrgUser(orgId, body)
       : collection === "projects"
@@ -2816,6 +2819,9 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_replacement_forbidden", "You cannot replace your own organization user record.");
     }
+    await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
+      (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
+    );
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, true)
       : collection === "projects"
@@ -2875,6 +2881,9 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId && platformOrgUserPermissionMutation(body)) {
       throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
     }
+    await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
+      (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
+    );
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, false)
       : collection === "projects"
@@ -4383,7 +4392,7 @@ async function upsertProjectDocumentPreservingEvents(
     const mergedProjectData = mergeProjectCustomFieldsForSave(currentData, {
       ...incomingData,
       events: mergeProjectEmbeddedEvents(currentData.events, incomingData.events)
-    });
+    }, await (await import("../custom_fields/records.js")).definitions(orgId, cleanText(currentData.branch_id || incomingData.branch_id || "default"), "project", currentData));
     await validateProjectCustomFieldValues(
       orgId,
       cleanText(mergedProjectData.branch_id || currentData.branch_id || "default") || "default",

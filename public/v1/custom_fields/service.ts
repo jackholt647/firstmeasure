@@ -60,7 +60,7 @@ export function setCustomFieldValueAtPath(value: unknown, pathValue: unknown, ne
 function normalizedFieldType(value: unknown) {
   const type = cleanText(value || "text").toLowerCase();
   const supported = new Set([
-    "text", "multiline", "email", "phone", "url", "number", "currency", "percentage", "slider",
+    "text", "multiline", "email", "phone", "url", "number", "integer", "array", "object", "currency", "percentage", "slider",
     "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list",
     "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection",
     "assignable_subject"
@@ -333,14 +333,20 @@ function deepMergeObjects(leftValue: unknown, rightValue: unknown): JsonObject {
   return merged;
 }
 
-export function mergeProjectCustomFieldsForSave(currentValue: unknown, incomingValue: unknown) {
+export function mergeProjectCustomFieldsForSave(currentValue: unknown, incomingValue: unknown, definitions: JsonObject[] = []) {
   const current = asObject(currentValue);
   const incoming = asObject(incomingValue);
   const currentValues = asObject(current.custom_field_values || current.custom_fields);
   const incomingHasValues = Object.prototype.hasOwnProperty.call(incoming, "custom_field_values")
     || Object.prototype.hasOwnProperty.call(incoming, "custom_fields");
   const incomingValues = asObject(incoming.custom_field_values || incoming.custom_fields);
-  const values = incomingHasValues ? deepMergeObjects(currentValues, incomingValues) : currentValues;
+  let values = incomingHasValues ? deepMergeObjects(currentValues, incomingValues) : currentValues;
+  for (const field of [...normalizedProjectSchema(current).fields, ...definitions]) {
+    const path = cleanText(field.path || field.key);
+    if (!path) continue;
+    const next = customFieldValueAtPath(incomingValues, path);
+    if (next !== undefined) values = setCustomFieldValueAtPath(values, path, next);
+  }
   const schema = Object.keys(asObject(current.custom_field_schema)).length
     ? current.custom_field_schema
     : incoming.custom_field_schema;
