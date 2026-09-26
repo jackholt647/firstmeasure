@@ -50,7 +50,7 @@ Unknown declarations fail; code is never scanned or executed to discover alerts.
 
 Renaming a scope, changing message text, or publishing a new version keeps explicit
 notification preferences. Current templates plus declarations from active pinned
-versions are shown. Archived and empty installed scopes remain visible. Organization
+versions are shown. Archived scopes with declarations remain visible; empty scope categories are hidden in settings. Organization
 notification rules appear under Company automations for administrators.
 
 Preferences are per organization member, with branch-scoped workflow keys. Partial
@@ -69,7 +69,7 @@ while broad direct-app controls appear under Miscellaneous. Cron and mock-paymen
 events are omitted from the end-user settings, without changing automation events.
 Workflow categories and preference keys are preserved. All categories use the same
 responsive column count (three at 840px, two at 560px, otherwise one), with vertical
-dividers and balanced rows. Widths refer to the settings content area.
+dividers and balanced rows. Widths refer to the notification list area. Template placeholders are humanized only for settings labels; delivery templates and preference keys are unchanged.
 Saves are serialized; failures retain pending changes and expose a Retry control.
 
 Native OS channels remain the existing broad categories. The larger catalog lives
@@ -86,12 +86,12 @@ automation-engine and scope-artifact tests after changing these contracts.
 
 ## Notification assistant and curated settings
 
-Notifications provides All, General, Workflows, Scopes, and Custom views, plus
+Notifications provides All, General, Workflows & scopes, and Custom views, plus
 sorting and search. General contains the standard direct notification controls;
 optional Work event subscriptions are potential triggers until selected. Selected
 triggers remain in Custom when disabled through the stored `custom_keys` list.
 Existing enabled event subscriptions also appear in Custom. Tabs, search, and the
-right-hand assistant stay outside the notification list's scroll container. On
+right-hand assistant (a wider mini tray with the shared chat styling and rounded bottom composer, without history or docking controls) stay outside the notification list's scroll container. On
 narrow screens Add custom switches to the chat without scrolling away the toolbar.
 
 `assistant/agent/notifications.ts` defines inspection and configuration tools used
