@@ -594,13 +594,13 @@ async function runScheduledWakeup(schedule: JsonObject, event: { recurring: bool
 
 let schedulerTimer: ReturnType<typeof setInterval> | null = null;
 
-/** Fire due self-scheduled wakeups (one-time and recurring). */
-export async function sweepAgentSchedules(now = new Date()) {
+/** Fire due self-scheduled wakeups (one-time and recurring), optionally for one surface only. */
+export async function sweepAgentSchedules(now = new Date(), options: { surface?: string } = {}) {
   let queued = 0;
-  for (const entry of await listDueOnceAgentSchedules(now.toISOString())) {
+  for (const entry of await listDueOnceAgentSchedules(now.toISOString(), 20, options.surface)) {
     if (await claimDueOnceAgentSchedule(cleanText(entry.id), now.toISOString())) queued++;
   }
-  for (const entry of await listActiveRecurringAgentSchedules()) {
+  for (const entry of await listActiveRecurringAgentSchedules(200, options.surface)) {
     const after = cleanText(entry.last_fired_at) || cleanText(entry.created_at);
     const fireAt = latestCronFire(cleanText(entry.cron), after, now, cleanText(entry.timezone) || undefined);
     if (fireAt && await claimRecurringAgentScheduleFire(cleanText(entry.id), cleanText(entry.last_fired_at), fireAt)) queued++;
@@ -627,7 +627,7 @@ export async function drainChannelAgentJobs() {
     const payload = asObject(job.payload), entry = asObject(payload.record), event = asObject(payload.event);
     const orgId = cleanText(entry.organization_id);
     // Personal assistant agents deliver to the assistant's main thread, not a channel.
-    if (job.kind === "schedule" && cleanText(entry.surface) === "assistant") {
+    if (job.kind === "assistant_agent" || (job.kind === "schedule" && cleanText(entry.surface) === "assistant")) {
       const { runAssistantAgentJob } = await import("../assistant/agent/agents.js");
       return await runAssistantAgentJob(entry, event);
     }

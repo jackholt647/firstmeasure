@@ -464,16 +464,23 @@ export async function listAgentSchedules(agentId: string, orgId: string, options
 }
 
 /** One-time schedules whose fire time has passed, for the wakeup scheduler. */
-export async function listDueOnceAgentSchedules(now = nowIso(), limit = 20) {
+export async function listDueOnceAgentSchedules(now = nowIso(), limit = 20, surface?: string) {
+  const filter = surface === undefined ? "" : " AND surface = ?";
   return (await getAgentsDatabase()
-    .prepare("SELECT * FROM agent_schedules WHERE status='active' AND kind='once' AND fire_at != '' AND fire_at <= ? ORDER BY fire_at ASC LIMIT ?")
-    .all(now, Math.max(1, Math.floor(limit)))).map((row) => asObject(row));
+    .prepare(`SELECT * FROM agent_schedules WHERE status='active' AND kind='once' AND fire_at != '' AND fire_at <= ?${filter} ORDER BY fire_at ASC LIMIT ?`)
+    .all(now, ...(surface === undefined ? [] : [surface]), Math.max(1, Math.floor(limit)))).map((row) => asObject(row));
 }
 
-export async function listActiveRecurringAgentSchedules(limit = 200) {
+export async function listActiveRecurringAgentSchedules(limit = 200, surface?: string) {
+  const filter = surface === undefined ? "" : " AND surface = ?";
   return (await getAgentsDatabase()
-    .prepare("SELECT * FROM agent_schedules WHERE status='active' AND kind='recurring' ORDER BY created_at ASC LIMIT ?")
-    .all(Math.max(1, Math.floor(limit)))).map((row) => asObject(row));
+    .prepare(`SELECT * FROM agent_schedules WHERE status='active' AND kind='recurring'${filter} ORDER BY created_at ASC LIMIT ?`)
+    .all(...(surface === undefined ? [] : [surface]), Math.max(1, Math.floor(limit)))).map((row) => asObject(row));
+}
+
+/** Personal assistant agents use their own wakeup kind so a dedicated lane can run only them. */
+export function wakeupKindForSchedule(schedule: JsonObject) {
+  return cleanText(schedule.surface) === "assistant" ? "assistant_agent" : "schedule";
 }
 
 /** Advance a schedule only with its durable occurrence recorded in the same transaction. */
@@ -483,7 +490,7 @@ export async function claimDueOnceAgentSchedule(scheduleId: string, firedAt: str
       .run(firedAt, nowIso(), scheduleId, firedAt);
     if (!result.changes) return false;
     const schedule = (await readAgentSchedule(scheduleId))!;
-    await enqueueAgentWakeup(`schedule:${scheduleId}:${firedAt}`, "schedule", schedule, { recurring: false, firedAt });
+    await enqueueAgentWakeup(`schedule:${scheduleId}:${firedAt}`, wakeupKindForSchedule(schedule), schedule, { recurring: false, firedAt });
     return true;
   }));
 }
@@ -493,7 +500,8 @@ export async function claimRecurringAgentScheduleFire(scheduleId: string, previo
     const result = await db.prepare("UPDATE agent_schedules SET last_fired_at=?,fire_count=fire_count+1,updated_at=? WHERE id=? AND status='active' AND kind='recurring' AND last_fired_at=?")
       .run(firedAt, nowIso(), scheduleId, previousLastFiredAt);
     if (!result.changes) return false;
-    await enqueueAgentWakeup(`schedule:${scheduleId}:${firedAt}`, "schedule", (await readAgentSchedule(scheduleId))!, { recurring: true, firedAt });
+    const schedule = (await readAgentSchedule(scheduleId))!;
+    await enqueueAgentWakeup(`schedule:${scheduleId}:${firedAt}`, wakeupKindForSchedule(schedule), schedule, { recurring: true, firedAt });
     return true;
   }));
 }
@@ -515,15 +523,15 @@ export async function advanceAgentAwait(entry: JsonObject, patch: JsonObject, ev
   }));
 }
 
-export async function claimAgentWakeup(leaseMs = 120000) {
+export async function claimAgentWakeup(leaseMs = 120000, kind = "") {
   return (await getAgentsDatabase().transaction(async db => {
     const now = nowIso();
     // A provider/tool may have committed before an interrupted worker died.
     // Keep an explicit reviewable outcome; never blindly replay external tools.
     await db.prepare("UPDATE agent_wakeup_jobs SET state='uncertain',error='The worker stopped before completion was confirmed.',updated_at=? WHERE state='running' AND lease_until<=?").run(now, now);
-    const row = await db.prepare(`SELECT j.* FROM agent_wakeup_jobs j WHERE j.state='pending'
+    const row = await db.prepare(`SELECT j.* FROM agent_wakeup_jobs j WHERE j.state='pending'${kind ? " AND j.kind=?" : ""}
       AND NOT EXISTS(SELECT 1 FROM agent_wakeup_jobs active WHERE active.conversation_key=j.conversation_key AND active.state='running')
-      ORDER BY j.created_at,j.id LIMIT 1`).get();
+      ORDER BY j.created_at,j.id LIMIT 1`).get(...(kind ? [kind] : []));
     if (!row) return null;
     const token = randomUUID();
     await db.prepare("UPDATE agent_wakeup_jobs SET state='running',lease_owner=?,lease_until=?,updated_at=? WHERE id=?")

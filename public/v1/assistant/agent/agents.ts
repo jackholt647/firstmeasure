@@ -12,7 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import { runAgentTurn } from "../../agents/runtime.js";
-import { assertAgentWakeupLease } from "../../agents/wakeups.js";
+import { assertAgentWakeupLease, drainAgentWakeups } from "../../agents/wakeups.js";
 import {
   appendAgentMessage,
   createAgentSchedule,
@@ -513,7 +513,7 @@ When the user asks to change what it does or when it runs, call update_agent wit
 
 export async function queueAssistantAgentRun(entry: JsonObject) {
   const firedAt = nowIso();
-  return await enqueueAgentWakeup(`schedule:${cleanText(entry.id)}:manual:${firedAt}`, "schedule", entry, {
+  return await enqueueAgentWakeup(`schedule:${cleanText(entry.id)}:manual:${firedAt}`, "assistant_agent", entry, {
     recurring: cleanText(entry.kind) === "recurring", firedAt, manual: true
   });
 }
@@ -554,6 +554,8 @@ export async function runAssistantAgentJob(record: JsonObject, event: JsonObject
     await updateAgentSchedule(cleanText(current.id), { status: "cancelled" });
     return "cancelled";
   }
+  // The platform worker process may not have loaded the assistant declaration yet.
+  await import("./definition.js");
   const { backgroundAuthContext, can } = await import("../../platform/auth.js");
   const ctx = await backgroundAuthContext(orgId, userId);
   if (!await can(ctx, "apps.assistant")) return "cancelled";
@@ -608,5 +610,51 @@ export async function runAssistantAgentJob(record: JsonObject, event: JsonObject
     });
   } catch {
     /* The main-thread delivery above is the durable result. */
+  }
+}
+
+// ── Dedicated lane ──────────────────────────────────────────────────────────
+
+let laneRunning = false;
+
+/**
+ * Sweeps and runs only personal assistant agents. The platform heartbeat owner
+ * calls it, so agents work where no platform worker is installed; the platform
+ * worker also runs these jobs. Claims are transactional, so both can coexist.
+ */
+export async function runAssistantAgentLane(now = new Date(), limit = 3) {
+  if (laneRunning) return { queued: 0, handled: 0, skipped: true };
+  laneRunning = true;
+  try {
+    const { sweepAgentSchedules } = await import("../../channels/agent.js");
+    const queued = await sweepAgentSchedules(now, { surface: ASSISTANT_SURFACE });
+    const handled = await drainAgentWakeups(async (job) => {
+      const payload = asObject(job.payload);
+      return await runAssistantAgentJob(asObject(payload.record), asObject(payload.event));
+    }, limit, "assistant_agent");
+    await reportInterruptedAssistantRuns();
+    return { queued, handled, skipped: false };
+  } finally {
+    laneRunning = false;
+  }
+}
+
+/** An interrupted run is reported in the owner's main thread instead of being replayed. */
+async function reportInterruptedAssistantRuns() {
+  const db = getAgentsDatabase();
+  const rows = await db.prepare("SELECT * FROM agent_wakeup_jobs WHERE kind='assistant_agent' AND state='uncertain' AND notified_at='' ORDER BY updated_at LIMIT 10").all();
+  for (const row of rows) {
+    const record = asObject(asObject(JSON.parse(cleanText(row.payload_json) || "{}")).record);
+    const orgId = cleanText(row.organization_id);
+    const userId = cleanText(record.created_by_user_id);
+    if (userId) {
+      const main = await ensureAssistantMainThread(orgId, userId, cleanText(record.branch_id) || "default");
+      await appendAgentMessage(AGENT_ID, orgId, cleanText(main.id), {
+        role: "assistant",
+        content: `${cleanText(record.title) || "An agent"} was interrupted before it could confirm it finished. Check anything it may already have done before running it again.`,
+        data: { status: "failed", source: "agent", agent_id: cleanText(record.id), agent_title: cleanText(record.title) }
+      });
+    }
+    await db.prepare("UPDATE agent_wakeup_jobs SET notified_at=? WHERE id=?").run(nowIso(), cleanText(row.id));
   }
 }
