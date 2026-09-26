@@ -124,3 +124,19 @@ Verification: `npm run check`, `npm run test:assistant`,
 `npm run test:assistant:frontend`, and `npm run test:publication` in
 `public/v1`. Tests mock Responses and cover instruction loading, memory across
 threads, memory opt-out, action permissions and loop stopping.
+
+## Focused notification entry point
+
+Notification settings uses `notification_assistant`, a focused declaration of the
+same FirstMate assistant foundation. It shares the model, instruction layers,
+settings adapter, durable conversation runtime and shared chat renderer. It exposes
+only notification inspection/configuration plus `report_result`; the definition's
+`platformTools: false` prevents the runtime from adding cross-app tools.
+
+The default-on Notifications feature has thin authenticated routes under the
+platform API so FirstMeasure-only accounts can use this focused conversation without
+enabling expanded platform access or the full assistant app. Catalog and resource
+checks still limit choices to enabled apps and authorized data. Threads are personal;
+mutations require CSRF. Company assistant enabled/allow_actions settings remain in
+effect. Read [notification declarations and configuration](notifications.md) for
+matching, duplicate prevention, delivery authorization and the preference contract.
