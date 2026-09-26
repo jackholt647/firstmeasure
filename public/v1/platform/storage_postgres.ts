@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient, QueryResultRow } from "pg";
 
 import { env } from "../src/config/env.js";
-import { bootstrapPostgresApplicationUser, queryPostgres, withPostgresClient, withPostgresTransaction } from "../src/database/postgres.js";
+import { bootstrapPostgresApplicationUser, queryPostgres, withPostgresClient, withPostgresTransaction, withPlatformPostgresClient } from "../src/database/postgres.js";
 import { getSharedObject, putSharedObject } from "../src/storage/project_artifacts.js";
 import { badRequest, conflict, notFound } from "./errors.js";
 import { formatIdentityPhone, identifierLooksLikeEmail, normalizeIdentityPhone } from "./identity_phone.js";
@@ -509,8 +509,10 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
     let data = asObject(input.data); const metadata = asObject(input.metadata);
     if (["projects", "customers", "organization_custom_fields"].includes(collection)) {
       const fields = await import("../custom_fields/records.js");
-      data = await fields.prepareStoredFields(orgId, collection, data, asObject(current?.data));
-      await fields.validateStoredFields(orgId, collection, data, asObject(current?.data), options.replace);
+      await withPlatformPostgresClient(client, async () => {
+        data = await fields.prepareStoredFields(orgId, collection, data, asObject(current?.data));
+        await fields.validateStoredFields(orgId, collection, data, asObject(current?.data), options.replace);
+      });
     }
     const next = current ? { ...current, data: options.replace ? data : { ...asObject(current.data), ...data }, metadata: options.replace ? metadata : { ...asObject(current.metadata), ...metadata }, revision: Number(current.revision ?? 0) + 1, updated_at: now }
       : { schema_version: SCHEMA_VERSION, id, organization_id: organizationId, collection, data, metadata, revision: 1, created_at: now, updated_at: now };
