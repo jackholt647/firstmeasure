@@ -128,12 +128,15 @@ can compare with earlier ones. Schedules use the company timezone; recurring
 agents may run at most every 15 minutes, and a user may have 20 active or paused
 agents. Resuming or rescheduling does not replay missed occurrences.
 
-Agent occurrences are queued as `assistant_agent` wakeup jobs. The platform
-heartbeat owner runs a dedicated lane every 15 seconds that sweeps only assistant
-agent schedules and drains only those jobs, so agents work where no platform
-worker is installed (Channels need not be enabled, and dormant Channels wakeups
-are left alone). A platform worker, when installed, also runs these jobs; claims
-are transactional, so both can coexist. A run executes in the agent thread as its creator through
+Agent occurrences are queued as `assistant_agent` wakeup jobs. Every process
+that serves the assistant API and has the OpenAI key runs a dedicated lane every
+15 seconds (`ASSISTANT_AGENT_LANE_DISABLED=1` turns it off). The lane sweeps only
+assistant agent schedules and drains only those jobs, so agents work where no
+platform worker is installed; Channels need not be enabled and dormant Channels
+wakeups are left alone. A platform worker, when installed, also runs these jobs.
+Schedule and job claims are transactional, so replicas never duplicate an
+occurrence. The recurring sweep evaluates cron minutes since each agent's last
+run; revisit its cost before very large agent counts. A run executes in the agent thread as its creator through
 `backgroundAuthContext`, so current permissions, capability and settings gates
 still apply. The reply is appended to the creator's main thread with
 `data.source = 'agent'`, its artifacts are pinned to the dashboard (replacing the
