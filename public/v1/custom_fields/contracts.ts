@@ -9,7 +9,7 @@ export const types = ["text", "multiline", "email", "phone", "url", "number", "i
 export type FieldEntity = "project" | "contact" | "organization";
 export function fieldPath(value: unknown): string {
   const path = String(value || "");
-  if (!/^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/.test(path) || path.split(".").length > 12 || path.split(".").some(p => p.length > 64 || ["__proto__", "constructor", "prototype"].includes(p))) throw badRequest("custom_field_path_invalid", "Use a stable dotted field path without reserved keys.");
+  if (!/^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/.test(path) || path.split(".").length > 12 || path.split(".").some(p => p.length > 64 || ["__proto__", "constructor", "prototype"].includes(p))) throw badRequest("custom_field_path_reserved", "Use a stable dotted field path without reserved keys.");
   return path;
 }
 export function getValue(value: unknown, path: string): unknown {
