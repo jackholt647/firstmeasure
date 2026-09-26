@@ -75,3 +75,15 @@ Use the guarded activation workflow to return each role to the previous release
 above, checking for later deployments first. The schema change is additive; older
 code ignores the new columns and table. Delete test agents in Settings → Agents
 before rolling back: older sweep code does not recognize the assistant surface.
+
+## Follow-up: navigation height and visuals toggle
+
+Commit `afea14a` fixes the main-thread row, which used the class `main` and was
+stretched by the portal's own `.main` layout rule (row modifiers now use `is-*`),
+removes the empty-section hint text, and makes the header chart button a
+show/hide visuals toggle in every window mode (dashboard column in the full view,
+chart cards versus chips elsewhere) instead of maximizing. UI-only releases:
+web `5e4a6a0` → `44a12c0381a5c0b8ce7665e11f124bad6fa38da5`, pool `dd9d049` →
+`a3e9f5adf5a45fae77e81ee4461ca4f321fd51c4`; worker and compatibility unchanged.
+Guarded staging/activation passed; the public asset SHA-256 is
+`aad36f0204eaec4918ba2fa232a3cf2b001ce0766e33b6584e0d233df061fbeb`.
