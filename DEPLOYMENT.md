@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 25 personal left column: [Per-user tab and layout settings](deploy/digitalocean/development-personal-left-column-20260925.md) records the development web release, preservation of concurrent live Brand Kit/resize work, and public verification. Production is unchanged.
+
 September 25 language infrastructure: [Language preferences, translation tooling and live QA tester](deploy/digitalocean/development-language-infrastructure-20260925.md) records the per-role development releases, source preservation, checks and rollback. Shared semantic context authoring continues separately; production is unchanged.
 
 September 25 notifications: [Platform notifications and FirstMate mobile app](deploy/digitalocean/development-notifications-20260925.md) records the development rollout, enabled Test Company Notifications tab, and private Android 1.0.3 download. Browser and role verification passed. Real phone push still requires Firebase/APNs configuration; production is unchanged.
