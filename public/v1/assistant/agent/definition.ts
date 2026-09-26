@@ -45,6 +45,7 @@ import {
 } from "../../agents/util.js";
 import { defaultAssistantSettings, loadAssistantSettings, normalizeAssistantSettings, saveAssistantSettings } from "../settings.js";
 import { buildAssistantManifest } from "./manifest.js";
+import { assistantAgentInstructions, assistantAgentTools } from "./agents.js";
 
 const MAX_NAVIGATION_ACTIONS = 6;
 
@@ -140,6 +141,7 @@ function compactDocument(document: JsonObject) {
 
 const TOOLS: AgentTool[] = [
   ...notificationAssistantTools,
+  ...assistantAgentTools,
   {
     name: "search_my_conversation_history",
     description: "Search this user's prior assistant conversations when relevant context is older than the current chat window. Only this user's messages are searchable.",
@@ -669,6 +671,7 @@ registerAgent({
 ${buildAssistantManifest()}
 ${notificationAssistantInstructions}
 ${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
+${run.agentId === ASSISTANT_AGENT_ID ? assistantAgentInstructions : ""}
 
 ## What you are currently allowed to do
 ${abilities}
