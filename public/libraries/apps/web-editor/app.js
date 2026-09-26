@@ -135,7 +135,7 @@
   function openModal(contentHtml, options = {}){
     const back = document.createElement('div');
     back.className = 'fmwe-modal-back';
-    back.innerHTML = `<div class="fmwe-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmwe-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("web-editor","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
+    back.innerHTML = `<div class="fmwe-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmwe-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
     const close = () => { back.remove(); options.onClose?.(); };
     back.querySelector('.fmwe-modal-close').addEventListener('click', close);
     back.addEventListener('mousedown', (event) => { if (event.target === back) close(); });
@@ -147,10 +147,10 @@
   function confirmDialog(message, options = {}){
     return new Promise((resolve) => {
       const modal = openModal(`
-        <h2><i class="fas ${String(esc(options.icon || 'fa-circle-question'))}"></i> ${String(esc(options.title || 'Are you sure?'))}</h2>
+        <h2><i class="fas ${String(esc(options.icon || 'fa-circle-question'))}"></i> ${String(esc(options.title || (globalThis.PlatformLanguage?.text("web-editor","m_63c86c5bf4a1b7","Are you sure?") ?? "Are you sure?")))}</h2>
         <p class="hint" style="margin-top:0">${String(esc(message))}</p>
         <div class="fmwe-modal-foot">
-          <button type="button" class="fmwe-btn" data-cd-cancel>${(globalThis.PlatformLanguage?.text("web-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button type="button" class="fmwe-btn" data-cd-cancel>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
           <button type="button" class="fmwe-btn ${String(options.danger ? 'danger' : 'primary')}" data-cd-ok>${String(esc(options.confirmLabel || 'Confirm'))}</button>
         </div>`, { onClose: () => resolve(false) });
       modal.body.querySelector('[data-cd-cancel]').addEventListener('click', () => modal.close());
@@ -630,7 +630,7 @@
             editLink.target = '_blank';
             editLink.rel = 'noopener';
             editLink.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("web-editor","m_2c0bf568e7c34b",`Edit ${v0} in a new tab`,{v0}) ?? `Edit ${v0} in a new tab`)(role));
-            editLink.innerHTML = `<i class="fas fa-pen" aria-hidden="true"></i><span>${((v0) => globalThis.PlatformLanguage?.text("web-editor","m_39b192d8eac13f",`Edit ${v0}`,{v0}) ?? `Edit ${v0}`)(role)}</span>`;
+            editLink.innerHTML = `<i class="fas fa-pen" aria-hidden="true"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("web-editor","m_39b192d8eac13f",`Edit ${v0}`,{v0}) ?? `Edit ${v0}`)(role)}</span>`;
             shell.appendChild(editLink);
           }
           shell.addEventListener('click', (event) => {
@@ -742,7 +742,7 @@
           ${options.spinner ? '<div class="fmwe-spinner"></div>' : `<i class="fas ${esc(options.icon || 'fa-globe')}"></i>`}
           <strong>${esc(options.title || '')}</strong>
           ${options.message ? `<span>${esc(options.message)}</span>` : ''}
-          ${options.retry ? `<button type="button" class="fmwe-btn" data-we-retry><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button>` : ''}
+          ${options.retry ? `<button type="button" class="fmwe-btn" data-we-retry><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button>` : ''}
           ${options.actionLabel ? `<button type="button" class="fmwe-btn primary" data-we-state-action><i class="fas ${esc(options.actionIcon || 'fa-plus')}"></i> ${esc(options.actionLabel)}</button>` : ''}
         </div>`;
     }
@@ -753,12 +753,12 @@
         <div class="fmwe-shell">
           <header class="fmwe-top">
             <div class="fmwe-top-title">
-              <strong><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_5493e7e4b3647a"," Web Editor") ?? " Web Editor")}</strong>
-              <span>${(globalThis.PlatformLanguage?.text("web-editor","m_ce8f08fb05b1f0","Build your websites and custom customer-portal pages") ?? "Build your websites and custom customer-portal pages")}</span>
+              <strong><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_5493e7e4b3647a"," Web Editor") ?? " Web Editor")}</strong>
+              <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_ce8f08fb05b1f0","Build your websites and custom customer-portal pages") ?? "Build your websites and custom customer-portal pages")}</span>
             </div>
             <div class="fmwe-top-actions">
-              <button type="button" class="fmwe-btn" data-we-add-domain><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_eae8d33522f723"," Domains & Hosting") ?? " Domains & Hosting")}</button>
-              <button type="button" class="fmwe-btn primary" data-we-new-site><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_307225fe5b0057"," New website") ?? " New website")}</button>
+              <button type="button" class="fmwe-btn" data-we-add-domain><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_eae8d33522f723"," Domains & Hosting") ?? " Domains & Hosting")}</button>
+              <button type="button" class="fmwe-btn primary" data-we-new-site><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_307225fe5b0057"," New website") ?? " New website")}</button>
             </div>
           </header>
           <div class="fmwe-body" data-we-body></div>
@@ -769,7 +769,7 @@
       const body = root.querySelector('[data-we-body]');
 
       if (state.sitesError?.missing || !api()) {
-        body.innerHTML = stateHtml({ icon: 'fa-plug-circle-xmark', title: (globalThis.PlatformLanguage?.text("web-editor","m_c31143117e5825","Websites service unavailable") ?? "Websites service unavailable"), message: (globalThis.PlatformLanguage?.text("web-editor","m_0fc57b61368277","The websites API client is not loaded for this session.") ?? "The websites API client is not loaded for this session.") });
+        body.innerHTML = stateHtml({ icon: 'fa-plug-circle-xmark', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_c31143117e5825","Websites service unavailable") ?? "Websites service unavailable"), message: (globalThis.PlatformLanguage?.htmlText("web-editor","m_0fc57b61368277","The websites API client is not loaded for this session.") ?? "The websites API client is not loaded for this session.") });
         return;
       }
       if (state.sites === null && state.sitesLoading) {
@@ -777,7 +777,7 @@
         return;
       }
       if (state.sitesError) {
-        body.innerHTML = stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.text("web-editor","m_075226cfb9e130","Couldn’t load your sites") ?? "Couldn’t load your sites"), message: errorMessage(state.sitesError, ''), retry: true });
+        body.innerHTML = stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_075226cfb9e130","Couldn’t load your sites") ?? "Couldn’t load your sites"), message: errorMessage(state.sitesError, ''), retry: true });
         body.querySelector('[data-we-retry]')?.addEventListener('click', () => loadSites());
         return;
       }
@@ -785,8 +785,8 @@
       if (!sites.length) {
         body.innerHTML = stateHtml({
           hero: true, icon: 'fa-globe',
-          title: (globalThis.PlatformLanguage?.text("web-editor","m_9e989cfc22bd6f","Build your first website") ?? "Build your first website"),
-          message: (globalThis.PlatformLanguage?.text("web-editor","m_c0b24cf9b4d0ff","Design pages visually, publish them to a hosted site, and add custom tabs to your customer portal — all from here.") ?? "Design pages visually, publish them to a hosted site, and add custom tabs to your customer portal — all from here."),
+          title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_9e989cfc22bd6f","Build your first website") ?? "Build your first website"),
+          message: (globalThis.PlatformLanguage?.htmlText("web-editor","m_c0b24cf9b4d0ff","Design pages visually, publish them to a hosted site, and add custom tabs to your customer portal — all from here.") ?? "Design pages visually, publish them to a hosted site, and add custom tabs to your customer portal — all from here."),
           actionLabel: 'New website', actionIcon: 'fa-plus'
         });
         body.querySelector('[data-we-state-action]')?.addEventListener('click', () => openNewSiteModal());
@@ -812,10 +812,10 @@
       root.innerHTML = `
         <div class="fmwe-shell">
           <header class="fmwe-top">
-            <button type="button" class="fmwe-plain-back" data-we-back title="${(globalThis.PlatformLanguage?.text("web-editor","m_8615f62f7a7921","Back to websites") ?? "Back to websites")}" aria-label="${(globalThis.PlatformLanguage?.text("web-editor","m_8615f62f7a7921","Back to websites") ?? "Back to websites")}"><i class="fas fa-arrow-left"></i></button>
+            <button type="button" class="fmwe-plain-back" data-we-back title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8615f62f7a7921","Back to websites") ?? "Back to websites")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8615f62f7a7921","Back to websites") ?? "Back to websites")}"><i class="fas fa-arrow-left"></i></button>
             <div class="fmwe-top-title">
-              <strong><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_eae8d33522f723"," Domains & Hosting") ?? " Domains & Hosting")}</strong>
-              <span>${(globalThis.PlatformLanguage?.text("web-editor","m_362b875c683dfd","Domains, website routing, email, DNS, renewal, and transfer controls") ?? "Domains, website routing, email, DNS, renewal, and transfer controls")}</span>
+              <strong><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_eae8d33522f723"," Domains & Hosting") ?? " Domains & Hosting")}</strong>
+              <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_362b875c683dfd","Domains, website routing, email, DNS, renewal, and transfer controls") ?? "Domains, website routing, email, DNS, renewal, and transfer controls")}</span>
             </div>
           </header>
           <div class="fmwe-body" data-we-domains></div>
@@ -824,7 +824,7 @@
       root.querySelector('[data-we-back]')?.addEventListener('click', gotoSites);
       const pane = root.querySelector('[data-we-domains]');
       if (!window.FirstMateDomainsSettings?.mount || !window.DomainsAPI) {
-        pane.innerHTML = stateHtml({ icon:'fa-plug-circle-xmark', title:(globalThis.PlatformLanguage?.text("web-editor","m_3bf6302639f497","Domains service unavailable") ?? "Domains service unavailable"), message:(globalThis.PlatformLanguage?.text("web-editor","m_5064d2167004a0","Refresh the portal to load Domains & Hosting.") ?? "Refresh the portal to load Domains & Hosting.") });
+        pane.innerHTML = stateHtml({ icon:'fa-plug-circle-xmark', title:(globalThis.PlatformLanguage?.htmlText("web-editor","m_3bf6302639f497","Domains service unavailable") ?? "Domains service unavailable"), message:(globalThis.PlatformLanguage?.htmlText("web-editor","m_5064d2167004a0","Refresh the portal to load Domains & Hosting.") ?? "Refresh the portal to load Domains & Hosting.") });
         return;
       }
       Promise.resolve(window.FirstMateDomainsSettings.mount({
@@ -833,7 +833,7 @@
         embedded:true,
         onOpenWebsite:(websiteId)=>gotoSite(websiteId)
       })).then((handle)=>{ state.domainsHandle=handle||null; }).catch((error)=>{
-        pane.innerHTML=stateHtml({icon:'fa-cloud-bolt',title:(globalThis.PlatformLanguage?.text("web-editor","m_fb0500a556703e","Could not load Domains & Hosting") ?? "Could not load Domains & Hosting"),message:errorMessage(error,'')});
+        pane.innerHTML=stateHtml({icon:'fa-cloud-bolt',title:(globalThis.PlatformLanguage?.htmlText("web-editor","m_fb0500a556703e","Could not load Domains & Hosting") ?? "Could not load Domains & Hosting"),message:errorMessage(error,'')});
       });
     }
 
@@ -855,22 +855,22 @@
             <span style="color:#98a2b3;font-size:11px;flex:0 0 auto;margin-top:4px"><i class="fas fa-chevron-right"></i></span>
           </div>
           ${portal
-            ? `<div class="fmwe-site-note"><i class="fas fa-id-badge"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_cece847693ee99"," Pages appear as tabs in your customer portal") ?? " Pages appear as tabs in your customer portal")}</div>`
+            ? `<div class="fmwe-site-note"><i class="fas fa-id-badge"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_cece847693ee99"," Pages appear as tabs in your customer portal") ?? " Pages appear as tabs in your customer portal")}</div>`
             : `<div class="fmwe-site-url">
                 <code title="${String(esc(url))}">${String(esc(url.replace(/^https?:\/\//, '')))}</code>
-                <button type="button" class="fmwe-icon-btn" data-site-copy title="${(globalThis.PlatformLanguage?.text("web-editor","m_cd28b8aa65a947","Copy live link") ?? "Copy live link")}"><i class="fas fa-copy"></i></button>
-                <a class="fmwe-icon-btn" href="${String(esc(url))}" target="_blank" rel="noopener" title="${(globalThis.PlatformLanguage?.text("web-editor","m_2ac59adf8711de","Open live site") ?? "Open live site")}"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                <button type="button" class="fmwe-icon-btn" data-site-copy title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_cd28b8aa65a947","Copy live link") ?? "Copy live link")}"><i class="fas fa-copy"></i></button>
+                <a class="fmwe-icon-btn" href="${String(esc(url))}" target="_blank" rel="noopener" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_2ac59adf8711de","Open live site") ?? "Open live site")}"><i class="fas fa-arrow-up-right-from-square"></i></a>
               </div>`}
         </div>`;
     }
 
     function openNewSiteModal(){
       const modal = openModal(`
-        <h2><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_307225fe5b0057"," New website") ?? " New website")}</h2>
-        <p class="hint">${(globalThis.PlatformLanguage?.text("web-editor","m_52fb30829acb97","A new public website with a starter home page. It gets its own live URL the moment you publish.") ?? "A new public website with a starter home page. It gets its own live URL the moment you publish.")}</p>
-        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_75c8b2cbb01055","Website name") ?? "Website name")}</span><input type="text" data-ns-name placeholder="${(globalThis.PlatformLanguage?.text("web-editor","m_5374f7febd0f4e","e.g. Main Website") ?? "e.g. Main Website")}" maxlength="80"></label>
+        <h2><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_307225fe5b0057"," New website") ?? " New website")}</h2>
+        <p class="hint">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_52fb30829acb97","A new public website with a starter home page. It gets its own live URL the moment you publish.") ?? "A new public website with a starter home page. It gets its own live URL the moment you publish.")}</p>
+        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_75c8b2cbb01055","Website name") ?? "Website name")}</span><input type="text" data-ns-name placeholder="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_5374f7febd0f4e","e.g. Main Website") ?? "e.g. Main Website")}" maxlength="80"></label>
         <div class="fmwe-modal-foot">
-          <button type="button" class="fmwe-btn primary" data-ns-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_9ef9734b18ef66"," Create website") ?? " Create website")}</button>
+          <button type="button" class="fmwe-btn primary" data-ns-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_9ef9734b18ef66"," Create website") ?? " Create website")}</button>
         </div>`);
       const input = modal.body.querySelector('[data-ns-name]');
       input?.focus();
@@ -901,22 +901,22 @@
       root.innerHTML = `
         <div class="fmwe-shell">
           <header class="fmwe-top">
-            <button type="button" class="fmwe-icon-btn" data-we-back title="${(globalThis.PlatformLanguage?.text("web-editor","m_21b1e372c7ce19","All sites") ?? "All sites")}"><i class="fas fa-chevron-left"></i></button>
+            <button type="button" class="fmwe-icon-btn" data-we-back title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_21b1e372c7ce19","All sites") ?? "All sites")}"><i class="fas fa-chevron-left"></i></button>
             <div class="fmwe-top-title" style="min-width:0">
               <strong style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${String(esc(firstText(site.name, 'Site')))}</span>
                 <span class="fmwe-chip ${String(portal ? 'portal' : 'website')}">${String(esc(siteKindLabel(site)))}</span>
               </strong>
               ${String(portal
-                ? '<span>Published pages appear as tabs in your customer portal</span>'
-                : (liveSiteUrl(site) ? `<span>${esc(liveSiteUrl(site).replace(/^https?:\/\//, ''))}</span>` : '<span>Hosted website</span>'))}
+                ? `<span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_2db04ed62445d8","Published pages appear as tabs in your customer portal") ?? "Published pages appear as tabs in your customer portal")}</span>`
+                : (liveSiteUrl(site) ? `<span>${esc(liveSiteUrl(site).replace(/^https?:\/\//, ''))}</span>` : `<span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a9bb69bf4fa53f","Hosted website") ?? "Hosted website")}</span>`))}
             </div>
             <div class="fmwe-top-actions">
               <div class="fmwe-seg" role="tablist">
-                <button type="button" class="${String(state.siteViewMode === 'grid' ? 'active' : '')}" data-we-view="grid" title="${(globalThis.PlatformLanguage?.text("web-editor","m_9ae062c9d0efac","Tile view") ?? "Tile view")}"><i class="fas fa-grip"></i></button>
-                <button type="button" class="${String(state.siteViewMode === 'list' ? 'active' : '')}" data-we-view="list" title="${(globalThis.PlatformLanguage?.text("web-editor","m_d4ab9c9111910c","List view") ?? "List view")}"><i class="fas fa-list"></i></button>
+                <button type="button" class="${String(state.siteViewMode === 'grid' ? 'active' : '')}" data-we-view="grid" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_9ae062c9d0efac","Tile view") ?? "Tile view")}"><i class="fas fa-grip"></i></button>
+                <button type="button" class="${String(state.siteViewMode === 'list' ? 'active' : '')}" data-we-view="list" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_d4ab9c9111910c","List view") ?? "List view")}"><i class="fas fa-list"></i></button>
               </div>
-              <button type="button" class="fmwe-icon-btn" data-we-settings title="${(globalThis.PlatformLanguage?.text("web-editor","m_1b294805a95144","Site settings") ?? "Site settings")}"><i class="fas fa-gear"></i></button>
-              <button type="button" class="fmwe-btn primary" data-we-new-page><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_65e8237f1b1836"," New page") ?? " New page")}</button>
+              <button type="button" class="fmwe-icon-btn" data-we-settings title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_1b294805a95144","Site settings") ?? "Site settings")}"><i class="fas fa-gear"></i></button>
+              <button type="button" class="fmwe-btn primary" data-we-new-page><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_65e8237f1b1836"," New page") ?? " New page")}</button>
             </div>
           </header>
           <div class="fmwe-body" data-we-body></div>
@@ -938,7 +938,7 @@
         return;
       }
       if (state.siteError && !state.site) {
-        body.innerHTML = stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.text("web-editor","m_b6acd892d01dde","Couldn’t load this site") ?? "Couldn’t load this site"), message: errorMessage(state.siteError, ''), retry: true });
+        body.innerHTML = stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_b6acd892d01dde","Couldn’t load this site") ?? "Couldn’t load this site"), message: errorMessage(state.siteError, ''), retry: true });
         body.querySelector('[data-we-retry]')?.addEventListener('click', () => loadSite(state.siteId));
         return;
       }
@@ -951,14 +951,14 @@
     function pageStatusChips(page){
       const published = Number(page.published_version || 0) > 0;
       const role = cleanText(page.role) || 'page';
-      if (!published) return `<span class="fmwe-chip">${(globalThis.PlatformLanguage?.text("web-editor","m_9ce407c87de615","Draft") ?? "Draft")}</span>`;
+      if (!published) return `<span class="fmwe-chip">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_9ce407c87de615","Draft") ?? "Draft")}</span>`;
       // Chrome pages (header/footer) have no visibility toggle of their own.
       if (role === 'page' && page.enabled === false) {
         const where = isPortalSite() ? 'your customer portal' : 'your live site';
         return ("<span class=\"fmwe-chip off\" title=\"" + ((v0) => globalThis.PlatformLanguage?.text("web-editor","m_de15897b36fc4c",`Published, but currently hidden from ${v0}`,{v0}) ?? `Published, but currently hidden from ${v0}`)(where) + "\">" + (globalThis.PlatformLanguage?.text("web-editor","m_2d72ad0c076a58","Hidden") ?? "Hidden") + "</span>");
       }
-      if (page.has_unpublished_changes) return `<span class="fmwe-chip edited">${(globalThis.PlatformLanguage?.text("web-editor","m_51c7ec6147b03c","Live · edited") ?? "Live · edited")}</span>`;
-      return `<span class="fmwe-chip live">${(globalThis.PlatformLanguage?.text("web-editor","m_430a0cf632da94","Live") ?? "Live")}</span>`;
+      if (page.has_unpublished_changes) return `<span class="fmwe-chip edited">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_51c7ec6147b03c","Live · edited") ?? "Live · edited")}</span>`;
+      return `<span class="fmwe-chip live">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_430a0cf632da94","Live") ?? "Live")}</span>`;
     }
 
     /** Media refs ({media_id}) → displayable URLs for client-side renders
@@ -992,7 +992,7 @@
           </div>
           <div class="fmwe-tile-info">
             <div class="name">
-              ${isHome ? ("<i class=\"fas fa-star\" title=\"" + (globalThis.PlatformLanguage?.text("web-editor","m_8d59e4a1a00432","Home page") ?? "Home page") + "\"></i>") : ''}
+              ${isHome ? ("<i class=\"fas fa-star\" title=\"" + (globalThis.PlatformLanguage?.htmlText("web-editor","m_8d59e4a1a00432","Home page") ?? "Home page") + "\"></i>") : ''}
               ${icon ? `<i class="fas ${esc(icon)} role-icon"></i>` : ''}
               <span>${esc(firstText(page.title, 'Untitled page'))}</span>
             </div>
@@ -1028,7 +1028,7 @@
       const chrome = state.pages.filter((p) => ['header', 'footer'].includes(cleanText(p.role)));
       if (!chrome.length || isPortalSite()) return '';
       return `
-        <p class="fmwe-micro-label"><i class="fas fa-table-columns"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_37870bc912b80e"," Site chrome") ?? " Site chrome")}</p>
+        <p class="fmwe-micro-label"><i class="fas fa-table-columns"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_37870bc912b80e"," Site chrome") ?? " Site chrome")}</p>
         <div class="fmwe-tile-grid">${String(chrome.map((p) => pageTileHtml(p)).join(''))}</div>`;
     }
 
@@ -1039,7 +1039,7 @@
       const sections = [];
       if (portal && state.systemPages.length) {
         sections.push(`
-          <p class="fmwe-micro-label"><i class="fas fa-id-badge"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_f060cc79fdd795"," Required portal pages ") ?? " Required portal pages ")}<span class="count">${String(state.systemPages.length)}</span></p>
+          <p class="fmwe-micro-label"><i class="fas fa-id-badge"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_f060cc79fdd795"," Required portal pages ") ?? " Required portal pages ")}<span class="count">${String(state.systemPages.length)}</span></p>
           <div class="fmwe-tile-grid">${String(state.systemPages.map((sys) => systemTileHtml(sys)).join(''))}</div>`);
       }
       sections.push(chromeRowHtml());
@@ -1048,7 +1048,7 @@
           <p class="fmwe-micro-label"><i class="fas fa-file-lines"></i> ${portal ? 'Custom pages' : 'Pages'}</p>
           ${stateHtml({
             hero: true, icon: 'fa-file-circle-plus',
-            title: (globalThis.PlatformLanguage?.text("web-editor","m_89b2a9e024a7f2","Create your first page") ?? "Create your first page"),
+            title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_89b2a9e024a7f2","Create your first page") ?? "Create your first page"),
             message: portal
               ? 'Custom pages you publish here appear as extra tabs in every customer portal.'
               : 'Pages you publish become part of your live website.',
@@ -1117,9 +1117,9 @@
       const regular = state.pages.filter((p) => cleanText(p.role) !== 'header' && cleanText(p.role) !== 'footer' && cleanText(p.id) !== cleanText(summary?.id));
       const site = objectValue(state.site);
       const chrome = chromeRowHtml();
-      const summarySection = portal && summary ? `<p class="fmwe-micro-label"><i class="fas fa-house"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_c540fb4647cefa"," Required portal page") ?? " Required portal page")}</p><div class="fmwe-tile-grid">${String(systemTileHtml({ id: 'summary', title: 'Summary', icon: 'fa-house' }))}</div>` : '';
+      const summarySection = portal && summary ? `<p class="fmwe-micro-label"><i class="fas fa-house"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_c540fb4647cefa"," Required portal page") ?? " Required portal page")}</p><div class="fmwe-tile-grid">${String(systemTileHtml({ id: 'summary', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_9b03ccb29ba168","Summary") ?? "Summary"), icon: 'fa-house' }))}</div>` : '';
       if (!regular.length) {
-        body.innerHTML = `${summarySection}${chrome}${stateHtml({ hero: true, icon: 'fa-file-circle-plus', title: (globalThis.PlatformLanguage?.text("web-editor","m_89b2a9e024a7f2","Create your first page") ?? "Create your first page"), message: portal ? 'Custom pages you publish here appear as extra tabs in every customer portal.' : 'Pages you publish become part of your live website.', actionLabel: 'New page', actionIcon: 'fa-plus' })}`;
+        body.innerHTML = `${summarySection}${chrome}${stateHtml({ hero: true, icon: 'fa-file-circle-plus', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_89b2a9e024a7f2","Create your first page") ?? "Create your first page"), message: portal ? 'Custom pages you publish here appear as extra tabs in every customer portal.' : 'Pages you publish become part of your live website.', actionLabel: 'New page', actionIcon: 'fa-plus' })}`;
         body.querySelector('[data-we-state-action]')?.addEventListener('click', () => openNewPageModal());
         wireTiles(body);
         renderThumbnails(body);
@@ -1132,11 +1132,11 @@
         <div class="fmwe-table-wrap">
           <table class="fmwe-table">
             <thead><tr>
-              <th>${(globalThis.PlatformLanguage?.text("web-editor","m_8cf345002184e5","Name") ?? "Name")}</th><th>${(globalThis.PlatformLanguage?.text("web-editor","m_6778c9c2d9a698","Slug") ?? "Slug")}</th><th>${(globalThis.PlatformLanguage?.text("web-editor","m_1352cafa75b8da","Status") ?? "Status")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8cf345002184e5","Name") ?? "Name")}</th><th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_6778c9c2d9a698","Slug") ?? "Slug")}</th><th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_1352cafa75b8da","Status") ?? "Status")}</th>
               ${String(portal
-                ? '<th>In portal</th>'
-                : '<th>Header menu</th><th>Footer menu</th><th>Visible</th>')}
-              ${String(portal ? '' : '<th>Home</th>')}<th>${(globalThis.PlatformLanguage?.text("web-editor","m_6a171239c315c1","Updated") ?? "Updated")}</th>
+                ? `<th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_97af778bd995b1","In portal") ?? "In portal")}</th>`
+                : `<th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_dd2479d2b169d7","Header menu") ?? "Header menu")}</th><th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_279be10a5e8139","Footer menu") ?? "Footer menu")}</th><th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_f1956e2233bd27","Visible") ?? "Visible")}</th>`)}
+              ${String(portal ? '' : `<th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_1519fbdf5b87ed","Home") ?? "Home")}</th>`)}<th>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_6a171239c315c1","Updated") ?? "Updated")}</th>
             </tr></thead>
             <tbody>
               ${String(regular.map((page) => {
@@ -1144,15 +1144,15 @@
                 const nav = objectValue(page.nav);
                 return `
                   <tr data-page-row="${esc(page.id)}">
-                    <td><span class="page-name">${isHome ? '<i class="fas fa-star" title="Home page"></i>' : ''}${esc(firstText(page.title, 'Untitled page'))}</span></td>
+                    <td><span class="page-name">${isHome ? `<i class="fas fa-star" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8d59e4a1a00432","Home page") ?? "Home page")}"></i>` : ''}${esc(firstText(page.title, 'Untitled page'))}</span></td>
                     <td class="slug-cell">${cleanText(page.slug) ? `/${esc(page.slug)}` : '—'}</td>
                     <td>${pageStatusChips(page)}</td>
                     ${portal
-                      ? `<td><button type="button" class="fmwe-switch ${page.enabled && nav.header ? 'on' : ''}" data-portal-toggle title="Show this page as a tab in your customer portal"></button></td>`
-                      : `<td><button type="button" class="fmwe-switch ${nav.header ? 'on' : ''}" data-nav-toggle="header" title="Show in header menu"></button></td>
-                    <td><button type="button" class="fmwe-switch ${nav.footer ? 'on' : ''}" data-nav-toggle="footer" title="Show in footer menu"></button></td>
-                    <td><button type="button" class="fmwe-switch ${page.enabled ? 'on' : ''}" data-enabled-toggle title="Visible on the live site"></button></td>`}
-                    ${portal ? '' : `<td><button type="button" class="fmwe-radio ${isHome ? 'on' : ''}" data-home-radio title="Set as home page" ${isHome ? 'disabled' : ''}></button></td>`}
+                      ? `<td><button type="button" class="fmwe-switch ${page.enabled && nav.header ? 'on' : ''}" data-portal-toggle title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_d423f790e25aa6","Show this page as a tab in your customer portal") ?? "Show this page as a tab in your customer portal")}"></button></td>`
+                      : `<td><button type="button" class="fmwe-switch ${nav.header ? 'on' : ''}" data-nav-toggle="header" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_0f092ca7d72f68","Show in header menu") ?? "Show in header menu")}"></button></td>
+                    <td><button type="button" class="fmwe-switch ${nav.footer ? 'on' : ''}" data-nav-toggle="footer" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a606bea45e84d6","Show in footer menu") ?? "Show in footer menu")}"></button></td>
+                    <td><button type="button" class="fmwe-switch ${page.enabled ? 'on' : ''}" data-enabled-toggle title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_fbc252f2b3b59e","Visible on the live site") ?? "Visible on the live site")}"></button></td>`}
+                    ${portal ? '' : `<td><button type="button" class="fmwe-radio ${isHome ? 'on' : ''}" data-home-radio title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_e3fecb7ffcdc8c","Set as home page") ?? "Set as home page")}" ${isHome ? 'disabled' : ''}></button></td>`}
                     <td class="muted">${esc(timeAgo(page.updated_at) || '—')}</td>
                   </tr>`;
               }).join(''))}
@@ -1245,40 +1245,40 @@
       back.innerHTML = `
         <div class="fmwe-drawer">
           <div class="fmwe-drawer-head">
-            <strong><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_1255d6e07fca7b"," Site settings") ?? " Site settings")}</strong>
-            <button type="button" class="fmwe-icon-btn" data-ss-close title="${(globalThis.PlatformLanguage?.text("web-editor","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+            <strong><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_1255d6e07fca7b"," Site settings") ?? " Site settings")}</strong>
+            <button type="button" class="fmwe-icon-btn" data-ss-close title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
           </div>
           <div class="fmwe-drawer-body">
-            <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_ba8118f379dfa8","Site name") ?? "Site name")}</span><input type="text" data-ss-name value="${String(esc(firstText(site.name)))}" maxlength="80"></label>
+            <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_ba8118f379dfa8","Site name") ?? "Site name")}</span><input type="text" data-ss-name value="${String(esc(firstText(site.name)))}" maxlength="80"></label>
             ${String(portal ? '' : `
-              <label class="fmwe-field"><span>Home page</span>
+              <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8d59e4a1a00432","Home page") ?? "Home page")}</span>
                 <select data-ss-home>
                   ${homeCandidates.map((p) => `<option value="${esc(p.id)}" ${cleanText(site.home_page_id) === cleanText(p.id) ? 'selected' : ''}>${esc(firstText(p.title, 'Untitled page'))}</option>`).join('')}
-                  ${homeCandidates.length ? '' : '<option value="">No pages yet</option>'}
+                  ${homeCandidates.length ? '' : `<option value="">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_c47e91f90ebbb4","No pages yet") ?? "No pages yet")}</option>`}
                 </select>
               </label>
-              <p class="fmwe-micro-label"><i class="fas fa-link"></i> Live URL</p>
+              <p class="fmwe-micro-label"><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_448f96fcde9319"," Live URL") ?? " Live URL")}</p>
               <div class="fmwe-site-url" style="margin-bottom:14px">
                 <code>${esc(liveSiteUrl(site).replace(/^https?:\/\//, '') || 'Available after creation')}</code>
-                <button type="button" class="fmwe-icon-btn" data-ss-copy title="Copy live link"><i class="fas fa-copy"></i></button>
-                ${liveSiteUrl(site) ? `<a class="fmwe-icon-btn" href="${esc(liveSiteUrl(site))}" target="_blank" rel="noopener" title="Open live site"><i class="fas fa-arrow-up-right-from-square"></i></a>` : ''}
+                <button type="button" class="fmwe-icon-btn" data-ss-copy title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_cd28b8aa65a947","Copy live link") ?? "Copy live link")}"><i class="fas fa-copy"></i></button>
+                ${liveSiteUrl(site) ? `<a class="fmwe-icon-btn" href="${esc(liveSiteUrl(site))}" target="_blank" rel="noopener" title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_2ac59adf8711de","Open live site") ?? "Open live site")}"><i class="fas fa-arrow-up-right-from-square"></i></a>` : ''}
               </div>
-              <p class="fmwe-micro-label"><i class="fas fa-comments"></i> Live chat</p>
+              <p class="fmwe-micro-label"><i class="fas fa-comments"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_e9747fd9a688ef"," Live chat") ?? " Live chat")}</p>
               <div class="fmwe-check">
-                <span>Show the chat widget on this site<small>Uses your FirstMate live-chat widget.</small></span>
+                <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_29aeeed68dba2e","Show the chat widget on this site") ?? "Show the chat widget on this site")}<small>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_144bbb11f388a8","Uses your FirstMate live-chat widget.") ?? "Uses your FirstMate live-chat widget.")}</small></span>
                 <button type="button" class="fmwe-switch ${chat.enabled ? 'on' : ''}" data-ss-chat-enabled></button>
               </div>
-              <label class="fmwe-field"><span>Chat widget key</span>
-                <input type="text" data-ss-chat-key value="${esc(firstText(chat.widget_key))}" placeholder="wk_…">
-                <span class="sub">Find this under Settings → Live Chat → Widget.</span>
+              <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_3dac2af4770318","Chat widget key") ?? "Chat widget key")}</span>
+                <input type="text" data-ss-chat-key value="${esc(firstText(chat.widget_key))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_b861d33d8cee56","wk_…") ?? "wk_…")}">
+                <span class="sub">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_f6e3be5d9f4ed5","Find this under Settings → Live Chat → Widget.") ?? "Find this under Settings → Live Chat → Widget.")}</span>
               </label>`)}
-            <p class="fmwe-micro-label"><i class="fas fa-magnifying-glass"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_a3db32a01cd18b"," SEO") ?? " SEO")}</p>
-            <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_0ef3402e062834","Site title") ?? "Site title")}</span><input type="text" data-ss-seo-title value="${String(esc(firstText(seo.title)))}" maxlength="120"></label>
-            <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea data-ss-seo-desc maxlength="300">${String(esc(firstText(seo.description)))}</textarea></label>
+            <p class="fmwe-micro-label"><i class="fas fa-magnifying-glass"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a3db32a01cd18b"," SEO") ?? " SEO")}</p>
+            <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_0ef3402e062834","Site title") ?? "Site title")}</span><input type="text" data-ss-seo-title value="${String(esc(firstText(seo.title)))}" maxlength="120"></label>
+            <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea data-ss-seo-desc maxlength="300">${String(esc(firstText(seo.description)))}</textarea></label>
           </div>
           <div class="fmwe-drawer-foot">
-            <button type="button" class="fmwe-btn" data-ss-cancel>${(globalThis.PlatformLanguage?.text("web-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="button" class="fmwe-btn primary" data-ss-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_072cb2e744ba22"," Save settings") ?? " Save settings")}</button>
+            <button type="button" class="fmwe-btn" data-ss-cancel>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="button" class="fmwe-btn primary" data-ss-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_072cb2e744ba22"," Save settings") ?? " Save settings")}</button>
           </div>
         </div>`;
       document.body.appendChild(back);
@@ -1346,29 +1346,29 @@
         </button>`;
       const modalThumbHandles = [];
       const modal = openModal(`
-        <h2><i class="fas fa-file-circle-plus"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_65e8237f1b1836"," New page") ?? " New page")}</h2>
+        <h2><i class="fas fa-file-circle-plus"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_65e8237f1b1836"," New page") ?? " New page")}</h2>
         <p class="hint">${String(portal ? 'New pages start as drafts. Publish and enable one to add it as a customer-portal tab.' : 'New pages start as drafts and never appear on your live site until you publish them.')}</p>
-        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_9d6a9a8ec4fce8","Page title") ?? "Page title")}</span><input type="text" data-np-title placeholder="${(globalThis.PlatformLanguage?.text("web-editor","m_181254e7f4931c","e.g. About Us") ?? "e.g. About Us")}" maxlength="80"></label>
-        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_6778c9c2d9a698","Slug") ?? "Slug")}</span>
-          <input type="text" data-np-slug placeholder="${(globalThis.PlatformLanguage?.text("web-editor","m_d0a0e77f36b9c0","about-us") ?? "about-us")}" maxlength="60" spellcheck="false">
-          <span class="sub" data-np-slug-hint>${(globalThis.PlatformLanguage?.text("web-editor","m_f0cc796d638dcb","The page address: …/") ?? "The page address: …/")}<b>${(globalThis.PlatformLanguage?.text("web-editor","m_b7cff0444a4804","slug") ?? "slug")}</b></span>
+        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_9d6a9a8ec4fce8","Page title") ?? "Page title")}</span><input type="text" data-np-title placeholder="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_181254e7f4931c","e.g. About Us") ?? "e.g. About Us")}" maxlength="80"></label>
+        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_6778c9c2d9a698","Slug") ?? "Slug")}</span>
+          <input type="text" data-np-slug placeholder="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_d0a0e77f36b9c0","about-us") ?? "about-us")}" maxlength="60" spellcheck="false">
+          <span class="sub" data-np-slug-hint>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_f0cc796d638dcb","The page address: …/") ?? "The page address: …/")}<b>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_b7cff0444a4804","slug") ?? "slug")}</b></span>
         </label>
         <div class="fmwe-new-template-head">
-          <strong>${(globalThis.PlatformLanguage?.text("web-editor","m_c5c394ca66d257","Start from a template") ?? "Start from a template")}</strong>
-          <span>${(globalThis.PlatformLanguage?.text("web-editor","m_2b3a1096bc91b6","You can replace or customize it in the editor.") ?? "You can replace or customize it in the editor.")}</span>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_c5c394ca66d257","Start from a template") ?? "Start from a template")}</strong>
+          <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_2b3a1096bc91b6","You can replace or customize it in the editor.") ?? "You can replace or customize it in the editor.")}</span>
         </div>
         <div class="fmwe-new-template-grid">
-          ${String(portalTemplates.length ? `<p class="fmwe-new-template-label">Customer portal templates</p>${portalTemplates.map(templateCard).join('')}` : '')}
+          ${String(portalTemplates.length ? `<p class="fmwe-new-template-label">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_1b9b45cf9e351d","Customer portal templates") ?? "Customer portal templates")}</p>${portalTemplates.map(templateCard).join('')}` : '')}
           ${String(generalTemplates.length ? `<p class="fmwe-new-template-label">${portal ? 'General page templates' : 'Page templates'}</p>${generalTemplates.map(templateCard).join('')}` : '')}
-          <p class="fmwe-new-template-label">${(globalThis.PlatformLanguage?.text("web-editor","m_72d3d4a30fd8b6","Start without a template") ?? "Start without a template")}</p>
+          <p class="fmwe-new-template-label">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_72d3d4a30fd8b6","Start without a template") ?? "Start without a template")}</p>
           <button type="button" class="fmwe-new-template blank selected" data-np-template="" aria-pressed="true">
             <span class="fmwe-new-template-thumb"><i class="fas fa-file"></i></span>
-            <span><strong>${(globalThis.PlatformLanguage?.text("web-editor","m_98697fdffbff97","Blank page") ?? "Blank page")}</strong><small>${(globalThis.PlatformLanguage?.text("web-editor","m_9097833e12b8ab","Start from scratch") ?? "Start from scratch")}</small></span>
+            <span><strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_98697fdffbff97","Blank page") ?? "Blank page")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_9097833e12b8ab","Start from scratch") ?? "Start from scratch")}</small></span>
             <i class="fas fa-circle-check"></i>
           </button>
         </div>
         <div class="fmwe-modal-foot">
-          <button type="button" class="fmwe-btn primary" data-np-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_6167c02a139b47"," Create &amp; design") ?? " Create &amp; design")}</button>
+          <button type="button" class="fmwe-btn primary" data-np-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_6167c02a139b47"," Create &amp; design") ?? " Create &amp; design")}</button>
         </div>`, { className: 'wide fmwe-new-page-modal', onClose: () => modalThumbHandles.splice(0).forEach((handle) => { try { handle?.destroy?.(); } catch (e) {} }) });
       const titleInput = modal.body.querySelector('[data-np-title]');
       const slugInput = modal.body.querySelector('[data-np-slug]');
@@ -1524,7 +1524,7 @@
     }
 
     function summaryNoteHtml(){
-      return `<div class="fmwe-summary-editor-note"><i class="fas fa-shield-halved"></i><span><strong>${(globalThis.PlatformLanguage?.text("web-editor","m_70fa83050b601a","Required Summary content stays above this canvas") ?? "Required Summary content stays above this canvas")}</strong><small>${(globalThis.PlatformLanguage?.text("web-editor","m_824d006baead30","Project title, address, contact information, next steps, photos, and proposals are always shown. Design any additional sections below.") ?? "Project title, address, contact information, next steps, photos, and proposals are always shown. Design any additional sections below.")}</small></span></div>`;
+      return `<div class="fmwe-summary-editor-note"><i class="fas fa-shield-halved"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_70fa83050b601a","Required Summary content stays above this canvas") ?? "Required Summary content stays above this canvas")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_824d006baead30","Project title, address, contact information, next steps, photos, and proposals are always shown. Design any additional sections below.") ?? "Project title, address, contact information, next steps, photos, and proposals are always shown. Design any additional sections below.")}</small></span></div>`;
     }
 
     function isSummaryPage(){
@@ -1543,8 +1543,8 @@
         <div class="fmwe-shell">
           <div class="fmwe-editor fullscreen">
             <header class="fmwe-editor-top">
-              <button type="button" class="fmwe-icon-btn" data-ed-back title="${(globalThis.PlatformLanguage?.text("web-editor","m_990e88a8ba17e8","Back to pages") ?? "Back to pages")}"><i class="fas fa-arrow-left"></i></button>
-              <input class="fmwe-title-input" data-ed-title value="${String(esc(isSummary ? 'Summary' : firstText(page.title, state.editorLoading ? '' : 'Untitled page')))}" placeholder="${(globalThis.PlatformLanguage?.text("web-editor","m_9d6a9a8ec4fce8","Page title") ?? "Page title")}" spellcheck="false" ${String(state.editorLoading || isSummary ? 'disabled' : '')}>
+              <button type="button" class="fmwe-icon-btn" data-ed-back title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_990e88a8ba17e8","Back to pages") ?? "Back to pages")}"><i class="fas fa-arrow-left"></i></button>
+              <input class="fmwe-title-input" data-ed-title value="${String(esc(isSummary ? 'Summary' : firstText(page.title, state.editorLoading ? '' : 'Untitled page')))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_9d6a9a8ec4fce8","Page title") ?? "Page title")}" spellcheck="false" ${String(state.editorLoading || isSummary ? 'disabled' : '')}>
               ${String(state.editorLoading ? '' : pageStatusChips(page))}
               <span class="fmwe-save-chip saved" data-ed-save-chip></span>
             </header>
@@ -1552,8 +1552,8 @@
               ${String(isSummary ? summaryNoteHtml() : '')}
               <div class="fmwe-editor-main">
                 <div class="fmwe-editor-canvas" data-ed-canvas>
-                  ${String(state.editorLoading ? '<div class="fmwe-state" style="margin:22px;border:0;background:transparent"><div class="fmwe-spinner"></div><strong>Opening page</strong></div>' : '')}
-                  ${String(state.editorError ? stateHtml({ icon: 'fa-cloud-bolt', title: 'Couldn’t open this page', message: errorMessage(state.editorError, ''), retry: true }) : '')}
+                  ${String(state.editorLoading ? `<div class="fmwe-state" style="margin:22px;border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a1e9e1f8008f0c","Opening page") ?? "Opening page")}</strong></div>` : '')}
+                  ${String(state.editorError ? stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_9d086cd5a7a42c","Couldn’t open this page") ?? "Couldn’t open this page"), message: errorMessage(state.editorError, ''), retry: true }) : '')}
                 </div>
               </div>
             </div>
@@ -1592,7 +1592,7 @@
       state.webAgent = null;
       if (!hostEl) return;
       if (!window.FMDocAgentPanel?.create) {
-        hostEl.innerHTML = `<div class="fmwe-empty"><span>${(globalThis.PlatformLanguage?.text("web-editor","m_85a6a9fb425b48","The design copilot library is not loaded.") ?? "The design copilot library is not loaded.")}</span></div>`;
+        hostEl.innerHTML = `<div class="fmwe-empty"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_85a6a9fb425b48","The design copilot library is not loaded.") ?? "The design copilot library is not loaded.")}</span></div>`;
         return;
       }
       state.webAgent = window.FMDocAgentPanel.create(hostEl, {
@@ -1713,7 +1713,7 @@
         if (state.destroyed || state.view !== 'editor' || state.editorMode !== 'draft' || !state.portalFrame) return;
         const previewStage = buildPortalFrame(canvas);
         if (!window.FMDocRenderer?.render) {
-          previewStage.innerHTML = `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.text("web-editor","m_42d08ea7c234b8","Preview unavailable — renderer not loaded.") ?? "Preview unavailable — renderer not loaded.")}</div>`;
+          previewStage.innerHTML = `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_42d08ea7c234b8","Preview unavailable — renderer not loaded.") ?? "Preview unavailable — renderer not loaded.")}</div>`;
           return;
         }
         let previewDoc = clone(state.draftDefinition || {});
@@ -1730,12 +1730,12 @@
             widgetContext: { resolvePageHref: () => '#', preview: true }
           });
         } catch (error) {
-          previewStage.innerHTML = `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.text("web-editor","m_c7dfa3c0aa9b5d","We could not render this preview.") ?? "We could not render this preview.")}</div>`;
+          previewStage.innerHTML = `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_c7dfa3c0aa9b5d","We could not render this preview.") ?? "We could not render this preview.")}</div>`;
         }
         return;
       }
       if (!window.FMDocEditor?.mount || !window.FMVisualEditor?.mount) {
-        stage.innerHTML = stateHtml({ icon: 'fa-pen-ruler', title: (globalThis.PlatformLanguage?.text("web-editor","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable"), message: (globalThis.PlatformLanguage?.text("web-editor","m_a501de9d8db031","The document editor library is not loaded for this session.") ?? "The document editor library is not loaded for this session.") });
+        stage.innerHTML = stateHtml({ icon: 'fa-pen-ruler', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable"), message: (globalThis.PlatformLanguage?.htmlText("web-editor","m_a501de9d8db031","The document editor library is not loaded for this session.") ?? "The document editor library is not loaded for this session.") });
         return;
       }
       // The `website` profile ships with the doc-editor changes built in
@@ -1877,7 +1877,7 @@
       } catch (error) {
         console.warn('FMVisualEditor mount failed', error);
         const body = root.querySelector('[data-ed-body]');
-        if (body) body.innerHTML = `<div class="fmwe-editor-main"><div class="fmwe-editor-canvas" data-ed-canvas>${stateHtml({ icon: 'fa-triangle-exclamation', title: (globalThis.PlatformLanguage?.text("web-editor","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start"), message: errorMessage(error, '') })}</div></div>`;
+        if (body) body.innerHTML = `<div class="fmwe-editor-main"><div class="fmwe-editor-canvas" data-ed-canvas>${stateHtml({ icon: 'fa-triangle-exclamation', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start"), message: errorMessage(error, '') })}</div></div>`;
       }
     }
 
@@ -1891,7 +1891,7 @@
         tabPages.push(page);
       }
       canvas.innerHTML = `
-        <div class="fmwe-cp-frame-note"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_a5d1a9c5996acf"," Customer portal preview — how customers will see this page") ?? " Customer portal preview — how customers will see this page")}</div>
+        <div class="fmwe-cp-frame-note"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a5d1a9c5996acf"," Customer portal preview — how customers will see this page") ?? " Customer portal preview — how customers will see this page")}</div>
         <div class="fmwe-portal-frame">
           <div class="fmwe-cp-scope" style="${String(esc(portalBrandingStyle()))}">
             <div class="cp-shell">
@@ -1901,12 +1901,12 @@
                     ${String(portalLogoHtml(name))}
                     <div>
                       <strong>${String(esc(name))}</strong>
-                      <span>${(globalThis.PlatformLanguage?.text("web-editor","m_46ba04ea07c935","Customer portal") ?? "Customer portal")}</span>
+                      <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_46ba04ea07c935","Customer portal") ?? "Customer portal")}</span>
                     </div>
                   </div>
                 </div>
               </header>
-              <nav class="cp-tabs" aria-label="${(globalThis.PlatformLanguage?.text("web-editor","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
+              <nav class="cp-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
                 ${String(PORTAL_BUILTIN_TABS.map((label) => `<button type="button">${esc(label)}</button>`).join(''))}
                 ${String(tabPages.map((p) => `<button type="button" class="${cleanText(p.id) === cleanText(page.id) ? 'active' : ''}">${esc(firstText(p.title, 'Page'))}</button>`).join(''))}
               </nav>
@@ -1921,8 +1921,8 @@
 
     async function mountLivePreview(canvas){
       canvas.innerHTML = `
-        <div class="fmwe-live-bar"><i class="fas fa-tower-broadcast"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_3c4a636dc121bf"," Viewing live version") ?? " Viewing live version")}</div>
-        <div class="fmwe-live-stage"><div class="inner" data-ed-live-stage><div class="fmwe-state" style="border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("web-editor","m_b6e4873e77605a","Loading live version") ?? "Loading live version")}</strong></div></div></div>`;
+        <div class="fmwe-live-bar"><i class="fas fa-tower-broadcast"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_3c4a636dc121bf"," Viewing live version") ?? " Viewing live version")}</div>
+        <div class="fmwe-live-stage"><div class="inner" data-ed-live-stage><div class="fmwe-state" style="border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_b6e4873e77605a","Loading live version") ?? "Loading live version")}</strong></div></div></div>`;
       const stage = canvas.querySelector('[data-ed-live-stage]');
       try {
         const res = await api().pages.resolve(orgId(), state.siteId, state.pageId, { source: 'published' });
@@ -2307,35 +2307,35 @@
       const seo = objectValue(page.seo);
       const chromeRole = role === 'header' || role === 'footer';
       const modal = openModal(`
-        <h2><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_110fb5db03f26e"," Web page settings") ?? " Web page settings")}</h2>
-        ${String(chromeRole ? '<p class="hint">This is a site chrome page — it renders on every page of your site and stays out of menus.</p>' : '')}
+        <h2><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_110fb5db03f26e"," Web page settings") ?? " Web page settings")}</h2>
+        ${String(chromeRole ? `<p class="hint">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_2399ec3b4373a0","This is a site chrome page — it renders on every page of your site and stays out of menus.") ?? "This is a site chrome page — it renders on every page of your site and stays out of menus.")}</p>` : '')}
         ${String(chromeRole ? '' : `
-          <label class="fmwe-field"><span>Slug</span>
+          <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_6778c9c2d9a698","Slug") ?? "Slug")}</span>
             <input type="text" data-ps-slug value="${esc(firstText(page.slug))}" maxlength="60" spellcheck="false">
-            <span class="sub">The page address: …/<b>slug</b></span>
+            <span class="sub">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_f0cc796d638dcb","The page address: …/") ?? "The page address: …/")}<b>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_b7cff0444a4804","slug") ?? "slug")}</b></span>
           </label>
           ${portal ? `
           <div class="fmwe-check">
-            <span>Show in customer portal<small>Your customers see this page as a portal tab. Turn off to hide it without unpublishing.</small></span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_3bac4fc9dda8bb","Show in customer portal") ?? "Show in customer portal")}<small>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_c08285256579b0","Your customers see this page as a portal tab. Turn off to hide it without unpublishing.") ?? "Your customers see this page as a portal tab. Turn off to hide it without unpublishing.")}</small></span>
             <button type="button" class="fmwe-switch ${page.enabled && nav.header ? 'on' : ''}" data-ps-portal-visible></button>
           </div>` : `
           <div class="fmwe-check">
-            <span>Show in header menu<small>Adds this page to your site’s header navigation.</small></span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_0f092ca7d72f68","Show in header menu") ?? "Show in header menu")}<small>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_2bc98ea7cc4e03","Adds this page to your site’s header navigation.") ?? "Adds this page to your site’s header navigation.")}</small></span>
             <button type="button" class="fmwe-switch ${nav.header ? 'on' : ''}" data-ps-nav-header></button>
           </div>
           <div class="fmwe-check">
-            <span>Show in footer menu</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a606bea45e84d6","Show in footer menu") ?? "Show in footer menu")}</span>
             <button type="button" class="fmwe-switch ${nav.footer ? 'on' : ''}" data-ps-nav-footer></button>
           </div>
           <div class="fmwe-check">
-            <span>Visible on your live site<small>Turn off to hide this page without unpublishing.</small></span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_864ba051ae8d35","Visible on your live site") ?? "Visible on your live site")}<small>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_29131610b16909","Turn off to hide this page without unpublishing.") ?? "Turn off to hide this page without unpublishing.")}</small></span>
             <button type="button" class="fmwe-switch ${page.enabled ? 'on' : ''}" data-ps-enabled></button>
           </div>`}
-          <p class="fmwe-micro-label"><i class="fas fa-magnifying-glass"></i> SEO</p>
-          <label class="fmwe-field"><span>SEO title</span><input type="text" data-ps-seo-title value="${esc(firstText(seo.title))}" maxlength="120"></label>
-          <label class="fmwe-field"><span>SEO description</span><textarea data-ps-seo-desc maxlength="300">${esc(firstText(seo.description))}</textarea></label>`)}
+          <p class="fmwe-micro-label"><i class="fas fa-magnifying-glass"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_a3db32a01cd18b"," SEO") ?? " SEO")}</p>
+          <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_d58b8139dce2e2","SEO title") ?? "SEO title")}</span><input type="text" data-ps-seo-title value="${esc(firstText(seo.title))}" maxlength="120"></label>
+          <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_d7ec3a61f94e39","SEO description") ?? "SEO description")}</span><textarea data-ps-seo-desc maxlength="300">${esc(firstText(seo.description))}</textarea></label>`)}
         <div class="fmwe-modal-foot">
-          ${String(chromeRole ? '' : '<button type="button" class="fmwe-btn primary" data-ps-save><i class="fas fa-check"></i> Save settings</button>')}
+          ${String(chromeRole ? '' : `<button type="button" class="fmwe-btn primary" data-ps-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_072cb2e744ba22"," Save settings") ?? " Save settings")}</button>`)}
         </div>`);
       modal.body.querySelectorAll('.fmwe-switch').forEach((btn) => btn.addEventListener('click', () => btn.classList.toggle('on')));
       modal.body.querySelector('[data-ps-save]')?.addEventListener('click', async (event) => {
@@ -2378,11 +2378,11 @@
       back.innerHTML = `
         <div class="fmwe-drawer">
           <div class="fmwe-drawer-head">
-            <strong><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.text("web-editor","m_b5edeb48c05298"," Version history") ?? " Version history")}</strong>
-            <button type="button" class="fmwe-icon-btn" data-vh-close title="${(globalThis.PlatformLanguage?.text("web-editor","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+            <strong><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_b5edeb48c05298"," Version history") ?? " Version history")}</strong>
+            <button type="button" class="fmwe-icon-btn" data-vh-close title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
           </div>
           <div class="fmwe-drawer-body" data-vh-body>
-            <div class="fmwe-state" style="border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("web-editor","m_be3a1459d2466d","Loading history") ?? "Loading history")}</strong></div>
+            <div class="fmwe-state" style="border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_be3a1459d2466d","Loading history") ?? "Loading history")}</strong></div>
           </div>
         </div>`;
       document.body.appendChild(back);
@@ -2398,27 +2398,27 @@
             .sort((a, b) => Number(b.version || 0) - Number(a.version || 0));
         }
       } catch (error) {
-        body.innerHTML = stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.text("web-editor","m_8459bc266435f5","Couldn’t load the history") ?? "Couldn’t load the history"), message: errorMessage(error, '') });
+        body.innerHTML = stateHtml({ icon: 'fa-cloud-bolt', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_8459bc266435f5","Couldn’t load the history") ?? "Couldn’t load the history"), message: errorMessage(error, '') });
         return;
       }
       if (!body.isConnected) return;
       if (!state.versions.length) {
-        body.innerHTML = stateHtml({ icon: 'fa-clock-rotate-left', title: (globalThis.PlatformLanguage?.text("web-editor","m_228d7f432a9708","No versions yet") ?? "No versions yet"), message: (globalThis.PlatformLanguage?.text("web-editor","m_e1766e6a9625f5","Publish this page and every published version will be kept here.") ?? "Publish this page and every published version will be kept here.") });
+        body.innerHTML = stateHtml({ icon: 'fa-clock-rotate-left', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_228d7f432a9708","No versions yet") ?? "No versions yet"), message: (globalThis.PlatformLanguage?.htmlText("web-editor","m_e1766e6a9625f5","Publish this page and every published version will be kept here.") ?? "Publish this page and every published version will be kept here.") });
         return;
       }
       const liveVersion = Number(page.published_version || 0);
       body.innerHTML = `
-        <p class="hint" style="margin:0 0 10px;color:#667085;font-size:12px;font-weight:700;line-height:1.5">${((v0) => globalThis.PlatformLanguage?.text("web-editor","m_29a6232e7681c5",`Restoring copies an old version into your draft — the live ${v0} is unchanged until you publish.`,{v0}) ?? `Restoring copies an old version into your draft — the live ${v0} is unchanged until you publish.`)(isPortalSite() ? 'portal' : 'site')}</p>
+        <p class="hint" style="margin:0 0 10px;color:#667085;font-size:12px;font-weight:700;line-height:1.5">${((v0) => globalThis.PlatformLanguage?.htmlText("web-editor","m_29a6232e7681c5",`Restoring copies an old version into your draft — the live ${v0} is unchanged until you publish.`,{v0}) ?? `Restoring copies an old version into your draft — the live ${v0} is unchanged until you publish.`)(isPortalSite() ? 'portal' : 'site')}</p>
         ${String(state.versions.map((v) => `
           <div class="fmwe-version-row" data-version-row="${esc(v.version)}">
             <span class="fmwe-version-badge">v${esc(v.version)}</span>
             <div class="info">
-              <strong>Version ${esc(v.version)} ${Number(v.version) === liveVersion ? '<span class="fmwe-chip live">Live</span>' : ''}</strong>
+              <strong>Version ${esc(v.version)} ${Number(v.version) === liveVersion ? `<span class="fmwe-chip live">${(globalThis.PlatformLanguage?.htmlText("web-editor","m_430a0cf632da94","Live") ?? "Live")}</span>` : ''}</strong>
               <small>${esc([formatDate(v.published_at), firstText(v.published_by_name, v.published_by, v.published_by_user_id)].filter(Boolean).join(' · ') || 'Published')}</small>
             </div>
             <div class="actions">
-              <button type="button" class="fmwe-icon-btn" data-vh-view title="View this version"><i class="fas fa-eye"></i></button>
-              <button type="button" class="fmwe-icon-btn" data-vh-restore title="Restore to draft"><i class="fas fa-rotate-left"></i></button>
+              <button type="button" class="fmwe-icon-btn" data-vh-view title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_dc9e45a6bb3a6b","View this version") ?? "View this version")}"><i class="fas fa-eye"></i></button>
+              <button type="button" class="fmwe-icon-btn" data-vh-restore title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_08616cb653b89e","Restore to draft") ?? "Restore to draft")}"><i class="fas fa-rotate-left"></i></button>
             </div>
           </div>`).join(''))}`;
       body.querySelectorAll('[data-version-row]').forEach((row) => {
@@ -2444,9 +2444,9 @@
 
     async function viewVersion(version){
       const modal = openModal(`
-        <h2><i class="fas fa-eye"></i>${((v0) => globalThis.PlatformLanguage?.text("web-editor","m_fe35838a4d7d84",` Version ${v0}`,{v0}) ?? ` Version ${v0}`)(esc(version))}</h2>
+        <h2><i class="fas fa-eye"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("web-editor","m_fe35838a4d7d84",` Version ${v0}`,{v0}) ?? ` Version ${v0}`)(esc(version))}</h2>
         <div class="fmwe-version-preview" data-vv-stage>
-          <div class="fmwe-state" style="border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("web-editor","m_6f4c8d92d84a45","Loading version") ?? "Loading version")}</strong></div>
+          <div class="fmwe-state" style="border:0;background:transparent"><div class="fmwe-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_6f4c8d92d84a45","Loading version") ?? "Loading version")}</strong></div>
         </div>`, { className: 'wide' });
       const stage = modal.body.querySelector('[data-vv-stage]');
       try {
@@ -2467,7 +2467,7 @@
           scale
         });
       } catch (error) {
-        stage.innerHTML = stateHtml({ icon: 'fa-triangle-exclamation', title: (globalThis.PlatformLanguage?.text("web-editor","m_05ae2c72e46837","Couldn’t load this version") ?? "Couldn’t load this version"), message: errorMessage(error, '') });
+        stage.innerHTML = stateHtml({ icon: 'fa-triangle-exclamation', title: (globalThis.PlatformLanguage?.htmlText("web-editor","m_05ae2c72e46837","Couldn’t load this version") ?? "Couldn’t load this version"), message: errorMessage(error, '') });
       }
     }
 

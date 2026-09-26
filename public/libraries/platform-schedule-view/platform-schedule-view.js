@@ -865,7 +865,7 @@
     const title = appointmentTitle(project, event);
     const address = event.project_address || project?.address || '';
     const span = Math.max(1, Math.ceil((Number(event.duration_minutes) || 60) / Math.max(1, Number(slotMinutes) || 30)));
-    return `<div class="psv-appt ${draft ? 'draft' : ''} ${moving ? 'moving' : ''} ${selected ? 'open' : ''} ${confirmable ? 'has-confirm' : ''} ${foreign ? 'foreign' : ''}" style="--span:${span};--stack-index:${Math.max(0, Number(stackIndex) || 0)};--slot-offset:${Math.max(0, Math.min(0.999, Number(slotOffset) || 0))}" data-psv-event-id="${esc(event.id || '')}" data-psv-project-id="${esc(event.project_id || project?.id || '')}"><span class="psv-appt-title">${esc(title)}</span><div class="psv-appt-address">${esc(address)}</div>${confirmable ? `<span class="psv-draft-confirm" data-psv-draft-confirm role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_e36c5a08a12e11","Confirm and save appointment") ?? "Confirm and save appointment")}"><i class="fas fa-check"></i></span>` : ''}${selected ? menuHtml : ''}</div>`;
+    return `<div class="psv-appt ${draft ? 'draft' : ''} ${moving ? 'moving' : ''} ${selected ? 'open' : ''} ${confirmable ? 'has-confirm' : ''} ${foreign ? 'foreign' : ''}" style="--span:${span};--stack-index:${Math.max(0, Number(stackIndex) || 0)};--slot-offset:${Math.max(0, Math.min(0.999, Number(slotOffset) || 0))}" data-psv-event-id="${esc(event.id || '')}" data-psv-project-id="${esc(event.project_id || project?.id || '')}"><span class="psv-appt-title">${esc(title)}</span><div class="psv-appt-address">${esc(address)}</div>${confirmable ? `<span class="psv-draft-confirm" data-psv-draft-confirm role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_e36c5a08a12e11","Confirm and save appointment") ?? "Confirm and save appointment")}"><i class="fas fa-check"></i></span>` : ''}${selected ? menuHtml : ''}</div>`;
   }
 
   function draftHtml({ draft, placementProject, Scheduling, slotMinutes, duration, confirmable = false, stackIndex = 0 }){
@@ -1003,7 +1003,7 @@
         const spanSlots = Math.max(1, Math.ceil(spanMinutes / Math.max(1, Number(slotMinutes) || 30)));
         const blockStart = after ? evEnd : evStart - spanMinutes * 60000;
         if (slotStart < blockStart || slotStart >= blockStart + slotMs) return '';
-        return `<div class="psv-travel" style="--travel-span:${String(spanSlots)}" data-slot-minutes="${String(esc(slotMinutes))}" data-travel-key="${String(esc(key))}" data-origin="${String(esc(origin))}" data-destination="${String(esc(destination))}"><i class="far fa-clock"></i>${((v5) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_3bdad39ac6e905",`&nbsp;${v5}`,{v5}) ?? `&nbsp;${v5}`)(esc(cached ? cached : '...'))}</div>`;
+        return `<div class="psv-travel" style="--travel-span:${String(spanSlots)}" data-slot-minutes="${String(esc(slotMinutes))}" data-travel-key="${String(esc(key))}" data-origin="${String(esc(origin))}" data-destination="${String(esc(destination))}"><i class="far fa-clock"></i>${((v5) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_3bdad39ac6e905",`&nbsp;${v5}`,{v5}) ?? `&nbsp;${v5}`)(esc(cached ? cached : '...'))}</div>`;
       }
     }
     return '';
@@ -1360,7 +1360,7 @@
     }];
     const rows = [...unassignedRows, ...resources];
     if (!resources.length) {
-      container.innerHTML = `<div class="psv-empty"><i class="fas fa-user-slash"></i>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_6a7fa493544c6c"," No eligible assignees are available.") ?? " No eligible assignees are available.")}</div>`;
+      container.innerHTML = `<div class="psv-empty"><i class="fas fa-user-slash"></i>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_6a7fa493544c6c"," No eligible assignees are available.") ?? " No eligible assignees are available.")}</div>`;
       return;
     }
     container.__psvOptions = { ...options, Scheduling, config, users:availabilityUsers, resources, projects, eventType, eventTypeId, duration, slotMinutes };
@@ -1372,9 +1372,9 @@
           <div class="psv-range">${String(esc(date.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</div>
         </div>
         <div class="psv-toolbar-right">
-          ${String(typeof options.onLockTimeToggle === 'function' ? `<button type="button" class="psv-lock-toggle ${options.lockTime ? 'active' : ''}" data-psv-lock><span class="dot"></span> Lock appointment time</button>` : '')}
-          ${String(typeof options.onSmartScrollToggle === 'function' ? `<button type="button" class="psv-smart-toggle ${options.smartScroll !== false ? 'active' : ''}" data-psv-smart-scroll><span class="dot"></span> Smart scroll</button>` : '')}
-          <button type="button" class="psv-travel-toggle ${String(options.liveTravel ? 'active' : '')}" data-psv-live><span class="dot"></span>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_821a653a1f79f2"," Live travel time") ?? " Live travel time")}</button>
+          ${String(typeof options.onLockTimeToggle === 'function' ? `<button type="button" class="psv-lock-toggle ${options.lockTime ? 'active' : ''}" data-psv-lock><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_6af109c4fd5ab7"," Lock appointment time") ?? " Lock appointment time")}</button>` : '')}
+          ${String(typeof options.onSmartScrollToggle === 'function' ? `<button type="button" class="psv-smart-toggle ${options.smartScroll !== false ? 'active' : ''}" data-psv-smart-scroll><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_87d3f1a9ae9c3e"," Smart scroll") ?? " Smart scroll")}</button>` : '')}
+          <button type="button" class="psv-travel-toggle ${String(options.liveTravel ? 'active' : '')}" data-psv-live><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_821a653a1f79f2"," Live travel time") ?? " Live travel time")}</button>
           <span class="psv-pill"><i class="fas fa-table-cells"></i>${String(esc(options.modeLabel || 'Daily team view'))}</span>
         </div>
       </div>
@@ -1675,7 +1675,7 @@
     // secondary_label lets the caller pick the second line (e.g. the address
     // when the title already carries the customer/project name).
     const bottomLabel = showSecondary ? (clean(item.secondary_label) || projectTitle || (showTime ? formatRange(range.start, range.end, allDay, { timeOnly: timed || timedMonth }) : '')) : '';
-    const assigneeHtml = !preview && !materialDelivery && showAssignee && showDetails && crewLabel ? `<button type="button" class="prs-assignee ${String(waitingForCrew ? 'waiting' : '')}" data-prs-assignee aria-label="${((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_9e5fd4e73c5442",`Assign ${v1}`,{v1}) ?? `Assign ${v1}`)(esc(crewLabel))}"><span>${String(esc(crewLabel))}</span></button>` : '';
+    const assigneeHtml = !preview && !materialDelivery && showAssignee && showDetails && crewLabel ? `<button type="button" class="prs-assignee ${String(waitingForCrew ? 'waiting' : '')}" data-prs-assignee aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_9e5fd4e73c5442",`Assign ${v1}`,{v1}) ?? `Assign ${v1}`)(esc(crewLabel))}"><span>${String(esc(crewLabel))}</span></button>` : '';
     const rawType = clean(item.event_type_default_id || item.type_id || item.event_type_id || item.type).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/_/g, '-');
     const typeClass = rawType ? `type-${rawType}` : 'untyped';
     const unsavedClass = draft || item.status === 'draft' ? 'unsaved' : '';
@@ -1732,7 +1732,7 @@
       ${timed ? assigneeHtml : ''}
       ${requirementMarker}
       ${!bottomLabel && lockControl ? `<span class="prs-chip-lock-only">${lockControl}</span>` : ''}
-      ${draft && confirmable ? `<button type="button" class="prs-confirm" data-prs-confirm aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_bab4540ec11ac4","Confirm New Event") ?? "Confirm New Event")}"><i class="fas fa-check"></i></button>` : ''}
+      ${draft && confirmable ? `<button type="button" class="prs-confirm" data-prs-confirm aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bab4540ec11ac4","Confirm New Event") ?? "Confirm New Event")}"><i class="fas fa-check"></i></button>` : ''}
     </div>`;
   }
 
@@ -1936,7 +1936,7 @@
     };
     const toolbar = `
       <div class="prs-toolbar">
-        ${mode === 'list' ? (options.showListLabel === false ? '' : `<div class="prs-nav"><div class="prs-range">${esc(viewLabel)}</div></div>`) : `<div class="prs-nav"><button type="button" class="prs-icon-btn" data-prs-nav="-1"><i class="fas fa-chevron-left"></i></button><button type="button" class="prs-icon-btn" data-prs-today>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="prs-icon-btn" data-prs-nav="1"><i class="fas fa-chevron-right"></i></button><div class="prs-range">${String(esc(viewLabel))}</div></div>`}
+        ${mode === 'list' ? (options.showListLabel === false ? '' : `<div class="prs-nav"><div class="prs-range">${esc(viewLabel)}</div></div>`) : `<div class="prs-nav"><button type="button" class="prs-icon-btn" data-prs-nav="-1"><i class="fas fa-chevron-left"></i></button><button type="button" class="prs-icon-btn" data-prs-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="prs-icon-btn" data-prs-nav="1"><i class="fas fa-chevron-right"></i></button><div class="prs-range">${String(esc(viewLabel))}</div></div>`}
         ${showModeSwitch && modeChoices.length > 1 ? `<div class="prs-view-switch">${modeChoices.map((id) => `<button type="button" class="prs-view-btn ${mode === id ? 'active' : ''}" data-prs-mode="${id}">${esc(modeLabel(id))}</button>`).join('')}</div>` : ''}
       </div>
     `;
@@ -2081,7 +2081,7 @@
             </div>`).join('')}
             <div class="prs-month-item-viewport"><div class="prs-month-item-track" style="--prs-month-track-height:${layout.trackHeight}px">${layout.html}</div></div>
             ${layout.overflowByDay.map((overflow, dayIndex) => overflow.count > 0 ? `<div class="prs-month-day-peek ${weekDays[dayIndex].getMonth() === month.getMonth() ? '' : 'muted'} ${dayTemporalClass(weekDays[dayIndex])}" style="grid-column:${dayIndex + 1};--prs-month-day-track-height:${overflow.dayTrackHeight}px" data-prs-month-day-peek="${dayIndex}"><div class="prs-month-day-peek-track">${overflow.peekHtml}</div></div>` : '').join('')}
-            ${layout.overflowByDay.map((overflow, dayIndex) => overflow.count > 0 ? `<button type="button" class="prs-month-overflow ${String(dayIndex === expandedDayIndex ? 'is-controller' : '')}" style="grid-column:${String(dayIndex + 1)}" data-prs-month-overflow data-prs-month-day="${String(dayIndex)}" data-prs-month-date="${String(esc(dateKey(weekDays[dayIndex])))}" data-prs-month-count="${String(overflow.count)}" data-prs-month-scroll="${String(overflow.scroll)}" data-prs-month-scroll-steps="${String(overflow.scrollSteps)}" data-prs-month-expanded-height="${String(overflow.expandedHeight)}" aria-expanded="${String(dayIndex === expandedDayIndex ? 'true' : 'false')}" aria-label="${String(dayIndex === expandedDayIndex ? 'Show fewer items' : `Show ${overflow.count} more ${overflow.count === 1 ? 'item' : 'items'}`)}"><span class="prs-month-overflow-more">+ ${String(overflow.count)} ${String(overflow.count === 1 ? 'item' : 'items')}</span><span class="prs-month-overflow-less">${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_b55d24ab7e316b","Show less") ?? "Show less")}</span></button>` : '').join('')}
+            ${layout.overflowByDay.map((overflow, dayIndex) => overflow.count > 0 ? `<button type="button" class="prs-month-overflow ${String(dayIndex === expandedDayIndex ? 'is-controller' : '')}" style="grid-column:${String(dayIndex + 1)}" data-prs-month-overflow data-prs-month-day="${String(dayIndex)}" data-prs-month-date="${String(esc(dateKey(weekDays[dayIndex])))}" data-prs-month-count="${String(overflow.count)}" data-prs-month-scroll="${String(overflow.scroll)}" data-prs-month-scroll-steps="${String(overflow.scrollSteps)}" data-prs-month-expanded-height="${String(overflow.expandedHeight)}" aria-expanded="${String(dayIndex === expandedDayIndex ? 'true' : 'false')}" aria-label="${String(dayIndex === expandedDayIndex ? 'Show fewer items' : `Show ${overflow.count} more ${overflow.count === 1 ? 'item' : 'items'}`)}"><span class="prs-month-overflow-more">+ ${String(overflow.count)} ${String(overflow.count === 1 ? 'item' : 'items')}</span><span class="prs-month-overflow-less">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_b55d24ab7e316b","Show less") ?? "Show less")}</span></button>` : '').join('')}
           </div>`;
         }).join('')}
       </div></div>`;
@@ -2162,12 +2162,12 @@
         : Math.max(54, 12 + allDayRows * WEEK_ALL_DAY_ITEM_STEP_PX);
       const allDayGridHeight = compactWeekAllDay ? compactAllDayHeight : Math.max(54, 12 + allDayRows * 48);
       const timedGridMinWidth = 62 + days.length * 120;
-      const allDayOverflowButtons = hiddenAllDayByDay.map((dayOverflow) => dayOverflow.count > 0 ? `<button type="button" class="prs-week-all-day-overflow ${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'is-controller' : '')}" style="grid-column:${String(dayOverflow.gridColumn)}" data-prs-week-all-day-overflow data-prs-week-all-day-count="${String(dayOverflow.count)}" data-prs-week-all-day-scroll="${String(dayOverflow.scroll)}" data-prs-week-all-day-scroll-steps="${String(dayOverflow.scrollSteps)}" aria-expanded="${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'true' : 'false')}" aria-label="${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'Show fewer all-day items' : `Show ${dayOverflow.count} more all-day ${dayOverflow.count === 1 ? 'item' : 'items'} on ${dayOverflow.day.toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' })}`)}"><span class="prs-week-all-day-overflow-more">${((v7) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_ffbd4fa895be2c",`+ ${v7} more`,{v7}) ?? `+ ${v7} more`)(dayOverflow.count)}</span><span class="prs-week-all-day-overflow-less">${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_b55d24ab7e316b","Show less") ?? "Show less")}</span></button>` : '').join('');
+      const allDayOverflowButtons = hiddenAllDayByDay.map((dayOverflow) => dayOverflow.count > 0 ? `<button type="button" class="prs-week-all-day-overflow ${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'is-controller' : '')}" style="grid-column:${String(dayOverflow.gridColumn)}" data-prs-week-all-day-overflow data-prs-week-all-day-count="${String(dayOverflow.count)}" data-prs-week-all-day-scroll="${String(dayOverflow.scroll)}" data-prs-week-all-day-scroll-steps="${String(dayOverflow.scrollSteps)}" aria-expanded="${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'true' : 'false')}" aria-label="${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'Show fewer all-day items' : `Show ${dayOverflow.count} more all-day ${dayOverflow.count === 1 ? 'item' : 'items'} on ${dayOverflow.day.toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' })}`)}"><span class="prs-week-all-day-overflow-more">${((v7) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_ffbd4fa895be2c",`+ ${v7} more`,{v7}) ?? `+ ${v7} more`)(dayOverflow.count)}</span><span class="prs-week-all-day-overflow-less">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_b55d24ab7e316b","Show less") ?? "Show less")}</span></button>` : '').join('');
       return `<div class="prs-surface"><div class="prs-time-grid prs-time-header-grid" style="--prs-days:${String(days.length)};min-width:${String(timedGridMinWidth)}px">
         <div class="prs-time-head"></div>
         ${String(days.map((day) => `<div class="prs-day-head ${dayTemporalClass(day)}"><span class="prs-day-head-desktop">${esc(day.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }))}</span><span class="prs-day-head-mobile"><span>${esc(day.toLocaleDateString([], { weekday:'short' }))}</span><strong>${esc(day.toLocaleDateString([], { day:'numeric' }))}</strong></span></div>`).join(''))}
       </div><div class="prs-all-day-grid ${String(compactWeekAllDay ? 'week-overflow' : '')} ${String(hiddenAllDayCount > 0 ? 'has-overflow' : '')} ${String(allDayExpanded ? 'expanded' : '')}" style="--prs-days:${String(days.length)};min-width:${String(timedGridMinWidth)}px;height:${String(allDayGridHeight)}px;min-height:${String(allDayGridHeight)}px;grid-template-rows:${String(allDayGridHeight)}px" data-prs-week-all-day-key="${String(esc(allDayExpansionKey))}" data-prs-week-all-day-collapsed-height="${String(WEEK_ALL_DAY_COLLAPSED_HEIGHT_PX)}" data-prs-week-all-day-expanded-height="${String(WEEK_ALL_DAY_ITEM_TOP_PX + allDayRows * WEEK_ALL_DAY_ITEM_STEP_PX + 22)}">
-        <div class="prs-all-day-label-cell"><span class="prs-all-day-label-desktop">${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_42b02bf1587e27","All day") ?? "All day")}</span><span class="prs-all-day-label-mobile">${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_61df468d92e238","All") ?? "All")}<br>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_0cd216c9c0268f","day") ?? "day")}</span></div>
+        <div class="prs-all-day-label-cell"><span class="prs-all-day-label-desktop">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_42b02bf1587e27","All day") ?? "All day")}</span><span class="prs-all-day-label-mobile">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_61df468d92e238","All") ?? "All")}<br>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_0cd216c9c0268f","day") ?? "day")}</span></div>
         ${String(days.map((day, index) => `<div class="prs-all-day-cell ${dayTemporalClass(day)}" style="grid-column:${index + 2};grid-row:1" data-prs-date="${esc(dateKey(day))}" data-prs-allday="1"></div>`).join(''))}
         ${String(allDayBars)}
         ${String(allDayOverflowButtons)}
@@ -3625,7 +3625,7 @@
       <div class="prs-toolbar">
         <div class="prs-nav">
           <button type="button" class="prs-icon-btn" data-prs-nav="-1"><i class="fas fa-chevron-left"></i></button>
-          <button type="button" class="prs-icon-btn" data-prs-today>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
+          <button type="button" class="prs-icon-btn" data-prs-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
           <button type="button" class="prs-icon-btn" data-prs-nav="1"><i class="fas fa-chevron-right"></i></button>
           <div class="prs-range">${String(esc(viewLabel))}</div>
         </div>
@@ -3723,7 +3723,7 @@
       node.innerHTML = workChipHtml({
         ...previewItem,
         id: '__preview',
-        title: previewItem?.title || activeDraft?.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"),
+        title: previewItem?.title || activeDraft?.title || (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"),
         all_day: true,
         schedule_granularity: 'date'
       }, { start: segmentStart, end: segmentEnd }, {
@@ -4126,7 +4126,7 @@
           : '';
         return `<div class="prs-resource-all-day-bar ${String(stateClasses)}" style="grid-row:${String(rowIndex + 2)};grid-column:2/${String(slots.length + 2)};${String(esc(presentationStyle))}" aria-label="${String(esc(`All day ${label}`))}"></div>
           <div class="prs-resource-all-day-label" style="grid-row:${String(rowIndex + 2)};grid-column:2/${String(slots.length + 2)}">
-            <div class="prs-all-day-chip ${String(stateClasses)} ${String(showLock ? 'has-lock-control' : '')}" data-prs-event-id="${String(esc(item.id || item.event_id || ''))}" style="${String(esc(presentationStyle))}"><strong>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_6566b47a5b176f","All Day") ?? "All Day")}</strong>${String(marker)}<span class="prs-all-day-title">${String(esc(label))}</span>${String(lockControl)}</div>
+            <div class="prs-all-day-chip ${String(stateClasses)} ${String(showLock ? 'has-lock-control' : '')}" data-prs-event-id="${String(esc(item.id || item.event_id || ''))}" style="${String(esc(presentationStyle))}"><strong>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_6566b47a5b176f","All Day") ?? "All Day")}</strong>${String(marker)}<span class="prs-all-day-title">${String(esc(label))}</span>${String(lockControl)}</div>
           </div>`;
       }).join('');
     const visibleForDay = normalizedVisibleItems.filter(({ item, range }) => rangeItemIsTimed(item) && dateKey(range.start) === dateValue);
@@ -4233,13 +4233,13 @@
       <div class="prs-toolbar">
         <div class="prs-nav">
           <button type="button" class="prs-icon-btn" data-prs-nav="-1"><i class="fas fa-chevron-left"></i></button>
-          <button type="button" class="prs-icon-btn" data-prs-today>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
+          <button type="button" class="prs-icon-btn" data-prs-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
           <button type="button" class="prs-icon-btn" data-prs-nav="1"><i class="fas fa-chevron-right"></i></button>
           <div class="prs-range">${String(esc(anchor.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</div>
         </div>
         <div class="prs-nav">
-          ${String(typeof options.onSmartScrollToggle === 'function' ? `<button type="button" class="psv-smart-toggle ${options.smartScroll ? 'active' : ''}" data-prs-smart><span class="dot"></span> Smart scroll</button>` : '')}
-          ${String(typeof options.onLiveTravelToggle === 'function' ? `<button type="button" class="psv-travel-toggle ${options.liveTravel ? 'active' : ''}" data-psv-live><span class="dot"></span> Live travel time</button>` : '')}
+          ${String(typeof options.onSmartScrollToggle === 'function' ? `<button type="button" class="psv-smart-toggle ${options.smartScroll ? 'active' : ''}" data-prs-smart><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_87d3f1a9ae9c3e"," Smart scroll") ?? " Smart scroll")}</button>` : '')}
+          ${String(typeof options.onLiveTravelToggle === 'function' ? `<button type="button" class="psv-travel-toggle ${options.liveTravel ? 'active' : ''}" data-psv-live><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_821a653a1f79f2"," Live travel time") ?? " Live travel time")}</button>` : '')}
           <span class="psv-pill"><i class="fas fa-clock"></i>${String(esc(options.modeLabel || 'Crew daily view'))}</span>
         </div>
       </div>`;
@@ -4369,7 +4369,7 @@
       node.className = 'prs-resource-time-bar live-preview';
       node.style.gridRow = String(rowIndex + 2);
       node.style.gridColumn = `${startCol}/${Math.min(slots.length + 2, startCol + span)}`;
-      node.innerHTML = workChipHtml({ id:'__preview', title: activeDrag?.item?.title || activeDraft?.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"), all_day:false, schedule_granularity:'time' }, { start:startDate, end:endDate }, {
+      node.innerHTML = workChipHtml({ id:'__preview', title: activeDrag?.item?.title || activeDraft?.title || (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"), all_day:false, schedule_granularity:'time' }, { start:startDate, end:endDate }, {
         preview:true,
         mode:'month',
         chipClass:'timed-month',
@@ -4742,7 +4742,7 @@
     if (!rows.length) {
       const emptyZoomButtons = Object.entries(GANTT_ZOOM_PRESETS).map(([key, value]) => `<button type="button" class="psv-gantt-zoom-btn" data-psv-gantt-zoom="${value}">${key[0].toUpperCase()}${key.slice(1)}</button>`).join('');
       container.innerHTML = `<div class="psv-gantt-wrap">
-        ${options.showToolbar === false ? '' : `<div class="psv-gantt-toolbar">${String(options.toolbarLeadingHtml || '')}<button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button><div class="psv-gantt-zoom">${String(emptyZoomButtons)}<input type="range" class="psv-gantt-slider" min="0" max="100" step="1" value="${String(ganttSliderFromZoom(pxPerDay))}" data-psv-gantt-slider aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_2e8f0246df6a69","Timeline zoom") ?? "Timeline zoom")}"></div></div>`}
+        ${options.showToolbar === false ? '' : `<div class="psv-gantt-toolbar">${String(options.toolbarLeadingHtml || '')}<button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button><div class="psv-gantt-zoom">${String(emptyZoomButtons)}<input type="range" class="psv-gantt-slider" min="0" max="100" step="1" value="${String(ganttSliderFromZoom(pxPerDay))}" data-psv-gantt-slider aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2e8f0246df6a69","Timeline zoom") ?? "Timeline zoom")}"></div></div>`}
         <div class="psv-gantt-empty">${esc(options.emptyLabel || 'Nothing to schedule yet. Scheduled items from the scope will appear here.')}</div>
       </div>`;
       return;
@@ -4847,13 +4847,13 @@
       return `<div class="psv-gantt-bar ${row.group ? `group-bar ${derived ? 'derived' : ''}` : ''} ${locked ? 'locked' : ''} ${row.overlap ? 'overlap' : ''} ${downtime ? 'downtime' : ''}" style="left:${left}px;width:${width}px;--psv-gantt-color:${color}" data-psv-gantt-bar="${esc(event.id || '')}" title="${esc(`${event.title || ''} · ${formatRange(start, end, event.all_day !== false)}`)}">
         ${!readOnly && !locked && !(row.group && derived) ? '<span class="psv-gantt-handle start" data-psv-gantt-handle="start"></span><span class="psv-gantt-handle end" data-psv-gantt-handle="end"></span>' : ''}
         ${row.group ? '' : `<span class="psv-gantt-bar-inner">${icon ? `<i class="fas ${icon}"></i>` : ''}${showLabel ? `<span>${esc(event.title || '')}</span>` : ''}</span>`}
-        ${canLink ? ("<span class=\"psv-gantt-link-handle\" data-psv-gantt-link title=\"" + (globalThis.PlatformLanguage?.text("platform-schedule-view","m_02f3d713657baf","Drag to another item to make it follow this one") ?? "Drag to another item to make it follow this one") + "\"></span>") : ''}
+        ${canLink ? ("<span class=\"psv-gantt-link-handle\" data-psv-gantt-link title=\"" + (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_02f3d713657baf","Drag to another item to make it follow this one") ?? "Drag to another item to make it follow this one") + "\"></span>") : ''}
       </div>`;
     };
 
     const labelHtml = (row) => {
       if (row.type === 'section') return `<div class="psv-gantt-label">${esc(row.label)}</div>`;
-      if (row.type === 'add') return `<div class="psv-gantt-label">${typeof options.onProjectAddItem === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_1371f530e8450b",`Add work item to ${v1}`,{v1}) ?? `Add work item to ${v1}`)(esc(row.rollup?.title || 'project'))}" title="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_5615a483a3982f","Add work item") ?? "Add work item")}"><i class="fas fa-plus"></i></button>` : ''}${typeof options.onProjectAddGroup === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add-group="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_cb322b4f3abe82",`Add section to ${v1}`,{v1}) ?? `Add section to ${v1}`)(esc(row.rollup?.title || 'project'))}" title="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_29c41c89d5fb81","Add section") ?? "Add section")}"><i class="fas fa-layer-group"></i></button>` : ''}</div>`;
+      if (row.type === 'add') return `<div class="psv-gantt-label">${typeof options.onProjectAddItem === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_1371f530e8450b",`Add work item to ${v1}`,{v1}) ?? `Add work item to ${v1}`)(esc(row.rollup?.title || 'project'))}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5615a483a3982f","Add work item") ?? "Add work item")}"><i class="fas fa-plus"></i></button>` : ''}${typeof options.onProjectAddGroup === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add-group="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_cb322b4f3abe82",`Add section to ${v1}`,{v1}) ?? `Add section to ${v1}`)(esc(row.rollup?.title || 'project'))}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_29c41c89d5fb81","Add section") ?? "Add section")}"><i class="fas fa-layer-group"></i></button>` : ''}</div>`;
       const event = row.event;
       const presentation = ganttPresentation(Scheduling, event);
       const kind = presentation.kind || eventKind(event);
@@ -4914,8 +4914,8 @@
     container.innerHTML = `<div class="psv-gantt-wrap">
       ${options.showToolbar === false ? '' : `<div class="psv-gantt-toolbar">
         ${String(options.toolbarLeadingHtml || '')}
-        <button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
-        <div class="psv-gantt-zoom">${String(zoomButtons)}<input type="range" class="psv-gantt-slider" min="0" max="100" step="1" value="${String(ganttSliderFromZoom(pxPerDay))}" data-psv-gantt-slider aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_2e8f0246df6a69","Timeline zoom") ?? "Timeline zoom")}"></div>
+        <button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
+        <div class="psv-gantt-zoom">${String(zoomButtons)}<input type="range" class="psv-gantt-slider" min="0" max="100" step="1" value="${String(ganttSliderFromZoom(pxPerDay))}" data-psv-gantt-slider aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2e8f0246df6a69","Timeline zoom") ?? "Timeline zoom")}"></div>
       </div>`}
       <div class="psv-gantt-scroll">
         <div class="psv-gantt-inner" style="--psv-gantt-left:${Math.max(120, Number(options.leftWidth) || 248)}px">
@@ -5202,11 +5202,11 @@
       nav:'data-prs-mobile-nav',
       ...(options.attributes || {})
     };
-    return `<div class="prs-mobile-toolbar" aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_4a6c30daa4c9b8","Schedule controls") ?? "Schedule controls")}">
-      <span class="prs-mobile-menu"><button type="button" class="prs-mobile-control view" ${String(attrs.viewMenu)} aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_8fb1111b363b9a","Choose calendar view") ?? "Choose calendar view")}" aria-expanded="${String(options.viewMenuOpen ? 'true' : 'false')}"><i class="fas ${String(esc(active[2]))}"></i><i class="fas fa-chevron-down"></i></button>${String(options.viewMenuOpen ? `<div class="prs-mobile-popover" role="menu">${viewChoices.map(([id, label, icon]) => `<button type="button" class="${view === id ? 'active' : ''}" ${attrs.view}="${esc(id)}" role="menuitem"><i class="fas ${esc(icon)}"></i>${esc(label)}</button>`).join('')}</div>` : '')}</span>
-      <span class="prs-mobile-menu"><button type="button" class="prs-mobile-control month" ${String(attrs.monthMenu)} aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_048b624b01eed1","Choose month") ?? "Choose month")}" aria-expanded="${String(options.monthMenuOpen ? 'true' : 'false')}"><span>${String(esc(date.toLocaleDateString([], { month:'long', year:'numeric' })))}</span><i class="fas fa-chevron-down"></i></button>${String(options.monthMenuOpen ? `<div class="prs-mobile-popover months" role="dialog" aria-label="Choose month and year"><div class="prs-mobile-month-picker"><section aria-label="Month">${months.map((label, month) => `<button type="button" class="${month === pickerMonth ? 'active' : ''}" ${attrs.month}="${month}">${esc(label)}</button>`).join('')}</section><section aria-label="Year">${years.map((year) => `<button type="button" class="${year === pickerYear ? 'active' : ''}" ${attrs.year}="${year}">${esc(year)}</button>`).join('')}</section></div></div>` : '')}</span>
-      <button type="button" class="prs-mobile-control today" ${String(attrs.today)} aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_c7c9d0d1ba2803","Go to today") ?? "Go to today")}"><span class="prs-mobile-today-date">${String(date.getDate())}</span></button>
-      <button type="button" class="prs-mobile-control nav" ${String(attrs.nav)}="-1" aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="prs-mobile-control nav" ${String(attrs.nav)}="1" aria-label="${(globalThis.PlatformLanguage?.text("platform-schedule-view","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button>${String(options.trailingHtml || '')}
+    return `<div class="prs-mobile-toolbar" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_4a6c30daa4c9b8","Schedule controls") ?? "Schedule controls")}">
+      <span class="prs-mobile-menu"><button type="button" class="prs-mobile-control view" ${String(attrs.viewMenu)} aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_8fb1111b363b9a","Choose calendar view") ?? "Choose calendar view")}" aria-expanded="${String(options.viewMenuOpen ? 'true' : 'false')}"><i class="fas ${String(esc(active[2]))}"></i><i class="fas fa-chevron-down"></i></button>${String(options.viewMenuOpen ? `<div class="prs-mobile-popover" role="menu">${viewChoices.map(([id, label, icon]) => `<button type="button" class="${view === id ? 'active' : ''}" ${attrs.view}="${esc(id)}" role="menuitem"><i class="fas ${esc(icon)}"></i>${esc(label)}</button>`).join('')}</div>` : '')}</span>
+      <span class="prs-mobile-menu"><button type="button" class="prs-mobile-control month" ${String(attrs.monthMenu)} aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_048b624b01eed1","Choose month") ?? "Choose month")}" aria-expanded="${String(options.monthMenuOpen ? 'true' : 'false')}"><span>${String(esc(date.toLocaleDateString([], { month:'long', year:'numeric' })))}</span><i class="fas fa-chevron-down"></i></button>${String(options.monthMenuOpen ? `<div class="prs-mobile-popover months" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_c59e80991af608","Choose month and year") ?? "Choose month and year")}"><div class="prs-mobile-month-picker"><section aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_f9835510940421","Month") ?? "Month")}">${months.map((label, month) => `<button type="button" class="${month === pickerMonth ? 'active' : ''}" ${attrs.month}="${month}">${esc(label)}</button>`).join('')}</section><section aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_844068116c424b","Year") ?? "Year")}">${years.map((year) => `<button type="button" class="${year === pickerYear ? 'active' : ''}" ${attrs.year}="${year}">${esc(year)}</button>`).join('')}</section></div></div>` : '')}</span>
+      <button type="button" class="prs-mobile-control today" ${String(attrs.today)} aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_c7c9d0d1ba2803","Go to today") ?? "Go to today")}"><span class="prs-mobile-today-date">${String(date.getDate())}</span></button>
+      <button type="button" class="prs-mobile-control nav" ${String(attrs.nav)}="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="prs-mobile-control nav" ${String(attrs.nav)}="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button>${String(options.trailingHtml || '')}
     </div>`;
   }
 

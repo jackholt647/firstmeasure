@@ -212,11 +212,11 @@
       const late = (Number(object(aging.days_1_30).cents) || 0) + (Number(object(aging.days_31_60).cents) || 0)
         + (Number(object(aging.days_61_90).cents) || 0) + (Number(object(aging.days_over_90).cents) || 0);
       return `<div class="inv-cards">
-        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.text("invoices","m_4dbdd1ef75b232","Outstanding") ?? "Outstanding")}</span><strong>${String(esc(money(summary.outstanding_cents)))}</strong><em>${((v1,v2) => globalThis.PlatformLanguage?.text("invoices","m_53e5c09c00d9bc",`${v1} open invoice${v2}`,{v1,v2}) ?? `${v1} open invoice${v2}`)(Number(summary.outstanding_count) || 0,(Number(summary.outstanding_count) || 0) === 1 ? '' : 's')}</em></div>
-        <div class="inv-card ${String(Number(summary.overdue_cents) > 0 ? 'alert' : '')}"><span>${(globalThis.PlatformLanguage?.text("invoices","m_cda60f7c71e465","Overdue") ?? "Overdue")}</span><strong>${String(esc(money(summary.overdue_cents)))}</strong><em>${((v5) => globalThis.PlatformLanguage?.text("invoices","m_8908f4d6b3d1e0",`${v5} past due in aging`,{v5}) ?? `${v5} past due in aging`)(esc(money(late)))}</em></div>
-        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.text("invoices","m_2d68d3be56a5d5","Needs invoicing") ?? "Needs invoicing")}</span><strong>${String(esc(money(readyCents())))}</strong><em>${((v7,v8) => globalThis.PlatformLanguage?.text("invoices","m_25c52b780ffec9",`${v7} project${v8} ready to bill`,{v7,v8}) ?? `${v7} project${v8} ready to bill`)(readyProjects(),readyProjects() === 1 ? '' : 's')}</em></div>
-        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.text("invoices","m_e342ad7e70d797","Drafts") ?? "Drafts")}</span><strong>${String(esc(money(summary.draft_cents)))}</strong><em>${((v10) => globalThis.PlatformLanguage?.text("invoices","m_653c1089db6e76",`${v10} not sent yet`,{v10}) ?? `${v10} not sent yet`)(Number(summary.draft_count) || 0)}</em></div>
-        <div class="inv-card ${String(Number(summary.production_hold_count) > 0 ? 'hold' : '')}"><span>${(globalThis.PlatformLanguage?.text("invoices","m_4dd806ab820ee7","Production holds") ?? "Production holds")}</span><strong>${String(Number(summary.production_hold_count) || 0)}</strong><em>${((v13) => globalThis.PlatformLanguage?.text("invoices","m_a56978a610b31e",`${v13} blocking work`,{v13}) ?? `${v13} blocking work`)(esc(money(summary.production_hold_cents)))}</em></div>
+        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_4dbdd1ef75b232","Outstanding") ?? "Outstanding")}</span><strong>${String(esc(money(summary.outstanding_cents)))}</strong><em>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("invoices","m_53e5c09c00d9bc",`${v1} open invoice${v2}`,{v1,v2}) ?? `${v1} open invoice${v2}`)(Number(summary.outstanding_count) || 0,(Number(summary.outstanding_count) || 0) === 1 ? '' : 's')}</em></div>
+        <div class="inv-card ${String(Number(summary.overdue_cents) > 0 ? 'alert' : '')}"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_cda60f7c71e465","Overdue") ?? "Overdue")}</span><strong>${String(esc(money(summary.overdue_cents)))}</strong><em>${((v5) => globalThis.PlatformLanguage?.htmlText("invoices","m_8908f4d6b3d1e0",`${v5} past due in aging`,{v5}) ?? `${v5} past due in aging`)(esc(money(late)))}</em></div>
+        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_2d68d3be56a5d5","Needs invoicing") ?? "Needs invoicing")}</span><strong>${String(esc(money(readyCents())))}</strong><em>${((v7,v8) => globalThis.PlatformLanguage?.htmlText("invoices","m_25c52b780ffec9",`${v7} project${v8} ready to bill`,{v7,v8}) ?? `${v7} project${v8} ready to bill`)(readyProjects(),readyProjects() === 1 ? '' : 's')}</em></div>
+        <div class="inv-card"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_e342ad7e70d797","Drafts") ?? "Drafts")}</span><strong>${String(esc(money(summary.draft_cents)))}</strong><em>${((v10) => globalThis.PlatformLanguage?.htmlText("invoices","m_653c1089db6e76",`${v10} not sent yet`,{v10}) ?? `${v10} not sent yet`)(Number(summary.draft_count) || 0)}</em></div>
+        <div class="inv-card ${String(Number(summary.production_hold_count) > 0 ? 'hold' : '')}"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_4dd806ab820ee7","Production holds") ?? "Production holds")}</span><strong>${String(Number(summary.production_hold_count) || 0)}</strong><em>${((v13) => globalThis.PlatformLanguage?.htmlText("invoices","m_a56978a610b31e",`${v13} blocking work`,{v13}) ?? `${v13} blocking work`)(esc(money(summary.production_hold_cents)))}</em></div>
       </div>`;
     }
 
@@ -247,9 +247,9 @@
 
     function invoiceRowsHtml(invoices){
       if (!invoices.length) {
-        return `<div class="inv-empty"><i class="fas fa-file-invoice-dollar"></i><strong>${(globalThis.PlatformLanguage?.text("invoices","m_68dbf82a534e40","No invoices here") ?? "No invoices here")}</strong><div>${String(state.view === 'history' ? 'Paid and voided invoices will appear here.' : 'Invoices you create or quick-send will appear here.')}</div></div>`;
+        return `<div class="inv-empty"><i class="fas fa-file-invoice-dollar"></i><strong>${(globalThis.PlatformLanguage?.htmlText("invoices","m_68dbf82a534e40","No invoices here") ?? "No invoices here")}</strong><div>${String(state.view === 'history' ? 'Paid and voided invoices will appear here.' : 'Invoices you create or quick-send will appear here.')}</div></div>`;
       }
-      return `<table class="inv-table"><thead><tr><th>${(globalThis.PlatformLanguage?.text("invoices","m_1d5ea39cc421fc","Invoice") ?? "Invoice")}</th><th>${(globalThis.PlatformLanguage?.text("invoices","m_aaebd7ccba0b30","Project") ?? "Project")}</th><th>${(globalThis.PlatformLanguage?.text("invoices","m_ae8e4953e07d70","Customer") ?? "Customer")}</th><th>${(globalThis.PlatformLanguage?.text("invoices","m_103d1f897eea51","Issued") ?? "Issued")}</th><th>${(globalThis.PlatformLanguage?.text("invoices","m_3dac4d5769efeb","Due") ?? "Due")}</th><th>${(globalThis.PlatformLanguage?.text("invoices","m_1352cafa75b8da","Status") ?? "Status")}</th><th class="num">${(globalThis.PlatformLanguage?.text("invoices","m_9403c7637d4905","Total") ?? "Total")}</th><th class="num">${(globalThis.PlatformLanguage?.text("invoices","m_4c3d3abe22cc64","Balance") ?? "Balance")}</th></tr></thead><tbody>
+      return `<table class="inv-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("invoices","m_1d5ea39cc421fc","Invoice") ?? "Invoice")}</th><th>${(globalThis.PlatformLanguage?.htmlText("invoices","m_aaebd7ccba0b30","Project") ?? "Project")}</th><th>${(globalThis.PlatformLanguage?.htmlText("invoices","m_ae8e4953e07d70","Customer") ?? "Customer")}</th><th>${(globalThis.PlatformLanguage?.htmlText("invoices","m_103d1f897eea51","Issued") ?? "Issued")}</th><th>${(globalThis.PlatformLanguage?.htmlText("invoices","m_3dac4d5769efeb","Due") ?? "Due")}</th><th>${(globalThis.PlatformLanguage?.htmlText("invoices","m_1352cafa75b8da","Status") ?? "Status")}</th><th class="num">${(globalThis.PlatformLanguage?.htmlText("invoices","m_9403c7637d4905","Total") ?? "Total")}</th><th class="num">${(globalThis.PlatformLanguage?.htmlText("invoices","m_4c3d3abe22cc64","Balance") ?? "Balance")}</th></tr></thead><tbody>
         ${String(invoices.map((invoice) => {
           const project = object(invoice.project_ref);
           const customer = object(invoice.customer);
@@ -257,11 +257,11 @@
           const late = status === 'overdue' ? daysPast(invoice.due_date) : 0;
           const hold = object(invoice.production_hold).enabled === true;
           return `<tr data-invoice="${esc(invoice.id)}" tabindex="0">
-            <td><strong>${esc(invoice.invoice_number)}</strong>${hold ? ' <i class="fas fa-hand inv-hold-flag" title="Production hold"></i>' : ''}</td>
+            <td><strong>${esc(invoice.invoice_number)}</strong>${hold ? ` <i class="fas fa-hand inv-hold-flag" title="${(globalThis.PlatformLanguage?.htmlText("invoices","m_377b9133edb7df","Production hold") ?? "Production hold")}"></i>` : ''}</td>
             <td class="inv-proj"><strong>${esc(clean(project.title, 'Project'))}</strong><span>${esc(clean(project.address))}</span></td>
             <td>${esc(clean(customer.name, '—'))}</td>
             <td>${esc(shortDate(invoice.issue_date))}</td>
-            <td>${esc(shortDate(invoice.due_date))}${late > 0 ? `<span class="inv-late">${late} day${late === 1 ? '' : 's'} late</span>` : ''}</td>
+            <td>${esc(shortDate(invoice.due_date))}${late > 0 ? `<span class="inv-late">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("invoices","m_3102505341c544",`${v0} day${v1} late`,{v0,v1}) ?? `${v0} day${v1} late`)(late,late === 1 ? '' : 's')}</span>` : ''}</td>
             <td><span class="inv-pill ${esc(status)}">${esc(statusLabel(status))}</span></td>
             <td class="num">${esc(money(invoice.total_cents))}</td>
             <td class="num"><strong>${esc(money(invoice.balance_due_cents))}</strong></td>
@@ -283,7 +283,7 @@
 
     function needsInvoicingHtml(){
       if (!state.uninvoiced.length) {
-        return `<div class="inv-empty"><i class="fas fa-circle-check"></i><strong>${(globalThis.PlatformLanguage?.text("invoices","m_a3887b226f7a26","Everything is invoiced") ?? "Everything is invoiced")}</strong><div>${(globalThis.PlatformLanguage?.text("invoices","m_aa808e0784bc06","Payments from signed proposal schedules that have not been invoiced yet will show up here.") ?? "Payments from signed proposal schedules that have not been invoiced yet will show up here.")}</div></div>`;
+        return `<div class="inv-empty"><i class="fas fa-circle-check"></i><strong>${(globalThis.PlatformLanguage?.htmlText("invoices","m_a3887b226f7a26","Everything is invoiced") ?? "Everything is invoiced")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("invoices","m_aa808e0784bc06","Payments from signed proposal schedules that have not been invoiced yet will show up here.") ?? "Payments from signed proposal schedules that have not been invoiced yet will show up here.")}</div></div>`;
       }
       return `<div class="inv-groups">${state.uninvoiced.map((group) => {
         const customer = object(group.customer);
@@ -293,9 +293,9 @@
           <div class="inv-group-head">
             <div class="inv-proj"><strong>${String(esc(clean(group.project_title, 'Project')))}</strong><span>${String(esc(clean(customer.name)))}${String(clean(group.project_address) ? ` · ${esc(group.project_address)}` : '')}</span></div>
             <aside>
-              <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_54cfffd37995ce","Ready to bill") ?? "Ready to bill")}</span><strong>${String(esc(money(ready)))}</strong></div>
-              <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_b5ac06a4625965","Uninvoiced") ?? "Uninvoiced")}</span><strong>${String(esc(money(group.uninvoiced_cents)))}</strong></div>
-              <button type="button" class="inv-btn primary" data-inv-quick="${String(esc(group.project_id))}" ${String(obligations.length ? '' : 'disabled')}><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("invoices","m_afe97af27aaf04"," Quick send") ?? " Quick send")}</button>
+              <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_54cfffd37995ce","Ready to bill") ?? "Ready to bill")}</span><strong>${String(esc(money(ready)))}</strong></div>
+              <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_b5ac06a4625965","Uninvoiced") ?? "Uninvoiced")}</span><strong>${String(esc(money(group.uninvoiced_cents)))}</strong></div>
+              <button type="button" class="inv-btn primary" data-inv-quick="${String(esc(group.project_id))}" ${String(obligations.length ? '' : 'disabled')}><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_afe97af27aaf04"," Quick send") ?? " Quick send")}</button>
             </aside>
           </div>
           <div class="inv-obls">${String(obligations.map((obligation) => {
@@ -322,7 +322,7 @@
       shade = document.createElement('div');
       shade.className = 'inv-shade';
       shade.innerHTML = `<div class="inv-modal" role="dialog" aria-modal="true" aria-label="${String(esc(title))}">
-        <div class="inv-modal-head"><strong>${String(esc(title))}</strong><button type="button" data-inv-close aria-label="${(globalThis.PlatformLanguage?.text("invoices","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
+        <div class="inv-modal-head"><strong>${String(esc(title))}</strong><button type="button" data-inv-close aria-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
         <div class="inv-modal-body">${String(bodyHtml)}</div>
         ${String(footHtml ? `<div class="inv-modal-foot">${footHtml}</div>` : '')}
       </div>`;
@@ -359,14 +359,14 @@
       const modal = openModal(`Invoice ${clean(group.project_title, 'project')}`, `
         <div class="inv-modal-lines">
           ${String(obligations.map((obligation) => `<div><span>${esc(clean(obligation.label, 'Payment'))}</span><strong>${esc(money(obligation.open_cents))}</strong></div>`).join(''))}
-          <div class="total"><span>${((v1) => globalThis.PlatformLanguage?.text("invoices","m_12a7cf8be65a45",`Invoice total${v1}`,{v1}) ?? `Invoice total${v1}`)(dueDays ? ` · due ${dueDays} day${dueDays === 1 ? '' : 's'} after issue` : ' · due on receipt')}</span><strong>${String(esc(money(total)))}</strong></div>
+          <div class="total"><span>${((v1) => globalThis.PlatformLanguage?.htmlText("invoices","m_12a7cf8be65a45",`Invoice total${v1}`,{v1}) ?? `Invoice total${v1}`)(dueDays ? ` · due ${dueDays} day${dueDays === 1 ? '' : 's'} after issue` : ' · due on receipt')}</span><strong>${String(esc(money(total)))}</strong></div>
         </div>
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_8ea15c3c9b6b15","Send to") ?? "Send to")}<input type="email" data-inv-field="recipient" value="${String(esc(clean(customer.email)))}" placeholder="${(globalThis.PlatformLanguage?.text("invoices","m_f4baf1974f472e","customer@email.com") ?? "customer@email.com")}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}<textarea data-inv-field="message" placeholder="${(globalThis.PlatformLanguage?.text("invoices","m_0a914652da199e","Added to the invoice email.") ?? "Added to the invoice email.")}"></textarea></label>
-        <label class="inv-modal-check"><input type="checkbox" data-inv-field="portal" checked>${(globalThis.PlatformLanguage?.text("invoices","m_41d5592457592e","Include a customer portal payment link") ?? "Include a customer portal payment link")}</label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_8ea15c3c9b6b15","Send to") ?? "Send to")}<input type="email" data-inv-field="recipient" value="${String(esc(clean(customer.email)))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_f4baf1974f472e","customer@email.com") ?? "customer@email.com")}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}<textarea data-inv-field="message" placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_0a914652da199e","Added to the invoice email.") ?? "Added to the invoice email.")}"></textarea></label>
+        <label class="inv-modal-check"><input type="checkbox" data-inv-field="portal" checked>${(globalThis.PlatformLanguage?.htmlText("invoices","m_41d5592457592e","Include a customer portal payment link") ?? "Include a customer portal payment link")}</label>
       `, `
-        <button type="button" class="inv-btn" data-inv-run="draft"><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.text("invoices","m_41345d62fd1e26"," Create draft") ?? " Create draft")}</button>
-        <button type="button" class="inv-btn primary" data-inv-run="send"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("invoices","m_0e86e0e0285518"," Send invoice") ?? " Send invoice")}</button>
+        <button type="button" class="inv-btn" data-inv-run="draft"><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_41345d62fd1e26"," Create draft") ?? " Create draft")}</button>
+        <button type="button" class="inv-btn primary" data-inv-run="send"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_0e86e0e0285518"," Send invoice") ?? " Send invoice")}</button>
       `);
       modal.querySelectorAll('[data-inv-run]').forEach((button) => button.addEventListener('click', () => {
         const send = button.dataset.invRun === 'send';
@@ -385,9 +385,9 @@
     function openSend(invoice, { reminder = false } = {}){
       const customer = object(invoice.customer);
       const modal = openModal(reminder ? `Payment reminder · ${clean(invoice.invoice_number)}` : `Send ${clean(invoice.invoice_number)}`, `
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_8ea15c3c9b6b15","Send to") ?? "Send to")}<input type="email" data-inv-field="recipient" value="${String(esc(clean(customer.email)))}" placeholder="${(globalThis.PlatformLanguage?.text("invoices","m_f4baf1974f472e","customer@email.com") ?? "customer@email.com")}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}<textarea data-inv-field="message">${String(reminder ? esc(`Friendly reminder: invoice ${clean(invoice.invoice_number)} for ${money(invoice.balance_due_cents)} is ${clean(invoice.status) === 'overdue' ? 'past due' : 'outstanding'}.`) : '')}</textarea></label>
-        <label class="inv-modal-check"><input type="checkbox" data-inv-field="portal" checked>${(globalThis.PlatformLanguage?.text("invoices","m_41d5592457592e","Include a customer portal payment link") ?? "Include a customer portal payment link")}</label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_8ea15c3c9b6b15","Send to") ?? "Send to")}<input type="email" data-inv-field="recipient" value="${String(esc(clean(customer.email)))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_f4baf1974f472e","customer@email.com") ?? "customer@email.com")}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}<textarea data-inv-field="message">${String(reminder ? esc(`Friendly reminder: invoice ${clean(invoice.invoice_number)} for ${money(invoice.balance_due_cents)} is ${clean(invoice.status) === 'overdue' ? 'past due' : 'outstanding'}.`) : '')}</textarea></label>
+        <label class="inv-modal-check"><input type="checkbox" data-inv-field="portal" checked>${(globalThis.PlatformLanguage?.htmlText("invoices","m_41d5592457592e","Include a customer portal payment link") ?? "Include a customer portal payment link")}</label>
       `, `<button type="button" class="inv-btn primary" data-inv-run="send"><i class="fas fa-paper-plane"></i> ${reminder ? 'Send reminder' : 'Send invoice'}</button>`);
       modal.querySelector('[data-inv-run="send"]')?.addEventListener('click', (event) => {
         const recipient = clean(modal.querySelector('[data-inv-field="recipient"]')?.value);
@@ -403,10 +403,10 @@
     function openRecordPayment(invoice){
       const balance = Number(invoice.balance_due_cents) || 0;
       const modal = openModal(`Record payment · ${clean(invoice.invoice_number)}`, `
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_2b8c3448fa87a1","Amount") ?? "Amount")}<input type="number" data-inv-field="amount" min="0.01" step="0.01" value="${String((balance / 100).toFixed(2))}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_6952fe71f8dc85","Method") ?? "Method")}<select data-inv-field="method"><option value="check">${(globalThis.PlatformLanguage?.text("invoices","m_cc74e4e6c905ec","Check") ?? "Check")}</option><option value="cash">${(globalThis.PlatformLanguage?.text("invoices","m_f758b041cf8d5c","Cash") ?? "Cash")}</option><option value="ach">${(globalThis.PlatformLanguage?.text("invoices","m_cbee52f472a222","Bank transfer") ?? "Bank transfer")}</option><option value="card">${(globalThis.PlatformLanguage?.text("invoices","m_1c7d0d61ca4acd","Card (offline)") ?? "Card (offline)")}</option><option value="other">${(globalThis.PlatformLanguage?.text("invoices","m_4a04382820d2e1","Other") ?? "Other")}</option></select></label>
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_cc60ed0361b690","Reference / note (optional)") ?? "Reference / note (optional)")}<input type="text" data-inv-field="note" placeholder="${(globalThis.PlatformLanguage?.text("invoices","m_486e0e4a6f4872","Check #, confirmation, etc.") ?? "Check #, confirmation, etc.")}"></label>
-      `, `<button type="button" class="inv-btn primary" data-inv-run="record"><i class="fas fa-money-check-dollar"></i>${(globalThis.PlatformLanguage?.text("invoices","m_a7ed489b9d2e04"," Record payment") ?? " Record payment")}</button>`);
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_2b8c3448fa87a1","Amount") ?? "Amount")}<input type="number" data-inv-field="amount" min="0.01" step="0.01" value="${String((balance / 100).toFixed(2))}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_6952fe71f8dc85","Method") ?? "Method")}<select data-inv-field="method"><option value="check">${(globalThis.PlatformLanguage?.htmlText("invoices","m_cc74e4e6c905ec","Check") ?? "Check")}</option><option value="cash">${(globalThis.PlatformLanguage?.htmlText("invoices","m_f758b041cf8d5c","Cash") ?? "Cash")}</option><option value="ach">${(globalThis.PlatformLanguage?.htmlText("invoices","m_cbee52f472a222","Bank transfer") ?? "Bank transfer")}</option><option value="card">${(globalThis.PlatformLanguage?.htmlText("invoices","m_1c7d0d61ca4acd","Card (offline)") ?? "Card (offline)")}</option><option value="other">${(globalThis.PlatformLanguage?.htmlText("invoices","m_4a04382820d2e1","Other") ?? "Other")}</option></select></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_cc60ed0361b690","Reference / note (optional)") ?? "Reference / note (optional)")}<input type="text" data-inv-field="note" placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_486e0e4a6f4872","Check #, confirmation, etc.") ?? "Check #, confirmation, etc.")}"></label>
+      `, `<button type="button" class="inv-btn primary" data-inv-run="record"><i class="fas fa-money-check-dollar"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_a7ed489b9d2e04"," Record payment") ?? " Record payment")}</button>`);
       modal.querySelector('[data-inv-run="record"]')?.addEventListener('click', (event) => {
         const amountCents = Math.round(Number(modal.querySelector('[data-inv-field="amount"]')?.value || 0) * 100);
         if (!(amountCents > 0)) { showToast((globalThis.PlatformLanguage?.text("invoices","m_8c6b93a6f46da8","Amount required") ?? "Amount required"), (globalThis.PlatformLanguage?.text("invoices","m_25db752992dcde","Enter a payment amount greater than zero.") ?? "Enter a payment amount greater than zero."), false); return; }
@@ -443,9 +443,9 @@
 
     function openVoid(invoice){
       const modal = openModal(`Void ${clean(invoice.invoice_number)}`, `
-        <p style="margin:0;color:#475467;font-size:13px;line-height:1.5">${(globalThis.PlatformLanguage?.text("invoices","m_c054461f0239b3","Voiding removes this invoice from outstanding balances. Payments from the proposal schedule stay collectible and return to the needs-invoicing list.") ?? "Voiding removes this invoice from outstanding balances. Payments from the proposal schedule stay collectible and return to the needs-invoicing list.")}</p>
-        <label>${(globalThis.PlatformLanguage?.text("invoices","m_da81805c527616","Reason (optional)") ?? "Reason (optional)")}<input type="text" data-inv-field="reason" placeholder="${(globalThis.PlatformLanguage?.text("invoices","m_746208a72bcd7d","Why is this invoice being voided?") ?? "Why is this invoice being voided?")}"></label>
-      `, `<button type="button" class="inv-btn primary" data-inv-run="void"><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.text("invoices","m_589d10fd2ddd52"," Void invoice") ?? " Void invoice")}</button>`);
+        <p style="margin:0;color:#475467;font-size:13px;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("invoices","m_c054461f0239b3","Voiding removes this invoice from outstanding balances. Payments from the proposal schedule stay collectible and return to the needs-invoicing list.") ?? "Voiding removes this invoice from outstanding balances. Payments from the proposal schedule stay collectible and return to the needs-invoicing list.")}</p>
+        <label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_da81805c527616","Reason (optional)") ?? "Reason (optional)")}<input type="text" data-inv-field="reason" placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_746208a72bcd7d","Why is this invoice being voided?") ?? "Why is this invoice being voided?")}"></label>
+      `, `<button type="button" class="inv-btn primary" data-inv-run="void"><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_589d10fd2ddd52"," Void invoice") ?? " Void invoice")}</button>`);
       modal.querySelector('[data-inv-run="void"]')?.addEventListener('click', (event) => {
         run(event.currentTarget, () => api().invoices.voidInvoice(state.orgId, invoice.id, {
           reason:clean(modal.querySelector('[data-inv-field="reason"]')?.value)
@@ -460,7 +460,7 @@
         <p style="margin:0;color:#475467;font-size:13px;line-height:1.5">${enabled
           ? 'This invoice is currently holding production. Clearing the hold lets scheduled work continue.'
           : 'Flag this invoice as blocking production. The hold shows on the project and is visible to work automations until the balance clears.'}</p>
-        ${enabled ? '' : `<label>${(globalThis.PlatformLanguage?.text("invoices","m_63b99552978591","Note (optional)") ?? "Note (optional)")}<input type="text" data-inv-field="note" placeholder="${(globalThis.PlatformLanguage?.text("invoices","m_4f27abc0733ecb","e.g. Deposit required before install") ?? "e.g. Deposit required before install")}" value="${String(esc(clean(hold.note)))}"></label>`}
+        ${enabled ? '' : `<label>${(globalThis.PlatformLanguage?.htmlText("invoices","m_63b99552978591","Note (optional)") ?? "Note (optional)")}<input type="text" data-inv-field="note" placeholder="${(globalThis.PlatformLanguage?.htmlText("invoices","m_4f27abc0733ecb","e.g. Deposit required before install") ?? "e.g. Deposit required before install")}" value="${String(esc(clean(hold.note)))}"></label>`}
       `, `<button type="button" class="inv-btn primary" data-inv-run="hold"><i class="fas fa-hand"></i> ${enabled ? 'Clear hold' : 'Hold production'}</button>`);
       modal.querySelector('[data-inv-run="hold"]')?.addEventListener('click', (event) => {
         run(event.currentTarget, () => api().invoices.setProductionHold(state.orgId, invoice.id, {
@@ -483,29 +483,29 @@
       const lastDelivery = deliveries[deliveries.length - 1];
       const canSend = !['paid', 'void'].includes(status);
       const modal = openModal(`${clean(invoice.invoice_number)} · ${money(invoice.total_cents)}`, `
-        ${String(hold.enabled === true ? `<div class="inv-hold-note"><i class="fas fa-hand"></i><span>Production hold${clean(hold.note) ? ` — ${esc(hold.note)}` : ''}. Work is blocked until this invoice is paid.</span></div>` : '')}
+        ${String(hold.enabled === true ? `<div class="inv-hold-note"><i class="fas fa-hand"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("invoices","m_3295375618ae5e",`Production hold${v0}. Work is blocked until this invoice is paid.`,{v0}) ?? `Production hold${v0}. Work is blocked until this invoice is paid.`)(clean(hold.note) ? ` — ${esc(hold.note)}` : '')}</span></div>` : '')}
         <div class="inv-detail-grid">
-          <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_1352cafa75b8da","Status") ?? "Status")}</span><strong><span class="inv-pill ${String(esc(status))}">${String(esc(statusLabel(status)))}</span></strong></div>
-          <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_74667921211303","Balance due") ?? "Balance due")}</span><strong>${String(esc(money(invoice.balance_due_cents)))}${String(Number(invoice.amount_paid_cents) > 0 ? ` <em style="color:#067647;font-style:normal;font-size:11px">(${esc(money(invoice.amount_paid_cents))} paid)</em>` : '')}</strong></div>
-          <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_aaebd7ccba0b30","Project") ?? "Project")}</span><strong>${String(esc(clean(project.title, '—')))}</strong></div>
-          <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${String(esc(clean(customer.name, '—')))}</strong></div>
-          <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_103d1f897eea51","Issued") ?? "Issued")}</span><strong>${String(esc(shortDate(invoice.issue_date)))}</strong></div>
-          <div><span>${(globalThis.PlatformLanguage?.text("invoices","m_3dac4d5769efeb","Due") ?? "Due")}</span><strong>${String(esc(shortDate(invoice.due_date)))}</strong></div>
+          <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_1352cafa75b8da","Status") ?? "Status")}</span><strong><span class="inv-pill ${String(esc(status))}">${String(esc(statusLabel(status)))}</span></strong></div>
+          <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_74667921211303","Balance due") ?? "Balance due")}</span><strong>${String(esc(money(invoice.balance_due_cents)))}${String(Number(invoice.amount_paid_cents) > 0 ? ` <em style="color:#067647;font-style:normal;font-size:11px">${((v0) => globalThis.PlatformLanguage?.htmlText("invoices","m_b86224ec4ecf12",`(${v0} paid)`,{v0}) ?? `(${v0} paid)`)(esc(money(invoice.amount_paid_cents)))}</em>` : '')}</strong></div>
+          <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_aaebd7ccba0b30","Project") ?? "Project")}</span><strong>${String(esc(clean(project.title, '—')))}</strong></div>
+          <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${String(esc(clean(customer.name, '—')))}</strong></div>
+          <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_103d1f897eea51","Issued") ?? "Issued")}</span><strong>${String(esc(shortDate(invoice.issue_date)))}</strong></div>
+          <div><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_3dac4d5769efeb","Due") ?? "Due")}</span><strong>${String(esc(shortDate(invoice.due_date)))}</strong></div>
         </div>
         <div class="inv-modal-lines">
           ${String(array(invoice.line_items).map((line) => `<div><span>${esc(clean(object(line).description, 'Item'))}</span><strong>${esc(money(object(line).amount_cents))}</strong></div>`).join(''))}
-          ${String(Number(invoice.tax_cents) > 0 ? `<div><span>Sales tax (${esc(String(Number(invoice.tax_percent) || 0))}%)</span><strong>${esc(money(invoice.tax_cents))}</strong></div>` : '')}
-          <div class="total"><span>${(globalThis.PlatformLanguage?.text("invoices","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${String(esc(money(invoice.total_cents)))}</strong></div>
+          ${String(Number(invoice.tax_cents) > 0 ? `<div><span>${((v0) => globalThis.PlatformLanguage?.htmlText("invoices","m_3cbef3959281c7",`Sales tax (${v0}%)`,{v0}) ?? `Sales tax (${v0}%)`)(esc(String(Number(invoice.tax_percent) || 0)))}</span><strong>${esc(money(invoice.tax_cents))}</strong></div>` : '')}
+          <div class="total"><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${String(esc(money(invoice.total_cents)))}</strong></div>
         </div>
-        ${String(lastDelivery ? `<p style="margin:0;color:#667085;font-size:12px;font-weight:700"><i class="fas fa-envelope"></i> Last ${object(lastDelivery).sent === true ? 'sent' : 'attempted'} to ${esc(clean(object(lastDelivery).recipient))} · ${esc(shortDate(object(lastDelivery).attempted_at))}</p>` : '')}
+        ${String(lastDelivery ? `<p style="margin:0;color:#667085;font-size:12px;font-weight:700"><i class="fas fa-envelope"></i>${((v0,v1,v2) => globalThis.PlatformLanguage?.htmlText("invoices","m_6fb905a7568bab",` Last ${v0} to ${v1} · ${v2}`,{v0,v1,v2}) ?? ` Last ${v0} to ${v1} · ${v2}`)(object(lastDelivery).sent === true ? 'sent' : 'attempted',esc(clean(object(lastDelivery).recipient)),esc(shortDate(object(lastDelivery).attempted_at)))}</p>` : '')}
         <div class="inv-detail-actions">
           ${String(canSend ? `<button type="button" class="inv-btn primary" data-inv-action="send"><i class="fas fa-paper-plane"></i> ${deliveries.length ? 'Resend' : 'Send'}</button>` : '')}
-          ${String(canSend && deliveries.length ? '<button type="button" class="inv-btn" data-inv-action="remind"><i class="fas fa-bell"></i> Reminder</button>' : '')}
-          ${String(canSend ? '<button type="button" class="inv-btn" data-inv-action="payment"><i class="fas fa-money-check-dollar"></i> Record payment</button>' : '')}
-          <a class="inv-btn" href="${String(esc(api()?.invoices?.pdfUrl?.(state.orgId, invoice.id) || '#'))}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.text("invoices","m_ff8d3e1189f812"," PDF") ?? " PDF")}</a>
+          ${String(canSend && deliveries.length ? `<button type="button" class="inv-btn" data-inv-action="remind"><i class="fas fa-bell"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_b994bd2b738d8c"," Reminder") ?? " Reminder")}</button>` : '')}
+          ${String(canSend ? `<button type="button" class="inv-btn" data-inv-action="payment"><i class="fas fa-money-check-dollar"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_a7ed489b9d2e04"," Record payment") ?? " Record payment")}</button>` : '')}
+          <a class="inv-btn" href="${String(esc(api()?.invoices?.pdfUrl?.(state.orgId, invoice.id) || '#'))}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_ff8d3e1189f812"," PDF") ?? " PDF")}</a>
           ${String(status !== 'void' ? `<button type="button" class="inv-btn" data-inv-action="hold"><i class="fas fa-hand"></i> ${hold.enabled === true ? 'Clear hold' : 'Hold production'}</button>` : '')}
-          ${String(canSend ? '<button type="button" class="inv-btn" data-inv-action="void"><i class="fas fa-ban"></i> Void</button>' : '')}
-          <button type="button" class="inv-btn subtle" data-inv-action="project"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("invoices","m_53787840db7d1c"," Open project") ?? " Open project")}</button>
+          ${String(canSend ? `<button type="button" class="inv-btn" data-inv-action="void"><i class="fas fa-ban"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_fdb7ef8e6fc7a5"," Void") ?? " Void")}</button>` : '')}
+          <button type="button" class="inv-btn subtle" data-inv-action="project"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_53787840db7d1c"," Open project") ?? " Open project")}</button>
         </div>
       `, '');
       const closeDetailRoute = () => {
@@ -538,26 +538,26 @@
     function render(){
       if (state.destroyed) return;
       if (state.loading && !state.invoices.length) {
-        root.innerHTML = `<div class="inv-shell"><div class="inv-state"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("invoices","m_6a61f184648ac2"," Loading invoices...") ?? " Loading invoices...")}</div></div>`;
+        root.innerHTML = `<div class="inv-shell"><div class="inv-state"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_6a61f184648ac2"," Loading invoices...") ?? " Loading invoices...")}</div></div>`;
         return;
       }
       if (state.error) {
-        root.innerHTML = `<div class="inv-shell"><div class="inv-state" style="flex-direction:column"><i class="fas fa-triangle-exclamation" style="font-size:26px"></i><div>${String(esc(state.error?.message || 'Invoices could not load.'))}</div><button type="button" class="inv-btn" data-inv-refresh><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("invoices","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div></div>`;
+        root.innerHTML = `<div class="inv-shell"><div class="inv-state" style="flex-direction:column"><i class="fas fa-triangle-exclamation" style="font-size:26px"></i><div>${String(esc(state.error?.message || 'Invoices could not load.'))}</div><button type="button" class="inv-btn" data-inv-refresh><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div></div>`;
         root.querySelector('[data-inv-refresh]')?.addEventListener('click', () => load());
         return;
       }
       const needsCount = readyProjects();
       root.innerHTML = `<div class="inv-shell">
         <header class="inv-top">
-          <div class="inv-heading"><span class="inv-heading-icon"><i class="fas fa-file-invoice-dollar"></i></span><span><h1>${String(esc(Portal.terminology?.get?.('invoices.portal_tab', 'Invoices') || 'Invoices'))}</h1><p>${(globalThis.PlatformLanguage?.text("invoices","m_98f85e256f1ab1","Outstanding balances, jobs to bill, and payment status across every project.") ?? "Outstanding balances, jobs to bill, and payment status across every project.")}</p></span></div>
-          <button type="button" class="inv-btn" data-inv-refresh ${String(state.loading ? 'disabled' : '')}><i class="fas ${String(state.loading ? 'fa-circle-notch fa-spin' : 'fa-rotate')}"></i><span>${(globalThis.PlatformLanguage?.text("invoices","m_78973ce0cf3403","Refresh") ?? "Refresh")}</span></button>
+          <div class="inv-heading"><span class="inv-heading-icon"><i class="fas fa-file-invoice-dollar"></i></span><span><h1>${String(esc(Portal.terminology?.get?.('invoices.portal_tab', 'Invoices') || 'Invoices'))}</h1><p>${(globalThis.PlatformLanguage?.htmlText("invoices","m_98f85e256f1ab1","Outstanding balances, jobs to bill, and payment status across every project.") ?? "Outstanding balances, jobs to bill, and payment status across every project.")}</p></span></div>
+          <button type="button" class="inv-btn" data-inv-refresh ${String(state.loading ? 'disabled' : '')}><i class="fas ${String(state.loading ? 'fa-circle-notch fa-spin' : 'fa-rotate')}"></i><span>${(globalThis.PlatformLanguage?.htmlText("invoices","m_78973ce0cf3403","Refresh") ?? "Refresh")}</span></button>
         </header>
         ${String(summaryCardsHtml())}
         <div class="inv-tabs-row">
-          <div class="inv-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("invoices","m_fae86dba7fee35","Invoice views") ?? "Invoice views")}">
-            <button type="button" role="tab" data-inv-view="outstanding" class="${String(state.view === 'outstanding' ? 'active' : '')}" aria-selected="${String(state.view === 'outstanding')}"><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.text("invoices","m_9d1ec8c49d6f47"," Outstanding") ?? " Outstanding")}</button>
-            <button type="button" role="tab" data-inv-view="needs_invoicing" class="${String(state.view === 'needs_invoicing' ? 'active' : '')}" aria-selected="${String(state.view === 'needs_invoicing')}"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("invoices","m_8c92e8f6e62299"," Needs invoicing ") ?? " Needs invoicing ")}<span class="inv-count">${String(needsCount)}</span></button>
-            <button type="button" role="tab" data-inv-view="history" class="${String(state.view === 'history' ? 'active' : '')}" aria-selected="${String(state.view === 'history')}"><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.text("invoices","m_b78c21a6c3a083"," History") ?? " History")}</button>
+          <div class="inv-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("invoices","m_fae86dba7fee35","Invoice views") ?? "Invoice views")}">
+            <button type="button" role="tab" data-inv-view="outstanding" class="${String(state.view === 'outstanding' ? 'active' : '')}" aria-selected="${String(state.view === 'outstanding')}"><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_9d1ec8c49d6f47"," Outstanding") ?? " Outstanding")}</button>
+            <button type="button" role="tab" data-inv-view="needs_invoicing" class="${String(state.view === 'needs_invoicing' ? 'active' : '')}" aria-selected="${String(state.view === 'needs_invoicing')}"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_8c92e8f6e62299"," Needs invoicing ") ?? " Needs invoicing ")}<span class="inv-count">${String(needsCount)}</span></button>
+            <button type="button" role="tab" data-inv-view="history" class="${String(state.view === 'history' ? 'active' : '')}" aria-selected="${String(state.view === 'history')}"><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("invoices","m_b78c21a6c3a083"," History") ?? " History")}</button>
           </div>
           ${String(state.view === 'outstanding' ? agingChipsHtml() : '')}
         </div>

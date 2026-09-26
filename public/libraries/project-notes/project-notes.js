@@ -386,7 +386,7 @@
       ? `<img src="${escapeHtml(url)}" alt="">`
       : prepared.kind === 'video'
         ? `<video src="${escapeHtml(url)}" muted preload="metadata"></video>`
-        : '<i class="fas fa-paperclip"></i>')}<span>${String(escapeHtml(prepared.attachment.file_name || 'Attachment ready'))}</span><button type="button" aria-label="${(globalThis.PlatformLanguage?.text("project-notes","m_3ea0f07c7208c2","Remove attachment") ?? "Remove attachment")}"><i class="fas fa-xmark"></i></button></div>`;
+        : '<i class="fas fa-paperclip"></i>')}<span>${String(escapeHtml(prepared.attachment.file_name || 'Attachment ready'))}</span><button type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-notes","m_3ea0f07c7208c2","Remove attachment") ?? "Remove attachment")}"><i class="fas fa-xmark"></i></button></div>`;
     const remove = mount.querySelector('button');
     remove?.addEventListener('click', () => {
       mount.innerHTML = '';
@@ -530,12 +530,12 @@
     const count = Number(note.reply_count) || 0;
     return count
       ? `<button type="button" class="pn-replies-toggle" data-pn-replies="${escapeHtml(note.id)}"><i class="fas fa-reply"></i>${count} ${count === 1 ? 'reply' : 'replies'}</button>`
-      : `<button type="button" class="pn-replies-toggle pn-reply-new" data-pn-replies="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.text("project-notes","m_8ac417d9371ab4","Reply to this note") ?? "Reply to this note")}" title="${(globalThis.PlatformLanguage?.text("project-notes","m_b7aa8fbdbd8d21","Reply") ?? "Reply")}"><i class="fas fa-reply"></i></button>`;
+      : `<button type="button" class="pn-replies-toggle pn-reply-new" data-pn-replies="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-notes","m_8ac417d9371ab4","Reply to this note") ?? "Reply to this note")}" title="${(globalThis.PlatformLanguage?.htmlText("project-notes","m_b7aa8fbdbd8d21","Reply") ?? "Reply")}"><i class="fas fa-reply"></i></button>`;
   };
 
   /** Subtle removed-note row with restore link (renders inside the host card element). */
   const removedNoteHtml = (note = {}) => `
-    <p class="pn-removed-copy"><i class="fas fa-rotate-left" aria-hidden="true"></i>Note removed${note.can_restore ? ("<button type=\"button\" class=\"pn-restore\" data-pn-restore=\"" + String(escapeHtml(note.id)) + "\">" + (globalThis.PlatformLanguage?.text("project-notes","m_954a04d61ae9d6","Restore") ?? "Restore") + "</button>") : ''}</p>`;
+    <p class="pn-removed-copy"><i class="fas fa-rotate-left" aria-hidden="true"></i>Note removed${note.can_restore ? ("<button type=\"button\" class=\"pn-restore\" data-pn-restore=\"" + String(escapeHtml(note.id)) + "\">" + (globalThis.PlatformLanguage?.htmlText("project-notes","m_954a04d61ae9d6","Restore") ?? "Restore") + "</button>") : ''}</p>`;
 
   // --- delegated behaviors: edit history popover, restore, inline replies -----
 
@@ -557,8 +557,8 @@
     const pop = document.createElement('div');
     pop.className = 'pn-history-pop';
     pop.innerHTML = `
-      <div class="pn-history-pop-head">${(globalThis.PlatformLanguage?.text("project-notes","m_c3e32bdc4e8fce","Edit history") ?? "Edit history")}</div>
-      <div class="pn-history-item current"><div class="when">${((v0) => globalThis.PlatformLanguage?.text("project-notes","m_a61a3f449dcac0",`Current · ${v0}`,{v0}) ?? `Current · ${v0}`)(escapeHtml(fmtWhen(data.current?.edited_at || data.current?.created_at)))}</div><div class="text">${String(escapeHtml(data.current?.text || ''))}</div></div>
+      <div class="pn-history-pop-head">${(globalThis.PlatformLanguage?.htmlText("project-notes","m_c3e32bdc4e8fce","Edit history") ?? "Edit history")}</div>
+      <div class="pn-history-item current"><div class="when">${((v0) => globalThis.PlatformLanguage?.htmlText("project-notes","m_a61a3f449dcac0",`Current · ${v0}`,{v0}) ?? `Current · ${v0}`)(escapeHtml(fmtWhen(data.current?.edited_at || data.current?.created_at)))}</div><div class="text">${String(escapeHtml(data.current?.text || ''))}</div></div>
       ${String((data.revisions || []).map((revision) => `<div class="pn-history-item"><div class="when">${escapeHtml(revision.edited_by_user?.name || 'Unknown')} · ${escapeHtml(fmtWhen(revision.edited_at))}</div><div class="text">${escapeHtml(revision.text)}</div></div>`).join(''))}`;
     document.body.appendChild(pop);
     const rect = anchor.getBoundingClientRect();
@@ -580,12 +580,12 @@
     if (!wrap) {
       wrap = document.createElement('div');
       wrap.className = 'pn-replies-wrap';
-      wrap.innerHTML = `<div class="pn-reply-meta">${(globalThis.PlatformLanguage?.text("project-notes","m_d7c615083b4307","Loading replies…") ?? "Loading replies…")}</div>`;
+      wrap.innerHTML = `<div class="pn-reply-meta">${(globalThis.PlatformLanguage?.htmlText("project-notes","m_d7c615083b4307","Loading replies…") ?? "Loading replies…")}</div>`;
       card.appendChild(wrap);
     }
     const items = await replies(project, noteId).catch(() => []);
     if (!wrap.isConnected) return;
-    wrap.innerHTML = (String(items.map(replyCardHtml).join('')) + "\n      <div class=\"pn-reply-compose\"><input type=\"text\" placeholder=\"" + (globalThis.PlatformLanguage?.text("project-notes","m_7b1d560830d655","Reply…") ?? "Reply…") + "\" data-pn-reply-input=\"" + String(escapeHtml(noteId)) + "\"><button type=\"button\" data-pn-reply-send=\"" + String(escapeHtml(noteId)) + "\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-notes","m_5ffd34ad8437cd","Send reply") ?? "Send reply") + "\" title=\"" + (globalThis.PlatformLanguage?.text("project-notes","m_5ffd34ad8437cd","Send reply") ?? "Send reply") + "\"><i class=\"fas fa-paper-plane\"></i></button></div>");
+    wrap.innerHTML = (String(items.map(replyCardHtml).join('')) + "\n      <div class=\"pn-reply-compose\"><input type=\"text\" placeholder=\"" + (globalThis.PlatformLanguage?.htmlText("project-notes","m_7b1d560830d655","Reply…") ?? "Reply…") + "\" data-pn-reply-input=\"" + String(escapeHtml(noteId)) + "\"><button type=\"button\" data-pn-reply-send=\"" + String(escapeHtml(noteId)) + "\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("project-notes","m_5ffd34ad8437cd","Send reply") ?? "Send reply") + "\" title=\"" + (globalThis.PlatformLanguage?.htmlText("project-notes","m_5ffd34ad8437cd","Send reply") ?? "Send reply") + "\"><i class=\"fas fa-paper-plane\"></i></button></div>");
     if (options.focus) wrap.querySelector('input')?.focus();
   }
 
@@ -639,7 +639,7 @@
       button.innerHTML = `<i class="fas ${translationInFlight.has(note.id) ? 'fa-circle-notch' : 'fa-language'}"></i>`;
       if (show) {
         textNode.textContent = translated;
-        if (!card.querySelector(':scope > .pn-translated-note')) card.insertAdjacentHTML('beforeend', `<span class="pn-translated-note">${((v0) => globalThis.PlatformLanguage?.text("project-notes","m_d2d48d3b49d330",`Translated from ${v0}`,{v0}) ?? `Translated from ${v0}`)(escapeHtml(languageName(note.translation.source_language)))}</span>`);
+        if (!card.querySelector(':scope > .pn-translated-note')) card.insertAdjacentHTML('beforeend', `<span class="pn-translated-note">${((v0) => globalThis.PlatformLanguage?.htmlText("project-notes","m_d2d48d3b49d330",`Translated from ${v0}`,{v0}) ?? `Translated from ${v0}`)(escapeHtml(languageName(note.translation.source_language)))}</span>`);
       } else {
         textNode.innerHTML = textNode.dataset.pnOriginalHtml;
         card.querySelector(':scope > .pn-translated-note')?.remove();

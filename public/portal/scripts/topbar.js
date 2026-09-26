@@ -245,7 +245,7 @@
       const entries = messagesInbox.entries || [];
       list.innerHTML = entries.length
         ? entries.map((entry, index) => messageEntryHtml(entry, index)).join('')
-        : `<div class="ptb-empty">${(globalThis.PlatformLanguage?.text("platform","m_56ea1e42b41667","No messages need your attention.") ?? "No messages need your attention.")}<br>${(globalThis.PlatformLanguage?.text("platform","m_fcc1bb46a8b161","Mentions, DMs, replies, and reactions land here.") ?? "Mentions, DMs, replies, and reactions land here.")}</div>`;
+        : `<div class="ptb-empty">${(globalThis.PlatformLanguage?.htmlText("platform","m_56ea1e42b41667","No messages need your attention.") ?? "No messages need your attention.")}<br>${(globalThis.PlatformLanguage?.htmlText("platform","m_fcc1bb46a8b161","Mentions, DMs, replies, and reactions land here.") ?? "Mentions, DMs, replies, and reactions land here.")}</div>`;
       list.querySelectorAll('[data-message-entry]').forEach((row) => {
         row.addEventListener('click', () => {
           const entry = (messagesInbox.entries || [])[Number(row.dataset.messageEntry)];
@@ -651,7 +651,7 @@
 
   function searchFiltersHtml(){
     const types = window.FirstMateArtifactSearch?.TYPES || [];
-    return `<div class="ptb-search-filterbar" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_682192c2691773","Search result types") ?? "Search result types")}">
+    return `<div class="ptb-search-filterbar" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_682192c2691773","Search result types") ?? "Search result types")}">
       <div class="ptb-search-filters">${String(types.map((type) => {
         const active = enabledSearchTypes.has(type.id);
         return `<button type="button" class="ptb-search-filter ${active ? 'active' : ''}" data-search-filter="${escapeHtml(type.id)}" aria-pressed="${active}"><i class="fas ${escapeHtml(type.icon)}" aria-hidden="true"></i>${escapeHtml(type.label)}</button>`;
@@ -726,7 +726,7 @@
     const sequence = ++searchSequence;
     if (searchRequest) searchRequest.abort();
     searchRequest = window.AbortController ? new AbortController() : null;
-    box.innerHTML = (String(searchFiltersHtml()) + "<div class=\"ptb-search-result-list\"><div class=\"ptb-empty\">" + (globalThis.PlatformLanguage?.text("platform","m_1868baee889a75","Searching...") ?? "Searching...") + "</div></div>");
+    box.innerHTML = (String(searchFiltersHtml()) + "<div class=\"ptb-search-result-list\"><div class=\"ptb-empty\">" + (globalThis.PlatformLanguage?.htmlText("platform","m_1868baee889a75","Searching...") ?? "Searching...") + "</div></div>");
     box.classList.add('visible');
     bindSearchFilters(box, input);
     const platformTypes = ['project','contact'].filter((type) => enabledSearchTypes.has(type));
@@ -763,7 +763,7 @@
           <strong>${escapeHtml(leadTitle(item))}</strong>
           <span>${escapeHtml(item.body || '')}</span>
         </div>
-        ${item.manual_dismissible && !isLeadNotification(item) ? `<button type="button" class="ptb-note-dismiss" data-dismiss-note="${String(escapeHtml(item.id))}" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_63fc9fb260d3a6","Mark notification done") ?? "Mark notification done")}" title="${(globalThis.PlatformLanguage?.text("platform","m_8e85dc2d122c71","Mark done") ?? "Mark done")}"><i class="fas fa-check" aria-hidden="true"></i></button>` : ''}
+        ${item.manual_dismissible && !isLeadNotification(item) ? `<button type="button" class="ptb-note-dismiss" data-dismiss-note="${String(escapeHtml(item.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_63fc9fb260d3a6","Mark notification done") ?? "Mark notification done")}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_8e85dc2d122c71","Mark done") ?? "Mark done")}"><i class="fas fa-check" aria-hidden="true"></i></button>` : ''}
       </div>
     `;
   }
@@ -775,7 +775,7 @@
           <strong>${String(escapeHtml(leadTitle(item)))}</strong>
           <span>${String(escapeHtml(item.body || ''))}</span>
         </div>
-        <button type="button" class="ptb-note-restore" data-restore-note="${String(escapeHtml(item.id))}" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_a38ee26b78adc6","Restore notification") ?? "Restore notification")}" title="${(globalThis.PlatformLanguage?.text("platform","m_a38ee26b78adc6","Restore notification") ?? "Restore notification")}"><i class="fas fa-rotate-left" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.text("platform","m_4004b71744b54e","Undo") ?? "Undo")}</span></button>
+        <button type="button" class="ptb-note-restore" data-restore-note="${String(escapeHtml(item.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a38ee26b78adc6","Restore notification") ?? "Restore notification")}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_a38ee26b78adc6","Restore notification") ?? "Restore notification")}"><i class="fas fa-rotate-left" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform","m_4004b71744b54e","Undo") ?? "Undo")}</span></button>
       </div>
     `;
   }
@@ -798,7 +798,7 @@
           <strong>${escapeHtml(entry.title || (globalThis.PlatformLanguage?.text("platform","m_633c5884c59d4e","Attention") ?? "Attention"))}</strong>
           ${entry.body ? `<span>${escapeHtml(entry.body)}</span>` : ''}
         </div>
-        ${String(entry.state || '') === 'waiting' ? ("<i class=\"fas fa-hourglass-half ptb-note-pinned-wait\" aria-hidden=\"true\" title=\"" + (globalThis.PlatformLanguage?.text("platform","m_c84286da8f58e9","Waiting") ?? "Waiting") + "\"></i>") : ''}
+        ${String(entry.state || '') === 'waiting' ? ("<i class=\"fas fa-hourglass-half ptb-note-pinned-wait\" aria-hidden=\"true\" title=\"" + (globalThis.PlatformLanguage?.htmlText("platform","m_c84286da8f58e9","Waiting") ?? "Waiting") + "\"></i>") : ''}
       </div>
     `;
   }
@@ -807,7 +807,7 @@
     const pinnedHtml = pinned.length ? pinned.map(pinnedAttentionHtml).join('') : '';
     const activeHtml = notifications.length
       ? notifications.map(activeNotificationHtml).join('')
-      : `<div class="ptb-empty">${(globalThis.PlatformLanguage?.text("platform","m_ef1f67ca1f3465","You're all caught up.") ?? "You're all caught up.")}</div>`;
+      : `<div class="ptb-empty">${(globalThis.PlatformLanguage?.htmlText("platform","m_ef1f67ca1f3465","You're all caught up.") ?? "You're all caught up.")}</div>`;
     const activeSection = `${pinnedHtml}<div class="ptb-active-notifications">${activeHtml}</div>`;
     if (!dismissed.length) return activeSection;
     return (String(activeSection) + "\n      <details class=\"ptb-dismissed-section\" " + String(dismissedOpen ? 'open' : '') + ">\n        <summary><span><i class=\"fas fa-chevron-right\" aria-hidden=\"true\"></i>" + (globalThis.PlatformLanguage?.text("platform","m_cf7bc46e9e0379","Dismissed today") ?? "Dismissed today") + "</span><b>" + String(dismissed.length) + "</b></summary>\n        <div class=\"ptb-dismissed-list\">" + String(dismissed.map(dismissedNotificationHtml).join('')) + "</div>\n      </details>");
@@ -924,7 +924,7 @@
       mobileCount.classList.toggle('has-unread', unread > 0);
     }
     if (menuHead) {
-      menuHead.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("platform","m_5a9115e4033cb3","Notifications") ?? "Notifications")}</span><small>${((v0,v1) => globalThis.PlatformLanguage?.text("platform","m_6d30e375168449",`${v0} unread &middot; ${v1} total`,{v0,v1}) ?? `${v0} unread &middot; ${v1} total`)(unread,total)}</small>`;
+      menuHead.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("platform","m_5a9115e4033cb3","Notifications") ?? "Notifications")}</span><small>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("platform","m_6d30e375168449",`${v0} unread &middot; ${v1} total`,{v0,v1}) ?? `${v0} unread &middot; ${v1} total`)(unread,total)}</small>`;
     }
     if (mobileMenuHead && menuHead) mobileMenuHead.innerHTML = menuHead.innerHTML;
     if (!list) return;

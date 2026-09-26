@@ -206,7 +206,7 @@
   }
 
   function panelHtml(){
-    return `<div class="mn-app" data-money-root><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("money","m_487adb3f2ba511","Loading money...") ?? "Loading money...")}</span></div></div>`;
+    return `<div class="mn-app" data-money-root><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_487adb3f2ba511","Loading money...") ?? "Loading money...")}</span></div></div>`;
   }
 
   function css(){
@@ -349,8 +349,8 @@
     if (schedules.length <= 1) return '';
     return `
       <div class="mn-left-tabs">
-        <button type="button" class="mn-left-tab${String(state.activeScheduleId === 'all' ? ' active' : '')}" data-money-schedule="all">${(globalThis.PlatformLanguage?.text("money","m_61df468d92e238","All") ?? "All")}</button>
-        ${String(schedules.map((schedule, index) => `<button type="button" class="mn-left-tab${state.activeScheduleId === cleanText(schedule.id) ? ' active' : ''}" data-money-schedule="${escapeHtml(schedule.id)}">${escapeHtml(schedule.title || `Proposal ${index + 1}`)}</button>`).join(''))}
+        <button type="button" class="mn-left-tab${String(state.activeScheduleId === 'all' ? ' active' : '')}" data-money-schedule="all">${(globalThis.PlatformLanguage?.htmlText("money","m_61df468d92e238","All") ?? "All")}</button>
+        ${String(schedules.map((schedule, index) => `<button type="button" class="mn-left-tab${state.activeScheduleId === cleanText(schedule.id) ? ' active' : ''}" data-money-schedule="${escapeHtml(schedule.id)}">${escapeHtml(schedule.title || ((v0) => globalThis.PlatformLanguage?.text("money","m_02d86b107dab82",`Proposal ${v0}`,{v0}) ?? `Proposal ${v0}`)(index + 1))}</button>`).join(''))}
       </div>
     `;
   }
@@ -367,7 +367,7 @@
     target.querySelector?.('.mt-left')?.remove();
     target.querySelector?.('.r-schedule-left-shell')?.remove();
     if (state.loading && !state.summary) {
-      target.innerHTML = `<div class="mn-left"><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("money","m_97d47c86b27c23","Loading schedule...") ?? "Loading schedule...")}</span></div></div>`;
+      target.innerHTML = `<div class="mn-left"><div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_97d47c86b27c23","Loading schedule...") ?? "Loading schedule...")}</span></div></div>`;
       return;
     }
     if (state.error && !state.summary) {
@@ -392,7 +392,7 @@
           <span class="mn-status ${String(remaining > 0 ? 'open' : 'paid')}">${String(remaining > 0 ? 'open' : 'paid')}</span>
         </div>
         <div class="mn-left-summary">
-          <div class="mn-left-summary-head"><strong>${(globalThis.PlatformLanguage?.text("money","m_40aed9764f210b","Project Financials") ?? "Project Financials")}</strong><span>${(globalThis.PlatformLanguage?.text("money","m_df79547397005c","Hover for details") ?? "Hover for details")}</span></div>
+          <div class="mn-left-summary-head"><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_40aed9764f210b","Project Financials") ?? "Project Financials")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("money","m_df79547397005c","Hover for details") ?? "Hover for details")}</span></div>
           <div class="mn-left-metrics">
             ${String(leftMetric(term('revenue'), revenue, 'Scheduled project total', 'Total customer revenue currently scheduled from signed proposals and project payment obligations.'))}
             ${String(leftMetric(term('collected'), collected, `${paymentCount} ${paymentCount === 1 ? term('collected_payment').toLowerCase() : term('collected_payments').toLowerCase()} received`, 'Customer payments received for this project, before subtracting project expenses.', 'good'))}
@@ -405,11 +405,11 @@
         <div class="mn-left-schedule">
           <div class="mn-left-schedule-head"><strong>${String(escapeHtml(term('payment_schedule')))}</strong><span>${String(rows.length)} ${String(escapeHtml(rows.length === 1 ? term('scheduled_payment').toLowerCase() : term('scheduled_payments').toLowerCase()))}</span></div>
           ${String(scheduleTabs())}
-          <div class="mn-schedule-list">${String(rows.map(renderDueCard).join('') || '<div class="mn-empty">Signed proposals will create a payment schedule here.</div>')}</div>
+          <div class="mn-schedule-list">${String(rows.map(renderDueCard).join('') || `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_5d261af8b2f864","Signed proposals will create a payment schedule here.") ?? "Signed proposals will create a payment schedule here.")}</div>`)}</div>
           ${String(renderAutopaySection())}
         </div>
         ${String(canManageMoney() ? `<div class="mn-left-footer">
-          <button type="button" class="mn-btn primary" data-money-take-payment ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-money-check-dollar"></i> Take a payment</button>
+          <button type="button" class="mn-btn primary" data-money-take-payment ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-money-check-dollar"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_532da653e82875"," Take a payment") ?? " Take a payment")}</button>
         </div>` : '')}
       </div>
     `;
@@ -428,7 +428,7 @@
     if (!list) {
       state.leftRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel" hidden>${(globalThis.PlatformLanguage?.text("money","m_05cb9dd7e5a780","Money") ?? "Money")}</label>
+          <label id="rProposalLabel" hidden>${(globalThis.PlatformLanguage?.htmlText("money","m_05cb9dd7e5a780","Money") ?? "Money")}</label>
           <div class="r-proposal-listing" id="rProposalList"></div>
         </div></div></div>
       `;
@@ -466,23 +466,23 @@
       if (!state.autopayEnrollOpen) {
         return `
           <div class="mn-due-card mn-autopay" data-money-autopay>
-            <div class="mn-due-line"><strong><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.text("money","m_adb80fcef9bf78","Autopay") ?? "Autopay")}</strong><span class="mn-status">${(globalThis.PlatformLanguage?.text("money","m_273e689aeb0785","Off") ?? "Off")}</span></div>
-            <div class="mn-due-details"><span>${(globalThis.PlatformLanguage?.text("money","m_3c7a4daf369414","Charge a saved payment method when payments come due.") ?? "Charge a saved payment method when payments come due.")}</span></div>
-            <div class="mn-autopay-actions"><button type="button" class="mn-btn" data-money-autopay-open ${String(busy)}><i class="fas fa-circle-plus"></i>${(globalThis.PlatformLanguage?.text("money","m_f3b19bf3748e6b"," Set up autopay") ?? " Set up autopay")}</button></div>
+            <div class="mn-due-line"><strong><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_adb80fcef9bf78","Autopay") ?? "Autopay")}</strong><span class="mn-status">${(globalThis.PlatformLanguage?.htmlText("money","m_273e689aeb0785","Off") ?? "Off")}</span></div>
+            <div class="mn-due-details"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_3c7a4daf369414","Charge a saved payment method when payments come due.") ?? "Charge a saved payment method when payments come due.")}</span></div>
+            <div class="mn-autopay-actions"><button type="button" class="mn-btn" data-money-autopay-open ${String(busy)}><i class="fas fa-circle-plus"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_f3b19bf3748e6b"," Set up autopay") ?? " Set up autopay")}</button></div>
             ${String(failNote)}
           </div>`;
       }
       return `
         <div class="mn-due-card mn-autopay" data-money-autopay>
-          <div class="mn-due-line"><strong><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.text("money","m_adb80fcef9bf78","Autopay") ?? "Autopay")}</strong><span class="mn-status">${(globalThis.PlatformLanguage?.text("money","m_b06faf127e1505","Setup") ?? "Setup")}</span></div>
+          <div class="mn-due-line"><strong><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_adb80fcef9bf78","Autopay") ?? "Autopay")}</strong><span class="mn-status">${(globalThis.PlatformLanguage?.htmlText("money","m_b06faf127e1505","Setup") ?? "Setup")}</span></div>
           <div class="mn-autopay-form">
-            <select class="mn-select" data-money-autopay-method aria-label="${(globalThis.PlatformLanguage?.text("money","m_03749d6c9f558b","Saved payment method") ?? "Saved payment method")}">
+            <select class="mn-select" data-money-autopay-method aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_03749d6c9f558b","Saved payment method") ?? "Saved payment method")}">
               ${String(methods.map((method) => `<option value="${escapeHtml(method.id)}">${escapeHtml(cleanText(method.label, `${method.brand || 'Card'} ending in ${method.last4 || '????'}`))}</option>`).join(''))}
             </select>
-            <input class="mn-input" type="text" inputmode="decimal" placeholder="${(globalThis.PlatformLanguage?.text("money","m_142ec283dfa33b","Max charge (optional, $)") ?? "Max charge (optional, $)")}" data-money-autopay-max aria-label="${(globalThis.PlatformLanguage?.text("money","m_2403460d906098","Maximum autopay amount") ?? "Maximum autopay amount")}">
+            <input class="mn-input" type="text" inputmode="decimal" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_142ec283dfa33b","Max charge (optional, $)") ?? "Max charge (optional, $)")}" data-money-autopay-max aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_2403460d906098","Maximum autopay amount") ?? "Maximum autopay amount")}">
             <div class="mn-autopay-actions">
-              <button type="button" class="mn-btn primary" data-money-autopay-enroll ${String(busy)}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("money","m_f3a69b458730ed"," Enroll") ?? " Enroll")}</button>
-              <button type="button" class="mn-btn" data-money-autopay-cancel ${String(busy)}>${(globalThis.PlatformLanguage?.text("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+              <button type="button" class="mn-btn primary" data-money-autopay-enroll ${String(busy)}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_f3a69b458730ed"," Enroll") ?? " Enroll")}</button>
+              <button type="button" class="mn-btn" data-money-autopay-cancel ${String(busy)}>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             </div>
             ${String(failNote)}
           </div>
@@ -494,19 +494,19 @@
     const nextDue = autopayNextDueLabel();
     return `
       <div class="mn-due-card mn-autopay" data-money-autopay>
-        <div class="mn-due-line"><strong><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.text("money","m_adb80fcef9bf78","Autopay") ?? "Autopay")}</strong><span class="mn-status ${String(paused ? 'failed' : 'paid')}" data-money-autopay-status>${String(paused ? 'Paused' : 'Active')}</span></div>
+        <div class="mn-due-line"><strong><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_adb80fcef9bf78","Autopay") ?? "Autopay")}</strong><span class="mn-status ${String(paused ? 'failed' : 'paid')}" data-money-autopay-status>${String(paused ? 'Paused' : 'Active')}</span></div>
         <div class="mn-due-details">
           <span>${String(escapeHtml(cleanText(autopay.method_label, 'Saved payment method')))}</span>
-          ${String(autopay.max_amount_cents ? `<span>Max ${money(autopay.max_amount_cents)}</span>` : '')}
-          ${String(!paused && nextDue ? `<span>Next: ${escapeHtml(nextDue)}</span>` : '')}
-          ${String(!paused && !nextDue ? '<span>Nothing currently due</span>' : '')}
+          ${String(autopay.max_amount_cents ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_bff24e5273ad55",`Max ${v0}`,{v0}) ?? `Max ${v0}`)(money(autopay.max_amount_cents))}</span>` : '')}
+          ${String(!paused && nextDue ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_a2239f83587677",`Next: ${v0}`,{v0}) ?? `Next: ${v0}`)(escapeHtml(nextDue))}</span>` : '')}
+          ${String(!paused && !nextDue ? `<span>${(globalThis.PlatformLanguage?.htmlText("money","m_983bf1b2477ef9","Nothing currently due") ?? "Nothing currently due")}</span>` : '')}
         </div>
         ${String(paused && lastFailure ? `<div class="mn-autopay-fail" data-money-autopay-failure><i class="fas fa-triangle-exclamation"></i> ${escapeHtml(cleanText(lastFailure.message, titleText(cleanText(lastFailure.decline_category, 'Charge failed'))))}</div>` : '')}
         <div class="mn-autopay-actions">
           ${String(paused
-            ? `<button type="button" class="mn-btn primary" data-money-autopay-resume ${busy}><i class="fas fa-play"></i> Resume</button>`
-            : `<button type="button" class="mn-btn" data-money-autopay-pause ${busy}><i class="fas fa-pause"></i> Pause</button>`)}
-          <button type="button" class="mn-btn" data-money-autopay-remove ${String(busy)}><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("money","m_6ce872e51d499d"," Turn off") ?? " Turn off")}</button>
+            ? `<button type="button" class="mn-btn primary" data-money-autopay-resume ${busy}><i class="fas fa-play"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_208c4198c8a54d"," Resume") ?? " Resume")}</button>`
+            : `<button type="button" class="mn-btn" data-money-autopay-pause ${busy}><i class="fas fa-pause"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_44354fd97a2d3b"," Pause") ?? " Pause")}</button>`)}
+          <button type="button" class="mn-btn" data-money-autopay-remove ${String(busy)}><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_6ce872e51d499d"," Turn off") ?? " Turn off")}</button>
         </div>
         ${String(failNote)}
       </div>`;
@@ -538,7 +538,7 @@
     return `
       <div class="mn-due-card ${String(status)}">
         <div class="mn-due-line"><strong>${String(escapeHtml(item.label || 'Payment'))}</strong><span>${String(money(amount))}</span></div>
-        <div class="mn-due-details"><span class="mn-status ${String(status)}">${String(escapeHtml(titleText(item.status || 'scheduled')))}</span><span>${String(escapeHtml(due))}${String(item.due_rule ? ` · ${escapeHtml(titleText(item.due_rule))}` : '')}</span><span>${((v7) => globalThis.PlatformLanguage?.text("money","m_b1614d98ab492a",`${v7} taken`,{v7}) ?? `${v7} taken`)(money(paid))}</span>${String(remaining ? `<span>${money(remaining)} remaining</span>` : '')}</div>
+        <div class="mn-due-details"><span class="mn-status ${String(status)}">${String(escapeHtml(titleText(item.status || 'scheduled')))}</span><span>${String(escapeHtml(due))}${String(item.due_rule ? ` · ${escapeHtml(titleText(item.due_rule))}` : '')}</span><span>${((v7) => globalThis.PlatformLanguage?.htmlText("money","m_b1614d98ab492a",`${v7} taken`,{v7}) ?? `${v7} taken`)(money(paid))}</span>${String(remaining ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_dabe106055ac5a",`${v0} remaining`,{v0}) ?? `${v0} remaining`)(money(remaining))}</span>` : '')}</div>
       </div>
     `;
   }
@@ -551,7 +551,7 @@
     state.receiptBrowserHandle = null;
     const root = state.panelRoot.querySelector('[data-money-root]') || state.panelRoot;
     if (state.loading && !state.summary) {
-      root.innerHTML = `<div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("money","m_487adb3f2ba511","Loading money...") ?? "Loading money...")}</span></div>`;
+      root.innerHTML = `<div class="mn-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_487adb3f2ba511","Loading money...") ?? "Loading money...")}</span></div>`;
       return;
     }
     if (state.error && !state.summary) {
@@ -562,11 +562,11 @@
     const tabs = visibleMoneyTabs();
     root.innerHTML = `
       <div class="mn-top">
-        <div class="mn-title"><i class="fas fa-dollar-sign"></i><div><strong>${String(escapeHtml(term('workspace')))}</strong><span>${String(escapeHtml(state.project?.address || state.project?.title || 'Project profitability'))}</span></div></div>
+        <div class="mn-title"><i class="fas fa-dollar-sign"></i><div><strong>${String(escapeHtml(term('workspace')))}</strong><span>${String(escapeHtml(state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("money","m_d2511833396209","Project profitability") ?? "Project profitability")))}</span></div></div>
         <div class="mn-actions">
           <span class="mn-muted">${String(state.lastLoadedAt ? `Updated ${escapeHtml(dateTime(state.lastLoadedAt))}` : '')}</span>
-          ${String(canManageMoney() ? `<button type="button" class="mn-btn primary mn-primary-action" data-money-upload-receipt ${moneyMutationBusy() || state.receiptUploadInFlight ? 'disabled' : ''}><i class="fas fa-file-arrow-up"></i> Upload receipts</button><input type="file" data-money-receipt-input multiple accept="image/*,.pdf,.doc,.docx,.dot,.odt,.rtf,.pages,.xls,.xlsx,.csv,.tsv,.iif,.ppt,.pptx,.txt,.md,.json,.xml,.html,.htm,.eml,.mht,.tif,.tiff,.avif,.bmp,.heic,.heif" hidden>` : '<span class="mn-muted">Read only</span>')}
-          <button type="button" class="mn-btn" data-money-refresh><i class="fas fa-rotate${String(state.loading ? ' mn-spin' : '')}"></i>${(globalThis.PlatformLanguage?.text("money","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
+          ${String(canManageMoney() ? `<button type="button" class="mn-btn primary mn-primary-action" data-money-upload-receipt ${moneyMutationBusy() || state.receiptUploadInFlight ? 'disabled' : ''}><i class="fas fa-file-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_e643dfd59898b5"," Upload receipts") ?? " Upload receipts")}</button><input type="file" data-money-receipt-input multiple accept="image/*,.pdf,.doc,.docx,.dot,.odt,.rtf,.pages,.xls,.xlsx,.csv,.tsv,.iif,.ppt,.pptx,.txt,.md,.json,.xml,.html,.htm,.eml,.mht,.tif,.tiff,.avif,.bmp,.heic,.heif" hidden>` : `<span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_65ed6dd2cd3755","Read only") ?? "Read only")}</span>`)}
+          <button type="button" class="mn-btn" data-money-refresh><i class="fas fa-rotate${String(state.loading ? ' mn-spin' : '')}"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
         </div>
       </div>
       <div class="mn-tabs" style="--mn-tab-count:${String(tabs.length)}">
@@ -666,9 +666,9 @@
     return `
       <div class="mn-payment-intake-view${mobile ? ' mn-mobile-payment-intake-view' : ''}">
         ${mobile ? '' : `<div class="mn-payment-intake-head">
-          ${String(showBack ? '<button type="button" class="mn-btn" data-money-payment-back><i class="fas fa-arrow-left"></i> Back</button>' : '<span></span>')}
+          ${String(showBack ? `<button type="button" class="mn-btn" data-money-payment-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_206d31a7c795c4"," Back") ?? " Back")}</button>` : '<span></span>')}
           <h3>${String(escapeHtml(term('take_collected_payment')))}</h3>
-          <span class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_aef1346207debc","Phone payment") ?? "Phone payment")}</span>
+          <span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_aef1346207debc","Phone payment") ?? "Phone payment")}</span>
         </div>`}
         <div class="mn-payment-intake-body">
           <div class="mn-payment-intake-mount" data-money-payment-intake></div>
@@ -741,7 +741,7 @@
 
   function receiptsView(){
     const upload = canManageMoney()
-      ? `<div class="mn-mobile-receipt-upload"><button type="button" class="mn-btn primary mn-primary-action" data-money-upload-receipt ${String(moneyMutationBusy() || state.receiptUploadInFlight ? 'disabled' : '')}><i class="fas fa-file-arrow-up"></i>${(globalThis.PlatformLanguage?.text("money","m_e643dfd59898b5"," Upload receipts") ?? " Upload receipts")}</button></div>`
+      ? `<div class="mn-mobile-receipt-upload"><button type="button" class="mn-btn primary mn-primary-action" data-money-upload-receipt ${String(moneyMutationBusy() || state.receiptUploadInFlight ? 'disabled' : '')}><i class="fas fa-file-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_e643dfd59898b5"," Upload receipts") ?? " Upload receipts")}</button></div>`
       : '';
     return `${upload}<div class="mn-receipt-browser" data-money-receipts-browser></div>`;
   }
@@ -750,7 +750,7 @@
     const mount = root.querySelector('[data-money-receipts-browser]');
     if (!mount) return;
     if (!rootWindow.Portal?.ReceiptsBrowser?.mount) {
-      mount.innerHTML = `<div class="mn-state"><i class="fas fa-triangle-exclamation"></i><span>${(globalThis.PlatformLanguage?.text("money","m_9f8e92dd90df91","Receipt browser unavailable. Refresh the portal to load its UI bundle.") ?? "Receipt browser unavailable. Refresh the portal to load its UI bundle.")}</span></div>`;
+      mount.innerHTML = `<div class="mn-state"><i class="fas fa-triangle-exclamation"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9f8e92dd90df91","Receipt browser unavailable. Refresh the portal to load its UI bundle.") ?? "Receipt browser unavailable. Refresh the portal to load its UI bundle.")}</span></div>`;
       return;
     }
     const route = rootWindow.Portal?.navigation?.read?.() || {};
@@ -768,37 +768,37 @@
 
   function reportsView(){
     const docsApi = rootWindow.DocumentsAPI;
-    if (!docsApi) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.text("money","m_fb46ed011f94f3","Reports are unavailable — refresh the portal to load the documents bundle.") ?? "Reports are unavailable — refresh the portal to load the documents bundle.")}</div>`;
+    if (!docsApi) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_fb46ed011f94f3","Reports are unavailable — refresh the portal to load the documents bundle.") ?? "Reports are unavailable — refresh the portal to load the documents bundle.")}</div>`;
     const rows = Array.isArray(state.reports) ? state.reports : null;
     const templates = Array.isArray(state.reportTemplates) ? state.reportTemplates : [];
     const generate = canManageMoney()
       ? `<form class="mn-form mn-report-generate" data-money-report-form style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_587d96db750df7","Template") ?? "Template")}</span><select class="mn-select" name="template_id">${String(templates.length
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_587d96db750df7","Template") ?? "Template")}</span><select class="mn-select" name="template_id">${String(templates.length
             ? templates.map((template) => `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name || template.id)}</option>`).join('')
-            : '<option value="">Job Cost Report</option>')}</select></label>
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_6d6214f837afac","From ") ?? "From ")}<span class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></span><input class="mn-input" name="period_from" type="date"></label>
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_b4676a62a86092","Through ") ?? "Through ")}<span class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></span><input class="mn-input" name="period_to" type="date"></label>
+            : `<option value="">${(globalThis.PlatformLanguage?.htmlText("money","m_393f42326e2feb","Job Cost Report") ?? "Job Cost Report")}</option>`)}</select></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_6d6214f837afac","From ") ?? "From ")}<span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></span><input class="mn-input" name="period_from" type="date"></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_b4676a62a86092","Through ") ?? "Through ")}<span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></span><input class="mn-input" name="period_to" type="date"></label>
           <button type="submit" class="mn-btn primary mn-primary-action" ${String(moneyMutationBusy() || state.reportGenerating ? 'disabled' : '')}><i class="fas fa-file-circle-plus"></i> ${String(state.reportGenerating ? 'Generating…' : 'Generate')}</button>
         </form>`
       : '';
     const table = rows === null
-      ? `<div class="mn-state"><i class="fas fa-rotate mn-spin"></i><span>${(globalThis.PlatformLanguage?.text("money","m_50160beeaa8190","Loading reports…") ?? "Loading reports…")}</span></div>`
+      ? `<div class="mn-state"><i class="fas fa-rotate mn-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("money","m_50160beeaa8190","Loading reports…") ?? "Loading reports…")}</span></div>`
       : (rows.length ? `
         <div class="mn-table-wrap">
           <table class="mn-table">
-            <thead><tr><th>${(globalThis.PlatformLanguage?.text("money","m_c47c2ce6bb05c0","Report") ?? "Report")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_866a03fce1595b","Generated") ?? "Generated")}</th><th></th></tr></thead>
+            <thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("money","m_c47c2ce6bb05c0","Report") ?? "Report")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_866a03fce1595b","Generated") ?? "Generated")}</th><th></th></tr></thead>
             <tbody>${String(rows.map((report) => `
               <tr>
-                <td>${escapeHtml(report.title || 'Job Cost Report')}</td>
+                <td>${escapeHtml(report.title || (globalThis.PlatformLanguage?.text("money","m_393f42326e2feb","Job Cost Report") ?? "Job Cost Report"))}</td>
                 <td>${escapeHtml(dateTime(report.created_at) || '-')}</td>
                 <td>
-                  <a class="mn-icon-btn" title="Download PDF" aria-label="Download PDF" href="${escapeHtml(docsApi.documents.pdfUrl(orgId(), cleanText(report.id)))}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i></a>
+                  <a class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_4944e59816b60a","Download PDF") ?? "Download PDF")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_4944e59816b60a","Download PDF") ?? "Download PDF")}" href="${escapeHtml(docsApi.documents.pdfUrl(orgId(), cleanText(report.id)))}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i></a>
                 </td>
               </tr>
             `).join(''))}</tbody>
           </table>
         </div>
-      ` : `<div class="mn-empty">${(globalThis.PlatformLanguage?.text("money","m_77cbacbb9a3d98","Generated reports will appear here. Reports snapshot this project's financials — metrics, expense breakdown, and payment history — as a downloadable PDF.") ?? "Generated reports will appear here. Reports snapshot this project's financials — metrics, expense breakdown, and payment history — as a downloadable PDF.")}</div>`);
+      ` : `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_77cbacbb9a3d98","Generated reports will appear here. Reports snapshot this project's financials — metrics, expense breakdown, and payment history — as a downloadable PDF.") ?? "Generated reports will appear here. Reports snapshot this project's financials — metrics, expense breakdown, and payment history — as a downloadable PDF.")}</div>`);
     return `
       <div class="mn-section">
         <div class="mn-section-head"><h3>${escapeHtml(term('reports'))}</h3>${generate}</div>
@@ -888,7 +888,7 @@
       <div class="mn-layout mn-invoice-layout">
         <div class="mn-stack mn-invoice-history-column">
           <div class="mn-section">
-            <div class="mn-section-head"><h3>${String(escapeHtml(term('invoice_history')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.text("money","m_22a76475e5f569",`${v1} generated`,{v1}) ?? `${v1} generated`)(rows.length)}</span></div>
+            <div class="mn-section-head"><h3>${String(escapeHtml(term('invoice_history')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.htmlText("money","m_22a76475e5f569",`${v1} generated`,{v1}) ?? `${v1} generated`)(rows.length)}</span></div>
             <div class="mn-section-body">${String(rows.length ? `
               <div class="mn-invoice-history">
                 ${rows.map((invoice) => {
@@ -896,32 +896,32 @@
                   const status = statusClass(invoice.status || 'draft');
                   const descriptions = (invoice.line_items || []).map((item) => item.description).filter(Boolean);
                   const description = `${descriptions.slice(0, 2).join(', ')}${descriptions.length > 2 ? ` +${descriptions.length - 2}` : ''}` || 'Project invoice';
-                  return `<div class="mn-invoice-history-card"><div class="mn-invoice-history-top"><div class="mn-invoice-history-copy"><strong>${escapeHtml(invoice.invoice_number || 'Invoice')}</strong><span>${escapeHtml(description)}</span></div><strong class="mn-invoice-history-amount">${money(invoice.balance_due_cents ?? invoice.total_cents)}</strong></div><div class="mn-invoice-history-bottom"><div class="mn-invoice-history-meta"><span class="mn-status ${status}">${escapeHtml(titleText(invoice.status || 'draft'))}</span><span>${escapeHtml(shortDate(invoice.issue_date) || '-')} · Due ${escapeHtml(shortDate(invoice.due_date) || '-')}${invoice.render_paid_in_full === true ? ' · Paid-in-full PDF' : ''}</span></div><div class="mn-actions"><a class="mn-icon-btn" title="Download PDF" aria-label="Download invoice PDF" href="${escapeHtml(rootWindow.PaymentsAPI.invoices.pdfUrl(orgId(), id))}"><i class="fas fa-download"></i></a>${canManageMoney() ? `<button type="button" class="mn-icon-btn" title="Email invoice" aria-label="Email invoice" data-money-invoice-email-existing="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-envelope"></i></button>${!['paid','due','overdue'].includes(status) ? `<button type="button" class="mn-btn primary" data-money-invoice-due="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}>Mark Due</button>` : ''}` : ''}</div></div></div>`;
+                  return `<div class="mn-invoice-history-card"><div class="mn-invoice-history-top"><div class="mn-invoice-history-copy"><strong>${escapeHtml(invoice.invoice_number || 'Invoice')}</strong><span>${escapeHtml(description)}</span></div><strong class="mn-invoice-history-amount">${money(invoice.balance_due_cents ?? invoice.total_cents)}</strong></div><div class="mn-invoice-history-bottom"><div class="mn-invoice-history-meta"><span class="mn-status ${status}">${escapeHtml(titleText(invoice.status || 'draft'))}</span><span>${escapeHtml(shortDate(invoice.issue_date) || '-')} · Due ${escapeHtml(shortDate(invoice.due_date) || '-')}${invoice.render_paid_in_full === true ? ' · Paid-in-full PDF' : ''}</span></div><div class="mn-actions"><a class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_4944e59816b60a","Download PDF") ?? "Download PDF")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_b5d1b0a9e5df00","Download invoice PDF") ?? "Download invoice PDF")}" href="${escapeHtml(rootWindow.PaymentsAPI.invoices.pdfUrl(orgId(), id))}"><i class="fas fa-download"></i></a>${canManageMoney() ? `<button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_5653ae6b626e24","Email invoice") ?? "Email invoice")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_5653ae6b626e24","Email invoice") ?? "Email invoice")}" data-money-invoice-email-existing="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-envelope"></i></button>${!['paid','due','overdue'].includes(status) ? `<button type="button" class="mn-btn primary" data-money-invoice-due="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("money","m_4ab97a813f8f30","Mark Due") ?? "Mark Due")}</button>` : ''}` : ''}</div></div></div>`;
                 }).join('')}
               </div>
-            ` : '<div class="mn-empty">Generated invoices and receipts will appear here for later download or sending.</div>')}</div>
+            ` : `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_ca63ad9e7bd119","Generated invoices and receipts will appear here for later download or sending.") ?? "Generated invoices and receipts will appear here for later download or sending.")}</div>`)}</div>
           </div>
         </div>
         <div class="mn-stack mn-invoice-generate-column">
           ${String(canManageMoney() ? `<div class="mn-section"><div class="mn-section-head"><h3>${escapeHtml(term('generate_invoice'))}</h3></div><div class="mn-section-body">
             <form class="mn-form" data-money-invoice-form>
               <div class="mn-invoice-items">
-                <div class="mn-invoice-items-head"><strong>${escapeHtml(term('invoice_items'))}</strong><button type="button" class="mn-btn" data-money-invoice-picker-toggle><i class="fas fa-plus"></i> Add ${escapeHtml(term('invoice'))} Item</button></div>
+                <div class="mn-invoice-items-head"><strong>${escapeHtml(term('invoice_items'))}</strong><button type="button" class="mn-btn" data-money-invoice-picker-toggle><i class="fas fa-plus"></i>${((v2) => globalThis.PlatformLanguage?.htmlText("money","m_550b7d26b3185a",` Add ${v2} Item`,{v2}) ?? ` Add ${v2} Item`)(escapeHtml(term('invoice')))}</button></div>
                 <div class="mn-invoice-item-picker" data-money-invoice-picker hidden><div class="mn-invoice-picker-list">
-                  <button type="button" class="mn-invoice-picker-choice" data-money-invoice-add-manual><span><strong>Custom Item</strong><span>Enter your own title and amount</span></span><i class="fas fa-plus"></i></button>
+                  <button type="button" class="mn-invoice-picker-choice" data-money-invoice-add-manual><span><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_bc56ecde282801","Custom Item") ?? "Custom Item")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("money","m_309ab34822da96","Enter your own title and amount") ?? "Enter your own title and amount")}</span></span><i class="fas fa-plus"></i></button>
                   ${invoiceable.map((item) => { const paid = cleanText(item.status).toLowerCase() === 'paid'; const displayCents = paid ? cents(item.amount_cents) : Math.max(0, cents(item.amount_cents) - cents(item.allocated_cents)); return `<button type="button" class="mn-invoice-picker-choice" data-money-invoice-add-payment="${escapeHtml(item.id)}"><span><strong>${escapeHtml(item.label || 'Payment')}</strong><span>${escapeHtml(money(displayCents))}${paid ? ' · Paid' : ''}</span></span><i class="fas fa-plus"></i></button>`; }).join('')}
                 </div></div>
-                <div class="mn-invoice-lines" data-money-invoice-lines><div class="mn-invoice-empty" data-money-invoice-empty>Add a scheduled payment or custom item.</div></div>
+                <div class="mn-invoice-lines" data-money-invoice-lines><div class="mn-invoice-empty" data-money-invoice-empty>${(globalThis.PlatformLanguage?.htmlText("money","m_de57c6dbd2a74d","Add a scheduled payment or custom item.") ?? "Add a scheduled payment or custom item.")}</div></div>
               </div>
               <div class="mn-invoice-date-row">
-                <label><span>Issue Date</span><input class="mn-input" type="date" name="issue_date" value="${today}" required></label>
-                <label><span>Due Date</span><input class="mn-input" type="date" name="due_date" value="${today}" required></label>
-                <label class="mn-switch-field"><span>Render PDF as Paid in Full</span><span class="mn-switch-control"><input type="checkbox" name="render_paid_in_full" data-money-invoice-paid-toggle role="switch" aria-label="Render PDF as paid in full"><span class="mn-switch-track" aria-hidden="true"><span></span></span></span></label>
+                <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9007c34fd0a5f1","Issue Date") ?? "Issue Date")}</span><input class="mn-input" type="date" name="issue_date" value="${today}" required></label>
+                <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_0c1007c4897c83","Due Date") ?? "Due Date")}</span><input class="mn-input" type="date" name="due_date" value="${today}" required></label>
+                <label class="mn-switch-field"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_5fc958dc34a771","Render PDF as Paid in Full") ?? "Render PDF as Paid in Full")}</span><span class="mn-switch-control"><input type="checkbox" name="render_paid_in_full" data-money-invoice-paid-toggle role="switch" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_edfaf579e9ff18","Render PDF as paid in full") ?? "Render PDF as paid in full")}"><span class="mn-switch-track" aria-hidden="true"><span></span></span></span></label>
               </div>
-              ${taxEnabled ? `<div class="mn-invoice-tax-row"><label class="mn-invoice-tax-toggle"><span>Enable Tax</span><span class="mn-switch-control"><input type="checkbox" name="tax_enabled" data-money-invoice-tax-toggle role="switch" aria-label="Enable sales tax" checked><span class="mn-switch-track" aria-hidden="true"><span></span></span></span></label><label><span>Tax Percentage</span><input class="mn-input" type="number" name="tax_percent" data-money-invoice-tax-percent min="0" max="100" step="0.01" value="${escapeHtml(String(defaultTaxPercent))}"></label></div>` : ''}
-              <div class="mn-invoice-total-box"><div class="mn-invoice-total-row"><span>Subtotal</span><span data-money-invoice-subtotal>${money(0)}</span></div>${taxEnabled ? `<div class="mn-invoice-total-row" data-money-invoice-tax-row-total><span>Tax</span><span data-money-invoice-tax-total>${money(0)}</span></div>` : ''}<div class="mn-invoice-total-row grand"><span>${escapeHtml(term('invoice_total'))}</span><span data-money-invoice-total>${money(0)}</span></div></div>
-              <label class="wide"><span>Invoice Note</span><textarea class="mn-input" name="notes" rows="2" placeholder="Optional customer-facing note"></textarea></label>
-              <div class="mn-invoice-generate-actions"><button type="submit" class="mn-btn" data-money-invoice-submit ${moneyMutationBusy() ? 'disabled' : ''} disabled><i class="fas fa-download"></i> Generate & Download</button><button type="button" class="mn-btn primary" data-money-invoice-submit data-money-invoice-email-review ${moneyMutationBusy() ? 'disabled' : ''} disabled><i class="fas fa-paper-plane"></i> Generate an Email</button></div>
+              ${taxEnabled ? `<div class="mn-invoice-tax-row"><label class="mn-invoice-tax-toggle"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_e65ad3ae9c59eb","Enable Tax") ?? "Enable Tax")}</span><span class="mn-switch-control"><input type="checkbox" name="tax_enabled" data-money-invoice-tax-toggle role="switch" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3c60eff258a89d","Enable sales tax") ?? "Enable sales tax")}" checked><span class="mn-switch-track" aria-hidden="true"><span></span></span></span></label><label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_fe1e7bdf39922d","Tax Percentage") ?? "Tax Percentage")}</span><input class="mn-input" type="number" name="tax_percent" data-money-invoice-tax-percent min="0" max="100" step="0.01" value="${escapeHtml(String(defaultTaxPercent))}"></label></div>` : ''}
+              <div class="mn-invoice-total-box"><div class="mn-invoice-total-row"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><span data-money-invoice-subtotal>${money(0)}</span></div>${taxEnabled ? `<div class="mn-invoice-total-row" data-money-invoice-tax-row-total><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9920e005677da9","Tax") ?? "Tax")}</span><span data-money-invoice-tax-total>${money(0)}</span></div>` : ''}<div class="mn-invoice-total-row grand"><span>${escapeHtml(term('invoice_total'))}</span><span data-money-invoice-total>${money(0)}</span></div></div>
+              <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_78996580b607e8","Invoice Note") ?? "Invoice Note")}</span><textarea class="mn-input" name="notes" rows="2" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_55f3a56daa8b6d","Optional customer-facing note") ?? "Optional customer-facing note")}"></textarea></label>
+              <div class="mn-invoice-generate-actions"><button type="submit" class="mn-btn" data-money-invoice-submit ${moneyMutationBusy() ? 'disabled' : ''} disabled><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_43aa9dd685b9c2"," Generate & Download") ?? " Generate & Download")}</button><button type="button" class="mn-btn primary" data-money-invoice-submit data-money-invoice-email-review ${moneyMutationBusy() ? 'disabled' : ''} disabled><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_28357bbbd10ed8"," Generate an Email") ?? " Generate an Email")}</button></div>
             </form>
           </div></div>` : '')}
         </div>
@@ -937,7 +937,7 @@
       const interval = Math.max(1, Number(rule.interval || 1));
       return `Every ${interval === 1 ? '' : `${interval} `}${titleText(rule.frequency || 'monthly')}${rule.end_at ? ` · ends ${shortDate(rule.end_at)}` : ' · ongoing'}`;
     };
-    return `<div class="mn-layout"><div class="mn-stack"><div class="mn-section"><div class="mn-section-head"><h3>${String(escapeHtml(term('recurring_agreements')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.text("money","m_727a211f807e9a",`${v1} active or historical series`,{v1}) ?? `${v1} active or historical series`)(series.length)}</span></div><div class="mn-section-body">${String(series.length ? `<div class="mn-expense-list">${series.map((item) => `<div class="mn-expense-group"><div class="mn-expense-group-head"><div><strong>${escapeHtml(item.title || 'Recurring service')}</strong><span>${escapeHtml(formatFrequency(item))}</span></div><div class="mn-expense-group-amount"><strong>${item.total_contract_value_cents == null ? 'Ongoing' : money(item.total_contract_value_cents)}</strong><small>${item.total_contract_value_cents == null ? 'No fixed contract total' : 'Contract value'}</small></div></div><div class="mn-expense-target"><div class="mn-expense-target-name"><div><strong>Service history</strong><span>${Number(item.past_instances || 0)} past · ${Number(item.total_instances || 0)} generated</span></div></div><div class="mn-expense-target-amount"><strong>${item.next_occurrence?.starts_at ? escapeHtml(shortDate(item.next_occurrence.starts_at)) : '—'}</strong><small>Next visit</small></div></div><div class="mn-expense-target"><div class="mn-expense-target-name"><div><strong>${escapeHtml(term('revenue'))} and profit</strong><span>${money(item.revenue_to_date_cents || 0)} ${escapeHtml(term('collected').toLowerCase())} · ${money(item.expenses_to_date_cents || 0)} ${escapeHtml(term('expenses').toLowerCase())}</span></div></div><div class="mn-expense-target-amount"><strong>${money(item.profit_to_date_cents || 0)}</strong><small>${escapeHtml(term('profit_to_date'))}</small></div></div></div>`).join('')}</div>` : '<div class="mn-empty">Create a recurring item in the Schedule tab to track its visits, billing, and profitability here.</div>')}</div></div></div><div class="mn-stack"><div class="mn-section"><div class="mn-section-head"><h3>${String(escapeHtml(term('recurring_totals')))}</h3><span>${(globalThis.PlatformLanguage?.text("money","m_b804dd3a14e87e","Across this project") ?? "Across this project")}</span></div><div class="mn-section-body"><div class="mn-left-totals"><div class="mn-left-total"><span>${(globalThis.PlatformLanguage?.text("money","m_e233e7a3044656","Past service instances") ?? "Past service instances")}</span><strong>${String(Number(recurring.past_instances || 0))}</strong></div><div class="mn-left-total"><span>${(globalThis.PlatformLanguage?.text("money","m_c62098961ec71c","Billed to date") ?? "Billed to date")}</span><strong>${String(money(recurring.billed_to_date_cents || 0))}</strong></div><div class="mn-left-total"><span>${String(escapeHtml(term('profit_to_date')))}</span><strong>${String(money(recurring.profit_to_date_cents || 0))}</strong></div></div></div></div>${String(scheduleSection())}</div></div>`;
+    return `<div class="mn-layout"><div class="mn-stack"><div class="mn-section"><div class="mn-section-head"><h3>${String(escapeHtml(term('recurring_agreements')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.htmlText("money","m_727a211f807e9a",`${v1} active or historical series`,{v1}) ?? `${v1} active or historical series`)(series.length)}</span></div><div class="mn-section-body">${String(series.length ? `<div class="mn-expense-list">${series.map((item) => `<div class="mn-expense-group"><div class="mn-expense-group-head"><div><strong>${escapeHtml(item.title || (globalThis.PlatformLanguage?.text("money","m_b2fb01c421663c","Recurring service") ?? "Recurring service"))}</strong><span>${escapeHtml(formatFrequency(item))}</span></div><div class="mn-expense-group-amount"><strong>${item.total_contract_value_cents == null ? 'Ongoing' : money(item.total_contract_value_cents)}</strong><small>${item.total_contract_value_cents == null ? 'No fixed contract total' : 'Contract value'}</small></div></div><div class="mn-expense-target"><div class="mn-expense-target-name"><div><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_4a2a505a5bbbf3","Service history") ?? "Service history")}</strong><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("money","m_4e8f8a4c0b061d",`${v4} past · ${v5} generated`,{v4,v5}) ?? `${v4} past · ${v5} generated`)(Number(item.past_instances || 0),Number(item.total_instances || 0))}</span></div></div><div class="mn-expense-target-amount"><strong>${item.next_occurrence?.starts_at ? escapeHtml(shortDate(item.next_occurrence.starts_at)) : '—'}</strong><small>${(globalThis.PlatformLanguage?.htmlText("money","m_ddae45be1df721","Next visit") ?? "Next visit")}</small></div></div><div class="mn-expense-target"><div class="mn-expense-target-name"><div><strong>${((v7) => globalThis.PlatformLanguage?.htmlText("money","m_ba64a9ebd09edc",`${v7} and profit`,{v7}) ?? `${v7} and profit`)(escapeHtml(term('revenue')))}</strong><span>${money(item.revenue_to_date_cents || 0)} ${escapeHtml(term('collected').toLowerCase())} · ${money(item.expenses_to_date_cents || 0)} ${escapeHtml(term('expenses').toLowerCase())}</span></div></div><div class="mn-expense-target-amount"><strong>${money(item.profit_to_date_cents || 0)}</strong><small>${escapeHtml(term('profit_to_date'))}</small></div></div></div>`).join('')}</div>` : `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_fe458d515cd5e5","Create a recurring item in the Schedule tab to track its visits, billing, and profitability here.") ?? "Create a recurring item in the Schedule tab to track its visits, billing, and profitability here.")}</div>`)}</div></div></div><div class="mn-stack"><div class="mn-section"><div class="mn-section-head"><h3>${String(escapeHtml(term('recurring_totals')))}</h3><span>${(globalThis.PlatformLanguage?.htmlText("money","m_b804dd3a14e87e","Across this project") ?? "Across this project")}</span></div><div class="mn-section-body"><div class="mn-left-totals"><div class="mn-left-total"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_e233e7a3044656","Past service instances") ?? "Past service instances")}</span><strong>${String(Number(recurring.past_instances || 0))}</strong></div><div class="mn-left-total"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_c62098961ec71c","Billed to date") ?? "Billed to date")}</span><strong>${String(money(recurring.billed_to_date_cents || 0))}</strong></div><div class="mn-left-total"><span>${String(escapeHtml(term('profit_to_date')))}</span><strong>${String(money(recurring.profit_to_date_cents || 0))}</strong></div></div></div></div>${String(scheduleSection())}</div></div>`;
   }
 
   function expenseBreakdownSection(summary, expanded = false){
@@ -964,7 +964,7 @@
             ${stat(term('variance'), totals.variance_cents || 0, cents(totals.variance_cents) > 0 ? 'bad' : cents(totals.variance_cents) < 0 ? 'good' : '')}
             ${stat(term('tracked_actual'), totals.actual_cents || 0, 'good', `${totals.receipt_count || 0} ${totals.receipt_count === 1 ? term('receipt').toLowerCase() : term('receipts').toLowerCase()} plus overrides${accruedCommissions ? ` and ${term('accrued').toLowerCase()} ${term('commissions').toLowerCase()}` : ''}`)}
           </div>
-          <div class="mn-expense-list">${groups.map((group) => expenseGroupHtml(group, expanded)).join('') || `<div class="mn-empty">${(globalThis.PlatformLanguage?.text("money","m_18c605540e3202","Scope material, labor, and equipment lists will appear here as projected expense buckets.") ?? "Scope material, labor, and equipment lists will appear here as projected expense buckets.")}</div>`}</div>
+          <div class="mn-expense-list">${groups.map((group) => expenseGroupHtml(group, expanded)).join('') || `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_18c605540e3202","Scope material, labor, and equipment lists will appear here as projected expense buckets.") ?? "Scope material, labor, and equipment lists will appear here as projected expense buckets.")}</div>`}</div>
         </div>
       </div>
     `;
@@ -980,7 +980,7 @@
       ? 'Linked by shared receipts; actual cost is kept at group level'
       : hasActual ? titleText(group?.actual_source || 'actual') : 'Using projection until an actual is recorded';
     return `<details class="mn-expense-group${String(group?.grouped ? ' shared' : '')}">
-      <summary class="mn-expense-group-head"><span class="mn-expense-group-chevron" aria-hidden="true"></span><div><strong>${String(escapeHtml(group?.title || 'Expense'))}</strong><span>${((v2,v3,v4) => globalThis.PlatformLanguage?.text("money","m_28e2f772a8ffa2",`${v2} line item${v3} · ${v4}`,{v2,v3,v4}) ?? `${v2} line item${v3} · ${v4}`)(itemCount,itemCount === 1 ? '' : 's',escapeHtml(groupStatus))}</span></div><div class="mn-expense-group-amount"><strong>${String(money(group?.current_cents || 0))}</strong><small>${String(hasActual ? `${variance >= 0 ? '+' : '−'}${money(Math.abs(variance))} vs projected` : `${money(group?.projected_cents || 0)} projected`)}</small></div></summary>
+      <summary class="mn-expense-group-head"><span class="mn-expense-group-chevron" aria-hidden="true"></span><div><strong>${String(escapeHtml(group?.title || (globalThis.PlatformLanguage?.text("money","m_765dbb9399c7b0","Expense") ?? "Expense")))}</strong><span>${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("money","m_28e2f772a8ffa2",`${v2} line item${v3} · ${v4}`,{v2,v3,v4}) ?? `${v2} line item${v3} · ${v4}`)(itemCount,itemCount === 1 ? '' : 's',escapeHtml(groupStatus))}</span></div><div class="mn-expense-group-amount"><strong>${String(money(group?.current_cents || 0))}</strong><small>${String(hasActual ? `${variance >= 0 ? '+' : '−'}${money(Math.abs(variance))} vs projected` : `${money(group?.projected_cents || 0)} projected`)}</small></div></summary>
       <div class="mn-expense-target-list">${String(targets.map((target) => expenseTargetHtml(target, group, expanded)).join(''))}</div>
       ${String(receipts.length ? `<div class="mn-receipt-chips">${receipts.map((receipt) => `<button type="button" class="mn-receipt-chip" data-money-review-receipt="${escapeHtml(receipt.id)}"><i class="fas fa-receipt"></i>${escapeHtml(receipt.title || receipt.file?.file_name || 'Receipt')} · ${money(receipt.total_cents || receipt.effective?.total_cents || 0)}</button>`).join('')}</div>` : '')}
     </details>`;
@@ -1005,20 +1005,20 @@
   }
 
   function supplementalExpenseSection(){
-    return `<div class="mn-section"><div class="mn-section-head"><h3>${((v0) => globalThis.PlatformLanguage?.text("money","m_7b9bdb8255fdf3",`Add Supplemental ${v0}`,{v0}) ?? `Add Supplemental ${v0}`)(escapeHtml(term('expense')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.text("money","m_1be940b3426940",`New ${v1}`,{v1}) ?? `New ${v1}`)(escapeHtml(term('expense_list').toLowerCase()))}</span></div><div class="mn-section-body"><form class="mn-form" data-money-supplemental-form>
-      <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input class="mn-input" name="title" type="text" placeholder="${(globalThis.PlatformLanguage?.text("money","m_e4e83228287ec6","Additional chimney flashing") ?? "Additional chimney flashing")}" required></label>
-      <label><span>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" required></label>
-      <label><span>${(globalThis.PlatformLanguage?.text("money","m_c478c1907a4d4f","Category") ?? "Category")}</span><select class="mn-select" name="resource_type"><option value="other">${(globalThis.PlatformLanguage?.text("money","m_4a04382820d2e1","Other") ?? "Other")}</option><option value="material">${(globalThis.PlatformLanguage?.text("money","m_691187e28aba8e","Materials") ?? "Materials")}</option><option value="labor">${(globalThis.PlatformLanguage?.text("money","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="equipment">${(globalThis.PlatformLanguage?.text("money","m_2813f320a63b94","Equipment") ?? "Equipment")}</option></select></label>
-      <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_de7d6168ae1ad6","Notes") ?? "Notes")}</span><input class="mn-input" name="notes" type="text"></label>
-      <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("money","m_0c5877b97d1665"," Add Expense") ?? " Add Expense")}</button></div>
+    return `<div class="mn-section"><div class="mn-section-head"><h3>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_7b9bdb8255fdf3",`Add Supplemental ${v0}`,{v0}) ?? `Add Supplemental ${v0}`)(escapeHtml(term('expense')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.htmlText("money","m_1be940b3426940",`New ${v1}`,{v1}) ?? `New ${v1}`)(escapeHtml(term('expense_list').toLowerCase()))}</span></div><div class="mn-section-body"><form class="mn-form" data-money-supplemental-form>
+      <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input class="mn-input" name="title" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_e4e83228287ec6","Additional chimney flashing") ?? "Additional chimney flashing")}" required></label>
+      <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" required></label>
+      <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_c478c1907a4d4f","Category") ?? "Category")}</span><select class="mn-select" name="resource_type"><option value="other">${(globalThis.PlatformLanguage?.htmlText("money","m_4a04382820d2e1","Other") ?? "Other")}</option><option value="material">${(globalThis.PlatformLanguage?.htmlText("money","m_691187e28aba8e","Materials") ?? "Materials")}</option><option value="labor">${(globalThis.PlatformLanguage?.htmlText("money","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="equipment">${(globalThis.PlatformLanguage?.htmlText("money","m_2813f320a63b94","Equipment") ?? "Equipment")}</option></select></label>
+      <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_de7d6168ae1ad6","Notes") ?? "Notes")}</span><input class="mn-input" name="notes" type="text"></label>
+      <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_0c5877b97d1665"," Add Expense") ?? " Add Expense")}</button></div>
     </form></div></div>`;
   }
 
   function renderReceiptReview(summary){
     const review = state.receiptReview;
     if (!review) return '';
-    if (review.phase === 'uploading') return `<div class="mn-modal-shade"><div class="mn-receipt-modal"><div class="mn-receipt-modal-head"><strong>${(globalThis.PlatformLanguage?.text("money","m_c1767dcd832c57","Reading purchase document") ?? "Reading purchase document")}</strong><button type="button" class="mn-icon-btn" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div><div class="mn-receipt-loading"><i class="fas fa-circle-notch fa-spin"></i><div>${(globalThis.PlatformLanguage?.text("money","m_86fdd8b69b4833","Pulling totals and purchase details…") ?? "Pulling totals and purchase details…")}</div><span class="mn-muted">${String(escapeHtml(review.fileName || 'Receipt'))}</span></div></div></div>`;
-    if (review.phase === 'error') return `<div class="mn-modal-shade"><div class="mn-receipt-modal"><div class="mn-receipt-modal-head"><strong>${(globalThis.PlatformLanguage?.text("money","m_c9b0194ff9817b","Receipt upload needs attention") ?? "Receipt upload needs attention")}</strong><button type="button" class="mn-icon-btn" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div><div class="mn-receipt-loading"><i class="fas fa-triangle-exclamation"></i><div>${String(escapeHtml(review.error || 'Could not process this file.'))}</div><button type="button" class="mn-btn" data-money-receipt-close>${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}</button></div></div></div>`;
+    if (review.phase === 'uploading') return `<div class="mn-modal-shade"><div class="mn-receipt-modal"><div class="mn-receipt-modal-head"><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_c1767dcd832c57","Reading purchase document") ?? "Reading purchase document")}</strong><button type="button" class="mn-icon-btn" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div><div class="mn-receipt-loading"><i class="fas fa-circle-notch fa-spin"></i><div>${(globalThis.PlatformLanguage?.htmlText("money","m_86fdd8b69b4833","Pulling totals and purchase details…") ?? "Pulling totals and purchase details…")}</div><span class="mn-muted">${String(escapeHtml(review.fileName || 'Receipt'))}</span></div></div></div>`;
+    if (review.phase === 'error') return `<div class="mn-modal-shade"><div class="mn-receipt-modal"><div class="mn-receipt-modal-head"><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_c9b0194ff9817b","Receipt upload needs attention") ?? "Receipt upload needs attention")}</strong><button type="button" class="mn-icon-btn" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div><div class="mn-receipt-loading"><i class="fas fa-triangle-exclamation"></i><div>${String(escapeHtml(review.error || 'Could not process this file.'))}</div><button type="button" class="mn-btn" data-money-receipt-close>${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}</button></div></div></div>`;
     const receipt = review.receipt || {};
     const expenses = expenseData(summary);
     const targets = Array.isArray(expenses.targets) ? expenses.targets.filter((target) => target?.receipt_attribution_enabled !== false) : [];
@@ -1027,30 +1027,30 @@
     const warnings = Array.isArray(receipt.extraction?.warnings) ? receipt.extraction.warnings : [];
     const readOnly = !canManageMoney();
     const reviewDisabled = readOnly || moneyMutationBusy() ? 'disabled' : '';
-    return `<div class="mn-modal-shade"><form class="mn-receipt-modal" data-money-receipt-apply data-receipt-id="${String(escapeHtml(receipt.id))}" role="dialog" aria-modal="true" aria-labelledby="mn-receipt-review-title"><div class="mn-receipt-modal-head"><strong id="mn-receipt-review-title">${(globalThis.PlatformLanguage?.text("money","m_2df085d0598fd3","Review Receipt") ?? "Review Receipt")}</strong><button type="button" class="mn-icon-btn" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-xmark"></i></button></div>
+    return `<div class="mn-modal-shade"><form class="mn-receipt-modal" data-money-receipt-apply data-receipt-id="${String(escapeHtml(receipt.id))}" role="dialog" aria-modal="true" aria-labelledby="mn-receipt-review-title"><div class="mn-receipt-modal-head"><strong id="mn-receipt-review-title">${(globalThis.PlatformLanguage?.htmlText("money","m_2df085d0598fd3","Review Receipt") ?? "Review Receipt")}</strong><button type="button" class="mn-icon-btn" data-money-receipt-close aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-xmark"></i></button></div>
       <div class="mn-receipt-modal-body"><div class="mn-receipt-review">
-        <div class="mn-file-summary"><i class="fas fa-file-invoice-dollar"></i><div><strong>${String(escapeHtml(receipt.file?.file_name || receipt.title || 'Receipt'))}</strong><span>${String(escapeHtml(receipt.file?.content_type || ''))}${String(receipt.file?.size_bytes ? ` · ${Math.max(1, Math.round(receipt.file.size_bytes / 1024)).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} KB` : '')}</span></div></div>
-        ${String(receipt.duplicate_of_receipt_id ? `<label class="mn-alert"><input type="checkbox" name="confirm_duplicate" value="yes" ${reviewDisabled}> This file matches an existing receipt. Confirm it represents a separate expense before applying.</label>` : '')}
+        <div class="mn-file-summary"><i class="fas fa-file-invoice-dollar"></i><div><strong>${String(escapeHtml(receipt.file?.file_name || receipt.title || (globalThis.PlatformLanguage?.text("money","m_ab3df34a8730df","Receipt") ?? "Receipt")))}</strong><span>${String(escapeHtml(receipt.file?.content_type || ''))}${String(receipt.file?.size_bytes ? ` · ${Math.max(1, Math.round(receipt.file.size_bytes / 1024)).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} KB` : '')}</span></div></div>
+        ${String(receipt.duplicate_of_receipt_id ? `<label class="mn-alert"><input type="checkbox" name="confirm_duplicate" value="yes" ${reviewDisabled}>${(globalThis.PlatformLanguage?.htmlText("money","m_bb25aead557549"," This file matches an existing receipt. Confirm it represents a separate expense before applying.") ?? " This file matches an existing receipt. Confirm it represents a separate expense before applying.")}</label>` : '')}
         ${String(warnings.length ? `<div class="mn-alert">${escapeHtml(warnings.join(' '))}</div>` : '')}
         <div class="mn-form">
-          <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_9403c7637d4905","Total") ?? "Total")}</span><input class="mn-input" name="total" type="number" min="0" step="0.01" value="${String(escapeHtml(receipt.total_cents ? (receipt.total_cents / 100).toFixed(2) : ''))}" required ${String(reviewDisabled)}></label>
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_f3cb225c1c3e0a","Purchase Date") ?? "Purchase Date")}</span><input class="mn-input" name="purchase_date" type="date" value="${String(escapeHtml(receipt.purchase_date || ''))}" ${String(reviewDisabled)}></label>
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_2d11bf79588d5e","Purchase Time") ?? "Purchase Time")}</span><input class="mn-input" name="purchase_time" type="time" step="1" value="${String(escapeHtml(receipt.purchase_time || ''))}" ${String(reviewDisabled)}></label>
+          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_9403c7637d4905","Total") ?? "Total")}</span><input class="mn-input" name="total" type="number" min="0" step="0.01" value="${String(escapeHtml(receipt.total_cents ? (receipt.total_cents / 100).toFixed(2) : ''))}" required ${String(reviewDisabled)}></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_f3cb225c1c3e0a","Purchase Date") ?? "Purchase Date")}</span><input class="mn-input" name="purchase_date" type="date" value="${String(escapeHtml(receipt.purchase_date || ''))}" ${String(reviewDisabled)}></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2d11bf79588d5e","Purchase Time") ?? "Purchase Time")}</span><input class="mn-input" name="purchase_time" type="time" step="1" value="${String(escapeHtml(receipt.purchase_time || ''))}" ${String(reviewDisabled)}></label>
         </div>
-        ${String(lines.length ? `<details class="mn-receipt-lines"><summary>${lines.length} extracted line item${lines.length === 1 ? '' : 's'}</summary>${lines.slice(0, 30).map((line) => `<div><span>${escapeHtml(line.description || 'Line item')}</span><strong>${money(line.total_cents || 0)}</strong></div>`).join('')}</details>` : '')}
+        ${String(lines.length ? `<details class="mn-receipt-lines"><summary>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("money","m_c2957dd4e77e96",`${v0} extracted line item${v1}`,{v0,v1}) ?? `${v0} extracted line item${v1}`)(lines.length,lines.length === 1 ? '' : 's')}</summary>${lines.slice(0, 30).map((line) => `<div><span>${escapeHtml(line.description || 'Line item')}</span><strong>${money(line.total_cents || 0)}</strong></div>`).join('')}</details>` : '')}
         <div class="mn-form">
-          <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_8b8d7106c3c872","Reimburse to ") ?? "Reimburse to ")}<span class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_f8442478204f05","(optional — paid out of pocket)") ?? "(optional — paid out of pocket)")}</span></span>
+          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_8b8d7106c3c872","Reimburse to ") ?? "Reimburse to ")}<span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_f8442478204f05","(optional — paid out of pocket)") ?? "(optional — paid out of pocket)")}</span></span>
             <select class="mn-select" name="reimburse_user" data-money-reimburse-select ${String(reviewDisabled)}>
-              <option value="">${(globalThis.PlatformLanguage?.text("money","m_79d4145b0d2889","No reimbursement") ?? "No reimbursement")}</option>
+              <option value="">${(globalThis.PlatformLanguage?.htmlText("money","m_79d4145b0d2889","No reimbursement") ?? "No reimbursement")}</option>
               ${String((state.orgUsers || []).map((user) => `<option value="${escapeHtml(user.id)}" ${cleanText(receipt.reimbursement?.payee_ref?.id) === user.id ? 'selected' : ''}>${escapeHtml(user.name)}</option>`).join(''))}
-              <option value="__other__">${(globalThis.PlatformLanguage?.text("money","m_b0d2b8a6eddf50","Other person…") ?? "Other person…")}</option>
+              <option value="__other__">${(globalThis.PlatformLanguage?.htmlText("money","m_b0d2b8a6eddf50","Other person…") ?? "Other person…")}</option>
             </select></label>
-          <label class="wide" data-money-reimburse-other hidden><span>${(globalThis.PlatformLanguage?.text("money","m_5875991c412359","Person to pay back") ?? "Person to pay back")}</span><input class="mn-input" name="reimburse_other_name" type="text" placeholder="${(globalThis.PlatformLanguage?.text("money","m_8cf345002184e5","Name") ?? "Name")}" ${String(reviewDisabled)}></label>
+          <label class="wide" data-money-reimburse-other hidden><span>${(globalThis.PlatformLanguage?.htmlText("money","m_5875991c412359","Person to pay back") ?? "Person to pay back")}</span><input class="mn-input" name="reimburse_other_name" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_8cf345002184e5","Name") ?? "Name")}" ${String(reviewDisabled)}></label>
         </div>
-        <a class="mn-btn" href="${String(escapeHtml(rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), receipt.id) || receipt.file_url || '#'))}" target="_blank" rel="noopener"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("money","m_fec4097d4bf7d9"," Open original") ?? " Open original")}</a>
-      </div><div class="mn-receipt-targets"><div><strong>${(globalThis.PlatformLanguage?.text("money","m_ac45932ae7d8ca","Apply to expense lists") ?? "Apply to expense lists")}</strong><div class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_7c5a9332b209ab","Suggested from the total. Select every list covered by this document.") ?? "Suggested from the total. Select every list covered by this document.")}</div></div>
-        ${String(targets.map((target) => `<label class="mn-receipt-target-choice"><input type="checkbox" name="target_key" value="${escapeHtml(target.target_key)}" ${selected.has(target.target_key) ? 'checked' : ''} ${reviewDisabled}><span><strong>${escapeHtml(target.title || 'Expense list')}</strong><span>${escapeHtml(titleText(target.resource_type || 'other'))}</span></span><strong>${money(target.projected_cents || 0)}</strong></label>`).join('') || '<div class="mn-empty">No project expense lists are available yet.</div>')}
-      </div></div><div class="mn-receipt-modal-foot"><span class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_9e8539f43f5810","The original file and extraction record remain in the project library.") ?? "The original file and extraction record remain in the project library.")}</span><div class="mn-actions"><button type="button" class="mn-btn" data-money-receipt-close ${String(state.saving ? 'disabled' : '')}>${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}</button>${String(canManageMoney() ? `<button type="submit" class="mn-btn primary" ${moneyMutationBusy() || !targets.length ? 'disabled' : ''}><i class="fas fa-check"></i> Apply Receipt</button>` : '')}</div></div>
+        <a class="mn-btn" href="${String(escapeHtml(rootWindow.PaymentsAPI?.receipts?.fileUrl?.(orgId(), receipt.id) || receipt.file_url || '#'))}" target="_blank" rel="noopener"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_fec4097d4bf7d9"," Open original") ?? " Open original")}</a>
+      </div><div class="mn-receipt-targets"><div><strong>${(globalThis.PlatformLanguage?.htmlText("money","m_ac45932ae7d8ca","Apply to expense lists") ?? "Apply to expense lists")}</strong><div class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_7c5a9332b209ab","Suggested from the total. Select every list covered by this document.") ?? "Suggested from the total. Select every list covered by this document.")}</div></div>
+        ${String(targets.map((target) => `<label class="mn-receipt-target-choice"><input type="checkbox" name="target_key" value="${escapeHtml(target.target_key)}" ${selected.has(target.target_key) ? 'checked' : ''} ${reviewDisabled}><span><strong>${escapeHtml(target.title || (globalThis.PlatformLanguage?.text("money","m_156b21085740d5","Expense list") ?? "Expense list"))}</strong><span>${escapeHtml(titleText(target.resource_type || 'other'))}</span></span><strong>${money(target.projected_cents || 0)}</strong></label>`).join('') || `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_3da310a72a66f6","No project expense lists are available yet.") ?? "No project expense lists are available yet.")}</div>`)}
+      </div></div><div class="mn-receipt-modal-foot"><span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_9e8539f43f5810","The original file and extraction record remain in the project library.") ?? "The original file and extraction record remain in the project library.")}</span><div class="mn-actions"><button type="button" class="mn-btn" data-money-receipt-close ${String(state.saving ? 'disabled' : '')}>${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}</button>${String(canManageMoney() ? `<button type="submit" class="mn-btn primary" ${moneyMutationBusy() || !targets.length ? 'disabled' : ''}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_1732bef68652df"," Apply Receipt") ?? " Apply Receipt")}</button>` : '')}</div></div>
     </form></div>`;
   }
 
@@ -1072,9 +1072,9 @@
         ? `${receipt.total_cents ? money(receipt.total_cents) : 'Total needs review'}${receipt.purchase_date ? ` · ${shortDate(receipt.purchase_date)}` : ''}`
         : status === 'error' ? item.error : status === 'uploading' ? 'AI is reading and categorizing this file…' : 'Waiting for an upload slot';
       const match = status === 'ready' ? (matches.length ? `Suggested match: ${matches.join(', ')}` : 'Ready to choose an expense match') : '';
-      return `<div class="mn-receipt-batch-item ${escapeHtml(status)}"><span class="mn-receipt-batch-icon"><i class="fas ${icon}"></i></span><div class="mn-receipt-batch-copy"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span>${match ? `<span class="mn-receipt-batch-match"><i class="fas fa-wand-magic-sparkles"></i> ${escapeHtml(match)}</span>` : ''}</div>${status === 'ready' ? `<button type="button" class="mn-btn" data-money-batch-review="${String(escapeHtml(receipt.id))}"><i class="fas fa-code-compare"></i>${(globalThis.PlatformLanguage?.text("money","m_b42602750e1f54"," Match") ?? " Match")}</button>` : ''}</div>`;
+      return `<div class="mn-receipt-batch-item ${escapeHtml(status)}"><span class="mn-receipt-batch-icon"><i class="fas ${icon}"></i></span><div class="mn-receipt-batch-copy"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span>${match ? `<span class="mn-receipt-batch-match"><i class="fas fa-wand-magic-sparkles"></i> ${escapeHtml(match)}</span>` : ''}</div>${status === 'ready' ? `<button type="button" class="mn-btn" data-money-batch-review="${String(escapeHtml(receipt.id))}"><i class="fas fa-code-compare"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_b42602750e1f54"," Match") ?? " Match")}</button>` : ''}</div>`;
     }).join('');
-    return `<div class="mn-modal-shade"><div class="mn-receipt-batch-modal" role="dialog" aria-modal="true" aria-labelledby="mn-receipt-batch-title"><div class="mn-receipt-modal-head"><strong id="mn-receipt-batch-title">${(globalThis.PlatformLanguage?.text("money","m_5377fab7a5079b","Match uploaded receipts") ?? "Match uploaded receipts")}</strong><button type="button" class="mn-icon-btn" data-money-batch-close aria-label="${(globalThis.PlatformLanguage?.text("money","m_8f1a129fd1f30c","Close batch") ?? "Close batch")}"><i class="fas fa-xmark"></i></button></div><div class="mn-receipt-batch-summary"><i class="fas ${String(working ? 'fa-circle-notch fa-spin' : 'fa-layer-group')}"></i><span>${((v1,v2,v3) => globalThis.PlatformLanguage?.text("money","m_68ffed54b5366b",`${v1} ready · ${v2} processing${v3}`,{v1,v2,v3}) ?? `${v1} ready · ${v2} processing${v3}`)(ready,working,failed ? ` · ${failed} failed` : '')}</span></div><div class="mn-receipt-batch-list">${String(rows)}</div></div></div>`;
+    return `<div class="mn-modal-shade"><div class="mn-receipt-batch-modal" role="dialog" aria-modal="true" aria-labelledby="mn-receipt-batch-title"><div class="mn-receipt-modal-head"><strong id="mn-receipt-batch-title">${(globalThis.PlatformLanguage?.htmlText("money","m_5377fab7a5079b","Match uploaded receipts") ?? "Match uploaded receipts")}</strong><button type="button" class="mn-icon-btn" data-money-batch-close aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_8f1a129fd1f30c","Close batch") ?? "Close batch")}"><i class="fas fa-xmark"></i></button></div><div class="mn-receipt-batch-summary"><i class="fas ${String(working ? 'fa-circle-notch fa-spin' : 'fa-layer-group')}"></i><span>${((v1,v2,v3) => globalThis.PlatformLanguage?.htmlText("money","m_68ffed54b5366b",`${v1} ready · ${v2} processing${v3}`,{v1,v2,v3}) ?? `${v1} ready · ${v2} processing${v3}`)(ready,working,failed ? ` · ${failed} failed` : '')}</span></div><div class="mn-receipt-batch-list">${String(rows)}</div></div></div>`;
   }
 
   function scheduleSection(){
@@ -1088,11 +1088,11 @@
         <div class="mn-section-head"><h3>${String(escapeHtml(term('add_collected_payment')))}</h3><span>${String(escapeHtml(term('money_in')))}</span></div>
         <div class="mn-section-body">
           <form class="mn-form" data-money-payment-form>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" required></label>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="mn-select" name="method"><option value="manual">${(globalThis.PlatformLanguage?.text("money","m_176ebb1c46589f","Manual") ?? "Manual")}</option><option value="check">${(globalThis.PlatformLanguage?.text("money","m_cc74e4e6c905ec","Check") ?? "Check")}</option><option value="cash">${(globalThis.PlatformLanguage?.text("money","m_f758b041cf8d5c","Cash") ?? "Cash")}</option><option value="card">${(globalThis.PlatformLanguage?.text("money","m_dd2dde7989cd96","Card") ?? "Card")}</option><option value="ach">${(globalThis.PlatformLanguage?.text("money","m_97ab16559ee9ee","ACH") ?? "ACH")}</option></select></label>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_1561bf1f3d2922","Action") ?? "Action")}</span><select class="mn-select" name="mode"><option value="settled">${(globalThis.PlatformLanguage?.text("money","m_ff35a2977f67a8","Record settled payment") ?? "Record settled payment")}</option><option value="intent">${(globalThis.PlatformLanguage?.text("money","m_a67f5c30bef342","Create payment request") ?? "Create payment request")}</option></select></label>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_023c7d7ca8a301","Received") ?? "Received")}</span><input class="mn-input" name="received_at" type="date" value="${String(new Date().toISOString().slice(0, 10))}"></label>
-            <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_de7d6168ae1ad6","Notes") ?? "Notes")}</span><input class="mn-input" name="notes" type="text"></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" required></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="mn-select" name="method"><option value="manual">${(globalThis.PlatformLanguage?.htmlText("money","m_176ebb1c46589f","Manual") ?? "Manual")}</option><option value="check">${(globalThis.PlatformLanguage?.htmlText("money","m_cc74e4e6c905ec","Check") ?? "Check")}</option><option value="cash">${(globalThis.PlatformLanguage?.htmlText("money","m_f758b041cf8d5c","Cash") ?? "Cash")}</option><option value="card">${(globalThis.PlatformLanguage?.htmlText("money","m_dd2dde7989cd96","Card") ?? "Card")}</option><option value="ach">${(globalThis.PlatformLanguage?.htmlText("money","m_97ab16559ee9ee","ACH") ?? "ACH")}</option></select></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_1561bf1f3d2922","Action") ?? "Action")}</span><select class="mn-select" name="mode"><option value="settled">${(globalThis.PlatformLanguage?.htmlText("money","m_ff35a2977f67a8","Record settled payment") ?? "Record settled payment")}</option><option value="intent">${(globalThis.PlatformLanguage?.htmlText("money","m_a67f5c30bef342","Create payment request") ?? "Create payment request")}</option></select></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_023c7d7ca8a301","Received") ?? "Received")}</span><input class="mn-input" name="received_at" type="date" value="${String(new Date().toISOString().slice(0, 10))}"></label>
+            <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_de7d6168ae1ad6","Notes") ?? "Notes")}</span><input class="mn-input" name="notes" type="text"></label>
             <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-plus"></i> ${String(escapeHtml(term('save_collected_payment')))}</button></div>
           </form>
         </div>
@@ -1240,12 +1240,12 @@
     const html = `<tr class="mn-ledger-row ${isActivity ? 'activity' : ''}">
       <td>${escapeHtml(shortDate(row.at) || '-')}</td>
       <td><button type="button" class="mn-ledger-item" ${isActivity ? 'disabled' : `data-money-ledger-detail="${escapeHtml(row.key)}"`}><i class="fas ${isActivity ? 'fa-clock-rotate-left' : row.signed > 0 ? 'fa-arrow-down' : 'fa-arrow-up'}"></i><span><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.detail)}</small></span></button></td>
-      <td>${row.status ? `<span class="mn-status ${escapeHtml(statusClass(row.status))}">${escapeHtml(titleText(row.status))}</span>` : `<span class="mn-muted">${(globalThis.PlatformLanguage?.text("money","m_37fc206eefac3e","Activity") ?? "Activity")}</span>`}</td>
-      <td class="mn-ledger-receipt">${receipt ? `<button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.text("money","m_154be17d295d02","View receipt") ?? "View receipt")}" aria-label="${(globalThis.PlatformLanguage?.text("money","m_154be17d295d02","View receipt") ?? "View receipt")}" data-money-review-receipt="${String(escapeHtml(receipt.id))}"><i class="fas fa-receipt"></i></button>` : row.kind === 'expense' ? ("<i class=\"far fa-receipt mn-no-receipt\" title=\"" + (globalThis.PlatformLanguage?.text("money","m_b82c94623ec9d1","No receipt") ?? "No receipt") + "\" aria-label=\"" + (globalThis.PlatformLanguage?.text("money","m_b82c94623ec9d1","No receipt") ?? "No receipt") + "\"></i>") : '—'}</td>
+      <td>${row.status ? `<span class="mn-status ${escapeHtml(statusClass(row.status))}">${escapeHtml(titleText(row.status))}</span>` : `<span class="mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_37fc206eefac3e","Activity") ?? "Activity")}</span>`}</td>
+      <td class="mn-ledger-receipt">${receipt ? `<button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_154be17d295d02","View receipt") ?? "View receipt")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_154be17d295d02","View receipt") ?? "View receipt")}" data-money-review-receipt="${String(escapeHtml(receipt.id))}"><i class="fas fa-receipt"></i></button>` : row.kind === 'expense' ? ("<i class=\"far fa-receipt mn-no-receipt\" title=\"" + (globalThis.PlatformLanguage?.htmlText("money","m_b82c94623ec9d1","No receipt") ?? "No receipt") + "\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("money","m_b82c94623ec9d1","No receipt") ?? "No receipt") + "\"></i>") : '—'}</td>
       <td class="mn-ledger-money in">${row.signed > 0 ? money(row.signed) : '—'}</td>
       <td class="mn-ledger-money out">${row.signed < 0 ? money(Math.abs(row.signed)) : '—'}</td>
       <td class="mn-ledger-balance">${row.balance == null ? '—' : money(row.balance)}</td>
-      <td>${canRemove && canManageMoney() ? `<button type="button" class="mn-icon-btn danger" title="${(globalThis.PlatformLanguage?.text("money","m_028ede988e2f28","Remove expense") ?? "Remove expense")}" aria-label="${(globalThis.PlatformLanguage?.text("money","m_028ede988e2f28","Remove expense") ?? "Remove expense")}" data-money-delete-expense="${String(escapeHtml(row.id))}" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-trash"></i></button>` : ''}</td>
+      <td>${canRemove && canManageMoney() ? `<button type="button" class="mn-icon-btn danger" title="${(globalThis.PlatformLanguage?.htmlText("money","m_028ede988e2f28","Remove expense") ?? "Remove expense")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_028ede988e2f28","Remove expense") ?? "Remove expense")}" data-money-delete-expense="${String(escapeHtml(row.id))}" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-trash"></i></button>` : ''}</td>
     </tr>`;
     return html + (state.ledgerDetailKey === row.key ? ledgerDetail(row) : '');
   }
@@ -1264,7 +1264,7 @@
     const transactionRows = rows.filter((row) => row.kind !== 'activity');
     const currentBalance = ledgerRowsForBalance();
     const filterButton = (key, icon, label) => `<button type="button" class="mn-ledger-filter${state.ledgerFilters[key] ? ' active' : ''}" data-money-ledger-filter="${key}" aria-pressed="${state.ledgerFilters[key] ? 'true' : 'false'}"><i class="fas ${icon}"></i>${label}</button>`;
-    return `<div class="mn-section mn-ledger-section"><div class="mn-ledger-head"><div><h3>${String(escapeHtml(term('ledger')))}</h3><span>${((v1,v2,v3,v4) => globalThis.PlatformLanguage?.text("money","m_a0d78c8c64f3b6",`${v1} ${v2} shown · ${v3} ${v4}`,{v1,v2,v3,v4}) ?? `${v1} ${v2} shown · ${v3} ${v4}`)(transactionRows.length,escapeHtml(transactionRows.length === 1 ? term('transaction').toLowerCase() : term('transactions').toLowerCase()),money(currentBalance),escapeHtml(term('balance').toLowerCase()))}</span></div><div class="mn-ledger-filters" aria-label="${((v5) => globalThis.PlatformLanguage?.text("money","m_2bf97d45e17019",`${v5} filters`,{v5}) ?? `${v5} filters`)(escapeHtml(term('ledger')))}">${String(filterButton('payments', 'fa-arrow-down', term('payments')))}${String(filterButton('expenses', 'fa-arrow-up', term('expenses')))}${String(filterButton('activity', 'fa-clock-rotate-left', term('activity')))}</div></div>${String(rows.length ? `<div class="mn-table-wrap mn-ledger-scroll"><table class="mn-table mn-ledger-table"><thead><tr><th>Date</th><th>${escapeHtml(term('transaction'))}</th><th>Status</th><th>${escapeHtml(term('receipt'))}</th><th>${escapeHtml(term('money_in'))}</th><th>${escapeHtml(term('money_out'))}</th><th>${escapeHtml(term('balance'))}</th><th></th></tr></thead><tbody>${rows.map(ledgerRow).join('')}</tbody></table></div>` : '<div class="mn-empty">No entries match the selected filters.</div>')}</div>`;
+    return `<div class="mn-section mn-ledger-section"><div class="mn-ledger-head"><div><h3>${String(escapeHtml(term('ledger')))}</h3><span>${((v1,v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("money","m_a0d78c8c64f3b6",`${v1} ${v2} shown · ${v3} ${v4}`,{v1,v2,v3,v4}) ?? `${v1} ${v2} shown · ${v3} ${v4}`)(transactionRows.length,escapeHtml(transactionRows.length === 1 ? term('transaction').toLowerCase() : term('transactions').toLowerCase()),money(currentBalance),escapeHtml(term('balance').toLowerCase()))}</span></div><div class="mn-ledger-filters" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("money","m_2bf97d45e17019",`${v5} filters`,{v5}) ?? `${v5} filters`)(escapeHtml(term('ledger')))}">${String(filterButton('payments', 'fa-arrow-down', term('payments')))}${String(filterButton('expenses', 'fa-arrow-up', term('expenses')))}${String(filterButton('activity', 'fa-clock-rotate-left', term('activity')))}</div></div>${String(rows.length ? `<div class="mn-table-wrap mn-ledger-scroll"><table class="mn-table mn-ledger-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("money","m_2a0b11100c22a4","Date") ?? "Date")}</th><th>${escapeHtml(term('transaction'))}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${escapeHtml(term('receipt'))}</th><th>${escapeHtml(term('money_in'))}</th><th>${escapeHtml(term('money_out'))}</th><th>${escapeHtml(term('balance'))}</th><th></th></tr></thead><tbody>${rows.map(ledgerRow).join('')}</tbody></table></div>` : `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_9bb3c5d2f3cba3","No entries match the selected filters.") ?? "No entries match the selected filters.")}</div>`)}</div>`;
   }
 
   function ledgerRowsForBalance(){
@@ -1275,7 +1275,7 @@
 
   function historyRow(row){
     const amount = Number(row.amount || 0);
-    const paymentActions = row.kind === 'payment' && canManageMoney() ? (String(row.canRefund ? `<button type="button" class="mn-icon-btn" title="Refund payment" aria-label="Refund payment" data-money-action="refund" data-payment-id="${escapeHtml(row.id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-rotate-left"></i></button>` : '') + "<button type=\"button\" class=\"mn-icon-btn\" title=\"" + (globalThis.PlatformLanguage?.text("money","m_73e106096ea0fc","Reallocate payment") ?? "Reallocate payment") + "\" aria-label=\"" + (globalThis.PlatformLanguage?.text("money","m_73e106096ea0fc","Reallocate payment") ?? "Reallocate payment") + "\" data-money-action=\"reallocate\" data-payment-id=\"" + String(escapeHtml(row.id)) + "\" " + String(moneyMutationBusy() ? 'disabled' : '') + "><i class=\"fas fa-diagram-project\"></i></button>") : '';
+    const paymentActions = row.kind === 'payment' && canManageMoney() ? (String(row.canRefund ? `<button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_195a4194ae3004","Refund payment") ?? "Refund payment")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_195a4194ae3004","Refund payment") ?? "Refund payment")}" data-money-action="refund" data-payment-id="${escapeHtml(row.id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-rotate-left"></i></button>` : '') + "<button type=\"button\" class=\"mn-icon-btn\" title=\"" + (globalThis.PlatformLanguage?.text("money","m_73e106096ea0fc","Reallocate payment") ?? "Reallocate payment") + "\" aria-label=\"" + (globalThis.PlatformLanguage?.text("money","m_73e106096ea0fc","Reallocate payment") ?? "Reallocate payment") + "\" data-money-action=\"reallocate\" data-payment-id=\"" + String(escapeHtml(row.id)) + "\" " + String(moneyMutationBusy() ? 'disabled' : '') + "><i class=\"fas fa-diagram-project\"></i></button>") : '';
     return `<div class="mn-history-row"><span class="mn-history-icon ${escapeHtml(row.tone || '')}"><i class="fas ${escapeHtml(row.icon || 'fa-clock-rotate-left')}"></i></span><div class="mn-history-copy"><strong>${escapeHtml(row.label || 'Money updated')}</strong><small>${escapeHtml(row.detail || 'Project money updated')} · ${escapeHtml(dateTime(row.at))}</small></div><div class="mn-history-side">${amount ? `<span class="mn-history-amount ${escapeHtml(row.amountTone || '')}">${amount < 0 ? '−' : ''}${escapeHtml(money(Math.abs(amount)))}</span>` : ''}${paymentActions}</div></div>`;
   }
 
@@ -1284,18 +1284,18 @@
     const shown = limit ? rows.slice(0, limit) : rows;
     return `
       <div class="mn-section">
-        <div class="mn-section-head"><h3>${((v0) => globalThis.PlatformLanguage?.text("money","m_3544242881ea69",`${v0} History`,{v0}) ?? `${v0} History`)(escapeHtml(term('collected_payments')))}</h3><span>${String(rows.length)} ${String(escapeHtml(term('collected_payments').toLowerCase()))}</span></div>
+        <div class="mn-section-head"><h3>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_3544242881ea69",`${v0} History`,{v0}) ?? `${v0} History`)(escapeHtml(term('collected_payments')))}</h3><span>${String(rows.length)} ${String(escapeHtml(term('collected_payments').toLowerCase()))}</span></div>
         <div class="mn-section-body">${String(paymentTable(shown, rows.length > shown.length))}</div>
       </div>
     `;
   }
 
   function paymentTable(rows, truncated = false){
-    if (!rows.length) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.text("money","m_f6bb2b4027f6bd","Customer payments will appear here as they are recorded.") ?? "Customer payments will appear here as they are recorded.")}</div>`;
+    if (!rows.length) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_f6bb2b4027f6bd","Customer payments will appear here as they are recorded.") ?? "Customer payments will appear here as they are recorded.")}</div>`;
     return `
       <div class="mn-table-wrap">
         <table class="mn-table">
-          <thead><tr><th>${(globalThis.PlatformLanguage?.text("money","m_2a0b11100c22a4","Date") ?? "Date")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_6952fe71f8dc85","Method") ?? "Method")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_5b10b90b175d30","Refunded") ?? "Refunded")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_376b722115b602","Cleared") ?? "Cleared")}</th><th></th></tr></thead>
+          <thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("money","m_2a0b11100c22a4","Date") ?? "Date")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_6952fe71f8dc85","Method") ?? "Method")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_5b10b90b175d30","Refunded") ?? "Refunded")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_376b722115b602","Cleared") ?? "Cleared")}</th><th></th></tr></thead>
           <tbody>${String(rows.map((payment) => {
             const id = cleanText(payment.id);
             const status = statusClass(payment.status || 'settled');
@@ -1308,20 +1308,20 @@
                 <td><span class="mn-status ${status}">${escapeHtml(titleText(payment.status || 'settled'))}</span></td>
                 <td>${money(payment.amount_cents)}</td>
                 <td>${money(payment.refunded_cents || 0)}</td>
-                <td>${clearedAt ? `<span class="mn-status good" title="Reconciled — confirmed against the bank">${escapeHtml(shortDate(clearedAt))}</span>` : '<span class="mn-muted">—</span>'}</td>
+                <td>${clearedAt ? `<span class="mn-status good" title="${(globalThis.PlatformLanguage?.htmlText("money","m_9f730179119121","Reconciled — confirmed against the bank") ?? "Reconciled — confirmed against the bank")}">${escapeHtml(shortDate(clearedAt))}</span>` : '<span class="mn-muted">—</span>'}</td>
                 <td>${canManageMoney() ? `
-                  <button type="button" class="mn-icon-btn" title="Refund payment" aria-label="Refund payment" data-money-action="refund" data-payment-id="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-rotate-left"></i></button>
-                  <button type="button" class="mn-icon-btn" title="Reallocate payment" aria-label="Reallocate payment" data-money-action="reallocate" data-payment-id="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-diagram-project"></i></button>
+                  <button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_195a4194ae3004","Refund payment") ?? "Refund payment")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_195a4194ae3004","Refund payment") ?? "Refund payment")}" data-money-action="refund" data-payment-id="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-rotate-left"></i></button>
+                  <button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_73e106096ea0fc","Reallocate payment") ?? "Reallocate payment")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_73e106096ea0fc","Reallocate payment") ?? "Reallocate payment")}" data-money-action="reallocate" data-payment-id="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-diagram-project"></i></button>
                   ${reconcilable ? (clearedAt
-                    ? `<button type="button" class="mn-icon-btn" title="Unmark cleared" aria-label="Unmark cleared" data-money-unclear-payment="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-ban"></i></button>`
-                    : `<button type="button" class="mn-icon-btn" title="Mark cleared at the bank" aria-label="Mark cleared at the bank" data-money-clear-payment="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-check-double"></i></button>`) : ''}
+                    ? `<button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_7e8ea8edb916d5","Unmark cleared") ?? "Unmark cleared")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_7e8ea8edb916d5","Unmark cleared") ?? "Unmark cleared")}" data-money-unclear-payment="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-ban"></i></button>`
+                    : `<button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_6b2beea2d9ae5c","Mark cleared at the bank") ?? "Mark cleared at the bank")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_6b2beea2d9ae5c","Mark cleared at the bank") ?? "Mark cleared at the bank")}" data-money-clear-payment="${escapeHtml(id)}" ${moneyMutationBusy() ? 'disabled' : ''}><i class="fas fa-check-double"></i></button>`) : ''}
                 ` : ''}</td>
               </tr>
             `;
           }).join(''))}</tbody>
         </table>
       </div>
-      ${String(truncated ? '<button type="button" class="mn-btn" data-money-view="payments">View All Payments</button>' : '')}
+      ${String(truncated ? `<button type="button" class="mn-btn" data-money-view="payments">${(globalThis.PlatformLanguage?.htmlText("money","m_df797772cfebc8","View All Payments") ?? "View All Payments")}</button>` : '')}
     `;
   }
 
@@ -1331,12 +1331,12 @@
         <div class="mn-section-head"><h3>${String(escapeHtml(term('add_expense')))}</h3><span>${String(escapeHtml(term('money_out')))}</span></div>
         <div class="mn-section-body">
           <form class="mn-form" data-money-payable-form>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" required></label>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_2a0b11100c22a4","Date") ?? "Date")}</span><input class="mn-input" name="due_at" type="date" value="${String(new Date().toISOString().slice(0, 10))}"></label>
-            <label><span>${(globalThis.PlatformLanguage?.text("money","m_c478c1907a4d4f","Category") ?? "Category")}</span><select class="mn-select" name="kind"><option value="labor">${(globalThis.PlatformLanguage?.text("money","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="material_order">${(globalThis.PlatformLanguage?.text("money","m_691187e28aba8e","Materials") ?? "Materials")}</option><option value="reimbursement">${(globalThis.PlatformLanguage?.text("money","m_88e28eaf951742","Reimbursement") ?? "Reimbursement")}</option><option value="other">${(globalThis.PlatformLanguage?.text("money","m_4a04382820d2e1","Other") ?? "Other")}</option></select></label>
-            <label><span>${String(escapeHtml(term('recipient')))}</span><input class="mn-input" name="vendor" type="text" placeholder="${(globalThis.PlatformLanguage?.text("money","m_a96780e95d7346","Vendor or person") ?? "Vendor or person")}"></label>
-            <label class="wide"><span>${String(escapeHtml(term('expense_list')))}</span><select class="mn-select" name="expense_target_key"><option value="">${((v6) => globalThis.PlatformLanguage?.text("money","m_392c73bc5d4e6e",`Unlinked ${v6}`,{v6}) ?? `Unlinked ${v6}`)(escapeHtml(term('expense').toLowerCase()))}</option>${String(expenseData().targets.filter((target) => target?.receipt_attribution_enabled !== false).map((target) => `<option value="${escapeHtml(target.target_key)}">${escapeHtml(target.title || term('expense_list'))} - ${escapeHtml(money(target.projected_cents))}</option>`).join(''))}</select></label>
-            <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_aa136ecb65672f","Description") ?? "Description")}</span><input class="mn-input" name="notes" type="text" placeholder="${(globalThis.PlatformLanguage?.text("money","m_a517102d3c8a89","What was this expense for?") ?? "What was this expense for?")}"></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" required></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2a0b11100c22a4","Date") ?? "Date")}</span><input class="mn-input" name="due_at" type="date" value="${String(new Date().toISOString().slice(0, 10))}"></label>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_c478c1907a4d4f","Category") ?? "Category")}</span><select class="mn-select" name="kind"><option value="labor">${(globalThis.PlatformLanguage?.htmlText("money","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="material_order">${(globalThis.PlatformLanguage?.htmlText("money","m_691187e28aba8e","Materials") ?? "Materials")}</option><option value="reimbursement">${(globalThis.PlatformLanguage?.htmlText("money","m_88e28eaf951742","Reimbursement") ?? "Reimbursement")}</option><option value="other">${(globalThis.PlatformLanguage?.htmlText("money","m_4a04382820d2e1","Other") ?? "Other")}</option></select></label>
+            <label><span>${String(escapeHtml(term('recipient')))}</span><input class="mn-input" name="vendor" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_a96780e95d7346","Vendor or person") ?? "Vendor or person")}"></label>
+            <label class="wide"><span>${String(escapeHtml(term('expense_list')))}</span><select class="mn-select" name="expense_target_key"><option value="">${((v6) => globalThis.PlatformLanguage?.htmlText("money","m_392c73bc5d4e6e",`Unlinked ${v6}`,{v6}) ?? `Unlinked ${v6}`)(escapeHtml(term('expense').toLowerCase()))}</option>${String(expenseData().targets.filter((target) => target?.receipt_attribution_enabled !== false).map((target) => `<option value="${escapeHtml(target.target_key)}">${escapeHtml(target.title || term('expense_list'))} - ${escapeHtml(money(target.projected_cents))}</option>`).join(''))}</select></label>
+            <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_aa136ecb65672f","Description") ?? "Description")}</span><input class="mn-input" name="notes" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_a517102d3c8a89","What was this expense for?") ?? "What was this expense for?")}"></label>
             <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-plus"></i> ${String(escapeHtml(term('add_expense')))}</button></div>
           </form>
         </div>
@@ -1348,18 +1348,18 @@
     const rows = payables();
     return `
       <div class="mn-section">
-        <div class="mn-section-head"><h3>${String(escapeHtml(term('expenses')))}</h3><span>${((v1,v2) => globalThis.PlatformLanguage?.text("money","m_7cae9ec9dbaa48",`${v1} ${v2} items`,{v1,v2}) ?? `${v1} ${v2} items`)(rows.length,escapeHtml(term('expense').toLowerCase()))}</span></div>
+        <div class="mn-section-head"><h3>${String(escapeHtml(term('expenses')))}</h3><span>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("money","m_7cae9ec9dbaa48",`${v1} ${v2} items`,{v1,v2}) ?? `${v1} ${v2} items`)(rows.length,escapeHtml(term('expense').toLowerCase()))}</span></div>
         <div class="mn-section-body">${String(payablesTable(rows))}</div>
       </div>
     `;
   }
 
   function payablesTable(rows){
-    if (!rows.length) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.text("money","m_11d7fa97b07307","Labor payments, reimbursements, and other project payables will appear here.") ?? "Labor payments, reimbursements, and other project payables will appear here.")}</div>`;
+    if (!rows.length) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_11d7fa97b07307","Labor payments, reimbursements, and other project payables will appear here.") ?? "Labor payments, reimbursements, and other project payables will appear here.")}</div>`;
     return `
       <div class="mn-table-wrap">
         <table class="mn-table">
-          <thead><tr><th>${(globalThis.PlatformLanguage?.text("money","m_b220dbdedc8a70","Kind") ?? "Kind")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_3dac4d5769efeb","Due") ?? "Due")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th>${(globalThis.PlatformLanguage?.text("money","m_956173c8527121","Paid") ?? "Paid")}</th><th></th></tr></thead>
+          <thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("money","m_b220dbdedc8a70","Kind") ?? "Kind")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_3dac4d5769efeb","Due") ?? "Due")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th><th>${(globalThis.PlatformLanguage?.htmlText("money","m_956173c8527121","Paid") ?? "Paid")}</th><th></th></tr></thead>
           <tbody>${String(rows.map((payable) => {
             const amount = cents(payable.amount_cents);
             const paid = cents(payable.paid_cents);
@@ -1372,7 +1372,7 @@
                 <td><span class="mn-status ${status}">${escapeHtml(titleText(payable.status || 'open'))}</span></td>
                 <td>${money(amount)}</td>
                 <td>${money(paid)}</td>
-                <td>${open && canManageMoney() ? `<button type="button" class="mn-btn" data-money-action="pay-payable" data-payable-id="${escapeHtml(payable.id)}" ${moneyMutationBusy() ? 'disabled' : ''}>Pay ${escapeHtml(money(open))}</button>` : ''}</td>
+                <td>${open && canManageMoney() ? `<button type="button" class="mn-btn" data-money-action="pay-payable" data-payable-id="${escapeHtml(payable.id)}" ${moneyMutationBusy() ? 'disabled' : ''}>${((v2) => globalThis.PlatformLanguage?.htmlText("money","m_c8727d4f0f18cb",`Pay ${v2}`,{v2}) ?? `Pay ${v2}`)(escapeHtml(money(open)))}</button>` : ''}</td>
               </tr>
             `;
           }).join(''))}</tbody>
@@ -1387,14 +1387,14 @@
     const shown = rows.slice(0, limit);
     return `
       <div class="mn-section">
-        <div class="mn-section-head"><h3>${String(escapeHtml(term('activity')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.text("money","m_45ae20ea3cdc0f",`${v1} events`,{v1}) ?? `${v1} events`)(rows.length)}</span></div>
+        <div class="mn-section-head"><h3>${String(escapeHtml(term('activity')))}</h3><span>${((v1) => globalThis.PlatformLanguage?.htmlText("money","m_45ae20ea3cdc0f",`${v1} events`,{v1}) ?? `${v1} events`)(rows.length)}</span></div>
         <div class="mn-history-list">${String(activityList(shown))}</div>
       </div>
     `;
   }
 
   function activityList(rows){
-    if (!rows.length) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.text("money","m_47662bbb86037b","Money activity will appear here.") ?? "Money activity will appear here.")}</div>`;
+    if (!rows.length) return `<div class="mn-empty">${(globalThis.PlatformLanguage?.htmlText("money","m_47662bbb86037b","Money activity will appear here.") ?? "Money activity will appear here.")}</div>`;
     return rows.map((event) => {
       const display = eventPresentation(event);
       return historyRow({ kind:'event', id:cleanText(event.id), at:cleanText(event.created_at), ...display, amountTone:display.amount < 0 ? 'bad' : '' });
@@ -1422,11 +1422,11 @@
     const available = Math.max(0, cents(payment.amount_cents) - cents(payment.refunded_cents));
     return `
       <div class="mn-action-panel">
-        <div class="mn-action-head"><strong>${((v0) => globalThis.PlatformLanguage?.text("money","m_ed4771d595c2f5",`Refund ${v0}`,{v0}) ?? `Refund ${v0}`)(escapeHtml(money(available)))}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}" data-money-action-close><i class="fas fa-xmark"></i></button></div>
+        <div class="mn-action-head"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_ed4771d595c2f5",`Refund ${v0}`,{v0}) ?? `Refund ${v0}`)(escapeHtml(money(available)))}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" data-money-action-close><i class="fas fa-xmark"></i></button></div>
         <form class="mn-form" data-money-refund-form data-payment-id="${String(escapeHtml(paymentId))}">
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" value="${String(escapeHtml((available / 100).toFixed(2)))}" required></label>
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_6480ed19528b5a","Reason") ?? "Reason")}</span><input class="mn-input" name="reason" type="text" value="Customer refund"></label>
-          <div class="mn-form-actions"><button type="submit" class="mn-btn danger" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("money","m_13c747357e8f18"," Record Refund") ?? " Record Refund")}</button></div>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" value="${String(escapeHtml((available / 100).toFixed(2)))}" required></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_6480ed19528b5a","Reason") ?? "Reason")}</span><input class="mn-input" name="reason" type="text" value="Customer refund"></label>
+          <div class="mn-form-actions"><button type="submit" class="mn-btn danger" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_13c747357e8f18"," Record Refund") ?? " Record Refund")}</button></div>
         </form>
       </div>
     `;
@@ -1436,16 +1436,16 @@
     const payment = findPayment(paymentId) || {};
     return `
       <div class="mn-action-panel">
-        <div class="mn-action-head"><strong>${((v0) => globalThis.PlatformLanguage?.text("money","m_a0e7936655ba0d",`Reallocate ${v0}`,{v0}) ?? `Reallocate ${v0}`)(escapeHtml(money(payment.amount_cents || 0)))}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}" data-money-action-close><i class="fas fa-xmark"></i></button></div>
+        <div class="mn-action-head"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_a0e7936655ba0d",`Reallocate ${v0}`,{v0}) ?? `Reallocate ${v0}`)(escapeHtml(money(payment.amount_cents || 0)))}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" data-money-action-close><i class="fas fa-xmark"></i></button></div>
         <form class="mn-form" data-money-reallocate-form data-payment-id="${String(escapeHtml(paymentId))}">
-          <div class="wide mn-muted">${(globalThis.PlatformLanguage?.text("money","m_4c25692ac68e1f","Enter the dollar amount to apply to each scheduled payment. Blank rows are ignored.") ?? "Enter the dollar amount to apply to each scheduled payment. Blank rows are ignored.")}</div>
+          <div class="wide mn-muted">${(globalThis.PlatformLanguage?.htmlText("money","m_4c25692ac68e1f","Enter the dollar amount to apply to each scheduled payment. Blank rows are ignored.") ?? "Enter the dollar amount to apply to each scheduled payment. Blank rows are ignored.")}</div>
           ${String(obligations().map((item) => `
             <div class="wide mn-alloc-grid">
               <label><span>${escapeHtml(item.label || 'Payment')} - ${escapeHtml(money(item.amount_cents || 0))}</span><input class="mn-input" name="alloc:${escapeHtml(item.id)}" type="number" min="0" step="0.01" placeholder="0.00"></label>
               <span class="mn-status ${statusClass(item.status || 'scheduled')}">${escapeHtml(titleText(item.status || 'scheduled'))}</span>
             </div>
           `).join(''))}
-          <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-diagram-project"></i>${(globalThis.PlatformLanguage?.text("money","m_fc8467729d6a7e"," Save Allocation") ?? " Save Allocation")}</button></div>
+          <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-diagram-project"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_fc8467729d6a7e"," Save Allocation") ?? " Save Allocation")}</button></div>
         </form>
       </div>
     `;
@@ -1456,12 +1456,12 @@
     const open = Math.max(0, cents(payable.amount_cents) - cents(payable.paid_cents));
     return `
       <div class="mn-action-panel">
-        <div class="mn-action-head"><strong>${((v0) => globalThis.PlatformLanguage?.text("money","m_57ce70ae5f31a4",`Pay ${v0}`,{v0}) ?? `Pay ${v0}`)(escapeHtml(titleText(payable.kind || 'Payable')))}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}" data-money-action-close><i class="fas fa-xmark"></i></button></div>
+        <div class="mn-action-head"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("money","m_57ce70ae5f31a4",`Pay ${v0}`,{v0}) ?? `Pay ${v0}`)(escapeHtml(titleText(payable.kind || 'Payable')))}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" data-money-action-close><i class="fas fa-xmark"></i></button></div>
         <form class="mn-form" data-money-disbursement-form data-payable-id="${String(escapeHtml(payableId))}">
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" value="${String(escapeHtml((open / 100).toFixed(2)))}" required></label>
-          <label><span>${(globalThis.PlatformLanguage?.text("money","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="mn-select" name="method"><option value="manual">${(globalThis.PlatformLanguage?.text("money","m_176ebb1c46589f","Manual") ?? "Manual")}</option><option value="check">${(globalThis.PlatformLanguage?.text("money","m_cc74e4e6c905ec","Check") ?? "Check")}</option><option value="cash">${(globalThis.PlatformLanguage?.text("money","m_f758b041cf8d5c","Cash") ?? "Cash")}</option><option value="ach">${(globalThis.PlatformLanguage?.text("money","m_97ab16559ee9ee","ACH") ?? "ACH")}</option><option value="card">${(globalThis.PlatformLanguage?.text("money","m_dd2dde7989cd96","Card") ?? "Card")}</option></select></label>
-          <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_de7d6168ae1ad6","Notes") ?? "Notes")}</span><input class="mn-input" name="notes" type="text"></label>
-          <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("money","m_67bb4e6a07b913"," Record Payment Out") ?? " Record Payment Out")}</button></div>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" name="amount" type="number" min="0" step="0.01" value="${String(escapeHtml((open / 100).toFixed(2)))}" required></label>
+          <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="mn-select" name="method"><option value="manual">${(globalThis.PlatformLanguage?.htmlText("money","m_176ebb1c46589f","Manual") ?? "Manual")}</option><option value="check">${(globalThis.PlatformLanguage?.htmlText("money","m_cc74e4e6c905ec","Check") ?? "Check")}</option><option value="cash">${(globalThis.PlatformLanguage?.htmlText("money","m_f758b041cf8d5c","Cash") ?? "Cash")}</option><option value="ach">${(globalThis.PlatformLanguage?.htmlText("money","m_97ab16559ee9ee","ACH") ?? "ACH")}</option><option value="card">${(globalThis.PlatformLanguage?.htmlText("money","m_dd2dde7989cd96","Card") ?? "Card")}</option></select></label>
+          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_de7d6168ae1ad6","Notes") ?? "Notes")}</span><input class="mn-input" name="notes" type="text"></label>
+          <div class="mn-form-actions"><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_67bb4e6a07b913"," Record Payment Out") ?? " Record Payment Out")}</button></div>
         </form>
       </div>
     `;
@@ -1486,9 +1486,9 @@
     const type = cleanText(item.type) === 'payment' ? 'payment' : 'manual';
     const readonly = type === 'payment' ? 'readonly' : '';
     return `<div class="mn-invoice-line" data-money-invoice-line data-line-type="${String(type)}" data-obligation-id="${String(escapeHtml(item.obligation_id || ''))}" data-paid="${String(item.paid === true ? 'true' : 'false')}">
-      <label><span>${(globalThis.PlatformLanguage?.text("money","m_feb2fa0bebb7bf","Item Title") ?? "Item Title")}</span><input class="mn-input" data-money-invoice-line-title value="${String(escapeHtml(item.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("money","m_2e121533e8b8d3","Invoice item") ?? "Invoice item")}" ${String(readonly)}></label>
-      <label><span>${(globalThis.PlatformLanguage?.text("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" data-money-invoice-line-amount type="number" min="0.01" step="0.01" value="${String((cents(item.amount_cents) / 100).toFixed(2))}" ${String(readonly)}></label>
-      <button type="button" class="mn-invoice-line-remove" data-money-invoice-line-remove title="${(globalThis.PlatformLanguage?.text("money","m_79a02ecd535f66","Remove item") ?? "Remove item")}" aria-label="${(globalThis.PlatformLanguage?.text("money","m_1dfe8d61e491ea","Remove invoice item") ?? "Remove invoice item")}"><i class="fas fa-trash"></i></button>
+      <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_feb2fa0bebb7bf","Item Title") ?? "Item Title")}</span><input class="mn-input" data-money-invoice-line-title value="${String(escapeHtml(item.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_2e121533e8b8d3","Invoice item") ?? "Invoice item")}" ${String(readonly)}></label>
+      <label><span>${(globalThis.PlatformLanguage?.htmlText("money","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><input class="mn-input" data-money-invoice-line-amount type="number" min="0.01" step="0.01" value="${String((cents(item.amount_cents) / 100).toFixed(2))}" ${String(readonly)}></label>
+      <button type="button" class="mn-invoice-line-remove" data-money-invoice-line-remove title="${(globalThis.PlatformLanguage?.htmlText("money","m_79a02ecd535f66","Remove item") ?? "Remove item")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_1dfe8d61e491ea","Remove invoice item") ?? "Remove invoice item")}"><i class="fas fa-trash"></i></button>
     </div>`;
   }
 
@@ -1573,12 +1573,12 @@
     return `
       <div class="mn-modal-shade" data-money-invoice-email-modal>
         <div class="mn-invoice-email-modal" role="dialog" aria-modal="true" aria-labelledby="mn-invoice-email-title">
-          <div class="mn-receipt-modal-head"><strong id="mn-invoice-email-title">${String(invoiceId ? `Email ${escapeHtml(invoice.invoice_number || 'Invoice')}` : 'Generate and Email Invoice')}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.text("money","m_3742924668fb10","Close") ?? "Close")}" aria-label="${(globalThis.PlatformLanguage?.text("money","m_9fec01010b24a1","Close email invoice") ?? "Close email invoice")}" data-money-invoice-email-close><i class="fas fa-xmark"></i></button></div>
+          <div class="mn-receipt-modal-head"><strong id="mn-invoice-email-title">${String(invoiceId ? `Email ${escapeHtml(invoice.invoice_number || 'Invoice')}` : 'Generate and Email Invoice')}</strong><button type="button" class="mn-icon-btn" title="${(globalThis.PlatformLanguage?.htmlText("money","m_3742924668fb10","Close") ?? "Close")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_9fec01010b24a1","Close email invoice") ?? "Close email invoice")}" data-money-invoice-email-close><i class="fas fa-xmark"></i></button></div>
           <form class="mn-form" data-money-invoice-email-modal-form data-invoice-id="${String(escapeHtml(invoiceId))}">
-          <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_14b1c9a789a757","Email To") ?? "Email To")}</span><input class="mn-input" name="recipient" type="email" value="${String(escapeHtml(recipient))}" placeholder="${(globalThis.PlatformLanguage?.text("money","m_2780de7b9bd16a","customer@example.com") ?? "customer@example.com")}" required></label>
-          <label class="wide"><span>${(globalThis.PlatformLanguage?.text("money","m_a16cfd85cfd122","Message") ?? "Message")}</span><textarea class="mn-input" name="message" rows="3" placeholder="${(globalThis.PlatformLanguage?.text("money","m_7321fe3378912c","Your invoice is attached.") ?? "Your invoice is attached.")}"></textarea></label>
-          <label class="wide mn-check"><input type="checkbox" name="include_portal_link" ${String(paidPresentation ? '' : 'checked')}><span>${((v4) => globalThis.PlatformLanguage?.text("money","m_ef10c2a3c0ee95",`Include the customer portal link${v4}`,{v4}) ?? `Include the customer portal link${v4}`)(paidPresentation ? '' : ' to pay')}</span></label>
-          <div class="mn-form-actions"><button type="button" class="mn-btn" data-money-invoice-email-close>${(globalThis.PlatformLanguage?.text("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-paper-plane"></i> ${String(invoiceId ? 'Send Invoice' : 'Generate & Send')}</button></div>
+          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_14b1c9a789a757","Email To") ?? "Email To")}</span><input class="mn-input" name="recipient" type="email" value="${String(escapeHtml(recipient))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_2780de7b9bd16a","customer@example.com") ?? "customer@example.com")}" required></label>
+          <label class="wide"><span>${(globalThis.PlatformLanguage?.htmlText("money","m_a16cfd85cfd122","Message") ?? "Message")}</span><textarea class="mn-input" name="message" rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_7321fe3378912c","Your invoice is attached.") ?? "Your invoice is attached.")}"></textarea></label>
+          <label class="wide mn-check"><input type="checkbox" name="include_portal_link" ${String(paidPresentation ? '' : 'checked')}><span>${((v4) => globalThis.PlatformLanguage?.htmlText("money","m_ef10c2a3c0ee95",`Include the customer portal link${v4}`,{v4}) ?? `Include the customer portal link${v4}`)(paidPresentation ? '' : ' to pay')}</span></label>
+          <div class="mn-form-actions"><button type="button" class="mn-btn" data-money-invoice-email-close>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="submit" class="mn-btn primary" ${String(moneyMutationBusy() ? 'disabled' : '')}><i class="fas fa-paper-plane"></i> ${String(invoiceId ? 'Send Invoice' : 'Generate & Send')}</button></div>
           </form>
         </div>
       </div>

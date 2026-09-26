@@ -205,7 +205,7 @@
       const host = document.createElement('div');
       host.id = this.instanceId;
       host.className = `fmce-root ${appearance.position === 'bottom_left' ? 'fmce-left' : 'fmce-right'}`;
-      host.innerHTML = (String(this.styleTag()) + "\n        <button type=\"button\" class=\"fmce-launcher\" aria-label=\"" + String(esc(appearance.launcher_label)) + "\">\n          <span class=\"fmce-launcher-icon\">\n            <svg viewBox=\"0 0 24 24\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z\"/></svg>\n          </span>\n          <span class=\"fmce-launcher-close\">\n            <svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M6 6l12 12M18 6L6 18\"/></svg>\n          </span>\n          <span class=\"fmce-badge\" hidden></span>\n        </button>\n        <div class=\"fmce-panel\" hidden>\n          <div class=\"fmce-header\">\n            <div class=\"fmce-header-main\">\n              <span class=\"fmce-status-dot\"></span>\n              <div>\n                <div class=\"fmce-header-title\"></div>\n                <div class=\"fmce-header-sub\"></div>\n              </div>\n            </div>\n            <button type=\"button\" class=\"fmce-min\" aria-label=\"" + (globalThis.PlatformLanguage?.text("chat-embed","m_16d35abc7a6b88","Minimize chat") ?? "Minimize chat") + "\">\n              <svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"><path d=\"M5 12h14\"/></svg>\n            </button>\n          </div>\n          <div class=\"fmce-body\"></div>\n          <div class=\"fmce-footer\">\n            <div class=\"fmce-composer\">\n              <textarea class=\"fmce-input\" rows=\"1\" spellcheck=\"true\" placeholder=\"" + (globalThis.PlatformLanguage?.text("chat-embed","m_9e7fd62bf04a3f","Write a message…") ?? "Write a message…") + "\"></textarea>\n              " + String(cleanText(this.config.voice?.mode) !== 'off' ? `<button type="button" class="fmce-voice" aria-label="${cleanText(this.config.voice?.mode) === 'dictation' ? 'Dictate message' : 'Attach audio message'}" title="${cleanText(this.config.voice?.mode) === 'dictation' ? 'Dictation' : 'Attach audio'}"><span>🎙</span><small>${cleanText(this.config.voice?.mode) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '') + "\n              <button type=\"button\" class=\"fmce-send\" aria-label=\"" + (globalThis.PlatformLanguage?.text("chat-embed","m_c23a056552a09f","Send") ?? "Send") + "\">\n                <svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"currentColor\"><path d=\"M3.4 20.4l17.8-8.4L3.4 3.6l-.01 6.53L14 12 3.39 13.87z\"/></svg>\n              </button>\n            </div>\n            <div class=\"fmce-voice-mount\"></div>\n            " + String(appearance.show_branding ? '<div class="fmce-brand">Powered by FirstMate</div>' : '') + "\n          </div>\n        </div>");
+      host.innerHTML = (String(this.styleTag()) + "\n        <button type=\"button\" class=\"fmce-launcher\" aria-label=\"" + String(esc(appearance.launcher_label)) + "\">\n          <span class=\"fmce-launcher-icon\">\n            <svg viewBox=\"0 0 24 24\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z\"/></svg>\n          </span>\n          <span class=\"fmce-launcher-close\">\n            <svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M6 6l12 12M18 6L6 18\"/></svg>\n          </span>\n          <span class=\"fmce-badge\" hidden></span>\n        </button>\n        <div class=\"fmce-panel\" hidden>\n          <div class=\"fmce-header\">\n            <div class=\"fmce-header-main\">\n              <span class=\"fmce-status-dot\"></span>\n              <div>\n                <div class=\"fmce-header-title\"></div>\n                <div class=\"fmce-header-sub\"></div>\n              </div>\n            </div>\n            <button type=\"button\" class=\"fmce-min\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("chat-embed","m_16d35abc7a6b88","Minimize chat") ?? "Minimize chat") + "\">\n              <svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"><path d=\"M5 12h14\"/></svg>\n            </button>\n          </div>\n          <div class=\"fmce-body\"></div>\n          <div class=\"fmce-footer\">\n            <div class=\"fmce-composer\">\n              <textarea class=\"fmce-input\" rows=\"1\" spellcheck=\"true\" placeholder=\"" + (globalThis.PlatformLanguage?.htmlText("chat-embed","m_9e7fd62bf04a3f","Write a message…") ?? "Write a message…") + "\"></textarea>\n              " + String(cleanText(this.config.voice?.mode) !== 'off' ? `<button type="button" class="fmce-voice" aria-label="${cleanText(this.config.voice?.mode) === 'dictation' ? 'Dictate message' : 'Attach audio message'}" title="${cleanText(this.config.voice?.mode) === 'dictation' ? 'Dictation' : 'Attach audio'}"><span>🎙</span><small>${cleanText(this.config.voice?.mode) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '') + "\n              <button type=\"button\" class=\"fmce-send\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("chat-embed","m_c23a056552a09f","Send") ?? "Send") + "\">\n                <svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"currentColor\"><path d=\"M3.4 20.4l17.8-8.4L3.4 3.6l-.01 6.53L14 12 3.39 13.87z\"/></svg>\n              </button>\n            </div>\n            <div class=\"fmce-voice-mount\"></div>\n            " + String(appearance.show_branding ? `<div class="fmce-brand">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_2cb43f3b6430c4","Powered by FirstMate") ?? "Powered by FirstMate")}</div>` : '') + "\n          </div>\n        </div>");
       document.body.appendChild(host);
       this.host = host;
       this.panel = host.querySelector('.fmce-panel');
@@ -384,19 +384,19 @@
         if (this.needsPreChat()) parts.push(this.preChatForm());
         const closed = (this.session?.conversations || []).filter((item) => item.status === 'closed');
         if (config.history_visible && closed.length) {
-          parts.push(`<div class="fmce-section-title">${(globalThis.PlatformLanguage?.text("chat-embed","m_a418e0fa2c0fa0","Previous conversations") ?? "Previous conversations")}</div>`);
+          parts.push(`<div class="fmce-section-title">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_a418e0fa2c0fa0","Previous conversations") ?? "Previous conversations")}</div>`);
           parts.push(`<div class="fmce-history">${closed.slice(0, 5).map((item) => `
             <button type="button" class="fmce-history-item" data-history-id="${String(esc(item.id))}">
               ${String(esc((item.last_message?.text || 'Conversation').slice(0, 70)))}
-              <small>${((v2,v3) => globalThis.PlatformLanguage?.text("chat-embed","m_e0dc03a4a52948",`${v2} • ${v3} messages`,{v2,v3}) ?? `${v2} • ${v3} messages`)(esc(new Date(item.created_at).toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.())),item.message_count)}</small>
+              <small>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("chat-embed","m_e0dc03a4a52948",`${v2} • ${v3} messages`,{v2,v3}) ?? `${v2} • ${v3} messages`)(esc(new Date(item.created_at).toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.())),item.message_count)}</small>
             </button>`).join('')}</div>`);
         }
       } else {
         parts.push(this.messagesHtml());
         if (this.agentTyping) parts.push('<div class="fmce-typing"><i></i><i></i><i></i></div>');
         if (this.conversationClosed) {
-          parts.push(`<div class="fmce-note">${(globalThis.PlatformLanguage?.text("chat-embed","m_52ad0207a8dd5a","This conversation has ended.") ?? "This conversation has ended.")}</div>`);
-          parts.push(`<button type="button" class="fmce-btn ghost" data-action="new-chat">${(globalThis.PlatformLanguage?.text("chat-embed","m_d5f9696cb48cf7","Start a new chat") ?? "Start a new chat")}</button>`);
+          parts.push(`<div class="fmce-note">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_52ad0207a8dd5a","This conversation has ended.") ?? "This conversation has ended.")}</div>`);
+          parts.push(`<button type="button" class="fmce-btn ghost" data-action="new-chat">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_d5f9696cb48cf7","Start a new chat") ?? "Start a new chat")}</button>`);
         } else if (!online && !this.detailsSubmitted && this.shouldOfferDetails()) {
           parts.push(this.offlineDetailsForm());
         }
@@ -437,10 +437,10 @@
     preChatForm(){
       const pre = this.config.pre_chat;
       return `<form class="fmce-form" data-form="pre-chat">
-        ${String(pre.require_name ? '<label>Name</label><input name="name" required autocomplete="name">' : '')}
-        ${String(pre.require_email ? '<label>Email</label><input name="email" type="email" required autocomplete="email">' : '')}
-        ${String(pre.require_phone ? '<label>Phone</label><input name="phone" type="tel" required autocomplete="tel">' : '')}
-        <button type="submit" class="fmce-btn">${(globalThis.PlatformLanguage?.text("chat-embed","m_6cb9c39d67a388","Start chat") ?? "Start chat")}</button>
+        ${String(pre.require_name ? `<label>${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_8cf345002184e5","Name") ?? "Name")}</label><input name="name" required autocomplete="name">` : '')}
+        ${String(pre.require_email ? `<label>${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_5d2b9327181e33","Email") ?? "Email")}</label><input name="email" type="email" required autocomplete="email">` : '')}
+        ${String(pre.require_phone ? `<label>${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_ed04c65845180f","Phone") ?? "Phone")}</label><input name="phone" type="tel" required autocomplete="tel">` : '')}
+        <button type="submit" class="fmce-btn">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_6cb9c39d67a388","Start chat") ?? "Start chat")}</button>
       </form>`;
     }
 
@@ -450,10 +450,10 @@
 
     offlineDetailsForm(){
       return `<form class="fmce-form" data-form="details">
-        <div style="font-size:13.5px;">${(globalThis.PlatformLanguage?.text("chat-embed","m_7c6ebe768edfcf","Leave your email and we’ll follow up:") ?? "Leave your email and we’ll follow up:")}</div>
-        <label>${(globalThis.PlatformLanguage?.text("chat-embed","m_5d2b9327181e33","Email") ?? "Email")}</label><input name="email" type="email" required autocomplete="email">
-        <label>${(globalThis.PlatformLanguage?.text("chat-embed","m_3b439645b0b1ae","Name (optional)") ?? "Name (optional)")}</label><input name="name" autocomplete="name">
-        <button type="submit" class="fmce-btn">${(globalThis.PlatformLanguage?.text("chat-embed","m_c23a056552a09f","Send") ?? "Send")}</button>
+        <div style="font-size:13.5px;">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_7c6ebe768edfcf","Leave your email and we’ll follow up:") ?? "Leave your email and we’ll follow up:")}</div>
+        <label>${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_5d2b9327181e33","Email") ?? "Email")}</label><input name="email" type="email" required autocomplete="email">
+        <label>${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_3b439645b0b1ae","Name (optional)") ?? "Name (optional)")}</label><input name="name" autocomplete="name">
+        <button type="submit" class="fmce-btn">${(globalThis.PlatformLanguage?.htmlText("chat-embed","m_c23a056552a09f","Send") ?? "Send")}</button>
       </form>`;
     }
 

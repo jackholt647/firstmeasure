@@ -835,32 +835,32 @@
     const canCompleteManually = manualCompletionAllowed(item);
     const completionExplainer = cleanText(completionTrigger?.explainer) || 'This item checks itself off when the linked work is completed.';
     const leadingControl = completed ? `
-      <span class="pai-status-zone pai-check is-done" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_3c4d2141b2fa1c","Completed") ?? "Completed")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_3c4d2141b2fa1c","Completed") ?? "Completed")}">
+      <span class="pai-status-zone pai-check is-done" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_3c4d2141b2fa1c","Completed") ?? "Completed")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_3c4d2141b2fa1c","Completed") ?? "Completed")}">
         <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
           <circle class="pai-circle" cx="10" cy="10" r="8"></circle>
           <path class="pai-tick" d="M6 10.4l2.5 2.5L14.5 7"></path>
         </svg>
       </span>` : future ? `
-      <span class="pai-status-zone" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_46b1b5fde99446","Not due yet") ?? "Not due yet")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_46b1b5fde99446","Not due yet") ?? "Not due yet")}"><i class="fas fa-clock" aria-hidden="true"></i></span>` : outcomeAction ? `
-      <button type="button" class="pai-leading-action" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_b6a83faf8a56e9","Choose an outcome") ?? "Choose an outcome")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_b6a83faf8a56e9","Choose an outcome") ?? "Choose an outcome")}"><i class="fas fa-ellipsis" aria-hidden="true"></i></button>` : canCompleteManually ? `
-      <button type="button" class="pai-check-zone pai-check" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_a0f832de9e5de8","Mark complete") ?? "Mark complete")}">
+      <span class="pai-status-zone" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_46b1b5fde99446","Not due yet") ?? "Not due yet")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_46b1b5fde99446","Not due yet") ?? "Not due yet")}"><i class="fas fa-clock" aria-hidden="true"></i></span>` : outcomeAction ? `
+      <button type="button" class="pai-leading-action" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_b6a83faf8a56e9","Choose an outcome") ?? "Choose an outcome")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_b6a83faf8a56e9","Choose an outcome") ?? "Choose an outcome")}"><i class="fas fa-ellipsis" aria-hidden="true"></i></button>` : canCompleteManually ? `
+      <button type="button" class="pai-check-zone pai-check" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_a0f832de9e5de8","Mark complete") ?? "Mark complete")}">
         <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
           <circle class="pai-circle" cx="10" cy="10" r="8"></circle>
           <path class="pai-tick" d="M6 10.4l2.5 2.5L14.5 7"></path>
         </svg>
       </button>` : `
-      <span class="pai-status-zone pai-automatic" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_97537c9c543ff9","Completes automatically") ?? "Completes automatically")}" title="${String(escapeHtml(completionExplainer))}"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span>`;
+      <span class="pai-status-zone pai-automatic" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_97537c9c543ff9","Completes automatically") ?? "Completes automatically")}" title="${String(escapeHtml(completionExplainer))}"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span>`;
     row.className = `pai-row pai-tone-${meta.tone || 'current'}${completed ? ' pai-completed' : ''}${future ? ' pai-future' : ''}${!completed && !future && itemIsActionable(item) ? ' pai-actionable' : ''}${!completed && prioritySortValue(item) > 0 ? ' pai-priority' : ''}${followUp ? ' pai-follow-up' : ''}`;
     row.dataset.actionItemId = itemId(item);
     row.setAttribute('data-fm-tooltip-html', tooltipHtml(item, text));
     row.innerHTML = `
       ${leadingControl}
       <span class="pai-text">
-        <span class="pai-title">${followUp ? ("<i class=\"fas fa-phone pai-follow-up-icon\" title=\"" + (globalThis.PlatformLanguage?.text("platform-action-items","m_cfc813aecc8dd9","Follow-up") ?? "Follow-up") + "\" aria-label=\"" + (globalThis.PlatformLanguage?.text("platform-action-items","m_cfc813aecc8dd9","Follow-up") ?? "Follow-up") + "\"></i>") : ''}${!completed && prioritySortValue(item) > 0 ? ("<i class=\"fas fa-flag pai-flag\" title=\"" + (globalThis.PlatformLanguage?.text("platform-action-items","m_6484e03a4531ae","Priority") ?? "Priority") + "\"></i>") : ''}${escapeHtml(text.title)}</span>
+        <span class="pai-title">${followUp ? ("<i class=\"fas fa-phone pai-follow-up-icon\" title=\"" + (globalThis.PlatformLanguage?.htmlText("platform-action-items","m_cfc813aecc8dd9","Follow-up") ?? "Follow-up") + "\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("platform-action-items","m_cfc813aecc8dd9","Follow-up") ?? "Follow-up") + "\"></i>") : ''}${!completed && prioritySortValue(item) > 0 ? ("<i class=\"fas fa-flag pai-flag\" title=\"" + (globalThis.PlatformLanguage?.htmlText("platform-action-items","m_6484e03a4531ae","Priority") ?? "Priority") + "\"></i>") : ''}${escapeHtml(text.title)}</span>
         ${text.stub ? `<span class="pai-stub">${escapeHtml(text.stub)}</span>` : ''}
       </span>
       <span class="pai-meta">${escapeHtml(meta.text)}</span>
-      ${completed || future ? '<span></span>' : `<button type="button" class="pai-snooze" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_00124fa0ee7fe9","Snooze until tomorrow") ?? "Snooze until tomorrow")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_00124fa0ee7fe9","Snooze until tomorrow") ?? "Snooze until tomorrow")}"><i class="fas fa-clock"></i></button>`}
+      ${completed || future ? '<span></span>' : `<button type="button" class="pai-snooze" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_00124fa0ee7fe9","Snooze until tomorrow") ?? "Snooze until tomorrow")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_00124fa0ee7fe9","Snooze until tomorrow") ?? "Snooze until tomorrow")}"><i class="fas fa-clock"></i></button>`}
     `;
     return row;
   }
@@ -912,38 +912,38 @@
       form.className = 'pai-composer';
       form.innerHTML = `
         <span class="pai-composer-icon"><i class="fas fa-plus"></i></span>
-        <input type="text" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.text("platform-action-items","m_99aa399be5ef57","Add to-do...") ?? "Add to-do...")}" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_0fbb6615830f2d","Add manual to-do") ?? "Add manual to-do")}">
-        <button type="button" class="pai-assign-toggle" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_becde4a265e4c2","Assignment and priority") ?? "Assignment and priority")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_becde4a265e4c2","Assignment and priority") ?? "Assignment and priority")}"><i class="fas fa-sliders"></i></button>
-        <button type="button" class="pai-schedule-toggle" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_84435836397992","Schedule to-do") ?? "Schedule to-do")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_84435836397992","Schedule to-do") ?? "Schedule to-do")}"><i class="fas fa-calendar-days"></i></button>
-        <button type="submit" class="pai-add" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_5736de5170b8a5","Add to-do") ?? "Add to-do")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_5736de5170b8a5","Add to-do") ?? "Add to-do")}"><i class="fas fa-arrow-up"></i></button>
+        <input type="text" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_99aa399be5ef57","Add to-do...") ?? "Add to-do...")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_0fbb6615830f2d","Add manual to-do") ?? "Add manual to-do")}">
+        <button type="button" class="pai-assign-toggle" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_becde4a265e4c2","Assignment and priority") ?? "Assignment and priority")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_becde4a265e4c2","Assignment and priority") ?? "Assignment and priority")}"><i class="fas fa-sliders"></i></button>
+        <button type="button" class="pai-schedule-toggle" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_84435836397992","Schedule to-do") ?? "Schedule to-do")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_84435836397992","Schedule to-do") ?? "Schedule to-do")}"><i class="fas fa-calendar-days"></i></button>
+        <button type="submit" class="pai-add" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_5736de5170b8a5","Add to-do") ?? "Add to-do")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_5736de5170b8a5","Add to-do") ?? "Add to-do")}"><i class="fas fa-arrow-up"></i></button>
         <div class="pai-assign-panel" hidden>
           <div>
-            <div class="pai-assign-label">${(globalThis.PlatformLanguage?.text("platform-action-items","m_6484e03a4531ae","Priority") ?? "Priority")}</div>
+            <div class="pai-assign-label">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_6484e03a4531ae","Priority") ?? "Priority")}</div>
             <div class="pai-assign-row" data-priority-row>
-              <button type="button" class="pai-assign-chip on" data-priority="0">${(globalThis.PlatformLanguage?.text("platform-action-items","m_9a27adafe8f638","Normal") ?? "Normal")}</button>
-              <button type="button" class="pai-assign-chip pai-chip-priority" data-priority="1"><i class="fas fa-flag"></i>${(globalThis.PlatformLanguage?.text("platform-action-items","m_2f5dce6dd5abb0"," High priority") ?? " High priority")}</button>
+              <button type="button" class="pai-assign-chip on" data-priority="0">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_9a27adafe8f638","Normal") ?? "Normal")}</button>
+              <button type="button" class="pai-assign-chip pai-chip-priority" data-priority="1"><i class="fas fa-flag"></i>${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_2f5dce6dd5abb0"," High priority") ?? " High priority")}</button>
             </div>
           </div>
           <div>
-            <div class="pai-assign-label">${(globalThis.PlatformLanguage?.text("platform-action-items","m_334a6fae05444b","Assigned to") ?? "Assigned to")}</div>
+            <div class="pai-assign-label">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_334a6fae05444b","Assigned to") ?? "Assigned to")}</div>
             <div class="pai-assign-row" data-role-row>
-              <button type="button" class="pai-assign-chip on" data-role="">${(globalThis.PlatformLanguage?.text("platform-action-items","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</button>
+              <button type="button" class="pai-assign-chip on" data-role="">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</button>
             </div>
-            <input class="pai-assignee-search" data-assignee-search type="search" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.text("platform-action-items","m_93a044cd065fd4","Search people or crews...") ?? "Search people or crews...")}" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_0edeaf49de7716","Search people or crews") ?? "Search people or crews")}">
+            <input class="pai-assignee-search" data-assignee-search type="search" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_93a044cd065fd4","Search people or crews...") ?? "Search people or crews...")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_0edeaf49de7716","Search people or crews") ?? "Search people or crews")}">
             <div class="pai-assign-subgroup">
-              <div class="pai-assign-sublabel">${(globalThis.PlatformLanguage?.text("platform-action-items","m_57420a03b49adf","People") ?? "People")}</div>
-              <div class="pai-assign-row" data-user-row><span class="pai-assign-note">${(globalThis.PlatformLanguage?.text("platform-action-items","m_14bf07579f8840","Loading people...") ?? "Loading people...")}</span></div>
+              <div class="pai-assign-sublabel">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_57420a03b49adf","People") ?? "People")}</div>
+              <div class="pai-assign-row" data-user-row><span class="pai-assign-note">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_14bf07579f8840","Loading people...") ?? "Loading people...")}</span></div>
             </div>
             <div class="pai-assign-subgroup">
-              <div class="pai-assign-sublabel">${(globalThis.PlatformLanguage?.text("platform-action-items","m_997047322274fa","Crews") ?? "Crews")}</div>
-              <div class="pai-assign-row" data-crew-row><span class="pai-assign-note">${(globalThis.PlatformLanguage?.text("platform-action-items","m_27fbbc1be46b70","Loading crews...") ?? "Loading crews...")}</span></div>
+              <div class="pai-assign-sublabel">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_997047322274fa","Crews") ?? "Crews")}</div>
+              <div class="pai-assign-row" data-crew-row><span class="pai-assign-note">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_27fbbc1be46b70","Loading crews...") ?? "Loading crews...")}</span></div>
             </div>
             <div class="pai-assign-note" data-access-note></div>
           </div>
         </div>
         <div class="pai-schedule-panel" hidden>
-          <input type="datetime-local" aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_9379697cb7f619","Due date and time") ?? "Due date and time")}">
-          <button type="button" class="pai-schedule-clear">${(globalThis.PlatformLanguage?.text("platform-action-items","m_506191e24dd383","Clear") ?? "Clear")}</button>
+          <input type="datetime-local" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_9379697cb7f619","Due date and time") ?? "Due date and time")}">
+          <button type="button" class="pai-schedule-clear">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_506191e24dd383","Clear") ?? "Clear")}</button>
         </div>
       `;
       const scheduleToggle = form.querySelector('.pai-schedule-toggle');
@@ -988,13 +988,13 @@
         const { roles, users, crews } = composerState.choices;
         if (!roleRow) return;
         const roleChoices = [{ id: 'office', name: 'Office' }, ...roles];
-        roleRow.innerHTML = ("<button type=\"button\" class=\"pai-assign-chip" + String(assignmentCount() ? '' : ' on') + "\" data-role=\"\">" + (globalThis.PlatformLanguage?.text("platform-action-items","m_8a993ed9b573b4","Unassigned") ?? "Unassigned") + "</button>" + String(roleChoices.map((role) => choiceButton('role', role, composerState.roles.has(role.id))).join('')));
+        roleRow.innerHTML = ("<button type=\"button\" class=\"pai-assign-chip" + String(assignmentCount() ? '' : ' on') + "\" data-role=\"\">" + (globalThis.PlatformLanguage?.htmlText("platform-action-items","m_8a993ed9b573b4","Unassigned") ?? "Unassigned") + "</button>" + String(roleChoices.map((role) => choiceButton('role', role, composerState.roles.has(role.id))).join('')));
         if (userRow) userRow.innerHTML = users.length
           ? users.map((user) => choiceButton('user', user, composerState.users.has(user.id))).join('')
-          : `<span class="pai-assign-note">${(globalThis.PlatformLanguage?.text("platform-action-items","m_57d7a573615c64","No active people found.") ?? "No active people found.")}</span>`;
+          : `<span class="pai-assign-note">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_57d7a573615c64","No active people found.") ?? "No active people found.")}</span>`;
         if (crewRow) crewRow.innerHTML = crews.length
           ? crews.map((crew) => choiceButton('crew', crew, composerState.crews.has(crew.id))).join('')
-          : `<span class="pai-assign-note">${(globalThis.PlatformLanguage?.text("platform-action-items","m_bd6b0cd48d012c","No active crews found.") ?? "No active crews found.")}</span>`;
+          : `<span class="pai-assign-note">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_bd6b0cd48d012c","No active crews found.") ?? "No active crews found.")}</span>`;
         roleRow.querySelectorAll('[data-role]').forEach((chip) => chip.addEventListener('click', () => {
           const roleId = chip.dataset.role || '';
           if (!roleId) clearAssignments();
@@ -1194,7 +1194,7 @@
     function followUpDateControlMarkup(inputAttribute,value='',label='Follow-up date'){
       const raw=cleanText(value),hasTime=/T\d{2}:\d{2}/.test(raw);
       const shown=hasTime?datetimeLocalValue(raw):raw;
-      return `<div class="pai-dispo-date-control"><input type="${String(hasTime?'datetime-local':'date')}" ${String(inputAttribute)} value="${String(escapeHtml(shown))}" aria-label="${String(escapeHtml(label))}"><button type="button" class="pai-add-time" data-follow-add-time ${String(hasTime?'hidden':'')} aria-label="${(globalThis.PlatformLanguage?.text("platform-action-items","m_5330278adebb5f","Add a time") ?? "Add a time")}" title="${(globalThis.PlatformLanguage?.text("platform-action-items","m_5330278adebb5f","Add a time") ?? "Add a time")}"><i class="fas fa-clock"></i></button></div>`;
+      return `<div class="pai-dispo-date-control"><input type="${String(hasTime?'datetime-local':'date')}" ${String(inputAttribute)} value="${String(escapeHtml(shown))}" aria-label="${String(escapeHtml(label))}"><button type="button" class="pai-add-time" data-follow-add-time ${String(hasTime?'hidden':'')} aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_5330278adebb5f","Add a time") ?? "Add a time")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_5330278adebb5f","Add a time") ?? "Add a time")}"><i class="fas fa-clock"></i></button></div>`;
     }
 
     function bindFollowUpAddTime(scope,inputSelector){
@@ -1244,7 +1244,7 @@
 
     function followUpOutcomeMarkup(){
       const config=configuredFollowUps();
-      return `<div class="pai-dispo-label">${((v0) => globalThis.PlatformLanguage?.text("platform-action-items","m_a9f7741cb25d8c",`${v0} outcome`,{v0}) ?? `${v0} outcome`)(escapeHtml(config.label||'Follow-up'))}</div><div class="pai-dispo-row pai-dispo-outcomes">${String((config.outcomes||[]).map((outcome)=>`<button style="--choice:${escapeHtml(outcome.color||'#64748b')}" data-follow-outcome="${escapeHtml(outcome.id)}" data-follow-action="${escapeHtml(outcome.action)}">${escapeHtml(outcome.label)}</button>`).join(''))}</div><div class="pai-dispo-next" data-dispo-next hidden aria-hidden="true"></div>`;
+      return `<div class="pai-dispo-label">${((v0) => globalThis.PlatformLanguage?.htmlText("platform-action-items","m_a9f7741cb25d8c",`${v0} outcome`,{v0}) ?? `${v0} outcome`)(escapeHtml(config.label||'Follow-up'))}</div><div class="pai-dispo-row pai-dispo-outcomes">${String((config.outcomes||[]).map((outcome)=>`<button style="--choice:${escapeHtml(outcome.color||'#64748b')}" data-follow-outcome="${escapeHtml(outcome.id)}" data-follow-action="${escapeHtml(outcome.action)}">${escapeHtml(outcome.label)}</button>`).join(''))}</div><div class="pai-dispo-next" data-dispo-next hidden aria-hidden="true"></div>`;
     }
 
     function bindFollowUpOutcome(disposition,item,controller){
@@ -1264,7 +1264,7 @@
         }
         const config=configuredFollowUps();
         const policy=policyFollowUpDate(item);
-        next.innerHTML=`<div class="pai-dispo-label">${((v0) => globalThis.PlatformLanguage?.text("platform-action-items","m_60e2d51aed36ce",`Schedule next ${v0}`,{v0}) ?? `Schedule next ${v0}`)(escapeHtml(config.label||'follow-up'))}</div><div class="pai-dispo-row pai-dispo-quick">${String((config.quick_options||[]).map((option)=>`<button data-follow-quick="${escapeHtml(option.id)}">${escapeHtml(option.label)}</button>`).join(''))}</div><div class="pai-dispo-custom">${String(followUpDateControlMarkup('data-follow-custom',policy?.dueAt||'','Custom follow-up date'))}<button data-follow-custom-save>${(globalThis.PlatformLanguage?.text("platform-action-items","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button></div>`;
+        next.innerHTML=`<div class="pai-dispo-label">${((v0) => globalThis.PlatformLanguage?.htmlText("platform-action-items","m_60e2d51aed36ce",`Schedule next ${v0}`,{v0}) ?? `Schedule next ${v0}`)(escapeHtml(config.label||'follow-up'))}</div><div class="pai-dispo-row pai-dispo-quick">${String((config.quick_options||[]).map((option)=>`<button data-follow-quick="${escapeHtml(option.id)}">${escapeHtml(option.label)}</button>`).join(''))}</div><div class="pai-dispo-custom">${String(followUpDateControlMarkup('data-follow-custom',policy?.dueAt||'','Custom follow-up date'))}<button data-follow-custom-save>${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button></div>`;
         openDispositionNext(next);
         bindFollowUpAddTime(next,'[data-follow-custom]');
         next.querySelectorAll('[data-follow-quick]').forEach((quickButton)=>quickButton.addEventListener('click',async()=>{const option=(config.quick_options||[]).find((entry)=>entry.id===quickButton.dataset.followQuick);quickButton.disabled=true;await PlatformAPI.actionItems.followUpOutcome(orgId,itemId(item),{outcome:button.dataset.followOutcome,due_at:followUpDueValue(quickFollowUpDate(option)),policy_trigger:'manual_follow_up'});await controller.load({quiet:true});}));
@@ -1282,7 +1282,7 @@
           disposition.className = 'pai-dispo';
           disposition.hidden = true;
           disposition.setAttribute('aria-hidden','true');
-          disposition.innerHTML = followUpDisposition ? followUpOutcomeMarkup() : `<div class="pai-dispo-label">${(globalThis.PlatformLanguage?.text("platform-action-items","m_8ea60ad82dc43f","Call result") ?? "Call result")}</div><div class="pai-dispo-row"><button style="--choice:#12b76a" data-dispo="answered">${(globalThis.PlatformLanguage?.text("platform-action-items","m_1462617901ae73","Answered") ?? "Answered")}</button><button style="--choice:#f79009" data-dispo="voicemail">${(globalThis.PlatformLanguage?.text("platform-action-items","m_44ac4ae97ee5aa","Left voicemail") ?? "Left voicemail")}</button><button style="--choice:#f04438" data-dispo="no_answer">${(globalThis.PlatformLanguage?.text("platform-action-items","m_15b84e02e4bb08","No voicemail") ?? "No voicemail")}</button></div><div class="pai-dispo-next" data-dispo-next hidden aria-hidden="true"></div>`;
+          disposition.innerHTML = followUpDisposition ? followUpOutcomeMarkup() : `<div class="pai-dispo-label">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_8ea60ad82dc43f","Call result") ?? "Call result")}</div><div class="pai-dispo-row"><button style="--choice:#12b76a" data-dispo="answered">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_1462617901ae73","Answered") ?? "Answered")}</button><button style="--choice:#f79009" data-dispo="voicemail">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_44ac4ae97ee5aa","Left voicemail") ?? "Left voicemail")}</button><button style="--choice:#f04438" data-dispo="no_answer">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_15b84e02e4bb08","No voicemail") ?? "No voicemail")}</button></div><div class="pai-dispo-next" data-dispo-next hidden aria-hidden="true"></div>`;
           disposition.addEventListener('click', (event) => event.stopPropagation());
         }
         row.addEventListener('click', async () => {
@@ -1324,7 +1324,7 @@
           const next = disposition.querySelector('[data-dispo-next]');
           const followUpChoices = () => {
             const config=configuredFollowUps();
-            next.innerHTML = `<div class="pai-dispo-label">${((v0) => globalThis.PlatformLanguage?.text("platform-action-items","m_f6c680ed795324",`Schedule ${v0}`,{v0}) ?? `Schedule ${v0}`)(escapeHtml(config.label||'follow-up'))}</div><div class="pai-dispo-row pai-dispo-quick">${String((config.quick_options||[]).map((option)=>`<button data-followup="${escapeHtml(option.id)}">${escapeHtml(option.label)}</button>`).join(''))}</div><div class="pai-dispo-custom">${String(followUpDateControlMarkup('data-followup-time','','Custom follow-up date'))}<button data-followup="custom">${(globalThis.PlatformLanguage?.text("platform-action-items","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button></div>`;
+            next.innerHTML = `<div class="pai-dispo-label">${((v0) => globalThis.PlatformLanguage?.htmlText("platform-action-items","m_f6c680ed795324",`Schedule ${v0}`,{v0}) ?? `Schedule ${v0}`)(escapeHtml(config.label||'follow-up'))}</div><div class="pai-dispo-row pai-dispo-quick">${String((config.quick_options||[]).map((option)=>`<button data-followup="${escapeHtml(option.id)}">${escapeHtml(option.label)}</button>`).join(''))}</div><div class="pai-dispo-custom">${String(followUpDateControlMarkup('data-followup-time','','Custom follow-up date'))}<button data-followup="custom">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button></div>`;
             openDispositionNext(next);
             bindFollowUpAddTime(next,'[data-followup-time]');
             next.querySelectorAll('[data-followup]').forEach((button) => button.addEventListener('click', async () => {
@@ -1342,7 +1342,7 @@
             const value = button.dataset.dispo;
             disposition.querySelectorAll('[data-dispo]').forEach((choice)=>choice.classList.toggle('is-selected',choice===button));
             if (value !== 'answered') { followUpChoices(); return; }
-            next.innerHTML = `<div class="pai-dispo-label">${(globalThis.PlatformLanguage?.text("platform-action-items","m_d31e1c334cc33e","What happens next?") ?? "What happens next?")}</div><div class="pai-dispo-row"><button data-outcome="appointment">${(globalThis.PlatformLanguage?.text("platform-action-items","m_837936705cf1ab","Appointment booked") ?? "Appointment booked")}</button><button data-outcome="follow_up">${(globalThis.PlatformLanguage?.text("platform-action-items","m_0307a1de90a6aa","Follow up") ?? "Follow up")}</button><button style="--choice:#f04438" data-outcome="lost">${(globalThis.PlatformLanguage?.text("platform-action-items","m_235d86f4916a45","Lost") ?? "Lost")}</button></div>`;
+            next.innerHTML = `<div class="pai-dispo-label">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_d31e1c334cc33e","What happens next?") ?? "What happens next?")}</div><div class="pai-dispo-row"><button data-outcome="appointment">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_837936705cf1ab","Appointment booked") ?? "Appointment booked")}</button><button data-outcome="follow_up">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_0307a1de90a6aa","Follow up") ?? "Follow up")}</button><button style="--choice:#f04438" data-outcome="lost">${(globalThis.PlatformLanguage?.htmlText("platform-action-items","m_235d86f4916a45","Lost") ?? "Lost")}</button></div>`;
             openDispositionNext(next);
             next.querySelector('[data-outcome="appointment"]')?.addEventListener('click', () => openProjectAction(item, { project_id:projectIdForAction(item), tab:'scheduling' }, 'scheduling'));
             next.querySelector('[data-outcome="follow_up"]')?.addEventListener('click', followUpChoices);
@@ -1402,7 +1402,7 @@
         toggle.type = 'button';
         toggle.className = 'pai-completed-toggle';
         toggle.setAttribute('aria-expanded', completedOpen ? 'true' : 'false');
-        toggle.innerHTML = `<span>${((v0) => globalThis.PlatformLanguage?.text("platform-action-items","m_ecd6a5898cb5f6",`Completed (${v0})`,{v0}) ?? `Completed (${v0})`)(prepared.completed_count)}</span><i class="fas fa-chevron-right"></i>`;
+        toggle.innerHTML = `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("platform-action-items","m_ecd6a5898cb5f6",`Completed (${v0})`,{v0}) ?? `Completed (${v0})`)(prepared.completed_count)}</span><i class="fas fa-chevron-right"></i>`;
         const panel = document.createElement('div');
         panel.className = 'pai-completed-panel';
         panel.hidden = !completedOpen;

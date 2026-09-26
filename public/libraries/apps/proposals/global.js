@@ -193,7 +193,7 @@
 
   function renderProposalRows(proposals = [], projectIndex = 0){
     if (!proposals.length) {
-      return `<div class="gp-empty-proposals">${(globalThis.PlatformLanguage?.text("proposals","m_b0565581a07a57","No proposals yet.") ?? "No proposals yet.")}</div>`;
+      return `<div class="gp-empty-proposals">${(globalThis.PlatformLanguage?.htmlText("proposals","m_b0565581a07a57","No proposals yet.") ?? "No proposals yet.")}</div>`;
     }
     return proposals.map((proposal, index) => {
       const attrs = proposalActionAttrs(projectIndex, proposal, index);
@@ -218,9 +218,9 @@
             <span class="gp-more-wrap${String(menuOpen ? ' open' : '')}">
               <button type="button" class="gp-row-icon" data-gp-action="more-menu" ${String(attrs)} data-fm-tooltip="More actions"><i class="fas fa-ellipsis"></i></button>
               <span class="gp-more-menu">
-                <button type="button" data-gp-action="download" ${String(attrs)}><i class="fas fa-download"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_871659bb2df660","Download") ?? "Download")}</span></button>
-                <button type="button" data-gp-action="print" ${String(attrs)}><i class="fas fa-print"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_441fd948b74354","Print") ?? "Print")}</span></button>
-                <button type="button" data-gp-action="duplicate" ${String(attrs)}><i class="fas fa-copy"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}</span></button>
+                <button type="button" data-gp-action="download" ${String(attrs)}><i class="fas fa-download"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_871659bb2df660","Download") ?? "Download")}</span></button>
+                <button type="button" data-gp-action="print" ${String(attrs)}><i class="fas fa-print"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_441fd948b74354","Print") ?? "Print")}</span></button>
+                <button type="button" data-gp-action="duplicate" ${String(attrs)}><i class="fas fa-copy"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}</span></button>
                 <button type="button" class="${String(deleteConfirm ? 'danger confirm' : 'danger')}" data-gp-action="delete" ${String(attrs)}><i class="fas fa-trash"></i><span>${String(deleteConfirm ? 'Confirm delete' : 'Delete')}</span></button>
               </span>
             </span>
@@ -236,17 +236,17 @@
       <div class="gp-shell">
         <div class="gp-top">
           <div>
-            <h2>${(globalThis.PlatformLanguage?.text("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals")}</h2>
-            <p>${(globalThis.PlatformLanguage?.text("proposals","m_a5c23bf524dcbc","Projects grouped by appointment date.") ?? "Projects grouped by appointment date.")}</p>
+            <h2>${(globalThis.PlatformLanguage?.htmlText("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals")}</h2>
+            <p>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a5c23bf524dcbc","Projects grouped by appointment date.") ?? "Projects grouped by appointment date.")}</p>
           </div>
-          <button type="button" class="gp-refresh" data-gp-action="refresh" data-fm-tooltip="Refresh" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_e7cabe14da89bc","Refresh proposals") ?? "Refresh proposals")}"><i class="fas fa-rotate-right"></i></button>
+          <button type="button" class="gp-refresh" data-gp-action="refresh" data-fm-tooltip="Refresh" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_e7cabe14da89bc","Refresh proposals") ?? "Refresh proposals")}"><i class="fas fa-rotate-right"></i></button>
         </div>
         <div class="gp-body">
           <div class="gp-list" data-gp-list>
-            <div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_5be6a9acc9143d","Loading proposals...") ?? "Loading proposals...")}</span></div>
+            <div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_5be6a9acc9143d","Loading proposals...") ?? "Loading proposals...")}</span></div>
           </div>
           <div class="gp-preview" data-gp-preview>
-            <div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_0bcd54043991da","Select a proposal to preview it.") ?? "Select a proposal to preview it.")}</span></div>
+            <div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_0bcd54043991da","Select a proposal to preview it.") ?? "Select a proposal to preview it.")}</span></div>
           </div>
         </div>
       </div>
@@ -606,7 +606,7 @@
       }
       const selected = selectedProposalRef();
       if (!selected) {
-        preview.innerHTML = `<div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_0bcd54043991da","Select a proposal to preview it.") ?? "Select a proposal to preview it.")}</span></div>`;
+        preview.innerHTML = `<div class="gp-preview-empty"><i class="fas fa-file-signature"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_0bcd54043991da","Select a proposal to preview it.") ?? "Select a proposal to preview it.")}</span></div>`;
         return;
       }
       const selectionKey = `${selected.projectIndex}:${selected.proposalId || selected.proposalIndex}`;
@@ -626,7 +626,7 @@
             <span>${String(escapeHtml(subtitle))}</span>
           </div>
           <div class="gp-preview-actions">
-            <button type="button" class="gp-action-btn primary" data-gp-action="edit-selected"><i class="fas fa-pen"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_5b9378df7220c1","Edit") ?? "Edit")}</span></button>
+            <button type="button" class="gp-action-btn primary" data-gp-action="edit-selected"><i class="fas fa-pen"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_5b9378df7220c1","Edit") ?? "Edit")}</span></button>
           </div>
         </div>
         <div class="gp-preview-stage" data-gp-preview-root></div>
@@ -640,7 +640,7 @@
         proposalIndex: selected.proposalIndex
       }]);
       if (!rendered && previewRoot) {
-        previewRoot.innerHTML = `<div class="gp-preview-empty"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_a81e05ccfce6c6","Preview unavailable for this proposal.") ?? "Preview unavailable for this proposal.")}</span></div>`;
+        previewRoot.innerHTML = `<div class="gp-preview-empty"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a81e05ccfce6c6","Preview unavailable for this proposal.") ?? "Preview unavailable for this proposal.")}</span></div>`;
       }
     }
 
@@ -673,8 +673,8 @@
               <span>${String(escapeHtml(subtitle || projectId(project) || 'Project'))}</span>
             </div>
             <div class="gp-project-actions">
-              <button type="button" class="gp-icon-btn primary" data-gp-action="add" data-gp-index="${String(index)}" data-fm-tooltip="Add proposal" aria-label="${((v3) => globalThis.PlatformLanguage?.text("proposals","m_7ae51545ebb0a7",`Add proposal to ${v3}`,{v3}) ?? `Add proposal to ${v3}`)(escapeHtml(title))}"><i class="fas fa-plus"></i></button>
-              <button type="button" class="gp-icon-btn" data-gp-action="open" data-gp-index="${String(index)}" data-fm-tooltip="Open proposals" aria-label="${((v5) => globalThis.PlatformLanguage?.text("proposals","m_084416014a7d51",`Open ${v5} proposals`,{v5}) ?? `Open ${v5} proposals`)(escapeHtml(title))}"><i class="fas fa-up-right-from-square"></i></button>
+              <button type="button" class="gp-icon-btn primary" data-gp-action="add" data-gp-index="${String(index)}" data-fm-tooltip="Add proposal" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("proposals","m_7ae51545ebb0a7",`Add proposal to ${v3}`,{v3}) ?? `Add proposal to ${v3}`)(escapeHtml(title))}"><i class="fas fa-plus"></i></button>
+              <button type="button" class="gp-icon-btn" data-gp-action="open" data-gp-index="${String(index)}" data-fm-tooltip="Open proposals" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("proposals","m_084416014a7d51",`Open ${v5} proposals`,{v5}) ?? `Open ${v5} proposals`)(escapeHtml(title))}"><i class="fas fa-up-right-from-square"></i></button>
             </div>
           </div>
           <div class="gp-proposals">${String(renderProposalRows(proposalList, index))}</div>
@@ -683,8 +683,8 @@
     }
 
     function renderList(){
-      if (state.loading && !state.projects.length) return `<div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_5be6a9acc9143d","Loading proposals...") ?? "Loading proposals...")}</span></div>`;
-      if (!state.projects.length) return `<div class="gp-state"><span>${(globalThis.PlatformLanguage?.text("proposals","m_534a343ce10dc2","No appointment projects found.") ?? "No appointment projects found.")}</span></div>`;
+      if (state.loading && !state.projects.length) return `<div class="gp-state"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_5be6a9acc9143d","Loading proposals...") ?? "Loading proposals...")}</span></div>`;
+      if (!state.projects.length) return `<div class="gp-state"><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_534a343ce10dc2","No appointment projects found.") ?? "No appointment projects found.")}</span></div>`;
       const groups = groupedVisibleProjects();
       const body = groups.map((group) => `
         <section class="gp-day">
@@ -693,7 +693,7 @@
         </section>
       `).join('');
       const more = state.visibleCount < state.projects.length
-        ? `<button type="button" class="gp-load-more" data-gp-action="more">${(globalThis.PlatformLanguage?.text("proposals","m_211d60bfa491e9","Load more") ?? "Load more")}</button>`
+        ? `<button type="button" class="gp-load-more" data-gp-action="more">${(globalThis.PlatformLanguage?.htmlText("proposals","m_211d60bfa491e9","Load more") ?? "Load more")}</button>`
         : '';
       return body + more;
     }

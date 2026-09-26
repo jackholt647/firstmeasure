@@ -87,7 +87,7 @@
       `We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ` +
       `We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ` +
       `We apologize for any inconvenience this may have caused.<br><br>` +
-      `<strong>${(globalThis.PlatformLanguage?.text("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
+      `<strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
     const projectTypeLabel = (() => {
       const type = String(p?.project_type || 'residential').trim().toLowerCase().replace(/_/g, '-');
       if (type === 'multi-family' || type === 'multifamily') return 'multi-family';
@@ -114,7 +114,7 @@
       ? (
           `We could not generate a FirstMeasure Instant for this pin because the selected point did not land on a structure with accurate instant data. ` +
           `We currently have about 90% coverage across the US for instant reports, but there are still some places where we do not have accurate enough data for this product.<br><br>` +
-          `<strong>${(globalThis.PlatformLanguage?.text("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> This only affects the instant report for this pinned structure. You can still order a standard full report for this property below.`
+          `<strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> This only affects the instant report for this pinned structure. You can still order a standard full report for this property below.`
         )
       : noCoverageHtml;
     }
@@ -158,7 +158,7 @@
     const normalized = type === 'multi-family' ? 'multifamily' : type;
     if (!['commercial', 'multifamily'].includes(normalized)) return '';
     const label = normalized === 'multifamily' ? 'Multi-family' : 'Commercial';
-    return `<div style="margin-top:14px;"><button type="button" id="vmRejectedReorder" class="v-dlbtn"><i class="fas fa-cart-plus"></i>${((v0) => globalThis.PlatformLanguage?.text("projects","m_6ba65308b090c7",` Reorder as ${v0}`,{v0}) ?? ` Reorder as ${v0}`)(escapeHtml(label))}</button></div>`;
+    return `<div style="margin-top:14px;"><button type="button" id="vmRejectedReorder" class="v-dlbtn"><i class="fas fa-cart-plus"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_6ba65308b090c7",` Reorder as ${v0}`,{v0}) ?? ` Reorder as ${v0}`)(escapeHtml(label))}</button></div>`;
   }
 
   function openRejectedReorder(p){
@@ -344,17 +344,17 @@
     const meta = activeCustomerReworkMeta(p);
     if (!meta.active) return '';
     const dateText = meta.requestedAt ? ` Requested ${formatDate(meta.requestedAt)}.` : '';
-    return `<div class="v-side-chip change-pending"><i class="fas fa-clock-rotate-left"></i><span>${((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_3e1451fceaaf24",`Changes pending: ${v0}.${v1} Your current PDFs remain available until the updated report is ready.`,{v0,v1}) ?? `Changes pending: ${v0}.${v1} Your current PDFs remain available until the updated report is ready.`)(escapeHtml(meta.label),dateText)}</span></div>`;
+    return `<div class="v-side-chip change-pending"><i class="fas fa-clock-rotate-left"></i><span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("projects","m_3e1451fceaaf24",`Changes pending: ${v0}.${v1} Your current PDFs remain available until the updated report is ready.`,{v0,v1}) ?? `Changes pending: ${v0}.${v1} Your current PDFs remain available until the updated report is ready.`)(escapeHtml(meta.label),dateText)}</span></div>`;
   }
 
   function pendingCustomerReworkPanelHtml(p){
     const meta = activeCustomerReworkMeta(p);
     if (!meta.active) return '';
     return `
-      <h4 style="margin:14px 0 10px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-clock-rotate-left" style="color:#7a4b00;"></i>${(globalThis.PlatformLanguage?.text("projects","m_94450c26696df2"," Changes Pending") ?? " Changes Pending")}</h4>
+      <h4 style="margin:14px 0 10px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-clock-rotate-left" style="color:#7a4b00;"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_94450c26696df2"," Changes Pending") ?? " Changes Pending")}</h4>
       <div style="font-size:12px; color:#5f4520; line-height:1.4; padding:10px 12px; border:1px solid #f4d58d; background:#fff8e1; border-radius:12px;">
         <strong>${String(escapeHtml(meta.label))}</strong>${String(meta.requestedAt ? ` was requested ${escapeHtml(formatDate(meta.requestedAt))}.` : ' is being reviewed.')}
-        <br><br>${(globalThis.PlatformLanguage?.text("projects","m_0c4fdb2a1614b3","Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.\n      ") ?? "Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.\n      ")}</div>
+        <br><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_0c4fdb2a1614b3","Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.\n      ") ?? "Your existing report PDFs are still available in the report tabs. Updated PDFs will replace them after the rework is finalized.\n      ")}</div>
     `;
   }
 
@@ -362,7 +362,7 @@
     const meta = completedCustomerReworkMeta(p);
     if (!meta.completed) return '';
     const dateText = meta.completedAt ? ` Finalized ${formatDate(meta.completedAt)}.` : '';
-    return `<div class="v-side-chip corrected"><i class="fas fa-screwdriver-wrench"></i><span>${((v0) => globalThis.PlatformLanguage?.text("projects","m_8edcc78437502b",`Corrected report PDFs are ready.${v0}`,{v0}) ?? `Corrected report PDFs are ready.${v0}`)(dateText)}</span></div>`;
+    return `<div class="v-side-chip corrected"><i class="fas fa-screwdriver-wrench"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_8edcc78437502b",`Corrected report PDFs are ready.${v0}`,{v0}) ?? `Corrected report PDFs are ready.${v0}`)(dateText)}</span></div>`;
   }
 
   const ViewerCSS = `
@@ -1274,7 +1274,7 @@
       loading.classList.remove('error');
       loading.innerHTML = `
         <div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div>
-        <div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")}</div>
+        <div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")}</div>
       `;
       return;
     }
@@ -1284,7 +1284,7 @@
     loading.classList.toggle('error', !!isError);
     loading.innerHTML = `
       <div class="v-instant-loadingIcon"><i class="fas ${String(isError ? 'fa-triangle-exclamation' : 'fa-circle-notch fa-spin')}"></i></div>
-      <div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_b4955d13eb2537","Instant Report Unavailable") ?? "Instant Report Unavailable")}</div>
+      <div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_b4955d13eb2537","Instant Report Unavailable") ?? "Instant Report Unavailable")}</div>
       <div class="v-instant-loadingText">${String(escapeHtml(text))}</div>
     `;
   }
@@ -1739,17 +1739,17 @@
     const customerButtonLabel = instantPdfReady
       ? 'Download Customer Report'
       : (instantPdfFailed ? 'Retrying Customer Report' : 'Generating Customer Report');
-    const standardButtonText = `<span class="v-instant-actionFullLabel">${String(standardButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span>`;
-    const customerButtonText = `<span class="v-instant-actionFullLabel">${String(customerButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span>`;
+    const standardButtonText = `<span class="v-instant-actionFullLabel">${String(standardButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span>`;
+    const customerButtonText = `<span class="v-instant-actionFullLabel">${String(customerButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span>`;
     const instantPdfButtonIcon = instantPdfReady ? 'fa-file-arrow-down' : 'fa-circle-notch fa-spin';
     const instantPdfDisabled = instantPdfReady ? '' : ' disabled';
     if (!instant) {
       return `
         <div class="v-instant-metric"><div class="v-instant-k">${String(project?.measurement_system === "metric" ? "Area Range (m²)" : "Square Range")}</div><div class="v-instant-v">-</div></div>
-        <div class="v-instant-metric"><div class="v-instant-k">${(globalThis.PlatformLanguage?.text("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div><div class="v-instant-v">-</div></div>
+        <div class="v-instant-metric"><div class="v-instant-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div><div class="v-instant-v">-</div></div>
         <div class="v-instant-actionStack">
-          <button type="button" id="vmInstantStandardBtn" class="v-instant-action" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.text("projects","m_d73d69127069a4","Generating Standard Report") ?? "Generating Standard Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span></button>
-          <button type="button" id="vmInstantCustomerBtn" class="v-instant-action secondary" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.text("projects","m_1198cef22af516","Generating Customer Report") ?? "Generating Customer Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.text("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span></button>
+          <button type="button" id="vmInstantStandardBtn" class="v-instant-action" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_d73d69127069a4","Generating Standard Report") ?? "Generating Standard Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span></button>
+          <button type="button" id="vmInstantCustomerBtn" class="v-instant-action secondary" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_1198cef22af516","Generating Customer Report") ?? "Generating Customer Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span></button>
         </div>
       `;
     }
@@ -1796,9 +1796,9 @@
         : '';
       missingStructureMarkup = `
         <div class="v-instant-emptyState">
-          <div class="v-instant-emptyTitle"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.text("projects","m_2ad8e8d0b5129a"," No usable instant data found") ?? " No usable instant data found")}</div>
+          <div class="v-instant-emptyTitle"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_2ad8e8d0b5129a"," No usable instant data found") ?? " No usable instant data found")}</div>
           <div class="v-instant-emptyText">${String(escapeHtml(`${structureName} could not be generated from the available instant coverage.`))}</div>
-          ${String(refundText ? `<div class="v-instant-emptyRefund">${escapeHtml(refundText)}<br><br>Try ordering a full report to get measurements for this structure.</div>` : '')}
+          ${String(refundText ? `<div class="v-instant-emptyRefund">${escapeHtml(refundText)}<br><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_219853c2fec210","Try ordering a full report to get measurements for this structure.") ?? "Try ordering a full report to get measurements for this structure.")}</div>` : '')}
         </div>
       `;
     } else if (metrics.activeScope === 'total' && missingStructureCount > 0) {
@@ -1823,7 +1823,7 @@
           <div class="v-instant-v">${String(escapeHtml(formatRoofingSquareRange(metrics.roofSquares, project)))}</div>
         </div>
         <div class="v-instant-metric">
-          <div class="v-instant-k">${(globalThis.PlatformLanguage?.text("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div>
+          <div class="v-instant-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div>
           <div class="v-instant-v">${String(escapeHtml(formatPitchRange(metrics.pitchRise)))}</div>
         </div>
         ${String(coverageNote)}
@@ -4090,7 +4090,7 @@
   function buildUpgradeCcRow(value){
     return `
       <div class="v-upgrade-ccRow">
-        <input type="email" class="v-upgrade-ccInput" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_0864076e5066f2","name@example.com") ?? "name@example.com")}" value="${String(escapeHtml(String(value || '')))}">
+        <input type="email" class="v-upgrade-ccInput" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_0864076e5066f2","name@example.com") ?? "name@example.com")}" value="${String(escapeHtml(String(value || '')))}">
         <button type="button" class="v-upgrade-ccRemove" data-fm-tooltip="Remove CC"><i class="fas fa-times"></i></button>
       </div>
     `;
@@ -4121,7 +4121,7 @@
     const total = fmtMoney(quote.final_amount);
     if (price) {
       price.innerHTML = quote.active
-        ? `Total <strong>$${String(total)}</strong><div class="v-upgrade-discount"><s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("projects","m_c43c813f3a0345",`${v2}% referral discount`,{v2}) ?? `${v2}% referral discount`)(quote.discount_percent)}</div>`
+        ? `Total <strong>$${String(total)}</strong><div class="v-upgrade-discount"><s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.htmlText("projects","m_c43c813f3a0345",`${v2}% referral discount`,{v2}) ?? `${v2}% referral discount`)(quote.discount_percent)}</div>`
         : `Total <strong>$${total}</strong>`;
     }
     if (submit && !submit.disabled) {
@@ -4150,56 +4150,56 @@
     const gutterEligible = canOfferGutterUpgrade(project);
     dialog.innerHTML = `
       <form id="vmUpgradeForm" class="v-upgrade-form">
-        <div class="v-upgrade-title">${(globalThis.PlatformLanguage?.text("projects","m_a5a27536009ca9","Order Standard Report") ?? "Order Standard Report")}</div>
+        <div class="v-upgrade-title">${(globalThis.PlatformLanguage?.htmlText("projects","m_a5a27536009ca9","Order Standard Report") ?? "Order Standard Report")}</div>
         ${String(gutterEligible ? `
           <div class="v-upgrade-section">
-            <label class="v-upgrade-sectionTitle">Report Scope</label>
+            <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_b16c8007140424","Report Scope") ?? "Report Scope")}</label>
             <div class="v-upgrade-scopeGroup" id="vmUpgradeScopeGroup">
               <button type="button" class="v-upgrade-scopeBtn${prefill.includeGutters ? '' : ' active'}" data-scope="roof_only">
                 <span class="v-upgrade-scopePrice">${fullReportPriceHtml(project, false)}</span>
                 <span class="v-upgrade-scopeBody">
-                  <span class="v-upgrade-scopeTitle">Roof Only</span>
+                  <span class="v-upgrade-scopeTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_d2a894582092f8","Roof Only") ?? "Roof Only")}</span>
                 </span>
               </button>
               <button type="button" class="v-upgrade-scopeBtn${prefill.includeGutters ? ' active' : ''}" data-scope="roof_and_gutters">
                 <span class="v-upgrade-scopePrice">${fullReportPriceHtml(project, true)}</span>
                 <span class="v-upgrade-scopeBody">
-                  <span class="v-upgrade-scopeTitle">Roof &amp; Gutters</span>
+                  <span class="v-upgrade-scopeTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_16e6b2fac22e7e","Roof &amp; Gutters") ?? "Roof &amp; Gutters")}</span>
                 </span>
               </button>
             </div>
           </div>
         ` : '')}
         <div class="v-upgrade-section">
-          <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.text("projects","m_f3772e419cc613","CC Email Addresses") ?? "CC Email Addresses")}</label>
+          <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_f3772e419cc613","CC Email Addresses") ?? "CC Email Addresses")}</label>
           <div id="vmUpgradeCcList" class="v-upgrade-ccList"></div>
-          <button type="button" id="vmUpgradeAddCc" class="v-upgrade-addCc"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("projects","m_9adb5b7e4e80ed"," Add CC") ?? " Add CC")}</button>
+          <button type="button" id="vmUpgradeAddCc" class="v-upgrade-addCc"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_9adb5b7e4e80ed"," Add CC") ?? " Add CC")}</button>
         </div>
         <div class="v-upgrade-section">
           <div class="v-upgrade-field">
-            <label for="vmUpgradeTechNotes">${(globalThis.PlatformLanguage?.text("projects","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</label>
-            <textarea id="vmUpgradeTechNotes" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_1ac4cec881f322","Anything the technician should know about this property...") ?? "Anything the technician should know about this property...")}">${String(escapeHtml(prefill.techNotes))}</textarea>
+            <label for="vmUpgradeTechNotes">${(globalThis.PlatformLanguage?.htmlText("projects","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</label>
+            <textarea id="vmUpgradeTechNotes" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_1ac4cec881f322","Anything the technician should know about this property...") ?? "Anything the technician should know about this property...")}">${String(escapeHtml(prefill.techNotes))}</textarea>
           </div>
         </div>
         <div class="v-upgrade-section">
-          <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.text("projects","m_e00f36e03123f1","Contact Information ") ?? "Contact Information ")}<span style="font-weight:700; color:#9aa4af; letter-spacing:0; text-transform:none; font-size:10px; margin-left:2px">${(globalThis.PlatformLanguage?.text("projects","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <label class="v-upgrade-sectionTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_e00f36e03123f1","Contact Information ") ?? "Contact Information ")}<span style="font-weight:700; color:#9aa4af; letter-spacing:0; text-transform:none; font-size:10px; margin-left:2px">${(globalThis.PlatformLanguage?.htmlText("projects","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
           <div class="v-upgrade-field">
-            <label for="vmUpgradeResidentName">${(globalThis.PlatformLanguage?.text("projects","m_8cf345002184e5","Name") ?? "Name")}</label>
-            <input id="vmUpgradeResidentName" type="text" value="${String(escapeHtml(prefill.residentName))}" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_fd30fab0713a9b","Contact name") ?? "Contact name")}">
+            <label for="vmUpgradeResidentName">${(globalThis.PlatformLanguage?.htmlText("projects","m_8cf345002184e5","Name") ?? "Name")}</label>
+            <input id="vmUpgradeResidentName" type="text" value="${String(escapeHtml(prefill.residentName))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_fd30fab0713a9b","Contact name") ?? "Contact name")}">
           </div>
           <div class="v-upgrade-field">
-            <label for="vmUpgradeResidentEmail">${(globalThis.PlatformLanguage?.text("projects","m_5d2b9327181e33","Email") ?? "Email")}</label>
-            <input id="vmUpgradeResidentEmail" type="email" value="${String(escapeHtml(prefill.residentEmail))}" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}">
+            <label for="vmUpgradeResidentEmail">${(globalThis.PlatformLanguage?.htmlText("projects","m_5d2b9327181e33","Email") ?? "Email")}</label>
+            <input id="vmUpgradeResidentEmail" type="email" value="${String(escapeHtml(prefill.residentEmail))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}">
           </div>
           <div class="v-upgrade-field">
-            <label for="vmUpgradeResidentPhone">${(globalThis.PlatformLanguage?.text("projects","m_ed04c65845180f","Phone") ?? "Phone")}</label>
+            <label for="vmUpgradeResidentPhone">${(globalThis.PlatformLanguage?.htmlText("projects","m_ed04c65845180f","Phone") ?? "Phone")}</label>
             <input id="vmUpgradeResidentPhone" type="tel" value="${String(escapeHtml(prefill.residentPhone))}" placeholder="(555) 123-4567">
           </div>
         </div>
         <div class="v-upgrade-actions">
           <div id="vmUpgradePrice" class="v-upgrade-price"></div>
           <div class="v-upgrade-btns">
-            <button type="button" id="vmUpgradeCancel" class="v-upgrade-btn secondary">${(globalThis.PlatformLanguage?.text("projects","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="button" id="vmUpgradeCancel" class="v-upgrade-btn secondary">${(globalThis.PlatformLanguage?.htmlText("projects","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             <button type="submit" id="vmUpgradeSubmit" class="v-upgrade-btn primary"></button>
           </div>
         </div>
@@ -4262,7 +4262,7 @@
     const total = fmtMoney(quote.final_amount);
     if (price) {
       price.innerHTML = quote.active
-        ? `Total <strong>$${String(total)}</strong><div class="v-upgrade-discount"><s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("projects","m_c43c813f3a0345",`${v2}% referral discount`,{v2}) ?? `${v2}% referral discount`)(quote.discount_percent)}</div>`
+        ? `Total <strong>$${String(total)}</strong><div class="v-upgrade-discount"><s>$${String(fmtMoney(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.htmlText("projects","m_c43c813f3a0345",`${v2}% referral discount`,{v2}) ?? `${v2}% referral discount`)(quote.discount_percent)}</div>`
         : `Total <strong>$${total}</strong>`;
     }
     if (submit && !submit.disabled) {
@@ -4493,11 +4493,11 @@
   }
   function gutterThumbBadgeHtml(p){
     if (!projectIncludesGutters(p)) return '';
-    return `<div class="v-addon-badge" data-role="gutter-badge"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_63c27a0d67e876"," Gutters") ?? " Gutters")}</div>`;
+    return `<div class="v-addon-badge" data-role="gutter-badge"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_63c27a0d67e876"," Gutters") ?? " Gutters")}</div>`;
   }
   function gutterMetaTagHtml(p){
     if (!projectIncludesGutters(p)) return '';
-    return `<div class="v-meta-tags" data-role="gutter-meta"><span class="v-meta-tag v-meta-tag-addon"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span></div>`;
+    return `<div class="v-meta-tags" data-role="gutter-meta"><span class="v-meta-tag v-meta-tag-addon"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span></div>`;
   }
   function projectReportMode(p){
     const explicitMode = String(p?.report_mode || '').trim().toLowerCase();
@@ -4520,14 +4520,14 @@
   }
   function instantDeliveryBadgeHtml(p){
     const mode = projectReportMode(p);
-    if (mode === 'instant') return `<div class="v-delivery-badge instant-only" data-role="delivery-badge"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_c41fa7b045ba9f"," Instant") ?? " Instant")}</div>`;
-    if (mode === 'both') return `<div class="v-delivery-badge instant-both" data-role="delivery-badge"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("projects","m_0f4b6909892fa5"," Instant + Full") ?? " Instant + Full")}</div>`;
+    if (mode === 'instant') return `<div class="v-delivery-badge instant-only" data-role="delivery-badge"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_c41fa7b045ba9f"," Instant") ?? " Instant")}</div>`;
+    if (mode === 'both') return `<div class="v-delivery-badge instant-both" data-role="delivery-badge"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_0f4b6909892fa5"," Instant + Full") ?? " Instant + Full")}</div>`;
     return '';
   }
   function instantMetaTagHtml(p){
     const mode = projectReportMode(p);
-    if (mode === 'instant') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_c41fa7b045ba9f"," Instant") ?? " Instant")}</span>`;
-    if (mode === 'both') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("projects","m_0f4b6909892fa5"," Instant + Full") ?? " Instant + Full")}</span>`;
+    if (mode === 'instant') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_c41fa7b045ba9f"," Instant") ?? " Instant")}</span>`;
+    if (mode === 'both') return `<span class="v-meta-tag v-meta-tag-instant" data-role="instant-meta"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_0f4b6909892fa5"," Instant + Full") ?? " Instant + Full")}</span>`;
     return '';
   }
   function fullReportOriginalBasePrice(p){
@@ -4780,12 +4780,12 @@
     const movable = manualStageMovementEnabled() && canManageProjectStages() && !!card.dataset.planId;
     card.draggable = movable;
     card.innerHTML = `
-      <div class="v-stage-card-top"><div class="v-stage-name">${String(escapeHtml(name))}</div><span class="v-stage-drag-handle" title="${(globalThis.PlatformLanguage?.text("projects","m_6327be62073e85","Drag to another stage") ?? "Drag to another stage")}" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span></div>
+      <div class="v-stage-card-top"><div class="v-stage-name">${String(escapeHtml(name))}</div><span class="v-stage-drag-handle" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_6327be62073e85","Drag to another stage") ?? "Drag to another stage")}" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span></div>
       <div class="v-stage-addr">
         ${String(escapeHtml(displayAddressLine1(p)))}
         <span class="l2">${String(escapeHtml(displayAddressLine2(p) || '\u00a0'))}</span>
       </div>
-      <div class="v-stage-card-foot"><span>${String(p.manual_stage_override ? '<span class="v-stage-manual-badge"><i class="fas fa-hand"></i> Manual</span>' : escapeHtml(formatStageDate(p.created_at)))}</span><span>${(globalThis.PlatformLanguage?.text("projects","m_4e1cba76df8f1d","Open ") ?? "Open ")}<i class="fas fa-chevron-right"></i></span></div>
+      <div class="v-stage-card-foot"><span>${String(p.manual_stage_override ? `<span class="v-stage-manual-badge"><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_5ee37aecb582b4"," Manual") ?? " Manual")}</span>` : escapeHtml(formatStageDate(p.created_at)))}</span><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_4e1cba76df8f1d","Open ") ?? "Open ")}<i class="fas fa-chevron-right"></i></span></div>
     `;
     card.__stageSignature = card.innerHTML;
     card.__stageProject = p;
@@ -4821,8 +4821,8 @@
   function renderStagesShell(){
     return `
       <div class="v-stages-shell">
-        ${String(manualStageMovementEnabled() && canManageProjectStages() ? '<div class="v-stage-move-hint"><i class="fas fa-arrows-left-right"></i><strong>Manual movement is on</strong><span>Drag a project card to another stage.</span></div>' : '')}
-        <div class="v-mobile-stage-switcher" id="vMobileStageSwitcher" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_46cdcd4517ac63","Project stages") ?? "Project stages")}"></div>
+        ${String(manualStageMovementEnabled() && canManageProjectStages() ? `<div class="v-stage-move-hint"><i class="fas fa-arrows-left-right"></i><strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f86eb4b8f9ea2c","Manual movement is on") ?? "Manual movement is on")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_fe74e5ffd55b04","Drag a project card to another stage.") ?? "Drag a project card to another stage.")}</span></div>` : '')}
+        <div class="v-mobile-stage-switcher" id="vMobileStageSwitcher" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_46cdcd4517ac63","Project stages") ?? "Project stages")}"></div>
         <div class="v-stages-board" id="vStagesBoard"></div>
       </div>
     `;
@@ -4898,13 +4898,13 @@
   function workBoardOptionHtml(item, activeBoardId){
     const count = workBoardProjectCount(item);
     const active = String(item?.id || '') === String(activeBoardId || '');
-    return `<button type="button" class="v-board-option${String(active ? ' active' : '')}" role="option" aria-selected="${String(active ? 'true' : 'false')}" data-board-id="${String(escapeHtml(item.id))}" style="--option-color:${String(escapeHtml(item.color || '#4f7cac'))}"><span class="v-board-option-dot" aria-hidden="true"></span><span>${String(escapeHtml(item.title || item.id))}</span><span class="v-board-option-count" aria-label="${((v5) => globalThis.PlatformLanguage?.text("projects","m_611dbcbdcb7bf6",`${v5} projects`,{v5}) ?? `${v5} projects`)(count)}">${String(count)}</span>${String(active ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>')}</button>`;
+    return `<button type="button" class="v-board-option${String(active ? ' active' : '')}" role="option" aria-selected="${String(active ? 'true' : 'false')}" data-board-id="${String(escapeHtml(item.id))}" style="--option-color:${String(escapeHtml(item.color || '#4f7cac'))}"><span class="v-board-option-dot" aria-hidden="true"></span><span>${String(escapeHtml(item.title || item.id))}</span><span class="v-board-option-count" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("projects","m_611dbcbdcb7bf6",`${v5} projects`,{v5}) ?? `${v5} projects`)(count)}">${String(count)}</span>${String(active ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>')}</button>`;
   }
   function workBoardMenuHtml(boards, activeBoardId){
     const used = boards.filter((item) => workBoardProjectCount(item) > 0);
     const unused = boards.filter((item) => workBoardProjectCount(item) === 0);
     const usedOptions = used.map((item) => workBoardOptionHtml(item, activeBoardId)).join('');
-    const unusedSection = unused.length ? `<div class="v-board-unused"><button type="button" class="v-board-unused-toggle" id="vUnusedBoardsToggle" aria-expanded="false" aria-controls="vUnusedBoardsList"><span>${(globalThis.PlatformLanguage?.text("projects","m_164adef2abc1b5","Unused") ?? "Unused")}</span><span class="v-board-unused-total" aria-label="${((v0) => globalThis.PlatformLanguage?.text("projects","m_df6a6980467b68",`${v0} unused boards`,{v0}) ?? `${v0} unused boards`)(unused.length)}">${String(unused.length)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-board-unused-list" id="vUnusedBoardsList" role="listbox" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_a91ee30942f6fd","Unused work boards") ?? "Unused work boards")}" hidden>${String(unused.map((item) => workBoardOptionHtml(item, activeBoardId)).join(''))}</div></div>` : '';
+    const unusedSection = unused.length ? `<div class="v-board-unused"><button type="button" class="v-board-unused-toggle" id="vUnusedBoardsToggle" aria-expanded="false" aria-controls="vUnusedBoardsList"><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_164adef2abc1b5","Unused") ?? "Unused")}</span><span class="v-board-unused-total" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_df6a6980467b68",`${v0} unused boards`,{v0}) ?? `${v0} unused boards`)(unused.length)}">${String(unused.length)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-board-unused-list" id="vUnusedBoardsList" role="listbox" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_a91ee30942f6fd","Unused work boards") ?? "Unused work boards")}" hidden>${String(unused.map((item) => workBoardOptionHtml(item, activeBoardId)).join(''))}</div></div>` : '';
     return ("<div class=\"v-board-used-list\" role=\"listbox\" aria-label=\"" + (globalThis.PlatformLanguage?.text("projects","m_f9cb3d542eb9c6","Work boards with projects") ?? "Work boards with projects") + "\">" + String(usedOptions) + "</div>" + String(unusedSection));
   }
   function workBoardStorageKey(){
@@ -4979,7 +4979,7 @@
     items = (Array.isArray(items) ? items : []).slice().sort(newestProjectFirst);
     if (!items.length){
       list.onscroll = null;
-      list.innerHTML = `<div class="v-stage-empty"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("projects","m_7eeed0d1bbc9e2","No projects here") ?? "No projects here")}</div>`;
+      list.innerHTML = `<div class="v-stage-empty"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7eeed0d1bbc9e2","No projects here") ?? "No projects here")}</div>`;
       list.__stageMount = null;
       return;
     }
@@ -5112,7 +5112,7 @@
     const board = $('#vStagesBoard', panelEl);
     if (!board) return;
     if (!workBoardsLoaded) {
-      if (!board.children.length) board.innerHTML = `<div class="v-stage-empty"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("projects","m_69a7d7da023752","Loading boards") ?? "Loading boards")}</div>`;
+      if (!board.children.length) board.innerHTML = `<div class="v-stage-empty"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_69a7d7da023752","Loading boards") ?? "Loading boards")}</div>`;
       loadWorkBoards().catch(() => null);
       return;
     }
@@ -5127,7 +5127,7 @@
         summary.classList.add('visible');
         const summarySignature = JSON.stringify([activeWorkBoardId, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
         if (summary.__boardSignature !== summarySignature) {
-          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(selected?.title || 'Board'))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
+          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board")))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
           summary.__boardSignature = summarySignature;
           const trigger = $('#vWorkBoardTrigger', panelEl);
           const menu = $('#vWorkBoardMenu', panelEl);
@@ -5460,7 +5460,7 @@
     injectCSS('viewer_logout_fix', `.sidebar-footer{ display:flex; flex-direction:column; align-items:center; gap:6px; } .sidebar-footer .sb-logout-low{ display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:900; font-size:12px; color:#888; text-decoration:none; padding:6px 0 2px; cursor:pointer; user-select:none; } .sidebar-footer .sb-logout-low:hover{ color: var(--primary,#d93025); }`);
     const a = document.createElement('a');
     a.id = 'sidebarLogoutLow'; a.className = 'sb-logout-low'; a.href = 'logout.php';
-    a.innerHTML = `<i class="fas fa-right-from-bracket"></i><span>${(globalThis.PlatformLanguage?.text("projects","m_332a081300e1ca","Log out") ?? "Log out")}</span>`;
+    a.innerHTML = `<i class="fas fa-right-from-bracket"></i><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_332a081300e1ca","Log out") ?? "Log out")}</span>`;
     footer.insertBefore(a, footer.firstChild);
   }
   function displayAddressLine1(p){
@@ -5488,7 +5488,7 @@
     return s.dir === 'asc' ? `<i class="fas fa-sort-up"></i>` : `<i class="fas fa-sort-down"></i>`;
   }
   function renderListShell(){
-    return `<div class="v-list"><div class="v-lhead" id="vListHead"><div class="v-lcell sortable" data-k="status">${(globalThis.PlatformLanguage?.text("projects","m_5b1cdca9bcee11","Status ") ?? "Status ")}<span class="sicon">${String(sortIcon('status'))}</span></div><div class="v-lcell sortable" data-k="address">${(globalThis.PlatformLanguage?.text("projects","m_b1b343667e2302","Address ") ?? "Address ")}<span class="sicon">${String(sortIcon('address'))}</span></div><div class="v-lcell sortable" data-k="resident">${(globalThis.PlatformLanguage?.text("projects","m_af1b50e10cbaa6","Contact ") ?? "Contact ")}<span class="sicon">${String(sortIcon('resident'))}</span></div><div class="v-lcell sortable" data-k="created_at">${(globalThis.PlatformLanguage?.text("projects","m_4bb83270974e09","Submitted ") ?? "Submitted ")}<span class="sicon">${String(sortIcon('created_at'))}</span></div></div><div class="v-lscroll" id="vListScroll"></div></div>`;
+    return `<div class="v-list"><div class="v-lhead" id="vListHead"><div class="v-lcell sortable" data-k="status">${(globalThis.PlatformLanguage?.htmlText("projects","m_5b1cdca9bcee11","Status ") ?? "Status ")}<span class="sicon">${String(sortIcon('status'))}</span></div><div class="v-lcell sortable" data-k="address">${(globalThis.PlatformLanguage?.htmlText("projects","m_b1b343667e2302","Address ") ?? "Address ")}<span class="sicon">${String(sortIcon('address'))}</span></div><div class="v-lcell sortable" data-k="resident">${(globalThis.PlatformLanguage?.htmlText("projects","m_af1b50e10cbaa6","Contact ") ?? "Contact ")}<span class="sicon">${String(sortIcon('resident'))}</span></div><div class="v-lcell sortable" data-k="created_at">${(globalThis.PlatformLanguage?.htmlText("projects","m_4bb83270974e09","Submitted ") ?? "Submitted ")}<span class="sicon">${String(sortIcon('created_at'))}</span></div></div><div class="v-lscroll" id="vListScroll"></div></div>`;
   }
   function wireListHeaderSort(){
     const head = $('#vListHead', panelEl);
@@ -5516,7 +5516,7 @@
     const typeBadge = (tm !== PROJECT_TYPE_META.residential) ? `<div class="v-type-badge ${tm.cls}${deliveryBadge ? '' : ' no-delivery'}"><i class="fas ${tm.icon}"></i> ${escapeHtml(tm.short)}</div>` : '';
     const statusBadge = s ? `<div class="v-badge ${s.cls}">${statusBadgeContent(s)}</div>` : '';
     const contact = resolveResidentFields(p);
-    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || 'N/A'))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.text("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || 'N/A'))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
     const img = div.querySelector('.v-thumb img');
@@ -5574,8 +5574,8 @@
     const row = document.createElement('div'); row.className = 'v-lrow'; row.dataset.id = id;
     const s = statusBadgeClasses(p);
     const a1 = displayAddressLine1(p); const a2 = displayAddressLine2(p);
-    const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
-    const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
+    const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
+    const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const statusPill = s ? `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>` : '';
     row.innerHTML = `<div class="v-lcell">${statusPill}</div><div class="v-lcell" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div><div class="v-lcell" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.displayName || resident.name || '\u2014')}</div><div style="font-weight:850; font-size:11px; color:#777; margin-top:3px;">${escapeHtml((resident.displayDetail || '').toString())}</div></div><div class="v-lcell" data-col="created_at" style="color:#666; font-weight:1000;">${escapeHtml(formatDate(p.created_at))}</div>`;
     row.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
@@ -5629,13 +5629,13 @@
     }
     const drafts = draftDocs || [];
     if (!drafts.length){
-      results.innerHTML = `<div class="v-draft-empty"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_532a53ea6b6258","No drafts.") ?? "No drafts.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_a4ceefead53c2f","Documents created without a project land here until they're attached.") ?? "Documents created without a project land here until they're attached.")}</div></div>`;
+      results.innerHTML = `<div class="v-draft-empty"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_532a53ea6b6258","No drafts.") ?? "No drafts.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_a4ceefead53c2f","Documents created without a project land here until they're attached.") ?? "Documents created without a project land here until they're attached.")}</div></div>`;
       return;
     }
     const sorted = [...drafts].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     results.innerHTML = `<div class="v-draft-grid">${sorted.map((doc, index) => `
       <button type="button" class="v-draft-tile" data-draft-index="${String(index)}">
-        <span class="v-draft-kind"><i class="fas fa-pen-to-square"></i>${((v1) => globalThis.PlatformLanguage?.text("projects","m_afa3b70ae874eb",` ${v1} draft`,{v1}) ?? ` ${v1} draft`)(escapeHtml(draftTypeLabel(doc)))}</span>
+        <span class="v-draft-kind"><i class="fas fa-pen-to-square"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("projects","m_afa3b70ae874eb",` ${v1} draft`,{v1}) ?? ` ${v1} draft`)(escapeHtml(draftTypeLabel(doc)))}</span>
         <span class="v-draft-title">${String(escapeHtml(String(doc.title || draftTypeLabel(doc))))}</span>
         <span class="v-draft-meta">${String(escapeHtml(draftStatusLabel(doc)))}${String(doc.updated_at ? ` · ${escapeHtml(formatDate(doc.updated_at))}` : '')}</span>
       </button>`).join('')}</div>`;
@@ -5653,13 +5653,13 @@
     if (viewMode === 'drafts'){ renderDraftsView(); return; }
     if (!allProjects.length){
       if (hideDrafts && totalUnfilteredCount > 0) {
-        results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;
+        results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;
         return;
       }
-      results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_15231f2e986455","No projects yet.") ?? "No projects yet.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_14cd6d654d6fa8","Click \"New Project\" to get started.") ?? "Click \"New Project\" to get started.")}</div></div>`;
+      results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_15231f2e986455","No projects yet.") ?? "No projects yet.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_14cd6d654d6fa8","Click \"New Project\" to get started.") ?? "Click \"New Project\" to get started.")}</div></div>`;
       return;
     }
-    if (!filteredProjects.length){ results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.text("projects","m_6f8bc477c58867","No matches.") ?? "No matches.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.text("projects","m_d87926e9f2e245","Try clearing filters or searching a different term.") ?? "Try clearing filters or searching a different term.")}</div></div>`; return; }
+    if (!filteredProjects.length){ results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_6f8bc477c58867","No matches.") ?? "No matches.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d87926e9f2e245","Try clearing filters or searching a different term.") ?? "Try clearing filters or searching a different term.")}</div></div>`; return; }
     if (viewMode === 'stages'){ renderStagesView(); return; }
     if (viewMode === 'list'){ results.innerHTML = renderListShell(); const scroll = $('#vListScroll', panelEl); for (const p of filteredProjects) scroll.appendChild(createListRow(p)); wireListHeaderSort(); return; }
     results.innerHTML = `<div class="v-grid" id="vGrid"></div>`;
@@ -5763,8 +5763,8 @@
           const tags = [];
           const instantMeta = instantMetaTagHtml(project);
           if (instantMeta) tags.push(instantMeta);
-          if (projectIsExpedited(project)) tags.push(`<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>`);
-          if (projectIncludesGutters(project)) tags.push(`<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.text("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>`);
+          if (projectIsExpedited(project)) tags.push(`<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>`);
+          if (projectIncludesGutters(project)) tags.push(`<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>`);
           const existingTags = addr.querySelector('.v-meta-tags');
           if (existingTags) existingTags.outerHTML = tags.length ? `<div class="v-meta-tags">${tags.join('')}</div>` : '';
         }
@@ -5877,8 +5877,8 @@
   function xmlDownloadPanelHtml(){
     return `
       <div style="display:flex; flex-direction:column; gap:12px; padding-top:14px;">
-        <h4 style="margin:0; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-code" style="color:var(--primary-readable,var(--primary,#d93025));"></i>${(globalThis.PlatformLanguage?.text("projects","m_6ee3b17fb03572"," XML Model") ?? " XML Model")}</h4>
-        <a href="#" class="v-dlbtn" id="vmXmlPanelDownload"><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.text("projects","m_53b61658976f5f"," Download XML Model") ?? " Download XML Model")}</a>
+        <h4 style="margin:0; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-code" style="color:var(--primary-readable,var(--primary,#d93025));"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_6ee3b17fb03572"," XML Model") ?? " XML Model")}</h4>
+        <a href="#" class="v-dlbtn" id="vmXmlPanelDownload"><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_53b61658976f5f"," Download XML Model") ?? " Download XML Model")}</a>
       </div>`;
   }
   function pdfPreviewDisabledPanelHtml(url, label){
@@ -5887,9 +5887,9 @@
     return `
       <div class="v-pdf-debug-card">
         <i class="fas fa-file-pdf"></i>
-        <h4>${((v0) => globalThis.PlatformLanguage?.text("projects","m_73bc2143138bc4",`${v0} preview disabled`,{v0}) ?? `${v0} preview disabled`)(safeLabel)}</h4>
-        <p>${(globalThis.PlatformLanguage?.text("projects","m_2e4271049dbb8a","The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.") ?? "The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.")}</p>
-        ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener" class="v-dlbtn"><i class="fas fa-up-right-from-square"></i> Open PDF</a>` : '')}
+        <h4>${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_73bc2143138bc4",`${v0} preview disabled`,{v0}) ?? `${v0} preview disabled`)(safeLabel)}</h4>
+        <p>${(globalThis.PlatformLanguage?.htmlText("projects","m_2e4271049dbb8a","The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.") ?? "The embedded PDF viewer is disabled by the current debug flag so Chrome mobile tools can stay open.")}</p>
+        ${String(url ? `<a href="${safeUrl}" target="_blank" rel="noopener" class="v-dlbtn"><i class="fas fa-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_39f4f4e9015b56"," Open PDF") ?? " Open PDF")}</a>` : '')}
       </div>`;
   }
   function hidePdfPreviewDisabledPanel(pending){
@@ -6449,7 +6449,7 @@
         if (projectReportMode(p) === 'instant' && !linkedFullProject) {
           actionsHtml = `<button type="button" id="vmOrderFull" class="v-dlbtn">${sidebarOrderLabel()}</button>`;
         } else if (!hasFullReady && wantsFullTab) {
-          actionsHtml = `<div class="v-side-chip pending"><i class="fas fa-circle-notch"></i>${(globalThis.PlatformLanguage?.text("projects","m_058d2a2e01bd08"," Full report is still processing") ?? " Full report is still processing")}</div>`;
+          actionsHtml = `<div class="v-side-chip pending"><i class="fas fa-circle-notch"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_058d2a2e01bd08"," Full report is still processing") ?? " Full report is still processing")}</div>`;
         }
         actionsHtml += pendingCustomerReworkNoticeHtml(fullProject);
         renderSidebarActions({
@@ -6884,7 +6884,7 @@
       pending.classList.add('rejected');
       const instantMiss = String(p?.instant_rejection_reason || '').trim().toLowerCase() === 'no_structure_at_pin';
       const showOrderFullFromReject = instantMiss && projectReportMode(p) === 'instant';
-      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-circle-exclamation" style="color:#d93025;"></i>${(globalThis.PlatformLanguage?.text("projects","m_d017ee19e185ba"," Unable to generate report") ?? " Unable to generate report")}</h4><div style="font-size:12px; color:#7a1b18; line-height:1.35; padding:10px 12px; border:1px solid #f4b4ae; background:#fce8e6; border-radius:12px;">${String(buildCoverageRejectionDisclaimer(p))}</div>${String(rejectedReorderButtonHtml(p))}${String(showOrderFullFromReject ? `<div style="margin-top:14px;"><button type="button" id="vmRejectedOrderFull" class="v-dlbtn"><i class="fas fa-file-lines"></i> Order Full Report - $${fmtMoney(fullReportBasePrice(p))}</button></div>` : '')}`;
+      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-circle-exclamation" style="color:#d93025;"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_d017ee19e185ba"," Unable to generate report") ?? " Unable to generate report")}</h4><div style="font-size:12px; color:#7a1b18; line-height:1.35; padding:10px 12px; border:1px solid #f4b4ae; background:#fce8e6; border-radius:12px;">${String(buildCoverageRejectionDisclaimer(p))}</div>${String(rejectedReorderButtonHtml(p))}${String(showOrderFullFromReject ? `<div style="margin-top:14px;"><button type="button" id="vmRejectedOrderFull" class="v-dlbtn"><i class="fas fa-file-lines"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_d091a3a21d5851",` Order Full Report - $${v0}`,{v0}) ?? ` Order Full Report - $${v0}`)(fmtMoney(fullReportBasePrice(p)))}</button></div>` : '')}`;
       pending.style.display = 'block';
       document.getElementById('vmRejectedReorder')?.addEventListener('click', () => openRejectedReorder(p));
       if (showOrderFullFromReject) {
@@ -6893,7 +6893,7 @@
     } else if (isCancelled) {
       currentModalGroup = 'cancelled'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_2fdae33d099b84","CANCELLED") ?? "CANCELLED"); statusEl.style.color = '#5f6368';
       pending.classList.add('cancelled');
-      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-ban" style="color:#5f6368;"></i>${(globalThis.PlatformLanguage?.text("projects","m_3b89c261062af6"," Project cancelled") ?? " Project cancelled")}</h4><div style="font-size:12px; color:#3c4043; line-height:1.35; padding:10px 12px; border:1px solid #dadce0; background:#f1f3f4; border-radius:12px;">${String(buildCancellationDisclaimer(p))}</div>`;
+      pending.innerHTML = `<h4 style="margin:14px 0 14px; display:flex; align-items:center; gap:10px; padding-right:30px;"><i class="fas fa-ban" style="color:#5f6368;"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_3b89c261062af6"," Project cancelled") ?? " Project cancelled")}</h4><div style="font-size:12px; color:#3c4043; line-height:1.35; padding:10px 12px; border:1px solid #dadce0; background:#f1f3f4; border-radius:12px;">${String(buildCancellationDisclaimer(p))}</div>`;
       pending.style.display = 'block';
     } else if (standaloneFullReady) {
       currentModalGroup = 'ready';
@@ -6906,7 +6906,7 @@
     } else {
       currentModalGroup = 'processing'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_1bcd4e4b834c5f","PROCESSING") ?? "PROCESSING"); statusEl.style.color = '#fbbc04';
       pending.classList.add('processing');
-      pending.innerHTML = `<h4 style="margin:14px 0 14px;"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("projects","m_d2aae37cb0f341"," Report Processing") ?? " Report Processing")}</h4><p style="margin:0; font-size:12px; color:#555;">${(globalThis.PlatformLanguage?.text("projects","m_85313f431379c3","We are currently generating the report for this location.") ?? "We are currently generating the report for this location.")}</p>`;
+      pending.innerHTML = `<h4 style="margin:14px 0 14px;"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_d2aae37cb0f341"," Report Processing") ?? " Report Processing")}</h4><p style="margin:0; font-size:12px; color:#555;">${(globalThis.PlatformLanguage?.htmlText("projects","m_85313f431379c3","We are currently generating the report for this location.") ?? "We are currently generating the report for this location.")}</p>`;
       pending.style.display = 'block';
     }
     $('#vOverlay', panelEl).classList.add('active');
@@ -6974,14 +6974,14 @@
       <div id="vmInstantPane" class="v-instant-pane active">
         <div class="v-instant-scene">
           <div class="v-instant-controls">
-            <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">${(globalThis.PlatformLanguage?.text("projects","m_c19fecd059fb49","Auto Spin") ?? "Auto Spin")}</button>
-            <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i>${(globalThis.PlatformLanguage?.text("projects","m_f915937425dda7"," Reset") ?? " Reset")}</button>
-            <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_1ef0acc5ffb80c","Zoom instant model") ?? "Zoom instant model")}"></div>
-            ${String(INSTANT_PITCH_UI_ENABLED ? '<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i> Pitches On</button>' : '')}
+            <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">${(globalThis.PlatformLanguage?.htmlText("projects","m_c19fecd059fb49","Auto Spin") ?? "Auto Spin")}</button>
+            <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_f915937425dda7"," Reset") ?? " Reset")}</button>
+            <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_1ef0acc5ffb80c","Zoom instant model") ?? "Zoom instant model")}"></div>
+            ${String(INSTANT_PITCH_UI_ENABLED ? `<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7c4f8058d549a7"," Pitches On") ?? " Pitches On")}</button>` : '')}
           </div>
           <canvas id="vmInstantCanvas" class="v-instant-canvas"></canvas>
           <div id="vmInstantLabels" class="v-instant-labels"></div>
-          <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")}</div></div>
+          <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")}</div></div>
         </div>
         <div id="vmInstantStats" class="v-instant-stats"></div>
       </div>
@@ -7019,7 +7019,7 @@
     const results = $('#vResults', panelEl); if (!results) return;
     const requestSeq = ++fetchProjectsSeq;
     try{
-      if (redraw && !_optimisticProjects.length && !allProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.text("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>`; }
+      if (redraw && !_optimisticProjects.length && !allProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>`; }
       const previousVisibleIds = sortedProjectIds(allProjects);
       const stagesMode = viewMode === 'stages';
       const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter: statusFilter || 'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
@@ -7074,7 +7074,7 @@
       }
       applyQueryFilterSort(); renderPagination();
       hydrateProjectsForDisplay(allProjects);
-    }catch(e){ if (redraw && !allProjects.length){ results.innerHTML = `<div style="text-align:center; color:var(--primary-readable, var(--primary,#d93025)); font-weight:1000; padding:40px 0;">${(globalThis.PlatformLanguage?.text("projects","m_63d938b49a4ff4","Error loading projects.") ?? "Error loading projects.")}</div>`; } }
+    }catch(e){ if (redraw && !allProjects.length){ results.innerHTML = `<div style="text-align:center; color:var(--primary-readable, var(--primary,#d93025)); font-weight:1000; padding:40px 0;">${(globalThis.PlatformLanguage?.htmlText("projects","m_63d938b49a4ff4","Error loading projects.") ?? "Error loading projects.")}</div>`; } }
   }
 
   function mount(panel){
@@ -7088,29 +7088,29 @@
     panelEl.innerHTML = `
       <div class="v-wrap">
         <div class="v-head">
-          <div class="v-title"><h1>${(globalThis.PlatformLanguage?.text("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1><p class="sub">${(globalThis.PlatformLanguage?.text("projects","m_b898e7a01f3962","Filter and open reports.") ?? "Filter and open reports.")}</p></div>
+          <div class="v-title"><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1><p class="sub">${(globalThis.PlatformLanguage?.htmlText("projects","m_b898e7a01f3962","Filter and open reports.") ?? "Filter and open reports.")}</p></div>
           <div class="v-actions">
-            <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
-            <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
-            <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
+            <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
+            <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
+            <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
             <!-- fa-file-pen needs FA 6.1+; the portal ships FA 6.0. -->
-            <button class="v-btn v-pill" id="vViewDrafts" hidden><i class="fas fa-pen-to-square"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_15edff78f24414"," Drafts") ?? " Drafts")}</span></button>
-            <button class="v-btn" id="vRefresh"><i class="fas fa-sync-alt"></i><span class="btn-label">${(globalThis.PlatformLanguage?.text("projects","m_4f524800833039"," Refresh") ?? " Refresh")}</span></button>
+            <button class="v-btn v-pill" id="vViewDrafts" hidden><i class="fas fa-pen-to-square"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_15edff78f24414"," Drafts") ?? " Drafts")}</span></button>
+            <button class="v-btn" id="vRefresh"><i class="fas fa-sync-alt"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_4f524800833039"," Refresh") ?? " Refresh")}</span></button>
           </div>
         </div>
-        ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? '<input id="vReportSearch" class="v-report-search" type="search" placeholder="Search address, contact…" aria-label="Search projects" autocomplete="off">' : '')}
+        ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? `<input id="vReportSearch" class="v-report-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_97f68e5486c2f8","Search address, contact…") ?? "Search address, contact…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_af80d9cead6991","Search projects") ?? "Search projects")}" autocomplete="off">` : '')}
         <div class="v-bar">
           <div class="v-leftbar">
-            <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
+            <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
             <div class="v-count" id="vCount">—</div>
           </div>
           <div class="v-rightbar">
-            <div class="v-chip" title="${(globalThis.PlatformLanguage?.text("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><i class="fas fa-filter"></i><select id="vStatus" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><option value="all">${(globalThis.PlatformLanguage?.text("projects","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option><option value="ready">${(globalThis.PlatformLanguage?.text("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</option><option value="processing">${(globalThis.PlatformLanguage?.text("projects","m_7244c568a68bff","Processing") ?? "Processing")}</option><option value="rejected">${(globalThis.PlatformLanguage?.text("projects","m_61023422d0cb5d","Rejected") ?? "Rejected")}</option><option value="cancelled">${(globalThis.PlatformLanguage?.text("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled")}</option></select></div>
-            <div class="v-chip" title="${(globalThis.PlatformLanguage?.text("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><i class="fas fa-arrow-up-wide-short"></i><select id="vSort" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><option value="created_at:desc">${(globalThis.PlatformLanguage?.text("projects","m_20923367c9f84a","Newest first") ?? "Newest first")}</option><option value="created_at:asc">${(globalThis.PlatformLanguage?.text("projects","m_ff649e336c32a9","Oldest first") ?? "Oldest first")}</option><option value="address:asc">${(globalThis.PlatformLanguage?.text("projects","m_7852c02c2473f7","Address A → Z") ?? "Address A → Z")}</option><option value="address:desc">${(globalThis.PlatformLanguage?.text("projects","m_b6517b4f34d553","Address Z → A") ?? "Address Z → A")}</option><option value="resident:asc">${(globalThis.PlatformLanguage?.text("projects","m_7c3998611785d4","Contact A → Z") ?? "Contact A → Z")}</option><option value="resident:desc">${(globalThis.PlatformLanguage?.text("projects","m_1d104147be5bf0","Contact Z → A") ?? "Contact Z → A")}</option><option value="status:asc">${(globalThis.PlatformLanguage?.text("projects","m_6e5ff692711330","Status A → Z") ?? "Status A → Z")}</option><option value="status:desc">${(globalThis.PlatformLanguage?.text("projects","m_6475ed7365aa22","Status Z → A") ?? "Status Z → A")}</option></select></div>
-            <div class="v-tip" id="vTip">${(globalThis.PlatformLanguage?.text("projects","m_6dc2ac8df2a515","Tip: Click a column header to sort.") ?? "Tip: Click a column header to sort.")}</div>
+            <div class="v-chip" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><i class="fas fa-filter"></i><select id="vStatus" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><option value="all">${(globalThis.PlatformLanguage?.htmlText("projects","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option><option value="ready">${(globalThis.PlatformLanguage?.htmlText("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</option><option value="processing">${(globalThis.PlatformLanguage?.htmlText("projects","m_7244c568a68bff","Processing") ?? "Processing")}</option><option value="rejected">${(globalThis.PlatformLanguage?.htmlText("projects","m_61023422d0cb5d","Rejected") ?? "Rejected")}</option><option value="cancelled">${(globalThis.PlatformLanguage?.htmlText("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled")}</option></select></div>
+            <div class="v-chip" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><i class="fas fa-arrow-up-wide-short"></i><select id="vSort" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><option value="created_at:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_20923367c9f84a","Newest first") ?? "Newest first")}</option><option value="created_at:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_ff649e336c32a9","Oldest first") ?? "Oldest first")}</option><option value="address:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_7852c02c2473f7","Address A → Z") ?? "Address A → Z")}</option><option value="address:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_b6517b4f34d553","Address Z → A") ?? "Address Z → A")}</option><option value="resident:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_7c3998611785d4","Contact A → Z") ?? "Contact A → Z")}</option><option value="resident:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_1d104147be5bf0","Contact Z → A") ?? "Contact Z → A")}</option><option value="status:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_6e5ff692711330","Status A → Z") ?? "Status A → Z")}</option><option value="status:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_6475ed7365aa22","Status Z → A") ?? "Status Z → A")}</option></select></div>
+            <div class="v-tip" id="vTip">${(globalThis.PlatformLanguage?.htmlText("projects","m_6dc2ac8df2a515","Tip: Click a column header to sort.") ?? "Tip: Click a column header to sort.")}</div>
           </div>
         </div>
-        <div id="vResults"><div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.text("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div></div>
+        <div id="vResults"><div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div></div>
         <div id="vPagination" class="v-pagination"></div>
       </div>
       <div class="v-overlay" id="vOverlay">
@@ -7118,24 +7118,24 @@
           <div class="v-m-side">
             <div class="v-m-head"><div class="v-m-title" id="vmAddress">—</div><div class="v-m-status" id="vmStatus">—</div></div>
             <div class="v-m-body">
-              <div class="v-item"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_3d68d8d4229251","Requested By") ?? "Requested By")}</div><div class="v-v" id="vmIssuer">—</div><div class="v-v" id="vmIssuerEmail" style="font-size:12px; color:#666;"></div></div>
-              <div class="v-item"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_e2b803de55a93e","Submitted") ?? "Submitted")}</div><div class="v-v" id="vmDate">—</div></div>
-              <div class="v-item" id="vmTypeItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_29f3cc51016963","Project Type") ?? "Project Type")}</div><div class="v-v" id="vmType">—</div></div>
-              <div class="v-item" id="vmScopeItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_b16c8007140424","Report Scope") ?? "Report Scope")}</div><div class="v-v" id="vmScope">—</div></div>
-              <div class="v-item" id="vmCcItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_77a7e4ecd53cce","CC Recipients") ?? "CC Recipients")}</div><div class="v-v" id="vmCcEmails">—</div></div>
-              <div class="v-item" id="vmTechNotesItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.text("projects","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</div><div class="v-v" id="vmTechNotes" style="white-space:pre-wrap; font-size:12px; line-height:1.45; color:#333; background:#f8f9fa; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,0.06);">—</div></div>
-              <div class="v-item"><label class="v-k" for="vmCustomerName">${(globalThis.PlatformLanguage?.text("projects","m_d7bdddf7cb1464","Contact Name") ?? "Contact Name")}</label><input id="vmCustomerName" class="v-customerInput" type="text" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_f022fa62257ce9","Jane Smith") ?? "Jane Smith")}"></div>
-              <div class="v-item"><label class="v-k" for="vmCustomerEmail">${(globalThis.PlatformLanguage?.text("projects","m_3bafbfce9a3a60","Contact Email") ?? "Contact Email")}</label><input id="vmCustomerEmail" class="v-customerInput" type="email" placeholder="${(globalThis.PlatformLanguage?.text("projects","m_564fe2da7605fa","jane@example.com") ?? "jane@example.com")}"></div>
-              <div class="v-item"><label class="v-k" for="vmCustomerPhone">${(globalThis.PlatformLanguage?.text("projects","m_5a562a8569b7f1","Contact Phone") ?? "Contact Phone")}</label><input id="vmCustomerPhone" class="v-customerInput" type="text" placeholder="(555) 555-5555"></div>
-              <div class="v-item v-customerRow"><button type="button" id="vmCustomerSave" class="v-customerSave">${(globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save")}</button></div>
+              <div class="v-item"><div class="v-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_3d68d8d4229251","Requested By") ?? "Requested By")}</div><div class="v-v" id="vmIssuer">—</div><div class="v-v" id="vmIssuerEmail" style="font-size:12px; color:#666;"></div></div>
+              <div class="v-item"><div class="v-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_e2b803de55a93e","Submitted") ?? "Submitted")}</div><div class="v-v" id="vmDate">—</div></div>
+              <div class="v-item" id="vmTypeItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_29f3cc51016963","Project Type") ?? "Project Type")}</div><div class="v-v" id="vmType">—</div></div>
+              <div class="v-item" id="vmScopeItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_b16c8007140424","Report Scope") ?? "Report Scope")}</div><div class="v-v" id="vmScope">—</div></div>
+              <div class="v-item" id="vmCcItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_77a7e4ecd53cce","CC Recipients") ?? "CC Recipients")}</div><div class="v-v" id="vmCcEmails">—</div></div>
+              <div class="v-item" id="vmTechNotesItem" style="display:none;"><div class="v-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</div><div class="v-v" id="vmTechNotes" style="white-space:pre-wrap; font-size:12px; line-height:1.45; color:#333; background:#f8f9fa; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,0.06);">—</div></div>
+              <div class="v-item"><label class="v-k" for="vmCustomerName">${(globalThis.PlatformLanguage?.htmlText("projects","m_d7bdddf7cb1464","Contact Name") ?? "Contact Name")}</label><input id="vmCustomerName" class="v-customerInput" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_f022fa62257ce9","Jane Smith") ?? "Jane Smith")}"></div>
+              <div class="v-item"><label class="v-k" for="vmCustomerEmail">${(globalThis.PlatformLanguage?.htmlText("projects","m_3bafbfce9a3a60","Contact Email") ?? "Contact Email")}</label><input id="vmCustomerEmail" class="v-customerInput" type="email" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_564fe2da7605fa","jane@example.com") ?? "jane@example.com")}"></div>
+              <div class="v-item"><label class="v-k" for="vmCustomerPhone">${(globalThis.PlatformLanguage?.htmlText("projects","m_5a562a8569b7f1","Contact Phone") ?? "Contact Phone")}</label><input id="vmCustomerPhone" class="v-customerInput" type="text" placeholder="(555) 555-5555"></div>
+              <div class="v-item v-customerRow"><button type="button" id="vmCustomerSave" class="v-customerSave">${(globalThis.PlatformLanguage?.htmlText("projects","m_5bab3e72de1ebf","Save") ?? "Save")}</button></div>
             </div>
             <div class="v-m-foot">
               <div id="vmSideActions" class="v-side-actions"></div>
               <div id="vmSidePop" class="v-side-pop"></div>
               <div class="v-dlwrap">
-                <a href="#" target="_blank" class="v-dlbtn" id="vmDlReport" style="display:none;"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.text("projects","m_58307d78206477"," Download Report (PDF)") ?? " Download Report (PDF)")}</a>
-                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlSummary" style="display:none;"><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.text("projects","m_9008bd9c1cda46"," Download Customer PDF") ?? " Download Customer PDF")}</a>
-                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlXml" style="display:none;"><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.text("projects","m_53b61658976f5f"," Download XML Model") ?? " Download XML Model")}</a>
+                <a href="#" target="_blank" class="v-dlbtn" id="vmDlReport" style="display:none;"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_58307d78206477"," Download Report (PDF)") ?? " Download Report (PDF)")}</a>
+                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlSummary" style="display:none;"><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_9008bd9c1cda46"," Download Customer PDF") ?? " Download Customer PDF")}</a>
+                <a href="#" target="_blank" class="v-dlbtn secondary" id="vmDlXml" style="display:none;"><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_53b61658976f5f"," Download XML Model") ?? " Download XML Model")}</a>
               </div>
             </div>
           </div>
@@ -7149,14 +7149,14 @@
               <div id="vmInstantPane" class="v-instant-pane">
                 <div class="v-instant-scene">
                   <div class="v-instant-controls">
-                    <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">${(globalThis.PlatformLanguage?.text("projects","m_c19fecd059fb49","Auto Spin") ?? "Auto Spin")}</button>
-                    <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i>${(globalThis.PlatformLanguage?.text("projects","m_f915937425dda7"," Reset") ?? " Reset")}</button>
-                    <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_1ef0acc5ffb80c","Zoom instant model") ?? "Zoom instant model")}"></div>
-                    ${String(INSTANT_PITCH_UI_ENABLED ? '<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i> Pitches On</button>' : '')}
+                    <button type="button" id="vmInstantAuto" class="v-instant-ctrl active">${(globalThis.PlatformLanguage?.htmlText("projects","m_c19fecd059fb49","Auto Spin") ?? "Auto Spin")}</button>
+                    <button type="button" id="vmInstantReset" class="v-instant-ctrl"><i class="fas fa-compass"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_f915937425dda7"," Reset") ?? " Reset")}</button>
+                    <div class="v-instant-zoom"><i class="fas fa-magnifying-glass"></i><input id="vmInstantZoom" type="range" min="0" max="100" step="1" value="50" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_1ef0acc5ffb80c","Zoom instant model") ?? "Zoom instant model")}"></div>
+                    ${String(INSTANT_PITCH_UI_ENABLED ? `<button type="button" id="vmInstantPitches" class="v-instant-ctrl active"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7c4f8058d549a7"," Pitches On") ?? " Pitches On")}</button>` : '')}
                   </div>
                   <canvas id="vmInstantCanvas" class="v-instant-canvas"></canvas>
                   <div id="vmInstantLabels" class="v-instant-labels"></div>
-                  <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.text("projects","m_2aeb07b38d6894","Generating") ?? "Generating")}</div></div>
+                  <div id="vmInstantLoading" class="v-instant-loading"><div class="v-instant-loadingIcon"><i class="fas fa-circle-notch fa-spin"></i></div><div class="v-instant-loadingTitle">${(globalThis.PlatformLanguage?.htmlText("projects","m_2aeb07b38d6894","Generating") ?? "Generating")}</div></div>
                 </div>
                 <div id="vmInstantStats" class="v-instant-stats"></div>
               </div>
@@ -7168,7 +7168,7 @@
               <div id="vmFooterPop" class="v-footer-pop"></div>
             </div>
             <div id="vmUpgradeOverlay" class="v-upgrade-overlay">
-              <div id="vmUpgradeDialog" class="v-upgrade-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("projects","m_7247f8e5fa0e91","Order standard report") ?? "Order standard report")}"></div>
+              <div id="vmUpgradeDialog" class="v-upgrade-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_7247f8e5fa0e91","Order standard report") ?? "Order standard report")}"></div>
             </div>
           </div>
         </div>

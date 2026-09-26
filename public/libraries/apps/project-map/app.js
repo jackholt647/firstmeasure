@@ -192,8 +192,8 @@
       toggle.disabled = forceExpanded;
       toggle.setAttribute('aria-label', expanded ? 'Shrink map' : 'Expand map');
       toggle.innerHTML = expanded
-        ? `<i class="fas fa-compress"></i><span>${(globalThis.PlatformLanguage?.text("project-map","m_85092cc71d4661","Shrink") ?? "Shrink")}</span>`
-        : `<i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.text("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span>`;
+        ? `<i class="fas fa-compress"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-map","m_85092cc71d4661","Shrink") ?? "Shrink")}</span>`
+        : `<i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span>`;
     }
     scheduleMapResize();
   }
@@ -377,25 +377,25 @@
           <section class="r-overview-map-section">
             <div class="r-overview-map-head">
               <div class="r-overview-map-copy">
-                <span class="r-overview-kicker">${(globalThis.PlatformLanguage?.text("project-map","m_f27fa22720bb9a","Property") ?? "Property")}</span>
-                <strong class="r-overview-title">${(globalThis.PlatformLanguage?.text("project-map","m_9afd0eccc8e530","Map") ?? "Map")}</strong>
+                <span class="r-overview-kicker">${(globalThis.PlatformLanguage?.htmlText("project-map","m_f27fa22720bb9a","Property") ?? "Property")}</span>
+                <strong class="r-overview-title">${(globalThis.PlatformLanguage?.htmlText("project-map","m_9afd0eccc8e530","Map") ?? "Map")}</strong>
                 <div class="r-overview-sub" data-overview-address></div>
               </div>
               <div class="r-overview-map-actions">
-                <button type="button" class="r-overview-map-toggle" data-overview-map-toggle aria-label="${(globalThis.PlatformLanguage?.text("project-map","m_0d13856d411172","Expand map") ?? "Expand map")}"><i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.text("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span></button>
+                <button type="button" class="r-overview-map-toggle" data-overview-map-toggle aria-label="${(globalThis.PlatformLanguage?.htmlText("project-map","m_0d13856d411172","Expand map") ?? "Expand map")}"><i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span></button>
               </div>
             </div>
             <div class="r-overview-map-frame">
-              <div class="r-map-hint${String(shouldShowPinPlacementHint() ? ' visible' : '')}" id="rMapHint" data-kind="pin-placement"><i class="fas fa-crosshairs"></i>${(globalThis.PlatformLanguage?.text("project-map","m_35718aec7d181d"," Click the map to place a pin. Click a pin to remove it.") ?? " Click the map to place a pin. Click a pin to remove it.")}</div>
+              <div class="r-map-hint${String(shouldShowPinPlacementHint() ? ' visible' : '')}" id="rMapHint" data-kind="pin-placement"><i class="fas fa-crosshairs"></i>${(globalThis.PlatformLanguage?.htmlText("project-map","m_35718aec7d181d"," Click the map to place a pin. Click a pin to remove it.") ?? " Click the map to place a pin. Click a pin to remove it.")}</div>
               <div id="rMap"></div>
             </div>
           </section>
           <section class="r-overview-panel">
             <div class="r-overview-panel-head">
               <div>
-                <span class="r-overview-kicker">${(globalThis.PlatformLanguage?.text("project-map","m_aaebd7ccba0b30","Project") ?? "Project")}</span>
-                <strong class="r-overview-title">${(globalThis.PlatformLanguage?.text("project-map","m_b69161f38dacdf","Overview") ?? "Overview")}</strong>
-                <div class="r-overview-sub">${(globalThis.PlatformLanguage?.text("project-map","m_d093f4e330398e","Current work, orders, documents, reports, and scheduling.") ?? "Current work, orders, documents, reports, and scheduling.")}</div>
+                <span class="r-overview-kicker">${(globalThis.PlatformLanguage?.htmlText("project-map","m_aaebd7ccba0b30","Project") ?? "Project")}</span>
+                <strong class="r-overview-title">${(globalThis.PlatformLanguage?.htmlText("project-map","m_b69161f38dacdf","Overview") ?? "Overview")}</strong>
+                <div class="r-overview-sub">${(globalThis.PlatformLanguage?.htmlText("project-map","m_d093f4e330398e","Current work, orders, documents, reports, and scheduling.") ?? "Current work, orders, documents, reports, and scheduling.")}</div>
               </div>
             </div>
             <div class="r-overview-grid" data-overview-summary></div>
