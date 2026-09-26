@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import type { SQLInputValue } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { existsSync } from 'node:fs';
+import { isFirstMeasurePostgresEnabled, queryPostgres } from '../src/database/postgres.js';
 import { openSqlStore, ensureSqlColumn, type SqlStore } from "../platform/sql_store.js";
 
 import {
@@ -338,6 +340,26 @@ function configurationView(rowValue: unknown) {
 export async function readWorkforceConfiguration(orgId: string) {
   (await ensureWorkforceDefaults(orgId));
   return configurationView((await getWorkforceDatabase().prepare("SELECT * FROM workforce_configuration WHERE organization_id = ?").get(cleanId(orgId, "organization_id"))));
+}
+
+/** Display-only compatibility read. Unlike configuration setup, never seeds a row. */
+export async function readWorkforceTerminology(orgId:string) {
+  const organizationId=cleanId(orgId,'organization_id');
+  if(isFirstMeasurePostgresEnabled()){
+    try{
+      const result=await queryPostgres('SELECT terminology_json FROM workforce_configuration WHERE organization_id = $1',[organizationId]);
+      return asObject(parseJson(asObject(result.rows[0]).terminology_json));
+    }catch(error:any){if(error.code==='42P01')return {};throw error;}
+  }
+  const filename=resolvedDatabasePath();
+  if(!existsSync(filename))return {};
+  // Do not initialize a store or leave another application's database open.
+  const reader=new DatabaseSync(filename,{readOnly:true});
+  try{
+    if(!reader.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='workforce_configuration'").get())return {};
+    const row=reader.prepare('SELECT terminology_json FROM workforce_configuration WHERE organization_id = ?').get(organizationId);
+    return asObject(parseJson(asObject(row).terminology_json));
+  }finally{reader.close();}
 }
 
 export async function assertResourceGroupKindExists(orgIdValue: string, kindIdValue: unknown) {

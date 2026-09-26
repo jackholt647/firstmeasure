@@ -5,6 +5,12 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { build } from 'esbuild';
+// Atomic replacement also works when Windows previewers hold a mapped file open.
+function writeFile(file,contents){
+  if(fs.existsSync(file)&&fs.readFileSync(file,'utf8')===contents)return;
+  const temporary=file+'.localization-'+process.pid+'.tmp';
+  fs.writeFileSync(temporary,contents);fs.renameSync(temporary,file);
+}
 const root = path.resolve(import.meta.dirname, '../../..');
 const out = path.join(root, 'public/libraries/platform-language/catalogs');
 const sourcePath = path.join(root, 'public/v1/platform/localization/catalog-source.json');
@@ -28,8 +34,8 @@ const words = {color:'colour',colors:'colours',colored:'coloured',coloring:'colo
 // Build-time English variant generation; runtime only resolves reviewed, literal catalog entries.
 function british(text) { return text.replace(/\b[a-z]+\b/gi, word => { const value = words[word.toLowerCase()]; return !value ? word : word === word.toUpperCase() ? value.toUpperCase() : /^[A-Z]/.test(word) ? value[0].toUpperCase()+value.slice(1) : value; }); }
 function files(dir) { return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()&&!['vendor','node_modules','dist'].includes(e.name)?files(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.js')?[path.join(dir,e.name)]:[]); }
-const targets = [...files(path.join(root,'public/libraries')), ...files(path.join(root,'public/portal/scripts'))]
-  .filter(file=>!/(?:platform-language|platform-terminology|doc-language|site-runtime)[/\\]|(?:\.min|\.bundle)\.js$/.test(file));
+const targets = [...files(path.join(root,'public/libraries')), ...files(path.join(root,'public/portal/scripts')), ...files(path.join(root,'public/customer_portal'))]
+  .filter(file=>!file.endsWith('platform-terminology.js')&&!/(?:platform-language|doc-language|site-runtime)[/\\]|(?:\.min|\.bundle)\.js$/.test(file));
 const uiKeys = new Set(['label','title','description','placeholder','subtitle','emptyText','buttonText','helpText','tooltip','ariaLabel','message','heading','caption','confirmText','emptyMessage']);
 const stats=[];
 function register(namespace, message, format) {
@@ -41,16 +47,16 @@ function eligible(text) { return !/(?:color|display|font-size|padding|background
 function escapeIcu(text) { return text.replace(/'/g,"''").replace(/[{}]/g,c=>"'"+c+"'"); }
 for(const file of targets) {
   const relative=path.relative(root,file).replaceAll('\\','/');
-  const namespace=relative.includes('/apps/')?relative.split('/apps/')[1].split('/')[0].replace(/\.js$/,''):relative.includes('/portal/')?'platform':relative.split('/libraries/')[1].split('/')[0];
+  const namespace=relative.includes('/customer_portal/')?'customer-portal':relative.includes('/apps/')?relative.split('/apps/')[1].split('/')[0].replace(/\.js$/,''):relative.includes('/portal/')?'platform':relative.split('/libraries/')[1].split('/')[0];
   const code=fs.readFileSync(file,'utf8'), tree=ts.createSourceFile(file,code,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS),edits=[];
   let messages=0;
-  function expression(text, expressions=[]) {
+  function expression(text, expressions=[], htmlContext=false) {
     if(!eligible(text.replace(/__FM_SLOT_\d+__/g,'')))return null;
     const used=[...text.matchAll(/__FM_SLOT_(\d+)__/g)].map(m=>Number(m[1]));
     // Arbitrary HTML-producing expressions stay outside localized messages.
     if(used.some(i=>/\.map\(|\.join\(|\b(?:html|markup|render\w*)\b|<\w/i.test(expressions[i]||'')))return null;
     messages++;
-    if(!used.length){const key=register(namespace,text);return `(globalThis.PlatformLanguage?.text(${JSON.stringify(namespace)},${JSON.stringify(key)},${JSON.stringify(text)}) ?? ${JSON.stringify(text)})`;}
+    if(!used.length){const key=register(namespace,text);return `(globalThis.PlatformLanguage?.${htmlContext ? 'htmlText' : 'text'}(${JSON.stringify(namespace)},${JSON.stringify(key)},${JSON.stringify(text)}) ?? ${JSON.stringify(text)})`;}
     const unique=[...new Set(used)],message=escapeIcu(text).replace(/__FM_SLOT_(\d+)__/g,(_,n)=>'{v'+n+'}'),key=register(namespace,message,'icu');
     const literal='`'+text.replace(/[`\\]/g,c=>'\\'+c).replace(/\$\{/g,'\\${').replace(/__FM_SLOT_(\d+)__/g,(_,n)=>'${v'+n+'}')+'`';
     return `((${unique.map(i=>'v'+i).join(',')}) => globalThis.PlatformLanguage?.text(${JSON.stringify(namespace)},${JSON.stringify(key)},${literal},{${unique.map(i=>'v'+i).join(',')}}) ?? ${literal})(${unique.map(i=>expressions[i]).join(',')})`;
@@ -69,7 +75,7 @@ for(const file of targets) {
       const attr=pattern.source.startsWith('\\b'),start=match.index+(attr?match[0].indexOf('=')+2:1),end=match.index+match[0].length-(attr?1:0);
       if(blocked.some(([a,b])=>start>=a&&start<b))continue;
       const value=text.slice(start,end);if(!value.trim()||(!attr&&/[{}]/.test(value)))continue;
-      const result=expression(value,expressions);if(result)ranges.push({start,end,result});
+      const result=expression(value,expressions,true);if(result)ranges.push({start,end,result});
     }
     if(!ranges.length)return null;
     ranges.sort((a,b)=>a.start-b.start);let cursor=0;const parts=[];
@@ -89,8 +95,19 @@ for(const file of targets) {
     }
     return false;
   }
+  function htmlSink(node){
+    for(let parent=node.parent;parent&&!ts.isSourceFile(parent)&&!ts.isBlock(parent);parent=parent.parent){
+      if(ts.isCallExpression(parent)&&/(?:escapeHtml|esc|escapeAttr|escapeHTML|htmlEscape)$/.test(parent.expression.getText(tree)))return false;
+      if(ts.isTemplateExpression(parent)&&/<[a-z][^>]*>/i.test(parent.getText(tree)))return true;
+      if(ts.isBinaryExpression(parent)&&/\.innerHTML$/.test(parent.left.getText(tree)))return true;
+    }
+    return false;
+  }
   function visit(node){
-    if(ts.isCallExpression(node)&&/PlatformLanguage\?*\.text|FMText/.test(node.expression.getText(tree)))return;
+    if(ts.isCallExpression(node)&&/(?:^|\.)PlatformLanguage\??\.(?:htmlText|text)$|(?:^|\.)FMText$/.test(node.expression.getText(tree))){
+      if(/PlatformLanguage\?\.text$/.test(node.expression.getText(tree))&&htmlSink(node))edits.push({start:node.expression.end-4,end:node.expression.end,text:'htmlText'});
+      return;
+    }
     const parts=stringParts(node);
     if(parts){
       // Never translate generated translation fallbacks a second time.
@@ -109,12 +126,15 @@ for(const file of targets) {
     let updated=code;for(const edit of edits.sort((a,b)=>b.start-a.start))updated=updated.slice(0,edit.start)+edit.text+updated.slice(edit.end);
     const parsed=ts.createSourceFile(file,updated,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
     if(parsed.parseDiagnostics.length)throw new Error(`Migration syntax error: ${relative}: ${parsed.parseDiagnostics[0].messageText}`);
-    fs.writeFileSync(file,updated);
+    writeFile(file,updated);
   }
-  stats.push({file:relative,namespace,references:(code.match(/PlatformLanguage\?\.text\(/g)||[]).length,candidates:messages,edits:edits.length});
+  stats.push({file:relative,namespace,references:(code.match(/PlatformLanguage\?\.(?:htmlText|text)\(/g)||[]).length,candidates:messages,edits:edits.length});
 }
 // Terminology shares the same catalog while retaining branch overrides.
 const window={};vm.runInNewContext(fs.readFileSync(path.join(root,'public/libraries/platform-terminology/platform-terminology.js'),'utf8'),{window});
+const contractPath=path.join(root,'public/v1/platform/localization/terminology-contract.json');
+const contract=JSON.stringify(Object.fromEntries(window.PlatformTerminology.CATALOG.flatMap(section=>section.terms.map(term=>[section.id+'.'+term.key,{label:term.label,kind:term.kind}]))),null,2)+'\n';
+if(check){if(fs.readFileSync(contractPath,'utf8')!==contract)throw Error('Stale terminology contract');}else writeFile(contractPath,contract);
 catalog.terminology=Object.fromEntries(window.PlatformTerminology.CATALOG.flatMap(section=>section.terms.map(term=>[section.id+'.'+term.key,term.label])));
 catalog.shared={...(catalog.shared||{}),save:'Save',cancel:'Cancel',loading:'Loading…',item_count:{message:'{count, plural, =0 {No items} one {# item} other {# items}}',format:'icu'}};
 // Only unambiguous, static error messages are catalogued; contextual messages keep their API fallback.
@@ -152,15 +172,17 @@ if(check){
   if(compiled.outputFiles[0].text!==fs.readFileSync(path.join(root,'public/libraries/platform-language/platform-language.js'),'utf8'))throw Error('Stale language runtime. Run npm run localization:build.');
 }
 else {
-  fs.mkdirSync(out,{recursive:true});fs.writeFileSync(sourcePath,JSON.stringify(catalog,null,2)+'\n');
+  fs.mkdirSync(out,{recursive:true});writeFile(sourcePath,JSON.stringify(catalog,null,2)+'\n');
   const appNamespaces=new Set(stats.filter(s=>/\/apps\/[^/]+\//.test(s.file)).map(s=>s.namespace));
   const manifest={schema_version:1,supported_locales:supportedLocales,eagerNamespaces:Object.keys(catalog).filter(n=>!appNamespaces.has(n)),namespaces:{}};
   for(const[namespace,messages]of Object.entries(catalog)){
     const namespaces={[namespace]:localeMessages(namespace,messages)},version=crypto.createHash('sha256').update(JSON.stringify(namespaces)).digest('hex').slice(0,16),file=namespace+'.'+version+'.json';
-    fs.writeFileSync(path.join(out,file),JSON.stringify({version,namespaces}));manifest.namespaces[namespace]=file;
+    writeFile(path.join(out,file),JSON.stringify({version,namespaces}));manifest.namespaces[namespace]=file;
   }
-  fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
-  await build({entryPoints:[path.join(root,'public/v1/platform/localization/browser.ts')],bundle:true,format:'iife',target:'es2022',minify:true,legalComments:'eof',outfile:path.join(root,'public/libraries/platform-language/platform-language.js')});
-  fs.writeFileSync(path.join(root,'public/v1/platform/localization/coverage.json'),JSON.stringify({files:stats.length,namespaces:Object.keys(catalog).length,messages:Object.values(catalog).reduce((n,m)=>n+Object.keys(m).length,0),migration:stats},null,2)+'\n');
+  writeFile(path.join(out,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
+  const runtime=await build({entryPoints:[path.join(root,'public/v1/platform/localization/browser.ts')],bundle:true,format:'iife',target:'es2022',minify:true,legalComments:'eof',write:false});
+  const runtimePath=path.join(root,'public/libraries/platform-language/platform-language.js');
+  writeFile(runtimePath,runtime.outputFiles[0].text);
+  writeFile(path.join(root,'public/v1/platform/localization/coverage.json'),JSON.stringify({files:stats.length,namespaces:Object.keys(catalog).length,messages:Object.values(catalog).reduce((n,m)=>n+Object.keys(m).length,0),migration:stats},null,2)+'\n');
 }
 console.log(JSON.stringify({files:stats.length,messages:Object.values(catalog).reduce((n,m)=>n+Object.keys(m).length,0),candidates:stats.reduce((n,s)=>n+s.candidates,0),written:write}));

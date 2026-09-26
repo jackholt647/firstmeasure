@@ -454,3 +454,21 @@ test("threads are personal and capability-gated", async () => {
   const blocked = await client.raw("GET", `/v1/assistant/organizations/${orgId}/threads`);
   assert.equal(blocked.statusCode, 403);
 });
+
+test('focused terminology chat drafts locale-specific labels without saving or exposing cross-app tools',async()=>{
+ const client=createSessionClient(),suffix=Date.now().toString(36);
+ const registered=await client.request('POST','/v1/platform/auth/register',{phone:nextTestPhone(),email:`terminology-basic-${suffix}@example.test`,password:'correct horse battery staple',name:'Owner',company:'Naming test',organization_id:`org_terminology_${suffix}`});
+ const org=registered.organization.id,base=`/v1/platform/organizations/${org}/terminology-assistant`;
+ const context=await client.request('GET',base);assert.equal(context.settings.enabled,true);
+ const thread=await client.request('POST',base+'/threads',{});
+ const mock=mockOpenAI([{output:[functionCall('draft_terminology',{changes:[{key:'projects.project',value:'Job'},{key:'projects.projects',value:'Jobs'}],focus_keys:['projects.project']},'draft')]},{output:[functionCall('report_result',{status:'success',summary:'Prepared wording for review.'},'report')]},{output:[messageOutput('Review these drafts and save when ready.')]}]);
+ try{
+  const reply=await client.request('POST',`${base}/threads/${thread.thread.id}/messages`,{message:'Call projects jobs.',locale:'en-GB',catalog:[{key:'projects.project',label:'Project',section:'Projects',value:'Project'},{key:'projects.projects',label:'Projects',section:'Projects',value:'Projects'}]});
+  assert.deepEqual((mock.calls[0] as any).tools.map((tool:any)=>tool.name).sort(),['draft_terminology','report_result']);
+  assert.equal(reply.status,'success');assert.equal(reply.renders[0].locale,'en-GB');assert.equal(reply.renders[0].changes[0].value,'Job');
+  const {readBranchModule}=await import('../platform/storage.js');const saved=await readBranchModule(org,'default','variable_mappings').catch(()=>null);assert.equal((saved?.data as any)?.localized_labels?.['en-GB']?.projects?.project,undefined);
+ }finally{mock.restore();}
+ const other=createSessionClient();const {orgId}=await register(other);
+ assert.equal((await other.raw('GET',base+'/threads/'+thread.thread.id)).statusCode,403);
+ assert.equal((await other.raw('GET',`/v1/platform/organizations/${orgId}/terminology-assistant/threads/${thread.thread.id}`)).statusCode,404);
+});

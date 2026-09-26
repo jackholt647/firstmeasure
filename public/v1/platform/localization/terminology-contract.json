@@ -1,0 +1,1538 @@
+{
+  "projects.portal_tab": {
+    "label": "My Projects",
+    "kind": "navigation"
+  },
+  "projects.crew_portal_tab": {
+    "label": "Projects",
+    "kind": "navigation"
+  },
+  "projects.overview_tab": {
+    "label": "Overview",
+    "kind": "navigation"
+  },
+  "projects.map_tab": {
+    "label": "Map",
+    "kind": "navigation"
+  },
+  "projects.project": {
+    "label": "Project",
+    "kind": "entity"
+  },
+  "projects.projects": {
+    "label": "Projects",
+    "kind": "entity"
+  },
+  "projects.stage": {
+    "label": "Stage",
+    "kind": "entity"
+  },
+  "projects.status": {
+    "label": "Status",
+    "kind": "entity"
+  },
+  "projects.owner": {
+    "label": "Owner",
+    "kind": "entity"
+  },
+  "projects.address": {
+    "label": "Address",
+    "kind": "entity"
+  },
+  "projects.submitted_date": {
+    "label": "Submitted",
+    "kind": "entity"
+  },
+  "contacts.portal_tab": {
+    "label": "My Contacts",
+    "kind": "navigation"
+  },
+  "contacts.contact": {
+    "label": "Contact",
+    "kind": "entity"
+  },
+  "contacts.contacts": {
+    "label": "Contacts",
+    "kind": "entity"
+  },
+  "contacts.customer": {
+    "label": "Customer",
+    "kind": "entity"
+  },
+  "contacts.customers": {
+    "label": "Customers",
+    "kind": "entity"
+  },
+  "contacts.homeowner": {
+    "label": "Homeowner",
+    "kind": "entity"
+  },
+  "contacts.homeowners": {
+    "label": "Homeowners",
+    "kind": "entity"
+  },
+  "contacts.primary_contact": {
+    "label": "Primary Contact",
+    "kind": "entity"
+  },
+  "contacts.linked_projects": {
+    "label": "Linked Projects",
+    "kind": "entity"
+  },
+  "contacts.activity": {
+    "label": "Activity",
+    "kind": "entity"
+  },
+  "contacts.settings_tab": {
+    "label": "Contacts",
+    "kind": "navigation"
+  },
+  "contacts.field_customer_tab": {
+    "label": "Customer",
+    "kind": "navigation"
+  },
+  "photos.portal_tab": {
+    "label": "Feed",
+    "kind": "navigation"
+  },
+  "photos.project_tab": {
+    "label": "Photos",
+    "kind": "navigation"
+  },
+  "photos.photos_view": {
+    "label": "Photos",
+    "kind": "view"
+  },
+  "photos.activity_view": {
+    "label": "Activity",
+    "kind": "view"
+  },
+  "photos.photo": {
+    "label": "Photo",
+    "kind": "entity"
+  },
+  "photos.photos": {
+    "label": "Photos",
+    "kind": "entity"
+  },
+  "photos.album": {
+    "label": "Album",
+    "kind": "entity"
+  },
+  "photos.albums": {
+    "label": "Albums",
+    "kind": "entity"
+  },
+  "photos.upload": {
+    "label": "Upload",
+    "kind": "entity"
+  },
+  "photos.caption": {
+    "label": "Caption",
+    "kind": "entity"
+  },
+  "proposals.portal_tab": {
+    "label": "Proposals",
+    "kind": "navigation"
+  },
+  "proposals.project_tab": {
+    "label": "Proposals",
+    "kind": "navigation"
+  },
+  "proposals.settings_tab": {
+    "label": "Proposals",
+    "kind": "navigation"
+  },
+  "proposals.proposal": {
+    "label": "Proposal",
+    "kind": "entity"
+  },
+  "proposals.proposals": {
+    "label": "Proposals",
+    "kind": "entity"
+  },
+  "proposals.template": {
+    "label": "Template",
+    "kind": "entity"
+  },
+  "proposals.option": {
+    "label": "Option",
+    "kind": "entity"
+  },
+  "proposals.variation": {
+    "label": "Variation",
+    "kind": "entity"
+  },
+  "proposals.signature": {
+    "label": "Signature",
+    "kind": "entity"
+  },
+  "proposals.draft_status": {
+    "label": "Draft",
+    "kind": "status"
+  },
+  "proposals.sent_status": {
+    "label": "Sent",
+    "kind": "status"
+  },
+  "proposals.viewed_status": {
+    "label": "Viewed",
+    "kind": "status"
+  },
+  "proposals.signed_status": {
+    "label": "Signed",
+    "kind": "status"
+  },
+  "proposals.archived_status": {
+    "label": "Archived",
+    "kind": "status"
+  },
+  "proposals.void_status": {
+    "label": "Void",
+    "kind": "status"
+  },
+  "documents.project_tab": {
+    "label": "Docs",
+    "kind": "navigation"
+  },
+  "documents.settings_tab": {
+    "label": "Documents",
+    "kind": "navigation"
+  },
+  "documents.document": {
+    "label": "Document",
+    "kind": "entity"
+  },
+  "documents.documents": {
+    "label": "Documents",
+    "kind": "entity"
+  },
+  "documents.required_document": {
+    "label": "Required Document",
+    "kind": "entity"
+  },
+  "documents.folder": {
+    "label": "Folder",
+    "kind": "entity"
+  },
+  "documents.attachment": {
+    "label": "Attachment",
+    "kind": "entity"
+  },
+  "documents.markup": {
+    "label": "Markup",
+    "kind": "entity"
+  },
+  "document_engine.project_tab": {
+    "label": "Documents",
+    "kind": "navigation"
+  },
+  "document_engine.studio_tab": {
+    "label": "Doc Studio",
+    "kind": "navigation"
+  },
+  "document_engine.document": {
+    "label": "Document",
+    "kind": "entity"
+  },
+  "document_engine.documents": {
+    "label": "Documents",
+    "kind": "entity"
+  },
+  "document_engine.template": {
+    "label": "Template",
+    "kind": "entity"
+  },
+  "document_engine.templates": {
+    "label": "Templates",
+    "kind": "entity"
+  },
+  "document_engine.theme": {
+    "label": "Theme",
+    "kind": "entity"
+  },
+  "document_engine.themes": {
+    "label": "Themes",
+    "kind": "entity"
+  },
+  "document_engine.snapshot": {
+    "label": "Snapshot",
+    "kind": "entity"
+  },
+  "document_engine.draft_status": {
+    "label": "Draft",
+    "kind": "status"
+  },
+  "document_engine.issued_status": {
+    "label": "Issued",
+    "kind": "status"
+  },
+  "document_engine.sent_status": {
+    "label": "Sent",
+    "kind": "status"
+  },
+  "document_engine.viewed_status": {
+    "label": "Viewed",
+    "kind": "status"
+  },
+  "document_engine.signed_status": {
+    "label": "Signed",
+    "kind": "status"
+  },
+  "document_engine.completed_status": {
+    "label": "Completed",
+    "kind": "status"
+  },
+  "document_engine.declined_status": {
+    "label": "Declined",
+    "kind": "status"
+  },
+  "document_engine.void_status": {
+    "label": "Void",
+    "kind": "status"
+  },
+  "scope.project_tab": {
+    "label": "Scope",
+    "kind": "navigation"
+  },
+  "scope.templates_settings_tab": {
+    "label": "Scope Templates",
+    "kind": "navigation"
+  },
+  "scope.flags_settings_tab": {
+    "label": "Scope Flags",
+    "kind": "navigation"
+  },
+  "scope.details_view": {
+    "label": "Details",
+    "kind": "view"
+  },
+  "scope.commissions_view": {
+    "label": "Commissions",
+    "kind": "view"
+  },
+  "scope.scope": {
+    "label": "Scope",
+    "kind": "entity"
+  },
+  "scope.scope_item": {
+    "label": "Scope Item",
+    "kind": "entity"
+  },
+  "scope.scope_items": {
+    "label": "Scope Items",
+    "kind": "entity"
+  },
+  "scope.phase": {
+    "label": "Phase",
+    "kind": "entity"
+  },
+  "scope.phases": {
+    "label": "Phases",
+    "kind": "entity"
+  },
+  "scope.flag": {
+    "label": "Flag",
+    "kind": "entity"
+  },
+  "scope.flags": {
+    "label": "Flags",
+    "kind": "entity"
+  },
+  "scope.template": {
+    "label": "Template",
+    "kind": "entity"
+  },
+  "scope.templates": {
+    "label": "Templates",
+    "kind": "entity"
+  },
+  "materials.crew_project_tab": {
+    "label": "Materials",
+    "kind": "navigation"
+  },
+  "materials.material": {
+    "label": "Material",
+    "kind": "entity"
+  },
+  "materials.materials": {
+    "label": "Materials",
+    "kind": "entity"
+  },
+  "materials.material_list": {
+    "label": "Material List",
+    "kind": "entity"
+  },
+  "materials.material_lists": {
+    "label": "Material Lists",
+    "kind": "entity"
+  },
+  "materials.quantity": {
+    "label": "Quantity",
+    "kind": "entity"
+  },
+  "materials.unit": {
+    "label": "Unit",
+    "kind": "entity"
+  },
+  "materials.supplier": {
+    "label": "Supplier",
+    "kind": "entity"
+  },
+  "materials.order_request": {
+    "label": "Order Request",
+    "kind": "entity"
+  },
+  "money.project_tab": {
+    "label": "Money",
+    "kind": "navigation"
+  },
+  "money.payments_settings_tab": {
+    "label": "Payments",
+    "kind": "navigation"
+  },
+  "money.workspace": {
+    "label": "Money",
+    "kind": "entity"
+  },
+  "money.overview": {
+    "label": "Overview",
+    "kind": "view"
+  },
+  "money.invoices": {
+    "label": "Invoices",
+    "kind": "view"
+  },
+  "money.recurring": {
+    "label": "Recurring",
+    "kind": "view"
+  },
+  "money.expense_lists": {
+    "label": "Expense Lists",
+    "kind": "view"
+  },
+  "money.receipts": {
+    "label": "Receipts",
+    "kind": "view"
+  },
+  "money.commissions": {
+    "label": "Commissions",
+    "kind": "view"
+  },
+  "money.ledger": {
+    "label": "Ledger",
+    "kind": "entity"
+  },
+  "money.payments": {
+    "label": "Payments",
+    "kind": "entity"
+  },
+  "money.expenses": {
+    "label": "Expenses",
+    "kind": "entity"
+  },
+  "money.activity": {
+    "label": "Activity",
+    "kind": "entity"
+  },
+  "money.transaction": {
+    "label": "Transaction",
+    "kind": "entity"
+  },
+  "money.transactions": {
+    "label": "Transactions",
+    "kind": "entity"
+  },
+  "money.receipt": {
+    "label": "Receipt",
+    "kind": "entity"
+  },
+  "money.money_in": {
+    "label": "Money In",
+    "kind": "entity"
+  },
+  "money.money_out": {
+    "label": "Money Out",
+    "kind": "entity"
+  },
+  "money.balance": {
+    "label": "Balance",
+    "kind": "entity"
+  },
+  "money.revenue": {
+    "label": "Revenue",
+    "kind": "entity"
+  },
+  "money.collected": {
+    "label": "Collected",
+    "kind": "entity"
+  },
+  "money.remaining": {
+    "label": "Remaining",
+    "kind": "entity"
+  },
+  "money.cost_forecast": {
+    "label": "Cost Forecast",
+    "kind": "entity"
+  },
+  "money.forecast_profit": {
+    "label": "Forecast Profit",
+    "kind": "entity"
+  },
+  "money.profit_to_date": {
+    "label": "Profit To Date",
+    "kind": "entity"
+  },
+  "money.payment_schedule": {
+    "label": "Payment Schedule",
+    "kind": "entity"
+  },
+  "money.collected_payment": {
+    "label": "Collected Payment",
+    "kind": "entity"
+  },
+  "money.collected_payments": {
+    "label": "Collected Payments",
+    "kind": "entity"
+  },
+  "money.scheduled_payment": {
+    "label": "Scheduled Payment",
+    "kind": "entity"
+  },
+  "money.scheduled_payments": {
+    "label": "Scheduled Payments",
+    "kind": "entity"
+  },
+  "money.add_collected_payment": {
+    "label": "Add Collected Payment",
+    "kind": "action"
+  },
+  "money.save_collected_payment": {
+    "label": "Save Collected Payment",
+    "kind": "action"
+  },
+  "money.take_collected_payment": {
+    "label": "Take a Collected Payment",
+    "kind": "action"
+  },
+  "money.expense": {
+    "label": "Expense",
+    "kind": "entity"
+  },
+  "money.add_expense": {
+    "label": "Add Expense",
+    "kind": "action"
+  },
+  "money.expense_list": {
+    "label": "Expense List",
+    "kind": "entity"
+  },
+  "money.recipient": {
+    "label": "Recipient",
+    "kind": "entity"
+  },
+  "money.invoice": {
+    "label": "Invoice",
+    "kind": "entity"
+  },
+  "money.invoice_history": {
+    "label": "Invoice History",
+    "kind": "entity"
+  },
+  "money.generate_invoice": {
+    "label": "Generate Invoice",
+    "kind": "action"
+  },
+  "money.invoice_items": {
+    "label": "Invoice Items",
+    "kind": "entity"
+  },
+  "money.invoice_total": {
+    "label": "Invoice Total",
+    "kind": "entity"
+  },
+  "money.recurring_agreements": {
+    "label": "Recurring Agreements",
+    "kind": "entity"
+  },
+  "money.recurring_totals": {
+    "label": "Recurring Totals",
+    "kind": "entity"
+  },
+  "money.project_expenses": {
+    "label": "Project Expenses",
+    "kind": "entity"
+  },
+  "money.projected": {
+    "label": "Projected",
+    "kind": "entity"
+  },
+  "money.tracked_actual": {
+    "label": "Tracked Actual",
+    "kind": "entity"
+  },
+  "money.variance": {
+    "label": "Variance",
+    "kind": "entity"
+  },
+  "money.current_forecast": {
+    "label": "Current Forecast",
+    "kind": "entity"
+  },
+  "money.commission_payment": {
+    "label": "Commission Payment",
+    "kind": "entity"
+  },
+  "money.commission_payments": {
+    "label": "Commission Payments",
+    "kind": "entity"
+  },
+  "money.commission_recipient": {
+    "label": "Commission Recipient",
+    "kind": "entity"
+  },
+  "money.commission_recipients": {
+    "label": "Commission Recipients",
+    "kind": "entity"
+  },
+  "money.upcoming": {
+    "label": "Upcoming",
+    "kind": "entity"
+  },
+  "money.accrued": {
+    "label": "Accrued",
+    "kind": "entity"
+  },
+  "money.timing": {
+    "label": "Timing",
+    "kind": "entity"
+  },
+  "receipts.portal_tab": {
+    "label": "Receipts",
+    "kind": "navigation"
+  },
+  "receipts.crew_portal_tab": {
+    "label": "Receipts",
+    "kind": "navigation"
+  },
+  "receipts.receipt": {
+    "label": "Receipt",
+    "kind": "entity"
+  },
+  "receipts.receipts": {
+    "label": "Receipts",
+    "kind": "entity"
+  },
+  "receipts.expense_evidence": {
+    "label": "Expense Evidence",
+    "kind": "entity"
+  },
+  "receipts.upload_receipts": {
+    "label": "Upload Receipts",
+    "kind": "action"
+  },
+  "receipts.recent_receipts": {
+    "label": "Recent Receipts",
+    "kind": "entity"
+  },
+  "receipts.extracted_line_items": {
+    "label": "Extracted Line Items",
+    "kind": "entity"
+  },
+  "receipts.review_apply": {
+    "label": "Review & Apply",
+    "kind": "action"
+  },
+  "financials.portal_tab": {
+    "label": "Financials",
+    "kind": "navigation"
+  },
+  "financials.profitability_view": {
+    "label": "Profitability",
+    "kind": "view"
+  },
+  "financials.cash_flow_view": {
+    "label": "Cash flow",
+    "kind": "view"
+  },
+  "financials.project_profitability": {
+    "label": "Project Profitability",
+    "kind": "entity"
+  },
+  "financials.projected_revenue": {
+    "label": "Projected Revenue",
+    "kind": "entity"
+  },
+  "financials.projected_profit": {
+    "label": "Projected Profit",
+    "kind": "entity"
+  },
+  "financials.customer_owed": {
+    "label": "Customer Owed",
+    "kind": "entity"
+  },
+  "financials.margin": {
+    "label": "Margin",
+    "kind": "entity"
+  },
+  "financials.revenue": {
+    "label": "Revenue",
+    "kind": "entity"
+  },
+  "financials.expenses": {
+    "label": "Expenses",
+    "kind": "entity"
+  },
+  "financials.reconcile_view": {
+    "label": "Reconcile",
+    "kind": "view"
+  },
+  "financials.payouts_view": {
+    "label": "Payouts",
+    "kind": "view"
+  },
+  "payroll.portal_tab": {
+    "label": "Payroll",
+    "kind": "navigation"
+  },
+  "payroll.settings_tab": {
+    "label": "Payroll",
+    "kind": "navigation"
+  },
+  "payroll.upcoming_view": {
+    "label": "Upcoming payroll",
+    "kind": "view"
+  },
+  "payroll.history_view": {
+    "label": "Batch history",
+    "kind": "view"
+  },
+  "payroll.payroll_batch": {
+    "label": "Payroll Batch",
+    "kind": "entity"
+  },
+  "payroll.payee": {
+    "label": "Payee",
+    "kind": "entity"
+  },
+  "payroll.gross": {
+    "label": "Gross",
+    "kind": "entity"
+  },
+  "payroll.deductions": {
+    "label": "Deductions",
+    "kind": "entity"
+  },
+  "payroll.net": {
+    "label": "Net",
+    "kind": "entity"
+  },
+  "payroll.paid_at": {
+    "label": "Paid At",
+    "kind": "entity"
+  },
+  "scheduling.portal_tab": {
+    "label": "Scheduling",
+    "kind": "navigation"
+  },
+  "scheduling.project_tab": {
+    "label": "Schedule",
+    "kind": "navigation"
+  },
+  "scheduling.crew_portal_tab": {
+    "label": "Schedule",
+    "kind": "navigation"
+  },
+  "scheduling.settings_tab": {
+    "label": "Scheduling",
+    "kind": "navigation"
+  },
+  "scheduling.calendar_view": {
+    "label": "Calendar",
+    "kind": "view"
+  },
+  "scheduling.routing_view": {
+    "label": "Routing",
+    "kind": "view"
+  },
+  "scheduling.production_view": {
+    "label": "Production",
+    "kind": "view"
+  },
+  "scheduling.sales_view": {
+    "label": "Sales",
+    "kind": "view"
+  },
+  "scheduling.day_view": {
+    "label": "Day",
+    "kind": "view"
+  },
+  "scheduling.four_day_view": {
+    "label": "4 Day",
+    "kind": "view"
+  },
+  "scheduling.week_view": {
+    "label": "Week",
+    "kind": "view"
+  },
+  "scheduling.month_view": {
+    "label": "Month",
+    "kind": "view"
+  },
+  "scheduling.appointment": {
+    "label": "Appointment",
+    "kind": "entity"
+  },
+  "scheduling.visit": {
+    "label": "Visit",
+    "kind": "entity"
+  },
+  "scheduling.shift": {
+    "label": "Shift",
+    "kind": "entity"
+  },
+  "scheduling.assignment": {
+    "label": "Assignment",
+    "kind": "entity"
+  },
+  "scheduling.gantt_view": {
+    "label": "Gantt",
+    "kind": "view"
+  },
+  "scheduling.sales_portal_tab": {
+    "label": "Schedule",
+    "kind": "navigation"
+  },
+  "calls.portal_tab": {
+    "label": "Calls",
+    "kind": "navigation"
+  },
+  "calls.workflows_settings_tab": {
+    "label": "Call Workflows",
+    "kind": "navigation"
+  },
+  "calls.call": {
+    "label": "Call",
+    "kind": "entity"
+  },
+  "calls.calls": {
+    "label": "Calls",
+    "kind": "entity"
+  },
+  "calls.call_queue": {
+    "label": "Call Queue",
+    "kind": "entity"
+  },
+  "calls.new_leads_queue": {
+    "label": "New Leads",
+    "kind": "entity"
+  },
+  "calls.follow_ups_queue": {
+    "label": "Follow-ups",
+    "kind": "entity"
+  },
+  "calls.new_customers_queue": {
+    "label": "New Customers",
+    "kind": "entity"
+  },
+  "calls.answered": {
+    "label": "Answered",
+    "kind": "status"
+  },
+  "calls.left_voicemail": {
+    "label": "Left Voicemail",
+    "kind": "status"
+  },
+  "calls.no_answer": {
+    "label": "No Answer",
+    "kind": "status"
+  },
+  "calls.appointment_booked": {
+    "label": "Appointment Booked",
+    "kind": "status"
+  },
+  "calls.not_interested": {
+    "label": "Not Interested",
+    "kind": "status"
+  },
+  "calls.call_notes": {
+    "label": "Call Notes",
+    "kind": "entity"
+  },
+  "canvassing.portal_tab": {
+    "label": "Canvassing",
+    "kind": "navigation"
+  },
+  "canvassing.pin": {
+    "label": "Pin",
+    "kind": "entity"
+  },
+  "canvassing.pins": {
+    "label": "Pins",
+    "kind": "entity"
+  },
+  "canvassing.lead": {
+    "label": "Lead",
+    "kind": "entity"
+  },
+  "canvassing.leads": {
+    "label": "Leads",
+    "kind": "entity"
+  },
+  "canvassing.territory": {
+    "label": "Territory",
+    "kind": "entity"
+  },
+  "canvassing.canvasser": {
+    "label": "Canvasser",
+    "kind": "entity"
+  },
+  "canvassing.create_lead": {
+    "label": "Create Lead",
+    "kind": "action"
+  },
+  "canvassing.contact_result": {
+    "label": "Contact Result",
+    "kind": "entity"
+  },
+  "customer_portal.project_tab": {
+    "label": "Customer Portal",
+    "kind": "navigation"
+  },
+  "customer_portal.overview_view": {
+    "label": "Overview",
+    "kind": "view"
+  },
+  "customer_portal.media_view": {
+    "label": "Media",
+    "kind": "view"
+  },
+  "customer_portal.customer_portal": {
+    "label": "Customer Portal",
+    "kind": "entity"
+  },
+  "customer_portal.update": {
+    "label": "Update",
+    "kind": "entity"
+  },
+  "customer_portal.updates": {
+    "label": "Updates",
+    "kind": "entity"
+  },
+  "customer_portal.shared_document": {
+    "label": "Shared Document",
+    "kind": "entity"
+  },
+  "customer_portal.shared_photo": {
+    "label": "Shared Photo",
+    "kind": "entity"
+  },
+  "crew.today_portal_tab": {
+    "label": "Today",
+    "kind": "navigation"
+  },
+  "crew.crew_member": {
+    "label": "Crew Member",
+    "kind": "entity"
+  },
+  "crew.crew_members": {
+    "label": "Crew Members",
+    "kind": "entity"
+  },
+  "crew.assigned_work": {
+    "label": "Assigned Work",
+    "kind": "entity"
+  },
+  "crew.clock_in": {
+    "label": "Clock In",
+    "kind": "action"
+  },
+  "crew.clock_out": {
+    "label": "Clock Out",
+    "kind": "action"
+  },
+  "crew.break": {
+    "label": "Break",
+    "kind": "entity"
+  },
+  "crew.overview_tab": {
+    "label": "Visit",
+    "kind": "navigation"
+  },
+  "earnings.crew_portal_tab": {
+    "label": "Earnings",
+    "kind": "navigation"
+  },
+  "earnings.crew_project_tab": {
+    "label": "Earnings",
+    "kind": "navigation"
+  },
+  "earnings.earnings": {
+    "label": "Earnings",
+    "kind": "entity"
+  },
+  "earnings.owed": {
+    "label": "Owed",
+    "kind": "entity"
+  },
+  "earnings.paid": {
+    "label": "Paid",
+    "kind": "entity"
+  },
+  "earnings.projected": {
+    "label": "Projected",
+    "kind": "entity"
+  },
+  "earnings.sales_portal_tab": {
+    "label": "Earnings",
+    "kind": "navigation"
+  },
+  "payments.crew_project_tab": {
+    "label": "Payments",
+    "kind": "navigation"
+  },
+  "payments.payment": {
+    "label": "Payment",
+    "kind": "entity"
+  },
+  "payments.payments": {
+    "label": "Payments",
+    "kind": "entity"
+  },
+  "change_orders.crew_project_tab": {
+    "label": "Change Orders",
+    "kind": "navigation"
+  },
+  "change_orders.change_order": {
+    "label": "Change Order",
+    "kind": "entity"
+  },
+  "change_orders.change_orders": {
+    "label": "Change Orders",
+    "kind": "entity"
+  },
+  "checklists.crew_project_tab": {
+    "label": "Checklists",
+    "kind": "navigation"
+  },
+  "checklists.checklist": {
+    "label": "Checklist",
+    "kind": "entity"
+  },
+  "checklists.checklists": {
+    "label": "Checklists",
+    "kind": "entity"
+  },
+  "checklists.checklist_item": {
+    "label": "Checklist Item",
+    "kind": "entity"
+  },
+  "checklists.checklist_items": {
+    "label": "Checklist Items",
+    "kind": "entity"
+  },
+  "checklists.project_tab": {
+    "label": "Checklists",
+    "kind": "navigation"
+  },
+  "equipment.portal_tab": {
+    "label": "Equipment",
+    "kind": "navigation"
+  },
+  "equipment.settings_tab": {
+    "label": "Equipment",
+    "kind": "navigation"
+  },
+  "equipment.fleet_view": {
+    "label": "Fleet",
+    "kind": "view"
+  },
+  "equipment.timeline_view": {
+    "label": "Timeline",
+    "kind": "view"
+  },
+  "equipment.maintenance_view": {
+    "label": "Maintenance",
+    "kind": "view"
+  },
+  "equipment.utilization_view": {
+    "label": "Utilization",
+    "kind": "view"
+  },
+  "equipment.equipment": {
+    "label": "Equipment",
+    "kind": "entity"
+  },
+  "equipment.equipment_unit": {
+    "label": "Unit",
+    "kind": "entity"
+  },
+  "equipment.equipment_units": {
+    "label": "Units",
+    "kind": "entity"
+  },
+  "equipment.equipment_type": {
+    "label": "Equipment Type",
+    "kind": "entity"
+  },
+  "equipment.equipment_types": {
+    "label": "Equipment Types",
+    "kind": "entity"
+  },
+  "equipment.category": {
+    "label": "Category",
+    "kind": "entity"
+  },
+  "equipment.categories": {
+    "label": "Categories",
+    "kind": "entity"
+  },
+  "equipment.work_order": {
+    "label": "Work Order",
+    "kind": "entity"
+  },
+  "equipment.work_orders": {
+    "label": "Work Orders",
+    "kind": "entity"
+  },
+  "equipment.service_program": {
+    "label": "Service Program",
+    "kind": "entity"
+  },
+  "equipment.meter": {
+    "label": "Meter",
+    "kind": "entity"
+  },
+  "equipment.downtime": {
+    "label": "Downtime",
+    "kind": "entity"
+  },
+  "equipment.operator": {
+    "label": "Operator",
+    "kind": "entity"
+  },
+  "equipment.available_status": {
+    "label": "Available",
+    "kind": "status"
+  },
+  "equipment.in_use_status": {
+    "label": "In Use",
+    "kind": "status"
+  },
+  "equipment.down_status": {
+    "label": "Down",
+    "kind": "status"
+  },
+  "equipment.reserved_status": {
+    "label": "Reserved",
+    "kind": "status"
+  },
+  "equipment.retired_status": {
+    "label": "Retired",
+    "kind": "status"
+  },
+  "crm.settings_tab": {
+    "label": "CRM",
+    "kind": "navigation"
+  },
+  "crm.stages_view": {
+    "label": "Stages",
+    "kind": "view"
+  },
+  "crm.call_workflows_view": {
+    "label": "Call workflows",
+    "kind": "view"
+  },
+  "crm.projects_view": {
+    "label": "Projects",
+    "kind": "view"
+  },
+  "crm.miscellaneous_view": {
+    "label": "Miscellaneous",
+    "kind": "view"
+  },
+  "crm.lead": {
+    "label": "Lead",
+    "kind": "entity"
+  },
+  "crm.leads": {
+    "label": "Leads",
+    "kind": "entity"
+  },
+  "crm.opportunity": {
+    "label": "Opportunity",
+    "kind": "entity"
+  },
+  "crm.pipeline": {
+    "label": "Pipeline",
+    "kind": "entity"
+  },
+  "crm.source": {
+    "label": "Source",
+    "kind": "entity"
+  },
+  "leads.settings_tab": {
+    "label": "Forms and Leads",
+    "kind": "navigation"
+  },
+  "leads.lead_import_view": {
+    "label": "Lead Import",
+    "kind": "view"
+  },
+  "leads.contact_form_view": {
+    "label": "Contact Form",
+    "kind": "view"
+  },
+  "leads.appointment_form_view": {
+    "label": "Appointment Form",
+    "kind": "view"
+  },
+  "leads.instant_estimate_view": {
+    "label": "Instant Estimate",
+    "kind": "view"
+  },
+  "leads.form": {
+    "label": "Form",
+    "kind": "entity"
+  },
+  "leads.forms": {
+    "label": "Forms",
+    "kind": "entity"
+  },
+  "leads.submission": {
+    "label": "Submission",
+    "kind": "entity"
+  },
+  "leads.submissions": {
+    "label": "Submissions",
+    "kind": "entity"
+  },
+  "pricebook.settings_tab": {
+    "label": "Pricebook",
+    "kind": "navigation"
+  },
+  "pricebook.pricebook": {
+    "label": "Pricebook",
+    "kind": "entity"
+  },
+  "pricebook.item": {
+    "label": "Item",
+    "kind": "entity"
+  },
+  "pricebook.items": {
+    "label": "Items",
+    "kind": "entity"
+  },
+  "pricebook.category": {
+    "label": "Category",
+    "kind": "entity"
+  },
+  "pricebook.manufacturer": {
+    "label": "Manufacturer",
+    "kind": "entity"
+  },
+  "pricebook.unit": {
+    "label": "Unit",
+    "kind": "entity"
+  },
+  "pricebook.price": {
+    "label": "Price",
+    "kind": "entity"
+  },
+  "pricebook.formula": {
+    "label": "Formula",
+    "kind": "entity"
+  },
+  "reports.project_tab": {
+    "label": "Reports",
+    "kind": "navigation"
+  },
+  "reports.settings_tab": {
+    "label": "Reports",
+    "kind": "navigation"
+  },
+  "reports.standard_view": {
+    "label": "Standard",
+    "kind": "view"
+  },
+  "reports.customer_view": {
+    "label": "Customer",
+    "kind": "view"
+  },
+  "reports.weather_view": {
+    "label": "Weather",
+    "kind": "view"
+  },
+  "reports.changes_pending_view": {
+    "label": "Changes Pending",
+    "kind": "view"
+  },
+  "reports.support_view": {
+    "label": "Support",
+    "kind": "view"
+  },
+  "reports.report": {
+    "label": "Report",
+    "kind": "entity"
+  },
+  "reports.reports": {
+    "label": "Reports",
+    "kind": "entity"
+  },
+  "reports.measurement": {
+    "label": "Measurement",
+    "kind": "entity"
+  },
+  "reports.result": {
+    "label": "Result",
+    "kind": "entity"
+  },
+  "reports.export": {
+    "label": "Export",
+    "kind": "entity"
+  },
+  "reports.period": {
+    "label": "Period",
+    "kind": "entity"
+  },
+  "workforce.settings_tab": {
+    "label": "Crews and Subcontractors",
+    "kind": "navigation"
+  },
+  "workforce.organization_connections_view": {
+    "label": "Organization Connections",
+    "kind": "view"
+  },
+  "workforce.resource_group_singular": {
+    "label": "Crew",
+    "kind": "entity"
+  },
+  "workforce.resource_group_plural": {
+    "label": "Crews",
+    "kind": "entity"
+  },
+  "workforce.worker_singular": {
+    "label": "Crew Member",
+    "kind": "entity"
+  },
+  "workforce.worker_plural": {
+    "label": "Crew Members",
+    "kind": "entity"
+  },
+  "workforce.organization_connection_singular": {
+    "label": "Subcontractor",
+    "kind": "entity"
+  },
+  "workforce.organization_connection_plural": {
+    "label": "Subcontractors",
+    "kind": "entity"
+  },
+  "workforce.management_application": {
+    "label": "Main App",
+    "kind": "entity"
+  },
+  "workforce.field_application": {
+    "label": "Crew App",
+    "kind": "entity"
+  },
+  "settings.portal_tab": {
+    "label": "Settings",
+    "kind": "navigation"
+  },
+  "settings.company_tab": {
+    "label": "Company",
+    "kind": "navigation"
+  },
+  "settings.users_tab": {
+    "label": "Users",
+    "kind": "navigation"
+  },
+  "settings.people_view": {
+    "label": "People",
+    "kind": "view"
+  },
+  "settings.roles_access_view": {
+    "label": "Roles & access",
+    "kind": "view"
+  },
+  "settings.terminology_tab": {
+    "label": "Terminology",
+    "kind": "navigation"
+  },
+  "settings.configuration_tab": {
+    "label": "Configuration",
+    "kind": "navigation"
+  },
+  "settings.storage_tab": {
+    "label": "Storage",
+    "kind": "navigation"
+  },
+  "settings.sms_tab": {
+    "label": "SMS",
+    "kind": "navigation"
+  },
+  "settings.feature_flags_tab": {
+    "label": "Feature Flags",
+    "kind": "navigation"
+  },
+  "settings.feedback_tab": {
+    "label": "Feedback",
+    "kind": "navigation"
+  },
+  "settings.live_chat_tab": {
+    "label": "Live Chat",
+    "kind": "navigation"
+  },
+  "settings.comms_tab": {
+    "label": "Communications",
+    "kind": "navigation"
+  },
+  "settings.assistant_tab": {
+    "label": "AI Agents",
+    "kind": "navigation"
+  },
+  "settings.channels_tab": {
+    "label": "Channels",
+    "kind": "navigation"
+  },
+  "settings.domains_tab": {
+    "label": "Domains & Hosting",
+    "kind": "navigation"
+  },
+  "billing.settings_tab": {
+    "label": "Billing",
+    "kind": "navigation"
+  },
+  "billing.subscription": {
+    "label": "Subscription",
+    "kind": "entity"
+  },
+  "billing.plan": {
+    "label": "Plan",
+    "kind": "entity"
+  },
+  "billing.billing_contact": {
+    "label": "Billing Contact",
+    "kind": "entity"
+  },
+  "billing.invoice": {
+    "label": "Invoice",
+    "kind": "entity"
+  },
+  "billing.payment_method": {
+    "label": "Payment Method",
+    "kind": "entity"
+  },
+  "ui.routing_mode": {
+    "label": "Routing",
+    "kind": "view"
+  },
+  "work.phase": {
+    "label": "Phase",
+    "kind": "entity"
+  },
+  "work.phases": {
+    "label": "Phases",
+    "kind": "entity"
+  },
+  "work.stage": {
+    "label": "Stage",
+    "kind": "entity"
+  },
+  "work.stages": {
+    "label": "Stages",
+    "kind": "entity"
+  },
+  "work.task": {
+    "label": "To-do",
+    "kind": "entity"
+  },
+  "work.tasks": {
+    "label": "To-dos",
+    "kind": "entity"
+  },
+  "work.board": {
+    "label": "Board",
+    "kind": "entity"
+  },
+  "work.boards": {
+    "label": "Boards",
+    "kind": "entity"
+  },
+  "roles.sales_appointments": {
+    "label": "Sales Appointments",
+    "kind": "entity"
+  },
+  "roles.inside_sales": {
+    "label": "Inside Sales",
+    "kind": "entity"
+  },
+  "event_types.sales_appointment": {
+    "label": "Sales Appointment",
+    "kind": "entity"
+  },
+  "event_types.sales_follow_up": {
+    "label": "Sales Follow-up",
+    "kind": "entity"
+  },
+  "event_types.project_work": {
+    "label": "Project Work",
+    "kind": "entity"
+  },
+  "event_types.material_delivery": {
+    "label": "Material Delivery",
+    "kind": "entity"
+  },
+  "web_editor.tab": {
+    "label": "Web Editor",
+    "kind": "navigation"
+  },
+  "comms.project_tab": {
+    "label": "Comms",
+    "kind": "navigation"
+  },
+  "training.portal_tab": {
+    "label": "Training",
+    "kind": "navigation"
+  },
+  "training.studio_portal_tab": {
+    "label": "Training Studio",
+    "kind": "navigation"
+  },
+  "invoices.portal_tab": {
+    "label": "Invoices",
+    "kind": "navigation"
+  },
+  "stats.portal_tab": {
+    "label": "Stats",
+    "kind": "navigation"
+  },
+  "chat.portal_tab": {
+    "label": "Communications",
+    "kind": "navigation"
+  },
+  "channels.portal_tab": {
+    "label": "Channels",
+    "kind": "navigation"
+  },
+  "sales.today_portal_tab": {
+    "label": "Today",
+    "kind": "navigation"
+  },
+  "sales.overview_tab": {
+    "label": "Visit",
+    "kind": "navigation"
+  },
+  "assistant.portal_tab": {
+    "label": "FirstMate Assistant",
+    "kind": "navigation"
+  },
+  "feedback.portal_tab": {
+    "label": "Feedback",
+    "kind": "navigation"
+  },
+  "signatures.crew_project_tab": {
+    "label": "Work",
+    "kind": "navigation"
+  }
+}

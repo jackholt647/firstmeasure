@@ -1748,6 +1748,13 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  app.get('/organizations/:orgId/branch/:branchId/terminology',async request=>{
+    const orgId=getParam(request.params,'orgId');
+    await requirePlatformAuth(request,{orgId});
+    const {readTerminologyMappings}=await import('./localization/terminology-settings.js');
+    return {ok:true,mappings:await readTerminologyMappings(orgId,getParam(request.params,'branchId')||'default')};
+  });
+
   app.put("/organizations/:orgId/branch/:branchId/modules/:moduleId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: branchModuleWritePermission(getParam(request.params, "moduleId")) });
@@ -2353,6 +2360,40 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, ...result };
   });
 
+
+  // Thin aliases over the shared agent runtime, scoped to Notifications.
+  app.get('/organizations/:orgId/terminology-assistant', async request => {
+    const orgId=getParam(request.params,'orgId');
+    await requirePlatformAuth(request,{orgId,permission:'manage_company_settings'});
+    await import('../assistant/agent/definition.js');
+    const {loadAgentSettings}=await import('../agents/settings.js');
+    const settings=await loadAgentSettings('terminology_assistant',orgId,'default');
+    return {ok:true,settings:{enabled:settings.enabled!==false,assistant_name:settings.assistant_name}};
+  });
+  app.post('/organizations/:orgId/terminology-assistant/threads', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_company_settings'});
+    await import('../assistant/agent/definition.js');
+    const {createThreadForAgent}=await import('../agents/runtime.js');
+    const body=z.object({branch_id:z.string().max(100).optional()}).passthrough().parse(request.body||{});
+    return {ok:true,thread:await createThreadForAgent('terminology_assistant',{orgId,branchId:body.branch_id||ctx.branchId||'default',actorUserId:ctx.userId,subjectId:'terminology',title:'Terminology setup'})};
+  });
+  app.get('/organizations/:orgId/terminology-assistant/threads/:threadId', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,permission:'manage_company_settings'});
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent}=await import('../agents/runtime.js');
+    return {ok:true,...await readThreadForAgent('terminology_assistant',orgId,getParam(request.params,'threadId'),ctx.userId)};
+  });
+  app.post('/organizations/:orgId/terminology-assistant/threads/:threadId/messages', async request => {
+    const orgId=getParam(request.params,'orgId'),threadId=getParam(request.params,'threadId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_company_settings'});
+    const body=z.object({message:z.string().trim().min(1).max(4000),locale:localeSchema,catalog:z.array(z.object({key:z.string().max(160),label:z.string().max(160),section:z.string().max(120),value:z.string().max(160)})).max(1000)}).parse(request.body);
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent,runAgentTurn}=await import('../agents/runtime.js');
+    await readThreadForAgent('terminology_assistant',orgId,threadId,ctx.userId);
+    return {ok:true,...await runAgentTurn('terminology_assistant',{orgId,threadId,branchId:ctx.branchId||'default',message:body.message,input:{locale:body.locale,catalog:body.catalog},ctx,actorUserId:ctx.userId,actorName:String(asObject(ctx.user).name||'')})};
+  });
 
   // Thin aliases over the shared agent runtime, scoped to Notifications.
   app.get('/organizations/:orgId/notification-assistant', async request => {
@@ -6978,7 +7019,15 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
     : [];
   const ownerShares = found.access_mode === "owner" ? publicPortalGuestLinks(ownerShareSource, baseUrl) : [];
   await touchPortalGuestView(found).catch(() => undefined);
+  const languageBranch=cleanText(asObject(project).branch_id || asObject(project).branchId || 'default');
+  const {readTerminologyMappings}=await import('./localization/terminology-settings.js');
+  const [portalLanguage,terminologyModule]=await Promise.all([companyLocalization(found.orgId,languageBranch),readTerminologyMappings(found.orgId,languageBranch)]);
+  const publicNamespaces=new Set(['projects','contacts','photos','proposals','documents','document_engine','customer_portal','payments','money','receipts','checklists','change_orders','scheduling','work','workforce']);
+  const {terminologyContract}=await import('./localization/terminology.js');
+  const projectLabels=(value:unknown)=>Object.fromEntries(Object.entries(asObject(value)).filter(([namespace])=>publicNamespaces.has(namespace)).map(([namespace,labels])=>[namespace,Object.fromEntries(Object.entries(asObject(labels)).filter(([key,label])=>Object.hasOwn(terminologyContract,`${namespace}.${key}`)&&!key.endsWith('_application')&&typeof label==='string'&&label.length<=160))]));
+  const terminologyData=asObject(terminologyModule);
   return {
+    language:{context:portalLanguage.context,terminology:{labels:projectLabels(terminologyData.labels),localized_labels:{[portalLanguage.context.locale]:projectLabels(asObject(terminologyData.localized_labels)[portalLanguage.context.locale])}}},
     preview,
     access: found.access_mode === "guest" ? {
       mode: "guest",
@@ -8249,7 +8298,7 @@ function collectionWritePermission(collection: string, operation: "create" | "re
 }
 
 function branchModuleWritePermission(moduleId: string) {
-  if (moduleId === "pricebook" || moduleId === "presentation_style") return "manage_company_settings";
+  if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings') return "manage_company_settings";
   return undefined;
 }
 
