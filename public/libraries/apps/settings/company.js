@@ -14029,6 +14029,11 @@
       const notificationOrgId=currentOrgId(),notificationBranchId=currentBranchId();
       try {
         const result=await window.PlatformAPI.notifications.preferences(notificationOrgId,notificationBranchId);
+        // Settings describe reusable notifications; template values belong to each delivery.
+        const notificationLabel=value=>String(value||'').replace(/\{\{\s*([^{}]+?)\s*\}\}/g,(_,field)=>{
+          const name=field.trim().split('.').pop().replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ');
+          return name.replace(/\bname$/i,'').trim()||'item';
+        }).replace(/\s+/g,' ').trim().replace(/^./,letter=>letter.toUpperCase());
         const buildGroups=result=>{
         const customKeys=new Set(result.custom_keys||[]),selected=[];
         // Presentation groups are independent of app ownership and delivery keys.
@@ -14081,7 +14086,7 @@
             if(event)selected.push({...definition,label,description});else grouped.get(destination).definitions.push({...definition,label,description});
           }
         }
-        return [...grouped.values()].filter(g=>g.definitions.length).map(g=>({...g,kind:'general'})).concat((result.catalog||[]).filter(g=>g.kind!=='app').map(g=>({...g,kind:g.id.startsWith('scope.')?'scope':g.kind})),selected.length?[{id:'custom-triggers',label:'Selected triggers',kind:'custom',definitions:selected}]:[]);
+        return [...grouped.values()].filter(g=>g.definitions.length).map(g=>({...g,kind:'general'})).concat((result.catalog||[]).filter(g=>g.kind!=='app'&&g.definitions?.length).map(g=>({...g,kind:g.id.startsWith('scope.')?'workflow':g.kind,definitions:g.definitions.map(d=>({...d,label:notificationLabel(d.label),description:notificationLabel(d.description)}))})),selected.length?[{id:'custom-triggers',label:'Selected triggers',kind:'custom',definitions:selected}]:[]);
         };
         let groups=buildGroups(result);
         const preferences=result.preferences||{in_app:{},push:{}};
@@ -14091,21 +14096,31 @@
           .cs-wrap.notifications-wide .cs-main>.cs-card{overflow:hidden!important}
           #csPaneNotifications{height:100%;min-height:0}
           #csPaneNotifications .nc-shell{container-type:inline-size;display:flex;flex-direction:column;height:100%;min-height:0;gap:12px;color:#182230}
-          #csPaneNotifications .nc-body{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;flex:1;min-height:0}
+          #csPaneNotifications .nc-body{display:grid;grid-template-columns:minmax(0,1fr) clamp(350px,32%,420px);gap:12px;flex:1;min-height:0}
           #csPaneNotifications .nc-results{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:6px}
           #csPaneNotifications .nc-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#667085;margin:8px 0 0}
-          #csPaneNotifications .nc-assistant{min-height:0;display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafb;overflow:hidden}
-          #csPaneNotifications .nc-assistant header{padding:14px;border-bottom:1px solid #e4e7ec;display:flex;justify-content:space-between;align-items:center;font-size:13px}
-          #csPaneNotifications .nc-assistant header button{border:0;background:none;color:#667085;font:inherit;cursor:pointer}
-          #csPaneNotifications .nc-conversation{flex:1;min-height:0;overflow:auto;padding:14px;overscroll-behavior:contain;font-size:12px;line-height:1.6}
-          #csPaneNotifications .nc-msg{padding:10px 12px;margin:0 0 12px;border-radius:10px;overflow-wrap:anywhere}
-          #csPaneNotifications .nc-msg.user{background:#e7efea;margin-left:14px}
-          #csPaneNotifications .nc-msg.assistant{background:white;border:1px solid #e4e7ec}
-          #csPaneNotifications .nc-compose{padding:12px;border-top:1px solid #e4e7ec;display:grid;gap:8px}
-          #csPaneNotifications .nc-compose textarea{width:100%;min-height:72px;max-height:130px;resize:vertical;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:8px;padding:9px;font:12px/1.5 inherit}
-          #csPaneNotifications .nc-compose button{justify-self:end}
+          #csPaneNotifications .nc-assistant{min-height:0;display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden}
+          #csPaneNotifications .nc-assistant header{padding:12px 14px;border-bottom:1px solid #e4e7ec;display:flex;gap:10px;align-items:center;font-size:14px}
+          #csPaneNotifications .nc-assistant header strong{flex:1;min-width:0}
+          #csPaneNotifications .nc-logo{display:inline-block;flex-shrink:0;width:24px;height:24px;background:var(--primary-readable,var(--primary,#175cd3));-webkit-mask:url('/images/logo_square.png') center/contain no-repeat;mask:url('/images/logo_square.png') center/contain no-repeat}
+          #csPaneNotifications .nc-assistant header button{width:32px;height:32px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;color:#667085;font:inherit;cursor:pointer}
+          #csPaneNotifications .nc-conversation{flex:1;min-height:0;overflow:auto;padding:14px;overscroll-behavior:contain;display:flex;flex-direction:column;gap:10px}
+          #csPaneNotifications .nc-conversation>*{flex:0 0 auto}
+          #csPaneNotifications .nc-msg{max-width:92%;padding:9px 12px;margin:0;border-radius:12px;overflow-wrap:anywhere;font-size:13.5px;line-height:1.45}
+          #csPaneNotifications .nc-msg.user{align-self:flex-end;background:var(--primary-readable,var(--primary,#175cd3));color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
+          #csPaneNotifications .nc-msg.assistant{align-self:flex-start;background:#f2f4f7;color:#101828;border:0;border-bottom-left-radius:4px}
+          #csPaneNotifications .nc-welcome{text-align:center;color:#667085;padding:44px 18px 10px;font-size:12.5px;line-height:1.5}
+          #csPaneNotifications .nc-welcome .nc-logo{width:34px;height:34px;margin-bottom:10px}
+          #csPaneNotifications .nc-welcome strong{display:block;color:#101828;font-size:14px;margin-bottom:4px}
+          #csPaneNotifications .nc-compose{flex:0 0 auto;padding:11px 13px;border-top:1px solid #e4e7ec;display:flex;flex-direction:column;gap:7px}
+          #csPaneNotifications .nc-compose-shell{display:flex;align-items:flex-end;gap:5px;min-height:54px;padding:5px 7px 5px 12px;border:1px solid #e4e7ec;border-radius:28px;background:#fff;box-shadow:0 3px 14px #10182812}
+          #csPaneNotifications .nc-compose-shell:focus-within{border-color:var(--primary-readable,var(--primary,#175cd3))}
+          #csPaneNotifications .nc-compose textarea{flex:1;min-width:0;box-sizing:border-box;resize:none;border:0;background:transparent;padding:9px 5px;font:inherit;font-size:13px;line-height:22px;height:40px;min-height:40px;max-height:170px;outline:none}
+          #csPaneNotifications .nc-send{flex:0 0 auto;align-self:flex-end;width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;background:var(--primary-readable,var(--primary,#175cd3));color:#fff;display:inline-flex;align-items:center;justify-content:center}
+          #csPaneNotifications .nc-send:disabled{opacity:.5;cursor:default}
           #csPaneNotifications .nc-chat-status{font-size:11px;color:#667085;overflow-wrap:anywhere}
-          #csPaneNotifications .nc-toolbar select{border:1px solid #d0d5dd;border-radius:8px;padding:8px;font:12px inherit;background:#fff}
+          #csPaneNotifications .nc-chat-status:empty{display:none}
+          #csPaneNotifications .nc-toolbar select,#csPaneNotifications [data-nc-add]{height:38px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:8px;padding:0 12px;font:inherit;font-size:12px;background:#fff;color:#344054;white-space:nowrap;cursor:pointer}
           #csPaneNotifications .nc-toolbar{flex-shrink:0}
           @container(max-width:740px){#csPaneNotifications .nc-body{grid-template-columns:minmax(0,1fr)}#csPaneNotifications .nc-assistant{display:none}#csPaneNotifications .nc-body.chat-open .nc-results{display:none}#csPaneNotifications .nc-body.chat-open .nc-assistant{display:flex}}
 
@@ -14126,12 +14141,13 @@
           #csPaneNotifications .nc-grid{display:grid;grid-template-columns:repeat(var(--nc-columns,1),minmax(0,1fr));padding:0 0 8px}
           #csPaneNotifications .nc-col{min-width:0;padding:0 12px}
           #csPaneNotifications .nc-col+.nc-col{border-left:1px solid #d0d5dd}
-          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 48px;align-items:center;gap:4px}
+          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 48px;align-items:center;gap:8px}
           #csPaneNotifications .nc-colhead{height:30px;color:#667085;font-size:10px;border-bottom:1px solid #eaecf0}
           #csPaneNotifications .nc-colhead span:not(:first-child){text-align:center}
           #csPaneNotifications .nc-row{min-height:44px;border-bottom:1px solid #f2f4f7}
           #csPaneNotifications .nc-row:last-child{border-bottom:0}
-          #csPaneNotifications .nc-label{display:flex;gap:4px;align-items:center;min-width:0;font-size:12px;line-height:1.4}
+          #csPaneNotifications .nc-label{display:flex;gap:6px;padding-right:8px;align-items:center;min-width:0;font-size:12px;line-height:1.4}
+          #csPaneNotifications .nc-label>span:first-child{min-width:0;overflow-wrap:anywhere}
           #csPaneNotifications .nc-info{position:relative;display:inline-flex;flex-shrink:0}
           #csPaneNotifications .nc-info button{border:0;background:none;color:#98a2b3;padding:10px 5px;cursor:help;font-size:12px}
           #csPaneNotifications .nc-info button i{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid currentColor;border-radius:50%;font:italic 10px Georgia,serif}
@@ -14151,8 +14167,8 @@
           #csPaneNotifications [hidden]{display:none!important}
           @media(prefers-reduced-motion:reduce){#csPaneNotifications .nc-track,#csPaneNotifications .nc-track:after{transition:none}}
         </style><div class="nc-shell" data-settings-autosave="off">
-          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups">${[['all','All'],['general','General'],['workflow','Workflows'],['scope','Scopes'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label><select data-nc-sort aria-label="Sort notifications"><option value="default">Default order</option><option value="name">Name A–Z</option><option value="enabled">Enabled first</option></select><button type="button" class="cs-btn" data-nc-add>Add custom</button></div>
-          <div class="nc-body"><div class="nc-results"><div class="nc-list"></div></div><aside class="nc-assistant" aria-label="Notification assistant"><header><strong>FirstMate assistant</strong><button type="button" data-nc-new>New chat</button></header><div class="nc-conversation" role="log" aria-label="Notification conversation" aria-live="polite"></div><form class="nc-compose"><label for="nc-prompt" style="font-size:12px">Describe your custom notification</label><textarea id="nc-prompt" placeholder="Notify me when the roofing crew finishes the shingles…" required maxlength="4000"></textarea><div class="nc-chat-status" role="status"></div><button type="submit" class="cs-btn">Send</button></form></aside></div>
+          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups">${[['all','All'],['general','General'],['workflow','Workflows & scopes'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label><select data-nc-sort aria-label="Sort notifications"><option value="default">Default order</option><option value="name">Name A–Z</option><option value="enabled">Enabled first</option></select><button type="button" class="cs-btn" data-nc-add>Add custom</button></div>
+          <div class="nc-body"><div class="nc-results"><div class="nc-list"></div></div><aside class="nc-assistant" aria-label="Notification assistant"><header><span class="nc-logo" aria-hidden="true"></span><strong>FirstMate assistant</strong><button type="button" data-nc-new title="New conversation" aria-label="New conversation">+</button></header><div class="nc-conversation" role="log" aria-label="Notification conversation" aria-live="polite"></div><form class="nc-compose"><div class="nc-compose-shell"><textarea id="nc-prompt" rows="1" aria-label="Describe your custom notification" placeholder="Describe your notification…" required maxlength="4000"></textarea><button type="submit" class="nc-send" aria-label="Send" title="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div><div class="nc-chat-status" role="status"></div></form></aside></div>
           <div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>Retry saving</button>
           ${window.PlatformPush?.available?.()?'<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>Enable push on this phone</button><button class="cs-btn" type="button" data-nc-disable>Disable on this phone</button></div>':''}
         </div>`;
@@ -14160,7 +14176,7 @@
         const draw=()=>{
           const shown=groups.filter(g=>query||section==='all'||g.kind===section).map(g=>({...g,visible:g.definitions.filter(d=>`${g.label} ${d.label} ${d.description}`.toLowerCase().includes(query))})).filter(g=>!query||g.visible.length||g.label.toLowerCase().includes(query));
           if(sort!=='default')for(const group of shown)group.visible.sort((a,b)=>sort==='enabled'?(Number(!!(preferences.in_app[b.key]||preferences.push[b.key]))-Number(!!(preferences.in_app[a.key]||preferences.push[a.key]))||a.label.localeCompare(b.label)):a.label.localeCompare(b.label));
-          const sectionNames={general:'General',workflow:'Workflows',scope:'Scopes',custom:'Custom'};
+          const sectionNames={general:'General',workflow:'Workflows & scopes',custom:'Custom'};
           shown.sort((a,b)=>Object.keys(sectionNames).indexOf(a.kind)-Object.keys(sectionNames).indexOf(b.kind));
           list.innerHTML=shown.map((g,index)=>{
             const open=query||!collapsed.has(g.id),count=g.visible.length,n=columns,size=Math.floor(count/n),extra=count%n;
@@ -14191,12 +14207,15 @@
         for(const action of ['enable','disable'])shell.querySelector(`[data-nc-${action}]`)?.addEventListener('click',async event=>{event.currentTarget.disabled=true;try{const result=await window.PlatformPush[action]();status.textContent=action==='disable'?'Push disabled on this phone.':result?.granted?'Push enabled on this phone.':result?.reason||'Allow notifications in your phone settings.';}catch(error){status.textContent=error?.message||'Could not update phone notifications.';}finally{event.target.disabled=false;}});
         shell.querySelector('[data-nc-sort]').addEventListener('change',event=>{sort=event.target.value;draw();});
         const body=shell.querySelector('.nc-body'),prompt=shell.querySelector('#nc-prompt'),chatLog=shell.querySelector('.nc-conversation'),chatStatus=shell.querySelector('.nc-chat-status'),send=shell.querySelector('.nc-compose button');
+        const resizePrompt=()=>{prompt.style.height='40px';prompt.style.height=Math.min(170,Math.max(40,prompt.scrollHeight))+'px';prompt.style.overflowY=prompt.scrollHeight>170?'auto':'hidden';};
+        prompt.addEventListener('input',resizePrompt);
+        prompt.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();shell.querySelector('.nc-compose').requestSubmit();}});
         const chatKey=`notification-chat-v2:${notificationOrgId}:${notificationBranchId}:${window.Portal?.currentUser?.id||window.__APP?.userId||''}`;
         const chat=paneNotifications.__notificationChat?.key===chatKey?paneNotifications.__notificationChat:{key:chatKey,threadId:'',messages:[],pending:false,ready:false};
         paneNotifications.__notificationChat=chat;
         const renderChat=()=>{
           if(!shell.isConnected)return;
-          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):'<div class="nc-msg assistant">What would you like to be notified about? I’ll check what already exists, then help you configure it.</div>';
+          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):'<div class="nc-welcome"><span class="nc-logo" aria-hidden="true"></span><strong>What would you like to know?</strong>Describe a notification. I’ll check what already exists, then help you configure it.</div>';
           window.FirstMateAgentChat?.bindActions?.(chatLog,chat.messages);
           send.disabled=chat.pending||!chat.ready;prompt.disabled=!chat.ready; shell.querySelector('[data-nc-new]').disabled=chat.pending;
           if(chat.pending)chatStatus.textContent='FirstMate is working…';
@@ -14213,7 +14232,7 @@
         shell.querySelector('.nc-compose').addEventListener('submit',async event=>{
           event.preventDefault();const message=prompt.value.trim();if(!message||chat.pending||!chat.ready)return;
           if(saving){chatStatus.textContent='Wait for your notification choices to finish saving, then send.';return;}
-          chat.pending=true;prompt.value='';chat.messages.push({id:'local-'+Date.now(),role:'user',content:message});renderChat();
+          chat.pending=true;prompt.value='';resizePrompt();chat.messages.push({id:'local-'+Date.now(),role:'user',content:message});renderChat();
           try{
             if(!chat.threadId){const created=await window.PlatformAPI.notificationAssistant.createThread(notificationOrgId,{branch_id:notificationBranchId,subject_id:'notifications'});chat.threadId=created.thread.id;try{sessionStorage.setItem(chatKey,chat.threadId);}catch{}}
             const reply=await window.PlatformAPI.notificationAssistant.send(notificationOrgId,chat.threadId,{message,branch_id:notificationBranchId},{signal:AbortSignal.timeout(300000)});
@@ -14224,7 +14243,7 @@
             chatStatus.textContent=error?.message||'Could not reach the assistant. Your conversation is kept.';
             // Refresh durable history after an uncertain response before the user retries.
             if(chat.threadId)try{const saved=await window.PlatformAPI.notificationAssistant.thread(notificationOrgId,chat.threadId);chat.messages=saved.messages||chat.messages;}catch{}
-            prompt.value=message;
+            prompt.value=message;resizePrompt();
           }finally{chat.pending=false;chat.render?.();}
         });
         void (async()=>{
