@@ -34,7 +34,7 @@
   function notice(message){ Portal.ui?.showToast?.((globalThis.PlatformLanguage?.text("comms","m_643fa01aa77d59","Communications") ?? "Communications"),message,false); }
   function dialog(title, content, onSubmit, options={}){
     const el=document.createElement('dialog');el.className='fmcm-dialog';
-    el.innerHTML=`<form><header><h2>${String(esc(title))}</h2><button type="button" data-close aria-label="${(globalThis.PlatformLanguage?.text("comms","m_3742924668fb10","Close") ?? "Close")}">${String(icon('xmark'))}</button></header><div class="fmcm-form-body">${String(content)}<p class="fmcm-error" role="alert" hidden></p></div><footer><button type="button" data-close>${(globalThis.PlatformLanguage?.text("comms","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>${String(onSubmit?`<button class="fmcm-primary" type="submit">${esc(options.submit||'Save')}</button>`:'')}</footer></form>`;
+    el.innerHTML=`<form><header><h2>${String(esc(title))}</h2><button type="button" data-close aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}">${String(icon('xmark'))}</button></header><div class="fmcm-form-body">${String(content)}<p class="fmcm-error" role="alert" hidden></p></div><footer><button type="button" data-close>${(globalThis.PlatformLanguage?.htmlText("comms","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>${String(onSubmit?`<button class="fmcm-primary" type="submit">${esc(options.submit||'Save')}</button>`:'')}</footer></form>`;
     const before=document.activeElement;document.body.append(el);el.showModal();
     const close=()=>{el.close();el.remove();before?.focus?.();};
     el.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
@@ -58,7 +58,7 @@
     async function search(initial=false){const ticket=++sequence;status.textContent=(globalThis.PlatformLanguage?.text("comms","m_c38c62c76bb405","Finding projects…") ?? "Finding projects…");
       try{const data=await request(`call-context?${initial&&selected?`project_id=${encodeURIComponent(selected)}`:`query=${encodeURIComponent(input.value)}`}`);
         if(ticket!==sequence||!el.isConnected)return;const value=select.value;
-        const retained=[...select.options].find(o=>o.value===value);select.innerHTML=`<option value="">${(globalThis.PlatformLanguage?.text("comms","m_4e38a5f25060ba","No project") ?? "No project")}</option>`+(data.projects||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
+        const retained=[...select.options].find(o=>o.value===value);select.innerHTML=`<option value="">${(globalThis.PlatformLanguage?.htmlText("comms","m_4e38a5f25060ba","No project") ?? "No project")}</option>`+(data.projects||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
         if(value&&!data.projects.some(p=>p.id===value)&&retained)select.append(retained);select.value=value;status.textContent=data.projects.length?'':'No matching projects.';
       }catch(error){if(ticket===sequence)status.textContent=error.message;}}
     input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>void search(),250);});void search(true);

@@ -597,16 +597,16 @@
     const mediaId = activityMediaId(event);
     const links = [];
     if (mediaId) {
-      links.push(`<button type="button" class="pf-activity-link" data-activity-photo-open="${String(index)}"><i class="fas fa-image"></i>${(globalThis.PlatformLanguage?.text("photos","m_e44133b3423b5f"," Open media") ?? " Open media")}</button>`);
+      links.push(`<button type="button" class="pf-activity-link" data-activity-photo-open="${String(index)}"><i class="fas fa-image"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_e44133b3423b5f"," Open media") ?? " Open media")}</button>`);
     }
     if (projectId || activityProjectLabel(event)) {
-      links.push(`<button type="button" class="pf-activity-link" data-activity-project-open="${String(index)}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.text("photos","m_53787840db7d1c"," Open project") ?? " Open project")}</button>`);
+      links.push(`<button type="button" class="pf-activity-link" data-activity-project-open="${String(index)}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_53787840db7d1c"," Open project") ?? " Open project")}</button>`);
     }
     return links.length ? `<div class="pf-activity-links">${links.join('')}</div>` : '';
   }
   function renderActivityList(events = []){
     if (!events.length) {
-      return `<div class="pf-user-empty"><i class="fas fa-clock-rotate-left"></i><strong>${(globalThis.PlatformLanguage?.text("photos","m_a545b858debe95","No activity yet") ?? "No activity yet")}</strong><span>${(globalThis.PlatformLanguage?.text("photos","m_987dfddd540a5b","Tracked uploads, comments, and report orders will appear here.") ?? "Tracked uploads, comments, and report orders will appear here.")}</span></div>`;
+      return `<div class="pf-user-empty"><i class="fas fa-clock-rotate-left"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_a545b858debe95","No activity yet") ?? "No activity yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_987dfddd540a5b","Tracked uploads, comments, and report orders will appear here.") ?? "Tracked uploads, comments, and report orders will appear here.")}</span></div>`;
     }
     const days = new Map();
     events.forEach((event, index) => {
@@ -748,7 +748,7 @@
   }
   function userListHtml(items = []){
     const users = uploaderUsers(items);
-    if (!users.length) return `<span>${(globalThis.PlatformLanguage?.text("photos","m_d891abd029c243","Unknown uploader") ?? "Unknown uploader")}</span>`;
+    if (!users.length) return `<span>${(globalThis.PlatformLanguage?.htmlText("photos","m_d891abd029c243","Unknown uploader") ?? "Unknown uploader")}</span>`;
     if (!userModalsEnabled()) return escapeHtml(userListLabel(items));
     return users.map((user) => `<button type="button" class="pf-user-link" data-photo-user-open="${escapeHtml(user.key)}">${escapeHtml(user.name || user.email || 'User')}</button>`).join('<span class="pf-user-sep">,</span> ');
   }
@@ -1637,7 +1637,7 @@
         <div class="pf-picker-shell" role="dialog" aria-modal="true" aria-label="${String(escapeHtml(title))}">
           <div class="pf-picker-head">
             <div><strong>${String(escapeHtml(title))}</strong>${String(subtitle ? `<span>${escapeHtml(subtitle)}</span>` : '')}</div>
-            <button type="button" class="pf-picker-close" data-picker-close aria-label="${(globalThis.PlatformLanguage?.text("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+            <button type="button" class="pf-picker-close" data-picker-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
           </div>
           <div class="pf-picker-body">
             ${String(items.length ? `
@@ -1657,10 +1657,10 @@
           </div>
           ${String(pickerError ? `<div class="pf-picker-error">${escapeHtml(pickerError)}</div>` : '')}
           <div class="pf-picker-foot">
-            <button type="button" class="pf-action" data-picker-upload><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.text("photos","m_9ca9dace4f122f"," Upload") ?? " Upload")}</button>
+            <button type="button" class="pf-action" data-picker-upload><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_9ca9dace4f122f"," Upload") ?? " Upload")}</button>
             <input type="file" data-picker-file accept="${String(escapeHtml(uploadAccept))}" ${String(multiple ? 'multiple' : '')} hidden>
             <div style="flex:1"></div>
-            <button type="button" class="pf-action" data-picker-clear ${String(selected.size ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.text("photos","m_506191e24dd383","Clear") ?? "Clear")}</button>
+            <button type="button" class="pf-action" data-picker-clear ${String(selected.size ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("photos","m_506191e24dd383","Clear") ?? "Clear")}</button>
             <button type="button" class="pf-action primary" data-picker-confirm ${String(selected.size ? '' : 'disabled')}>${String(escapeHtml(confirmLabel()))}</button>
           </div>
         </div>
@@ -1876,7 +1876,7 @@
           <strong>${escapeHtml(feedActivitySummary(event))}</strong>
           <span>${escapeHtml([projectLabel, activityTime(entry.timestamp)].filter(Boolean).join(' · '))}</span>
         </div>
-        ${entry.projectId ? `<button type="button" class="pf-activity-link" data-feed-project-id="${String(escapeHtml(entry.projectId))}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.text("photos","m_53787840db7d1c"," Open project") ?? " Open project")}</button>` : ''}
+        ${entry.projectId ? `<button type="button" class="pf-activity-link" data-feed-project-id="${String(escapeHtml(entry.projectId))}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_53787840db7d1c"," Open project") ?? " Open project")}</button>` : ''}
       </article>`;
   }
   function dynamicHtml(options = {}){
@@ -1885,26 +1885,26 @@
     const dayGroups = groupedFeedEntries(visibleEntries);
     const selectedCount = state.selected.size;
     const selectionActions = state.trashMode
-      ? `<button type="button" class="pf-action" data-selection-restore><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("photos","m_d55efd8791e299"," Restore") ?? " Restore")}</button><button type="button" class="pf-action danger" data-selection-hard-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("photos","m_4e4c97a39c03c8"," Delete Forever") ?? " Delete Forever")}</button>`
-      : `<button type="button" class="pf-action danger" data-selection-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("photos","m_90e27d705bee80"," Delete") ?? " Delete")}</button><div class="pf-download-wrap">
-          <button type="button" class="pf-action primary" data-selection-download><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("photos","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
+      ? `<button type="button" class="pf-action" data-selection-restore><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_d55efd8791e299"," Restore") ?? " Restore")}</button><button type="button" class="pf-action danger" data-selection-hard-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_4e4c97a39c03c8"," Delete Forever") ?? " Delete Forever")}</button>`
+      : `<button type="button" class="pf-action danger" data-selection-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_90e27d705bee80"," Delete") ?? " Delete")}</button><div class="pf-download-wrap">
+          <button type="button" class="pf-action primary" data-selection-download><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
           <div class="pf-download-menu${String(state.downloadMenuOpen ? ' visible' : '')}" data-selection-download-menu>
-            <button type="button" data-download-selected-plain>${(globalThis.PlatformLanguage?.text("photos","m_c94e82190b64cc","Without markup") ?? "Without markup")}</button>
-            <button type="button" data-download-selected-markup>${(globalThis.PlatformLanguage?.text("photos","m_42e3382f311f77","With markup") ?? "With markup")}</button>
+            <button type="button" data-download-selected-plain>${(globalThis.PlatformLanguage?.htmlText("photos","m_c94e82190b64cc","Without markup") ?? "Without markup")}</button>
+            <button type="button" data-download-selected-markup>${(globalThis.PlatformLanguage?.htmlText("photos","m_42e3382f311f77","With markup") ?? "With markup")}</button>
           </div>
         </div>`;
     return `
       ${state.selectionMode ? `<div class="pf-selectionbar">
-        <strong>${((v0) => globalThis.PlatformLanguage?.text("photos","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(selectedCount)}</strong>
+        <strong>${((v0) => globalThis.PlatformLanguage?.htmlText("photos","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(selectedCount)}</strong>
         <div class="pf-selection-actions">
-          <button type="button" class="pf-action" data-selection-clear>${(globalThis.PlatformLanguage?.text("photos","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button type="button" class="pf-action" data-selection-clear>${(globalThis.PlatformLanguage?.htmlText("photos","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
           ${String(selectionActions)}
         </div>
       </div>` : ''}
       <div class="pf-scroll" data-feed-scroll>
-        ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.text("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
-        ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
-        ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.text("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.text("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
+        ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
+        ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
+        ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
         ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => entry.kind === 'media' ? feedMediaEntryHtml(entry) : (entry.kind === 'document' ? feedDocumentEntryHtml(entry) : feedActivityEntryHtml(entry))).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : ''}
       </div>`;
@@ -1985,7 +1985,7 @@
     return `
       <section class="pf-shown-section">
         <div class="pf-shown-section-head">
-          <span><i class="fas ${String(icon)}"></i><strong>${String(escapeHtml(title))}</strong><em>${((v2,v3) => globalThis.PlatformLanguage?.text("photos","m_f624acebda7242",`${v2} of ${v3}`,{v2,v3}) ?? `${v2} of ${v3}`)(count,items.length)}</em></span>
+          <span><i class="fas ${String(icon)}"></i><strong>${String(escapeHtml(title))}</strong><em>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("photos","m_f624acebda7242",`${v2} of ${v3}`,{v2,v3}) ?? `${v2} of ${v3}`)(count,items.length)}</em></span>
           <button type="button" data-feed-filter-group="${String(escapeHtml(group))}" data-filter-group-action="${String(allSelected ? 'none' : 'all')}">${String(allSelected ? 'Hide all' : 'Show all')}</button>
         </div>
         <div class="pf-shown-options">
@@ -2001,7 +2001,7 @@
     ];
     return `
       <div class="pf-shown-menu" data-feed-shown-menu>
-        <div class="pf-shown-head"><div><strong>${(globalThis.PlatformLanguage?.text("photos","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><span>${(globalThis.PlatformLanguage?.text("photos","m_f1b0e54bf174a7","Build the feed your team needs.") ?? "Build the feed your team needs.")}</span></div><button type="button" data-feed-shown-close aria-label="${(globalThis.PlatformLanguage?.text("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
+        <div class="pf-shown-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_f1b0e54bf174a7","Build the feed your team needs.") ?? "Build the feed your team needs.")}</span></div><button type="button" data-feed-shown-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
         ${String(shownGroupHtml('media', 'Media', 'fa-photo-film', mediaItems, state.visibleMedia))}
         ${String(shownGroupHtml('tags', 'Media tags', 'fa-tags', mediaTagOptions(state.items, state.visibleTags), state.visibleTags))}
         ${String(shownGroupHtml('activity', 'Activity', 'fa-clock-rotate-left', ACTIVITY_FILTERS, state.visibleActivity))}
@@ -2014,19 +2014,19 @@
     state.root.innerHTML = `
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar">
-          <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || 'Feed'))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
+          <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
           <div class="pf-tools">
-            <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.text("photos","m_3fb1d572340b7f","Search feed") ?? "Search feed")}"></label>
+            <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("photos","m_3fb1d572340b7f","Search feed") ?? "Search feed")}"></label>
             <div class="pf-density">
               ${String([
-                { id: 'loose', label: 'Loose', icon: 'border-all' },
-                { id: 'comfortable', label: 'Comfortable', icon: 'grip' },
-                { id: 'compact', label: 'Compact', icon: 'table-cells' },
-                { id: 'list', label: 'List', icon: 'list' }
+                { id: 'loose', label: (globalThis.PlatformLanguage?.htmlText("photos","m_0c94f4868222d9","Loose") ?? "Loose"), icon: 'border-all' },
+                { id: 'comfortable', label: (globalThis.PlatformLanguage?.htmlText("photos","m_1aa394ac627daa","Comfortable") ?? "Comfortable"), icon: 'grip' },
+                { id: 'compact', label: (globalThis.PlatformLanguage?.htmlText("photos","m_e5eb6280bafc65","Compact") ?? "Compact"), icon: 'table-cells' },
+                { id: 'list', label: (globalThis.PlatformLanguage?.htmlText("photos","m_db473980ea71b2","List") ?? "List"), icon: 'list' }
               ].map((mode) => `<button type="button" class="${state.density === mode.id ? 'active' : ''}" data-density="${mode.id}" data-fm-tooltip="${mode.label}"><i class="fas fa-${mode.icon}"></i></button>`).join(''))}
             </div>
             <div class="pf-shown-wrap">
-              <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleTags.size || state.visibleDocuments.size || state.visibleMedia.size < DEFAULT_MEDIA_FILTERS.length || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.text("photos","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
+              <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleTags.size || state.visibleDocuments.size || state.visibleMedia.size < DEFAULT_MEDIA_FILTERS.length || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
               ${String(shownMenuHtml())}
             </div>
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
@@ -2390,10 +2390,10 @@
     modal.innerHTML = `
       <div class="pf-trash-shell">
         <div class="pf-trash-head">
-          <div><strong><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("photos","m_89e3b5685a73e8"," Trash") ?? " Trash")}</strong><span data-trash-summary>${((v0,v1,v2) => globalThis.PlatformLanguage?.text("photos","m_bb5db1f723b03a",`${v0} media item${v1} | ${v2}`,{v0,v1,v2}) ?? `${v0} media item${v1} | ${v2}`)(escapeHtml(currentStats.count),currentStats.count === 1 ? '' : 's',escapeHtml(formatBytes(currentStats.bytes)))}</span></div>
+          <div><strong><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_89e3b5685a73e8"," Trash") ?? " Trash")}</strong><span data-trash-summary>${((v0,v1,v2) => globalThis.PlatformLanguage?.htmlText("photos","m_bb5db1f723b03a",`${v0} media item${v1} | ${v2}`,{v0,v1,v2}) ?? `${v0} media item${v1} | ${v2}`)(escapeHtml(currentStats.count),currentStats.count === 1 ? '' : 's',escapeHtml(formatBytes(currentStats.bytes)))}</span></div>
           <div class="pf-selection-actions">
-            <button type="button" class="pf-action danger" data-trash-empty><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("photos","m_fe9f87c79c5388"," Empty Trash") ?? " Empty Trash")}</button>
-            <button type="button" class="pf-trash-close" data-trash-close aria-label="${(globalThis.PlatformLanguage?.text("photos","m_bef1bdc6b4d7cc","Close trash") ?? "Close trash")}"><i class="fas fa-times"></i></button>
+            <button type="button" class="pf-action danger" data-trash-empty><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_fe9f87c79c5388"," Empty Trash") ?? " Empty Trash")}</button>
+            <button type="button" class="pf-trash-close" data-trash-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_bef1bdc6b4d7cc","Close trash") ?? "Close trash")}"><i class="fas fa-times"></i></button>
           </div>
         </div>
         <div class="pf-trash-body"><div data-trash-feed style="height:100%;min-height:0"></div></div>
@@ -2499,13 +2499,13 @@
         </aside>
         <main class="pf-user-main">
           <div class="pf-user-main-head">
-            <div class="pf-user-main-title">${(globalThis.PlatformLanguage?.text("photos","m_6f5dea53bf13f4","Profile") ?? "Profile")}</div>
+            <div class="pf-user-main-title">${(globalThis.PlatformLanguage?.htmlText("photos","m_6f5dea53bf13f4","Profile") ?? "Profile")}</div>
             <div class="pf-user-head-actions">
               <div class="pf-user-tabs">
                 <button type="button" class="pf-user-tab active" data-user-tab="photos">${String(escapeHtml(window.Portal?.terminology?.get?.('photos.photos_view', 'Photos') || 'Photos'))}</button>
                 ${String(showActivity ? `<button type="button" class="pf-user-tab" data-user-tab="activity">${escapeHtml(window.Portal?.terminology?.get?.('photos.activity_view', 'Activity') || 'Activity')}</button>` : '')}
               </div>
-              <button type="button" class="pf-user-close" data-user-close aria-label="${(globalThis.PlatformLanguage?.text("photos","m_f7d93ca06bc15a","Close user") ?? "Close user")}"><i class="fas fa-times"></i></button>
+              <button type="button" class="pf-user-close" data-user-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_f7d93ca06bc15a","Close user") ?? "Close user")}"><i class="fas fa-times"></i></button>
             </div>
           </div>
           <div class="pf-user-panel" data-user-panel></div>
@@ -2554,11 +2554,11 @@
     const showActivityTab = async (tabOptions = {}) => {
       setActive('activity');
       if (tabOptions.updateRoute !== false && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ userTab:'activity' }, { source:'user-profile-tab', ownedKeys:['userTab'] });
-      panel.innerHTML = `<div class="pf-user-activity"><div class="pf-loading">${(globalThis.PlatformLanguage?.text("photos","m_a74d3976fbbe47","Loading activity...") ?? "Loading activity...")}</div></div>`;
+      panel.innerHTML = `<div class="pf-user-activity"><div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_a74d3976fbbe47","Loading activity...") ?? "Loading activity...")}</div></div>`;
       const root = panel.querySelector('.pf-user-activity');
       const result = await window.PlatformAPI?.userActivity?.listForUser?.(orgId(), enriched, { limit: 200 }).catch((error) => ({ error }));
       if (result?.error) {
-        root.innerHTML = `<div class="pf-user-empty"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("photos","m_1fc5d851a4ed4e","Could not load activity") ?? "Could not load activity")}</strong><span>${String(escapeHtml(result.error?.message || 'Try again in a moment.'))}</span></div>`;
+        root.innerHTML = `<div class="pf-user-empty"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1fc5d851a4ed4e","Could not load activity") ?? "Could not load activity")}</strong><span>${String(escapeHtml(result.error?.message || 'Try again in a moment.'))}</span></div>`;
         return;
       }
       const events = result?.events || [];
@@ -2663,7 +2663,7 @@
       if (!local.tagMenuOpen) return '';
       const items = mediaTagOptions(local.items, local.visibleTags);
       return `<div class="pf-shown-menu" data-local-tag-menu>
-        <div class="pf-shown-head"><div><strong>${(globalThis.PlatformLanguage?.text("photos","m_7a18799062167c","Filter by tags") ?? "Filter by tags")}</strong><span>${(globalThis.PlatformLanguage?.text("photos","m_947598ffa6c0ff","Show media matching any selected tag.") ?? "Show media matching any selected tag.")}</span></div><button type="button" data-local-tags-close aria-label="${(globalThis.PlatformLanguage?.text("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
+        <div class="pf-shown-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_7a18799062167c","Filter by tags") ?? "Filter by tags")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_947598ffa6c0ff","Show media matching any selected tag.") ?? "Show media matching any selected tag.")}</span></div><button type="button" data-local-tags-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
         ${String(shownGroupHtml('local-tags', 'Media tags', 'fa-tags', items, local.visibleTags))}
       </div>`;
     };
@@ -2737,10 +2737,10 @@
         }).join('')
         : '';
       const selectionActions = options.trashMode
-        ? `<button type="button" class="pf-action" data-selection-restore><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("photos","m_d55efd8791e299"," Restore") ?? " Restore")}</button><button type="button" class="pf-action danger" data-selection-hard-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("photos","m_4e4c97a39c03c8"," Delete Forever") ?? " Delete Forever")}</button>`
+        ? `<button type="button" class="pf-action" data-selection-restore><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_d55efd8791e299"," Restore") ?? " Restore")}</button><button type="button" class="pf-action danger" data-selection-hard-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_4e4c97a39c03c8"," Delete Forever") ?? " Delete Forever")}</button>`
         : (String(extraSelectionActions) + "<button type=\"button\" class=\"pf-action danger\" data-selection-delete><i class=\"fas fa-trash\"></i>" + (globalThis.PlatformLanguage?.text("photos","m_90e27d705bee80"," Delete") ?? " Delete") + "</button><div class=\"pf-download-wrap\"><button type=\"button\" class=\"pf-action primary\" data-selection-download><i class=\"fas fa-download\"></i>" + (globalThis.PlatformLanguage?.text("photos","m_f3ad10eaad3ccf"," Download") ?? " Download") + "</button><div class=\"pf-download-menu" + String(local.downloadMenuOpen ? ' visible' : '') + "\" data-selection-download-menu><button type=\"button\" data-download-selected-plain>" + (globalThis.PlatformLanguage?.text("photos","m_c94e82190b64cc","Without markup") ?? "Without markup") + "</button><button type=\"button\" data-download-selected-markup>" + (globalThis.PlatformLanguage?.text("photos","m_42e3382f311f77","With markup") ?? "With markup") + "</button></div></div>");
       return `
-        ${local.selectionMode ? `<div class="pf-selectionbar"><strong>${((v0) => globalThis.PlatformLanguage?.text("photos","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(local.selected.size)}</strong><div class="pf-selection-actions"><button type="button" class="pf-action" data-selection-clear>${(globalThis.PlatformLanguage?.text("photos","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>${String(selectionActions)}</div></div>` : ''}
+        ${local.selectionMode ? `<div class="pf-selectionbar"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("photos","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(local.selected.size)}</strong><div class="pf-selection-actions"><button type="button" class="pf-action" data-selection-clear>${(globalThis.PlatformLanguage?.htmlText("photos","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>${String(selectionActions)}</div></div>` : ''}
         <div class="pf-scroll" data-feed-scroll>
           ${!groups.length ? `<div class="pf-empty"><i class="fas ${escapeHtml(options.emptyIcon || 'fa-images')}"></i><strong>${escapeHtml(options.emptyTitle || 'No media found')}</strong><div>${escapeHtml(options.emptyMessage || 'Upload project media or adjust the search.')}</div></div>` : ''}
           ${groupedByDay(groups).map(([key, list]) => `<div class="pf-day"><div class="pf-day-heading"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2>${typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>${list.map((group) => renderGroup(group, { enableProjectLinks: options.enableProjectLinks !== false, selected: local.selected, selectionEnabled:options.selectionEnabled, itemNoun:options.itemNoun, renderThumbnail:options.renderThumbnail, renderTileMeta:options.renderTileMeta, renderGroupUploaders:options.renderGroupUploaders, tileClass:options.tileClass })).join('')}</div>`).join('')}
@@ -3033,13 +3033,13 @@
             <div class="pf-tools">
               <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(local.query))}" placeholder="${String(escapeHtml(options.searchPlaceholder || 'Search dates, uploaders, tags'))}"></label>
               <div class="pf-density">${String([
-                { id: 'loose', label: 'Loose', icon: 'border-all' },
-                { id: 'comfortable', label: 'Comfortable', icon: 'grip' },
-                { id: 'compact', label: 'Compact', icon: 'table-cells' },
+                { id: 'loose', label: (globalThis.PlatformLanguage?.htmlText("photos","m_0c94f4868222d9","Loose") ?? "Loose"), icon: 'border-all' },
+                { id: 'comfortable', label: (globalThis.PlatformLanguage?.htmlText("photos","m_1aa394ac627daa","Comfortable") ?? "Comfortable"), icon: 'grip' },
+                { id: 'compact', label: (globalThis.PlatformLanguage?.htmlText("photos","m_e5eb6280bafc65","Compact") ?? "Compact"), icon: 'table-cells' },
                 ...(Array.isArray(options.extraDensityModes) ? options.extraDensityModes : [])
               ].map((mode) => `<button type="button" class="${local.density === mode.id ? 'active' : ''}" data-density="${mode.id}" data-fm-tooltip="${mode.label}"><i class="fas fa-${mode.icon}"></i></button>`).join(''))}</div>
               <div class="pf-shown-wrap">
-                <button type="button" class="pf-toolbar-action${String(local.tagMenuOpen || local.visibleTags.size ? ' active' : '')}" data-local-tags aria-expanded="${String(local.tagMenuOpen ? 'true' : 'false')}"><i class="fas fa-tags"></i><span>${(globalThis.PlatformLanguage?.text("photos","m_562d2cd3a48b8f","Tags") ?? "Tags")}</span></button>
+                <button type="button" class="pf-toolbar-action${String(local.tagMenuOpen || local.visibleTags.size ? ' active' : '')}" data-local-tags aria-expanded="${String(local.tagMenuOpen ? 'true' : 'false')}"><i class="fas fa-tags"></i><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_562d2cd3a48b8f","Tags") ?? "Tags")}</span></button>
                 ${String(localTagMenuHtml())}
               </div>
               ${String(toolbarActions)}

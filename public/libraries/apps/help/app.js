@@ -170,7 +170,7 @@
   wrapper.id = 'fmHelpWidget';
   wrapper.innerHTML = `
     <!-- Trigger -->
-    <button id="fmHelpBtn" aria-label="${(globalThis.PlatformLanguage?.text("help","m_67b289b34e4ca4","Help") ?? "Help")}">
+    <button id="fmHelpBtn" aria-label="${(globalThis.PlatformLanguage?.htmlText("help","m_67b289b34e4ca4","Help") ?? "Help")}">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48
                10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75
@@ -185,14 +185,14 @@
     <!-- Popup -->
     <div id="fmHelpPopup">
       <div class="fmHelp-header">
-        <h3>${(globalThis.PlatformLanguage?.text("help","m_0db6efc53ab2ed","Need a hand?") ?? "Need a hand?")}</h3>
-        <button class="fmHelp-close" id="fmHelpCloseBtn" aria-label="${(globalThis.PlatformLanguage?.text("help","m_3742924668fb10","Close") ?? "Close")}">${(globalThis.PlatformLanguage?.text("help","m_dd0c616953d455","&times;") ?? "&times;")}</button>
+        <h3>${(globalThis.PlatformLanguage?.htmlText("help","m_0db6efc53ab2ed","Need a hand?") ?? "Need a hand?")}</h3>
+        <button class="fmHelp-close" id="fmHelpCloseBtn" aria-label="${(globalThis.PlatformLanguage?.htmlText("help","m_3742924668fb10","Close") ?? "Close")}">${(globalThis.PlatformLanguage?.htmlText("help","m_dd0c616953d455","&times;") ?? "&times;")}</button>
       </div>
       <div class="fmHelp-body">
-        <p>${(globalThis.PlatformLanguage?.text("help","m_cbc949dace2ec7","We're here to help! Whether you have a question about your account, reports, or anything else, don't hesitate to reach out.") ?? "We're here to help! Whether you have a question about your account, reports, or anything else, don't hesitate to reach out.")}</p>
+        <p>${(globalThis.PlatformLanguage?.htmlText("help","m_cbc949dace2ec7","We're here to help! Whether you have a question about your account, reports, or anything else, don't hesitate to reach out.") ?? "We're here to help! Whether you have a question about your account, reports, or anything else, don't hesitate to reach out.")}</p>
         <p>
           <a class="fmHelp-email" href="mailto:support@1m8.ai">
-            <i class="fas fa-envelope"></i>${(globalThis.PlatformLanguage?.text("help","m_6132b3067588fe","\n            support@1m8.ai\n          ") ?? "\n            support@1m8.ai\n          ")}</a>
+            <i class="fas fa-envelope"></i>${(globalThis.PlatformLanguage?.htmlText("help","m_6132b3067588fe","\n            support@1m8.ai\n          ") ?? "\n            support@1m8.ai\n          ")}</a>
         </p>
       </div>
     </div>

@@ -522,7 +522,7 @@
       saveProjectEvent: (_orgId, project, event) => Promise.resolve({ project: { ...project, events: [event] } })
     };
     window.PlatformScheduleView = {
-      renderDailyTeam(root) { if (root) root.innerHTML = `<div class="r-schedule-empty">${(globalThis.PlatformLanguage?.text("smoke","m_1f1a69778b4a79","Smoke schedule rendered.") ?? "Smoke schedule rendered.")}</div>`; },
+      renderDailyTeam(root) { if (root) root.innerHTML = `<div class="r-schedule-empty">${(globalThis.PlatformLanguage?.htmlText("smoke","m_1f1a69778b4a79","Smoke schedule rendered.") ?? "Smoke schedule rendered.")}</div>`; },
       updateDraft() {}
     };
     window.CanvassingAPI = {
@@ -580,7 +580,7 @@
         };
       },
       mount(root) {
-        if (root) root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("smoke","m_682f6abc604b8e","Smoke settings rendered.") ?? "Smoke settings rendered.")}</div>`;
+        if (root) root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("smoke","m_682f6abc604b8e","Smoke settings rendered.") ?? "Smoke settings rendered.")}</div>`;
         return { destroy(){} };
       }
     };
@@ -613,7 +613,7 @@
         this.center = options.center || { lat: 0, lng: 0 };
         this.zoom = options.zoom || 4;
         this.mapTypeId = options.mapTypeId || 'roadmap';
-        el.innerHTML = `<div class="gm-style" data-smoke-google-map="1" style="position:absolute;inset:0;background:#9fc5e8;"><div style="position:absolute;left:12px;top:12px;background:#fff;padding:6px;border-radius:4px;font:12px Arial;">${(globalThis.PlatformLanguage?.text("smoke","m_a0185be1d3bc11","Smoke Google Map") ?? "Smoke Google Map")}</div></div>`;
+        el.innerHTML = `<div class="gm-style" data-smoke-google-map="1" style="position:absolute;inset:0;background:#9fc5e8;"><div style="position:absolute;left:12px;top:12px;background:#fff;padding:6px;border-radius:4px;font:12px Arial;">${(globalThis.PlatformLanguage?.htmlText("smoke","m_a0185be1d3bc11","Smoke Google Map") ?? "Smoke Google Map")}</div></div>`;
       }
       getDiv(){ return this.el; }
       addListener(){ return { remove(){} }; }

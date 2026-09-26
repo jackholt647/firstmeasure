@@ -274,41 +274,41 @@
         <section class="fm-contact-left">
           <div class="fm-contact-head">
             <div>
-              <div class="fm-contact-kicker">${(globalThis.PlatformLanguage?.text("contacts","m_46c8aea84388c3","Contact") ?? "Contact")}</div>
-              <h2 class="fm-contact-title" id="fmContactTitle">${(globalThis.PlatformLanguage?.text("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</h2>
+              <div class="fm-contact-kicker">${(globalThis.PlatformLanguage?.htmlText("contacts","m_46c8aea84388c3","Contact") ?? "Contact")}</div>
+              <h2 class="fm-contact-title" id="fmContactTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</h2>
             </div>
             <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="fm-contact-fields">
-            <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>${(globalThis.PlatformLanguage?.text("contacts","m_8cf345002184e5","Name") ?? "Name")}</span><span class="fm-contact-required">${(globalThis.PlatformLanguage?.text("contacts","m_db97f048cd99aa","Required") ?? "Required")}</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
-            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.text("contacts","m_ed04c65845180f","Phone") ?? "Phone")}</label><input class="fm-contact-input" id="fmContactPhone" type="tel" autocomplete="tel"></div>
-            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.text("contacts","m_5d2b9327181e33","Email") ?? "Email")}</label><input class="fm-contact-input" id="fmContactEmail" type="email" autocomplete="email"></div>
-            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.text("contacts","m_04774ec8f0f789","Default Address") ?? "Default Address")}</label><input class="fm-contact-input" id="fmContactAddress" autocomplete="street-address"></div>
+            <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</span><span class="fm-contact-required">${(globalThis.PlatformLanguage?.htmlText("contacts","m_db97f048cd99aa","Required") ?? "Required")}</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
+            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_ed04c65845180f","Phone") ?? "Phone")}</label><input class="fm-contact-input" id="fmContactPhone" type="tel" autocomplete="tel"></div>
+            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_5d2b9327181e33","Email") ?? "Email")}</label><input class="fm-contact-input" id="fmContactEmail" type="email" autocomplete="email"></div>
+            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_04774ec8f0f789","Default Address") ?? "Default Address")}</label><input class="fm-contact-input" id="fmContactAddress" autocomplete="street-address"></div>
             <div id="fmContactCustomFields"></div>
             <div class="fm-contact-field" id="fmContactTagsField">
-              <label>${(globalThis.PlatformLanguage?.text("contacts","m_562d2cd3a48b8f","Tags") ?? "Tags")}</label>
+              <label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_562d2cd3a48b8f","Tags") ?? "Tags")}</label>
               <div class="fm-contact-tags" id="fmContactTags"></div>
               <div class="fm-contact-import-meta" id="fmContactImportMeta" hidden></div>
             </div>
           </div>
           <div class="fm-contact-todos" id="fmContactTodos" hidden>
-            <label>${(globalThis.PlatformLanguage?.text("contacts","m_a6534938817ec3","To-dos") ?? "To-dos")}</label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_a6534938817ec3","To-dos") ?? "To-dos")}</label>
             <div id="fmContactTodoList"></div>
           </div>
           <div class="fm-contact-meta" id="fmContactMeta"></div>
           <div class="fm-contact-actions">
-            <button type="button" class="fm-contact-btn" id="fmContactCall"><i class="fas fa-phone"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_8d4eaa0da004be","Call") ?? "Call")}</span></button>
-            <button type="button" class="fm-contact-btn" id="fmContactPortal" data-fm-tooltip="Copy Customer Portal link"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_a4cd44bc12f332","Portal") ?? "Portal")}</span></button>
-            <button type="button" class="fm-contact-btn primary" id="fmContactSave"><i class="fas fa-save"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_5bab3e72de1ebf","Save") ?? "Save")}</span></button>
+            <button type="button" class="fm-contact-btn" id="fmContactCall"><i class="fas fa-phone"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8d4eaa0da004be","Call") ?? "Call")}</span></button>
+            <button type="button" class="fm-contact-btn" id="fmContactPortal" data-fm-tooltip="Copy Customer Portal link"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_a4cd44bc12f332","Portal") ?? "Portal")}</span></button>
+            <button type="button" class="fm-contact-btn primary" id="fmContactSave"><i class="fas fa-save"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_5bab3e72de1ebf","Save") ?? "Save")}</span></button>
           </div>
         </section>
         <section class="fm-contact-right">
           <div class="fm-contact-right-head">
-            <div class="fm-contact-right-title">${(globalThis.PlatformLanguage?.text("contacts","m_19156e80fc8a6e","Projects") ?? "Projects")}</div>
+            <div class="fm-contact-right-title">${(globalThis.PlatformLanguage?.htmlText("contacts","m_19156e80fc8a6e","Projects") ?? "Projects")}</div>
             <div class="fm-contact-count" id="fmContactProjectCount"></div>
           </div>
           <div class="fm-contact-projects" id="fmContactProjects"></div>
-          <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.text("contacts","m_0747045bf3d919","New Project") ?? "New Project")}</span></button>
+          <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_0747045bf3d919","New Project") ?? "New Project")}</span></button>
         </section>
       </div>
     `;
@@ -451,8 +451,8 @@
     if (!mount) return;
     const tags = contactTags();
     mount.innerHTML = ("\n      " + String(tags.map((tag) => `
-        <span class="fm-contact-tag" data-contact-tag="${escapeHtml(tag)}">${escapeHtml(tag)}<button type="button" aria-label="Remove tag ${escapeHtml(tag)}"><i class="fas fa-times"></i></button></span>
-      `).join('')) + "\n      <input class=\"fm-contact-tag-input\" id=\"fmContactTagInput\" type=\"text\" autocomplete=\"off\" placeholder=\"" + (globalThis.PlatformLanguage?.text("contacts","m_88e377d325726e","Add tag...") ?? "Add tag...") + "\">\n    ");
+        <span class="fm-contact-tag" data-contact-tag="${escapeHtml(tag)}">${escapeHtml(tag)}<button type="button" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("contacts","m_69337ba9a988cf",`Remove tag ${v2}`,{v2}) ?? `Remove tag ${v2}`)(escapeHtml(tag))}"><i class="fas fa-times"></i></button></span>
+      `).join('')) + "\n      <input class=\"fm-contact-tag-input\" id=\"fmContactTagInput\" type=\"text\" autocomplete=\"off\" placeholder=\"" + (globalThis.PlatformLanguage?.htmlText("contacts","m_88e377d325726e","Add tag...") ?? "Add tag...") + "\">\n    ");
     mount.querySelectorAll('[data-contact-tag] button').forEach((button) => {
       button.addEventListener('click', () => removeContactTag(button.closest('[data-contact-tag]')?.dataset.contactTag || ''));
     });
@@ -551,11 +551,11 @@
     const projects = visibleProjects(state.projects || []);
     if (count) count.textContent = state.loading ? 'Loading...' : `${projects.length} project${projects.length === 1 ? '' : 's'}`;
     if (state.loading) {
-      mount.innerHTML = `<div class="fm-contact-empty">${(globalThis.PlatformLanguage?.text("contacts","m_86ecafe542db8d","Loading projects...") ?? "Loading projects...")}</div>`;
+      mount.innerHTML = `<div class="fm-contact-empty">${(globalThis.PlatformLanguage?.htmlText("contacts","m_86ecafe542db8d","Loading projects...") ?? "Loading projects...")}</div>`;
       return;
     }
     if (!projects.length) {
-      mount.innerHTML = `<div class="fm-contact-empty">${(globalThis.PlatformLanguage?.text("contacts","m_3d87fe0f297c41","No projects are linked to this contact yet.") ?? "No projects are linked to this contact yet.")}</div>`;
+      mount.innerHTML = `<div class="fm-contact-empty">${(globalThis.PlatformLanguage?.htmlText("contacts","m_3d87fe0f297c41","No projects are linked to this contact yet.") ?? "No projects are linked to this contact yet.")}</div>`;
       return;
     }
     mount.innerHTML = projects.map((project) => {
@@ -565,7 +565,7 @@
           <strong>${String(escapeHtml(projectTitle(project)))}</strong>
           <span>${String(escapeHtml(firstText(project.address, project.project_type, projectStageLabel(project), 'No address')))}</span>
           <span>${String(escapeHtml(firstText(contact.name, contact.email, contact.phone)))}</span>
-          <small>${(globalThis.PlatformLanguage?.text("contacts","m_27136d1254783a","Open project") ?? "Open project")}</small>
+          <small>${(globalThis.PlatformLanguage?.htmlText("contacts","m_27136d1254783a","Open project") ?? "Open project")}</small>
         </button>
       `;
     }).join('');

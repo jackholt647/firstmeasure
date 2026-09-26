@@ -879,7 +879,8 @@
       organization_connection:{ singular:'Subcontractor', plural:'Subcontractors' }
     };
     const configured = workforceTerminology?.[kind] || {};
-    return clean(configured?.[form] || configured?.singular || defaults[kind]?.[form] || defaults[kind]?.singular || 'Team');
+    const fallback=clean(configured?.[form] || configured?.singular || defaults[kind]?.[form] || defaults[kind]?.singular || 'Team');
+    return window.PlatformTerminology?.get?.(`workforce.${kind}_${form}`, fallback) || fallback;
   }
   function workResourceLabel(form = 'singular'){
     return `${workforceTerm('resource_group', form)} / ${workforceTerm('organization_connection', form)}`;
@@ -1375,7 +1376,7 @@
   function statTipHtml(stat, start, end){
     const rows = dimensionRows(start, end);
     const title = `${stat.label || stat.id} by ${dimensionLabel()}`;
-    if (!rows.length) return `<div class="fm-tip-title">${String(escapeHtml(title))}</div><div>${(globalThis.PlatformLanguage?.text("scheduling","m_1a2168116885d3","No data in this range.") ?? "No data in this range.")}</div>`;
+    if (!rows.length) return `<div class="fm-tip-title">${String(escapeHtml(title))}</div><div>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1a2168116885d3","No data in this range.") ?? "No data in this range.")}</div>`;
     return `
       <div class="fm-tip-title">${escapeHtml(title)}</div>
       ${rows.slice(0, 12).map((row) => `<div class="fm-tip-row"><span class="fm-tip-name">${escapeHtml(row.label)}</span><span class="fm-tip-value">${escapeHtml(statValueText(stat, row.stats))}</span></div>`).join('')}
@@ -1395,7 +1396,7 @@
     return `
       <div class="dash-filter-card">
         <div class="dash-mode-wrap">
-          <button type="button" class="dash-mode-btn" data-mode-menu-toggle aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_788258bf9e693f","Choose dashboard breakdown") ?? "Choose dashboard breakdown")}"><i class="fas ${String(escapeHtml(modeMeta.icon))}"></i></button>
+          <button type="button" class="dash-mode-btn" data-mode-menu-toggle aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_788258bf9e693f","Choose dashboard breakdown") ?? "Choose dashboard breakdown")}"><i class="fas ${String(escapeHtml(modeMeta.icon))}"></i></button>
           ${String(modeMenuOpen ? `<div class="dash-mode-menu">${Object.entries(FILTER_TYPES).map(([id, meta]) => `<button type="button" class="dash-mode-option ${breakdownMode === id ? 'active' : ''}" data-breakdown-mode="${escapeHtml(id)}"><i class="fas ${escapeHtml(meta.icon)}"></i><span>${escapeHtml(meta.label)}</span></button>`).join('')}</div>` : '')}
         </div>
         <div class="dash-value-wrap">
@@ -1512,7 +1513,7 @@
       .find((value) => value && !/^(?:no|missing|unknown|n\/?a)(?:\s+address)?(?:\s+yet)?$/i.test(value)) || '';
   }
   function missingAddressLabel(){
-    return `<span class="dash-missing-address-label"><i class="fas fa-location-dot"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_d2a739fd3d6c7f"," Missing address") ?? " Missing address")}</span>`;
+    return `<span class="dash-missing-address-label"><i class="fas fa-location-dot"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d2a739fd3d6c7f"," Missing address") ?? " Missing address")}</span>`;
   }
   function appointmentTile(item){
     const project = item.project || eventProject(item.event);
@@ -1689,7 +1690,7 @@
   }
   function renderDay(){
     const dayEvents = events.filter((event) => sameDay(eventStart(event), anchorDate));
-    if (!dayEvents.length) return `<div class="dash-empty">${(globalThis.PlatformLanguage?.text("scheduling","m_42c2c08b6a9c94","No events scheduled for this day.") ?? "No events scheduled for this day.")}</div>`;
+    if (!dayEvents.length) return `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_42c2c08b6a9c94","No events scheduled for this day.") ?? "No events scheduled for this day.")}</div>`;
     return `<div class="dash-day-list">${dayEvents.map((event) => `
       <div class="dash-list-event" data-event-id="${escapeHtml(event.id)}">
         <div class="dash-list-time">${escapeHtml(fmtTime(eventStart(event)))}<br>${escapeHtml(fmtTime(eventEnd(event)))}</div>
@@ -1784,7 +1785,7 @@
     };
     const group = (label, rows) => `<div class="dash-group ${rows.length ? '' : 'empty'}">
       <div class="dash-group-head" style="cursor:default"><strong>${escapeHtml(label)}</strong><span>${rows.length}</span></div>
-      <div class="dash-group-body">${rows.length ? rows.map(tile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.text("scheduling","m_9edea1c187a128","No unscheduled sales appointments.") ?? "No unscheduled sales appointments.")}</div>`}</div>
+      <div class="dash-group-body">${rows.length ? rows.map(tile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_9edea1c187a128","No unscheduled sales appointments.") ?? "No unscheduled sales appointments.")}</div>`}</div>
     </div>`;
     return group('Sales', items);
   }
@@ -1798,7 +1799,7 @@
       const missingAddress = !projectAddressValue(project, event);
       return `<button type="button" class="dash-appt-tile project-only unscheduled ${String(missingAddress ? 'missing-address' : '')}" data-production-project-id="${String(escapeHtml(project.id || event.project_id || ''))}" data-production-event-id="${String(escapeHtml(event.id || ''))}">
         <div class="dash-appt-title">${String(escapeHtml(event.title || projectTitle(project, event)))}</div>
-        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.text("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>
+        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>
         <div class="dash-appt-address">${String(escapeHtml(projectTitle(project, event)))}${String(missingAddress ? ` ${missingAddressLabel()}` : '')}</div>
       </button>`;
     };
@@ -1813,7 +1814,7 @@
       const dependentLabel = deliveryCount === group.dependents.length
         ? `${deliveryCount} ${deliveryCount === 1 ? 'delivery' : 'deliveries'}`
         : `${group.dependents.length} related item${group.dependents.length === 1 ? '' : 's'}`;
-      const cancel = selected ? `<span class="dash-bundle-cancel" data-production-bundle-cancel="${String(escapeHtml(group.key))}" role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}"><i class="fas fa-xmark"></i></span>` : `<div class="dash-stage-pill">${(globalThis.PlatformLanguage?.text("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>`;
+      const cancel = selected ? `<span class="dash-bundle-cancel" data-production-bundle-cancel="${String(escapeHtml(group.key))}" role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}"><i class="fas fa-xmark"></i></span>` : `<div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>`;
       return `<div class="dash-schedule-pile ${selected ? 'selected' : ''}" data-production-bundle="${escapeHtml(group.key)}">
         <button type="button" class="dash-appt-tile project-only unscheduled ${missingAddress ? 'missing-address' : ''} ${selected ? 'selected' : ''}" data-production-bundle-primary="${escapeHtml(group.key)}" data-production-project-id="${escapeHtml(project.id || primary.project_id || '')}" data-production-event-id="${escapeHtml(primary.id || '')}">
           <div class="dash-appt-title">${escapeHtml(primary.title || projectTitle(project, primary))}</div>
@@ -1823,7 +1824,7 @@
         ${group.dependents.length ? `<button type="button" class="dash-bundle-summary" data-production-bundle-toggle="${escapeHtml(group.key)}" aria-expanded="${expanded ? 'true' : 'false'}"><i class="fas fa-chevron-${expanded ? 'up' : 'down'}"></i><span>${expanded ? 'Hide' : 'Show'} ${escapeHtml(dependentLabel)}</span></button>` : ''}
         ${group.dependents.length && expanded ? `<div class="dash-bundle-items">${group.dependents.map((event) => {
           const childSelected = String(event.id || '') === String(materialScheduleEventId || '');
-          return `<button type="button" class="dash-bundle-item ${childSelected ? 'selected' : ''}" data-production-bundle-child="${escapeHtml(event.id || '')}" data-material-project-id="${escapeHtml(project.id || event.project_id || '')}" data-material-event-id="${escapeHtml(event.id || '')}"><i class="fas ${isMaterialEvent(event) ? 'fa-truck-ramp-box' : 'fa-calendar-day'}"></i><span>${isMaterialEvent(event) ? (String(escapeHtml(materialDeliveryTitle(event))) + "<span class=\"dash-appt-kind\">" + (globalThis.PlatformLanguage?.text("scheduling","m_658f2deb4256b0"," &mdash; delivery") ?? " &mdash; delivery") + "</span>") : escapeHtml(event.title || (globalThis.PlatformLanguage?.text("scheduling","m_d0a9ffb325f8e6","Schedule item") ?? "Schedule item"))}</span>${childSelected ? `<span class="dash-bundle-child-cancel" data-bundle-child-cancel role="button" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}"><i class="fas fa-xmark"></i></span>` : ''}</button>`;
+          return `<button type="button" class="dash-bundle-item ${childSelected ? 'selected' : ''}" data-production-bundle-child="${escapeHtml(event.id || '')}" data-material-project-id="${escapeHtml(project.id || event.project_id || '')}" data-material-event-id="${escapeHtml(event.id || '')}"><i class="fas ${isMaterialEvent(event) ? 'fa-truck-ramp-box' : 'fa-calendar-day'}"></i><span>${isMaterialEvent(event) ? (String(escapeHtml(materialDeliveryTitle(event))) + "<span class=\"dash-appt-kind\">" + (globalThis.PlatformLanguage?.htmlText("scheduling","m_658f2deb4256b0"," &mdash; delivery") ?? " &mdash; delivery") + "</span>") : escapeHtml(event.title || (globalThis.PlatformLanguage?.text("scheduling","m_d0a9ffb325f8e6","Schedule item") ?? "Schedule item"))}</span>${childSelected ? `<span class="dash-bundle-child-cancel" data-bundle-child-cancel role="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}"><i class="fas fa-xmark"></i></span>` : ''}</button>`;
         }).join('')}</div>` : ''}
       </div>`;
     };
@@ -1832,7 +1833,7 @@
       const missingAddress = !projectAddressValue(project, {});
       return `<button type="button" class="dash-appt-tile project-only unscheduled ${String(missingAddress ? 'missing-address' : '')} ${String(selected ? 'selected' : '')}" data-production-project-id="${String(escapeHtml(project.id || ''))}">
         <div class="dash-appt-title">${String(escapeHtml(projectTitle(project)))}</div>
-        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.text("scheduling","m_2b7432531aba4c","Unscheduled") ?? "Unscheduled")}</div>
+        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2b7432531aba4c","Unscheduled") ?? "Unscheduled")}</div>
         <div class="dash-appt-address">${String(missingAddress ? missingAddressLabel() : escapeHtml(projectAddress(project, {})))}</div>
       </button>`;
     };
@@ -1844,14 +1845,14 @@
       const missingAddress = !projectAddressValue(project, event);
       return `<button type="button" class="dash-appt-tile project-only unscheduled material ${String(missingAddress ? 'missing-address' : '')} ${String(ordered ? 'ordered' : 'unordered')} ${String(selected ? 'selected' : '')}" data-material-project-id="${String(escapeHtml(project.id || event.project_id || ''))}" data-material-event-id="${String(escapeHtml(event.id || ''))}" style="--material-list-color:${String(escapeHtml(color))}">
         <div class="dash-appt-title"><i class="fas fa-truck-ramp-box" style="color:${String(escapeHtml(color))};margin-right:6px"></i>${String(materialDeliveryQueueTitle(event))}</div>
-        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.text("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>
+        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>
         <div class="dash-appt-address">${String(escapeHtml(projectTitle(project, event)))}${String(missingAddress ? ` ${missingAddressLabel()}` : '')}</div>
       </button>`;
     };
     const rows = [...eventGroups.map((group) => ({ kind:'bundle', value:group })), ...inferred.map((project) => ({ kind:'project', value:project }))];
     const group = (label, items) => `<div class="dash-group ${items.length ? '' : 'empty'}">
       <div class="dash-group-head" style="cursor:default"><strong>${escapeHtml(label)}</strong><span>${items.length}</span></div>
-      <div class="dash-group-body">${items.length ? items.map((item) => item.kind === 'bundle' ? eventPile(item.value) : unscheduledTile(item.value)).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.text("scheduling","m_75626addb77eff","No unscheduled production projects.") ?? "No unscheduled production projects.")}</div>`}</div>
+      <div class="dash-group-body">${items.length ? items.map((item) => item.kind === 'bundle' ? eventPile(item.value) : unscheduledTile(item.value)).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_75626addb77eff","No unscheduled production projects.") ?? "No unscheduled production projects.")}</div>`}</div>
     </div>`;
     return group('Production', rows);
   }
@@ -1869,8 +1870,8 @@
       </button>`;
     };
     return `<div class="dash-group">
-      <div class="dash-group-head" style="cursor:default"><strong>${(globalThis.PlatformLanguage?.text("scheduling","m_b8dfba90769476","Material deliveries") ?? "Material deliveries")}</strong><span>${String(rows.length)}</span></div>
-      <div class="dash-group-body">${String(rows.length ? rows.map(tile).join('') : '<div class="dash-empty" style="padding:16px;">No material deliveries waiting to be scheduled.</div>')}</div>
+      <div class="dash-group-head" style="cursor:default"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b8dfba90769476","Material deliveries") ?? "Material deliveries")}</strong><span>${String(rows.length)}</span></div>
+      <div class="dash-group-body">${String(rows.length ? rows.map(tile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_85c85d8d0ddcb3","No material deliveries waiting to be scheduled.") ?? "No material deliveries waiting to be scheduled.")}</div>`)}</div>
     </div>`;
   }
   function selectedScheduleProject(){
@@ -1989,11 +1990,11 @@
     if (scheduleTypeActive('sales')) chunks.push(renderScheduleGroups());
     if (scheduleTypeActive('production')) chunks.push(renderProductionScheduleGroups());
     if (scheduleTypeActive('production') && productionVehiclesVisible && equipmentSchedulingOn()) chunks.push(renderVehicleBank());
-    return `<div class="dash-groups"><div class="dash-rail-title">${(globalThis.PlatformLanguage?.text("scheduling","m_428e8510d14f87","Waiting to be scheduled") ?? "Waiting to be scheduled")}</div>${String(chunks.join(''))}</div>`;
+    return `<div class="dash-groups"><div class="dash-rail-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_428e8510d14f87","Waiting to be scheduled") ?? "Waiting to be scheduled")}</div>${String(chunks.join(''))}</div>`;
   }
   function renderVehicleBank(){
     const units = equipmentUnits.filter((unit) => !['down', 'retired'].includes(clean(unit.status).toLowerCase()));
-    return `<div class="dash-vehicle-bank"><div class="dash-vehicle-bank-title">${(globalThis.PlatformLanguage?.text("scheduling","m_fc1b55cfc4dfbc","Vehicles") ?? "Vehicles")}</div><div class="dash-vehicle-bank-items">${String(units.map((unit) => `<button type="button" class="dash-vehicle-bank-item ${clean(unit.id) === vehiclePlacementUnitId ? 'active' : ''}" data-vehicle-bank-unit="${escapeHtml(unit.id)}"><i class="fas ${escapeHtml(clean(unit.icon) || 'fa-truck-pickup')}"></i><span>${escapeHtml(unit.name || unit.id)}${unit.type_name ? `<small>${escapeHtml(unit.type_name)}</small>` : ''}</span></button>`).join('') || '<span class="dash-event-equipment-empty">No available vehicles.</span>')}</div></div>`;
+    return `<div class="dash-vehicle-bank"><div class="dash-vehicle-bank-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_fc1b55cfc4dfbc","Vehicles") ?? "Vehicles")}</div><div class="dash-vehicle-bank-items">${String(units.map((unit) => `<button type="button" class="dash-vehicle-bank-item ${clean(unit.id) === vehiclePlacementUnitId ? 'active' : ''}" data-vehicle-bank-unit="${escapeHtml(unit.id)}"><i class="fas ${escapeHtml(clean(unit.icon) || 'fa-truck-pickup')}"></i><span>${escapeHtml(unit.name || unit.id)}${unit.type_name ? `<small>${escapeHtml(unit.type_name)}</small>` : ''}</span></button>`).join('') || `<span class="dash-event-equipment-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_788928fd084fda","No available vehicles.") ?? "No available vehicles.")}</span>`)}</div></div>`;
   }
   function clearScheduleSelectionDom(){
     rootEl?.querySelectorAll('.dash-appt-tile.selected').forEach((node) => node.classList.remove('selected'));
@@ -2548,16 +2549,16 @@
       <div class="dash-modal dash-settings-modal" role="dialog" aria-modal="true" aria-label="${String(escapeHtml(title))}">
         <div class="dash-modal-head">
           <h3>${String(escapeHtml(title))}</h3>
-          <button type="button" class="dash-modal-close" data-modal-close aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+          <button type="button" class="dash-modal-close" data-modal-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="dash-modal-body">
           ${String(body)}
           <div class="dash-modal-actions">
-            <button type="button" class="dash-btn" data-full-settings><i class="fas fa-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_2e1b55e87cf6b3"," Full Settings") ?? " Full Settings")}</button>
+            <button type="button" class="dash-btn" data-full-settings><i class="fas fa-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2e1b55e87cf6b3"," Full Settings") ?? " Full Settings")}</button>
             <div class="dash-modal-actions-right">
               <span class="dash-modal-status" data-settings-status></span>
-              <button type="button" class="dash-btn" data-modal-close>${(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-              <button type="button" class="dash-btn active" data-settings-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
+              <button type="button" class="dash-btn" data-modal-close>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+              <button type="button" class="dash-btn active" data-settings-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
             </div>
           </div>
         </div>
@@ -2618,13 +2619,13 @@
     back.className = 'dash-modal-backdrop';
     back.dataset.crewSettingsModal = '1';
     back.innerHTML = `
-      <div class="dash-modal dash-crew-settings-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_4fb8b80d0a5d90","Crew settings") ?? "Crew settings")}">
+      <div class="dash-modal dash-crew-settings-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4fb8b80d0a5d90","Crew settings") ?? "Crew settings")}">
         <div class="dash-modal-head">
-          <div><h3>${(globalThis.PlatformLanguage?.text("scheduling","m_772109319abfee","Crew Settings") ?? "Crew Settings")}</h3><div class="dash-sub">${((v0) => globalThis.PlatformLanguage?.text("scheduling","m_f6886ec5b464b4",`Editing ${v0} without leaving Production Routing`,{v0}) ?? `Editing ${v0} without leaving Production Routing`)(escapeHtml(resourceName))}</div></div>
-          <button type="button" class="dash-modal-close" data-modal-close aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+          <div><h3>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_772109319abfee","Crew Settings") ?? "Crew Settings")}</h3><div class="dash-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("scheduling","m_f6886ec5b464b4",`Editing ${v0} without leaving Production Routing`,{v0}) ?? `Editing ${v0} without leaving Production Routing`)(escapeHtml(resourceName))}</div></div>
+          <button type="button" class="dash-modal-close" data-modal-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="dash-modal-body">
-          <div class="dash-crew-settings-host" data-crew-settings-host><div class="dash-crew-settings-loading"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_7a62a2885f694e"," Loading crew settings...") ?? " Loading crew settings...")}</div></div>
+          <div class="dash-crew-settings-host" data-crew-settings-host><div class="dash-crew-settings-loading"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_7a62a2885f694e"," Loading crew settings...") ?? " Loading crew settings...")}</div></div>
         </div>
       </div>`;
     const host = back.querySelector('[data-crew-settings-host]');
@@ -2652,7 +2653,7 @@
     }) || null;
     const runtime = window.FirstMateEmbeddableApps;
     if (!host || typeof runtime?.mount !== 'function') {
-      if (host) host.innerHTML = `<div class="dash-crew-settings-loading">${(globalThis.PlatformLanguage?.text("scheduling","m_76aa8eafe399cb","Crew settings are unavailable.") ?? "Crew settings are unavailable.")}</div>`;
+      if (host) host.innerHTML = `<div class="dash-crew-settings-loading">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_76aa8eafe399cb","Crew settings are unavailable.") ?? "Crew settings are unavailable.")}</div>`;
       return;
     }
     Promise.resolve(runtime.mount(host, 'portal.company_settings', {
@@ -2778,7 +2779,7 @@
     const option = (id, label) => {
       const conflict = assignmentHasConflict(event, id);
       return `<button type="button" class="dash-assignee-option ${String(currentId || '') === String(id || '') ? 'active' : ''} ${conflict ? 'warn' : ''}" data-assign-resource="${escapeHtml(id || '')}">
-        <span>${escapeHtml(label)}</span>${conflict ? ("<i class=\"fas fa-triangle-exclamation\" title=\"" + (globalThis.PlatformLanguage?.text("scheduling","m_ba1a70707ee55c","Potential conflict") ?? "Potential conflict") + "\"></i>") : ''}
+        <span>${escapeHtml(label)}</span>${conflict ? ("<i class=\"fas fa-triangle-exclamation\" title=\"" + (globalThis.PlatformLanguage?.htmlText("scheduling","m_ba1a70707ee55c","Potential conflict") ?? "Potential conflict") + "\"></i>") : ''}
       </button>`;
     };
     menu.innerHTML = `${option('', 'Unassigned')}${resources.map((resource) => option(resource.id, resource.name)).join('')}`;
@@ -2852,13 +2853,13 @@
       return `<span class="dash-event-equipment-chip ${String(conflicted ? 'warn' : '')}">
         <i class="fas ${String(escapeHtml(clean(unit?.icon) || 'fa-truck-pickup'))}"></i>
         <span>${String(escapeHtml(ref.name || unit?.name || ref.id))}</span>
-        ${String(conflicted ? '<i class="fas fa-triangle-exclamation" title="Booked elsewhere in this window"></i>' : '')}
-        <button type="button" data-event-equipment-remove="${String(escapeHtml(ref.id))}" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_e6c8bec001e544","Remove equipment") ?? "Remove equipment")}"><i class="fas fa-xmark"></i></button>
+        ${String(conflicted ? `<i class="fas fa-triangle-exclamation" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c71ee644be52a3","Booked elsewhere in this window") ?? "Booked elsewhere in this window")}"></i>` : '')}
+        <button type="button" data-event-equipment-remove="${String(escapeHtml(ref.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e6c8bec001e544","Remove equipment") ?? "Remove equipment")}"><i class="fas fa-xmark"></i></button>
       </span>`;
     }).join('');
     const allocationsHtml = eventAdvancedOpen ? refs.filter((ref) => ref.kind === 'equipment_unit').map((ref) => {
       const unit = equipmentUnits.find((item) => clean(item.id) === clean(ref.id));
-      return `<div class="dash-event-equipment-allocation" data-event-equipment-allocation="${String(escapeHtml(ref.id))}"><strong>${((v1) => globalThis.PlatformLanguage?.text("scheduling","m_4cb2d7d95c95f9",`${v1} usage window`,{v1}) ?? `${v1} usage window`)(escapeHtml(ref.name || unit?.name || ref.id))}</strong><label>${(globalThis.PlatformLanguage?.text("scheduling","m_c313c42d1f7a10","From") ?? "From")}<input type="datetime-local" data-event-equipment-start value="${String(escapeHtml(dateTimeLocalValue(ref.start_at || eventStart(draft))))}"></label><label>${(globalThis.PlatformLanguage?.text("scheduling","m_7a571a426468ff","Until") ?? "Until")}<input type="datetime-local" data-event-equipment-end value="${String(escapeHtml(dateTimeLocalValue(ref.end_at || eventEnd(draft))))}"></label></div>`;
+      return `<div class="dash-event-equipment-allocation" data-event-equipment-allocation="${String(escapeHtml(ref.id))}"><strong>${((v1) => globalThis.PlatformLanguage?.htmlText("scheduling","m_4cb2d7d95c95f9",`${v1} usage window`,{v1}) ?? `${v1} usage window`)(escapeHtml(ref.name || unit?.name || ref.id))}</strong><label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c313c42d1f7a10","From") ?? "From")}<input type="datetime-local" data-event-equipment-start value="${String(escapeHtml(dateTimeLocalValue(ref.start_at || eventStart(draft))))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_7a571a426468ff","Until") ?? "Until")}<input type="datetime-local" data-event-equipment-end value="${String(escapeHtml(dateTimeLocalValue(ref.end_at || eventEnd(draft))))}"></label></div>`;
     }).join('') : '';
     const requirements = Array.isArray(draft.resource_requirements) ? draft.resource_requirements : [];
     const requirementsHtml = eventAdvancedOpen ? requirements.map((requirement) => {
@@ -2873,28 +2874,28 @@
       return `<span class="dash-event-equipment-chip ${String(fulfilled ? '' : 'warn')}" title="${String(fulfilled ? 'Requirement fulfilled' : `${fulfilledCount} of ${needed} assigned`)}">
         <i class="fas ${String(fulfilled ? 'fa-circle-check' : 'fa-circle-exclamation')}"></i>
         <span>${String(escapeHtml(clean(requirement?.label) || 'Equipment'))}${String(needed > 1 ? ` ×${needed}` : '')}</span>
-        <button type="button" data-event-equipment-require-remove="${String(escapeHtml(typeId))}" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_05c9df91246110","Remove equipment requirement") ?? "Remove equipment requirement")}"><i class="fas fa-xmark"></i></button>
+        <button type="button" data-event-equipment-require-remove="${String(escapeHtml(typeId))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_05c9df91246110","Remove equipment requirement") ?? "Remove equipment requirement")}"><i class="fas fa-xmark"></i></button>
       </span>`;
     }).join('') : '';
     const requirementOptions = equipmentTypes.filter((type) => !requirements.some((requirement) => clean(requirement?.equipment_type_id) === clean(type.id)));
     return `<div class="dash-event-equipment" data-event-equipment>
-      <div class="dash-event-equipment-head"><i class="fas fa-truck-pickup"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_00ec8ace19ba71"," Equipment") ?? " Equipment")}</div>
+      <div class="dash-event-equipment-head"><i class="fas fa-truck-pickup"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_00ec8ace19ba71"," Equipment") ?? " Equipment")}</div>
       ${String(requirementsHtml ? `<div class="dash-event-equipment-chips">${requirementsHtml}</div>` : '')}
-      <div class="dash-event-equipment-chips">${String(chips || '<span class="dash-event-equipment-empty">No equipment on this event.</span>')}</div>
+      <div class="dash-event-equipment-chips">${String(chips || `<span class="dash-event-equipment-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e97309f102e999","No equipment on this event.") ?? "No equipment on this event.")}</span>`)}</div>
       ${String(allocationsHtml)}
       ${String(options.length ? `<select class="dash-event-equipment-add" data-event-equipment-add>
-        <option value="">Add equipment…</option>
+        <option value="">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c637d35dfeb2ed","Add equipment…") ?? "Add equipment…")}</option>
         ${options.map((unit) => {
           const conflicted = equipmentUnitConflict(draft, unit.id);
           const down = ['down', 'retired'].includes(clean(unit.status));
           return `<option value="${escapeHtml(unit.id)}">${escapeHtml(unit.name)}${unit.type_name ? ` — ${escapeHtml(unit.type_name)}` : ''}${down ? ' (down)' : (conflicted ? ' (booked)' : '')}</option>`;
         }).join('')}
       </select>` : '')}
-      ${String(eventAdvancedOpen ? `<div class="dash-event-advanced-note">Require a type without choosing a specific unit. Scope sets can populate the same requirement fields.</div>
+      ${String(eventAdvancedOpen ? `<div class="dash-event-advanced-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_f22c771a404a1e","Require a type without choosing a specific unit. Scope sets can populate the same requirement fields.") ?? "Require a type without choosing a specific unit. Scope sets can populate the same requirement fields.")}</div>
         <div class="dash-event-equipment-require">
-          <select class="dash-event-equipment-add" data-event-equipment-require-type><option value="">Required equipment type…</option>${requirementOptions.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.name || type.id)}</option>`).join('')}</select>
-          <input type="number" min="1" max="99" value="1" data-event-equipment-require-quantity aria-label="Required quantity">
-          <button type="button" data-event-equipment-require-add aria-label="Add equipment requirement" title="Add requirement"><i class="fas fa-plus"></i></button>
+          <select class="dash-event-equipment-add" data-event-equipment-require-type><option value="">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_9f3d23d05302f4","Required equipment type…") ?? "Required equipment type…")}</option>${requirementOptions.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.name || type.id)}</option>`).join('')}</select>
+          <input type="number" min="1" max="99" value="1" data-event-equipment-require-quantity aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_00ee416bc52e89","Required quantity") ?? "Required quantity")}">
+          <button type="button" data-event-equipment-require-add aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1794d866e6d945","Add equipment requirement") ?? "Add equipment requirement")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1c69c58f6eed2f","Add requirement") ?? "Add requirement")}"><i class="fas fa-plus"></i></button>
         </div>` : '')}
     </div>`;
   }
@@ -3278,16 +3279,16 @@
         <label class="dash-event-customer-share">
           <input type="checkbox" data-event-confirm-required ${String(open ? 'checked' : '')}>
           <span class="dash-event-share-switch" aria-hidden="true"></span>
-          <span><strong>${(globalThis.PlatformLanguage?.text("scheduling","m_ae86d3ed019015","Ask the customer to confirm") ?? "Ask the customer to confirm")}</strong><small>${(globalThis.PlatformLanguage?.text("scheduling","m_956b2b7eb54d56","The appointment shows as unconfirmed until they reply.") ?? "The appointment shows as unconfirmed until they reply.")}</small></span>
+          <span><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ae86d3ed019015","Ask the customer to confirm") ?? "Ask the customer to confirm")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_956b2b7eb54d56","The appointment shows as unconfirmed until they reply.") ?? "The appointment shows as unconfirmed until they reply.")}</small></span>
         </label>
         ${String(statusLine)}
         <div class="dash-event-confirm-options ${String(open ? 'open' : '')}" data-event-confirm-options>
           <div class="dash-event-confirm-channels">
-            <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-email ${String(confirmation.channels.email ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("scheduling","m_5d2b9327181e33","Email") ?? "Email")}</span></label>
-            <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-sms ${String(confirmation.channels.sms ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("scheduling","m_def279b4381c15","Text message") ?? "Text message")}</span></label>
-            <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-portal ${String(confirmation.include_portal_link ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("scheduling","m_0849e172757834","Include a portal link") ?? "Include a portal link")}</span></label>
+            <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-email ${String(confirmation.channels.email ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5d2b9327181e33","Email") ?? "Email")}</span></label>
+            <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-sms ${String(confirmation.channels.sms ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_def279b4381c15","Text message") ?? "Text message")}</span></label>
+            <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-portal ${String(confirmation.include_portal_link ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0849e172757834","Include a portal link") ?? "Include a portal link")}</span></label>
           </div>
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_7a5263d78130e9","Send\n            ") ?? "Send\n            ")}<select data-event-confirm-mode>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_7a5263d78130e9","Send\n            ") ?? "Send\n            ")}<select data-event-confirm-mode>
               ${String(modeOption('morning_of', 'The morning of'))}
               ${String(modeOption('time_of_day', 'At a set time on the day'))}
               ${String(modeOption('before_offset', 'A set time before the appointment'))}
@@ -3296,13 +3297,13 @@
           </label>
           <div class="dash-event-confirm-detail" data-event-confirm-detail>
             ${String(mode === 'before_offset'
-              ? `<label class="dash-event-confirm-field">Hours before<input type="number" min="0.25" step="0.25" data-event-confirm-hours value="${escapeHtml(String((Number(schedule.offset_minutes) || 120) / 60))}"></label>`
-              : `${mode === 'days_before' ? `<label class="dash-event-confirm-field">Days before<input type="number" min="0" max="30" data-event-confirm-days value="${escapeHtml(String(Number(schedule.days_before) || 1))}"></label>` : ''}
-                 <label class="dash-event-confirm-field">At<input type="time" data-event-confirm-time value="${escapeHtml(clean(schedule.time_of_day) || '09:00')}"></label>`)}
+              ? `<label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e9f168b05e36e6","Hours before") ?? "Hours before")}<input type="number" min="0.25" step="0.25" data-event-confirm-hours value="${escapeHtml(String((Number(schedule.offset_minutes) || 120) / 60))}"></label>`
+              : `${mode === 'days_before' ? `<label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3955ac79d2d28d","Days before") ?? "Days before")}<input type="number" min="0" max="30" data-event-confirm-days value="${escapeHtml(String(Number(schedule.days_before) || 1))}"></label>` : ''}
+                 <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3b546ab0f78697","At") ?? "At")}<input type="time" data-event-confirm-time value="${escapeHtml(clean(schedule.time_of_day) || '09:00')}"></label>`)}
           </div>
           <div class="dash-event-confirm-detail">
-            <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_ea811bc50a6ba0","Deadline (minutes before)") ?? "Deadline (minutes before)")}<input type="number" min="0" step="15" data-event-confirm-deadline value="${String(escapeHtml(String(confirmation.confirmation_deadline_minutes_before || 0)))}"></label>
-            <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_1abad8244b5357","No reply") ?? "No reply")}<select data-event-confirm-no-response><option value="keep_reserved" ${String(confirmation.no_response_action === 'keep_reserved' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_1a20e8e3d1b803","Keep reserved") ?? "Keep reserved")}</option><option value="notify_staff" ${String(confirmation.no_response_action === 'notify_staff' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_6e2a45391b23f8","Notify staff") ?? "Notify staff")}</option><option value="release_to_unscheduled" ${String(confirmation.no_response_action === 'release_to_unscheduled' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_a35abb5a7521a1","Release slot") ?? "Release slot")}</option><option value="cancel" ${String(confirmation.no_response_action === 'cancel' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel")}</option></select></label>
+            <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ea811bc50a6ba0","Deadline (minutes before)") ?? "Deadline (minutes before)")}<input type="number" min="0" step="15" data-event-confirm-deadline value="${String(escapeHtml(String(confirmation.confirmation_deadline_minutes_before || 0)))}"></label>
+            <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1abad8244b5357","No reply") ?? "No reply")}<select data-event-confirm-no-response><option value="keep_reserved" ${String(confirmation.no_response_action === 'keep_reserved' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1a20e8e3d1b803","Keep reserved") ?? "Keep reserved")}</option><option value="notify_staff" ${String(confirmation.no_response_action === 'notify_staff' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_6e2a45391b23f8","Notify staff") ?? "Notify staff")}</option><option value="release_to_unscheduled" ${String(confirmation.no_response_action === 'release_to_unscheduled' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_a35abb5a7521a1","Release slot") ?? "Release slot")}</option><option value="cancel" ${String(confirmation.no_response_action === 'cancel' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel")}</option></select></label>
           </div>
         </div>
       </div>
@@ -3387,23 +3388,23 @@
     const requestedAt = new Date(request.requested_start_at || '');
     const requestedLabel = Number.isFinite(requestedAt.getTime()) ? requestedAt.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : clean(request.requested_start_at);
     return `<div class="dash-event-confirm-panel customer-scheduling">
-      ${String(pending ? `<div class="dash-reschedule-review"><div><strong>Customer requested a change</strong><small>Requested ${escapeHtml(requestedLabel)}. The current appointment remains reserved until this is reviewed.</small></div><div><button type="button" data-event-reschedule-review="declined">Decline</button><button type="button" class="approve" data-event-reschedule-review="approved">Approve change</button></div></div>` : '')}
+      ${String(pending ? `<div class="dash-reschedule-review"><div><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8af1d7ae3a4dbf","Customer requested a change") ?? "Customer requested a change")}</strong><small>${((v0) => globalThis.PlatformLanguage?.htmlText("scheduling","m_ca28a4d7fe5428",`Requested ${v0}. The current appointment remains reserved until this is reviewed.`,{v0}) ?? `Requested ${v0}. The current appointment remains reserved until this is reviewed.`)(escapeHtml(requestedLabel))}</small></div><div><button type="button" data-event-reschedule-review="declined">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0bba16c1fd1444","Decline") ?? "Decline")}</button><button type="button" class="approve" data-event-reschedule-review="approved">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b7af2068fe4024","Approve change") ?? "Approve change")}</button></div></div>` : '')}
       <label class="dash-event-customer-share">
         <input type="checkbox" data-event-self-schedule ${String(open ? 'checked' : '')}>
         <span class="dash-event-share-switch" aria-hidden="true"></span>
-        <span><strong>${(globalThis.PlatformLanguage?.text("scheduling","m_3917e5ee30f080","Customer can reschedule") ?? "Customer can reschedule")}</strong><small>${(globalThis.PlatformLanguage?.text("scheduling","m_cd1d07a489e034","Uses live crew, group, buffer, travel, and capacity rules.") ?? "Uses live crew, group, buffer, travel, and capacity rules.")}</small></span>
+        <span><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3917e5ee30f080","Customer can reschedule") ?? "Customer can reschedule")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_cd1d07a489e034","Uses live crew, group, buffer, travel, and capacity rules.") ?? "Uses live crew, group, buffer, travel, and capacity rules.")}</small></span>
       </label>
       <div class="dash-event-confirm-options ${String(open ? 'open' : '')}" data-event-self-schedule-options>
-        ${String(draft.customer_visible === true ? '' : '<div class="dash-event-confirm-status warning"><i class="fas fa-eye-slash"></i> Share this appointment with the customer to show the portal action.</div>')}
+        ${String(draft.customer_visible === true ? '' : `<div class="dash-event-confirm-status warning"><i class="fas fa-eye-slash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_746250c5372a9a"," Share this appointment with the customer to show the portal action.") ?? " Share this appointment with the customer to show the portal action.")}</div>`)}
         <div class="dash-event-confirm-detail">
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_3eb3bf7ffda86b","Minimum notice") ?? "Minimum notice")}<input data-event-self-notice type="number" min="0" max="43200" step="15" value="${String(escapeHtml(policy.min_notice_minutes))}"></label>
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_5cd440b771cd4f","Book ahead (days)") ?? "Book ahead (days)")}<input data-event-self-horizon type="number" min="1" max="365" value="${String(escapeHtml(policy.booking_horizon_days))}"></label>
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_78590ee40f42cc","Maximum changes") ?? "Maximum changes")}<input data-event-self-max type="number" min="0" max="20" value="${String(escapeHtml(policy.max_reschedules))}"></label>
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_a4873ee268e55f","Assignment") ?? "Assignment")}<select data-event-self-assignment><option value="best_available" ${String(policy.assignment_mode === 'best_available' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_daeed1c0def75c","Best available") ?? "Best available")}</option><option value="preserve" ${String(policy.assignment_mode === 'preserve' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_8b680b11521f7c","Keep current") ?? "Keep current")}</option><option value="customer_choice" ${String(policy.assignment_mode === 'customer_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_3f1f47526e44ae","Customer chooses") ?? "Customer chooses")}</option></select></label>
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_b0bb1e74e2a6d3","Review") ?? "Review")}<select data-event-self-approval><option value="automatic" ${String(policy.reschedule_approval !== 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_18cf443d1817db","Apply immediately") ?? "Apply immediately")}</option><option value="required" ${String(policy.reschedule_approval === 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_f9c174308ab0b5","Require approval") ?? "Require approval")}</option></select></label>
-          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.text("scheduling","m_0a9031a3a78e3f","Customer update") ?? "Customer update")}<select data-event-self-customer-notification><option value="none" ${String(policy.reschedule_customer_notification === 'none' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_c397a240c1f8c1","Portal only") ?? "Portal only")}</option><option value="sms" ${String(policy.reschedule_customer_notification === 'sms' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_124287f184b88b","Text") ?? "Text")}</option><option value="email" ${String(policy.reschedule_customer_notification === 'email' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_5d2b9327181e33","Email") ?? "Email")}</option><option value="both" ${String(policy.reschedule_customer_notification === 'both' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("scheduling","m_bf964384bc8207","Text + email") ?? "Text + email")}</option></select></label>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3eb3bf7ffda86b","Minimum notice") ?? "Minimum notice")}<input data-event-self-notice type="number" min="0" max="43200" step="15" value="${String(escapeHtml(policy.min_notice_minutes))}"></label>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5cd440b771cd4f","Book ahead (days)") ?? "Book ahead (days)")}<input data-event-self-horizon type="number" min="1" max="365" value="${String(escapeHtml(policy.booking_horizon_days))}"></label>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_78590ee40f42cc","Maximum changes") ?? "Maximum changes")}<input data-event-self-max type="number" min="0" max="20" value="${String(escapeHtml(policy.max_reschedules))}"></label>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_a4873ee268e55f","Assignment") ?? "Assignment")}<select data-event-self-assignment><option value="best_available" ${String(policy.assignment_mode === 'best_available' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_daeed1c0def75c","Best available") ?? "Best available")}</option><option value="preserve" ${String(policy.assignment_mode === 'preserve' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b680b11521f7c","Keep current") ?? "Keep current")}</option><option value="customer_choice" ${String(policy.assignment_mode === 'customer_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3f1f47526e44ae","Customer chooses") ?? "Customer chooses")}</option></select></label>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b0bb1e74e2a6d3","Review") ?? "Review")}<select data-event-self-approval><option value="automatic" ${String(policy.reschedule_approval !== 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_18cf443d1817db","Apply immediately") ?? "Apply immediately")}</option><option value="required" ${String(policy.reschedule_approval === 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_f9c174308ab0b5","Require approval") ?? "Require approval")}</option></select></label>
+          <label class="dash-event-confirm-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0a9031a3a78e3f","Customer update") ?? "Customer update")}<select data-event-self-customer-notification><option value="none" ${String(policy.reschedule_customer_notification === 'none' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c397a240c1f8c1","Portal only") ?? "Portal only")}</option><option value="sms" ${String(policy.reschedule_customer_notification === 'sms' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_124287f184b88b","Text") ?? "Text")}</option><option value="email" ${String(policy.reschedule_customer_notification === 'email' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5d2b9327181e33","Email") ?? "Email")}</option><option value="both" ${String(policy.reschedule_customer_notification === 'both' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_bf964384bc8207","Text + email") ?? "Text + email")}</option></select></label>
         </div>
-        <div class="dash-event-confirm-channels"><label class="dash-event-customer-option"><input type="checkbox" data-event-self-staff-notification ${String(policy.reschedule_staff_notification ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("scheduling","m_dbc0e821db2902","Notify staff on changes") ?? "Notify staff on changes")}</span></label><label class="dash-event-customer-option"><input type="checkbox" data-event-self-review-todo ${String(policy.reschedule_review_todo ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("scheduling","m_85e59d6a0fccc3","Create approval to-do") ?? "Create approval to-do")}</span></label></div>
+        <div class="dash-event-confirm-channels"><label class="dash-event-customer-option"><input type="checkbox" data-event-self-staff-notification ${String(policy.reschedule_staff_notification ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_dbc0e821db2902","Notify staff on changes") ?? "Notify staff on changes")}</span></label><label class="dash-event-customer-option"><input type="checkbox" data-event-self-review-todo ${String(policy.reschedule_review_todo ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_85e59d6a0fccc3","Create approval to-do") ?? "Create approval to-do")}</span></label></div>
       </div>
     </div>`;
   }
@@ -3678,16 +3679,16 @@
     const eligible = assignmentResourcesForEvent(draft);
     const eligibleIds = new Set(eligible.map((resource) => clean(resource.id)));
     const chips = crewId
-      ? `<span class="dash-event-assignee-chip">${String(escapeHtml(crewName || userDisplayName(crewId)))}<button type="button" data-event-assign-remove="${String(escapeHtml(crewId))}" aria-label="${((v2) => globalThis.PlatformLanguage?.text("scheduling","m_b44c243626b37c",`Remove ${v2}`,{v2}) ?? `Remove ${v2}`)(escapeHtml(crewName || 'assignment'))}">${(globalThis.PlatformLanguage?.text("scheduling","m_dd0c616953d455","&times;") ?? "&times;")}</button></span>`
+      ? `<span class="dash-event-assignee-chip">${String(escapeHtml(crewName || userDisplayName(crewId)))}<button type="button" data-event-assign-remove="${String(escapeHtml(crewId))}" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("scheduling","m_b44c243626b37c",`Remove ${v2}`,{v2}) ?? `Remove ${v2}`)(escapeHtml(crewName || 'assignment'))}">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_dd0c616953d455","&times;") ?? "&times;")}</button></span>`
       : assignees.map((user) => ("<span class=\"dash-event-assignee-chip " + String(eligibleIds.has(user.id) ? '' : 'warn') + "\" " + String(eligibleIds.has(user.id) ? '' : 'title="Not eligible for this event type — saving may be rejected"') + ">" + String(escapeHtml(user.name)) + "<button type=\"button\" data-event-assign-remove=\"" + String(escapeHtml(user.id)) + "\" aria-label=\"" + ((v4) => globalThis.PlatformLanguage?.text("scheduling","m_ab4ce544c27195",`Remove ${v4}`,{v4}) ?? `Remove ${v4}`)(escapeHtml(user.name)) + "\">" + (globalThis.PlatformLanguage?.text("scheduling","m_dd0c616953d455","&times;") ?? "&times;") + "</button></span>")).join('');
     const options = eligible
       .filter((resource) => clean(resource.id) !== crewId && !assignees.some((user) => user.id === clean(resource.id)))
-      .map((resource) => `<button type="button" data-event-assign-id="${escapeHtml(resource.id)}">${escapeHtml(resource.name)}${clean(resource.subject_type || resource.resource_kind) === 'organization_user' ? '' : ` <small>${(globalThis.PlatformLanguage?.text("scheduling","m_d3cad057a8d23c","(assigns the whole team as one unit)") ?? "(assigns the whole team as one unit)")}</small>`}</button>`)
+      .map((resource) => `<button type="button" data-event-assign-id="${escapeHtml(resource.id)}">${escapeHtml(resource.name)}${clean(resource.subject_type || resource.resource_kind) === 'organization_user' ? '' : ` <small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d3cad057a8d23c","(assigns the whole team as one unit)") ?? "(assigns the whole team as one unit)")}</small>`}</button>`)
       .join('');
     return `<div class="dash-event-assignees">
-      <div class="dash-event-assignees-head"><strong>${(globalThis.PlatformLanguage?.text("scheduling","m_2f9d72baaebef0","Assigned") ?? "Assigned")}</strong><button type="button" class="dash-event-assign-add" data-event-assign-add aria-expanded="false"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_8803dece55359d"," Add") ?? " Add")}</button></div>
-      <div class="dash-event-assignee-chips">${String(chips || '<span class="dash-event-assignee-empty">Unassigned</span>')}</div>
-      <div class="dash-event-assign-menu" data-event-assign-menu hidden>${String(options || '<div class="dash-event-assignee-empty" style="padding:7px 9px;">Nobody else is eligible for this event type.</div>')}</div>
+      <div class="dash-event-assignees-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2f9d72baaebef0","Assigned") ?? "Assigned")}</strong><button type="button" class="dash-event-assign-add" data-event-assign-add aria-expanded="false"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8803dece55359d"," Add") ?? " Add")}</button></div>
+      <div class="dash-event-assignee-chips">${String(chips || `<span class="dash-event-assignee-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</span>`)}</div>
+      <div class="dash-event-assign-menu" data-event-assign-menu hidden>${String(options || `<div class="dash-event-assignee-empty" style="padding:7px 9px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0a906f5bfd87a7","Nobody else is eligible for this event type.") ?? "Nobody else is eligible for this event type.")}</div>`)}</div>
     </div>`;
   }
   function renderEventDraftPopover(anchor = null){
@@ -3713,7 +3714,7 @@
     const canClearProject = disposableFloatingDraft && !!clean(draft.project_id);
     const clearableProjectNameHtml = projectNameHtml || (canClearProject ? `<div class="dash-event-pop-project-name">${escapeHtml(projectLabel)}</div>` : '');
     const projectNameRowHtml = clearableProjectNameHtml || canClearProject
-      ? `<div class="dash-event-pop-project-name-row">${clearableProjectNameHtml}${canClearProject ? `<button type="button" class="dash-event-project-clear" data-event-project-clear aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}"><i class="fas fa-xmark"></i></button>` : ''}</div>`
+      ? `<div class="dash-event-pop-project-name-row">${clearableProjectNameHtml}${canClearProject ? `<button type="button" class="dash-event-project-clear" data-event-project-clear aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_998fea4513bf2a","Remove selected project") ?? "Remove selected project")}"><i class="fas fa-xmark"></i></button>` : ''}</div>`
       : '';
     const materialNotOrdered = isMaterialEvent(draft) && !materialEventIsOrdered(draft);
     const canSave = ctx.kind === 'floating' || ctx.editorOnly === true || !!draft.start || !!productionScheduleDraft?.start || !!appointmentScheduleDraft?.start;
@@ -3739,69 +3740,69 @@
     const recurrenceEnabled = clean(draft.recurrence_series_id) || draft.__recurrence_enabled === true;
     pop.innerHTML = `
       <div class="dash-event-pop-head">
-        <input class="dash-event-title-input" data-event-title value="${String(escapeHtml(draft.title || draft.project_title || 'New Event'))}" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_e070e90d9c7a33","Event title") ?? "Event title")}">
-        <button type="button" class="dash-event-close" data-event-cancel aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_304d419cb3596b","Cancel event") ?? "Cancel event")}"><i class="fas fa-xmark"></i></button>
+        <input class="dash-event-title-input" data-event-title value="${String(escapeHtml(draft.title || draft.project_title || 'New Event'))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e070e90d9c7a33","Event title") ?? "Event title")}">
+        <button type="button" class="dash-event-close" data-event-cancel aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_304d419cb3596b","Cancel event") ?? "Cancel event")}"><i class="fas fa-xmark"></i></button>
         <div class="dash-event-pop-meta">
           ${String(projectNameRowHtml)}
           <div class="dash-event-pop-address">${String(escapeHtml(projectAddressLabel))}</div>
           <div class="dash-event-pop-time">${String(escapeHtml(formatEventDraftTime(draft)))}</div>
         </div>
         <div class="dash-event-time-fields">
-          <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.text("scheduling","m_5a35275926b722","Start") ?? "Start")}<input type="${String(timeInputType)}" data-event-start value="${String(escapeHtml(timeValue(eventStart(draft))))}"></label>
-          <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.text("scheduling","m_80cfdb09a78f4b","End") ?? "End")}<input type="${String(timeInputType)}" data-event-end value="${String(escapeHtml(timeValue(eventEnd(draft))))}"></label>
+          <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5a35275926b722","Start") ?? "Start")}<input type="${String(timeInputType)}" data-event-start value="${String(escapeHtml(timeValue(eventStart(draft))))}"></label>
+          <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80cfdb09a78f4b","End") ?? "End")}<input type="${String(timeInputType)}" data-event-end value="${String(escapeHtml(timeValue(eventEnd(draft))))}"></label>
         </div>
         <div class="dash-event-time-options">
-          <label class="dash-event-switch"><input type="checkbox" data-event-allday ${String(editorAllDay ? 'checked' : '')}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.text("scheduling","m_42b02bf1587e27","All day") ?? "All day")}</span></label>
-          ${String(ctx.kind === 'floating' ? `<label class="dash-event-switch"><input type="checkbox" data-event-recurring ${recurrenceEnabled ? 'checked' : ''}><span class="dash-event-switch-track" aria-hidden="true"></span><span>Recurring</span></label>` : '')}
+          <label class="dash-event-switch"><input type="checkbox" data-event-allday ${String(editorAllDay ? 'checked' : '')}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_42b02bf1587e27","All day") ?? "All day")}</span></label>
+          ${String(ctx.kind === 'floating' ? `<label class="dash-event-switch"><input type="checkbox" data-event-recurring ${recurrenceEnabled ? 'checked' : ''}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_14bec9b094ca21","Recurring") ?? "Recurring")}</span></label>` : '')}
         </div>
         ${String(ctx.kind === 'floating' ? `<div class="dash-event-recurrence-fields ${recurrenceEnabled ? 'open' : ''}" data-event-recurrence-fields>
-          <label>Repeats<select data-event-recurrence-frequency><option value="weekly" ${recurrenceFrequency === 'weekly' ? 'selected' : ''}>Weekly</option><option value="monthly" ${recurrenceFrequency === 'monthly' ? 'selected' : ''}>Monthly</option><option value="quarterly" ${recurrenceFrequency === 'quarterly' ? 'selected' : ''}>Quarterly</option><option value="yearly" ${recurrenceFrequency === 'yearly' ? 'selected' : ''}>Yearly</option><option value="daily" ${recurrenceFrequency === 'daily' ? 'selected' : ''}>Daily</option></select></label>
-          <label>Every<input type="number" min="1" max="120" value="${escapeHtml(recurrenceInterval)}" data-event-recurrence-interval></label>
-          <label>Ends<select data-event-recurrence-end-mode><option value="never" ${recurrenceEndMode === 'never' ? 'selected' : ''}>Never</option><option value="date" ${recurrenceEndMode === 'date' ? 'selected' : ''}>On a date</option><option value="count" ${recurrenceEndMode === 'count' ? 'selected' : ''}>After a number of times</option></select></label>
-          <label data-event-recurrence-end-date ${recurrenceEndMode === 'date' ? '' : 'hidden'}>End date<input type="date" value="${escapeHtml(recurrenceEndDate)}" data-event-recurrence-end></label>
-          <label data-event-recurrence-end-count ${recurrenceEndMode === 'count' ? '' : 'hidden'}>Occurrences<input type="number" min="1" max="240" value="${escapeHtml(recurrenceCount)}" data-event-recurrence-count></label>
-          ${project?.id ? `<label>Charge each time<input type="number" min="0" step="0.01" placeholder="$0.00" data-event-billing-amount></label>
-            <label>Bill cadence<select data-event-billing-frequency><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label>
-            <label>Cost per visit<input type="number" min="0" step="0.01" placeholder="$0.00" data-event-expense-amount></label>` : `<div class="dash-event-recurrence-note">Assign a project to add recurring billing and per-visit costs.</div>`}
-          ${clean(draft.recurrence_series_id) ? `<div class="dash-event-recurrence-note">This is part of an existing series. Saving changes updates future occurrences.</div>` : ''}
+          <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_477ebb1c6c5f83","Repeats") ?? "Repeats")}<select data-event-recurrence-frequency><option value="weekly" ${recurrenceFrequency === 'weekly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly" ${recurrenceFrequency === 'monthly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly" ${recurrenceFrequency === 'quarterly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly" ${recurrenceFrequency === 'yearly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option><option value="daily" ${recurrenceFrequency === 'daily' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa2628166dd6f2","Daily") ?? "Daily")}</option></select></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b25bba33f32e79","Every") ?? "Every")}<input type="number" min="1" max="120" value="${escapeHtml(recurrenceInterval)}" data-event-recurrence-interval></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_949158d13efad4","Ends") ?? "Ends")}<select data-event-recurrence-end-mode><option value="never" ${recurrenceEndMode === 'never' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_35304e673f218d","Never") ?? "Never")}</option><option value="date" ${recurrenceEndMode === 'date' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ab4cb92c128c9b","On a date") ?? "On a date")}</option><option value="count" ${recurrenceEndMode === 'count' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_58e24f3e842b25","After a number of times") ?? "After a number of times")}</option></select></label>
+          <label data-event-recurrence-end-date ${recurrenceEndMode === 'date' ? '' : 'hidden'}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_75319fcfef3f5e","End date") ?? "End date")}<input type="date" value="${escapeHtml(recurrenceEndDate)}" data-event-recurrence-end></label>
+          <label data-event-recurrence-end-count ${recurrenceEndMode === 'count' ? '' : 'hidden'}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_328e02d666e842","Occurrences") ?? "Occurrences")}<input type="number" min="1" max="240" value="${escapeHtml(recurrenceCount)}" data-event-recurrence-count></label>
+          ${project?.id ? `<label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_07092d81e20aa1","Charge each time") ?? "Charge each time")}<input type="number" min="0" step="0.01" placeholder="$0.00" data-event-billing-amount></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8392c3fac72956","Bill cadence") ?? "Bill cadence")}<select data-event-billing-frequency><option value="monthly">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1afa80926cecc4","Cost per visit") ?? "Cost per visit")}<input type="number" min="0" step="0.01" placeholder="$0.00" data-event-expense-amount></label>` : `<div class="dash-event-recurrence-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_50ffa923d4cef5","Assign a project to add recurring billing and per-visit costs.") ?? "Assign a project to add recurring billing and per-visit costs.")}</div>`}
+          ${clean(draft.recurrence_series_id) ? `<div class="dash-event-recurrence-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_cea9172cdfbc16","This is part of an existing series. Saving changes updates future occurrences.") ?? "This is part of an existing series. Saving changes updates future occurrences.")}</div>` : ''}
         </div>` : '')}
       </div>
       ${String(ctx.kind === 'floating' ? `<div class="dash-event-type-row">
           ${typeButton('sales_appointment', 'Sales')}
           ${typeButton('project_work', 'Work')}
           ${typeButton('delivery', 'Delivery')}
-        </div>` : `<div class="dash-event-type-pills"><span class="dash-event-type-pill">${escapeHtml(typeMeta.label)}</span>${materialNotOrdered ? '<span class="dash-event-status-pill">Not ordered yet</span>' : ''}${confirmationPillHtml(draft)}</div>`)}
+        </div>` : `<div class="dash-event-type-pills"><span class="dash-event-type-pill">${escapeHtml(typeMeta.label)}</span>${materialNotOrdered ? `<span class="dash-event-status-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0c10cb9ccabd39","Not ordered yet") ?? "Not ordered yet")}</span>` : ''}${confirmationPillHtml(draft)}</div>`)}
       ${String(requirementAlertHtml(draft))}
       ${String(eventAssigneeSectionHtml(ctx, draft))}
-      <textarea class="dash-event-desc" data-event-description placeholder="${(globalThis.PlatformLanguage?.text("scheduling","m_aa136ecb65672f","Description") ?? "Description")}">${String(escapeHtml(draft.description || draft.notes || ''))}</textarea>
+      <textarea class="dash-event-desc" data-event-description placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa136ecb65672f","Description") ?? "Description")}">${String(escapeHtml(draft.description || draft.notes || ''))}</textarea>
       ${String(project?.id ? `<div class="dash-event-customer-panel">
           <div class="dash-event-customer-head">
             <label class="dash-event-customer-share">
               <input type="checkbox" data-event-customer-visible ${draft.customer_visible === true ? 'checked' : ''}>
               <span class="dash-event-share-switch" aria-hidden="true"></span>
-              <span><strong>Share with customer</strong><small>Off by default. Choose exactly what appears in the customer portal.</small></span>
+              <span><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_a043dc814fd7c4","Share with customer") ?? "Share with customer")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ab1e5a7c9771dd","Off by default. Choose exactly what appears in the customer portal.") ?? "Off by default. Choose exactly what appears in the customer portal.")}</small></span>
             </label>
-            <button type="button" class="dash-event-customer-details-toggle" data-event-customer-details-toggle aria-expanded="${eventCustomerDetailsOpen ? 'true' : 'false'}" aria-label="Customer sharing details"><i class="fas fa-chevron-${eventCustomerDetailsOpen ? 'up' : 'down'}"></i></button>
+            <button type="button" class="dash-event-customer-details-toggle" data-event-customer-details-toggle aria-expanded="${eventCustomerDetailsOpen ? 'true' : 'false'}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_447a66c6fb0f03","Customer sharing details") ?? "Customer sharing details")}"><i class="fas fa-chevron-${eventCustomerDetailsOpen ? 'up' : 'down'}"></i></button>
           </div>
           <div class="dash-event-customer-options ${eventCustomerDetailsOpen ? 'open' : ''}" data-event-customer-options>
-            <label class="dash-event-customer-option"><input type="checkbox" data-event-customer-show-title ${draft.customer_show_title !== false ? 'checked' : ''}><span>Show the event title <small>(turn off to show only “${escapeHtml(typeMeta.label || 'Schedule item')}”)</small></span></label>
-            <label class="dash-event-customer-option"><input type="checkbox" data-event-customer-show-crew ${draft.customer_show_crew === true ? 'checked' : ''}><span>Show the assigned crew or team member</span></label>
-            <label class="dash-event-customer-note">Customer-facing note<textarea data-event-customer-description placeholder="Add details the customer should see when they open this event">${escapeHtml(draft.customer_description || '')}</textarea></label>
+            <label class="dash-event-customer-option"><input type="checkbox" data-event-customer-show-title ${draft.customer_show_title !== false ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa81c572cfc2fb","Show the event title ") ?? "Show the event title ")}<small>${((v5) => globalThis.PlatformLanguage?.htmlText("scheduling","m_8e8f7e1056f5d2",`(turn off to show only “${v5}”)`,{v5}) ?? `(turn off to show only “${v5}”)`)(escapeHtml(typeMeta.label || 'Schedule item'))}</small></span></label>
+            <label class="dash-event-customer-option"><input type="checkbox" data-event-customer-show-crew ${draft.customer_show_crew === true ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0a4066db1bfb68","Show the assigned crew or team member") ?? "Show the assigned crew or team member")}</span></label>
+            <label class="dash-event-customer-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_413958fd110fa8","Customer-facing note") ?? "Customer-facing note")}<textarea data-event-customer-description placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3bfd292017bba4","Add details the customer should see when they open this event") ?? "Add details the customer should see when they open this event")}">${escapeHtml(draft.customer_description || '')}</textarea></label>
           </div>
         </div>` : '')}
       ${String(confirmationEditorHtml(ctx, draft, project))}
       ${String(customerSchedulingEditorHtml(ctx, draft, project))}
       ${String(eventEquipmentSectionHtml(ctx, draft, project))}
-      ${String(ctx.kind === 'floating' ? `<div class="dash-event-project-picker"><div class="dash-event-project-picker-row"><input class="dash-event-search" data-event-project-search value="${escapeHtml(eventDraftProjectQuery)}" placeholder="Search to assign a project" autocomplete="off"><button type="button" class="dash-event-project-create" data-event-project-create aria-label="Create a new project" title="Create a new project"><i class="fas fa-plus"></i></button></div>
+      ${String(ctx.kind === 'floating' ? `<div class="dash-event-project-picker"><div class="dash-event-project-picker-row"><input class="dash-event-search" data-event-project-search value="${escapeHtml(eventDraftProjectQuery)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90a374781263be","Search to assign a project") ?? "Search to assign a project")}" autocomplete="off"><button type="button" class="dash-event-project-create" data-event-project-create aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_89250227eee734","Create a new project") ?? "Create a new project")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_89250227eee734","Create a new project") ?? "Create a new project")}"><i class="fas fa-plus"></i></button></div>
         <div class="dash-event-project-list" data-event-project-results ${clean(eventDraftProjectQuery) ? '' : 'hidden'}>
           ${results.map((project) => `<button type="button" class="dash-event-project-option" data-event-project-id="${escapeHtml(project.id || '')}">
             <strong>${escapeHtml(projectTitle(project))}</strong>
             <span>${escapeHtml([project.address, project.customer_phone || project.phone].map(clean).filter(Boolean).join(' - ') || 'No address')}</span>
-          </button>`).join('') || (clean(eventDraftProjectQuery) ? `<div class="dash-empty" style="padding:12px;">No matching projects.</div>` : '')}
+          </button>`).join('') || (clean(eventDraftProjectQuery) ? `<div class="dash-empty" style="padding:12px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0e31fa9fe147f8","No matching projects.") ?? "No matching projects.")}</div>` : '')}
         </div></div>` : '')}
       <div class="dash-event-pop-actions">
-        <span style="display:flex;gap:7px"><button type="button" class="dash-event-advanced-toggle ${String(eventAdvancedOpen ? 'active' : '')}" data-event-advanced aria-label="${((v21) => globalThis.PlatformLanguage?.text("scheduling","m_407444280ca9bb",`${v21} advanced event fields`,{v21}) ?? `${v21} advanced event fields`)(eventAdvancedOpen ? 'Hide' : 'Show')}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="${String(eventAdvancedOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i></button>${String(canDelete ? '<button type="button" class="dash-event-delete" data-event-delete><i class="fas fa-trash"></i> Delete</button>' : '')}${String(project?.id ? `<button type="button" class="dash-event-view-btn" data-event-view-project>View Project</button>` : '')}${String(canToggleLock ? `<button type="button" class="dash-event-view-btn" data-event-lock-toggle><i class="fas fa-${eventIsLocked(draft) ? 'lock' : 'lock-open'}"></i> ${eventIsLocked(draft) ? 'Unlock' : 'Lock'}</button>` : '')}</span>
-        <button type="button" class="dash-event-save" data-event-save ${String(canSave ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.text("scheduling","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+        <span style="display:flex;gap:7px"><button type="button" class="dash-event-advanced-toggle ${String(eventAdvancedOpen ? 'active' : '')}" data-event-advanced aria-label="${((v21) => globalThis.PlatformLanguage?.htmlText("scheduling","m_407444280ca9bb",`${v21} advanced event fields`,{v21}) ?? `${v21} advanced event fields`)(eventAdvancedOpen ? 'Hide' : 'Show')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="${String(eventAdvancedOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i></button>${String(canDelete ? `<button type="button" class="dash-event-delete" data-event-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90e27d705bee80"," Delete") ?? " Delete")}</button>` : '')}${String(project?.id ? `<button type="button" class="dash-event-view-btn" data-event-view-project>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_438062886ff2f5","View Project") ?? "View Project")}</button>` : '')}${String(canToggleLock ? `<button type="button" class="dash-event-view-btn" data-event-lock-toggle><i class="fas fa-${eventIsLocked(draft) ? 'lock' : 'lock-open'}"></i> ${eventIsLocked(draft) ? 'Unlock' : 'Lock'}</button>` : '')}</span>
+        <button type="button" class="dash-event-save" data-event-save ${String(canSave ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
       </div>
     `;
     document.body.appendChild(pop);
@@ -3937,7 +3938,7 @@
       const nextResults = projectSearchResults(eventDraftProjectQuery);
       if (!resultList) return;
       resultList.hidden = !clean(eventDraftProjectQuery);
-      resultList.innerHTML = nextResults.map((item) => `<button type="button" class="dash-event-project-option" data-event-project-id="${escapeHtml(item.id || '')}"><strong>${escapeHtml(projectTitle(item))}</strong><span>${escapeHtml([item.address, item.customer_phone || item.phone].map(clean).filter(Boolean).join(' - ') || 'No address')}</span></button>`).join('') || (clean(eventDraftProjectQuery) ? `<div class="dash-empty" style="padding:12px;">${(globalThis.PlatformLanguage?.text("scheduling","m_0e31fa9fe147f8","No matching projects.") ?? "No matching projects.")}</div>` : '');
+      resultList.innerHTML = nextResults.map((item) => `<button type="button" class="dash-event-project-option" data-event-project-id="${escapeHtml(item.id || '')}"><strong>${escapeHtml(projectTitle(item))}</strong><span>${escapeHtml([item.address, item.customer_phone || item.phone].map(clean).filter(Boolean).join(' - ') || 'No address')}</span></button>`).join('') || (clean(eventDraftProjectQuery) ? `<div class="dash-empty" style="padding:12px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0e31fa9fe147f8","No matching projects.") ?? "No matching projects.")}</div>` : '');
       bindProjectResultOptions();
     });
     bindProjectResultOptions();
@@ -4487,22 +4488,22 @@
     const scopeId = scope.toLowerCase();
     const travelOn = scopeId === 'production' ? productionLiveTravel : appointmentScheduleLiveTravel;
     const travelBtn = scale === 'hourly' && travelTimeEnabled()
-      ? `<button type="button" class="dash-routing-travel ${String(travelOn ? 'active' : '')}" data-routing-travel="${String(scopeId)}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_b5b71930035fd1","Show live travel time between stops") ?? "Show live travel time between stops")}" aria-pressed="${String(travelOn ? 'true' : 'false')}"><i class="fas fa-route"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_4f79c5c52d9990"," Travel") ?? " Travel")}</button>`
+      ? `<button type="button" class="dash-routing-travel ${String(travelOn ? 'active' : '')}" data-routing-travel="${String(scopeId)}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b5b71930035fd1","Show live travel time between stops") ?? "Show live travel time between stops")}" aria-pressed="${String(travelOn ? 'true' : 'false')}"><i class="fas fa-route"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4f79c5c52d9990"," Travel") ?? " Travel")}</button>`
       : '';
     const autoRouteBtn = scale === 'hourly'
-      ? `<button type="button" class="dash-routing-travel" data-routing-optimize="${String(scopeId)}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_de861b5028f734","Assign this day's appointments to the best people by travel time") ?? "Assign this day's appointments to the best people by travel time")}"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_d9a77d0e85805b"," Auto-route") ?? " Auto-route")}</button>`
+      ? `<button type="button" class="dash-routing-travel" data-routing-optimize="${String(scopeId)}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_de861b5028f734","Assign this day's appointments to the best people by travel time") ?? "Assign this day's appointments to the best people by travel time")}"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d9a77d0e85805b"," Auto-route") ?? " Auto-route")}</button>`
       : '';
     const conflictCount = scale === 'hourly' ? routingDayConflicts(scopeId).length : 0;
     const overbookedCount = scale === 'hourly' ? Number(routingOverbooked[`${scopeId}:${routingDateValue()}`] || 0) : 0;
     const flagHtml = [
-      conflictCount ? `<span class="dash-routing-flag conflict" title="${((v0,v1,v2) => globalThis.PlatformLanguage?.text("scheduling","m_1e000bf8e3efa8",`${v0} appointment${v1} assigned to an unavailable team member and need${v2} rescheduling`,{v0,v1,v2}) ?? `${v0} appointment${v1} assigned to an unavailable team member and need${v2} rescheduling`)(conflictCount,conflictCount === 1 ? ' is' : 's are',conflictCount === 1 ? 's' : '')}"><i class="fas fa-triangle-exclamation"></i>${((v3,v4) => globalThis.PlatformLanguage?.text("scheduling","m_f2fd2f6805fe78",` ${v3} conflict${v4}`,{v3,v4}) ?? ` ${v3} conflict${v4}`)(conflictCount,conflictCount === 1 ? '' : 's')}</span>` : '',
-      overbookedCount ? `<span class="dash-routing-flag overbooked" title="${((v0,v1) => globalThis.PlatformLanguage?.text("scheduling","m_6085bc21c921bf",`The day is overbooked: ${v0} appointment${v1} could not be assigned to anyone`,{v0,v1}) ?? `The day is overbooked: ${v0} appointment${v1} could not be assigned to anyone`)(overbookedCount,overbookedCount === 1 ? '' : 's')}"><i class="fas fa-calendar-xmark"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_86a7bd113ad386"," Overbooked") ?? " Overbooked")}</span>` : ''
+      conflictCount ? `<span class="dash-routing-flag conflict" title="${((v0,v1,v2) => globalThis.PlatformLanguage?.htmlText("scheduling","m_1e000bf8e3efa8",`${v0} appointment${v1} assigned to an unavailable team member and need${v2} rescheduling`,{v0,v1,v2}) ?? `${v0} appointment${v1} assigned to an unavailable team member and need${v2} rescheduling`)(conflictCount,conflictCount === 1 ? ' is' : 's are',conflictCount === 1 ? 's' : '')}"><i class="fas fa-triangle-exclamation"></i>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("scheduling","m_f2fd2f6805fe78",` ${v3} conflict${v4}`,{v3,v4}) ?? ` ${v3} conflict${v4}`)(conflictCount,conflictCount === 1 ? '' : 's')}</span>` : '',
+      overbookedCount ? `<span class="dash-routing-flag overbooked" title="${((v0,v1) => globalThis.PlatformLanguage?.htmlText("scheduling","m_6085bc21c921bf",`The day is overbooked: ${v0} appointment${v1} could not be assigned to anyone`,{v0,v1}) ?? `The day is overbooked: ${v0} appointment${v1} could not be assigned to anyone`)(overbookedCount,overbookedCount === 1 ? '' : 's')}"><i class="fas fa-calendar-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_86a7bd113ad386"," Overbooked") ?? " Overbooked")}</span>` : ''
     ].join('');
     const dateLabel = scale === 'hourly'
       ? `<time class="dash-routing-date" datetime="${routingDateValue()}">${escapeHtml(routingDateLabel())}</time>`
       : '';
     const vehicleButton = scopeId === 'production' && equipmentSchedulingOn()
-      ? `<button type="button" class="dash-routing-vehicles ${String(productionVehiclesVisible ? 'active' : '')}" data-routing-vehicles aria-pressed="${String(productionVehiclesVisible ? 'true' : 'false')}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_266a463e7e8cbd","Show vehicle assignment lanes") ?? "Show vehicle assignment lanes")}"><i class="fas fa-truck-pickup"></i></button>`
+      ? `<button type="button" class="dash-routing-vehicles ${String(productionVehiclesVisible ? 'active' : '')}" data-routing-vehicles aria-pressed="${String(productionVehiclesVisible ? 'true' : 'false')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_266a463e7e8cbd","Show vehicle assignment lanes") ?? "Show vehicle assignment lanes")}"><i class="fas fa-truck-pickup"></i></button>`
       : '';
     return `<div class="dash-schedule-pane" data-routing-pane="${scopeId}">
       <div class="dash-schedule-pane-title"><span class="dash-schedule-pane-heading"><span>${escapeHtml(scope)}</span>${dateLabel}</span><span class="dash-routing-pane-controls">${flagHtml}${autoRouteBtn}${travelBtn}${vehicleButton}${routingScaleButtons(scope, scale)}</span></div>
@@ -4532,7 +4533,7 @@
         tiles.push(`<button type="button" class="dash-routing-placement-tile ${missingAddress ? 'missing-address' : ''} ${selected ? 'selected' : ''}" data-routing-dock-tile data-production-project-id="${escapeHtml(project.id || '')}"><strong>${escapeHtml(projectTitle(project))}</strong><span>${missingAddress ? 'Missing address' : 'Tap, then hold a date'}</span></button>`);
       });
     }
-    return `<div class="dash-routing-placement-dock"><strong>${(globalThis.PlatformLanguage?.text("scheduling","m_2e5bd1a487b333","Projects to place") ?? "Projects to place")}</strong><div class="dash-routing-placement-track">${String(tiles.length ? tiles.join('') : '<div class="dash-routing-placement-empty">No projects waiting to be placed.</div>')}</div></div>`;
+    return `<div class="dash-routing-placement-dock"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2e5bd1a487b333","Projects to place") ?? "Projects to place")}</strong><div class="dash-routing-placement-track">${String(tiles.length ? tiles.join('') : `<div class="dash-routing-placement-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b9aa12deed5b3","No projects waiting to be placed.") ?? "No projects waiting to be placed.")}</div>`)}</div></div>`;
   }
   function renderAppointmentSchedule(){
     const availablePanes = [
@@ -4540,7 +4541,7 @@
       showProductionSchedule ? { id:'production', label:(globalThis.PlatformLanguage?.text("scheduling","m_c2e6380e130020","Production") ?? "Production"), mount:'dashScheduleViewProduction', scale:productionRoutingScale } : null
     ].filter(Boolean);
     if (!availablePanes.length) {
-      return `<div class="dash-empty">${(globalThis.PlatformLanguage?.text("scheduling","m_1364a554d79704","Turn on Sales or Production to show a routing schedule.") ?? "Turn on Sales or Production to show a routing schedule.")}</div>`;
+      return `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1364a554d79704","Turn on Sales or Production to show a routing schedule.") ?? "Turn on Sales or Production to show a routing schedule.")}</div>`;
     }
     if (!isMobileScheduleLayout()) {
       return `<div class="dash-card dash-schedule-card"><div class="dash-schedule-split">${availablePanes.map((pane) => routingPane(pane.label, pane.mount, pane.scale)).join('')}</div></div>`;
@@ -4793,7 +4794,7 @@
         const menu = document.createElement('div');
         menu.className = 'psv-event-menu';
         menu.innerHTML = `
-          <div class="psv-event-action danger" data-psv-unassign-event><i class="fas fa-user-minus"></i>${(globalThis.PlatformLanguage?.text("scheduling","m_07454f15891016"," Unassign") ?? " Unassign")}</div>
+          <div class="psv-event-action danger" data-psv-unassign-event><i class="fas fa-user-minus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_07454f15891016"," Unassign") ?? " Unassign")}</div>
         `;
         menu.querySelector('[data-psv-unassign-event]')?.addEventListener('click', (clickEvent) => {
           clickEvent.preventDefault();
@@ -5135,13 +5136,13 @@
       ['sales', 'Sales', 'fa-handshake'],
       ['other', 'Other', 'fa-calendar-plus']
     ];
-    const groupControls = `<div class="dash-gantt-groupby"><span>${(globalThis.PlatformLanguage?.text("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}</span>${String([
+    const groupControls = `<div class="dash-gantt-groupby"><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}</span>${String([
       ['project', 'Project'], ['resource', 'Resource']
     ].map(([id, label]) => `<button type="button" class="dash-gantt-groupby-btn ${ganttGroupBy === id ? 'active' : ''}" data-gantt-group-by="${id}">${label}</button>`).join(''))}
       <div class="dash-gantt-shown-wrap">
-        <button type="button" class="dash-gantt-shown-btn ${String(ganttShownMenuOpen || ganttVisibleKinds.size !== shownOptions.length ? 'active' : '')}" data-gantt-shown aria-expanded="${String(ganttShownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.text("scheduling","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
+        <button type="button" class="dash-gantt-shown-btn ${String(ganttShownMenuOpen || ganttVisibleKinds.size !== shownOptions.length ? 'active' : '')}" data-gantt-shown aria-expanded="${String(ganttShownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
         ${String(ganttShownMenuOpen ? `<div class="dash-gantt-shown-menu" data-gantt-shown-menu>
-          <div class="dash-gantt-shown-head"><strong>Items shown</strong><button type="button" data-gantt-shown-close aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+          <div class="dash-gantt-shown-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><button type="button" data-gantt-shown-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
           <div class="dash-gantt-shown-options">${shownOptions.map(([id, label, icon]) => `<button type="button" class="dash-gantt-shown-option ${ganttVisibleKinds.has(id) ? 'active' : ''}" data-gantt-kind="${id}" aria-pressed="${ganttVisibleKinds.has(id) ? 'true' : 'false'}"><span class="dash-gantt-shown-check"><i class="fas fa-check"></i></span><i class="fas ${icon}"></i><span>${label}</span></button>`).join('')}</div>
         </div>` : '')}
       </div>
@@ -5412,7 +5413,7 @@
           <strong>${escapeHtml(group.label || 'Appointments')}</strong>
           <span>${group.items.length} <i class="fas fa-chevron-${collapsed ? 'down' : 'up'}"></i></span>
         </button>
-        <div class="dash-group-body">${group.items.length ? group.items.map(appointmentTile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.text("scheduling","m_2c20082e994482","No appointments.") ?? "No appointments.")}</div>`}</div>
+        <div class="dash-group-body">${group.items.length ? group.items.map(appointmentTile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2c20082e994482","No appointments.") ?? "No appointments.")}</div>`}</div>
       </div>`;
     }).join('')}</div>`;
   }
@@ -5423,14 +5424,14 @@
     ) || 'Routing';
     const modeButtons = `
       <span class="dash-control-group">
-        <span class="dash-control-label">${(globalThis.PlatformLanguage?.text("scheduling","m_6290719711de40","Show") ?? "Show")}</span>
+        <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_6290719711de40","Show") ?? "Show")}</span>
         <button class="dash-btn segment ${String(showSalesSchedule ? 'active' : '')}" data-schedule-type-toggle="sales">${String(escapeHtml('Sales'))}</button>
         <button class="dash-btn segment ${String(showProductionSchedule ? 'active' : '')}" data-schedule-type-toggle="production">${String(escapeHtml('Production'))}</button>
         <button class="dash-btn segment ${String(showOtherSchedule ? 'active' : '')}" data-schedule-type-toggle="other">${String(escapeHtml('Other'))}</button>
       </span>`;
     const displayButtons = ENABLE_CALENDAR_DISPLAY_SWITCH ? `
       <span class="dash-control-group">
-        <span class="dash-control-label">${(globalThis.PlatformLanguage?.text("scheduling","m_2b8e4c9b866e80","View") ?? "View")}</span>
+        <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2b8e4c9b866e80","View") ?? "View")}</span>
         ${String([['summary','Summary'], ['events','Events']].map(([id, label]) => `<button class="dash-btn segment ${calendarDisplayMode === id ? 'active' : ''}" data-calendar-display="${id}">${escapeHtml(label)}</button>`).join(''))}
       </span>` : '';
     const today = new Date();
@@ -5442,7 +5443,7 @@
       ['week', window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week', 'fa-table-columns'],
       ['month', window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month', 'fa-calendar-days']
     ];
-    const mobileToolbarExtras = `<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="Schedules to show"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>Sales</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>Production</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"><i class="fas fa-calendar-plus"></i>Other</button></div>` : '')}</span><button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.text("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
+    const mobileToolbarExtras = `<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span><button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
     const mobileToolbar = window.PlatformScheduleView?.mobileCalendarToolbarHtml?.({
       view: viewMode,
       date: anchorDate,
@@ -5468,7 +5469,7 @@
         <div><h2 class="dash-title">${String(escapeHtml(visibleTitle()))}</h2></div>
         <div class="dash-controls">
           <button type="button" class="dash-btn" data-dash-nav="-1"><i class="fas fa-chevron-left"></i></button>
-          <button type="button" class="dash-btn" data-dash-today>${(globalThis.PlatformLanguage?.text("scheduling","m_23929ba4ba84dd","Today") ?? "Today")}</button>
+          <button type="button" class="dash-btn" data-dash-today>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_23929ba4ba84dd","Today") ?? "Today")}</button>
           <button type="button" class="dash-btn" data-dash-nav="1"><i class="fas fa-chevron-right"></i></button>
           ${String([
             ['day',window.Portal?.terminology?.get?.('scheduling.day_view', 'Day') || 'Day'],
@@ -5497,12 +5498,12 @@
     back.innerHTML = `
       <div class="dash-modal">
         <div class="dash-modal-head">
-          <div><h3>${String(escapeHtml(day.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</h3><div class="dash-sub">${((v1,v2) => globalThis.PlatformLanguage?.text("scheduling","m_766a1e29082f39",`${v1} appointment${v2}`,{v1,v2}) ?? `${v1} appointment${v2}`)(dayEvents.length,dayEvents.length === 1 ? '' : 's')}</div></div>
+          <div><h3>${String(escapeHtml(day.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</h3><div class="dash-sub">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("scheduling","m_766a1e29082f39",`${v1} appointment${v2}`,{v1,v2}) ?? `${v1} appointment${v2}`)(dayEvents.length,dayEvents.length === 1 ? '' : 's')}</div></div>
           <button type="button" class="dash-modal-close"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="dash-modal-body">
           ${String(topStatsHtmlForDay(day))}
-          <div class="dash-groups"><div class="dash-group"><div class="dash-group-body">${String(items.length ? items.map(appointmentTile).join('') : `<div class="dash-empty">No appointments.</div>`)}</div></div></div>
+          <div class="dash-groups"><div class="dash-group"><div class="dash-group-body">${String(items.length ? items.map(appointmentTile).join('') : `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2c20082e994482","No appointments.") ?? "No appointments.")}</div>`)}</div></div></div>
         </div>
       </div>
     `;
@@ -5964,7 +5965,7 @@
       : viewMode === 'gantt'
         ? renderGanttShell()
         : (calendarDisplayMode === 'events' ? renderEventCalendarShell() : viewMode === 'month' ? renderMonth() : viewMode === 'day' ? renderDay() : renderWeek());
-    const mobileTray = mobileTrayOpen ? `<div class="dash-mobile-tray-backdrop ${String(mobileTrayClosing ? 'closing' : '')}" data-mobile-tray-backdrop><aside class="dash-mobile-tray" aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><div class="dash-mobile-tray-head"><strong>${(globalThis.PlatformLanguage?.text("scheduling","m_e9f71e12236d72","Projects to Schedule") ?? "Projects to Schedule")}</strong><button type="button" class="dash-mobile-tray-close" data-mobile-tray-close aria-label="${(globalThis.PlatformLanguage?.text("scheduling","m_d957e47b7fba31","Close projects to schedule") ?? "Close projects to schedule")}"><i class="fas fa-xmark"></i></button></div>${String(renderGroups())}</aside></div>` : '';
+    const mobileTray = mobileTrayOpen ? `<div class="dash-mobile-tray-backdrop ${String(mobileTrayClosing ? 'closing' : '')}" data-mobile-tray-backdrop><aside class="dash-mobile-tray" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><div class="dash-mobile-tray-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e9f71e12236d72","Projects to Schedule") ?? "Projects to Schedule")}</strong><button type="button" class="dash-mobile-tray-close" data-mobile-tray-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d957e47b7fba31","Close projects to schedule") ?? "Close projects to schedule")}"><i class="fas fa-xmark"></i></button></div>${String(renderGroups())}</aside></div>` : '';
     rootEl.innerHTML = `<div class="dash-shell">${toolbarHtml()}<div class="dash-body ${['appointment_schedule','gantt'].includes(viewMode) ? 'schedule-mode' : ''} ${!['appointment_schedule','gantt'].includes(viewMode) && calendarDisplayMode === 'events' ? 'events-mode' : ''}"><div class="dash-left">${topStatsHtml()}${main}</div><aside class="dash-right">${renderGroups()}</aside></div>${mobileTray}</div>`;
     if (viewMode === 'appointment_schedule') renderScheduleLibraryView();
     else if (viewMode === 'gantt') renderGanttScheduleView();

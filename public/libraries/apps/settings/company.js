@@ -254,7 +254,7 @@
     const member = workforceObject(source.resource_group_member || source.worker || source.member);
     const connection = workforceObject(source.organization_connection || source.connection);
     const applications = workforceObject(source.applications);
-    return {
+    const labels = {
       resource_group_singular: workforceText(source.resource_group_singular, group.singular, 'Crew'),
       resource_group_plural: workforceText(source.resource_group_plural, group.plural, 'Crews'),
       worker_singular: workforceText(source.worker_singular, member.singular, 'Crew Member'),
@@ -264,6 +264,7 @@
       management_application: workforceText(source.management_application, applications.management, 'Main App'),
       field_application: workforceText(source.field_application, applications.field, 'Crew App')
     };
+    return Object.fromEntries(Object.entries(labels).map(([key,fallback]) => [key, window.PlatformTerminology?.get?.(`workforce.${key}`, fallback) || fallback]));
   }
   function normalizeProposalSettings(input){
     const data = input && typeof input === 'object' ? input : {};
@@ -377,7 +378,7 @@
     const show = context.showToast || showToast;
     const store = proposalSettingsStore(context);
     if (!root || !store) {
-      if (root) root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_1e9bff786cec8b","Proposal settings are unavailable.") ?? "Proposal settings are unavailable.")}</div>`;
+      if (root) root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1e9bff786cec8b","Proposal settings are unavailable.") ?? "Proposal settings are unavailable.")}</div>`;
       return {};
     }
     injectSettingsPageCommonCss();
@@ -463,40 +464,40 @@
       if (!template) return '';
       return `
         <div class="scope-template-editor" data-scope-template-editor="${String(escape(template.id))}">
-          <div class="scope-admin-head"><div><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_46b47f108a09d1","Edit Scope Template") ?? "Edit Scope Template")}</div><h3>${String(escape(template.name || template.id))}</h3></div><span class="cs-note">${((v2) => globalThis.PlatformLanguage?.text("settings","m_5082194385b241",`Version ${v2}`,{v2}) ?? `Version ${v2}`)(escape(String(template.version || template.current_version || 1)))}</span></div>
+          <div class="scope-admin-head"><div><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_46b47f108a09d1","Edit Scope Template") ?? "Edit Scope Template")}</div><h3>${String(escape(template.name || template.id))}</h3></div><span class="cs-note">${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_5082194385b241",`Version ${v2}`,{v2}) ?? `Version ${v2}`)(escape(String(template.version || template.current_version || 1)))}</span></div>
           <div class="proposal-default-grid">
-            <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeName))}">${(globalThis.PlatformLanguage?.text("settings","m_8cf345002184e5","Name") ?? "Name")}</label><input class="cs-in" id="${String(escape(ids.scopeName))}" value="${String(escape(template.name || ''))}"></div>
-            <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeColorText))}">${(globalThis.PlatformLanguage?.text("settings","m_a601832399a223","Project Color") ?? "Project Color")}</label><div class="scope-color-input"><input id="${String(escape(ids.scopeColor))}" type="color" value="${String(escape(safeHexColor(template.color)))}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_d8bf13d51f41bb","Project color") ?? "Project color")}"><input class="cs-in" id="${String(escape(ids.scopeColorText))}" value="${String(escape(template.color || ''))}"></div></div>
+            <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeName))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</label><input class="cs-in" id="${String(escape(ids.scopeName))}" value="${String(escape(template.name || ''))}"></div>
+            <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeColorText))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_a601832399a223","Project Color") ?? "Project Color")}</label><div class="scope-color-input"><input id="${String(escape(ids.scopeColor))}" type="color" value="${String(escape(safeHexColor(template.color)))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_d8bf13d51f41bb","Project color") ?? "Project color")}"><input class="cs-in" id="${String(escape(ids.scopeColorText))}" value="${String(escape(template.color || ''))}"></div></div>
           </div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeDescription))}">${(globalThis.PlatformLanguage?.text("settings","m_20e1bc33c081dd","Short Description") ?? "Short Description")}</label><input class="cs-in" id="${String(escape(ids.scopeDescription))}" value="${String(escape(template.description || ''))}"></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeDetails))}">${(globalThis.PlatformLanguage?.text("settings","m_20c20a5df7e801","Template Details") ?? "Template Details")}</label><textarea class="cs-in" id="${String(escape(ids.scopeDetails))}">${String(escape(template.details || ''))}</textarea></div>
-          <div class="li-actions"><button class="cs-btn primary" id="${String(escape(ids.scopeSave))}" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_2ab70954f551e0"," Save Template") ?? " Save Template")}</button><button class="cs-btn" id="${String(escape(ids.scopeCancel))}" type="button">${(globalThis.PlatformLanguage?.text("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button></div>
+          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeDescription))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_20e1bc33c081dd","Short Description") ?? "Short Description")}</label><input class="cs-in" id="${String(escape(ids.scopeDescription))}" value="${String(escape(template.description || ''))}"></div>
+          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeDetails))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_20c20a5df7e801","Template Details") ?? "Template Details")}</label><textarea class="cs-in" id="${String(escape(ids.scopeDetails))}">${String(escape(template.details || ''))}</textarea></div>
+          <div class="li-actions"><button class="cs-btn primary" id="${String(escape(ids.scopeSave))}" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2ab70954f551e0"," Save Template") ?? " Save Template")}</button><button class="cs-btn" id="${String(escape(ids.scopeCancel))}" type="button">${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button></div>
         </div>`;
     };
     const scopeAdministrationMarkup = () => {
       const terminology = workConfiguration?.terminology || {};
       const templatesMarkup = scopeTemplatesLoading
-        ? `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_b340ec89fbab5c"," Loading scope templates...") ?? " Loading scope templates...")}</div>`
+        ? `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b340ec89fbab5c"," Loading scope templates...") ?? " Loading scope templates...")}</div>`
         : scopeTemplatesError
           ? `<div class="cs-note">${escape(scopeTemplatesError)}</div>`
           : `<div class="scope-template-grid">${scopeTemplates.map((template) => `
               <div class="scope-template-card">
                 <span class="scope-template-color" style="--scope-color:${String(escape(template.color || '#98a2b3'))}"></span>
-                <span class="scope-template-copy"><strong>${String(escape(template.name || template.id))}</strong><span>${String(escape(template.description || `${workflowTaskCount(template)} workflow steps`))}</span><span>${((v3,v4) => globalThis.PlatformLanguage?.text("settings","m_0b6887b880ba34",`v${v3} &middot; ${v4} to-dos`,{v3,v4}) ?? `v${v3} &middot; ${v4} to-dos`)(escape(String(template.version || template.current_version || 1)),workflowTaskCount(template))}</span></span>
-                <button class="scope-template-edit" type="button" data-scope-template-edit="${String(escape(template.id))}" title="${((v6) => globalThis.PlatformLanguage?.text("settings","m_b29c4af5929215",`Edit ${v6}`,{v6}) ?? `Edit ${v6}`)(escape(template.name || template.id))}" aria-label="${((v7) => globalThis.PlatformLanguage?.text("settings","m_158711b17eed99",`Edit ${v7}`,{v7}) ?? `Edit ${v7}`)(escape(template.name || template.id))}"><i class="fas fa-pen"></i></button>
+                <span class="scope-template-copy"><strong>${String(escape(template.name || template.id))}</strong><span>${String(escape(template.description || `${workflowTaskCount(template)} workflow steps`))}</span><span>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("settings","m_0b6887b880ba34",`v${v3} &middot; ${v4} to-dos`,{v3,v4}) ?? `v${v3} &middot; ${v4} to-dos`)(escape(String(template.version || template.current_version || 1)),workflowTaskCount(template))}</span></span>
+                <button class="scope-template-edit" type="button" data-scope-template-edit="${String(escape(template.id))}" title="${((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_b29c4af5929215",`Edit ${v6}`,{v6}) ?? `Edit ${v6}`)(escape(template.name || template.id))}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("settings","m_158711b17eed99",`Edit ${v7}`,{v7}) ?? `Edit ${v7}`)(escape(template.name || template.id))}"><i class="fas fa-pen"></i></button>
               </div>`).join('')}</div>`;
       return `
         <div class="scope-admin-divider"></div>
-        <div class="scope-admin-head"><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_3403bddf7b0434","Work Language") ?? "Work Language")}</h3></div>${String(workConfigurationLoading ? '<span class="cs-note"><i class="fas fa-spinner fa-spin"></i></span>' : '')}</div>
+        <div class="scope-admin-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_3403bddf7b0434","Work Language") ?? "Work Language")}</h3></div>${String(workConfigurationLoading ? '<span class="cs-note"><i class="fas fa-spinner fa-spin"></i></span>' : '')}</div>
         <div class="work-term-grid">
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workPhase))}">${(globalThis.PlatformLanguage?.text("settings","m_95d703244e42dc","Phase") ?? "Phase")}</label><input class="cs-in" id="${String(escape(ids.workPhase))}" value="${String(escape(terminology.phase || 'Phase'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workStage))}">${(globalThis.PlatformLanguage?.text("settings","m_43f2c4d59757a1","Stage") ?? "Stage")}</label><input class="cs-in" id="${String(escape(ids.workStage))}" value="${String(escape(terminology.stage || 'Stage'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workTask))}">${(globalThis.PlatformLanguage?.text("settings","m_1dad46c8777063","To-do") ?? "To-do")}</label><input class="cs-in" id="${String(escape(ids.workTask))}" value="${String(escape(terminology.task || 'To-do'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workBoard))}">${(globalThis.PlatformLanguage?.text("settings","m_48afb49c6f40c4","Board") ?? "Board")}</label><input class="cs-in" id="${String(escape(ids.workBoard))}" value="${String(escape(terminology.board || 'Board'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
+          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workPhase))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_95d703244e42dc","Phase") ?? "Phase")}</label><input class="cs-in" id="${String(escape(ids.workPhase))}" value="${String(escape(terminology.phase || 'Phase'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
+          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workStage))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_43f2c4d59757a1","Stage") ?? "Stage")}</label><input class="cs-in" id="${String(escape(ids.workStage))}" value="${String(escape(terminology.stage || 'Stage'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
+          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workTask))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_1dad46c8777063","To-do") ?? "To-do")}</label><input class="cs-in" id="${String(escape(ids.workTask))}" value="${String(escape(terminology.task || 'To-do'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
+          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workBoard))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_48afb49c6f40c4","Board") ?? "Board")}</label><input class="cs-in" id="${String(escape(ids.workBoard))}" value="${String(escape(terminology.board || 'Board'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
         </div>
-        <div class="li-actions"><button class="cs-btn" id="${String(escape(ids.workSave))}" type="button" ${String(workConfigurationLoading ? 'disabled' : '')}><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_3e2ad91bd84c86"," Save Work Language") ?? " Save Work Language")}</button></div>
+        <div class="li-actions"><button class="cs-btn" id="${String(escape(ids.workSave))}" type="button" ${String(workConfigurationLoading ? 'disabled' : '')}><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e2ad91bd84c86"," Save Work Language") ?? " Save Work Language")}</button></div>
         <div class="scope-admin-divider"></div>
-        <div class="scope-admin-head"><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_cf0e5b927cef4f","Project Scope Templates") ?? "Project Scope Templates")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_01b956a3dbb47c","Reset replaces this branch's template copies with the current global defaults.") ?? "Reset replaces this branch's template copies with the current global defaults.")}</p></div><button class="cs-btn" id="${String(escape(ids.scopeReset))}" type="button"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button></div>
+        <div class="scope-admin-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cf0e5b927cef4f","Project Scope Templates") ?? "Project Scope Templates")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_01b956a3dbb47c","Reset replaces this branch's template copies with the current global defaults.") ?? "Reset replaces this branch's template copies with the current global defaults.")}</p></div><button class="cs-btn" id="${String(escape(ids.scopeReset))}" type="button"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button></div>
         ${String(templatesMarkup)}
         ${String(scopeEditorMarkup())}`;
     };
@@ -520,8 +521,8 @@
       root.classList.toggle('embedded', !!context.embedded);
       root.innerHTML = `
         <div class="cs-section">
-          <h3>${(globalThis.PlatformLanguage?.text("settings","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings")}</h3>
-          <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_92cca7f11c544c","Set branch defaults for new proposals. Existing proposals keep their saved style unless edited.") ?? "Set branch defaults for new proposals. Existing proposals keep their saved style unless edited.")}</p>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings")}</h3>
+          <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_92cca7f11c544c","Set branch defaults for new proposals. Existing proposals keep their saved style unless edited.") ?? "Set branch defaults for new proposals. Existing proposals keep their saved style unless edited.")}</p>
           <div class="cfg-options">
             ${String(themes.map(([value, label, description]) => `
               <button type="button" class="cfg-option ${settings.default_theme === value ? 'active' : ''}" data-proposal-theme="${escape(value)}">
@@ -532,32 +533,32 @@
           </div>
           <div class="cs-grid" style="margin-top:2px">
               <div class="cs-row">
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_17351f2a153c17","Proposal Title Prefix") ?? "Proposal Title Prefix")}</div>
+                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_17351f2a153c17","Proposal Title Prefix") ?? "Proposal Title Prefix")}</div>
                 <input class="cs-in" id="${String(escape(ids.title))}" value="${String(escape(defaults.default_title_prefix || 'Proposal'))}">
               </div>
               <div class="cs-row">
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_0e7ebad6711286","Proposal Font") ?? "Proposal Font")}</div>
+                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e7ebad6711286","Proposal Font") ?? "Proposal Font")}</div>
                 <select class="cs-in" id="${String(escape(ids.font))}">
                   ${String(PROPOSAL_FONT_OPTIONS.map((font) => `<option value="${escape(font)}" ${String(defaults.font_family || 'Montserrat') === font ? 'selected' : ''}>${escape(font)}</option>`).join(''))}
                 </select>
               </div>
               <div class="cs-row">
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_e84c787c45a512","Customer Completion Message") ?? "Customer Completion Message")}</div>
+                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e84c787c45a512","Customer Completion Message") ?? "Customer Completion Message")}</div>
                 <textarea class="cs-in" id="${String(escape(ids.completion))}" style="height:76px;padding-top:10px;resize:vertical">${String(escape(defaults.completion_message || '{{company}} will reach out with next steps.'))}</textarea>
                 <div class="cs-note">Shown after signing and deposit payment. Use {{company}} for the company name.</div>
               </div>
               <div class="proposal-default-grid">
                 <div class="cs-row">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_540a09b7b604a0","Default Sales Tax") ?? "Default Sales Tax")}</div>
+                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_540a09b7b604a0","Default Sales Tax") ?? "Default Sales Tax")}</div>
                   <input class="cs-in" id="${String(escape(ids.tax))}" inputmode="decimal" value="${String(escape(String(defaults.sales_tax_percent ?? 0)))}">
                 </div>
                 <div class="cs-row">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_df72aed04cb34f","Payment Total") ?? "Payment Total")}</div>
+                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_df72aed04cb34f","Payment Total") ?? "Payment Total")}</div>
                   <input class="cs-in" value="${String(escape(String(scheduleRows.reduce((sum, row) => sum + Number(row.percent || 0), 0))))}%" readonly>
                 </div>
               </div>
               <div class="proposal-schedule">
-                <div class="proposal-schedule-head"><span>${(globalThis.PlatformLanguage?.text("settings","m_5f24f5cf950755","Default Payment Step") ?? "Default Payment Step")}</span><span>${(globalThis.PlatformLanguage?.text("settings","m_c859ed36a95b21","Percent") ?? "Percent")}</span></div>
+                <div class="proposal-schedule-head"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5f24f5cf950755","Default Payment Step") ?? "Default Payment Step")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c859ed36a95b21","Percent") ?? "Percent")}</span></div>
                 ${String(scheduleRows.map((row, index) => `
                   <div class="proposal-schedule-row">
                     <input class="cs-in" id="${escape(ids[`pay${index}Label`])}" value="${escape(row.label)}">
@@ -567,22 +568,22 @@
               </div>
             <label class="li-switch-row">
               <div>
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_784478795b0e8c","Include PDF by default") ?? "Include PDF by default")}</div>
-                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_27f6cf8aa0f15c","Preselect the PDF option when sending proposals.") ?? "Preselect the PDF option when sending proposals.")}</div>
+                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_784478795b0e8c","Include PDF by default") ?? "Include PDF by default")}</div>
+                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_27f6cf8aa0f15c","Preselect the PDF option when sending proposals.") ?? "Preselect the PDF option when sending proposals.")}</div>
               </div>
               <span class="li-switch"><input id="${String(escape(ids.pdf))}" type="checkbox" ${String(defaults.send_include_pdf !== false ? 'checked' : '')}><span class="li-slider"></span></span>
             </label>
             <label class="li-switch-row">
               <div>
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_dd3a2324f60b95","Include portal link by default") ?? "Include portal link by default")}</div>
-                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_2496ea9b90a806","Preselect the customer portal link option when available.") ?? "Preselect the customer portal link option when available.")}</div>
+                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd3a2324f60b95","Include portal link by default") ?? "Include portal link by default")}</div>
+                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_2496ea9b90a806","Preselect the customer portal link option when available.") ?? "Preselect the customer portal link option when available.")}</div>
               </div>
               <span class="li-switch"><input id="${String(escape(ids.portal))}" type="checkbox" ${String(defaults.send_include_portal !== false ? 'checked' : '')}><span class="li-slider"></span></span>
             </label>
             <label class="li-switch-row">
               <div>
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_832ae8f24cda6d","Show proposal price comparisons in customer portal header") ?? "Show proposal price comparisons in customer portal header")}</div>
-                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_16046d397a7134","Shows totals under Proposal A, Proposal B, and other option tabs.") ?? "Shows totals under Proposal A, Proposal B, and other option tabs.")}</div>
+                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_832ae8f24cda6d","Show proposal price comparisons in customer portal header") ?? "Show proposal price comparisons in customer portal header")}</div>
+                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_16046d397a7134","Shows totals under Proposal A, Proposal B, and other option tabs.") ?? "Shows totals under Proposal A, Proposal B, and other option tabs.")}</div>
               </div>
               <span class="li-switch"><input id="${String(escape(ids.priceCompare))}" type="checkbox" ${String(defaults.show_portal_price_comparison !== false ? 'checked' : '')}><span class="li-slider"></span></span>
             </label>
@@ -728,7 +729,7 @@
       if (configurationResult.status === 'fulfilled') workConfiguration = configurationResult.value?.configuration || workConfiguration;
       render(false);
     };
-    root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_2ccef700c4d41d","Loading proposal settings...") ?? "Loading proposal settings...")}</div>`;
+    root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_2ccef700c4d41d","Loading proposal settings...") ?? "Loading proposal settings...")}</div>`;
     const unsubscribe = store.subscribe((next, meta = {}) => {
       if (destroyed || meta.source === context.instanceId) return;
       settings = normalizeProposalSettings(next);
@@ -1150,7 +1151,7 @@
     return LEVEL_PRESET_META.map(meta => {
       const active = String(activeLevel || '').toLowerCase().trim() === meta.v ? 'active' : '';
       return `<button class="cu-roleBtn ${active}" data-role="${escapeHtml(meta.v)}" type="button" ${isDisabled ? 'disabled' : ''}><i class="fas ${meta.icon}"></i> ${escapeHtml(meta.label)}</button>`;
-    }).join('') + `<button class="cu-roleBtn custom ${String(String(activeLevel || '').toLowerCase().trim() === 'custom' ? 'active' : '')}" data-role="custom" type="button" ${String(isDisabled ? 'disabled' : '')}><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("settings","m_b8a62e4ea304dc"," Custom") ?? " Custom")}</button>`;
+    }).join('') + `<button class="cu-roleBtn custom ${String(String(activeLevel || '').toLowerCase().trim() === 'custom' ? 'active' : '')}" data-role="custom" type="button" ${String(isDisabled ? 'disabled' : '')}><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b8a62e4ea304dc"," Custom") ?? " Custom")}</button>`;
   }
   function renderPermissionButtons(items, disabled){
     const isDisabled = !!disabled;
@@ -2199,7 +2200,7 @@
     // derives navigation, headings, accessibility, and active state from it.
     const settingsSections = [
       { id:'my_settings', allowed:canMySettings, icon:'fas fa-user-gear', title:(globalThis.PlatformLanguage?.text("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_005931f3534c4a","Personal preferences for your account.") ?? "Personal preferences for your account."), tabId:'csTabMySettings', paneId:'csPaneMySettings' },
-      { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:'Notifications', subtitle:'Choose which updates appear here and on your phone.', tabId:'csTabNotifications', paneId:'csPaneNotifications' },
+      { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:(globalThis.PlatformLanguage?.text("settings","m_5a9115e4033cb3","Notifications") ?? "Notifications"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c5f15c570faa05","Choose which updates appear here and on your phone.") ?? "Choose which updates appear here and on your phone."), tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
@@ -2226,7 +2227,7 @@
       { id:'proposals', allowed:canProposalSettings, icon:'fas fa-file-signature', term:'proposals.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_3129f3f0e39249","Proposals") ?? "Proposals"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_5f72a4f87b9f6a","Set branch defaults for new proposals.") ?? "Set branch defaults for new proposals."), tabId:'csTabProposals', paneId:'csPaneProposals' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
       { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
-      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:'App download', subtitle:'FirstMeasure on your phone.', tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
+      { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:(globalThis.PlatformLanguage?.text("settings","m_547bfda0c7f70d","App download") ?? "App download"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_18f3026e47ac02","FirstMeasure on your phone.") ?? "FirstMeasure on your phone."), tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
     ];
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
@@ -4672,11 +4673,11 @@
           <header class="cs-heading">
             <h2 class="cs-title" data-settings-title ${String(activeSection?.term ? `data-settings-terminology-key="${escapeHtml(activeSection.term)}"` : '')}>${String(escapeHtml(sectionTitle(activeSection)))}</h2>
           </header>
-          <aside class="cs-sidebar" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_e22e1a31e49113","Settings categories") ?? "Settings categories")}">
+          <aside class="cs-sidebar" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e22e1a31e49113","Settings categories") ?? "Settings categories")}">
             <div class="cs-settings-search">
               <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
-              <input type="search" data-settings-search placeholder="${(globalThis.PlatformLanguage?.text("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" autocomplete="off">
-              <button class="cs-settings-search-clear" type="button" data-settings-search-clear aria-label="${(globalThis.PlatformLanguage?.text("settings","m_9917fb251885da","Clear settings search") ?? "Clear settings search")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+              <input type="search" data-settings-search placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" autocomplete="off">
+              <button class="cs-settings-search-clear" type="button" data-settings-search-clear aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9917fb251885da","Clear settings search") ?? "Clear settings search")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
             </div>
             <div class="cs-settings-search-results" data-settings-search-results hidden></div>
             <nav class="cs-tabs" role="tablist" aria-orientation="vertical">${String(availableSettingsSections.map(sectionTabHtml).join(''))}</nav>
@@ -4696,7 +4697,7 @@
       const output = paneMySettings?.querySelector('[data-my-sidebar-width-output]');
       if (!width || !input || !output) return;
       input.value = String(width);
-      output.textContent = `${width}px`;
+      output.textContent = ((v0) => globalThis.PlatformLanguage?.text("settings","m_0888cfd878af79",`${v0}px`,{v0}) ?? `${v0}px`)(width);
     });
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
@@ -4752,8 +4753,8 @@
             const storage=billingPane.querySelector('[data-billing-legacy]');
             const card=storage?.querySelector('#blEnableToggle')?.closest('.bl-card');
             if(!card)return;
-            const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Credit auto top-up');
-            dialog.innerHTML='<header class="bw-head"><h3>Credit auto top-up</h3><button type="button" data-close>Done</button></header>';
+            const dialog=document.createElement('dialog');dialog.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("settings","m_8f492e9d154d37","Credit auto top-up") ?? "Credit auto top-up"));
+            dialog.innerHTML=`<header class="bw-head"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_8f492e9d154d37","Credit auto top-up") ?? "Credit auto top-up")}</h3><button type="button" data-close>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cb6b086a0e69c","Done") ?? "Done")}</button></header>`;
             host.querySelector('.bw').appendChild(dialog);dialog.appendChild(card);
             dialog.querySelector('[data-close]').onclick=()=>dialog.close();
             dialog.addEventListener('close',()=>{storage.appendChild(card);dialog.remove();void host._billingRefresh?.();},{once:true});
@@ -4819,8 +4820,8 @@
       settingsSearchResults.innerHTML = matches.length ? matches.map((item, index) => `
         <button class="cs-settings-result" type="button" data-settings-search-result="${String(index)}">
           <strong>${String(escapeHtml(item.title))}</strong>
-          <small>${((v2) => globalThis.PlatformLanguage?.text("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
-        </button>`).join('') : `<div class="cs-settings-empty">${(globalThis.PlatformLanguage?.text("settings","m_aa396b00eb8558","No matching settings") ?? "No matching settings")}</div>`;
+          <small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
+        </button>`).join('') : `<div class="cs-settings-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_aa396b00eb8558","No matching settings") ?? "No matching settings")}</div>`;
       settingsSearchResults.querySelectorAll('[data-settings-search-result]').forEach((button) => button.addEventListener('click', () => {
         const item = matches[Number(button.dataset.settingsSearchResult)];
         if (!item) return;
@@ -5138,12 +5139,12 @@
           <input type="checkbox" data-access-role-option="${escapeHtml(roleId)}" ${selected.has(roleId) ? 'checked' : ''} ${disabled}>
           <span><b>${escapeHtml(workforceText(role.name, roleId))}</b><span>${escapeHtml(workforceText(role.description, 'Reusable access defaults'))}</span>${applications.map((application) => `<em class="${application === 'field' ? 'field' : ''}">${escapeHtml(workforceApplicationLabel(application))}</em>`).join('')}</span>
         </label>`;
-      }).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_d8320aa8ff4ace","No active access roles are configured.") ?? "No active access roles are configured.")}</span>`;
+      }).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d8320aa8ff4ace","No active access roles are configured.") ?? "No active access roles are configured.")}</span>`;
     };
     const workforceAccessIntroMarkup = () => `<div class="cu-access-intro">
-      <div class="cu-access-concept"><strong><i class="fas fa-user-shield"></i>${(globalThis.PlatformLanguage?.text("settings","m_9d4a1ed1d50875"," Role &amp; assignment") ?? " Role &amp; assignment")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_ea9e4a567cce39","Reusable defaults for people doing similar work.") ?? "Reusable defaults for people doing similar work.")}</span></div>
-      <div class="cu-access-concept"><strong><i class="fas fa-table-cells-large"></i>${(globalThis.PlatformLanguage?.text("settings","m_0813c6fdef91ba"," App experience") ?? " App experience")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_e5930d72e2d5ee","Which relevant tabs and project views this user sees.") ?? "Which relevant tabs and project views this user sees.")}</span></div>
-      <div class="cu-access-concept"><strong><i class="fas fa-key"></i>${(globalThis.PlatformLanguage?.text("settings","m_bfc484df40649f"," Data &amp; actions") ?? " Data &amp; actions")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_e16a722aafe45e","What the user may view, change, or complete.") ?? "What the user may view, change, or complete.")}</span></div>
+      <div class="cu-access-concept"><strong><i class="fas fa-user-shield"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9d4a1ed1d50875"," Role &amp; assignment") ?? " Role &amp; assignment")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ea9e4a567cce39","Reusable defaults for people doing similar work.") ?? "Reusable defaults for people doing similar work.")}</span></div>
+      <div class="cu-access-concept"><strong><i class="fas fa-table-cells-large"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_0813c6fdef91ba"," App experience") ?? " App experience")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e5930d72e2d5ee","Which relevant tabs and project views this user sees.") ?? "Which relevant tabs and project views this user sees.")}</span></div>
+      <div class="cu-access-concept"><strong><i class="fas fa-key"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_bfc484df40649f"," Data &amp; actions") ?? " Data &amp; actions")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e16a722aafe45e","What the user may view, change, or complete.") ?? "What the user may view, change, or complete.")}</span></div>
     </div>`;
     const workforceAppOverrideMarkup = (overrides = {}, options = {}) => {
       const disabled = options.disabled === true ? 'disabled' : '';
@@ -5162,13 +5163,13 @@
             const devices = workforceArray(app.devices).join(' / ');
             return `<div class="cu-access-item">
               <div class="cu-access-item-copy"><i class="fas ${String(escapeHtml(workforceText(app.icon, 'fa-puzzle-piece')))}"></i><span><b>${String(escapeHtml(workforceCatalogTitle(app)))}${String(devices ? `<span class="cu-access-device"><i class="fas fa-display"></i>${escapeHtml(devices)}</span>` : '')}</b><span>${String(escapeHtml(workforceText(app.description, appId)))}</span></span></div>
-              <select class="cu-tristate ${String(state)}" data-access-app-override="${String(escapeHtml(appId))}" ${String(disabled)} aria-label="${((v7) => globalThis.PlatformLanguage?.text("settings","m_f7fe78377f16b1",`${v7} visibility`,{v7}) ?? `${v7} visibility`)(escapeHtml(workforceCatalogTitle(app)))}">
-                <option value="inherit" ${String(state === 'inherit' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_821222b69ce11e","Inherit") ?? "Inherit")}</option><option value="show" ${String(state === 'show' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_6290719711de40","Show") ?? "Show")}</option><option value="hide" ${String(state === 'hide' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_a08570c0ca5ea3","Hide") ?? "Hide")}</option>
+              <select class="cu-tristate ${String(state)}" data-access-app-override="${String(escapeHtml(appId))}" ${String(disabled)} aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("settings","m_f7fe78377f16b1",`${v7} visibility`,{v7}) ?? `${v7} visibility`)(escapeHtml(workforceCatalogTitle(app)))}">
+                <option value="inherit" ${String(state === 'inherit' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_821222b69ce11e","Inherit") ?? "Inherit")}</option><option value="show" ${String(state === 'show' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_6290719711de40","Show") ?? "Show")}</option><option value="hide" ${String(state === 'hide' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_a08570c0ca5ea3","Hide") ?? "Hide")}</option>
               </select>
             </div>`;
           }).join('')}</div>`;
       }).join('');
-      return body || `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_69f7967e28b967","No app experiences are registered.") ?? "No app experiences are registered.")}</div>`;
+      return body || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_69f7967e28b967","No app experiences are registered.") ?? "No app experiences are registered.")}</div>`;
     };
     const workforcePermissionOverrideMarkup = (overrides = {}, options = {}) => {
       const disabled = options.disabled === true ? 'disabled' : '';
@@ -5177,11 +5178,11 @@
         const state = workforcePermissionOverrideState(overrides, key);
         return `<div class="cu-access-item">
           <div class="cu-access-item-copy"><i class="fas fa-key"></i><span><b>${String(escapeHtml(workforceAccessPermissionLabel(key)))}</b><span>${String(escapeHtml(workforceAccessPermissionDescription(key)))}</span></span></div>
-          <select class="cu-tristate ${String(state)}" data-access-permission-override="${String(escapeHtml(key))}" ${String(disabled)} aria-label="${((v5) => globalThis.PlatformLanguage?.text("settings","m_05fb02c8667018",`${v5} permission`,{v5}) ?? `${v5} permission`)(escapeHtml(workforceAccessPermissionLabel(key)))}">
-            <option value="inherit" ${String(state === 'inherit' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_821222b69ce11e","Inherit") ?? "Inherit")}</option><option value="allow" ${String(state === 'allow' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_0c313023cbd6e8","Allow") ?? "Allow")}</option><option value="deny" ${String(state === 'deny' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_13641de81835b1","Deny") ?? "Deny")}</option>
+          <select class="cu-tristate ${String(state)}" data-access-permission-override="${String(escapeHtml(key))}" ${String(disabled)} aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("settings","m_05fb02c8667018",`${v5} permission`,{v5}) ?? `${v5} permission`)(escapeHtml(workforceAccessPermissionLabel(key)))}">
+            <option value="inherit" ${String(state === 'inherit' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_821222b69ce11e","Inherit") ?? "Inherit")}</option><option value="allow" ${String(state === 'allow' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c313023cbd6e8","Allow") ?? "Allow")}</option><option value="deny" ${String(state === 'deny' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_13641de81835b1","Deny") ?? "Deny")}</option>
           </select>
         </div>`;
-      }).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8b26bd70e01dd0","No data or action permissions are registered.") ?? "No data or action permissions are registered.")}</div>`}</div>`;
+      }).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8b26bd70e01dd0","No data or action permissions are registered.") ?? "No data or action permissions are registered.")}</div>`}</div>`;
     };
     const wireWorkforceTristates = (root) => root?.querySelectorAll('.cu-tristate').forEach((select) => {
       const sync = () => {
@@ -5906,7 +5907,7 @@
     function smsFinalFeaturePills(profile){
       const selected = new Set(smsSelectedFeatures(profile));
       const features = smsFeatureOptions.filter((feature) => selected.has(feature.id));
-      if (!features.length) return `<span class="sms-final-feature"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.text("settings","m_d146ca61ebecc7"," None selected") ?? " None selected")}</span>`;
+      if (!features.length) return `<span class="sms-final-feature"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d146ca61ebecc7"," None selected") ?? " None selected")}</span>`;
       return features.map((feature) => `<span class="sms-final-feature"><i class="fas ${escapeHtml(feature.icon || 'fa-message')}"></i>${escapeHtml(feature.label)}</span>`).join('');
     }
     function smsReviewRows(profile){
@@ -5916,26 +5917,26 @@
       return `
         <div class="sms-final-grid">
           <div class="sms-final-panel">
-            <h4><i class="fas fa-building"></i>${(globalThis.PlatformLanguage?.text("settings","m_e85c828dc8cd78"," Business") ?? " Business")}</h4>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_dc8d40b3a46dad","Legal name") ?? "Legal name")}</span><strong>${String(escapeHtml(brand.companyName || brand.displayName || 'Not set'))}</strong></div>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_0e681dc1798ea4","Website") ?? "Website")}</span><strong>${String(escapeHtml(brand.website || 'Not set'))}</strong></div>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_8d6bf72e0170a0","Business phone") ?? "Business phone")}</span><strong>${String(escapeHtml(businessPhone))}</strong></div>
+            <h4><i class="fas fa-building"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e85c828dc8cd78"," Business") ?? " Business")}</h4>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_dc8d40b3a46dad","Legal name") ?? "Legal name")}</span><strong>${String(escapeHtml(brand.companyName || brand.displayName || 'Not set'))}</strong></div>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0e681dc1798ea4","Website") ?? "Website")}</span><strong>${String(escapeHtml(brand.website || 'Not set'))}</strong></div>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8d6bf72e0170a0","Business phone") ?? "Business phone")}</span><strong>${String(escapeHtml(businessPhone))}</strong></div>
           </div>
           <div class="sms-final-panel">
-            <h4><i class="fas fa-user-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_120b4ae51d0c1d"," Contact") ?? " Contact")}</h4>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_8cf345002184e5","Name") ?? "Name")}</span><strong>${String(escapeHtml(contact))}</strong></div>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_5d2b9327181e33","Email") ?? "Email")}</span><strong>${String(escapeHtml(brand.email || 'Not set'))}</strong></div>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(escapeHtml([brand.street, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ') || 'Not set'))}</strong></div>
+            <h4><i class="fas fa-user-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_120b4ae51d0c1d"," Contact") ?? " Contact")}</h4>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</span><strong>${String(escapeHtml(contact))}</strong></div>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</span><strong>${String(escapeHtml(brand.email || 'Not set'))}</strong></div>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(escapeHtml([brand.street, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ') || 'Not set'))}</strong></div>
           </div>
         </div>
         <div class="sms-final-summary-grid">
           <div class="sms-final-panel">
-            <h4><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.text("settings","m_e2fcaae133d2a4"," SMS features") ?? " SMS features")}</h4>
+            <h4><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e2fcaae133d2a4"," SMS features") ?? " SMS features")}</h4>
             <div class="sms-final-features">${String(smsFinalFeaturePills(profile))}</div>
           </div>
           <div class="sms-final-panel">
-            <h4><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.text("settings","m_0912bf5a2cd0ef"," Phone number") ?? " Phone number")}</h4>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.text("settings","m_7ed66a4e107033","Phone number") ?? "Phone number")}</span><strong>${String(escapeHtml(smsFormatSelectedNumber(profile) || 'Not set'))}</strong></div>
+            <h4><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_0912bf5a2cd0ef"," Phone number") ?? " Phone number")}</h4>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7ed66a4e107033","Phone number") ?? "Phone number")}</span><strong>${String(escapeHtml(smsFormatSelectedNumber(profile) || 'Not set'))}</strong></div>
           </div>
         </div>`;
     }
@@ -5968,7 +5969,7 @@
       `).join(''))}</div>
       <label class="sms-ack ${String(locked ? 'locked' : '')}">
         <input type="checkbox" data-sms-feature-confirm ${String(profile.campaign?.featuresConfirmed === true ? 'checked' : '')}${String(locked ? ' disabled' : '')}>
-        <span>${(globalThis.PlatformLanguage?.text("settings","m_60615c0a3293fe","I confirm that I want these SMS feature categories enabled for this account.") ?? "I confirm that I want these SMS feature categories enabled for this account.")}</span>
+        <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_60615c0a3293fe","I confirm that I want these SMS feature categories enabled for this account.") ?? "I confirm that I want these SMS feature categories enabled for this account.")}</span>
       </label>`;
     }
     function smsNumberSelection(profile, numberSearch = {}){
@@ -5978,7 +5979,7 @@
       const areaCode = query.slice(0, 3);
       const selected = String(campaign.selectedNumber || '');
       const results = Array.isArray(numberSearch.results) ? numberSearch.results : [];
-      const selectedHtml = selected ? `<div class="sms-compliance-note"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.text("settings","m_424c47b13269a3","Selected sending number: ") ?? "Selected sending number: ")}<strong>${String(escapeHtml(smsFormatSelectedNumber(profile)))}</strong>.</span></div>` : '';
+      const selectedHtml = selected ? `<div class="sms-compliance-note"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_424c47b13269a3","Selected sending number: ") ?? "Selected sending number: ")}<strong>${String(escapeHtml(smsFormatSelectedNumber(profile)))}</strong>.</span></div>` : '';
       const resultsHtml = results.length ? `<div class="sms-number-grid">${results.map((number) => {
         const value = String(number.phone_number || number.phoneNumber || '');
         const display = String(number.display_number || number.displayNumber || value);
@@ -5994,11 +5995,11 @@
           <span>${escapeHtml(features)}</span>
           ${costLabel ? `<span>${escapeHtml(costLabel)}</span>` : ''}
         </button>`;
-      }).join('')}</div>` : numberSearch.searched ? `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_b195ab354536fb","No numbers were returned for that area code.") ?? "No numbers were returned for that area code.")}</div>` : '';
+      }).join('')}</div>` : numberSearch.searched ? `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_b195ab354536fb","No numbers were returned for that area code.") ?? "No numbers were returned for that area code.")}</div>` : '';
       return `
         <div class="sms-consent-box">
-          <h4>${(globalThis.PlatformLanguage?.text("settings","m_700b4ccdecb96b","Choose your phone number") ?? "Choose your phone number")}</h4>
-          <p>${(globalThis.PlatformLanguage?.text("settings","m_3aef8e7aa82057","Start with an area code and purchase the number this account will use. FirstMate pays the provider charges and tracks them to this organization.") ?? "Start with an area code and purchase the number this account will use. FirstMate pays the provider charges and tracks them to this organization.")}</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_700b4ccdecb96b","Choose your phone number") ?? "Choose your phone number")}</h4>
+          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_3aef8e7aa82057","Start with an area code and purchase the number this account will use. FirstMate pays the provider charges and tracks them to this organization.") ?? "Start with an area code and purchase the number this account will use. FirstMate pays the provider charges and tracks them to this organization.")}</p>
         </div>
         <div class="sms-number-search">
           <div class="sms-number-search-row">
@@ -6019,7 +6020,7 @@
           <h4>${verified ? 'SMS registration verified' : 'SMS registration submitted'}</h4>
           <p>${verified ? 'This company is verified for the selected FirstMate SMS features. Customer messaging can be enabled for this registration.' : 'Telnyx and the carriers are reviewing this registration. Return here and click Refresh Status to finish number assignment after approval. Most reviews complete within a few business days, though carrier provisioning can occasionally take up to 7 business days.'}</p>
           <div class="sms-submitted-meta">
-            ${submittedAt ? `<span><i class="fas fa-calendar-check"></i>${((v0) => globalThis.PlatformLanguage?.text("settings","m_9a19fffc189408",` Submitted ${v0}`,{v0}) ?? ` Submitted ${v0}`)(escapeHtml(submittedAt))}</span>` : ''}
+            ${submittedAt ? `<span><i class="fas fa-calendar-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_9a19fffc189408",` Submitted ${v0}`,{v0}) ?? ` Submitted ${v0}`)(escapeHtml(submittedAt))}</span>` : ''}
             <span><i class="fas ${verified ? 'fa-circle-check' : 'fa-hourglass-half'}"></i> ${escapeHtml(status.label)}</span>
           </div>
         </div>`;
@@ -6029,13 +6030,13 @@
       if (!sole || !smsHasProviderBrand(profile) || smsBrandReadyForCampaign(profile)) return '';
       const requested = !!profile?.provider_refs?.telnyx_brand_otp_reference_id;
       return `<div class="sms-consent-box">
-        <h4>${(globalThis.PlatformLanguage?.text("settings","m_399753b6ce7e9d","Sole proprietor identity verification") ?? "Sole proprietor identity verification")}</h4>
-        <p>${((v0) => globalThis.PlatformLanguage?.text("settings","m_8482f8309ef165",`Telnyx requires an SMS one-time code before this brand can create a campaign. The code is sent to ${v0}.`,{v0}) ?? `Telnyx requires an SMS one-time code before this brand can create a campaign. The code is sent to ${v0}.`)(escapeHtml(smsFormatE164ForDisplay(profile?.brand?.mobilePhone) || profile?.brand?.mobilePhone || 'the registered mobile phone'))}</p>
+        <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_399753b6ce7e9d","Sole proprietor identity verification") ?? "Sole proprietor identity verification")}</h4>
+        <p>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_8482f8309ef165",`Telnyx requires an SMS one-time code before this brand can create a campaign. The code is sent to ${v0}.`,{v0}) ?? `Telnyx requires an SMS one-time code before this brand can create a campaign. The code is sent to ${v0}.`)(escapeHtml(smsFormatE164ForDisplay(profile?.brand?.mobilePhone) || profile?.brand?.mobilePhone || 'the registered mobile phone'))}</p>
         <div class="li-actions">
           <button class="cs-btn" type="button" id="smsRequestOtp"><i class="fas fa-mobile-screen"></i> ${String(requested ? 'Resend Code' : 'Send Code')}</button>
-          ${String(requested ? '<button class="cs-btn" type="button" id="smsRefreshOtp"><i class="fas fa-rotate"></i> Check Delivery</button>' : '')}
+          ${String(requested ? `<button class="cs-btn" type="button" id="smsRefreshOtp"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_41c5620d127a91"," Check Delivery") ?? " Check Delivery")}</button>` : '')}
         </div>
-        ${String(requested ? `<div class="sms-form-grid"><div class="sms-field"><label>Verification Code</label><input id="smsOtpPin" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Enter code"></div></div><button class="cs-btn primary" type="button" id="smsVerifyOtp"><i class="fas fa-shield-check"></i> Verify Code</button>` : '')}
+        ${String(requested ? `<div class="sms-form-grid"><div class="sms-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_d0d19cbf76feca","Verification Code") ?? "Verification Code")}</label><input id="smsOtpPin" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_cda0acf85ca254","Enter code") ?? "Enter code")}"></div></div><button class="cs-btn primary" type="button" id="smsVerifyOtp"><i class="fas fa-shield-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2335584aef9f38"," Verify Code") ?? " Verify Code")}</button>` : '')}
       </div>`;
     }
     function smsSummaryContent(profile){
@@ -6045,8 +6046,8 @@
       }
       return `
         <div class="sms-consent-box">
-          <h4>${(globalThis.PlatformLanguage?.text("settings","m_8cf2e7d56f0565","Review and confirm") ?? "Review and confirm")}</h4>
-          <p>${(globalThis.PlatformLanguage?.text("settings","m_7208bb798610d6","Confirm the business, contact, and SMS feature details before submitting this registration.") ?? "Confirm the business, contact, and SMS feature details before submitting this registration.")}</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf2e7d56f0565","Review and confirm") ?? "Review and confirm")}</h4>
+          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_7208bb798610d6","Confirm the business, contact, and SMS feature details before submitting this registration.") ?? "Confirm the business, contact, and SMS feature details before submitting this registration.")}</p>
         </div>
         ${String(smsReviewRows(profile))}
         <div class="sms-form-grid">
@@ -6054,15 +6055,15 @@
         </div>
         <div class="sms-compliance-note">
           <i class="fas fa-circle-info"></i>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_82efa0807f285b","Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.") ?? "Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_82efa0807f285b","Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.") ?? "Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.")}</span>
         </div>
         <label class="sms-ack">
           <input type="checkbox" data-sms-flow-ack ${String(profile.campaign?.messageFlowConfirmed === true ? 'checked' : '')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_c6116a3e198a44","I confirm this opt-in flow is accurate for this business and that supporting consent evidence will be retained in FirstMate.") ?? "I confirm this opt-in flow is accurate for this business and that supporting consent evidence will be retained in FirstMate.")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c6116a3e198a44","I confirm this opt-in flow is accurate for this business and that supporting consent evidence will be retained in FirstMate.") ?? "I confirm this opt-in flow is accurate for this business and that supporting consent evidence will be retained in FirstMate.")}</span>
         </label>
         <label class="sms-ack">
           <input type="checkbox" data-sms-consent-ack ${String(profile.campaign?.consentAcknowledged === true ? 'checked' : '')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_5b07467b863325","I reviewed the business, contact, and SMS feature details, and I understand the consent and STOP opt-out requirements.") ?? "I reviewed the business, contact, and SMS feature details, and I understand the consent and STOP opt-out requirements.")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5b07467b863325","I reviewed the business, contact, and SMS feature details, and I understand the consent and STOP opt-out requirements.") ?? "I reviewed the business, contact, and SMS feature details, and I understand the consent and STOP opt-out requirements.")}</span>
         </label>`;
     }
     function smsStepContent(step, profile, options = {}){
@@ -6116,7 +6117,7 @@
         </div>`;
       }
       if (step === 'features') {
-        return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.text("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>${(globalThis.PlatformLanguage?.text("settings","m_f54fd77982326c","Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has explicit marketing consent and intends to send promotional content.") ?? "Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has explicit marketing consent and intends to send promotional content.")}</p></div>${String(smsFeatureTiles(profile))}`;
+        return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_f54fd77982326c","Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has explicit marketing consent and intends to send promotional content.") ?? "Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has explicit marketing consent and intends to send promotional content.")}</p></div>${String(smsFeatureTiles(profile))}`;
       }
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
       return smsSummaryContent(profile);
@@ -6124,7 +6125,7 @@
     async function renderSmsSettings(){
       if (!paneSms) return;
       const orgId = currentOrgId();
-      paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
+      paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
         if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
@@ -6135,23 +6136,23 @@
           <div class="sms-card">
             <div class="sms-hero">
               <div>
-                <h3>${(globalThis.PlatformLanguage?.text("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
-                <p>${(globalThis.PlatformLanguage?.text("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
+                <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
               </div>
               <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(profiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
             </div>
             <div class="sms-status-grid">
-              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.text("settings","m_4b7e9fa1e2965f","Telnyx") ?? "Telnyx")}</span><strong>${String(setup.telnyx?.configured ? 'Configured' : 'Missing API key')}</strong></div>
-              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.text("settings","m_465d37244ded67","Messaging Profile") ?? "Messaging Profile")}</span><strong>${String(profile?.provider_refs?.telnyx_messaging_profile_id ? (String(profile?.autoresponse_state?.status || '').toLowerCase() === 'configured' ? 'Ready · STOP/START/HELP' : 'Created · keyword responses pending') : 'Created during number setup')}</strong></div>
-              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.text("settings","m_14bce882a85510","Registration") ?? "Registration")}</span><strong>${String(escapeHtml(registrationStatus.label))}</strong></div>
+              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4b7e9fa1e2965f","Telnyx") ?? "Telnyx")}</span><strong>${String(setup.telnyx?.configured ? 'Configured' : 'Missing API key')}</strong></div>
+              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_465d37244ded67","Messaging Profile") ?? "Messaging Profile")}</span><strong>${String(profile?.provider_refs?.telnyx_messaging_profile_id ? (String(profile?.autoresponse_state?.status || '').toLowerCase() === 'configured' ? 'Ready · STOP/START/HELP' : 'Created · keyword responses pending') : 'Created during number setup')}</strong></div>
+              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_14bce882a85510","Registration") ?? "Registration")}</span><strong>${String(escapeHtml(registrationStatus.label))}</strong></div>
             </div>
             <div class="sms-profile-list">
               ${String(profiles.length ? profiles.map((item) => `
                 <div class="sms-profile-row">
-                  <div><strong>${escapeHtml(item.brand?.displayName || item.brand?.companyName || 'SMS Registration')}</strong><span>${escapeHtml(smsSelectedFeatures(item).length)} SMS features selected ${smsStatusBadge(smsCustomerRegistrationStatus(item).label, smsCustomerRegistrationStatus(item).tone)}</span></div>
+                  <div><strong>${escapeHtml(item.brand?.displayName || item.brand?.companyName || 'SMS Registration')}</strong><span>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_90f42b1bb46b45",`${v1} SMS features selected ${v2}`,{v1,v2}) ?? `${v1} SMS features selected ${v2}`)(escapeHtml(smsSelectedFeatures(item).length),smsStatusBadge(smsCustomerRegistrationStatus(item).label, smsCustomerRegistrationStatus(item).tone))}</span></div>
                   <button class="cs-btn" type="button" data-open-sms-profile="${escapeHtml(item.id || '')}"><i class="fas ${smsRegistrationLocked(item) ? 'fa-eye' : 'fa-pen'}"></i> ${smsRegistrationLocked(item) ? 'View' : 'Open'}</button>
                 </div>
-              `).join('') : `<div class="cs-note">No SMS registration has been created yet.</div>`)}
+              `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
             </div>
           </div>`;
         paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
@@ -6568,19 +6569,19 @@
         const stepIssues = smsStepIssues(stepId, profile);
         const locked = smsRegistrationLocked(profile);
         const footerActions = stepId === 'summary' && smsCampaignAppealable(profile)
-          ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>
-             <button class="cs-btn primary" type="button" id="smsAppealCampaign"><i class="fas fa-scale-balanced"></i>${(globalThis.PlatformLanguage?.text("settings","m_e507a486a6ad57"," Appeal Current Campaign") ?? " Appeal Current Campaign")}</button>
-             <button class="cs-btn" type="button" id="smsReplaceCampaign"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.text("settings","m_2de5bd3348cbff"," Create Paid Replacement") ?? " Create Paid Replacement")}</button>`
+          ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>
+             <button class="cs-btn primary" type="button" id="smsAppealCampaign"><i class="fas fa-scale-balanced"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e507a486a6ad57"," Appeal Current Campaign") ?? " Appeal Current Campaign")}</button>
+             <button class="cs-btn" type="button" id="smsReplaceCampaign"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2de5bd3348cbff"," Create Paid Replacement") ?? " Create Paid Replacement")}</button>`
           : stepId === 'summary' && smsCampaignNeedsReplacement(profile)
-            ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>
-               <button class="cs-btn primary" type="button" id="smsReplaceCampaign"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.text("settings","m_2de5bd3348cbff"," Create Paid Replacement") ?? " Create Paid Replacement")}</button>`
+            ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>
+               <button class="cs-btn primary" type="button" id="smsReplaceCampaign"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2de5bd3348cbff"," Create Paid Replacement") ?? " Create Paid Replacement")}</button>`
           : stepId === 'summary' && smsCampaignSuspended(profile)
-            ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>`
+            ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>`
           : stepId === 'summary' && smsRegistrationSubmitted(profile)
-            ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>
-               ${String(smsBrandReadyForCampaign(profile) && !smsHasProviderCampaign(profile) ? '<button class="cs-btn primary" type="button" id="smsContinueSetup"><i class="fas fa-paper-plane"></i> Continue Setup</button>' : '')}`
-            : `<button class="cs-btn" type="button" id="smsPrev" ${String(index <= 0 ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button>
-                  ${String(index < steps.length - 1 ? `<button class="cs-btn primary" type="button" id="smsNext">Next <i class="fas fa-arrow-right"></i></button>` : `<button class="cs-btn primary" type="button" id="smsSubmitMock" ${stepIssues.length || locked ? 'disabled' : ''} title="${stepIssues.length ? escapeHtml(`Finish: ${stepIssues.join(', ')}`) : ''}"><i class="fas fa-paper-plane"></i> Submit Registration</button>`)}`;
+            ? `<button class="cs-btn" type="button" id="smsRefreshStatus"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8ff6bc351de08b"," Refresh Status") ?? " Refresh Status")}</button>
+               ${String(smsBrandReadyForCampaign(profile) && !smsHasProviderCampaign(profile) ? `<button class="cs-btn primary" type="button" id="smsContinueSetup"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_41c79afa10b8c9"," Continue Setup") ?? " Continue Setup")}</button>` : '')}`
+            : `<button class="cs-btn" type="button" id="smsPrev" ${String(index <= 0 ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+                  ${String(index < steps.length - 1 ? `<button class="cs-btn primary" type="button" id="smsNext">${(globalThis.PlatformLanguage?.htmlText("settings","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right"></i></button>` : `<button class="cs-btn primary" type="button" id="smsSubmitMock" ${stepIssues.length || locked ? 'disabled' : ''} title="${stepIssues.length ? escapeHtml(`Finish: ${stepIssues.join(', ')}`) : ''}"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a50e2076d26969"," Submit Registration") ?? " Submit Registration")}</button>`)}`;
         container.innerHTML = footerActions;
         if (stepId === 'summary' && stepIssues.length && !smsRegistrationSubmitted(profile)) {
           const note = shellCtx.root.querySelector('[data-fm-note]');
@@ -6653,16 +6654,16 @@
       if (!panePricebook) return;
       const pricebook = window.FirstMatePricebook || window.Portal?.modules?.pricebook;
       if (!pricebook?.mount) {
-        panePricebook.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_49b96a955fa1c6","Pricebook library is unavailable.") ?? "Pricebook library is unavailable.")}</div>`;
+        panePricebook.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_49b96a955fa1c6","Pricebook library is unavailable.") ?? "Pricebook library is unavailable.")}</div>`;
         return;
       }
       pricebook.configure?.({ currentOrganizationId:currentOrgId });
       pricebook.mount(panePricebook, { title:(globalThis.PlatformLanguage?.text("settings","m_5bdcd2418294b6","Organization Price Book") ?? "Organization Price Book"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_4648c0ba4fc09e","Company pricing linked to the global market book. Artifact lines snapshot by default.") ?? "Company pricing linked to the global market book. Artifact lines snapshot by default.") });
       panePricebook.insertAdjacentHTML('afterbegin', `
         <div class="cs-pb-tabs">
-          <button type="button" class="cs-pb-tab active" data-pb-view="editor"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.text("settings","m_2e3cdf6cfab114"," Organization Price Book") ?? " Organization Price Book")}</button>
-          <button type="button" class="cs-pb-tab" data-pb-view="generate"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("settings","m_859223eac49af9"," Generate from proposals") ?? " Generate from proposals")}</button>
-          <button type="button" class="cs-pb-tab" data-pb-reset style="margin-left:auto"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button>
+          <button type="button" class="cs-pb-tab active" data-pb-view="editor"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2e3cdf6cfab114"," Organization Price Book") ?? " Organization Price Book")}</button>
+          <button type="button" class="cs-pb-tab" data-pb-view="generate"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_859223eac49af9"," Generate from proposals") ?? " Generate from proposals")}</button>
+          <button type="button" class="cs-pb-tab" data-pb-reset style="margin-left:auto"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button>
         </div>`);
       panePricebook.insertAdjacentHTML('beforeend', '<div data-pb-pane="generate" hidden></div>');
       const editorPane = panePricebook.querySelector(':scope > .pb-win');
@@ -6686,25 +6687,25 @@
         generatorPane.innerHTML = `
           <div class="cs-pb-generator">
             <section class="cs-pb-gen-card">
-              <h3>${(globalThis.PlatformLanguage?.text("settings","m_8092a6379302a4","Build from proposal samples") ?? "Build from proposal samples")}</h3>
-              <p>${(globalThis.PlatformLanguage?.text("settings","m_1b998c4057bfb6","Add completed proposals in any of the supported formats. More samples help the model distinguish repeatable pricebook items from one-off charges.") ?? "Add completed proposals in any of the supported formats. More samples help the model distinguish repeatable pricebook items from one-off charges.")}</p>
-              <label class="cs-pb-drop"><input type="file" data-pb-files multiple accept=".pdf,.txt,.csv,.json,.doc,.docx,.rtf,image/*" hidden><i class="fas fa-cloud-arrow-up"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_68af89bfe43398","Choose proposal files") ?? "Choose proposal files")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_3952c4b137a2d0","Up to 20 files, 10 MB each · PDF, documents, images, CSV or text") ?? "Up to 20 files, 10 MB each · PDF, documents, images, CSV or text")}</span></label>
-              <div class="cs-pb-file-list">${String(files.map((file) => `<div class="cs-pb-file"><span>${escapeHtml(file.name)}</span><span>${(file.size/1024).toFixed(0)} KB</span></div>`).join(''))}</div>
-              <textarea class="cs-pb-raw" data-pb-raw placeholder="${(globalThis.PlatformLanguage?.text("settings","m_b39fe8ec7a55e2","Or paste raw proposal text, CSV, JSON, or exported line items here...") ?? "Or paste raw proposal text, CSV, JSON, or exported line items here...")}"></textarea>
-              <div class="cs-pb-gen-actions"><button type="button" class="cs-pb-gen-btn primary" data-pb-generate><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("settings","m_4371cab2d1a460"," Generate draft") ?? " Generate draft")}</button></div>
+              <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_8092a6379302a4","Build from proposal samples") ?? "Build from proposal samples")}</h3>
+              <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1b998c4057bfb6","Add completed proposals in any of the supported formats. More samples help the model distinguish repeatable pricebook items from one-off charges.") ?? "Add completed proposals in any of the supported formats. More samples help the model distinguish repeatable pricebook items from one-off charges.")}</p>
+              <label class="cs-pb-drop"><input type="file" data-pb-files multiple accept=".pdf,.txt,.csv,.json,.doc,.docx,.rtf,image/*" hidden><i class="fas fa-cloud-arrow-up"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_68af89bfe43398","Choose proposal files") ?? "Choose proposal files")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_3952c4b137a2d0","Up to 20 files, 10 MB each · PDF, documents, images, CSV or text") ?? "Up to 20 files, 10 MB each · PDF, documents, images, CSV or text")}</span></label>
+              <div class="cs-pb-file-list">${String(files.map((file) => `<div class="cs-pb-file"><span>${escapeHtml(file.name)}</span><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_d544a95aa33846",`${v1} KB`,{v1}) ?? `${v1} KB`)((file.size/1024).toFixed(0))}</span></div>`).join(''))}</div>
+              <textarea class="cs-pb-raw" data-pb-raw placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_b39fe8ec7a55e2","Or paste raw proposal text, CSV, JSON, or exported line items here...") ?? "Or paste raw proposal text, CSV, JSON, or exported line items here...")}"></textarea>
+              <div class="cs-pb-gen-actions"><button type="button" class="cs-pb-gen-btn primary" data-pb-generate><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4371cab2d1a460"," Generate draft") ?? " Generate draft")}</button></div>
               ${String(message ? `<div class="cs-pb-warning">${escapeHtml(message)}</div>` : '')}
             </section>
             <section class="cs-pb-gen-card">
-              <h3>${(globalThis.PlatformLanguage?.text("settings","m_638d894d8b0bda","Review generated items") ?? "Review generated items")}</h3>
-              <p>${(globalThis.PlatformLanguage?.text("settings","m_91582f48d05802","Nothing is saved until you approve the selected rows. Adjust price and unit before applying.") ?? "Nothing is saved until you approve the selected rows. Adjust price and unit before applying.")}</p>
+              <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_638d894d8b0bda","Review generated items") ?? "Review generated items")}</h3>
+              <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_91582f48d05802","Nothing is saved until you approve the selected rows. Adjust price and unit before applying.") ?? "Nothing is saved until you approve the selected rows. Adjust price and unit before applying.")}</p>
               <div class="cs-pb-results">${String(generatedItems.length ? generatedItems.map((item, index) => `
                 <div class="cs-pb-result">
                   <input type="checkbox" data-pb-select="${index}" checked>
-                  <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.category.replaceAll('_',' '))} · ${Math.round(Number(item.generation?.confidence || 0)*100)}% confidence${item.generation?.evidence ? ` · ${escapeHtml(item.generation.evidence)}` : ''}</span></div>
-                  <input type="number" min="0" step="0.01" value="${Number(item.unitPrice || 0).toFixed(2)}" data-pb-price="${index}" aria-label="Unit price">
-                  <select data-pb-unit="${index}" aria-label="Unit">${['sq','lf','ea','bundle','hour'].map((unit) => `<option value="${unit}" ${item.unit===unit?'selected':''}>${unit}</option>`).join('')}</select>
-                </div>`).join('') : '<div class="cs-pb-empty"><i class="fas fa-wand-magic-sparkles"></i><br><br>Your generated draft will appear here.</div>')}</div>
-              ${String(generatedItems.length ? `<div class="cs-pb-gen-actions"><button type="button" class="cs-pb-gen-btn primary" data-pb-apply="merge">Merge selected</button><button type="button" class="cs-pb-gen-btn" data-pb-apply="replace">Replace pricebook</button></div>` : '')}
+                  <div><strong>${escapeHtml(item.name)}</strong><span>${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("settings","m_0150f0a441f9d7",`${v2} · ${v3}% confidence${v4}`,{v2,v3,v4}) ?? `${v2} · ${v3}% confidence${v4}`)(escapeHtml(item.category.replaceAll('_',' ')),Math.round(Number(item.generation?.confidence || 0)*100),item.generation?.evidence ? ` · ${escapeHtml(item.generation.evidence)}` : '')}</span></div>
+                  <input type="number" min="0" step="0.01" value="${Number(item.unitPrice || 0).toFixed(2)}" data-pb-price="${index}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_bc7b189271d609","Unit price") ?? "Unit price")}">
+                  <select data-pb-unit="${index}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_4b91b73dae1ff3","Unit") ?? "Unit")}">${['sq','lf','ea','bundle','hour'].map((unit) => `<option value="${unit}" ${item.unit===unit?'selected':''}>${unit}</option>`).join('')}</select>
+                </div>`).join('') : `<div class="cs-pb-empty"><i class="fas fa-wand-magic-sparkles"></i><br><br>${(globalThis.PlatformLanguage?.htmlText("settings","m_74e64bea0a67c7","Your generated draft will appear here.") ?? "Your generated draft will appear here.")}</div>`)}</div>
+              ${String(generatedItems.length ? `<div class="cs-pb-gen-actions"><button type="button" class="cs-pb-gen-btn primary" data-pb-apply="merge">${(globalThis.PlatformLanguage?.htmlText("settings","m_79ae271f1578cf","Merge selected") ?? "Merge selected")}</button><button type="button" class="cs-pb-gen-btn" data-pb-apply="replace">${(globalThis.PlatformLanguage?.htmlText("settings","m_1d0dc4b718bcdb","Replace pricebook") ?? "Replace pricebook")}</button></div>` : '')}
             </section>
           </div>`;
         generatorPane.querySelector('[data-pb-files]')?.addEventListener('change', (event) => {
@@ -6757,7 +6758,7 @@
       if (!paneProposals) return;
       registerSettingsPages();
       if (!window.FirstMateSettingsPages?.mount) {
-        paneProposals.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_728f33c2030828","Proposal settings library is unavailable.") ?? "Proposal settings library is unavailable.")}</div>`;
+        paneProposals.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_728f33c2030828","Proposal settings library is unavailable.") ?? "Proposal settings library is unavailable.")}</div>`;
         return;
       }
       window.FirstMateSettingsPages.mount(paneProposals, 'proposals', {
@@ -6775,7 +6776,7 @@
         overlay:true,
         dataName:'money-portal-loading',
         titleDataName:'money-portal-loading-title'
-      }) || `<div class="fm-tab-loading is-overlay" data-money-portal-loading role="status" aria-live="polite"><i class="fas fa-circle-notch fa-spin fm-tab-loading-spinner" aria-hidden="true"></i><strong class="fm-tab-loading-title" data-money-portal-loading-title>${String(escapeHtml(title))}</strong><span class="fm-tab-loading-detail">${(globalThis.PlatformLanguage?.text("settings","m_4c268fa1f85bcf","Opening your secure settings.") ?? "Opening your secure settings.")}</span></div>`;
+      }) || `<div class="fm-tab-loading is-overlay" data-money-portal-loading role="status" aria-live="polite"><i class="fas fa-circle-notch fa-spin fm-tab-loading-spinner" aria-hidden="true"></i><strong class="fm-tab-loading-title" data-money-portal-loading-title>${String(escapeHtml(title))}</strong><span class="fm-tab-loading-detail">${(globalThis.PlatformLanguage?.htmlText("settings","m_4c268fa1f85bcf","Opening your secure settings.") ?? "Opening your secure settings.")}</span></div>`;
     };
     const mountHostedMoneyFrame = (frame, loginUrl, options = {}) => {
       if (!frame || !loginUrl) throw new Error('Money could not create a secure sign-in session.');
@@ -7121,10 +7122,10 @@
           return `<article class="money-bank-account-card">
             <div class="money-bank-account-icon" aria-hidden="true"><i class="fas fa-building-columns"></i></div>
             <div class="money-bank-account-copy"><strong>${String(escapeHtml(name))}</strong><span>${String(escapeHtml(mask || 'Account details unavailable'))}</span></div>
-            <div class="money-bank-account-badges">${String(isPayout ? '<span class="is-payout">Payout account</span>' : '')}<span>${String(escapeHtml(status))}</span></div>
-            <details><summary>${(globalThis.PlatformLanguage?.text("settings","m_b3ecc234f63212","Details") ?? "Details")}</summary><dl><div><dt>${(globalThis.PlatformLanguage?.text("settings","m_48d35b11c0f1a7","Validation") ?? "Validation")}</dt><dd>${String(escapeHtml(status))}</dd></div>${String(verification ? `<div><dt>Verification</dt><dd>${escapeHtml(verification)}</dd></div>` : '')}${String(account?.country ? `<div><dt>Country</dt><dd>${escapeHtml(account.country)}</dd></div>` : '')}</dl></details>
+            <div class="money-bank-account-badges">${String(isPayout ? `<span class="is-payout">${(globalThis.PlatformLanguage?.htmlText("settings","m_314f7a97f65578","Payout account") ?? "Payout account")}</span>` : '')}<span>${String(escapeHtml(status))}</span></div>
+            <details><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_b3ecc234f63212","Details") ?? "Details")}</summary><dl><div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_48d35b11c0f1a7","Validation") ?? "Validation")}</dt><dd>${String(escapeHtml(status))}</dd></div>${String(verification ? `<div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_731c0ec8f6eb3c","Verification") ?? "Verification")}</dt><dd>${escapeHtml(verification)}</dd></div>` : '')}${String(account?.country ? `<div><dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_a9a13ce3e2d181","Country") ?? "Country")}</dt><dd>${escapeHtml(account.country)}</dd></div>` : '')}</dl></details>
           </article>`;
-        }).join('') : `<div class="money-bank-accounts-empty"><i class="fas fa-building-columns" aria-hidden="true"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_9dddbc507fc52a","No bank accounts connected") ?? "No bank accounts connected")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_8bd5e19fd2986d","Use Add Bank Account to securely connect one.") ?? "Use Add Bank Account to securely connect one.")}</span></div>`;
+        }).join('') : `<div class="money-bank-accounts-empty"><i class="fas fa-building-columns" aria-hidden="true"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_9dddbc507fc52a","No bank accounts connected") ?? "No bank accounts connected")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8bd5e19fd2986d","Use Add Bank Account to securely connect one.") ?? "Use Add Bank Account to securely connect one.")}</span></div>`;
       };
       const loadBankAccounts = async (force = false) => {
         if (bankAccountsLoading || (bankAccountsLoaded && !force)) return;
@@ -7141,7 +7142,7 @@
           return payload;
         } catch (error) {
           accountsBankStatus.textContent = error?.message || 'Could not load connected accounts.';
-          accountsBankList.innerHTML = `<div class="money-bank-accounts-empty"><strong>${(globalThis.PlatformLanguage?.text("settings","m_95482883a53703","Bank accounts unavailable") ?? "Bank accounts unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_ec132be24b97c5","Try refreshing this list.") ?? "Try refreshing this list.")}</span></div>`;
+          accountsBankList.innerHTML = `<div class="money-bank-accounts-empty"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_95482883a53703","Bank accounts unavailable") ?? "Bank accounts unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ec132be24b97c5","Try refreshing this list.") ?? "Try refreshing this list.")}</span></div>`;
         } finally {
           bankAccountsLoading = false;
           accountsBankReload.disabled = false;
@@ -7993,7 +7994,7 @@
       if (targetPane.dataset.moneySettingsMounted === '1' || targetPane.dataset.moneySettingsLoading === '1') return;
       targetPane.dataset.moneySettingsLoading = '1';
       const viewLabel = viewConfig.label;
-      targetPane.innerHTML = window.Portal?.ui?.tabLoading?.markup?.({ title:((v0) => globalThis.PlatformLanguage?.text("settings","m_be9d536e280edc",`Loading ${v0}…`,{v0}) ?? `Loading ${v0}…`)(viewLabel), detail:'Opening your secure settings.' }) || `<div class="money-settings-status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>${((v0) => globalThis.PlatformLanguage?.text("settings","m_14f1f41cbc6a72",` Loading ${v0}…`,{v0}) ?? ` Loading ${v0}…`)(viewLabel)}</div>`;
+      targetPane.innerHTML = window.Portal?.ui?.tabLoading?.markup?.({ title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_be9d536e280edc",`Loading ${v0}…`,{v0}) ?? `Loading ${v0}…`)(viewLabel), detail:'Opening your secure settings.' }) || `<div class="money-settings-status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_14f1f41cbc6a72",` Loading ${v0}…`,{v0}) ?? ` Loading ${v0}…`)(viewLabel)}</div>`;
       try {
         const orgId = currentOrgId();
         const paymentsApi = window.PaymentsAPI;
@@ -8003,8 +8004,8 @@
         if (!loginUrl) throw new Error('Money could not create a secure sign-in session.');
         const label = `Money ${viewLabel}`;
         const iframeBlockers = view === 'accounts'
-          ? `<button class="money-accounts-overview-tab" type="button" data-money-accounts-overview-tab data-money-overlay-item="overview-tab" role="tab" aria-selected="true">${(globalThis.PlatformLanguage?.text("settings","m_b69161f38dacdf","Overview") ?? "Overview")}</button>
-            <button class="money-accounts-bank-tab" type="button" data-money-accounts-bank-tab data-money-overlay-item="bank-accounts-tab" role="tab" aria-selected="false" tabindex="-1">${(globalThis.PlatformLanguage?.text("settings","m_6fa0355c61fa44","Bank Accounts") ?? "Bank Accounts")}</button>
+          ? `<button class="money-accounts-overview-tab" type="button" data-money-accounts-overview-tab data-money-overlay-item="overview-tab" role="tab" aria-selected="true">${(globalThis.PlatformLanguage?.htmlText("settings","m_b69161f38dacdf","Overview") ?? "Overview")}</button>
+            <button class="money-accounts-bank-tab" type="button" data-money-accounts-bank-tab data-money-overlay-item="bank-accounts-tab" role="tab" aria-selected="false" tabindex="-1">${(globalThis.PlatformLanguage?.htmlText("settings","m_6fa0355c61fa44","Bank Accounts") ?? "Bank Accounts")}</button>
             <div class="money-accounts-overview" data-money-accounts-overview>
               <div class="money-accounts-overview-guard" aria-hidden="true">
                 <div class="money-accounts-overview-guard-top"></div>
@@ -8013,50 +8014,50 @@
                 <div class="money-accounts-overview-guard-bottom"></div>
               </div>
               <section class="money-accounts-overview-summary">
-                <span class="money-accounts-overview-kicker">${(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money")}</span>
-                <h3>${(globalThis.PlatformLanguage?.text("settings","m_b3eff8a0ffd443","Banking overview") ?? "Banking overview")}</h3>
-                <p>${(globalThis.PlatformLanguage?.text("settings","m_46ba4ac571909c","Manage the bank accounts connected to your business and add another account when you need one.") ?? "Manage the bank accounts connected to your business and add another account when you need one.")}</p>
+                <span class="money-accounts-overview-kicker">${(globalThis.PlatformLanguage?.htmlText("settings","m_05cb9dd7e5a780","Money") ?? "Money")}</span>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_b3eff8a0ffd443","Banking overview") ?? "Banking overview")}</h3>
+                <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_46ba4ac571909c","Manage the bank accounts connected to your business and add another account when you need one.") ?? "Manage the bank accounts connected to your business and add another account when you need one.")}</p>
               </section>
             </div>
             <div class="money-accounts-controls" data-money-accounts-controls>
               <section class="money-bank-accounts-view" data-money-bank-accounts-view hidden>
-                <header><div><span>${(globalThis.PlatformLanguage?.text("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span><h3>${(globalThis.PlatformLanguage?.text("settings","m_e02a9ff4ae300a","Connected accounts") ?? "Connected accounts")}</h3><p data-money-bank-accounts-status>${(globalThis.PlatformLanguage?.text("settings","m_b8b9b842c7176c","Loading connected accounts…") ?? "Loading connected accounts…")}</p></div><button type="button" data-money-bank-accounts-reload aria-label="${(globalThis.PlatformLanguage?.text("settings","m_017729ca267f14","Refresh connected bank accounts") ?? "Refresh connected bank accounts")}"><i class="fas fa-rotate" aria-hidden="true"></i></button></header>
+                <header><div><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_e02a9ff4ae300a","Connected accounts") ?? "Connected accounts")}</h3><p data-money-bank-accounts-status>${(globalThis.PlatformLanguage?.htmlText("settings","m_b8b9b842c7176c","Loading connected accounts…") ?? "Loading connected accounts…")}</p></div><button type="button" data-money-bank-accounts-reload aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_017729ca267f14","Refresh connected bank accounts") ?? "Refresh connected bank accounts")}"><i class="fas fa-rotate" aria-hidden="true"></i></button></header>
                 <div class="money-bank-accounts-list" data-money-bank-accounts-list></div>
-                <div class="money-add-bank-button" data-money-overlay-item="add-bank-button"><i class="fas fa-plus" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("settings","m_a9a083fb1416df"," Add Bank Account") ?? " Add Bank Account")}</div>
+                <div class="money-add-bank-button" data-money-overlay-item="add-bank-button"><i class="fas fa-plus" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a9a083fb1416df"," Add Bank Account") ?? " Add Bank Account")}</div>
               </section>
-              <div class="money-bank-target-editor" data-money-bank-target-editor data-money-overlay-item="bank-target" aria-hidden="true">${(globalThis.PlatformLanguage?.text("settings","m_ab028c42f877c5","Pass-through") ?? "Pass-through")}</div>
+              <div class="money-bank-target-editor" data-money-bank-target-editor data-money-overlay-item="bank-target" aria-hidden="true">${(globalThis.PlatformLanguage?.htmlText("settings","m_ab028c42f877c5","Pass-through") ?? "Pass-through")}</div>
               <div class="money-iframe-click-cover" data-money-iframe-click-cover hidden aria-hidden="true">
                 <div class="money-iframe-click-cover-top"></div>
                 <div class="money-iframe-click-cover-left"></div>
                 <div class="money-iframe-click-cover-right"></div>
                 <div class="money-iframe-click-cover-bottom"></div>
               </div>
-              <div class="money-iframe-offset-proxy money-iframe-offset-proxy-overview" data-money-overlay-item="overview-iframe" aria-hidden="true">${(globalThis.PlatformLanguage?.text("settings","m_7e956260183071","Overview iframe") ?? "Overview iframe")}</div>
-              <div class="money-iframe-offset-proxy money-iframe-offset-proxy-bank" data-money-overlay-item="bank-iframe" aria-hidden="true">${(globalThis.PlatformLanguage?.text("settings","m_606742f45a21f8","Bank iframe") ?? "Bank iframe")}</div>
+              <div class="money-iframe-offset-proxy money-iframe-offset-proxy-overview" data-money-overlay-item="overview-iframe" aria-hidden="true">${(globalThis.PlatformLanguage?.htmlText("settings","m_7e956260183071","Overview iframe") ?? "Overview iframe")}</div>
+              <div class="money-iframe-offset-proxy money-iframe-offset-proxy-bank" data-money-overlay-item="bank-iframe" aria-hidden="true">${(globalThis.PlatformLanguage?.htmlText("settings","m_606742f45a21f8","Bank iframe") ?? "Bank iframe")}</div>
             </div>
             <div class="fm-tab-loading is-overlay money-bank-transition-loading" data-money-bank-transition-loading hidden role="status" aria-live="polite">
               <i class="fas fa-circle-notch fa-spin fm-tab-loading-spinner" aria-hidden="true"></i>
-              <strong class="fm-tab-loading-title">${(globalThis.PlatformLanguage?.text("settings","m_3610f0dcf6d19c","Loading Bank Account…") ?? "Loading Bank Account…")}</strong>
-              <span class="fm-tab-loading-detail">${(globalThis.PlatformLanguage?.text("settings","m_1bcc9f94eba6db","Opening secure bank account setup.") ?? "Opening secure bank account setup.")}</span>
+              <strong class="fm-tab-loading-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_3610f0dcf6d19c","Loading Bank Account…") ?? "Loading Bank Account…")}</strong>
+              <span class="fm-tab-loading-detail">${(globalThis.PlatformLanguage?.htmlText("settings","m_1bcc9f94eba6db","Opening secure bank account setup.") ?? "Opening secure bank account setup.")}</span>
             </div>
             <div class="fm-tab-loading is-overlay money-plaid-loading" data-money-plaid-loading hidden role="status" aria-live="polite">
               <i class="fas fa-circle-notch fa-spin fm-tab-loading-spinner" aria-hidden="true"></i>
-              <strong class="fm-tab-loading-title">${(globalThis.PlatformLanguage?.text("settings","m_6940a9f7fa9fbf","Connecting securely…") ?? "Connecting securely…")}</strong>
-              <span class="fm-tab-loading-detail">${(globalThis.PlatformLanguage?.text("settings","m_d439129d732b91","Opening Plaid.") ?? "Opening Plaid.")}</span>
+              <strong class="fm-tab-loading-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_6940a9f7fa9fbf","Connecting securely…") ?? "Connecting securely…")}</strong>
+              <span class="fm-tab-loading-detail">${(globalThis.PlatformLanguage?.htmlText("settings","m_d439129d732b91","Opening Plaid.") ?? "Opening Plaid.")}</span>
             </div>
             <div class="money-plaid-visual-mask" data-money-overlay-item="plaid-visual-mask" aria-hidden="true"></div>
             <div class="money-plaid-click-deadzone" data-money-overlay-item="plaid-click-deadzone" aria-hidden="true"></div>
             <div class="money-bank-workflow-controls" data-money-bank-workflow-controls hidden>
               <div class="money-bank-workflow-copy">
-                <span>${(globalThis.PlatformLanguage?.text("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span>
-                <h3>${(globalThis.PlatformLanguage?.text("settings","m_cdb9953c69031a","Link a bank account") ?? "Link a bank account")}</h3>
-                <p>${(globalThis.PlatformLanguage?.text("settings","m_e41c012ad886a6","Choose how you would like to securely connect this account.") ?? "Choose how you would like to securely connect this account.")}</p>
+                <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cdb9953c69031a","Link a bank account") ?? "Link a bank account")}</h3>
+                <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_e41c012ad886a6","Choose how you would like to securely connect this account.") ?? "Choose how you would like to securely connect this account.")}</p>
               </div>
-              <button class="money-bank-workflow-close" type="button" data-money-bank-workflow-close data-money-overlay-item="workflow-close" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_b1ec9066ae68e4","Close bank account setup") ?? "Close bank account setup")}">${(globalThis.PlatformLanguage?.text("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
-              <button class="money-bank-workflow-cancel" type="button" data-money-bank-workflow-cancel data-money-overlay-item="workflow-cancel">${(globalThis.PlatformLanguage?.text("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-              <div class="money-bank-instant-selector" data-money-bank-instant-selector data-money-overlay-item="instant-selector" role="radio" aria-checked="false"><strong>${(globalThis.PlatformLanguage?.text("settings","m_b347d50e8516d3","Instant") ?? "Instant")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_f9ada378cd45b9","Quickly find and securely log into your bank to instantly link your account.") ?? "Quickly find and securely log into your bank to instantly link your account.")}</span></div>
-              <button class="money-bank-manual-selector" type="button" data-money-bank-manual-selector data-money-overlay-item="manual-selector" role="radio" aria-checked="false"><strong>${(globalThis.PlatformLanguage?.text("settings","m_176ebb1c46589f","Manual") ?? "Manual")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_e407850789d9e7","Enter your bank account and routing number and provide proof of ownership.") ?? "Enter your bank account and routing number and provide proof of ownership.")}</span><span class="money-bank-option-note">${(globalThis.PlatformLanguage?.text("settings","m_a94f0be6c7afc2","Typically requires an additional 1-2 business days to verify.") ?? "Typically requires an additional 1-2 business days to verify.")}</span></button>
-              <button class="money-bank-continue" type="button" data-money-bank-continue data-money-overlay-item="continue-target" disabled>${(globalThis.PlatformLanguage?.text("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button>
+              <button class="money-bank-workflow-close" type="button" data-money-bank-workflow-close data-money-overlay-item="workflow-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b1ec9066ae68e4","Close bank account setup") ?? "Close bank account setup")}">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
+              <button class="money-bank-workflow-cancel" type="button" data-money-bank-workflow-cancel data-money-overlay-item="workflow-cancel">${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+              <div class="money-bank-instant-selector" data-money-bank-instant-selector data-money-overlay-item="instant-selector" role="radio" aria-checked="false"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_b347d50e8516d3","Instant") ?? "Instant")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_f9ada378cd45b9","Quickly find and securely log into your bank to instantly link your account.") ?? "Quickly find and securely log into your bank to instantly link your account.")}</span></div>
+              <button class="money-bank-manual-selector" type="button" data-money-bank-manual-selector data-money-overlay-item="manual-selector" role="radio" aria-checked="false"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_176ebb1c46589f","Manual") ?? "Manual")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e407850789d9e7","Enter your bank account and routing number and provide proof of ownership.") ?? "Enter your bank account and routing number and provide proof of ownership.")}</span><span class="money-bank-option-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a94f0be6c7afc2","Typically requires an additional 1-2 business days to verify.") ?? "Typically requires an additional 1-2 business days to verify.")}</span></button>
+              <button class="money-bank-continue" type="button" data-money-bank-continue data-money-overlay-item="continue-target" disabled>${(globalThis.PlatformLanguage?.htmlText("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button>
               <div class="money-instant-continue-sensor" data-money-instant-continue-sensor aria-hidden="true">
                 <span class="money-continue-focus-rail-top" data-money-continue-focus-rail></span>
                 <span class="money-continue-focus-rail-right" data-money-continue-focus-rail></span>
@@ -8071,30 +8072,30 @@
               </div>
             </div>
             <section class="money-bank-manual-page" data-money-bank-manual-page hidden>
-              <button class="money-bank-manual-page-close" type="button" data-money-bank-manual-page-close aria-label="${(globalThis.PlatformLanguage?.text("settings","m_df459cc3f5df67","Close manual bank account form") ?? "Close manual bank account form")}">${(globalThis.PlatformLanguage?.text("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
+              <button class="money-bank-manual-page-close" type="button" data-money-bank-manual-page-close aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_df459cc3f5df67","Close manual bank account form") ?? "Close manual bank account form")}">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
               <div class="money-bank-manual-page-inner">
-                <span class="money-bank-manual-kicker">${(globalThis.PlatformLanguage?.text("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span>
-                <h3>${(globalThis.PlatformLanguage?.text("settings","m_4604b51ce80c6d","Link an account manually") ?? "Link an account manually")}</h3>
-                <p>${(globalThis.PlatformLanguage?.text("settings","m_dd7e267be68be4","Enter the bank details below. We’ll use them to prepare the manual verification flow.") ?? "Enter the bank details below. We’ll use them to prepare the manual verification flow.")}</p>
+                <span class="money-bank-manual-kicker">${(globalThis.PlatformLanguage?.htmlText("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_4604b51ce80c6d","Link an account manually") ?? "Link an account manually")}</h3>
+                <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd7e267be68be4","Enter the bank details below. We’ll use them to prepare the manual verification flow.") ?? "Enter the bank details below. We’ll use them to prepare the manual verification flow.")}</p>
                 <form data-money-bank-manual-form>
-                  <label><span>${(globalThis.PlatformLanguage?.text("settings","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}</span><input name="account_holder_name" autocomplete="name" required></label>
-                  <label><span>${(globalThis.PlatformLanguage?.text("settings","m_308a9ca41691ca","Routing number") ?? "Routing number")}</span><input name="routing_number" inputmode="numeric" autocomplete="off" pattern="[0-9]{9}" maxlength="9" required></label>
-                  <label><span>${(globalThis.PlatformLanguage?.text("settings","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span><input type="password" name="account_number" inputmode="numeric" autocomplete="off" pattern="[0-9]{4,17}" required></label>
-                  <label><span>${(globalThis.PlatformLanguage?.text("settings","m_7be99c908b4d86","Confirm account number") ?? "Confirm account number")}</span><input type="password" name="account_number_confirmation" inputmode="numeric" autocomplete="off" pattern="[0-9]{4,17}" required></label>
-                  <label><span>${(globalThis.PlatformLanguage?.text("settings","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span><select name="account_type" required><option value="checking">${(globalThis.PlatformLanguage?.text("settings","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option><option value="savings">${(globalThis.PlatformLanguage?.text("settings","m_5b503699d80ad2","Savings") ?? "Savings")}</option></select></label>
-                  <div class="money-bank-manual-actions"><button type="button" data-money-bank-manual-back>${(globalThis.PlatformLanguage?.text("settings","m_121372231b5699","Back") ?? "Back")}</button><button type="submit">${(globalThis.PlatformLanguage?.text("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>
+                  <label><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}</span><input name="account_holder_name" autocomplete="name" required></label>
+                  <label><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_308a9ca41691ca","Routing number") ?? "Routing number")}</span><input name="routing_number" inputmode="numeric" autocomplete="off" pattern="[0-9]{9}" maxlength="9" required></label>
+                  <label><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span><input type="password" name="account_number" inputmode="numeric" autocomplete="off" pattern="[0-9]{4,17}" required></label>
+                  <label><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7be99c908b4d86","Confirm account number") ?? "Confirm account number")}</span><input type="password" name="account_number_confirmation" inputmode="numeric" autocomplete="off" pattern="[0-9]{4,17}" required></label>
+                  <label><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span><select name="account_type" required><option value="checking">${(globalThis.PlatformLanguage?.htmlText("settings","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option><option value="savings">${(globalThis.PlatformLanguage?.htmlText("settings","m_5b503699d80ad2","Savings") ?? "Savings")}</option></select></label>
+                  <div class="money-bank-manual-actions"><button type="button" data-money-bank-manual-back>${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button><button type="submit">${(globalThis.PlatformLanguage?.htmlText("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>
                 </form>
               </div>
             </section>
             <div class="money-overlay-dev-shield" data-money-overlay-dev-shield hidden aria-hidden="true"></div>
             <div class="money-overlay-dev-toolbar" data-money-overlay-dev-toolbar hidden>
-              <strong>${(globalThis.PlatformLanguage?.text("settings","m_8fb7f66586aa32","Overlay Dev") ?? "Overlay Dev")}</strong>
-              <button class="active" type="button" data-money-overlay-mode="click">${(globalThis.PlatformLanguage?.text("settings","m_9d012dfb6425bf","Click") ?? "Click")}</button>
-              <button type="button" data-money-overlay-mode="layout">${(globalThis.PlatformLanguage?.text("settings","m_98c23347c6eed1","Drag / Resize") ?? "Drag / Resize")}</button>
-              <button type="button" data-money-click-detector aria-pressed="false">${(globalThis.PlatformLanguage?.text("settings","m_56dd33a08a43b4","Click detector: Off") ?? "Click detector: Off")}</button>
-              <label class="money-overlay-opacity">${(globalThis.PlatformLanguage?.text("settings","m_d64426743504dd","Opacity ") ?? "Opacity ")}<input type="range" min="0" max="100" step="5" value="100" data-money-overlay-opacity><output data-money-overlay-opacity-value>100%</output></label>
-              <button type="button" data-money-overlay-mark>${(globalThis.PlatformLanguage?.text("settings","m_94c3c58e6633df","Mark state correct") ?? "Mark state correct")}</button>
-              <span data-money-overlay-status>${(globalThis.PlatformLanguage?.text("settings","m_37e48c2ffd0b78","Click mode") ?? "Click mode")}</span>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_8fb7f66586aa32","Overlay Dev") ?? "Overlay Dev")}</strong>
+              <button class="active" type="button" data-money-overlay-mode="click">${(globalThis.PlatformLanguage?.htmlText("settings","m_9d012dfb6425bf","Click") ?? "Click")}</button>
+              <button type="button" data-money-overlay-mode="layout">${(globalThis.PlatformLanguage?.htmlText("settings","m_98c23347c6eed1","Drag / Resize") ?? "Drag / Resize")}</button>
+              <button type="button" data-money-click-detector aria-pressed="false">${(globalThis.PlatformLanguage?.htmlText("settings","m_56dd33a08a43b4","Click detector: Off") ?? "Click detector: Off")}</button>
+              <label class="money-overlay-opacity">${(globalThis.PlatformLanguage?.htmlText("settings","m_d64426743504dd","Opacity ") ?? "Opacity ")}<input type="range" min="0" max="100" step="5" value="100" data-money-overlay-opacity><output data-money-overlay-opacity-value>100%</output></label>
+              <button type="button" data-money-overlay-mark>${(globalThis.PlatformLanguage?.htmlText("settings","m_94c3c58e6633df","Mark state correct") ?? "Mark state correct")}</button>
+              <span data-money-overlay-status>${(globalThis.PlatformLanguage?.htmlText("settings","m_37e48c2ffd0b78","Click mode") ?? "Click mode")}</span>
               <button class="money-focus-sentinel" type="button" tabindex="-1" aria-hidden="true" data-money-focus-sentinel></button>
             </div>`
           : `<div class="money-iframe-blocker money-iframe-blocker-${view}" data-money-iframe-blocker="${view}" aria-hidden="true"></div>`;
@@ -8156,7 +8157,7 @@
           options.onError?.(error);
           return;
         }
-        targetPane.innerHTML = `<div class="money-settings-error"><span>${(globalThis.PlatformLanguage?.text("settings","m_ead9a1ea29b82d","Money is unavailable right now.") ?? "Money is unavailable right now.")}</span><button class="cs-btn" type="button" data-money-retry><i class="fas fa-rotate-right" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("settings","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
+        targetPane.innerHTML = `<div class="money-settings-error"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ead9a1ea29b82d","Money is unavailable right now.") ?? "Money is unavailable right now.")}</span><button class="cs-btn" type="button" data-money-retry><i class="fas fa-rotate-right" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
         targetPane.querySelector('[data-money-retry]')?.addEventListener('click', () => renderHostedMoneySettings(view, { force:true }));
       } finally {
         targetPane.dataset.moneySettingsLoading = '';
@@ -8319,10 +8320,10 @@
           { id:'accounts', label:(globalThis.PlatformLanguage?.text("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts") },
           { id:'disputes', label:(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes") }
         ]
-      }) || `<div class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_092fc5f2fd5665","Money settings") ?? "Money settings")}">
-        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="payments">${(globalThis.PlatformLanguage?.text("settings","m_5842802f6c8cbb","Payments") ?? "Payments")}</button>
-        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="accounts">${(globalThis.PlatformLanguage?.text("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts")}</button>
-        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="disputes">${(globalThis.PlatformLanguage?.text("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes")}</button>
+      }) || `<div class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_092fc5f2fd5665","Money settings") ?? "Money settings")}">
+        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="payments">${(globalThis.PlatformLanguage?.htmlText("settings","m_5842802f6c8cbb","Payments") ?? "Payments")}</button>
+        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="accounts">${(globalThis.PlatformLanguage?.htmlText("settings","m_3a204df60cc9c8","Accounts") ?? "Accounts")}</button>
+        <button class="fm-settings-subtab" type="button" role="tab" data-money-view="disputes">${(globalThis.PlatformLanguage?.htmlText("settings","m_9b7a2edd995dfe","Disputes") ?? "Disputes")}</button>
       </div>`;
       paneMoney.innerHTML = `
         <div class="money-settings-shell">
@@ -8365,7 +8366,7 @@
       const defaultsPane = panePayments.querySelector('[data-payment-defaults]');
       const processingPane = panePayments.querySelector('[data-merchant-processing]');
       renderMerchantProcessing(processingPane).catch(() => null);
-      defaultsPane.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_fa3d0e73cdc3d0","Payment Settings") ?? "Payment Settings")}</h3><p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_946d367590c232"," Loading payment defaults...") ?? " Loading payment defaults...")}</p></div>`;
+      defaultsPane.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_fa3d0e73cdc3d0","Payment Settings") ?? "Payment Settings")}</h3><p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_946d367590c232"," Loading payment defaults...") ?? " Loading payment defaults...")}</p></div>`;
       let settings = normalize({});
       try {
         const [paymentModule, proposalModule] = await Promise.all([
@@ -8381,14 +8382,14 @@
       const render = (saving = false, status = '') => {
         defaultsPane.innerHTML = `
           <div class="cs-section">
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_fa3d0e73cdc3d0","Payment Settings") ?? "Payment Settings")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_6194878c75401f","Configure invoice and payment defaults for this branch.") ?? "Configure invoice and payment defaults for this branch.")}</p>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_fa3d0e73cdc3d0","Payment Settings") ?? "Payment Settings")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_6194878c75401f","Configure invoice and payment defaults for this branch.") ?? "Configure invoice and payment defaults for this branch.")}</p>
             <label class="li-switch-row">
-              <div><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_446fb225600bb5","Use sales tax on invoices") ?? "Use sales tax on invoices")}</div><div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_5d02823eed60c0","When disabled, sales tax controls are completely hidden from the invoice generator.") ?? "When disabled, sales tax controls are completely hidden from the invoice generator.")}</div></div>
+              <div><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_446fb225600bb5","Use sales tax on invoices") ?? "Use sales tax on invoices")}</div><div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d02823eed60c0","When disabled, sales tax controls are completely hidden from the invoice generator.") ?? "When disabled, sales tax controls are completely hidden from the invoice generator.")}</div></div>
               <span class="li-switch"><input type="checkbox" data-payment-tax-enabled ${String(settings.sales_tax_enabled ? 'checked' : '')}><span class="li-slider"></span></span>
             </label>
-            ${String(settings.sales_tax_enabled ? `<div class="cs-row"><label class="cs-lbl" for="paymentDefaultTaxPercent">Default sales tax percentage</label><input class="cs-in" id="paymentDefaultTaxPercent" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(settings.default_sales_tax_percent))}"></div>` : '')}
-            <div class="cs-row"><label class="cs-lbl" for="paymentDefaultDueDays">${(globalThis.PlatformLanguage?.text("settings","m_ba77a691139cae","Invoice payment terms (days until due)") ?? "Invoice payment terms (days until due)")}</label><input class="cs-in" id="paymentDefaultDueDays" type="number" min="0" max="365" step="1" value="${String(escapeHtml(String(settings.default_due_days)))}"><div class="cs-note" style="margin:4px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_681824b42fad0b","0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.") ?? "0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.")}</div></div>
+            ${String(settings.sales_tax_enabled ? `<div class="cs-row"><label class="cs-lbl" for="paymentDefaultTaxPercent">${(globalThis.PlatformLanguage?.htmlText("settings","m_0b2aa0314e8f6d","Default sales tax percentage") ?? "Default sales tax percentage")}</label><input class="cs-in" id="paymentDefaultTaxPercent" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(settings.default_sales_tax_percent))}"></div>` : '')}
+            <div class="cs-row"><label class="cs-lbl" for="paymentDefaultDueDays">${(globalThis.PlatformLanguage?.htmlText("settings","m_ba77a691139cae","Invoice payment terms (days until due)") ?? "Invoice payment terms (days until due)")}</label><input class="cs-in" id="paymentDefaultDueDays" type="number" min="0" max="365" step="1" value="${String(escapeHtml(String(settings.default_due_days)))}"><div class="cs-note" style="margin:4px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_681824b42fad0b","0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.") ?? "0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.")}</div></div>
             <div class="li-actions"><button class="cs-btn primary" type="button" data-payment-settings-save ${String(saving ? 'disabled' : '')}>${String(saving ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Payment Settings')}</button></div>
             <div class="cs-note">${String(escapeHtml(status))}</div>
           </div>`;
@@ -8420,7 +8421,7 @@
       const orgId = currentOrgId();
       const paymentsApi = window.PaymentsAPI;
       if (!orgId || !paymentsApi?.merchantConfig?.get) {
-        container.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_ada756f6f815d8","Payments API is unavailable.") ?? "Payments API is unavailable.")}</p></div>`;
+        container.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_ada756f6f815d8","Payments API is unavailable.") ?? "Payments API is unavailable.")}</p></div>`;
         return;
       }
       injectCSS('company_merchant_processing', `
@@ -8565,18 +8566,18 @@
         const canHostedSubmit = (!status || status === 'DRAFT' || status === 'NEED_INFORMATION') && !!mcText(mp.config?.forward?.application_id);
         return `
           <div class="mp-sandbox" data-mp-sandbox>
-            <div class="mp-sandbox-head"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.text("settings","m_a6df927a7d6619"," Sandbox simulation") ?? " Sandbox simulation")}</div>
-            <div class="cs-note" style="margin:0">${(globalThis.PlatformLanguage?.text("settings","m_3f92f4bad3ca17","This organization uses the mock processor. Simulate the underwriting decision without contacting Forward.") ?? "This organization uses the mock processor. Simulate the underwriting decision without contacting Forward.")}</div>
+            <div class="mp-sandbox-head"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a6df927a7d6619"," Sandbox simulation") ?? " Sandbox simulation")}</div>
+            <div class="cs-note" style="margin:0">${(globalThis.PlatformLanguage?.htmlText("settings","m_3f92f4bad3ca17","This organization uses the mock processor. Simulate the underwriting decision without contacting Forward.") ?? "This organization uses the mock processor. Simulate the underwriting decision without contacting Forward.")}</div>
             <div class="mp-sandbox-actions">
-              ${String(canHostedSubmit ? `<button type="button" class="cs-btn" data-mp-hosted-submit><i class="fas fa-file-signature"></i> Simulate hosted submission</button>` : '')}
-              <button type="button" class="cs-btn" data-mp-advance="APPROVED"><i class="fas fa-circle-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_ad159d5c9521a4"," Advance to Approved") ?? " Advance to Approved")}</button>
-              <button type="button" class="cs-btn" data-mp-advance="NEED_INFORMATION"><i class="fas fa-circle-question"></i>${(globalThis.PlatformLanguage?.text("settings","m_1c3715cf159a02"," Advance to Need info") ?? " Advance to Need info")}</button>
-              <button type="button" class="cs-btn" data-mp-advance="DECLINED"><i class="fas fa-circle-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_ddceafbd9491c6"," Advance to Declined") ?? " Advance to Declined")}</button>
+              ${String(canHostedSubmit ? `<button type="button" class="cs-btn" data-mp-hosted-submit><i class="fas fa-file-signature"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8b074f96fceb24"," Simulate hosted submission") ?? " Simulate hosted submission")}</button>` : '')}
+              <button type="button" class="cs-btn" data-mp-advance="APPROVED"><i class="fas fa-circle-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ad159d5c9521a4"," Advance to Approved") ?? " Advance to Approved")}</button>
+              <button type="button" class="cs-btn" data-mp-advance="NEED_INFORMATION"><i class="fas fa-circle-question"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_1c3715cf159a02"," Advance to Need info") ?? " Advance to Need info")}</button>
+              <button type="button" class="cs-btn" data-mp-advance="DECLINED"><i class="fas fa-circle-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ddceafbd9491c6"," Advance to Declined") ?? " Advance to Declined")}</button>
             </div>
             ${String(merchantApproved() ? `
               <div class="mp-sandbox-actions">
-                <button type="button" class="cs-btn" data-mp-settle><i class="fas fa-money-bill-transfer"></i> Settle payout batch</button>
-                <button type="button" class="cs-btn" data-mp-dispute><i class="fas fa-scale-balanced"></i> Create test dispute</button>
+                <button type="button" class="cs-btn" data-mp-settle><i class="fas fa-money-bill-transfer"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4fcae4650da3d8"," Settle payout batch") ?? " Settle payout batch")}</button>
+                <button type="button" class="cs-btn" data-mp-dispute><i class="fas fa-scale-balanced"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_22b15c2b0d5703"," Create test dispute") ?? " Create test dispute")}</button>
               </div>
               <div class="cs-note" style="margin:0" data-mp-sandbox-note></div>
             ` : '')}
@@ -8593,11 +8594,11 @@
         const hasApplication = !!mcText(mp.config?.forward?.application_id);
         return `
           <div class="mp-sandbox" data-mp-express>
-            <div class="mp-sandbox-head"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.text("settings","m_439c892cc53e55"," Forward test mode") ?? " Forward test mode")}</div>
-            <div class="cs-note" style="margin:0">${((v0) => globalThis.PlatformLanguage?.text("settings","m_77de2547c1032f",`Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`,{v0}) ?? `Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`)(escapeHtml(mcText(mp.config?.provider) === 'mock' ? 'mock simulator' : `Forward ${mp.forwardEnv}`))}</div>
+            <div class="mp-sandbox-head"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_439c892cc53e55"," Forward test mode") ?? " Forward test mode")}</div>
+            <div class="cs-note" style="margin:0">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_77de2547c1032f",`Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`,{v0}) ?? `Skip FirstMate's application steps and sign up directly on the processor's hosted application (${v0}). Fill everything out on their form — the status flows back here. The portal button signs you into the merchant portal to explore disputes and bank-account tools.`)(escapeHtml(mcText(mp.config?.provider) === 'mock' ? 'mock simulator' : `Forward ${mp.forwardEnv}`))}</div>
             <div class="mp-sandbox-actions">
               <button type="button" class="cs-btn primary" data-mp-express-signup><i class="fas fa-arrow-up-right-from-square"></i> ${String(hasApplication ? 'Reopen Forward application' : 'Sign up on Forward')}</button>
-              <button type="button" class="cs-btn" data-mp-express-portal><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc5802017d7488"," Open Forward merchant portal") ?? " Open Forward merchant portal")}</button>
+              <button type="button" class="cs-btn" data-mp-express-portal><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc5802017d7488"," Open Forward merchant portal") ?? " Open Forward merchant portal")}</button>
             </div>
           </div>`;
       };
@@ -8628,24 +8629,24 @@
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483300;display:flex;align-items:flex-start;justify-content:center;box-sizing:border-box;background:rgba(15,23,42,.46);backdrop-filter:blur(5px);padding:5vh 14px';
         overlay.innerHTML = `
           <div data-mp-hosted-style-switcher style="position:fixed;top:18px;left:18px;z-index:2;display:grid;width:118px;gap:2px;padding:4px;border:1px solid rgba(15,23,42,.18);border-radius:9px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.2);box-sizing:border-box">
-            <button type="button" data-mp-hosted-style="original" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_9da31bfe41e65b","1180px") ?? "1180px")}</button>
-            <button type="button" data-mp-hosted-style="800" aria-pressed="true" style="border:0;border-radius:6px;padding:5px 7px;background:#101828;color:#fff;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_9274d2fe4c0149","800px") ?? "800px")}</button>
-            <button type="button" data-mp-hosted-style="760" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_ac505c826cd06d","760px") ?? "760px")}</button>
+            <button type="button" data-mp-hosted-style="original" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_9da31bfe41e65b","1180px") ?? "1180px")}</button>
+            <button type="button" data-mp-hosted-style="800" aria-pressed="true" style="border:0;border-radius:6px;padding:5px 7px;background:#101828;color:#fff;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_9274d2fe4c0149","800px") ?? "800px")}</button>
+            <button type="button" data-mp-hosted-style="760" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_ac505c826cd06d","760px") ?? "760px")}</button>
             <span aria-hidden="true" style="height:1px;margin:3px 0;background:#e4e7ec"></span>
-            <button type="button" data-mp-submitted-visibility aria-pressed="true" style="border:0;border-radius:6px;padding:5px 7px;background:#101828;color:#fff;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_bdf6b8e42321fb","Submitted: On") ?? "Submitted: On")}</button>
+            <button type="button" data-mp-submitted-visibility aria-pressed="true" style="border:0;border-radius:6px;padding:5px 7px;background:#101828;color:#fff;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_bdf6b8e42321fb","Submitted: On") ?? "Submitted: On")}</button>
             <span aria-hidden="true" style="height:1px;margin:3px 0;background:#e4e7ec"></span>
-            <button type="button" data-mp-cover-edit aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_f40074357764dc","Cover edit: Off") ?? "Cover edit: Off")}</button>
-            <button type="button" data-mp-cover-mark style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_37cc40168817e9","Mark cover") ?? "Mark cover")}</button>
+            <button type="button" data-mp-cover-edit aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_f40074357764dc","Cover edit: Off") ?? "Cover edit: Off")}</button>
+            <button type="button" data-mp-cover-mark style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_37cc40168817e9","Mark cover") ?? "Mark cover")}</button>
             <span aria-hidden="true" style="height:1px;margin:3px 0;background:#e4e7ec"></span>
-            <button type="button" data-mp-bank-link-edit aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_43ae95a01f117b","Link edit: Off") ?? "Link edit: Off")}</button>
-            <button type="button" data-mp-bank-link-mark style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_eaf1c124bcfc4b","Mark link") ?? "Mark link")}</button>
-            <button type="button" data-mp-plaid-zone-edit="visual" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_3cbe4e759fc642","Visual zone edit") ?? "Visual zone edit")}</button>
-            <button type="button" data-mp-plaid-zone-edit="click" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_a5004da842abbb","Click zone edit") ?? "Click zone edit")}</button>
-            <button type="button" data-mp-plaid-zone-mark style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_f612a96c0e103f","Mark Plaid zones") ?? "Mark Plaid zones")}</button>
+            <button type="button" data-mp-bank-link-edit aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_43ae95a01f117b","Link edit: Off") ?? "Link edit: Off")}</button>
+            <button type="button" data-mp-bank-link-mark style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_eaf1c124bcfc4b","Mark link") ?? "Mark link")}</button>
+            <button type="button" data-mp-plaid-zone-edit="visual" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_3cbe4e759fc642","Visual zone edit") ?? "Visual zone edit")}</button>
+            <button type="button" data-mp-plaid-zone-edit="click" aria-pressed="false" style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_a5004da842abbb","Click zone edit") ?? "Click zone edit")}</button>
+            <button type="button" data-mp-plaid-zone-mark style="border:0;border-radius:6px;padding:5px 7px;background:transparent;color:#475467;font:800 10px/1 sans-serif;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_f612a96c0e103f","Mark Plaid zones") ?? "Mark Plaid zones")}</button>
           </div>
-          <button type="button" data-mp-hosted-mobile-close aria-label="${(globalThis.PlatformLanguage?.text("settings","m_071609c9efaf0f","Close payment setup") ?? "Close payment setup")}" style="position:fixed;top:max(6px,env(safe-area-inset-top));right:max(6px,env(safe-area-inset-right));z-index:1000;display:none;width:32px;height:32px;padding:0;place-items:center;border:1px solid #d0d5dd;border-radius:999px;background:rgba(255,255,255,.96);color:#101828;box-shadow:0 3px 10px rgba(15,23,42,.16);font-size:25px;line-height:1;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
+          <button type="button" data-mp-hosted-mobile-close aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_071609c9efaf0f","Close payment setup") ?? "Close payment setup")}" style="position:fixed;top:max(6px,env(safe-area-inset-top));right:max(6px,env(safe-area-inset-right));z-index:1000;display:none;width:32px;height:32px;padding:0;place-items:center;border:1px solid #d0d5dd;border-radius:999px;background:rgba(255,255,255,.96);color:#101828;box-shadow:0 3px 10px rgba(15,23,42,.16);font-size:25px;line-height:1;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
           <div data-mp-hosted-scroll style="position:relative;width:min(800px,100%);height:90vh;min-height:700px;overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3)">
-            <iframe data-mp-hosted-frame src="${String(escapeHtml(linkUrl))}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_5823063ec74807","Forward merchant application") ?? "Forward merchant application")}" style="display:block;width:100%;max-width:none;height:100%;min-height:700px;border:0;background:#fff" allow="camera; clipboard-write"></iframe>
+            <iframe data-mp-hosted-frame src="${String(escapeHtml(linkUrl))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_5823063ec74807","Forward merchant application") ?? "Forward merchant application")}" style="display:block;width:100%;max-width:none;height:100%;min-height:700px;border:0;background:#fff" allow="camera; clipboard-write"></iframe>
             <div data-mp-cover-deadzone aria-hidden="true" style="position:absolute;top:404px;left:27px;width:189px;height:78px;z-index:1;box-sizing:border-box;background:transparent;pointer-events:auto;touch-action:none"></div>
             <div data-mp-cover style="position:absolute;top:428px;left:51px;width:141px;height:30px;z-index:2;box-sizing:border-box;background:#fff;border:0;pointer-events:auto;touch-action:none"></div>
             <div data-mp-submitted-pane hidden tabindex="-1" style="position:absolute;top:0;left:0;right:0;height:100%;z-index:2;outline:none;background:#fff">
@@ -8660,7 +8661,7 @@
               </style>
               <div data-mp-bank-link-page style="display:flex;min-height:100%;height:100%;flex-direction:column;background:#fff;pointer-events:none">
                 <header style="display:flex;height:64px;min-height:64px;align-items:center;justify-content:center;border-bottom:1px solid #e4e4e7;background:rgba(255,255,255,.95);padding:0 24px;box-shadow:0 1px 2px rgba(0,0,0,.05)">
-                  <strong style="font-size:18px;line-height:28px;font-weight:600;color:#09090b">${(globalThis.PlatformLanguage?.text("settings","m_5c4fb8df281140","FirstMate") ?? "FirstMate")}</strong>
+                  <strong style="font-size:18px;line-height:28px;font-weight:600;color:#09090b">${(globalThis.PlatformLanguage?.htmlText("settings","m_5c4fb8df281140","FirstMate") ?? "FirstMate")}</strong>
                 </header>
                 <main style="box-sizing:border-box;display:flex;width:100%;max-width:896px;flex:1;flex-direction:column;margin:0 auto;padding:24px 16px">
                   <section style="display:grid;gap:24px">
@@ -8668,13 +8669,13 @@
                       <div style="display:flex;width:56px;height:56px;margin-bottom:16px;align-items:center;justify-content:center;border-radius:999px;background:#e8e8e8;color:#18181b">
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"></line><line x1="6" x2="6" y1="18" y2="11"></line><line x1="10" x2="10" y1="18" y2="11"></line><line x1="14" x2="14" y1="18" y2="11"></line><line x1="18" x2="18" y1="18" y2="11"></line><polygon points="12 2 20 7 4 7"></polygon></svg>
                       </div>
-                      <h1 style="margin:0;font-size:24px;line-height:32px;font-weight:700;letter-spacing:-.025em;color:#09090b">${(globalThis.PlatformLanguage?.text("settings","m_8d71d1e0c561ab","Link Your Bank Account") ?? "Link Your Bank Account")}</h1>
-                      <p style="max-width:none;margin:4px 0 0;font-size:14px;line-height:20px;color:#71717a;white-space:nowrap">${(globalThis.PlatformLanguage?.text("settings","m_a16f10c2d4c4d9","Securely link your bank account to receive payments and deposits.") ?? "Securely link your bank account to receive payments and deposits.")}</p>
+                      <h1 style="margin:0;font-size:24px;line-height:32px;font-weight:700;letter-spacing:-.025em;color:#09090b">${(globalThis.PlatformLanguage?.htmlText("settings","m_8d71d1e0c561ab","Link Your Bank Account") ?? "Link Your Bank Account")}</h1>
+                      <p style="max-width:none;margin:4px 0 0;font-size:14px;line-height:20px;color:#71717a;white-space:nowrap">${(globalThis.PlatformLanguage?.htmlText("settings","m_a16f10c2d4c4d9","Securely link your bank account to receive payments and deposits.") ?? "Securely link your bank account to receive payments and deposits.")}</p>
                     </div>
                     <div style="border:1px solid #e4e4e7;border-radius:8px;background:#fff;color:#09090b;box-shadow:0 1px 2px rgba(0,0,0,.05)">
                       <div style="display:flex;flex-direction:column;gap:6px;padding:24px">
-                        <h2 style="margin:0;font-size:24px;line-height:24px;font-weight:600;letter-spacing:-.025em">${(globalThis.PlatformLanguage?.text("settings","m_38bc8493aa7e3e","Connect your bank account") ?? "Connect your bank account")}</h2>
-                        <p style="margin:0;font-size:14px;line-height:20px;color:#71717a">${(globalThis.PlatformLanguage?.text("settings","m_b6e0f56efcd499","Choose how you'd like to connect your bank account") ?? "Choose how you'd like to connect your bank account")}</p>
+                        <h2 style="margin:0;font-size:24px;line-height:24px;font-weight:600;letter-spacing:-.025em">${(globalThis.PlatformLanguage?.htmlText("settings","m_38bc8493aa7e3e","Connect your bank account") ?? "Connect your bank account")}</h2>
+                        <p style="margin:0;font-size:14px;line-height:20px;color:#71717a">${(globalThis.PlatformLanguage?.htmlText("settings","m_b6e0f56efcd499","Choose how you'd like to connect your bank account") ?? "Choose how you'd like to connect your bank account")}</p>
                       </div>
                       <div style="display:grid;gap:16px;padding:0 24px 24px">
                         <div style="display:flex;flex-wrap:wrap;gap:12px">
@@ -8685,12 +8686,12 @@
                           <span data-mp-bank-button-deadzone="manual-bottom" aria-hidden="true" style="position:absolute;z-index:7;background:transparent;pointer-events:auto"></span>
                           <span data-mp-bank-button-deadzone="instant-top" aria-hidden="true" style="position:absolute;z-index:7;background:transparent;pointer-events:auto"></span>
                           <span data-mp-bank-button-deadzone="instant-bottom" aria-hidden="true" style="position:absolute;z-index:7;background:transparent;pointer-events:auto"></span>
-                          <button type="button" data-mp-bank-link-action data-mp-bank-link-manual style="position:absolute;top:345px;left:237px;z-index:6;box-sizing:border-box;display:inline-flex;height:32px;align-items:center;justify-content:center;padding:0 14px;border:1px solid transparent;border-radius:6px;background:transparent;color:#09090b;box-shadow:none;font-family:inherit;font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;cursor:pointer;pointer-events:auto">${(globalThis.PlatformLanguage?.text("settings","m_781ec2441745e0","Enter Manually") ?? "Enter Manually")}</button>
+                          <button type="button" data-mp-bank-link-action data-mp-bank-link-manual style="position:absolute;top:345px;left:237px;z-index:6;box-sizing:border-box;display:inline-flex;height:32px;align-items:center;justify-content:center;padding:0 14px;border:1px solid transparent;border-radius:6px;background:transparent;color:#09090b;box-shadow:none;font-family:inherit;font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;cursor:pointer;pointer-events:auto">${(globalThis.PlatformLanguage?.htmlText("settings","m_781ec2441745e0","Enter Manually") ?? "Enter Manually")}</button>
                           <button type="button" data-mp-bank-link-action data-mp-bank-link-instant style="position:absolute;top:350px;left:42px;z-index:6;box-sizing:border-box;display:inline-flex;width:200px;height:31px;align-items:center;justify-content:center;gap:8px;padding:0 14px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#09090b;box-shadow:0 1px 2px rgba(0,0,0,.05);font-family:inherit;font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;cursor:pointer;pointer-events:none;touch-action:none">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"></line><line x1="6" x2="6" y1="18" y2="11"></line><line x1="10" x2="10" y1="18" y2="11"></line><line x1="14" x2="14" y1="18" y2="11"></line><line x1="18" x2="18" y1="18" y2="11"></line><polygon points="12 2 20 7 4 7"></polygon></svg>${(globalThis.PlatformLanguage?.text("settings","m_7a6ec9f2c9ca10","\n                            Link Bank Account\n                          ") ?? "\n                            Link Bank Account\n                          ")}</button>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"></line><line x1="6" x2="6" y1="18" y2="11"></line><line x1="10" x2="10" y1="18" y2="11"></line><line x1="14" x2="14" y1="18" y2="11"></line><line x1="18" x2="18" y1="18" y2="11"></line><polygon points="12 2 20 7 4 7"></polygon></svg>${(globalThis.PlatformLanguage?.htmlText("settings","m_7a6ec9f2c9ca10","\n                            Link Bank Account\n                          ") ?? "\n                            Link Bank Account\n                          ")}</button>
                         </div>
                         <div aria-hidden="true" style="height:1px;background:#e4e4e7"></div>
-                        <button type="button" data-mp-bank-link-skip style="position:relative;z-index:6;justify-self:start;height:36px;padding:0 14px;border:0;border-radius:6px;background:#fff;color:#09090b;font-family:inherit;font-size:16px;line-height:24px;font-weight:500;cursor:pointer;pointer-events:auto"><i class="fas fa-forward" style="margin-right:8px;font-size:13px" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("settings","m_dffa4ea6a3943f","Skip for Now") ?? "Skip for Now")}</button>
+                        <button type="button" data-mp-bank-link-skip style="position:relative;z-index:6;justify-self:start;height:36px;padding:0 14px;border:0;border-radius:6px;background:#fff;color:#09090b;font-family:inherit;font-size:16px;line-height:24px;font-weight:500;cursor:pointer;pointer-events:auto"><i class="fas fa-forward" style="margin-right:8px;font-size:13px" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_dffa4ea6a3943f","Skip for Now") ?? "Skip for Now")}</button>
                       </div>
                     </div>
                   </section>
@@ -8703,23 +8704,23 @@
               <div data-mp-bank-link-loading hidden role="status" aria-live="polite" style="position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#fff;pointer-events:auto">
                 <div style="display:grid;justify-items:center;gap:12px;color:#344054;text-align:center">
                   <i class="fas fa-circle-notch fa-spin" style="font-size:28px;color:var(--primary-readable,var(--primary,#d93025))" aria-hidden="true"></i>
-                  <strong style="font-size:16px">${(globalThis.PlatformLanguage?.text("settings","m_6940a9f7fa9fbf","Connecting securely…") ?? "Connecting securely…")}</strong>
-                  <span style="font-size:13px;color:#667085">${(globalThis.PlatformLanguage?.text("settings","m_d439129d732b91","Opening Plaid.") ?? "Opening Plaid.")}</span>
+                  <strong style="font-size:16px">${(globalThis.PlatformLanguage?.htmlText("settings","m_6940a9f7fa9fbf","Connecting securely…") ?? "Connecting securely…")}</strong>
+                  <span style="font-size:13px;color:#667085">${(globalThis.PlatformLanguage?.htmlText("settings","m_d439129d732b91","Opening Plaid.") ?? "Opening Plaid.")}</span>
                 </div>
               </div>
               <section data-mp-bank-manual-page hidden style="position:absolute;z-index:18;inset:0;box-sizing:border-box;overflow:auto;background:#fff;color:#344054;pointer-events:auto">
-                <button type="button" data-mp-bank-manual-close aria-label="${(globalThis.PlatformLanguage?.text("settings","m_df459cc3f5df67","Close manual bank account form") ?? "Close manual bank account form")}" style="position:absolute;top:24px;right:24px;width:38px;height:38px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font-size:24px;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
+                <button type="button" data-mp-bank-manual-close aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_df459cc3f5df67","Close manual bank account form") ?? "Close manual bank account form")}" style="position:absolute;top:24px;right:24px;width:38px;height:38px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font-size:24px;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
                 <div style="width:100%;max-width:480px;margin:0 auto;padding:64px 38px;box-sizing:border-box">
-                  <span style="color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">${(globalThis.PlatformLanguage?.text("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span>
-                  <h2 style="margin:10px 0 8px;color:#101828;font-size:25px">${(globalThis.PlatformLanguage?.text("settings","m_4604b51ce80c6d","Link an account manually") ?? "Link an account manually")}</h2>
-                  <p style="margin:0 0 24px;color:#667085;font-size:13px;line-height:1.5">${(globalThis.PlatformLanguage?.text("settings","m_33a221822b281f","Enter your bank account details to begin manual verification.") ?? "Enter your bank account details to begin manual verification.")}</p>
+                  <span style="color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">${(globalThis.PlatformLanguage?.htmlText("settings","m_d24f0ffcec4ccc","Bank accounts") ?? "Bank accounts")}</span>
+                  <h2 style="margin:10px 0 8px;color:#101828;font-size:25px">${(globalThis.PlatformLanguage?.htmlText("settings","m_4604b51ce80c6d","Link an account manually") ?? "Link an account manually")}</h2>
+                  <p style="margin:0 0 24px;color:#667085;font-size:13px;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("settings","m_33a221822b281f","Enter your bank account details to begin manual verification.") ?? "Enter your bank account details to begin manual verification.")}</p>
                   <form data-mp-bank-manual-form style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
-                    <label style="grid-column:1/-1;display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}<input name="account_holder_name" autocomplete="name" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
-                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_308a9ca41691ca","Routing number") ?? "Routing number")}<input name="routing_number" inputmode="numeric" pattern="[0-9]{9}" maxlength="9" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
-                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}<select name="account_type" style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"><option value="checking">${(globalThis.PlatformLanguage?.text("settings","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option><option value="savings">${(globalThis.PlatformLanguage?.text("settings","m_5b503699d80ad2","Savings") ?? "Savings")}</option></select></label>
-                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_b028fb8bb8ac0a","Account number") ?? "Account number")}<input type="password" name="account_number" inputmode="numeric" pattern="[0-9]{4,17}" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
-                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_7be99c908b4d86","Confirm account number") ?? "Confirm account number")}<input type="password" name="account_number_confirmation" inputmode="numeric" pattern="[0-9]{4,17}" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
-                    <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin-top:9px"><button type="button" data-mp-bank-manual-back style="height:38px;padding:0 16px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;font-weight:850;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_121372231b5699","Back") ?? "Back")}</button><button type="submit" style="height:38px;padding:0 16px;border:0;border-radius:9px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;font-weight:850;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>
+                    <label style="grid-column:1/-1;display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}<input name="account_holder_name" autocomplete="name" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
+                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_308a9ca41691ca","Routing number") ?? "Routing number")}<input name="routing_number" inputmode="numeric" pattern="[0-9]{9}" maxlength="9" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
+                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}<select name="account_type" style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"><option value="checking">${(globalThis.PlatformLanguage?.htmlText("settings","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option><option value="savings">${(globalThis.PlatformLanguage?.htmlText("settings","m_5b503699d80ad2","Savings") ?? "Savings")}</option></select></label>
+                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_b028fb8bb8ac0a","Account number") ?? "Account number")}<input type="password" name="account_number" inputmode="numeric" pattern="[0-9]{4,17}" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
+                    <label style="display:grid;gap:6px;font-size:11px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_7be99c908b4d86","Confirm account number") ?? "Confirm account number")}<input type="password" name="account_number_confirmation" inputmode="numeric" pattern="[0-9]{4,17}" required style="height:40px;border:1px solid #d0d5dd;border-radius:9px;padding:0 11px"></label>
+                    <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin-top:9px"><button type="button" data-mp-bank-manual-back style="height:38px;padding:0 16px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;font-weight:850;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_121372231b5699","Back") ?? "Back")}</button><button type="submit" style="height:38px;padding:0 16px;border:0;border-radius:9px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;font-weight:850;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>
                   </form>
                 </div>
               </section>
@@ -8727,7 +8728,7 @@
             <div data-mp-plaid-visual-zone hidden style="position:absolute;z-index:8;top:102px;left:516px;width:60px;height:50px;box-sizing:border-box;background:#fff;pointer-events:none;touch-action:none"></div>
             <div data-mp-plaid-click-zone hidden style="position:absolute;z-index:9;top:47px;left:466px;width:153px;height:150px;box-sizing:border-box;background:transparent;pointer-events:auto;touch-action:none"></div>
             <div data-mp-bank-success hidden style="position:absolute;z-index:30;inset:0;display:grid;place-items:center;background:#fff;color:#101828;text-align:center">
-              <div style="display:grid;justify-items:center;gap:14px;max-width:460px;padding:32px"><span style="display:grid;place-items:center;width:70px;height:70px;border-radius:999px;background:#ecfdf3;color:#039855;font-size:30px"><i class="fas fa-check" aria-hidden="true"></i></span><h2 style="margin:0;font-size:24px">${(globalThis.PlatformLanguage?.text("settings","m_e16167957d2df6","Application submitted successfully") ?? "Application submitted successfully")}</h2><p style="margin:0;color:#667085;font-size:14px;line-height:1.55">${(globalThis.PlatformLanguage?.text("settings","m_9dee7fdbdbd8aa","Your application has been submitted and your bank account setup is complete.") ?? "Your application has been submitted and your bank account setup is complete.")}</p><button type="button" data-mp-bank-success-close style="height:42px;padding:0 20px;border:0;border-radius:9px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;font-weight:850;cursor:pointer">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button></div>
+              <div style="display:grid;justify-items:center;gap:14px;max-width:460px;padding:32px"><span style="display:grid;place-items:center;width:70px;height:70px;border-radius:999px;background:#ecfdf3;color:#039855;font-size:30px"><i class="fas fa-check" aria-hidden="true"></i></span><h2 style="margin:0;font-size:24px">${(globalThis.PlatformLanguage?.htmlText("settings","m_e16167957d2df6","Application submitted successfully") ?? "Application submitted successfully")}</h2><p style="margin:0;color:#667085;font-size:14px;line-height:1.55">${(globalThis.PlatformLanguage?.htmlText("settings","m_9dee7fdbdbd8aa","Your application has been submitted and your bank account setup is complete.") ?? "Your application has been submitted and your bank account setup is complete.")}</p><button type="button" data-mp-bank-success-close style="height:42px;padding:0 20px;border:0;border-radius:9px;background:var(--primary-readable,var(--primary,#d93025));color:#fff;font-weight:850;cursor:pointer">${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}</button></div>
             </div>
           </div>`;
         document.body.appendChild(overlay);
@@ -9380,7 +9381,7 @@
           await loadApplication();
           renderSection();
           if (!mcText(result?.link?.url)) {
-            showToast('Application already submitted', 'Your payment application status is shown here.', true);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_be512b26264241","Application already submitted") ?? "Application already submitted"), (globalThis.PlatformLanguage?.text("settings","m_a5e87892447248","Your payment application status is shown here.") ?? "Your payment application status is shown here."), true);
             return;
           }
           openHostedApplication(mcText(result.link.url));
@@ -9517,9 +9518,9 @@
         const decisionLabel = approved ? 'Approved' : needInfo ? 'Need information' : declined ? 'Declined' : 'Decision';
         return `
           <div class="mp-steps" data-mp-tracker>
-            <div class="mp-step done"><span class="mp-step-dot"><i class="fas fa-check"></i></span><span>${(globalThis.PlatformLanguage?.text("settings","m_e2b803de55a93e","Submitted") ?? "Submitted")}</span></div>
+            <div class="mp-step done"><span class="mp-step-dot"><i class="fas fa-check"></i></span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e2b803de55a93e","Submitted") ?? "Submitted")}</span></div>
             <div class="mp-step-line"></div>
-            <div class="mp-step ${String(reviewing ? 'current' : (approved || needInfo || declined) ? 'done' : '')}"><span class="mp-step-dot">${String((approved || needInfo || declined) ? '<i class="fas fa-check"></i>' : '2')}</span><span>${(globalThis.PlatformLanguage?.text("settings","m_bf41466f98a818","Under review") ?? "Under review")}</span></div>
+            <div class="mp-step ${String(reviewing ? 'current' : (approved || needInfo || declined) ? 'done' : '')}"><span class="mp-step-dot">${String((approved || needInfo || declined) ? '<i class="fas fa-check"></i>' : '2')}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_bf41466f98a818","Under review") ?? "Under review")}</span></div>
             <div class="mp-step-line"></div>
             <div class="mp-step ${String(decisionClass)}"><span class="mp-step-dot">${String(decisionIcon)}</span><span>${String(decisionLabel)}</span></div>
           </div>`;
@@ -9537,27 +9538,27 @@
           return `
             <div class="mp-card" data-mp-approved>
               <div class="mp-card-head">
-                <strong><i class="fas fa-circle-check" style="color:#16a34a;margin-right:7px"></i>${(globalThis.PlatformLanguage?.text("settings","m_5313b48c3889a0","Payment processing is active") ?? "Payment processing is active")}</strong>
+                <strong><i class="fas fa-circle-check" style="color:#16a34a;margin-right:7px"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_5313b48c3889a0","Payment processing is active") ?? "Payment processing is active")}</strong>
                 <div style="display:flex;gap:7px;flex-wrap:wrap">
-                  <span class="mp-badge ${String(forward.processing_enabled ? 'ok' : 'warn')}" data-mp-processing-badge><i class="fas fa-bolt"></i>${((v1) => globalThis.PlatformLanguage?.text("settings","m_f41e95e100281f",` Processing ${v1}`,{v1}) ?? ` Processing ${v1}`)(forward.processing_enabled ? 'enabled' : 'paused')}</span>
-                  <span class="mp-badge ${String(forward.payouts_enabled ? 'ok' : 'warn')}" data-mp-payouts-badge><i class="fas fa-building-columns"></i>${((v3) => globalThis.PlatformLanguage?.text("settings","m_64c2879dfad056",` Payouts ${v3}`,{v3}) ?? ` Payouts ${v3}`)(forward.payouts_enabled ? 'enabled' : 'paused')}</span>
-                  ${String(mcText(mp.config?.provider) === 'mock' ? '<span class="mp-badge mock"><i class="fas fa-flask"></i> Sandbox</span>' : '')}
+                  <span class="mp-badge ${String(forward.processing_enabled ? 'ok' : 'warn')}" data-mp-processing-badge><i class="fas fa-bolt"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_f41e95e100281f",` Processing ${v1}`,{v1}) ?? ` Processing ${v1}`)(forward.processing_enabled ? 'enabled' : 'paused')}</span>
+                  <span class="mp-badge ${String(forward.payouts_enabled ? 'ok' : 'warn')}" data-mp-payouts-badge><i class="fas fa-building-columns"></i>${((v3) => globalThis.PlatformLanguage?.htmlText("settings","m_64c2879dfad056",` Payouts ${v3}`,{v3}) ?? ` Payouts ${v3}`)(forward.payouts_enabled ? 'enabled' : 'paused')}</span>
+                  ${String(mcText(mp.config?.provider) === 'mock' ? `<span class="mp-badge mock"><i class="fas fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_21540e72978cf2"," Sandbox") ?? " Sandbox")}</span>` : '')}
                 </div>
               </div>
               <dl class="mp-kv">
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd>
               </dl>
               <div data-mp-bank-section>
-                <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.text("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}</div>
+                <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}</div>
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-                  <span class="mp-badge" data-mp-bank-status><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.text("settings","m_b0f32b15b02e72"," Loading...") ?? " Loading...")}</span>
-                  <button type="button" class="cs-btn" data-mp-manage-bank><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("settings","m_3d11b9ff89ba9b"," Manage at Forward") ?? " Manage at Forward")}</button>
+                  <span class="mp-badge" data-mp-bank-status><i class="fas fa-building-columns"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b0f32b15b02e72"," Loading...") ?? " Loading...")}</span>
+                  <button type="button" class="cs-btn" data-mp-manage-bank><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3d11b9ff89ba9b"," Manage at Forward") ?? " Manage at Forward")}</button>
                 </div>
-                <div class="cs-note" style="margin:6px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_1bb2d830ad9a77","Payout bank account changes happen on Forward's secure merchant portal — the button signs you in with a one-time link.") ?? "Payout bank account changes happen on Forward's secure merchant portal — the button signs you in with a one-time link.")}</div>
+                <div class="cs-note" style="margin:6px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_1bb2d830ad9a77","Payout bank account changes happen on Forward's secure merchant portal — the button signs you in with a one-time link.") ?? "Payout bank account changes happen on Forward's secure merchant portal — the button signs you in with a one-time link.")}</div>
               </div>
               <div>
-                <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.text("settings","m_014c08b350e1f1","Enabled payment rails") ?? "Enabled payment rails")}</div>
+                <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("settings","m_014c08b350e1f1","Enabled payment rails") ?? "Enabled payment rails")}</div>
                 ${String(railRow('card', 'Card payments', 'fa-credit-card'))}
                 ${String(railRow('bank', 'Bank payments (ACH)', 'fa-building-columns'))}
                 ${String(railRow('wallets', 'Digital wallets', 'fa-wallet'))}
@@ -9573,24 +9574,24 @@
           return `
             <div class="mp-card" data-mp-tracker-card>
               <div class="mp-card-head">
-                <strong>${(globalThis.PlatformLanguage?.text("settings","m_5553da6186c35e","Application status") ?? "Application status")}</strong>
+                <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_5553da6186c35e","Application status") ?? "Application status")}</strong>
                 <span class="mp-badge ${String(needInfo ? 'warn' : declined ? 'err' : '')}" data-mp-status-badge>${String(escapeHtml(status.replace(/_/g, ' ')))}</span>
               </div>
               ${String(trackerHtml())}
               ${String(needInfo ? `
-                <div class="mp-status-note">The underwriter needs more information before this application can be approved. Review the requested items, add your response, then upload the documents on Forward's secure application page — it reopens pre-filled with everything you entered.</div>
+                <div class="mp-status-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_451c3ad8119d0c","The underwriter needs more information before this application can be approved. Review the requested items, add your response, then upload the documents on Forward's secure application page — it reopens pre-filled with everything you entered.") ?? "The underwriter needs more information before this application can be approved. Review the requested items, add your response, then upload the documents on Forward's secure application page — it reopens pre-filled with everything you entered.")}</div>
                 <div class="mp-docs" data-mp-docs>
-                  ${documents.map((doc) => `<div class="mp-doc"><i class="fas fa-file-circle-exclamation"></i><span><strong>${escapeHtml(mcText(doc.type).replace(/_/g, ' ') || 'Document')}</strong>${mcText(doc.description) ? ` — ${escapeHtml(mcText(doc.description))}` : ''}</span></div>`).join('') || '<div class="cs-note">No specific documents were listed.</div>'}
+                  ${documents.map((doc) => `<div class="mp-doc"><i class="fas fa-file-circle-exclamation"></i><span><strong>${escapeHtml(mcText(doc.type).replace(/_/g, ' ') || 'Document')}</strong>${mcText(doc.description) ? ` — ${escapeHtml(mcText(doc.description))}` : ''}</span></div>`).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_77a68aeefc18fe","No specific documents were listed.") ?? "No specific documents were listed.")}</div>`}
                 </div>
-                <div class="cs-row"><label class="cs-lbl" for="mpInfoResponse">Your response</label><textarea class="cs-in" id="mpInfoResponse" rows="3" placeholder="Describe the documents you are providing or add context for the underwriter..."></textarea></div>
-                <div class="li-actions"><button type="button" class="cs-btn primary" data-mp-resubmit><i class="fas fa-arrow-up-right-from-square"></i> Send response and continue at Forward</button></div>
+                <div class="cs-row"><label class="cs-lbl" for="mpInfoResponse">${(globalThis.PlatformLanguage?.htmlText("settings","m_053144b11a8523","Your response") ?? "Your response")}</label><textarea class="cs-in" id="mpInfoResponse" rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_2c0d713a078db4","Describe the documents you are providing or add context for the underwriter...") ?? "Describe the documents you are providing or add context for the underwriter...")}"></textarea></div>
+                <div class="li-actions"><button type="button" class="cs-btn primary" data-mp-resubmit><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ad1d53b291b9be"," Send response and continue at Forward") ?? " Send response and continue at Forward")}</button></div>
               ` : '')}
-              ${String(declined ? `<div class="mp-error"><i class="fas fa-circle-xmark"></i> This application was ${escapeHtml(status.toLowerCase())}. Contact support if you believe this is in error.</div>` : ``)}
-              ${String(!needInfo && !declined ? `<div class="mp-status-note">Your application was submitted and is being reviewed by the underwriting team. Most applications receive a decision within 1-2 business days.</div>` : '')}
+              ${String(declined ? `<div class="mp-error"><i class="fas fa-circle-xmark"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_d283641511165a",` This application was ${v0}. Contact support if you believe this is in error.`,{v0}) ?? ` This application was ${v0}. Contact support if you believe this is in error.`)(escapeHtml(status.toLowerCase()))}</div>` : ``)}
+              ${String(!needInfo && !declined ? `<div class="mp-status-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_381a82e98db727","Your application was submitted and is being reviewed by the underwriting team. Most applications receive a decision within 1-2 business days.") ?? "Your application was submitted and is being reviewed by the underwriting team. Most applications receive a decision within 1-2 business days.")}</div>` : '')}
               ${String(!declined ? `
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-                  <span class="cs-note" style="margin:0">Payments activity, settlements, and disputes live on the processor's merchant portal — the button signs you in with a one-time link, no password needed.</span>
-                  <button type="button" class="cs-btn" data-mp-portal-track><i class="fas fa-arrow-up-right-from-square"></i> Open merchant portal</button>
+                  <span class="cs-note" style="margin:0">${(globalThis.PlatformLanguage?.htmlText("settings","m_4e9c360ef0798e","Payments activity, settlements, and disputes live on the processor's merchant portal — the button signs you in with a one-time link, no password needed.") ?? "Payments activity, settlements, and disputes live on the processor's merchant portal — the button signs you in with a one-time link, no password needed.")}</span>
+                  <button type="button" class="cs-btn" data-mp-portal-track><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_28fbfb1af12f7c"," Open merchant portal") ?? " Open merchant portal")}</button>
                 </div>` : '')}
               ${String(sandboxHtml())}${String(expressHtml())}
             </div>`;
@@ -9606,13 +9607,13 @@
           return `
             <div class="mp-card" data-mp-hosted-card>
               <div class="mp-card-head">
-                <strong><i class="fas fa-file-signature" style="color:var(--primary-readable,var(--primary,#d93025));margin-right:7px"></i>${(globalThis.PlatformLanguage?.text("settings","m_576f7c263e565e","Finish your application on Forward's secure page") ?? "Finish your application on Forward's secure page")}</strong>
-                <span class="mp-badge warn" data-mp-hosted-badge><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.text("settings","m_a8e1159ee59e05"," Waiting on you") ?? " Waiting on you")}</span>
+                <strong><i class="fas fa-file-signature" style="color:var(--primary-readable,var(--primary,#d93025));margin-right:7px"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_576f7c263e565e","Finish your application on Forward's secure page") ?? "Finish your application on Forward's secure page")}</strong>
+                <span class="mp-badge warn" data-mp-hosted-badge><i class="fas fa-hourglass-half"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a8e1159ee59e05"," Waiting on you") ?? " Waiting on you")}</span>
               </div>
-              <div class="mp-status-note" data-mp-hosted-copy>${(globalThis.PlatformLanguage?.text("settings","m_571da4694bc9fa","Everything you entered here is pre-filled on Forward's secure application. Signatures and bank verification happen on their page — when you finish, your application is submitted for review and this page updates automatically.") ?? "Everything you entered here is pre-filled on Forward's secure application. Signatures and bank verification happen on their page — when you finish, your application is submitted for review and this page updates automatically.")}</div>
+              <div class="mp-status-note" data-mp-hosted-copy>${(globalThis.PlatformLanguage?.htmlText("settings","m_571da4694bc9fa","Everything you entered here is pre-filled on Forward's secure application. Signatures and bank verification happen on their page — when you finish, your application is submitted for review and this page updates automatically.") ?? "Everything you entered here is pre-filled on Forward's secure application. Signatures and bank verification happen on their page — when you finish, your application is submitted for review and this page updates automatically.")}</div>
               <div class="li-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin:0">
-                <button type="button" class="cs-btn primary" data-mp-open-forward><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("settings","m_6413a0c0b8d019"," Reopen application") ?? " Reopen application")}</button>
-                <button type="button" class="cs-btn" data-mp-setup><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.text("settings","m_e311a77b932e27"," Edit details") ?? " Edit details")}</button>
+                <button type="button" class="cs-btn primary" data-mp-open-forward><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_6413a0c0b8d019"," Reopen application") ?? " Reopen application")}</button>
+                <button type="button" class="cs-btn" data-mp-setup><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e311a77b932e27"," Edit details") ?? " Edit details")}</button>
               </div>
               <div class="cs-note" style="margin:0" data-mp-hosted-note>${String(expired ? 'Your secure link expired — reopening generates a fresh one.' : 'Opens in a new tab on Forward\'s secure site. The link stays valid for 14 days and can always be reopened here.')}</div>
               ${String(sandboxHtml())}${String(expressHtml())}
@@ -9623,8 +9624,8 @@
             <div class="mp-intro-copy">
               <span class="mp-intro-icon"><i class="fas fa-credit-card"></i></span>
               <div>
-                <strong>${(globalThis.PlatformLanguage?.text("settings","m_497fbf95d404ae","Accept card and bank payments") ?? "Accept card and bank payments")}</strong>
-                <span>${(globalThis.PlatformLanguage?.text("settings","m_bd693540dfe7cc","Apply for a merchant account to take customer payments on invoices, with automatic payouts to your bank account.") ?? "Apply for a merchant account to take customer payments on invoices, with automatic payouts to your bank account.")}</span>
+                <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_497fbf95d404ae","Accept card and bank payments") ?? "Accept card and bank payments")}</strong>
+                <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_bd693540dfe7cc","Apply for a merchant account to take customer payments on invoices, with automatic payouts to your bank account.") ?? "Apply for a merchant account to take customer payments on invoices, with automatic payouts to your bank account.")}</span>
               </div>
             </div>
             <button type="button" class="cs-btn primary" data-mp-setup><i class="fas ${String(mcText(forward.application_id) ? 'fa-arrow-rotate-right' : 'fa-rocket')}"></i> ${String(mcText(forward.application_id) ? 'Resume application' : 'Set up payments')}</button>
@@ -9649,14 +9650,14 @@
             <div class="mp-grid">
               ${String(input('Legal business name', 'company.legal_name', wiz.company.legal_name))}
               ${String(input('Doing business as (optional)', 'company.dba', wiz.company.dba))}
-              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_d171e08d3f82a1","Ownership type") ?? "Ownership type")}</span><select class="cs-in" data-mp-field="company.ownership_type">${String(OWNERSHIP_TYPES.map(([value, label]) => `<option value="${value}" ${wiz.company.ownership_type === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
+              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_d171e08d3f82a1","Ownership type") ?? "Ownership type")}</span><select class="cs-in" data-mp-field="company.ownership_type">${String(OWNERSHIP_TYPES.map(([value, label]) => `<option value="${value}" ${wiz.company.ownership_type === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
               ${String(input('EIN', 'company.ein', wiz.company.ein, { placeholder: '12-3456789' }))}
               ${String(input('Business start date', 'company.business_start_date', wiz.company.business_start_date, { type: 'date' }))}
-              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_0cdae803ceeae4","Merchant category (MCC)") ?? "Merchant category (MCC)")}</span><select class="cs-in" data-mp-field="company.mcc">${String(MCC_OPTIONS.map(([value, label]) => `<option value="${value}" ${wiz.company.mcc === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
+              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_0cdae803ceeae4","Merchant category (MCC)") ?? "Merchant category (MCC)")}</span><select class="cs-in" data-mp-field="company.mcc">${String(MCC_OPTIONS.map(([value, label]) => `<option value="${value}" ${wiz.company.mcc === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
               ${String(input('Business phone', 'company.phone', wiz.company.phone))}
               ${String(input('Business email', 'company.email', wiz.company.email, { type: 'email' }))}
               ${String(input('Website (optional)', 'company.website', wiz.company.website, { placeholder: 'https://', wide: true }))}
-              <label class="cs-row wide"><span class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_1385a54ac6a974","Business description") ?? "Business description")}</span><textarea class="cs-in" data-mp-field="company.description" rows="2" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_7c15dc4363d7d7","What does the company do? For example: Residential roofing and siding contractor.") ?? "What does the company do? For example: Residential roofing and siding contractor.")}">${String(escapeHtml(mcText(wiz.company.description)))}</textarea></label>
+              <label class="cs-row wide"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_1385a54ac6a974","Business description") ?? "Business description")}</span><textarea class="cs-in" data-mp-field="company.description" rows="2" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_7c15dc4363d7d7","What does the company do? For example: Residential roofing and siding contractor.") ?? "What does the company do? For example: Residential roofing and siding contractor.")}">${String(escapeHtml(mcText(wiz.company.description)))}</textarea></label>
               ${String(input('Address line 1', 'address.address1', wiz.address.address1))}
               ${String(input('Address line 2', 'address.address2', wiz.address.address2))}
               ${String(input('City', 'address.city', wiz.address.city))}
@@ -9666,33 +9667,33 @@
             </div>`;
         } else if (stepId === 'owners') {
           body = `
-            <div class="cs-note" style="margin:0 0 2px">${(globalThis.PlatformLanguage?.text("settings","m_39e513e7f171c1","List every individual owning 25% or more of the business. Exactly one owner must be the control signer who signs the merchant agreement.") ?? "List every individual owning 25% or more of the business. Exactly one owner must be the control signer who signs the merchant agreement.")}</div>
+            <div class="cs-note" style="margin:0 0 2px">${(globalThis.PlatformLanguage?.htmlText("settings","m_39e513e7f171c1","List every individual owning 25% or more of the business. Exactly one owner must be the control signer who signs the merchant agreement.") ?? "List every individual owning 25% or more of the business. Exactly one owner must be the control signer who signs the merchant agreement.")}</div>
             <div style="display:grid;gap:10px" data-mp-owners>
               ${String(wiz.owners.map((owner, index) => `
                 <div class="mp-owner" data-mp-owner="${index}">
                   <div class="mp-owner-head">
-                    <strong><i class="fas fa-user" style="margin-right:7px;color:#667085"></i>Owner ${index + 1}</strong>
+                    <strong><i class="fas fa-user" style="margin-right:7px;color:#667085"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_a639cb2e60f2c6",`Owner ${v1}`,{v1}) ?? `Owner ${v1}`)(index + 1)}</strong>
                     <div style="display:flex;align-items:center;gap:10px">
-                      <label class="wf-check" style="font-size:11px"><input type="checkbox" data-mp-owner-signer="${index}" ${owner.signer ? 'checked' : ''}> Control signer</label>
-                      ${wiz.owners.length > 1 ? `<button type="button" class="mp-owner-remove" data-mp-owner-remove="${index}" aria-label="Remove owner"><i class="fas fa-trash-can"></i></button>` : ''}
+                      <label class="wf-check" style="font-size:11px"><input type="checkbox" data-mp-owner-signer="${index}" ${owner.signer ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e6f3166c35784b"," Control signer") ?? " Control signer")}</label>
+                      ${wiz.owners.length > 1 ? `<button type="button" class="mp-owner-remove" data-mp-owner-remove="${index}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_0ac4db5232d5ab","Remove owner") ?? "Remove owner")}"><i class="fas fa-trash-can"></i></button>` : ''}
                     </div>
                   </div>
                   <div class="mp-grid three">
-                    <label class="cs-row"><span class="cs-lbl">Full name</span><input class="cs-in" data-mp-owner-field="${index}:name" value="${escapeHtml(mcText(owner.name))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">Email</span><input class="cs-in" type="email" data-mp-owner-field="${index}:email" value="${escapeHtml(mcText(owner.email))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">Phone</span><input class="cs-in" data-mp-owner-field="${index}:phone" value="${escapeHtml(mcText(owner.phone))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">Date of birth</span><input class="cs-in" type="date" data-mp-owner-field="${index}:dob" value="${escapeHtml(mcText(owner.dob))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">SSN</span><input class="cs-in" type="password" autocomplete="off" data-mp-owner-ssn="${index}" placeholder="•••-••-••••"></label>
-                    <label class="cs-row"><span class="cs-lbl">Ownership %</span><input class="cs-in" type="number" min="0" max="100" data-mp-owner-field="${index}:ownership_percent" value="${escapeHtml(mcText(owner.ownership_percent))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">Title</span><select class="cs-in" data-mp-owner-field="${index}:title">${OWNER_TITLES.map((title) => `<option ${owner.title === title ? 'selected' : ''}>${title}</option>`).join('')}</select></label>
-                    <label class="cs-row"><span class="cs-lbl">Home address</span><input class="cs-in" data-mp-owner-field="${index}:address.address1" value="${escapeHtml(mcText(owner.address.address1))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">City</span><input class="cs-in" data-mp-owner-field="${index}:address.city" value="${escapeHtml(mcText(owner.address.city))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">State</span><input class="cs-in" data-mp-owner-field="${index}:address.state" value="${escapeHtml(mcText(owner.address.state))}"></label>
-                    <label class="cs-row"><span class="cs-lbl">Postal code</span><input class="cs-in" data-mp-owner-field="${index}:address.postal_code" value="${escapeHtml(mcText(owner.address.postal_code))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_38ccbd6c134964","Full name") ?? "Full name")}</span><input class="cs-in" data-mp-owner-field="${index}:name" value="${escapeHtml(mcText(owner.name))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</span><input class="cs-in" type="email" data-mp-owner-field="${index}:email" value="${escapeHtml(mcText(owner.email))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_ed04c65845180f","Phone") ?? "Phone")}</span><input class="cs-in" data-mp-owner-field="${index}:phone" value="${escapeHtml(mcText(owner.phone))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_7f106c70ab99f2","Date of birth") ?? "Date of birth")}</span><input class="cs-in" type="date" data-mp-owner-field="${index}:dob" value="${escapeHtml(mcText(owner.dob))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_2e3a395c74df21","SSN") ?? "SSN")}</span><input class="cs-in" type="password" autocomplete="off" data-mp-owner-ssn="${index}" placeholder="•••-••-••••"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_72df5238e74483","Ownership %") ?? "Ownership %")}</span><input class="cs-in" type="number" min="0" max="100" data-mp-owner-field="${index}:ownership_percent" value="${escapeHtml(mcText(owner.ownership_percent))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_29dbd3d8b69f55","Title") ?? "Title")}</span><select class="cs-in" data-mp-owner-field="${index}:title">${OWNER_TITLES.map((title) => `<option ${owner.title === title ? 'selected' : ''}>${title}</option>`).join('')}</select></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_b37cb512cbb017","Home address") ?? "Home address")}</span><input class="cs-in" data-mp-owner-field="${index}:address.address1" value="${escapeHtml(mcText(owner.address.address1))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_38e1463e6f0488","City") ?? "City")}</span><input class="cs-in" data-mp-owner-field="${index}:address.city" value="${escapeHtml(mcText(owner.address.city))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_96ca5a6ea0866c","State") ?? "State")}</span><input class="cs-in" data-mp-owner-field="${index}:address.state" value="${escapeHtml(mcText(owner.address.state))}"></label>
+                    <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_3e2f364a929ac7","Postal code") ?? "Postal code")}</span><input class="cs-in" data-mp-owner-field="${index}:address.postal_code" value="${escapeHtml(mcText(owner.address.postal_code))}"></label>
                   </div>
                 </div>`).join(''))}
             </div>
-            <div><button type="button" class="cs-btn" data-mp-owner-add><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_8c68c6fb02ebe8"," Add owner") ?? " Add owner")}</button></div>`;
+            <div><button type="button" class="cs-btn" data-mp-owner-add><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8c68c6fb02ebe8"," Add owner") ?? " Add owner")}</button></div>`;
         } else if (stepId === 'volumes') {
           body = `
             <div class="mp-grid">
@@ -9701,16 +9702,16 @@
               ${String(input('Highest ticket ($)', 'volumes.high_ticket', wiz.volumes.high_ticket, { type: 'number', attrs: 'min="0"' }))}
               ${String(input('In-person share (%)', 'volumes.card_present_percent', wiz.volumes.card_present_percent, { type: 'number', attrs: 'min="0" max="100"' }))}
             </div>
-            <div class="cs-note">${((v4) => globalThis.PlatformLanguage?.text("settings","m_66a962cd33a2d3",`The remaining ${v4}% is treated as online / card-not-present volume.`,{v4}) ?? `The remaining ${v4}% is treated as online / card-not-present volume.`)(escapeHtml(String(Math.max(0, 100 - Number(wiz.volumes.card_present_percent || 0)))))}</div>`;
+            <div class="cs-note">${((v4) => globalThis.PlatformLanguage?.htmlText("settings","m_66a962cd33a2d3",`The remaining ${v4}% is treated as online / card-not-present volume.`,{v4}) ?? `The remaining ${v4}% is treated as online / card-not-present volume.`)(escapeHtml(String(Math.max(0, 100 - Number(wiz.volumes.card_present_percent || 0)))))}</div>`;
         } else if (stepId === 'bank') {
           body = `
-            <div class="cs-note" style="margin:0 0 2px">${(globalThis.PlatformLanguage?.text("settings","m_b246664432f87d","Customer payments settle into this business bank account. The account number stays in memory until you submit and is never shown back on screen.") ?? "Customer payments settle into this business bank account. The account number stays in memory until you submit and is never shown back on screen.")}</div>
+            <div class="cs-note" style="margin:0 0 2px">${(globalThis.PlatformLanguage?.htmlText("settings","m_b246664432f87d","Customer payments settle into this business bank account. The account number stays in memory until you submit and is never shown back on screen.") ?? "Customer payments settle into this business bank account. The account number stays in memory until you submit and is never shown back on screen.")}</div>
             <div class="mp-grid">
-              ${String(input('Routing number', 'bank_account.routing_number', wiz.bank_account.routing_number, { placeholder: '9 digits', attrs: 'inputmode="numeric" autocomplete="off"' }))}
-              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span><input class="cs-in" type="password" autocomplete="off" data-mp-bank-account-number placeholder="••••••••••"></label>
-              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span><select class="cs-in" data-mp-field="bank_account.account_type">
-                <option value="checking" ${String(wiz.bank_account.account_type !== 'savings' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option>
-                <option value="savings" ${String(wiz.bank_account.account_type === 'savings' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_5b503699d80ad2","Savings") ?? "Savings")}</option>
+              ${String(input('Routing number', 'bank_account.routing_number', wiz.bank_account.routing_number, { placeholder: (globalThis.PlatformLanguage?.htmlText("settings","m_9cf1c8728b353c","9 digits") ?? "9 digits"), attrs: 'inputmode="numeric" autocomplete="off"' }))}
+              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span><input class="cs-in" type="password" autocomplete="off" data-mp-bank-account-number placeholder="••••••••••"></label>
+              <label class="cs-row"><span class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span><select class="cs-in" data-mp-field="bank_account.account_type">
+                <option value="checking" ${String(wiz.bank_account.account_type !== 'savings' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option>
+                <option value="savings" ${String(wiz.bank_account.account_type === 'savings' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_5b503699d80ad2","Savings") ?? "Savings")}</option>
               </select></label>
               ${String(input('Account holder name', 'bank_account.holder_name', wiz.bank_account.holder_name))}
             </div>`;
@@ -9719,18 +9720,18 @@
           body = `
             <div class="mp-card" style="background:#f9fafb">
               <dl class="mp-kv">
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_8807b60e199434","Business") ?? "Business")}</dt><dd>${String(escapeHtml(wiz.company.legal_name || '—'))}${String(wiz.company.dba ? ` (DBA ${escapeHtml(wiz.company.dba)})` : '')}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_a802140ebe6abd","EIN") ?? "EIN")}</dt><dd>${String(escapeHtml(wiz.company.ein || '—'))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</dt><dd>${String(escapeHtml(wiz.company.description || '—'))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_ab4417d25e42bb","Owners") ?? "Owners")}</dt><dd>${String(escapeHtml(wiz.owners.map((owner) => `${owner.name || 'Unnamed'} (${owner.ownership_percent || 0}%)`).join(', ')))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_1d55065e3460ce","Control signer") ?? "Control signer")}</dt><dd>${String(escapeHtml(signer?.name || '—'))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_f2cc5482d3b059","Annual volume") ?? "Annual volume")}</dt><dd>${String(escapeHtml(money(wiz.volumes.annual_volume)))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_9cd65a5202983c","Avg / high ticket") ?? "Avg / high ticket")}</dt><dd>${String(escapeHtml(`${money(wiz.volumes.avg_ticket)} / ${money(wiz.volumes.high_ticket)}`))}</dd>
-                <dt>${(globalThis.PlatformLanguage?.text("settings","m_314f7a97f65578","Payout account") ?? "Payout account")}</dt><dd>${String(wiz.bank_account.routing_number ? escapeHtml(`${wiz.bank_account.account_type === 'savings' ? 'Savings' : 'Checking'} · routing ${wiz.bank_account.routing_number}`) : '—')}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_8807b60e199434","Business") ?? "Business")}</dt><dd>${String(escapeHtml(wiz.company.legal_name || '—'))}${String(wiz.company.dba ? ` (DBA ${escapeHtml(wiz.company.dba)})` : '')}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_a802140ebe6abd","EIN") ?? "EIN")}</dt><dd>${String(escapeHtml(wiz.company.ein || '—'))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_aa136ecb65672f","Description") ?? "Description")}</dt><dd>${String(escapeHtml(wiz.company.description || '—'))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab4417d25e42bb","Owners") ?? "Owners")}</dt><dd>${String(escapeHtml(wiz.owners.map((owner) => `${owner.name || 'Unnamed'} (${owner.ownership_percent || 0}%)`).join(', ')))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_1d55065e3460ce","Control signer") ?? "Control signer")}</dt><dd>${String(escapeHtml(signer?.name || '—'))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_f2cc5482d3b059","Annual volume") ?? "Annual volume")}</dt><dd>${String(escapeHtml(money(wiz.volumes.annual_volume)))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_9cd65a5202983c","Avg / high ticket") ?? "Avg / high ticket")}</dt><dd>${String(escapeHtml(`${money(wiz.volumes.avg_ticket)} / ${money(wiz.volumes.high_ticket)}`))}</dd>
+                <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_314f7a97f65578","Payout account") ?? "Payout account")}</dt><dd>${String(wiz.bank_account.routing_number ? escapeHtml(`${wiz.bank_account.account_type === 'savings' ? 'Savings' : 'Checking'} · routing ${wiz.bank_account.routing_number}`) : '—')}</dd>
               </dl>
             </div>
             <div>
-              <div class="cs-lbl" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.text("settings","m_9fa0af4d9530c3","Choose a processing plan") ?? "Choose a processing plan")}</div>
+              <div class="cs-lbl" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_9fa0af4d9530c3","Choose a processing plan") ?? "Choose a processing plan")}</div>
               <div style="display:grid;gap:8px" data-mp-plans>
                 ${String((mp.plans || []).map((plan) => `
                   <label class="mp-plan ${wiz.processing_plan_id === mcText(plan.id) ? 'active' : ''}">
@@ -9739,7 +9740,7 @@
                       <strong>${escapeHtml(mcText(plan.name))} <span class="mp-badge" style="margin-left:6px">${escapeHtml(mcText(plan.raw?.type).replace(/_/g, ' ') || 'plan')}</span></strong>
                       <span>${escapeHtml(planFeeSummary(plan))}</span>
                     </div>
-                  </label>`).join('') || '<div class="cs-note">No processing plans are available.</div>')}
+                  </label>`).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_74a0cef3ef59f4","No processing plans are available.") ?? "No processing plans are available.")}</div>`)}
               </div>
             </div>`;
         }
@@ -10045,7 +10046,7 @@
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483300;display:flex;align-items:stretch;justify-content:center;background:rgba(15,23,42,.46);backdrop-filter:blur(5px);padding:14px';
         overlay.innerHTML = `
           <div style="position:relative;width:min(1180px,100%);overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.3)">
-            <iframe data-mp-portal-frame aria-label="${(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money")}" style="display:block;width:100%;height:100%;border:0;background:#fff;visibility:hidden" allow="clipboard-write; storage-access"></iframe>
+            <iframe data-mp-portal-frame aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_05cb9dd7e5a780","Money") ?? "Money")}" style="display:block;width:100%;height:100%;border:0;background:#fff;visibility:hidden" allow="clipboard-write; storage-access"></iframe>
             ${String(hostedMoneyLoadingMarkup('Money'))}
           </div>`;
         const frame = overlay.querySelector('[data-mp-portal-frame]');
@@ -10256,8 +10257,8 @@
       };
       const renderSection = () => {
         const heading = `
-          <h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3>
-          <p class="cs-note" style="margin:4px 0 10px">${(globalThis.PlatformLanguage?.text("settings","m_93adc8cef4c5f7","Board this company with a payment processor to accept customer payments.") ?? "Board this company with a payment processor to accept customer payments.")}</p>`;
+          <h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3>
+          <p class="cs-note" style="margin:4px 0 10px">${(globalThis.PlatformLanguage?.htmlText("settings","m_93adc8cef4c5f7","Board this company with a payment processor to accept customer payments.") ?? "Board this company with a payment processor to accept customer payments.")}</p>`;
         container.innerHTML = `<div class="cs-section" data-mp-root>${heading}${statusViewHtml()}</div>`;
         bindStatus();
         bindSandbox();
@@ -10281,7 +10282,7 @@
         }
       };
       if (panePayments) panePayments.__moneyWorkflowOpen = openMoneyWorkflowFromRoute;
-      container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_f1ec6b17835429"," Loading merchant status...") ?? " Loading merchant status...")}</p></div>`;
+      container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f1ec6b17835429"," Loading merchant status...") ?? " Loading merchant status...")}</p></div>`;
       try {
         await loadConfig();
         if (mcText(mp.config?.forward?.application_id)) {
@@ -10291,7 +10292,7 @@
         renderSection();
         openMoneyWorkflowFromRoute();
       } catch (error) {
-        container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.text("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note">${String(escapeHtml(error?.message || 'Could not load merchant processing status.'))}</p></div>`;
+        container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note">${String(escapeHtml(error?.message || 'Could not load merchant processing status.'))}</p></div>`;
       }
     }
     async function renderDocumentSettings(){
@@ -10311,7 +10312,7 @@
             };
           })
       });
-      paneDocuments.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_059237092155b4","Document Settings") ?? "Document Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_a7af770ccd199f","Loading required document settings...") ?? "Loading required document settings...")}</p></div>`;
+      paneDocuments.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_059237092155b4","Document Settings") ?? "Document Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a7af770ccd199f","Loading required document settings...") ?? "Loading required document settings...")}</p></div>`;
       let settings = normalize({});
       try {
         if (orgId && window.PlatformAPI?.branchModules?.get) {
@@ -10327,22 +10328,22 @@
       const renderRows = (statusText = '') => {
         paneDocuments.innerHTML = `
           <div class="cs-section">
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_059237092155b4","Document Settings") ?? "Document Settings")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_f756e0e6b41ad7","Define branch-level required documents. Missing enabled items appear as required placeholders in each project's Docs tab.") ?? "Define branch-level required documents. Missing enabled items appear as required placeholders in each project's Docs tab.")}</p>
-            <div class="cfg-actions"><button class="cs-btn" id="docReqAdd" type="button"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_16edb090d5e1de"," Add Required Document") ?? " Add Required Document")}</button></div>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_059237092155b4","Document Settings") ?? "Document Settings")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_f756e0e6b41ad7","Define branch-level required documents. Missing enabled items appear as required placeholders in each project's Docs tab.") ?? "Define branch-level required documents. Missing enabled items appear as required placeholders in each project's Docs tab.")}</p>
+            <div class="cfg-actions"><button class="cs-btn" id="docReqAdd" type="button"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_16edb090d5e1de"," Add Required Document") ?? " Add Required Document")}</button></div>
             <div class="cs-grid" id="docReqRows">
               ${String(settings.required_documents.map((item, index) => `
                 <div class="li-switch-row" data-doc-req-row="${index}">
                   <div class="cs-grid" style="flex:1;grid-template-columns:minmax(180px,1fr) 150px;gap:10px">
-                    <div class="cs-row"><div class="cs-lbl">Label</div><input class="cs-in" data-doc-req-label value="${escapeHtml(item.label)}"></div>
-                    <div class="cs-row"><div class="cs-lbl">Type</div><input class="cs-in" data-doc-req-type value="${escapeHtml(item.document_type)}"></div>
+                    <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_9fd79f4276d659","Label") ?? "Label")}</div><input class="cs-in" data-doc-req-label value="${escapeHtml(item.label)}"></div>
+                    <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_2e88df13ca7101","Type") ?? "Type")}</div><input class="cs-in" data-doc-req-type value="${escapeHtml(item.document_type)}"></div>
                   </div>
                   <span class="li-switch"><input data-doc-req-enabled type="checkbox" ${item.enabled ? 'checked' : ''}><span class="li-slider"></span></span>
                 </div>
-              `).join('') || '<p class="cs-note">No required documents configured.</p>')}
+              `).join('') || `<p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d074d20cdb6eb1","No required documents configured.") ?? "No required documents configured.")}</p>`)}
             </div>
             <div class="li-actions">
-              <button class="cs-btn primary" id="docReqSave" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_6d6154a3b013a0"," Save Document Settings") ?? " Save Document Settings")}</button>
+              <button class="cs-btn primary" id="docReqSave" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_6d6154a3b013a0"," Save Document Settings") ?? " Save Document Settings")}</button>
               <span class="cs-note" id="docReqStatus">${String(escapeHtml(statusText))}</span>
             </div>
           </div>`;
@@ -10397,9 +10398,9 @@
         .wf-group-chip,.wf-app-chip,.wf-comp-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;padding:3px 7px;font-size:9px;font-weight:950;color:#475467;white-space:nowrap}.wf-app-chip.on{border-color:#abefc6;background:#ecfdf3;color:#067647}.wf-comp-chip{border-color:#b2ddff;background:#eff8ff;color:#175cd3}.cu-userMetaChips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
         .cu-modal.wf-member-picker{width:min(680px,calc(100vw - 28px));max-height:min(760px,calc(100dvh - 28px));border-radius:18px}.cu-modal.wf-member-picker .cu-mb{padding:12px;overflow:auto}.cu-modal.wf-member-picker .wf-member-picker{width:100%;min-width:0;box-sizing:border-box}.wf-member-picker *{min-width:0;box-sizing:border-box}.wf-member-picker-row .cs-btn{min-height:32px;padding:6px 9px;font-size:11px;white-space:nowrap}
         @media(max-width:860px){.wf-grid,.wf-grid.two{grid-template-columns:1fr}.wf-comp-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-comp-fields.connection{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-head{flex-direction:column}.wf-head-actions{justify-content:flex-start}}@media(max-width:620px){.wf-page{gap:10px;padding:4px 0 12px}.wf-head h3{font-size:19px}.wf-head-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.wf-head-actions .cs-btn{justify-content:center}.wf-subtabs{width:100%;display:grid;grid-template-columns:1fr 1fr}.wf-subtab{min-width:0;padding:9px 6px}.wf-card{border-radius:13px}.wf-card-head{align-items:stretch;flex-direction:column;padding:12px}.wf-card-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.wf-card-actions .cs-btn{justify-content:center}.wf-card-body{padding:12px;gap:13px}.wf-member-toolbar{align-items:stretch;flex-direction:column}.wf-member-toolbar .cs-btn{width:100%;justify-content:center}.wf-member-card{grid-template-columns:1fr;gap:10px;padding:11px}.wf-member-actions{grid-template-columns:minmax(0,1fr) 34px;width:100%}.wf-member-role .wf-select{height:38px;font-size:12px}.wf-member-remove{width:34px;height:38px;align-self:end}.wf-member-comp{padding-top:7px}.cu-modalBack:has(.cu-modal.wf-member-picker){align-items:center;padding:12px}.cu-modal.wf-member-picker{width:100%;max-height:calc(100dvh - 24px);border-radius:16px}.cu-modal.wf-member-picker .cu-mb{padding:10px}.wf-member-picker-controls{grid-template-columns:minmax(0,1fr) 116px;align-items:end}.wf-member-picker-list{max-height:28dvh}.wf-member-picker-row{grid-template-columns:minmax(0,1fr) auto;padding:8px}.wf-member-picker-row .cs-btn{padding:6px 8px}.wf-quick-invite-grid{grid-template-columns:1fr}.wf-quick-invite-grid .wide{grid-column:auto}.wf-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-empty{padding:22px 14px}}`);
-      paneCrews.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_1a0b40d09c63f4"," Loading workforce settings...") ?? " Loading workforce settings...")}</div>`;
+      paneCrews.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_1a0b40d09c63f4"," Loading workforce settings...") ?? " Loading workforce settings...")}</div>`;
       if (!orgId || !api?.workforce || !api?.connections) {
-        paneCrews.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_fde4f188ea1bab","Workforce or organization-connections API is unavailable.") ?? "Workforce or organization-connections API is unavailable.")}</div>`;
+        paneCrews.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fde4f188ea1bab","Workforce or organization-connections API is unavailable.") ?? "Workforce or organization-connections API is unavailable.")}</div>`;
         return;
       }
       try {
@@ -10422,7 +10423,7 @@
           .filter((tag) => tag.id && tag.status !== 'archived');
         const assignmentTagOptionsHtml = (selectedIds = [], attribute = 'data-assignment-tag') => {
           const selected = new Set(workforceUniqueIds(selectedIds));
-          return assignmentTags().map((tag) => `<label class="wf-check"><input type="checkbox" ${attribute}="${escapeHtml(tag.id)}" ${selected.has(tag.id) ? 'checked' : ''}> ${escapeHtml(tag.name)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_d7a7f68064052e","No assignment tags defined.") ?? "No assignment tags defined.")}</span>`;
+          return assignmentTags().map((tag) => `<label class="wf-check"><input type="checkbox" ${attribute}="${escapeHtml(tag.id)}" ${selected.has(tag.id) ? 'checked' : ''}> ${escapeHtml(tag.name)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d7a7f68064052e","No assignment tags defined.") ?? "No assignment tags defined.")}</span>`;
         };
         const isLeadRole = (role) => /(?:lead|foreman)/i.test(`${workforceText(role?.id)} ${workforceText(role?.label)}`);
         const memberRoleId = (member = {}) => {
@@ -10438,19 +10439,19 @@
         }).filter((template) => workforceText(template.id));
         const scopeOptionsHtml = (selectedIds = []) => {
           const selected = new Set(workforceUniqueIds(selectedIds));
-          return `<div class="wf-scope-grid">${enabledScopes().map((template) => `<button type="button" class="wf-scope-option ${selected.has(workforceText(template.id)) ? 'active' : ''}" data-capability-scope="${escapeHtml(template.id)}" aria-pressed="${selected.has(workforceText(template.id)) ? 'true' : 'false'}" style="--scope-color:${escapeHtml(template.color || '#98a2b3')}"><span class="wf-scope-color"></span><span>${escapeHtml(template.name || template.id)}</span></button>`).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_abbf0d406aee84","Enable scopes in Scope Flags before assigning capabilities.") ?? "Enable scopes in Scope Flags before assigning capabilities.")}</div>`}</div>`;
+          return `<div class="wf-scope-grid">${enabledScopes().map((template) => `<button type="button" class="wf-scope-option ${selected.has(workforceText(template.id)) ? 'active' : ''}" data-capability-scope="${escapeHtml(template.id)}" aria-pressed="${selected.has(workforceText(template.id)) ? 'true' : 'false'}" style="--scope-color:${escapeHtml(template.color || '#98a2b3')}"><span class="wf-scope-color"></span><span>${escapeHtml(template.name || template.id)}</span></button>`).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_abbf0d406aee84","Enable scopes in Scope Flags before assigning capabilities.") ?? "Enable scopes in Scope Flags before assigning capabilities.")}</div>`}</div>`;
         };
         const compensationEditorHtml = (planInput = {}, options = {}) => {
           const plan = normalizeCompensationProfile(planInput);
           const prefix = options.prefix || 'comp';
           const allowed = options.connection ? ['none','hourly','piece_rate','hybrid'] : ['none','hourly','salary','piece_rate','hybrid'];
           return `<div class="wf-comp-box" data-comp-editor="${String(escapeHtml(prefix))}" data-comp-revision="${String(escapeHtml(plan.revision || ''))}" data-comp-components="${String(escapeHtml(JSON.stringify(plan.components || [])))}">
-            <div class="wf-inline-toggle"><strong>${String(escapeHtml(options.title || 'Compensation override'))}</strong><label class="wf-check"><input type="checkbox" data-comp-enabled ${String(plan.enabled ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_0f5e8a42aaeb75"," Enabled") ?? " Enabled")}</label></div>
+            <div class="wf-inline-toggle"><strong>${String(escapeHtml(options.title || (globalThis.PlatformLanguage?.text("settings","m_a4bcdf09ecca61","Compensation override") ?? "Compensation override")))}</strong><label class="wf-check"><input type="checkbox" data-comp-enabled ${String(plan.enabled ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_0f5e8a42aaeb75"," Enabled") ?? " Enabled")}</label></div>
             <div class="wf-comp-fields ${String(options.connection ? 'connection' : '')}">
-              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="wf-select" data-comp-type>${String(allowed.map((type) => `<option value="${type}" ${plan.type === type || (!plan.enabled && type === 'none') ? 'selected' : ''}>${escapeHtml(type.replace(/_/g, ' '))}</option>`).join(''))}</select></label>
-              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_c6dafd1ef27e19","Hourly rate") ?? "Hourly rate")}</span><input class="wf-input" data-comp-hourly inputmode="decimal" value="${String(escapeHtml(workforceMoney(plan.hourly_rate_cents)))}" placeholder="0.00"></label>
-              ${String(options.connection ? '' : `<label class="wf-field"><span>Salary amount</span><input class="wf-input" data-comp-salary inputmode="decimal" value="${escapeHtml(workforceMoney(plan.salary_rate_cents))}" placeholder="0.00"></label><label class="wf-field"><span>Salary period</span><select class="wf-select" data-comp-salary-period>${salaryPeriodOptionsHtml(plan.salary_period)}</select></label>`)}
-              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="wf-input" data-comp-piece inputmode="decimal" value="${String(escapeHtml(workforceMoney(plan.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
+              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="wf-select" data-comp-type>${String(allowed.map((type) => `<option value="${type}" ${plan.type === type || (!plan.enabled && type === 'none') ? 'selected' : ''}>${escapeHtml(type.replace(/_/g, ' '))}</option>`).join(''))}</select></label>
+              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c6dafd1ef27e19","Hourly rate") ?? "Hourly rate")}</span><input class="wf-input" data-comp-hourly inputmode="decimal" value="${String(escapeHtml(workforceMoney(plan.hourly_rate_cents)))}" placeholder="0.00"></label>
+              ${String(options.connection ? '' : `<label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a1d615ae0871ea","Salary amount") ?? "Salary amount")}</span><input class="wf-input" data-comp-salary inputmode="decimal" value="${escapeHtml(workforceMoney(plan.salary_rate_cents))}" placeholder="0.00"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_d599dad8ed2b1b","Salary period") ?? "Salary period")}</span><select class="wf-select" data-comp-salary-period>${salaryPeriodOptionsHtml(plan.salary_period)}</select></label>`)}
+              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="wf-input" data-comp-piece inputmode="decimal" value="${String(escapeHtml(workforceMoney(plan.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
             </div>
           </div>`;
         };
@@ -10486,16 +10487,16 @@
             const effectivePlan = userPlan.enabled ? userPlan : groupPlan;
             const effectiveSource = userPlan.enabled ? 'User profile' : groupPlan.enabled ? `${terms().resource_group_singular} compensation` : 'No compensation';
             const roleId = memberRoleId(member);
-            return `<article class="wf-member-card" data-group-user-row="${String(escapeHtml(userId))}"><div class="wf-member-identity"><span class="wf-member-avatar" aria-hidden="true">${String(escapeHtml(memberInitials(displayUser)))}</span><div class="wf-member-person"><strong>${String(escapeHtml(displayUser.name || displayUser.email || userId))}</strong><span>${String(escapeHtml(displayUser.email || 'Organization user'))}</span></div></div><div class="wf-member-actions"><label class="wf-member-role"><span>${(globalThis.PlatformLanguage?.text("settings","m_17b51e98936157","Role") ?? "Role")}</span><select class="wf-select" data-group-role>${String(roles().map((role) => `<option value="${escapeHtml(role.id)}" ${roleId === role.id ? 'selected' : ''}>${escapeHtml(role.label)}</option>`).join(''))}</select></label><button type="button" class="wf-member-remove" data-group-member-remove aria-label="${((v5) => globalThis.PlatformLanguage?.text("settings","m_267054a63cc396",`Remove ${v5}`,{v5}) ?? `Remove ${v5}`)(escapeHtml(displayUser.name || displayUser.email || userId))}" data-fm-tooltip="Remove from ${String(escapeHtml(terms().resource_group_singular))}"><i class="fas fa-xmark"></i></button></div><div class="wf-member-comp"><strong>${(globalThis.PlatformLanguage?.text("settings","m_d643a04250443b","Compensation:") ?? "Compensation:")}</strong> ${String(escapeHtml(effectiveSource))} · ${String(escapeHtml(compensationProfileLabel(effectivePlan)))}</div></article>`;
+            return `<article class="wf-member-card" data-group-user-row="${String(escapeHtml(userId))}"><div class="wf-member-identity"><span class="wf-member-avatar" aria-hidden="true">${String(escapeHtml(memberInitials(displayUser)))}</span><div class="wf-member-person"><strong>${String(escapeHtml(displayUser.name || displayUser.email || userId))}</strong><span>${String(escapeHtml(displayUser.email || 'Organization user'))}</span></div></div><div class="wf-member-actions"><label class="wf-member-role"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_17b51e98936157","Role") ?? "Role")}</span><select class="wf-select" data-group-role>${String(roles().map((role) => `<option value="${escapeHtml(role.id)}" ${roleId === role.id ? 'selected' : ''}>${escapeHtml(role.label)}</option>`).join(''))}</select></label><button type="button" class="wf-member-remove" data-group-member-remove aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("settings","m_267054a63cc396",`Remove ${v5}`,{v5}) ?? `Remove ${v5}`)(escapeHtml(displayUser.name || displayUser.email || userId))}" data-fm-tooltip="Remove from ${String(escapeHtml(terms().resource_group_singular))}"><i class="fas fa-xmark"></i></button></div><div class="wf-member-comp"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_d643a04250443b","Compensation:") ?? "Compensation:")}</strong> ${String(escapeHtml(effectiveSource))} · ${String(escapeHtml(compensationProfileLabel(effectivePlan)))}</div></article>`;
           }).join('');
           return `<section class="wf-card ${String(group.status === 'archived' || group.archived_at ? 'archived' : '')}" data-resource-group="${String(escapeHtml(group.id || ''))}">
-            <header class="wf-card-head"><div class="wf-card-head-copy"><strong>${String(escapeHtml(group.name || `New ${terms().resource_group_singular}`))}</strong><span data-group-member-count>${String(members.length)} ${String(escapeHtml(members.length === 1 ? terms().worker_singular : terms().worker_plural))}</span></div><div class="wf-card-actions">${String(group.status === 'archived' || group.archived_at ? '' : '<button type="button" class="cs-btn ghost" data-group-archive><i class="fas fa-box-archive"></i> Archive</button>')}<button type="button" class="cs-btn primary" data-group-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button></div></header>
+            <header class="wf-card-head"><div class="wf-card-head-copy"><strong>${String(escapeHtml(group.name || `New ${terms().resource_group_singular}`))}</strong><span data-group-member-count>${String(members.length)} ${String(escapeHtml(members.length === 1 ? terms().worker_singular : terms().worker_plural))}</span></div><div class="wf-card-actions">${String(group.status === 'archived' || group.archived_at ? '' : `<button type="button" class="cs-btn ghost" data-group-archive><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}<button type="button" class="cs-btn primary" data-group-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button></div></header>
             <div class="wf-card-body">
-              <div class="wf-grid two"><label class="wf-field"><span>${((v6) => globalThis.PlatformLanguage?.text("settings","m_c2c792b3a7c1dc",`${v6} name`,{v6}) ?? `${v6} name`)(escapeHtml(terms().resource_group_singular))}</span><input class="wf-input" data-group-name value="${String(escapeHtml(group.name || ''))}" placeholder="${((v8) => globalThis.PlatformLanguage?.text("settings","m_c9a57ee16a1314",`Installation ${v8}`,{v8}) ?? `Installation ${v8}`)(escapeHtml(terms().resource_group_singular))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_0c7d87cbffbf8c","Group kind") ?? "Group kind")}</span><select class="wf-select" data-group-kind>${String(resourceGroupKinds().map((kind) => `<option value="${escapeHtml(kind.id)}" ${workforceText(group.kind_id, 'crew') === kind.id ? 'selected' : ''}>${escapeHtml(kind.name)}</option>`).join(''))}</select></label></div>
-              <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.text("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</div><div class="wf-inline-toggle" data-group-tags>${String(assignmentTagOptionsHtml(group.assignment_tag_ids))}</div></div>
-              <div><div class="wf-member-toolbar"><div><div class="wf-section-title">${String(escapeHtml(terms().worker_plural))}</div><div class="wf-member-summary">${((v12) => globalThis.PlatformLanguage?.text("settings","m_7439d2a2f3897d",`Only people assigned to this ${v12} appear here.`,{v12}) ?? `Only people assigned to this ${v12} appear here.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</div></div><button type="button" class="cs-btn primary" data-group-member-picker><i class="fas fa-user-plus"></i>${((v13) => globalThis.PlatformLanguage?.text("settings","m_ef421e925b36cc",` Add ${v13}`,{v13}) ?? ` Add ${v13}`)(escapeHtml(terms().worker_singular))}</button></div><div class="wf-member-list">${String(memberRows || `<div class="wf-member-empty"><strong>No ${escapeHtml(terms().worker_plural.toLowerCase())} assigned yet.</strong><span>Add someone when this ${escapeHtml(terms().resource_group_singular.toLowerCase())} is ready.</span></div>`)}</div></div>
-              ${String(compensationEditorHtml(groupPlan, { prefix:`group_${group.id || 'new'}`, title:`${terms().resource_group_singular} compensation fallback` }))}
-              <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.text("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(group)))}</div>
+              <div class="wf-grid two"><label class="wf-field"><span>${((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_c2c792b3a7c1dc",`${v6} name`,{v6}) ?? `${v6} name`)(escapeHtml(terms().resource_group_singular))}</span><input class="wf-input" data-group-name value="${String(escapeHtml(group.name || ''))}" placeholder="${((v8) => globalThis.PlatformLanguage?.htmlText("settings","m_c9a57ee16a1314",`Installation ${v8}`,{v8}) ?? `Installation ${v8}`)(escapeHtml(terms().resource_group_singular))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c7d87cbffbf8c","Group kind") ?? "Group kind")}</span><select class="wf-select" data-group-kind>${String(resourceGroupKinds().map((kind) => `<option value="${escapeHtml(kind.id)}" ${workforceText(group.kind_id, 'crew') === kind.id ? 'selected' : ''}>${escapeHtml(kind.name)}</option>`).join(''))}</select></label></div>
+              <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</div><div class="wf-inline-toggle" data-group-tags>${String(assignmentTagOptionsHtml(group.assignment_tag_ids))}</div></div>
+              <div><div class="wf-member-toolbar"><div><div class="wf-section-title">${String(escapeHtml(terms().worker_plural))}</div><div class="wf-member-summary">${((v12) => globalThis.PlatformLanguage?.htmlText("settings","m_7439d2a2f3897d",`Only people assigned to this ${v12} appear here.`,{v12}) ?? `Only people assigned to this ${v12} appear here.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</div></div><button type="button" class="cs-btn primary" data-group-member-picker><i class="fas fa-user-plus"></i>${((v13) => globalThis.PlatformLanguage?.htmlText("settings","m_ef421e925b36cc",` Add ${v13}`,{v13}) ?? ` Add ${v13}`)(escapeHtml(terms().worker_singular))}</button></div><div class="wf-member-list">${String(memberRows || `<div class="wf-member-empty"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_37a2946aba9d92",`No ${v0} assigned yet.`,{v0}) ?? `No ${v0} assigned yet.`)(escapeHtml(terms().worker_plural.toLowerCase()))}</strong><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ab6055c71030ce",`Add someone when this ${v1} is ready.`,{v1}) ?? `Add someone when this ${v1} is ready.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</span></div>`)}</div></div>
+              ${String(compensationEditorHtml(groupPlan, { prefix:`group_${group.id || 'new'}`, title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4f1a61ef0749c1",`${v0} compensation fallback`,{v0}) ?? `${v0} compensation fallback`)(terms().resource_group_singular) }))}
+              <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(group)))}</div>
               <div class="wf-status" data-card-status></div>
             </div>
           </section>`;
@@ -10564,7 +10565,7 @@
             }).sort((left, right) => workforceText(workforceUserForDisplay(left).name, workforceUserForDisplay(left).email).localeCompare(workforceText(workforceUserForDisplay(right).name, workforceUserForDisplay(right).email))).slice(0, 50);
             results.innerHTML = matches.length ? matches.map((user) => {
               const display = workforceUserForDisplay(user);
-              return `<div class="wf-member-picker-row" data-picker-user="${String(escapeHtml(workforceText(user.id, user.user_id)))}"><div><strong>${String(escapeHtml(display.name || display.email || workforceText(user.id, user.user_id)))}</strong><span>${String(escapeHtml(display.email || 'Organization user'))}</span></div><button type="button" class="cs-btn primary" data-add-existing-member>${(globalThis.PlatformLanguage?.text("settings","m_c807a71e1c06f5","Add") ?? "Add")}</button></div>`;
+              return `<div class="wf-member-picker-row" data-picker-user="${String(escapeHtml(workforceText(user.id, user.user_id)))}"><div><strong>${String(escapeHtml(display.name || display.email || workforceText(user.id, user.user_id)))}</strong><span>${String(escapeHtml(display.email || 'Organization user'))}</span></div><button type="button" class="cs-btn primary" data-add-existing-member>${(globalThis.PlatformLanguage?.htmlText("settings","m_c807a71e1c06f5","Add") ?? "Add")}</button></div>`;
             }).join('') : `<div class="wf-member-picker-empty">${query ? 'No unassigned people match that search.' : `Everyone in the directory is already assigned to this ${escapeHtml(terms().resource_group_singular.toLowerCase())}.`}</div>`;
             results.querySelectorAll('[data-add-existing-member]').forEach((button) => button.addEventListener('click', () => {
               const row = button.closest('[data-picker-user]');
@@ -10619,14 +10620,14 @@
           const metadata = workforceObject(connection.metadata);
           const archived = connection.status === 'archived' || connection.archived_at;
           return `<section class="wf-card ${String(archived ? 'archived' : '')}" data-organization-connection="${String(escapeHtml(connection.id || ''))}">
-            <header class="wf-card-head"><div class="wf-card-head-copy"><strong>${String(escapeHtml(connection.name || connection.display_name || connection.legal_name || `New ${terms().organization_connection_singular}`))}</strong><span>${String(escapeHtml(connection.legal_name || 'External organization'))}</span></div><div class="wf-card-actions">${String(archived ? '' : '<button type="button" class="cs-btn ghost" data-connection-archive><i class="fas fa-box-archive"></i> Archive</button>')}<button type="button" class="cs-btn primary" data-connection-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button></div></header>
+            <header class="wf-card-head"><div class="wf-card-head-copy"><strong>${String(escapeHtml(connection.name || connection.display_name || connection.legal_name || `New ${terms().organization_connection_singular}`))}</strong><span>${String(escapeHtml(connection.legal_name || 'External organization'))}</span></div><div class="wf-card-actions">${String(archived ? '' : `<button type="button" class="cs-btn ghost" data-connection-archive><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}<button type="button" class="cs-btn primary" data-connection-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button></div></header>
             <div class="wf-card-body">
-              <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_7a4ba138f3b6f4","Display name") ?? "Display name")}</span><input class="wf-input" data-connection-field="name" value="${String(escapeHtml(connection.name || connection.display_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_dc8d40b3a46dad","Legal name") ?? "Legal name")}</span><input class="wf-input" data-connection-field="legal_name" value="${String(escapeHtml(connection.legal_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_fbbfe891d8598e","External reference") ?? "External reference")}</span><input class="wf-input" data-metadata-field="external_reference" value="${String(escapeHtml(metadata.external_reference || connection.external_reference || ''))}"></label></div>
-              <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_fd30fab0713a9b","Contact name") ?? "Contact name")}</span><input class="wf-input" data-contact-field="name" value="${String(escapeHtml(contact.name || connection.contact_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_e3d024250938d3","Contact email") ?? "Contact email")}</span><input class="wf-input" type="email" data-contact-field="email" value="${String(escapeHtml(contact.email || connection.contact_email || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_714ecfa181c9a6","Contact phone") ?? "Contact phone")}</span><input class="wf-input" data-contact-field="phone" value="${String(escapeHtml(contact.phone || connection.contact_phone || ''))}"></label></div>
-              <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_23ffc9f3a20a55","Address line 1") ?? "Address line 1")}</span><input class="wf-input" data-address-field="line1" value="${String(escapeHtml(address.line1 || address.address1 || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_3c4721639d1b25","Address line 2") ?? "Address line 2")}</span><input class="wf-input" data-address-field="line2" value="${String(escapeHtml(address.line2 || address.address2 || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_38e1463e6f0488","City") ?? "City")}</span><input class="wf-input" data-address-field="city" value="${String(escapeHtml(address.city || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_841a63c7373720","State / region") ?? "State / region")}</span><input class="wf-input" data-address-field="region" value="${String(escapeHtml(address.region || address.state || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_3e2f364a929ac7","Postal code") ?? "Postal code")}</span><input class="wf-input" data-address-field="postal_code" value="${String(escapeHtml(address.postal_code || address.postalCode || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_a9a13ce3e2d181","Country") ?? "Country")}</span><input class="wf-input" data-address-field="country" value="${String(escapeHtml(address.country || 'US'))}"></label></div>
-              <div class="wf-grid two"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_52f969970c3c66","Linked FirstMate organization ID") ?? "Linked FirstMate organization ID")}</span><input class="wf-input" data-connection-field="linked_organization_id" value="${String(escapeHtml(connection.linked_organization_id || connection.linked_org_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></label></div>
-              ${String(compensationEditorHtml(connection.compensation_profile || connection.compensation_plan, { prefix:`connection_${connection.id || 'new'}`, title:`${terms().organization_connection_singular} compensation`, connection:true }))}
-              <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.text("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(connection)))}</div>
+              <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7a4ba138f3b6f4","Display name") ?? "Display name")}</span><input class="wf-input" data-connection-field="name" value="${String(escapeHtml(connection.name || connection.display_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_dc8d40b3a46dad","Legal name") ?? "Legal name")}</span><input class="wf-input" data-connection-field="legal_name" value="${String(escapeHtml(connection.legal_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_fbbfe891d8598e","External reference") ?? "External reference")}</span><input class="wf-input" data-metadata-field="external_reference" value="${String(escapeHtml(metadata.external_reference || connection.external_reference || ''))}"></label></div>
+              <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_fd30fab0713a9b","Contact name") ?? "Contact name")}</span><input class="wf-input" data-contact-field="name" value="${String(escapeHtml(contact.name || connection.contact_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e3d024250938d3","Contact email") ?? "Contact email")}</span><input class="wf-input" type="email" data-contact-field="email" value="${String(escapeHtml(contact.email || connection.contact_email || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_714ecfa181c9a6","Contact phone") ?? "Contact phone")}</span><input class="wf-input" data-contact-field="phone" value="${String(escapeHtml(contact.phone || connection.contact_phone || ''))}"></label></div>
+              <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_23ffc9f3a20a55","Address line 1") ?? "Address line 1")}</span><input class="wf-input" data-address-field="line1" value="${String(escapeHtml(address.line1 || address.address1 || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_3c4721639d1b25","Address line 2") ?? "Address line 2")}</span><input class="wf-input" data-address-field="line2" value="${String(escapeHtml(address.line2 || address.address2 || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_38e1463e6f0488","City") ?? "City")}</span><input class="wf-input" data-address-field="city" value="${String(escapeHtml(address.city || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_841a63c7373720","State / region") ?? "State / region")}</span><input class="wf-input" data-address-field="region" value="${String(escapeHtml(address.region || address.state || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e2f364a929ac7","Postal code") ?? "Postal code")}</span><input class="wf-input" data-address-field="postal_code" value="${String(escapeHtml(address.postal_code || address.postalCode || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a9a13ce3e2d181","Country") ?? "Country")}</span><input class="wf-input" data-address-field="country" value="${String(escapeHtml(address.country || 'US'))}"></label></div>
+              <div class="wf-grid two"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_52f969970c3c66","Linked FirstMate organization ID") ?? "Linked FirstMate organization ID")}</span><input class="wf-input" data-connection-field="linked_organization_id" value="${String(escapeHtml(connection.linked_organization_id || connection.linked_org_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></label></div>
+              ${String(compensationEditorHtml(connection.compensation_profile || connection.compensation_plan, { prefix:`connection_${connection.id || 'new'}`, title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_cdb2a1886fa926",`${v0} compensation`,{v0}) ?? `${v0} compensation`)(terms().organization_connection_singular), connection:true }))}
+              <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(connection)))}</div>
               <div class="wf-status" data-card-status></div>
             </div>
           </section>`;
@@ -10637,17 +10638,17 @@
           const activeGroups = groups.filter((group) => group.status !== 'archived' && !group.archived_at);
           const activeConnections = connections.filter((connection) => connection.status !== 'archived' && !connection.archived_at);
           paneCrews.innerHTML = `<div class="wf-page">
-            <header class="wf-head"><div><h3>${((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_4efe2f80be70bc",`${v0} and ${v1}`,{v0,v1}) ?? `${v0} and ${v1}`)(escapeHtml(labels.resource_group_plural),escapeHtml(labels.organization_connection_plural))}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_e90622caefa59b","Build typed, tagged internal work groups from existing users and manage persistent external organizations that can receive work.") ?? "Build typed, tagged internal work groups from existing users and manage persistent external organizations that can receive work.")}</div></div><div class="wf-head-actions"><button type="button" class="cs-btn ghost" data-workforce-terms><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("settings","m_90d23c4d31ec84"," Types, tags &amp; terminology") ?? " Types, tags &amp; terminology")}</button><button type="button" class="cs-btn primary" data-workforce-create><i class="fas fa-plus"></i>${((v2) => globalThis.PlatformLanguage?.text("settings","m_a9ccb12aac535b",` New ${v2}`,{v2}) ?? ` New ${v2}`)(escapeHtml(viewState.workforceSubtab === 'groups' ? labels.resource_group_singular : labels.organization_connection_singular))}</button></div></header>
+            <header class="wf-head"><div><h3>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_4efe2f80be70bc",`${v0} and ${v1}`,{v0,v1}) ?? `${v0} and ${v1}`)(escapeHtml(labels.resource_group_plural),escapeHtml(labels.organization_connection_plural))}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_e90622caefa59b","Build typed, tagged internal work groups from existing users and manage persistent external organizations that can receive work.") ?? "Build typed, tagged internal work groups from existing users and manage persistent external organizations that can receive work.")}</div></div><div class="wf-head-actions"><button type="button" class="cs-btn ghost" data-workforce-terms><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_90d23c4d31ec84"," Types, tags &amp; terminology") ?? " Types, tags &amp; terminology")}</button><button type="button" class="cs-btn primary" data-workforce-create><i class="fas fa-plus"></i>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_a9ccb12aac535b",` New ${v2}`,{v2}) ?? ` New ${v2}`)(escapeHtml(viewState.workforceSubtab === 'groups' ? labels.resource_group_singular : labels.organization_connection_singular))}</button></div></header>
             <div class="wf-subtabs"><button type="button" class="wf-subtab ${String(viewState.workforceSubtab === 'groups' ? 'active' : '')}" data-workforce-subtab="groups">${String(escapeHtml(labels.resource_group_plural))}</button><button type="button" class="wf-subtab ${String(viewState.workforceSubtab === 'connections' ? 'active' : '')}" data-workforce-subtab="connections">${String(escapeHtml(terminologyLabel('workforce.organization_connections_view', 'Organization Connections')))} <span style="opacity:.65">(${String(escapeHtml(labels.organization_connection_plural))})</span></button></div>
             <div class="wf-status" data-workforce-status>${String(escapeHtml(statusText))}</div>
-            ${String(viewState.workforceSubtab === 'groups' ? `<div class="wf-group-list">${activeGroups.map(groupCardHtml).join('') || `<div class="wf-empty">No active ${escapeHtml(labels.resource_group_plural.toLowerCase())} yet.</div>`}</div>` : `<div class="wf-connection-list">${activeConnections.map(connectionCardHtml).join('') || `<div class="wf-empty">No active ${escapeHtml(labels.organization_connection_plural.toLowerCase())} yet.</div>`}</div>`)}
+            ${String(viewState.workforceSubtab === 'groups' ? `<div class="wf-group-list">${activeGroups.map(groupCardHtml).join('') || `<div class="wf-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4b26fa05c4c75f",`No active ${v0} yet.`,{v0}) ?? `No active ${v0} yet.`)(escapeHtml(labels.resource_group_plural.toLowerCase()))}</div>`}</div>` : `<div class="wf-connection-list">${activeConnections.map(connectionCardHtml).join('') || `<div class="wf-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4b26fa05c4c75f",`No active ${v0} yet.`,{v0}) ?? `No active ${v0} yet.`)(escapeHtml(labels.organization_connection_plural.toLowerCase()))}</div>`}</div>`)}
             <section class="wf-terms" data-workforce-terms-panel hidden>
-              <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_9eae37315ee584","Resource-group kinds and assignment tags") ?? "Resource-group kinds and assignment tags")}</div>
+              <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_9eae37315ee584","Resource-group kinds and assignment tags") ?? "Resource-group kinds and assignment tags")}</div>
               <div class="wf-grid two">
-                <label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_4c4943b0d6acf1","Group kinds") ?? "Group kinds")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="resource_group_kinds" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_addcc2d761e132","crew | Crew") ?? "crew | Crew")}">${String(escapeHtml(resourceGroupKinds().map((kind) => `${kind.id} | ${kind.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.text("settings","m_02b1826ca4c69e","One per line: stable id | display name. Existing groups keep stable IDs.") ?? "One per line: stable id | display name. Existing groups keep stable IDs.")}</small></label>
-                <label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="assignment_tags" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_abe5462c3e858a","drywall | Drywall") ?? "drywall | Drywall")}">${String(escapeHtml(assignmentTags().map((tag) => `${tag.id} | ${tag.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.text("settings","m_749812be09209b","Tags can be applied to people and groups, then required by an event type.") ?? "Tags can be applied to people and groups, then required by an event type.")}</small></label>
+                <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c4943b0d6acf1","Group kinds") ?? "Group kinds")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="resource_group_kinds" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_addcc2d761e132","crew | Crew") ?? "crew | Crew")}">${String(escapeHtml(resourceGroupKinds().map((kind) => `${kind.id} | ${kind.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_02b1826ca4c69e","One per line: stable id | display name. Existing groups keep stable IDs.") ?? "One per line: stable id | display name. Existing groups keep stable IDs.")}</small></label>
+                <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="assignment_tags" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_abe5462c3e858a","drywall | Drywall") ?? "drywall | Drywall")}">${String(escapeHtml(assignmentTags().map((tag) => `${tag.id} | ${tag.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_749812be09209b","Tags can be applied to people and groups, then required by an event type.") ?? "Tags can be applied to people and groups, then required by an event type.")}</small></label>
               </div>
-              <div class="wf-section-title" style="margin-top:14px">${(globalThis.PlatformLanguage?.text("settings","m_c960493e021bf3","Default labels") ?? "Default labels")}</div><div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_51cb9de701e8c0","Internal group singular") ?? "Internal group singular")}</span><input class="wf-input" data-term="resource_group_singular" value="${String(escapeHtml(labels.resource_group_singular))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_780c06762b18d9","Internal group plural") ?? "Internal group plural")}</span><input class="wf-input" data-term="resource_group_plural" value="${String(escapeHtml(labels.resource_group_plural))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_7fbfedc14d503e","Worker singular") ?? "Worker singular")}</span><input class="wf-input" data-term="worker_singular" value="${String(escapeHtml(labels.worker_singular))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_16825ecc6f642f","Worker plural") ?? "Worker plural")}</span><input class="wf-input" data-term="worker_plural" value="${String(escapeHtml(labels.worker_plural))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_f517ac1d3bbe60","External organization singular") ?? "External organization singular")}</span><input class="wf-input" data-term="organization_connection_singular" value="${String(escapeHtml(labels.organization_connection_singular))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_38d8a8548f2e51","External organization plural") ?? "External organization plural")}</span><input class="wf-input" data-term="organization_connection_plural" value="${String(escapeHtml(labels.organization_connection_plural))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_27d9da784e80e8","Management application") ?? "Management application")}</span><input class="wf-input" data-term="management_application" value="${String(escapeHtml(labels.management_application))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_a098901e778e6c","Field application") ?? "Field application")}</span><input class="wf-input" data-term="field_application" value="${String(escapeHtml(labels.field_application))}"></label></div><div class="wf-card-actions"><button type="button" class="cs-btn primary" data-terms-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_222e193ab50bf0"," Save workforce configuration") ?? " Save workforce configuration")}</button></div>
+              <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_40bc5e5c088e3f","Display names are managed by language in Configuration → Terminology.") ?? "Display names are managed by language in Configuration → Terminology.")}</p><div class="wf-card-actions"><button type="button" class="cs-btn primary" data-terms-save>${(globalThis.PlatformLanguage?.htmlText("settings","m_98ed5b5d193fc7","Save types and tags") ?? "Save types and tags")}</button></div>
             </section>
           </div>`;
           paneCrews.querySelectorAll('[data-workforce-subtab]').forEach((button) => button.addEventListener('click', () => {
@@ -10679,7 +10680,6 @@
               };
               const result = await api.workforce.saveConfiguration(orgId, branchId, {
                 expected_revision:Number(configuration.revision || 0),
-                terminology:terminologyPayload,
                 resource_group_kinds:parseDefinitions('resource_group_kinds'),
                 assignment_tags:parseDefinitions('assignment_tags')
               });
@@ -10831,7 +10831,7 @@
         };
         draw();
       } catch (error) {
-        paneCrews.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.text("settings","m_4c3e3c2057c2f4",`Could not load workforce settings. ${v0}`,{v0}) ?? `Could not load workforce settings. ${v0}`)(escapeHtml(error?.message || ''))}</div>`;
+        paneCrews.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4c3e3c2057c2f4",`Could not load workforce settings. ${v0}`,{v0}) ?? `Could not load workforce settings. ${v0}`)(escapeHtml(error?.message || ''))}</div>`;
       }
     }
     async function renderLegacyConfiguration(){
@@ -10849,14 +10849,14 @@
         };
       };
       let config = normalize(null);
-      paneConfiguration.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_a4749f5be449ec","Loading configuration...") ?? "Loading configuration...")}</div>`;
+      paneConfiguration.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a4749f5be449ec","Loading configuration...") ?? "Loading configuration...")}</div>`;
       try {
         if (!orgId || !window.PlatformAPI?.branchModules?.get || !window.PlatformAPI?.branchModules?.save) throw new Error('Platform API is unavailable.');
         const doc = await window.PlatformAPI.branchModules.get(orgId, branchId, moduleId);
         config = normalize(doc?.data || doc || {});
       } catch (e) {
         if (Number(e?.status || 0) !== 404) {
-          paneConfiguration.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_dfaed89f4e1139","Configuration could not be loaded.") ?? "Configuration could not be loaded.")}</div>`;
+          paneConfiguration.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_dfaed89f4e1139","Configuration could not be loaded.") ?? "Configuration could not be loaded.")}</div>`;
           return;
         }
       }
@@ -10873,8 +10873,8 @@
         ];
         paneConfiguration.innerHTML = `
           <div class="cs-section">
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_4f7d73a2b4076d","Project Titles") ?? "Project Titles")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_791b98ba582df3","Choose how project titles render across this branch. Customer name is the default for new branches.") ?? "Choose how project titles render across this branch. Customer name is the default for new branches.")}</p>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f7d73a2b4076d","Project Titles") ?? "Project Titles")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_791b98ba582df3","Choose how project titles render across this branch. Customer name is the default for new branches.") ?? "Choose how project titles render across this branch. Customer name is the default for new branches.")}</p>
             <div class="cfg-options">
               ${String(options.map(([value, label, description]) => `
                 <button type="button" class="cfg-option ${config.title_mode === value ? 'active' : ''}" data-title-mode="${escapeHtml(value)}">
@@ -10883,8 +10883,8 @@
                 </button>
               `).join(''))}
             </div>
-            <h3 style="margin-top:22px">${(globalThis.PlatformLanguage?.text("settings","m_ef207345c8196c","Celebrations") ?? "Celebrations")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_028b76f691b556","Control celebratory sounds and effects for this branch. Trigger-driven celebrations respect this setting.") ?? "Control celebratory sounds and effects for this branch. Trigger-driven celebrations respect this setting.")}</p>
+            <h3 style="margin-top:22px">${(globalThis.PlatformLanguage?.htmlText("settings","m_ef207345c8196c","Celebrations") ?? "Celebrations")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_028b76f691b556","Control celebratory sounds and effects for this branch. Trigger-driven celebrations respect this setting.") ?? "Control celebratory sounds and effects for this branch. Trigger-driven celebrations respect this setting.")}</p>
             <div class="cfg-options">
               ${String(celebrationOptions.map(([value, label, description]) => `
                 <button type="button" class="cfg-option ${config.celebrations_mode === value ? 'active' : ''}" data-celebrations-mode="${escapeHtml(value)}">
@@ -10894,8 +10894,8 @@
               `).join(''))}
             </div>
             <div class="cfg-actions">
-              <button type="button" class="cs-btn" id="cfgTestSmallCelebration"><i class="fas fa-music"></i>${(globalThis.PlatformLanguage?.text("settings","m_99e39f6e41bb4b"," Test Small") ?? " Test Small")}</button>
-              <button type="button" class="cs-btn" id="cfgTestLargeCelebration"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("settings","m_d8d5399e87e05e"," Test Large") ?? " Test Large")}</button>
+              <button type="button" class="cs-btn" id="cfgTestSmallCelebration"><i class="fas fa-music"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99e39f6e41bb4b"," Test Small") ?? " Test Small")}</button>
+              <button type="button" class="cs-btn" id="cfgTestLargeCelebration"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d8d5399e87e05e"," Test Large") ?? " Test Large")}</button>
             </div>
             <div class="cfg-actions">
               <button type="button" class="cs-btn primary" id="cfgSaveTitleMode" ${String(saving ? 'disabled' : '')}>${String(saving ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Configuration')}</button>
@@ -10937,224 +10937,15 @@
     }
     async function renderTerminologySettings(){
       if (!paneTerminology) return;
-      injectCSS('company_terminology_settings', `
-        .tm-page{max-width:1180px;margin:0 auto;display:grid;gap:14px;padding-top:8px;color:#101828}.tm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.tm-head h3{margin:0 0 4px;font-size:22px;font-weight:1000}.tm-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.tm-status{min-height:18px;color:#667085;font-size:11px;font-weight:850}
-        .tm-toolbar{position:sticky;top:0;z-index:4;display:grid;grid-template-columns:minmax(240px,1fr) 190px 150px auto;gap:8px;align-items:center;border:1px solid #e4e7ec;border-radius:14px;background:rgba(255,255,255,.96);box-shadow:0 8px 24px rgba(16,24,40,.05);padding:10px;backdrop-filter:blur(8px)}.tm-search{position:relative}.tm-search>i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#98a2b3}.tm-search input{padding-left:34px}.tm-control{width:100%;height:39px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:0 10px;color:#344054;font-size:11px;font-weight:850;box-sizing:border-box}.tm-toolbar-actions{display:flex;gap:5px;justify-content:flex-end}.tm-icon-btn{display:grid;place-items:center;width:39px;height:39px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#475467;cursor:pointer}.tm-icon-btn:hover{border-color:#98a2b3;color:#101828}.tm-result-count{grid-column:1/-1;color:#667085;font-size:10px;font-weight:850}
-        .tm-section{border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:hidden}.tm-section[hidden]{display:none}.tm-section>summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:13px 15px;background:#fbfcfe;cursor:pointer;list-style:none}.tm-section>summary::-webkit-details-marker{display:none}.tm-section>summary:after{content:'';width:7px;height:7px;border-right:2px solid #98a2b3;border-bottom:2px solid #98a2b3;transform:rotate(45deg);transition:transform .15s ease}.tm-section[open]>summary:after{transform:rotate(225deg)}.tm-section-copy{display:grid;gap:3px;min-width:0}.tm-section-copy strong{font-size:14px}.tm-section-copy span{color:#667085;font-size:10.5px;font-weight:750}.tm-section-count{border-radius:999px;background:#f2f4f7;padding:3px 8px;color:#475467;font-size:9px;font-weight:950}.tm-table-wrap{overflow-x:auto;border-top:1px solid #edf0f4}.tm-table{width:100%;border-collapse:collapse;table-layout:fixed}.tm-table th{background:#fff;padding:8px 12px;border-bottom:1px solid #eaecf0;color:#667085;font-size:9px;text-align:left;text-transform:uppercase;letter-spacing:.05em}.tm-table th:nth-child(1){width:31%}.tm-table th:nth-child(2){width:27%}.tm-table td{padding:8px 12px;border-bottom:1px solid #f0f2f5;vertical-align:middle}.tm-table tr:last-child td{border-bottom:0}.tm-table tr.modified{background:#fffcf5}.tm-table tr.tm-agent-focus{animation:tm-focus 2.2s ease}.tm-label{display:block;color:#344054;font-size:11px;font-weight:900}.tm-key{display:inline-flex;border-radius:6px;background:#f2f4f7;padding:4px 6px;color:#667085;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:9.5px}.tm-input{width:100%;height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:0 9px;color:#101828;font-size:11.5px;font-weight:800;box-sizing:border-box}.tm-input:focus{outline:0;border-color:#84adff;box-shadow:0 0 0 3px #d1e0ff}.tm-table tr.modified .tm-input{border-color:#fdb022}.tm-empty{display:none;border:1px dashed #d0d5dd;border-radius:14px;background:#f9fafb;padding:28px;text-align:center;color:#667085;font-size:12px;font-weight:850}.tm-empty.show{display:block}
-        .tm-agent{display:grid;grid-template-columns:260px minmax(0,1fr);border:1px solid #d6bbfb;border-radius:16px;background:linear-gradient(135deg,#faf5ff,#fff);overflow:hidden}.tm-agent-intro{padding:16px;border-right:1px solid #e9d7fe}.tm-agent-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#7f56d9;color:#fff;margin-bottom:10px}.tm-agent h4{margin:0;color:#42307d;font-size:14px}.tm-agent p{margin:5px 0 0;color:#6941c6;font-size:10.5px;line-height:1.45;font-weight:750}.tm-agent-prompts{display:flex;gap:5px;flex-wrap:wrap;margin-top:11px}.tm-agent-prompt{border:1px solid #d6bbfb;border-radius:999px;background:#fff;padding:5px 8px;color:#6941c6;font-size:9px;font-weight:900;cursor:pointer}.tm-agent-workspace{display:grid;grid-template-rows:minmax(70px,auto) auto;min-width:0}.tm-agent-messages{display:grid;gap:7px;align-content:start;max-height:220px;overflow:auto;padding:12px}.tm-agent-message{max-width:88%;border-radius:10px;padding:8px 10px;font-size:10.5px;line-height:1.45;white-space:pre-wrap}.tm-agent-message.assistant{background:#fff;border:1px solid #e9d7fe;color:#42307d}.tm-agent-message.user{justify-self:end;background:#6941c6;color:#fff}.tm-agent-compose{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;border-top:1px solid #e9d7fe;padding:9px}.tm-agent-compose textarea{min-height:42px;max-height:110px;resize:vertical;border:1px solid #d6bbfb;border-radius:9px;background:#fff;padding:9px;color:#344054;font:inherit;font-size:11px}.tm-agent-compose button{align-self:end}.tm-agent-note{grid-column:1/-1;color:#7f56d9;font-size:9px;font-weight:800}@keyframes tm-focus{0%,100%{box-shadow:none}20%,70%{box-shadow:inset 4px 0 #7f56d9;background:#f9f5ff}}
-        @media(max-width:900px){.tm-toolbar{grid-template-columns:1fr 1fr}.tm-search{grid-column:1/-1}.tm-agent{grid-template-columns:1fr}.tm-agent-intro{border-right:0;border-bottom:1px solid #e9d7fe}}@media(max-width:620px){.tm-head{flex-direction:column}.tm-head-actions{justify-content:flex-start}.tm-toolbar{grid-template-columns:1fr}.tm-search{grid-column:auto}.tm-toolbar-actions{justify-content:flex-start}.tm-table{table-layout:auto;min-width:680px}.tm-agent-compose{grid-template-columns:1fr}.tm-agent-compose button{justify-self:start}}
-      `);
-      const orgId = currentOrgId();
-      const branchId = currentBranchId();
-      paneTerminology.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_22e67b133984ca"," Loading terminology...") ?? " Loading terminology...")}</div>`;
-      try {
-        if (!orgId || !window.PlatformScheduling?.loadBranchConfig || !window.PlatformAPI?.branchModules?.save) throw new Error('Terminology API is unavailable.');
-        const [loadedConfig, loadedWork, loadedWorkforce] = await Promise.all([
-          window.PlatformScheduling.loadBranchConfig(orgId, branchId),
-          window.PlatformAPI?.work?.configuration?.(orgId, branchId).catch(() => null),
-          window.PlatformAPI?.workforce?.configuration?.(orgId, branchId).catch(() => null)
-        ]);
-        let config = loadedConfig;
-        let workConfiguration = loadedWork?.configuration || loadedWork || { revision:0, terminology:{ phase:'Phase', stage:'Stage', task:'To-do', board:'Board' } };
-        let workforceConfiguration = loadedWorkforce?.configuration || loadedWorkforce || { revision:0, terminology:{} };
-        let mappings = config?.mappings || window.PlatformScheduling.DEFAULT_MAPPINGS || { schema_version:1, labels:{} };
-        const terminologyLocale = window.PlatformLanguage?.context?.().locale || 'en-US';
-        const catalogSectionDefinitions = (window.PlatformTerminology?.CATALOG || []).map((section) => [
-          section.id,
-          section.title,
-          section.note,
-          (section.terms || []).map((item) => [item.key, item.label])
-        ]);
-        const sectionDefinitions = [
-          ...catalogSectionDefinitions,
-          ['roles', 'Scheduling roles', 'Labels shown for stable scheduling role IDs.'],
-          ['event_types', 'Event types', 'Labels shown for stable scheduling event IDs.']
-        ];
-        const terminologyAgentEnabled = appFlag('platform', 'terminology_agent');
-        const render = (status = '') => {
-          const labels = mappings.labels || {};
-          const workTerms = workConfiguration.terminology || {};
-          const workforceTerms = normalizeWorkforceTerminology(workforceConfiguration.terminology || {});
-          const mappingRows = (namespace, explicitRows) => {
-            const entries = explicitRows || Object.keys(labels[namespace] || {}).sort().map((key) => [key, String(labels[namespace]?.[key] || '')]);
-            return entries.map(([key, title]) => ({ id:`${namespace}.${key}`, source:'mapping', namespace, key, title:title || key, value:window.PlatformTerminology?.get?.(`${namespace}.${key}`, title || key, { mappings }) || labels[namespace]?.[key] || title || '' }));
-          };
-          const sections = sectionDefinitions.map(([id, title, note, explicitRows]) => ({ id, title, note, rows:mappingRows(id, explicitRows) }));
-          sections.push({ id:'work', title:(globalThis.PlatformLanguage?.text("settings","m_93b58e8cdf4903","Work language") ?? "Work language"), note:'Names used by scopes, workflows, boards, and to-dos.', rows:[['phase','Phase'],['stage','Stage'],['task','To-do'],['board','Board']].map(([key,title]) => ({ id:`work.${key}`, source:'work', key, title, value:workTerms[key] || title })) });
-          const workforceRows = [['resource_group_singular','Internal group singular'],['resource_group_plural','Internal group plural'],['worker_singular','Worker singular'],['worker_plural','Worker plural'],['organization_connection_singular','External organization singular'],['organization_connection_plural','External organization plural'],['management_application','Management application'],['field_application','Field application']].map(([key,title]) => ({ id:`workforce.${key}`, source:'workforce', key, title, value:workforceTerms[key] }));
-          const workforceSection = sections.find((section) => section.id === 'workforce');
-          if (workforceSection) workforceSection.rows.push(...workforceRows);
-          else sections.push({ id:'workforce', title:(globalThis.PlatformLanguage?.text("settings","m_eb906f62c1d4af","Workforce") ?? "Workforce"), note:'Names used for internal groups, workers, external organizations, and applications.', rows:workforceRows });
-          const rowHtml = (row, section) => `<tr data-terminology-row data-term-key="${escapeHtml(row.id)}" data-term-section="${escapeHtml(section.id)}" data-term-label="${escapeHtml(row.title)}"><td><span class="tm-label">${escapeHtml(row.title)}</span></td><td><code class="tm-key">${escapeHtml(row.id)}</code></td><td><input class="tm-input" data-terminology-id="${escapeHtml(row.id)}" data-terminology-source="${escapeHtml(row.source)}" ${row.namespace ? `data-terminology-namespace="${escapeHtml(row.namespace)}"` : ''} data-terminology-key="${escapeHtml(row.key)}" data-original="${escapeHtml(row.value || '')}" value="${escapeHtml(row.value || '')}" aria-label="${escapeHtml(`Display label for ${row.title}`)}"></td></tr>`;
-          const route = readSettingsRoute();
-          const initialSection = sections.some((section) => section.id === route.terminologySection) ? route.terminologySection : 'all';
-          const initialStatus = route.terminologyStatus === 'modified' ? 'modified' : 'all';
-          paneTerminology.innerHTML = `<div class="tm-page">
-            <header class="tm-head"><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_172e88e9e61719","Terminology") ?? "Terminology")}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_22f9a0c803d301","Edit branch-wide display language without changing the stable IDs used by data, automations, or integrations.") ?? "Edit branch-wide display language without changing the stable IDs used by data, automations, or integrations.")}</div></div><div class="tm-head-actions"><button type="button" class="cs-btn primary" data-terminology-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_7aad29b3d23c81"," Save Terminology") ?? " Save Terminology")}</button></div></header>
-            <div class="tm-status" data-terminology-status>${String(escapeHtml(status))}</div>
-            ${String(terminologyAgentEnabled ? `<section class="tm-agent" data-terminology-agent><div class="tm-agent-intro"><div class="tm-agent-mark"><i class="fas fa-wand-magic-sparkles"></i></div><h4>Terminology assistant</h4><p>Ask where a label lives or request precise draft changes. Nothing is committed until you use Save Terminology.</p><div class="tm-agent-prompts"><button class="tm-agent-prompt" type="button" data-agent-example="Find the receipt terminology.">Find a term</button><button class="tm-agent-prompt" type="button" data-agent-example="Show me the project stage labels.">Navigate</button><button class="tm-agent-prompt" type="button" data-agent-example="Change Receipt to Purchase document and Receipts to Purchase documents.">Draft changes</button></div></div><div class="tm-agent-workspace"><div class="tm-agent-messages" data-agent-messages><div class="tm-agent-message assistant">Tell me what you call something today, what you want to call it, or ask me to find it.</div></div><div class="tm-agent-compose"><textarea data-agent-prompt maxlength="2000" placeholder="Example: What is a worker called, and change it to technician..."></textarea><button type="button" class="cs-btn primary" data-agent-send><i class="fas fa-arrow-up"></i> Ask</button><div class="tm-agent-note">Assistant edits are drafts and use the same reviewed Save action as manual edits.</div></div></div></section>` : '')}
-            <div class="tm-toolbar" role="search"><label class="tm-search"><i class="fas fa-search"></i><input class="tm-control" data-terminology-search value="${String(escapeHtml(route.terminologyQuery))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_c17333dfd32038","Search labels, keys, or current values...") ?? "Search labels, keys, or current values...")}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_0cc40d08ccd2e6","Search terminology") ?? "Search terminology")}"></label><select class="tm-control" data-terminology-section aria-label="${(globalThis.PlatformLanguage?.text("settings","m_ea99ee1210fb36","Filter by section") ?? "Filter by section")}"><option value="all">${(globalThis.PlatformLanguage?.text("settings","m_1d5d68e690d2d4","All sections") ?? "All sections")}</option>${String(sections.map((section) => `<option value="${escapeHtml(section.id)}" ${section.id === initialSection ? 'selected' : ''}>${escapeHtml(section.title)}</option>`).join(''))}</select><select class="tm-control" data-terminology-status-filter aria-label="${(globalThis.PlatformLanguage?.text("settings","m_9674ef414e212e","Filter by edit status") ?? "Filter by edit status")}"><option value="all">${(globalThis.PlatformLanguage?.text("settings","m_0df7a884462440","All terms") ?? "All terms")}</option><option value="modified" ${String(initialStatus === 'modified' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_7b44d4fba2590c","Modified only") ?? "Modified only")}</option></select><div class="tm-toolbar-actions"><button type="button" class="tm-icon-btn" data-terminology-expand title="${(globalThis.PlatformLanguage?.text("settings","m_b15608589d5d5e","Expand all") ?? "Expand all")}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_96cfccd57918ae","Expand all sections") ?? "Expand all sections")}"><i class="fas fa-angles-down"></i></button><button type="button" class="tm-icon-btn" data-terminology-collapse title="${(globalThis.PlatformLanguage?.text("settings","m_914fea3baa7e29","Collapse all") ?? "Collapse all")}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_91149812d071be","Collapse all sections") ?? "Collapse all sections")}"><i class="fas fa-angles-up"></i></button></div><div class="tm-result-count" data-terminology-count aria-live="polite"></div></div>
-            <div class="tm-empty" data-terminology-empty>${(globalThis.PlatformLanguage?.text("settings","m_db63afe58932f1","No terminology matches these filters.") ?? "No terminology matches these filters.")}</div>
-            ${String(sections.map((section, index) => `<details class="tm-section" data-term-section-card="${escapeHtml(section.id)}" data-term-section-title="${escapeHtml(section.title)}" ${index === 0 ? 'open' : ''}><summary><span class="tm-section-copy"><strong>${escapeHtml(section.title)}</strong><span>${escapeHtml(section.note)}</span></span><span class="tm-section-count" data-section-count>${section.rows.length} terms</span></summary><div class="tm-table-wrap"><table class="tm-table"><thead><tr><th>Concept</th><th>Stable key</th><th>Display label</th></tr></thead><tbody>${section.rows.map((row) => rowHtml(row, section)).join('')}</tbody></table></div></details>`).join(''))}
-          </div>`;
-          const searchInput = paneTerminology.querySelector('[data-terminology-search]');
-          const sectionFilter = paneTerminology.querySelector('[data-terminology-section]');
-          const statusFilter = paneTerminology.querySelector('[data-terminology-status-filter]');
-          const termInputs = () => [...paneTerminology.querySelectorAll('[data-terminology-id]')];
-          let routeTimer = null;
-          const syncFilterRoute = () => {
-            if (window.Portal?.navigation?.applying) return;
-            clearTimeout(routeTimer);
-            routeTimer = setTimeout(() => window.Portal?.navigation?.replace?.({
-              terminologyQuery:String(searchInput?.value || '').trim() || null,
-              terminologySection:sectionFilter?.value === 'all' ? null : sectionFilter?.value,
-              terminologyStatus:statusFilter?.value === 'all' ? null : statusFilter?.value
-            }, { source:'terminology-filters' }), 120);
-          };
-          const applyFilters = (options = {}) => {
-            const query = String(searchInput?.value || '').trim().toLowerCase();
-            const section = sectionFilter?.value || 'all';
-            const editStatus = statusFilter?.value || 'all';
-            let shown = 0;
-            termInputs().forEach((input) => {
-              const row = input.closest('[data-terminology-row]');
-              const modified = String(input.value || '').trim() !== String(input.dataset.original || '').trim();
-              row?.classList.toggle('modified', modified);
-              const haystack = `${row?.dataset.termLabel || ''} ${row?.dataset.termKey || ''} ${input.value || ''}`.toLowerCase();
-              const visible = (!query || haystack.includes(query)) && (section === 'all' || row?.dataset.termSection === section) && (editStatus !== 'modified' || modified);
-              if (row) row.hidden = !visible;
-              if (visible) shown += 1;
-            });
-            paneTerminology.querySelectorAll('[data-term-section-card]').forEach((card) => {
-              const visible = [...card.querySelectorAll('[data-terminology-row]')].filter((row) => !row.hidden).length;
-              card.hidden = visible === 0;
-              const count = card.querySelector('[data-section-count]');
-              if (count) count.textContent = `${visible} ${visible === 1 ? 'term' : 'terms'}`;
-              if (visible && (query || editStatus === 'modified' || section !== 'all')) card.open = true;
-            });
-            const modifiedCount = termInputs().filter((input) => String(input.value || '').trim() !== String(input.dataset.original || '').trim()).length;
-            const count = paneTerminology.querySelector('[data-terminology-count]');
-            if (count) count.textContent = ((v0,v1,v2) => globalThis.PlatformLanguage?.text("settings","m_fee3a2b678d7de",`${v0} of ${v1} terms shown${v2}`,{v0,v1,v2}) ?? `${v0} of ${v1} terms shown${v2}`)(shown,termInputs().length,modifiedCount ? ` - ${modifiedCount} unsaved` : '');
-            paneTerminology.querySelector('[data-terminology-empty]')?.classList.toggle('show', shown === 0);
-            if (options.syncRoute) syncFilterRoute();
-          };
-          searchInput?.addEventListener('input', () => applyFilters({ syncRoute:true }));
-          sectionFilter?.addEventListener('change', () => applyFilters({ syncRoute:true }));
-          statusFilter?.addEventListener('change', () => applyFilters({ syncRoute:true }));
-          termInputs().forEach((input) => input.addEventListener('input', () => {
-            const statusNode = paneTerminology.querySelector('[data-terminology-status]');
-            if (statusNode) statusNode.textContent = (globalThis.PlatformLanguage?.text("settings","m_b3ebdfc21e717e","Unsaved changes") ?? "Unsaved changes");
-            applyFilters();
-          }));
-          paneTerminology.querySelector('[data-terminology-expand]')?.addEventListener('click', () => paneTerminology.querySelectorAll('[data-term-section-card]:not([hidden])').forEach((card) => { card.open = true; }));
-          paneTerminology.querySelector('[data-terminology-collapse]')?.addEventListener('click', () => paneTerminology.querySelectorAll('[data-term-section-card]').forEach((card) => { card.open = false; }));
-          const appendAgentMessage = (role, text) => {
-            const messages = paneTerminology.querySelector('[data-agent-messages]');
-            if (!messages) return;
-            const message = document.createElement('div');
-            message.className = `tm-agent-message ${role}`;
-            message.textContent = String(text || '');
-            messages.appendChild(message);
-            messages.scrollTop = messages.scrollHeight;
-          };
-          const runAgent = async () => {
-            const promptInput = paneTerminology.querySelector('[data-agent-prompt]');
-            const sendButton = paneTerminology.querySelector('[data-agent-send]');
-            const prompt = String(promptInput?.value || '').trim();
-            if (!prompt || !sendButton || !window.PlatformAPI?.terminologyAgent?.ask) return;
-            appendAgentMessage('user', prompt);
-            promptInput.value = '';
-            sendButton.disabled = true;
-            sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Thinking';
-            try {
-              const catalog = termInputs().map((input) => ({ key:input.dataset.terminologyId, label:input.closest('[data-terminology-row]')?.dataset.termLabel || input.dataset.terminologyId, section:input.closest('[data-term-section-card]')?.dataset.termSectionTitle || '', value:String(input.value || '').trim() }));
-              const result = await window.PlatformAPI.terminologyAgent.ask(orgId, { branch_id:branchId, prompt, catalog });
-              const changes = Array.isArray(result?.changes) ? result.changes : [];
-              changes.forEach((change) => {
-                const input = termInputs().find((entry) => entry.dataset.terminologyId === String(change?.key || ''));
-                if (!input || !String(change?.value || '').trim()) return;
-                input.value = String(change.value).trim();
-                input.dispatchEvent(new Event('input', { bubbles:true }));
-              });
-              const focusKeys = [...new Set([...(Array.isArray(result?.focus_keys) ? result.focus_keys : []), ...changes.map((change) => change?.key)].map(String).filter(Boolean))];
-              if (focusKeys.length) {
-                if (searchInput) searchInput.value = '';
-                if (sectionFilter) sectionFilter.value = 'all';
-                if (statusFilter) statusFilter.value = 'all';
-                applyFilters({ syncRoute:true });
-                focusKeys.forEach((key) => {
-                  const input = termInputs().find((entry) => entry.dataset.terminologyId === key);
-                  const row = input?.closest('[data-terminology-row]');
-                  const card = input?.closest('[data-term-section-card]');
-                  if (card) card.open = true;
-                  row?.classList.add('tm-agent-focus');
-                  setTimeout(() => row?.classList.remove('tm-agent-focus'), 2400);
-                });
-                termInputs().find((entry) => entry.dataset.terminologyId === focusKeys[0])?.scrollIntoView?.({ behavior:'smooth', block:'center' });
-              }
-              appendAgentMessage('assistant', `${result?.message || 'I found the relevant terminology.'}${changes.length ? `\n\n${changes.length} draft ${changes.length === 1 ? 'change' : 'changes'} applied below. Review and save when ready.` : ''}`);
-            } catch (error) {
-              appendAgentMessage('assistant', error?.message || 'I could not complete that terminology request.');
-            } finally {
-              sendButton.disabled = false;
-              sendButton.innerHTML = '<i class="fas fa-arrow-up"></i> Ask';
-              promptInput?.focus();
-            }
-          };
-          paneTerminology.querySelector('[data-agent-send]')?.addEventListener('click', runAgent);
-          paneTerminology.querySelector('[data-agent-prompt]')?.addEventListener('keydown', (event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); runAgent(); } });
-          paneTerminology.querySelectorAll('[data-agent-example]').forEach((button) => button.addEventListener('click', () => { const input = paneTerminology.querySelector('[data-agent-prompt]'); if (input) { input.value = button.dataset.agentExample || ''; input.focus(); } }));
-          applyFilters();
-          paneTerminology.querySelector('[data-terminology-save]')?.addEventListener('click', async (event) => {
-            const button = event.currentTarget;
-            const nextLabels = { ...(terminologyLocale === 'en-US' ? mappings.labels : mappings.localized_labels?.[terminologyLocale] || {}) };
-            paneTerminology.querySelectorAll('[data-terminology-namespace][data-terminology-key]').forEach((input) => {
-              const namespace = input.dataset.terminologyNamespace;
-              const key = input.dataset.terminologyKey;
-              nextLabels[namespace] = { ...(nextLabels[namespace] || {}), [key]:String(input.value || '').trim() || (namespace === 'ui' && key === 'routing_mode' ? 'Routing' : key) };
-            });
-            button.disabled = true;
-            try {
-              mappings = { ...mappings, schema_version:Number(mappings.schema_version || 1), ...(terminologyLocale === 'en-US' ? { labels:nextLabels } : { localized_labels:{ ...mappings.localized_labels, [terminologyLocale]:nextLabels } }) };
-              const nextWorkTerms = { ...(workConfiguration.terminology || {}) };
-              paneTerminology.querySelectorAll('[data-terminology-source="work"]').forEach((input) => { nextWorkTerms[input.dataset.terminologyKey] = String(input.value || '').trim(); });
-              const nextWorkforceTerms = {};
-              paneTerminology.querySelectorAll('[data-terminology-source="workforce"]').forEach((input) => { nextWorkforceTerms[input.dataset.terminologyKey] = String(input.value || '').trim(); });
-              const saves = [window.PlatformAPI.branchModules.save(orgId, branchId, 'variable_mappings', mappings, { kind:'branch_variable_mappings', source:'company_settings_terminology' })];
-              if (window.PlatformAPI?.work?.saveConfiguration && Number(workConfiguration.revision || 0)) saves.push(window.PlatformAPI.work.saveConfiguration(orgId, branchId, { expected_revision:Number(workConfiguration.revision), terminology:nextWorkTerms }).then((result) => { workConfiguration = result?.configuration || result || workConfiguration; }));
-              if (window.PlatformAPI?.workforce?.saveConfiguration && Number(workforceConfiguration.revision || 0)) saves.push(window.PlatformAPI.workforce.saveConfiguration(orgId, branchId, { expected_revision:Number(workforceConfiguration.revision), terminology:{ resource_group:{ singular:nextWorkforceTerms.resource_group_singular, plural:nextWorkforceTerms.resource_group_plural }, resource_group_member:{ singular:nextWorkforceTerms.worker_singular, plural:nextWorkforceTerms.worker_plural }, organization_connection:{ singular:nextWorkforceTerms.organization_connection_singular, plural:nextWorkforceTerms.organization_connection_plural }, applications:{ management:nextWorkforceTerms.management_application, field:nextWorkforceTerms.field_application } } }).then((result) => { workforceConfiguration = result?.configuration || result || workforceConfiguration; }));
-              await Promise.all(saves);
-              config = await window.PlatformScheduling.refreshBranchConfig(orgId, branchId);
-              mappings = config.mappings || mappings;
-              window.PlatformTerminology?.setConfig?.(config, { orgId, branchId });
-              refreshSettingsTabLabels();
-              window.dispatchEvent(new CustomEvent('fm:branch-module:updated', { detail:{ moduleId:'variable_mappings', config } }));
-              window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-              showToast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), (globalThis.PlatformLanguage?.text("settings","m_ef40c3339a6e85","Terminology updated.") ?? "Terminology updated."), true);
-              render('Saved.');
-            } catch (error) {
-              button.disabled = false;
-              paneTerminology.querySelector('[data-terminology-status]').textContent = error?.message || 'Could not save terminology.';
-              showToast((globalThis.PlatformLanguage?.text("settings","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), error?.message || 'Could not save terminology.', false);
-            }
-          });
-        };
-        render();
-      } catch (error) {
-        paneTerminology.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load terminology.')}</div>`;
-      }
+      await window.PlatformTerminologyEditor.mount(paneTerminology,{orgId:currentOrgId(),branchId:currentBranchId(),onSaved:refreshSettingsTabLabels});
     }
-    /* ── Appointment confirmations ──────────────────────────────────────────
-     * Company defaults for the "customer confirms their appointment" flow:
-     * whether it is on, which channels ask, when the ask goes out, the message
-     * templates, and — the part companies care most about — who on the team is
-     * allowed to see whether an appointment has been confirmed. */
+
     async function renderAppointmentConfirmations(pane, orgId, branchId){
       const host = pane?.querySelector('#csApptConfirmSection');
       const client = window.PlatformAPI?.appointments;
       if (!host) return;
       if (!client || !orgId) {
-        host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_c7c6ba872e708d","Appointment confirmations are unavailable.") ?? "Appointment confirmations are unavailable.")}</div>`;
+        host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_c7c6ba872e708d","Appointment confirmations are unavailable.") ?? "Appointment confirmations are unavailable.")}</div>`;
         return;
       }
       let settings = null;
@@ -11173,24 +10964,24 @@
       const roles = await accessRoleOptions().catch(() => []);
       const selectedRoles = Array.isArray(visibility.role_ids) ? visibility.role_ids.map(String) : [];
       host.innerHTML = `
-        <h3>${(globalThis.PlatformLanguage?.text("settings","m_db8f36ea78575e","Appointment confirmations") ?? "Appointment confirmations")}</h3>
-        <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_81fbb8157374bf","Ask customers to confirm their appointment by email or text. Until they reply, the appointment shows with a dashed outline on every schedule. A reply of “yes” confirms it automatically; the message and the reply both appear in the project's Comms tab.") ?? "Ask customers to confirm their appointment by email or text. Until they reply, the appointment shows with a dashed outline on every schedule. A reply of “yes” confirms it automatically; the message and the reply both appear in the project's Comms tab.")}</p>
+        <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_db8f36ea78575e","Appointment confirmations") ?? "Appointment confirmations")}</h3>
+        <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_81fbb8157374bf","Ask customers to confirm their appointment by email or text. Until they reply, the appointment shows with a dashed outline on every schedule. A reply of “yes” confirms it automatically; the message and the reply both appear in the project's Comms tab.") ?? "Ask customers to confirm their appointment by email or text. Until they reply, the appointment shows with a dashed outline on every schedule. A reply of “yes” confirms it automatically; the message and the reply both appear in the project's Comms tab.")}</p>
         <div class="li-switch-row">
-          <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_18c478db70765c","Enable appointment confirmations") ?? "Enable appointment confirmations")}</div>
+          <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_18c478db70765c","Enable appointment confirmations") ?? "Enable appointment confirmations")}</div>
           <label class="li-switch"><input id="csApptConfirmEnabled" type="checkbox" ${String(settings.enabled === true ? 'checked' : '')}><span class="li-slider"></span></label>
         </div>
         <div class="li-switch-row">
-          <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_e9474e3886acaf","Require on new appointments by default ") ?? "Require on new appointments by default ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="Off means confirmations are opt-in per appointment, or set by a scope template.">?</span></div>
+          <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e9474e3886acaf","Require on new appointments by default ") ?? "Require on new appointments by default ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="Off means confirmations are opt-in per appointment, or set by a scope template.">?</span></div>
           <label class="li-switch"><input id="csApptConfirmDefault" type="checkbox" ${String(settings.default_required === true ? 'checked' : '')}><span class="li-slider"></span></label>
         </div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_4f0fe781795ee3","Ask by") ?? "Ask by")}</div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_4f0fe781795ee3","Ask by") ?? "Ask by")}</div>
           <div class="wf-inline-toggle">
-            <label class="wf-check"><input type="checkbox" id="csApptConfirmEmail" ${String(channels.email !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_01ca5ac2ab8ecf"," Email") ?? " Email")}</label>
-            <label class="wf-check"><input type="checkbox" id="csApptConfirmSms" ${String(channels.sms !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_f0892754cfce87"," Text message") ?? " Text message")}</label>
-            <label class="wf-check"><input type="checkbox" id="csApptConfirmPortal" ${String(settings.include_portal_link === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_2235cf01f17a6f"," Include a customer portal link") ?? " Include a customer portal link")}</label>
+            <label class="wf-check"><input type="checkbox" id="csApptConfirmEmail" ${String(channels.email !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_01ca5ac2ab8ecf"," Email") ?? " Email")}</label>
+            <label class="wf-check"><input type="checkbox" id="csApptConfirmSms" ${String(channels.sms !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_f0892754cfce87"," Text message") ?? " Text message")}</label>
+            <label class="wf-check"><input type="checkbox" id="csApptConfirmPortal" ${String(settings.include_portal_link === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_2235cf01f17a6f"," Include a customer portal link") ?? " Include a customer portal link")}</label>
           </div>
         </div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_676c8cab373375","Send the request") ?? "Send the request")}</div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_676c8cab373375","Send the request") ?? "Send the request")}</div>
           <select class="cs-in" id="csApptConfirmMode">
             ${String(modeOption('morning_of', 'The morning of the appointment'))}
             ${String(modeOption('time_of_day', 'At a set time on the day'))}
@@ -11199,44 +10990,44 @@
           </select>
         </div>
         <div class="cs-row" id="csApptConfirmDays" ${String(mode === 'days_before' ? '' : 'hidden')}>
-          <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_3955ac79d2d28d","Days before") ?? "Days before")}</div>
+          <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_3955ac79d2d28d","Days before") ?? "Days before")}</div>
           <input class="cs-in" id="csApptConfirmDaysValue" type="number" min="0" max="30" value="${String(escapeHtml(String(Number(schedule.days_before) || 1)))}">
         </div>
         <div class="cs-row" id="csApptConfirmTime" ${String(mode === 'before_offset' ? 'hidden' : '')}>
-          <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_3b546ab0f78697","At") ?? "At")}</div>
+          <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_3b546ab0f78697","At") ?? "At")}</div>
           <input class="cs-in" id="csApptConfirmTimeValue" type="time" value="${String(escapeHtml(String(schedule.time_of_day || '09:00')))}">
         </div>
         <div class="cs-row" id="csApptConfirmOffset" ${String(mode === 'before_offset' ? '' : 'hidden')}>
-          <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_e9f168b05e36e6","Hours before") ?? "Hours before")}</div>
+          <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e9f168b05e36e6","Hours before") ?? "Hours before")}</div>
           <input class="cs-in" id="csApptConfirmOffsetValue" type="number" min="0.25" step="0.25" value="${String(escapeHtml(String((Number(schedule.offset_minutes) || 120) / 60)))}">
         </div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_2790b6a82d669b","Stop waiting for a reply after ") ?? "Stop waiting for a reply after ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="After this many hours — or once the appointment starts, whichever comes first — a late reply no longer counts as a confirmation.">?</span></div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_2790b6a82d669b","Stop waiting for a reply after ") ?? "Stop waiting for a reply after ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="After this many hours — or once the appointment starts, whichever comes first — a late reply no longer counts as a confirmation.">?</span></div>
           <input class="cs-in" id="csApptConfirmWindow" type="number" min="1" max="168" value="${String(escapeHtml(String(Number(settings.response_window_hours) || 24)))}">
         </div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_027ca1893c4fc1","Confirmation deadline before appointment (minutes)") ?? "Confirmation deadline before appointment (minutes)")}</div><input class="cs-in" id="csApptConfirmDeadline" type="number" min="0" max="43200" step="15" value="${String(escapeHtml(String(Number(settings.confirmation_deadline_minutes_before) || 0)))}"></div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_dfe55685414f95","If the customer does not confirm") ?? "If the customer does not confirm")}</div><select class="cs-in" id="csApptConfirmNoResponse"><option value="keep_reserved" ${String(settings.no_response_action === 'keep_reserved' || !settings.no_response_action ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_e6aa85b40079af","Keep the appointment reserved") ?? "Keep the appointment reserved")}</option><option value="notify_staff" ${String(settings.no_response_action === 'notify_staff' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_82495552a30dff","Keep it and notify staff") ?? "Keep it and notify staff")}</option><option value="release_to_unscheduled" ${String(settings.no_response_action === 'release_to_unscheduled' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_557ff8764fd4e6","Release it back to unscheduled") ?? "Release it back to unscheduled")}</option><option value="cancel" ${String(settings.no_response_action === 'cancel' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_764f551d513ae6","Cancel the appointment") ?? "Cancel the appointment")}</option></select></div>
-        <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_820b9cb136d6ed","Messages") ?? "Messages")}</div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_027ca1893c4fc1","Confirmation deadline before appointment (minutes)") ?? "Confirmation deadline before appointment (minutes)")}</div><input class="cs-in" id="csApptConfirmDeadline" type="number" min="0" max="43200" step="15" value="${String(escapeHtml(String(Number(settings.confirmation_deadline_minutes_before) || 0)))}"></div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_dfe55685414f95","If the customer does not confirm") ?? "If the customer does not confirm")}</div><select class="cs-in" id="csApptConfirmNoResponse"><option value="keep_reserved" ${String(settings.no_response_action === 'keep_reserved' || !settings.no_response_action ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e6aa85b40079af","Keep the appointment reserved") ?? "Keep the appointment reserved")}</option><option value="notify_staff" ${String(settings.no_response_action === 'notify_staff' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_82495552a30dff","Keep it and notify staff") ?? "Keep it and notify staff")}</option><option value="release_to_unscheduled" ${String(settings.no_response_action === 'release_to_unscheduled' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_557ff8764fd4e6","Release it back to unscheduled") ?? "Release it back to unscheduled")}</option><option value="cancel" ${String(settings.no_response_action === 'cancel' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_764f551d513ae6","Cancel the appointment") ?? "Cancel the appointment")}</option></select></div>
+        <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_820b9cb136d6ed","Messages") ?? "Messages")}</div>
         <p class="cs-note">Available placeholders: {{customer_first_name}}, {{company_name}}, {{appointment_summary}}, {{confirm_link}}, {{portal_link}}.</p>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_def279b4381c15","Text message") ?? "Text message")}</div><textarea class="cs-in" id="csApptConfirmSmsText" rows="3">${String(escapeHtml(String(messages.sms_text || '')))}</textarea></div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_eb218e4bd1f2dd","Email subject") ?? "Email subject")}</div><input class="cs-in" id="csApptConfirmEmailSubject" value="${String(escapeHtml(String(messages.email_subject || '')))}"></div>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_63ea7578d93f41","Email body") ?? "Email body")}</div><textarea class="cs-in" id="csApptConfirmEmailBody" rows="7">${String(escapeHtml(String(messages.email_body || '')))}</textarea></div>
-        <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_3c9bc82cdaa410","Who can see confirmation status") ?? "Who can see confirmation status")}</div>
-        <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8a8cf89dbb4b99","Some companies would rather their sales team not know an appointment is still unconfirmed. Restricting this hides the dashed outline and the confirmation panel from anyone without the “View Appointment Confirmation Status” permission — the appointment simply looks normal to them.") ?? "Some companies would rather their sales team not know an appointment is still unconfirmed. Restricting this hides the dashed outline and the confirmation panel from anyone without the “View Appointment Confirmation Status” permission — the appointment simply looks normal to them.")}</p>
-        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_d1621d1dbd55f1","Visibility") ?? "Visibility")}</div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_def279b4381c15","Text message") ?? "Text message")}</div><textarea class="cs-in" id="csApptConfirmSmsText" rows="3">${String(escapeHtml(String(messages.sms_text || '')))}</textarea></div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_eb218e4bd1f2dd","Email subject") ?? "Email subject")}</div><input class="cs-in" id="csApptConfirmEmailSubject" value="${String(escapeHtml(String(messages.email_subject || '')))}"></div>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_63ea7578d93f41","Email body") ?? "Email body")}</div><textarea class="cs-in" id="csApptConfirmEmailBody" rows="7">${String(escapeHtml(String(messages.email_body || '')))}</textarea></div>
+        <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_3c9bc82cdaa410","Who can see confirmation status") ?? "Who can see confirmation status")}</div>
+        <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8a8cf89dbb4b99","Some companies would rather their sales team not know an appointment is still unconfirmed. Restricting this hides the dashed outline and the confirmation panel from anyone without the “View Appointment Confirmation Status” permission — the appointment simply looks normal to them.") ?? "Some companies would rather their sales team not know an appointment is still unconfirmed. Restricting this hides the dashed outline and the confirmation panel from anyone without the “View Appointment Confirmation Status” permission — the appointment simply looks normal to them.")}</p>
+        <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_d1621d1dbd55f1","Visibility") ?? "Visibility")}</div>
           <select class="cs-in" id="csApptConfirmVisibility">
-            <option value="everyone" ${String(String(visibility.mode) !== 'permission' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_b768683ff3624d","Everyone who can see the schedule") ?? "Everyone who can see the schedule")}</option>
-            <option value="permission" ${String(String(visibility.mode) === 'permission' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_42c77eddbd24a6","Only people with the permission") ?? "Only people with the permission")}</option>
+            <option value="everyone" ${String(String(visibility.mode) !== 'permission' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_b768683ff3624d","Everyone who can see the schedule") ?? "Everyone who can see the schedule")}</option>
+            <option value="permission" ${String(String(visibility.mode) === 'permission' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_42c77eddbd24a6","Only people with the permission") ?? "Only people with the permission")}</option>
           </select>
         </div>
         <div class="cs-row" id="csApptConfirmRoles" ${String(String(visibility.mode) === 'permission' ? '' : 'hidden')}>
-          <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_b4535c02b8d9b3","Always visible to these permission sets") ?? "Always visible to these permission sets")}</div>
+          <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_b4535c02b8d9b3","Always visible to these permission sets") ?? "Always visible to these permission sets")}</div>
           <div class="wf-inline-toggle">
             ${String(roles.length
               ? roles.map((role) => `<label class="wf-check"><input type="checkbox" data-appt-confirm-role="${escapeHtml(role.id)}" ${selectedRoles.includes(String(role.id)) ? 'checked' : ''}> ${escapeHtml(role.name)}</label>`).join('')
-              : '<span class="cs-note">No permission sets found.</span>')}
+              : `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd4bec4cdf5607","No permission sets found.") ?? "No permission sets found.")}</span>`)}
           </div>
         </div>
-        <div class="li-actions"><button class="cs-btn primary" id="csApptConfirmSave" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_23fcdd1fb5e601"," Save Settings") ?? " Save Settings")}</button></div>
+        <div class="li-actions"><button class="cs-btn primary" id="csApptConfirmSave" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_23fcdd1fb5e601"," Save Settings") ?? " Save Settings")}</button></div>
         <div class="cs-note" id="csApptConfirmStatus"></div>
       `;
 
@@ -11376,7 +11167,7 @@
         };
       };
       let schedulingConfig = null;
-      paneScheduling.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_fd55191ada1023","Loading scheduling settings...") ?? "Loading scheduling settings...")}</div>`;
+      paneScheduling.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fd55191ada1023","Loading scheduling settings...") ?? "Loading scheduling settings...")}</div>`;
       try {
         if (!orgId || !window.PlatformScheduling?.loadBranchConfig || !window.PlatformAPI?.branchModules?.save) throw new Error('Scheduling API is unavailable.');
         [schedulingConfig] = await Promise.all([
@@ -11477,23 +11268,23 @@
         const connectionRule = policy.rules.find((rule) => rule.subject_types.includes('organization_connection')) || {};
         const checked = (values, id) => workforceArray(values).includes(id) ? 'checked' : '';
         return `<article class="wf-card" data-event-assignment-policy="${String(escapeHtml(eventTypeId))}">
-          <header class="wf-card-head"><div class="wf-card-head-copy"><strong>${String(escapeHtml(eventType.label || schedulingConfig?.mappings?.labels?.event_types?.[eventTypeId] || eventTypeId.replace(/_/g, ' ')))}</strong><span>${((v2) => globalThis.PlatformLanguage?.text("settings","m_59eab12690cc69",`${v2} - assignment rules are ORed by subject type`,{v2}) ?? `${v2} - assignment rules are ORed by subject type`)(escapeHtml(eventTypeId))}</span></div><label class="wf-check"><input type="checkbox" data-policy-unassigned ${String(policy.allow_unassigned ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_3633f31aa353eb"," Allow unassigned") ?? " Allow unassigned")}</label></header>
+          <header class="wf-card-head"><div class="wf-card-head-copy"><strong>${String(escapeHtml(eventType.label || schedulingConfig?.mappings?.labels?.event_types?.[eventTypeId] || eventTypeId.replace(/_/g, ' ')))}</strong><span>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_59eab12690cc69",`${v2} - assignment rules are ORed by subject type`,{v2}) ?? `${v2} - assignment rules are ORed by subject type`)(escapeHtml(eventTypeId))}</span></div><label class="wf-check"><input type="checkbox" data-policy-unassigned ${String(policy.allow_unassigned ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_3633f31aa353eb"," Allow unassigned") ?? " Allow unassigned")}</label></header>
           <div class="wf-card-body">
-            <label class="wf-check"><input type="checkbox" data-policy-subject="organization_user" ${String(Object.keys(userRule).length ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_4d09b4854cba38"," People") ?? " People")}</label>
-            <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_7f77b08ac667c7","Specific people (blank means any matching person)") ?? "Specific people (blank means any matching person)")}</div>
-            <div class="wf-inline-toggle">${String(catalog.people.map((person) => `<label class="wf-check"><input type="checkbox" data-policy-user-id="${escapeHtml(person.id)}" ${checked(userRule.subject_ids, workforceText(person.id))}> ${escapeHtml(person.name || person.email || person.id)}</label>`).join('') || '<span class="cs-note">No people available.</span>')}</div>
-            <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_6e02ccd4c8725c","Allowed person roles") ?? "Allowed person roles")}</div>
+            <label class="wf-check"><input type="checkbox" data-policy-subject="organization_user" ${String(Object.keys(userRule).length ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d09b4854cba38"," People") ?? " People")}</label>
+            <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_7f77b08ac667c7","Specific people (blank means any matching person)") ?? "Specific people (blank means any matching person)")}</div>
+            <div class="wf-inline-toggle">${String(catalog.people.map((person) => `<label class="wf-check"><input type="checkbox" data-policy-user-id="${escapeHtml(person.id)}" ${checked(userRule.subject_ids, workforceText(person.id))}> ${escapeHtml(person.name || person.email || person.id)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_733c0e2fb3d12f","No people available.") ?? "No people available.")}</span>`)}</div>
+            <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_6e02ccd4c8725c","Allowed person roles") ?? "Allowed person roles")}</div>
             <div class="wf-inline-toggle">${String(catalog.roles.map((role) => `<label class="wf-check"><input type="checkbox" data-policy-user-role="${escapeHtml(role.id)}" ${checked(userRule.role_ids, role.id)}> ${escapeHtml(role.name)}</label>`).join(''))}</div>
-            <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_75847b78051d08","Required person tags") ?? "Required person tags")}</div>
-            <div class="wf-inline-toggle">${String(catalog.tags.map((tag) => `<label class="wf-check"><input type="checkbox" data-policy-user-tag="${escapeHtml(tag.id)}" ${checked(userRule.assignment_tag_ids, workforceText(tag.id))}> ${escapeHtml(tag.name || tag.id)}</label>`).join('') || '<span class="cs-note">No person tags defined.</span>')}</div>
-            <label class="wf-check"><input type="checkbox" data-policy-subject="resource_group" ${String(Object.keys(groupRule).length ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_5218a442ccc902"," Resource groups") ?? " Resource groups")}</label>
-            <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_0727f39725f02c","Specific groups (blank means any matching group)") ?? "Specific groups (blank means any matching group)")}</div>
-            <div class="wf-inline-toggle">${String(catalog.groups.map((group) => `<label class="wf-check"><input type="checkbox" data-policy-group-id="${escapeHtml(group.id)}" ${checked(groupRule.subject_ids, workforceText(group.id))}> ${escapeHtml(group.name || group.id)}</label>`).join('') || '<span class="cs-note">No resource groups available.</span>')}</div>
-            <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_07be6e36d8f8eb","Allowed group kinds") ?? "Allowed group kinds")}</div>
+            <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_75847b78051d08","Required person tags") ?? "Required person tags")}</div>
+            <div class="wf-inline-toggle">${String(catalog.tags.map((tag) => `<label class="wf-check"><input type="checkbox" data-policy-user-tag="${escapeHtml(tag.id)}" ${checked(userRule.assignment_tag_ids, workforceText(tag.id))}> ${escapeHtml(tag.name || tag.id)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_2b8d971887e4e1","No person tags defined.") ?? "No person tags defined.")}</span>`)}</div>
+            <label class="wf-check"><input type="checkbox" data-policy-subject="resource_group" ${String(Object.keys(groupRule).length ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_5218a442ccc902"," Resource groups") ?? " Resource groups")}</label>
+            <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_0727f39725f02c","Specific groups (blank means any matching group)") ?? "Specific groups (blank means any matching group)")}</div>
+            <div class="wf-inline-toggle">${String(catalog.groups.map((group) => `<label class="wf-check"><input type="checkbox" data-policy-group-id="${escapeHtml(group.id)}" ${checked(groupRule.subject_ids, workforceText(group.id))}> ${escapeHtml(group.name || group.id)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_ee34aaafe6042f","No resource groups available.") ?? "No resource groups available.")}</span>`)}</div>
+            <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_07be6e36d8f8eb","Allowed group kinds") ?? "Allowed group kinds")}</div>
             <div class="wf-inline-toggle">${String(catalog.kinds.map((kind) => `<label class="wf-check"><input type="checkbox" data-policy-group-kind="${escapeHtml(kind.id)}" ${checked(groupRule.group_kind_ids, workforceText(kind.id))}> ${escapeHtml(kind.name || kind.id)}</label>`).join(''))}</div>
-            <div class="wf-section-title">${(globalThis.PlatformLanguage?.text("settings","m_f3e659d5bd2545","Required group tags") ?? "Required group tags")}</div>
-            <div class="wf-inline-toggle">${String(catalog.tags.map((tag) => `<label class="wf-check"><input type="checkbox" data-policy-group-tag="${escapeHtml(tag.id)}" ${checked(groupRule.assignment_tag_ids, workforceText(tag.id))}> ${escapeHtml(tag.name || tag.id)}</label>`).join('') || '<span class="cs-note">No group tags defined.</span>')}</div>
-            <label class="wf-check"><input type="checkbox" data-policy-subject="organization_connection" ${String(Object.keys(connectionRule).length ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_f06f9bfb1b96e7"," External organizations") ?? " External organizations")}</label>
+            <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_f3e659d5bd2545","Required group tags") ?? "Required group tags")}</div>
+            <div class="wf-inline-toggle">${String(catalog.tags.map((tag) => `<label class="wf-check"><input type="checkbox" data-policy-group-tag="${escapeHtml(tag.id)}" ${checked(groupRule.assignment_tag_ids, workforceText(tag.id))}> ${escapeHtml(tag.name || tag.id)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_045b0820ae0bdf","No group tags defined.") ?? "No group tags defined.")}</span>`)}</div>
+            <label class="wf-check"><input type="checkbox" data-policy-subject="organization_connection" ${String(Object.keys(connectionRule).length ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_f06f9bfb1b96e7"," External organizations") ?? " External organizations")}</label>
           </div>
         </article>`;
       };
@@ -11541,31 +11332,31 @@
         }).filter((row) => row.id);
         paneScheduling.innerHTML = `
           <div class="cs-section">
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_4249990706c50e","Scheduling") ?? "Scheduling")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_06d7c7085b2394","These branch hours control sales appointment availability in website booking forms and internal project scheduling when internal limits are enabled.") ?? "These branch hours control sales appointment availability in website booking forms and internal project scheduling when internal limits are enabled.")}</p>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_4249990706c50e","Scheduling") ?? "Scheduling")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_06d7c7085b2394","These branch hours control sales appointment availability in website booking forms and internal project scheduling when internal limits are enabled.") ?? "These branch hours control sales appointment availability in website booking forms and internal project scheduling when internal limits are enabled.")}</p>
             <div class="li-schedule-settings">
-              <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_49cc23b02baeb1","Appointment Duration") ?? "Appointment Duration")}</div><input class="cs-in" id="liSalesDuration" type="number" min="15" step="15" value="${String(escapeHtml(defaults.duration))}"></div>
-              <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_d0e57fe865a878","Scheduling Increments") ?? "Scheduling Increments")}</div><input class="cs-in" id="liSalesSlot" type="number" min="5" step="5" value="${String(escapeHtml(defaults.slot))}"></div>
-              <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_3d6205014f145f","Time Between Appointments ") ?? "Time Between Appointments ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="This is reserved travel/setup time around each salesperson's appointment, so customers cannot book back-to-back appointments for the same person.">?</span></div><input class="cs-in" id="liSalesBuffer" type="number" min="0" step="5" value="${String(escapeHtml(defaults.buffer))}"></div>
+              <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_49cc23b02baeb1","Appointment Duration") ?? "Appointment Duration")}</div><input class="cs-in" id="liSalesDuration" type="number" min="15" step="15" value="${String(escapeHtml(defaults.duration))}"></div>
+              <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_d0e57fe865a878","Scheduling Increments") ?? "Scheduling Increments")}</div><input class="cs-in" id="liSalesSlot" type="number" min="5" step="5" value="${String(escapeHtml(defaults.slot))}"></div>
+              <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_3d6205014f145f","Time Between Appointments ") ?? "Time Between Appointments ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="This is reserved travel/setup time around each salesperson's appointment, so customers cannot book back-to-back appointments for the same person.">?</span></div><input class="cs-in" id="liSalesBuffer" type="number" min="0" step="5" value="${String(escapeHtml(defaults.buffer))}"></div>
             </div>
             <div class="li-schedule-window">
               <div class="li-schedule-stack">
-                <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_d567875723d7a4","Earliest Appointment") ?? "Earliest Appointment")}</div><input class="cs-in" id="liSalesStart" type="time" value="${String(escapeHtml(schedule.start || '09:00'))}"></div>
-                <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_06d948bc5f8e6a","Latest Appointment") ?? "Latest Appointment")}</div><input class="cs-in" id="liSalesEnd" type="time" value="${String(escapeHtml(schedule.end || '17:00'))}"></div>
+                <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_d567875723d7a4","Earliest Appointment") ?? "Earliest Appointment")}</div><input class="cs-in" id="liSalesStart" type="time" value="${String(escapeHtml(schedule.start || '09:00'))}"></div>
+                <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_06d948bc5f8e6a","Latest Appointment") ?? "Latest Appointment")}</div><input class="cs-in" id="liSalesEnd" type="time" value="${String(escapeHtml(schedule.end || '17:00'))}"></div>
               </div>
               <div class="li-schedule-stack">
                 <div class="li-switch-row">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_3eddc0510f6b1c","Apply Limits Internally ") ?? "Apply Limits Internally ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="Off means your team can book internal appointments outside these public customer-facing hours.">?</span></div>
+                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_3eddc0510f6b1c","Apply Limits Internally ") ?? "Apply Limits Internally ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="Off means your team can book internal appointments outside these public customer-facing hours.">?</span></div>
                   <label class="li-switch"><input id="liApplyInternalLimits" type="checkbox" ${String(schedule.applyLimitsToInternalUsers ? 'checked' : '')}><span class="li-slider"></span></label>
                 </div>
                 <div class="li-switch-row">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_2f095781f52995","Specific Times By Day ") ?? "Specific Times By Day ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="Use different earliest/latest appointment times for selected days. New day rows default to the global earliest/latest times.">?</span></div>
+                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_2f095781f52995","Specific Times By Day ") ?? "Specific Times By Day ")}<span class="fm-ui-help" tabindex="0" data-fm-tooltip="Use different earliest/latest appointment times for selected days. New day rows default to the global earliest/latest times.">?</span></div>
                   <label class="li-switch"><input id="liUseDaySpecificHours" type="checkbox" ${String(schedule.useDaySpecificHours ? 'checked' : '')}><span class="li-slider"></span></label>
                 </div>
               </div>
             </div>
             <div class="cs-row">
-              <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_6566e8446239e7","Available Days") ?? "Available Days")}</div>
+              <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_6566e8446239e7","Available Days") ?? "Available Days")}</div>
               <div class="li-day-grid">
                 ${String(dayLabels.map(([value, label]) => `<button type="button" class="li-day-button ${schedule.activeDays.includes(Number(value)) ? 'active' : ''}" data-li-day="${value}">${escapeHtml(label)}</button>`).join(''))}
               </div>
@@ -11582,72 +11373,72 @@
                 }).join(''))}
               </div>
             </div>
-            <div class="li-actions"><button class="cs-btn primary" id="liSaveScheduling" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_23fcdd1fb5e601"," Save Settings") ?? " Save Settings")}</button></div>
+            <div class="li-actions"><button class="cs-btn primary" id="liSaveScheduling" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_23fcdd1fb5e601"," Save Settings") ?? " Save Settings")}</button></div>
             <div class="cs-note" id="liSchedulingStatus"></div>
           </div>
           <div class="cs-section">
             <div class="ss-hero">
-              <div class="ss-hero-copy"><strong>${(globalThis.PlatformLanguage?.text("settings","m_39ae20cb30ba5f","Customer scheduling & capacity") ?? "Customer scheduling & capacity")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_5a97a1a1161958","One availability policy powers your website, customer portal, guided text and email replies, and scheduling agents. Feature flags can hide each surface independently.") ?? "One availability policy powers your website, customer portal, guided text and email replies, and scheduling agents. Feature flags can hide each surface independently.")}</span></div>
+              <div class="ss-hero-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_39ae20cb30ba5f","Customer scheduling & capacity") ?? "Customer scheduling & capacity")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5a97a1a1161958","One availability policy powers your website, customer portal, guided text and email replies, and scheduling agents. Feature flags can hide each surface independently.") ?? "One availability policy powers your website, customer portal, guided text and email replies, and scheduling agents. Feature flags can hide each surface independently.")}</span></div>
               <span class="ss-status ${String(portalFeature || guidedFeature || agentFeature ? 'on' : '')}"><i class="fas ${String(portalFeature || guidedFeature || agentFeature ? 'fa-check' : 'fa-lock')}"></i> ${String(portalFeature || guidedFeature || agentFeature ? 'Features available' : 'Feature-gated')}</span>
             </div>
             <div class="ss-grid">
               <article class="ss-card wide">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_caa43bed1b7efd","Shared self-service policy") ?? "Shared self-service policy")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_ef9345209bc807","These defaults apply when an event type or scope does not provide a more specific policy.") ?? "These defaults apply when an event type or scope does not provide a more specific policy.")}</span></div><label class="li-switch"><input data-ss-enabled type="checkbox" ${String(selfService.enabled === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_caa43bed1b7efd","Shared self-service policy") ?? "Shared self-service policy")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ef9345209bc807","These defaults apply when an event type or scope does not provide a more specific policy.") ?? "These defaults apply when an event type or scope does not provide a more specific policy.")}</span></div><label class="li-switch"><input data-ss-enabled type="checkbox" ${String(selfService.enabled === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
                 <div class="ss-fields three">
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_21532e44a7c420","Minimum notice (minutes)") ?? "Minimum notice (minutes)")}<input data-ss-min-notice type="number" min="0" max="43200" step="15" value="${String(escapeHtml(Number(selfPolicy.min_notice_minutes ?? 120)))}"></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_14300528593037","Booking horizon (days)") ?? "Booking horizon (days)")}<input data-ss-horizon type="number" min="1" max="365" value="${String(escapeHtml(Number(selfPolicy.booking_horizon_days ?? 45)))}"></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_6cefc30b19d198","Maximum online changes") ?? "Maximum online changes")}<input data-ss-max type="number" min="0" max="20" value="${String(escapeHtml(Number(selfPolicy.max_reschedules ?? 3)))}"></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_ae469305f0b022","Hold a selected time for") ?? "Hold a selected time for")}<input data-ss-hold type="number" min="1" max="30" value="${String(escapeHtml(Number(selfPolicy.hold_minutes ?? 5)))}"><small>${(globalThis.PlatformLanguage?.text("settings","m_b1c4f1049926a5","minutes") ?? "minutes")}</small></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_8619503856a0ce","Assignment behavior") ?? "Assignment behavior")}<select data-ss-assignment><option value="best_available" ${String(selfPolicy.assignment_mode !== 'preserve' && selfPolicy.assignment_mode !== 'customer_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_daeed1c0def75c","Best available") ?? "Best available")}</option><option value="preserve" ${String(selfPolicy.assignment_mode === 'preserve' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_92c96961d02fca","Keep current assignment") ?? "Keep current assignment")}</option><option value="customer_choice" ${String(selfPolicy.assignment_mode === 'customer_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_f0efb4798502a2","Let customer choose") ?? "Let customer choose")}</option></select></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_d1658c9d0b9f74","Capacity reserve") ?? "Capacity reserve")}<input data-ss-reserve type="number" min="0" max="20" value="${String(escapeHtml(Number(redundancyPolicy.reserve_count || 0)))}"><small>${(globalThis.PlatformLanguage?.text("settings","m_be080cfbc2b7b7","resources kept open") ?? "resources kept open")}</small></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_09b42927d719fa","Default review") ?? "Default review")}<select data-ss-approval><option value="automatic" ${String(selfPolicy.reschedule_approval !== 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_18cf443d1817db","Apply immediately") ?? "Apply immediately")}</option><option value="required" ${String(selfPolicy.reschedule_approval === 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_d7948ea88e21e1","Require staff approval") ?? "Require staff approval")}</option></select></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_c81e87da4442c7","Customer decision update") ?? "Customer decision update")}<select data-ss-customer-notification><option value="none" ${String(!selfPolicy.reschedule_customer_notification || selfPolicy.reschedule_customer_notification === 'none' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_c397a240c1f8c1","Portal only") ?? "Portal only")}</option><option value="sms" ${String(selfPolicy.reschedule_customer_notification === 'sms' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_def279b4381c15","Text message") ?? "Text message")}</option><option value="email" ${String(selfPolicy.reschedule_customer_notification === 'email' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_5d2b9327181e33","Email") ?? "Email")}</option><option value="both" ${String(selfPolicy.reschedule_customer_notification === 'both' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_9543ea7e37ff8d","Text and email") ?? "Text and email")}</option></select></label>
-                  <label class="wf-check"><input data-ss-staff-notification type="checkbox" ${String(selfPolicy.reschedule_staff_notification === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_e5b48705a6d3f4"," Notify staff when a customer reschedules") ?? " Notify staff when a customer reschedules")}</label>
-                  <label class="wf-check"><input data-ss-review-todo type="checkbox" ${String(selfPolicy.reschedule_review_todo !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_1e6729c7c0e6e4"," Create a project review to-do when approval is required") ?? " Create a project review to-do when approval is required")}</label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_21532e44a7c420","Minimum notice (minutes)") ?? "Minimum notice (minutes)")}<input data-ss-min-notice type="number" min="0" max="43200" step="15" value="${String(escapeHtml(Number(selfPolicy.min_notice_minutes ?? 120)))}"></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_14300528593037","Booking horizon (days)") ?? "Booking horizon (days)")}<input data-ss-horizon type="number" min="1" max="365" value="${String(escapeHtml(Number(selfPolicy.booking_horizon_days ?? 45)))}"></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_6cefc30b19d198","Maximum online changes") ?? "Maximum online changes")}<input data-ss-max type="number" min="0" max="20" value="${String(escapeHtml(Number(selfPolicy.max_reschedules ?? 3)))}"></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_ae469305f0b022","Hold a selected time for") ?? "Hold a selected time for")}<input data-ss-hold type="number" min="1" max="30" value="${String(escapeHtml(Number(selfPolicy.hold_minutes ?? 5)))}"><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_b1c4f1049926a5","minutes") ?? "minutes")}</small></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_8619503856a0ce","Assignment behavior") ?? "Assignment behavior")}<select data-ss-assignment><option value="best_available" ${String(selfPolicy.assignment_mode !== 'preserve' && selfPolicy.assignment_mode !== 'customer_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_daeed1c0def75c","Best available") ?? "Best available")}</option><option value="preserve" ${String(selfPolicy.assignment_mode === 'preserve' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_92c96961d02fca","Keep current assignment") ?? "Keep current assignment")}</option><option value="customer_choice" ${String(selfPolicy.assignment_mode === 'customer_choice' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_f0efb4798502a2","Let customer choose") ?? "Let customer choose")}</option></select></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_d1658c9d0b9f74","Capacity reserve") ?? "Capacity reserve")}<input data-ss-reserve type="number" min="0" max="20" value="${String(escapeHtml(Number(redundancyPolicy.reserve_count || 0)))}"><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_be080cfbc2b7b7","resources kept open") ?? "resources kept open")}</small></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_09b42927d719fa","Default review") ?? "Default review")}<select data-ss-approval><option value="automatic" ${String(selfPolicy.reschedule_approval !== 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_18cf443d1817db","Apply immediately") ?? "Apply immediately")}</option><option value="required" ${String(selfPolicy.reschedule_approval === 'required' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_d7948ea88e21e1","Require staff approval") ?? "Require staff approval")}</option></select></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_c81e87da4442c7","Customer decision update") ?? "Customer decision update")}<select data-ss-customer-notification><option value="none" ${String(!selfPolicy.reschedule_customer_notification || selfPolicy.reschedule_customer_notification === 'none' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_c397a240c1f8c1","Portal only") ?? "Portal only")}</option><option value="sms" ${String(selfPolicy.reschedule_customer_notification === 'sms' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_def279b4381c15","Text message") ?? "Text message")}</option><option value="email" ${String(selfPolicy.reschedule_customer_notification === 'email' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</option><option value="both" ${String(selfPolicy.reschedule_customer_notification === 'both' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_9543ea7e37ff8d","Text and email") ?? "Text and email")}</option></select></label>
+                  <label class="wf-check"><input data-ss-staff-notification type="checkbox" ${String(selfPolicy.reschedule_staff_notification === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e5b48705a6d3f4"," Notify staff when a customer reschedules") ?? " Notify staff when a customer reschedules")}</label>
+                  <label class="wf-check"><input data-ss-review-todo type="checkbox" ${String(selfPolicy.reschedule_review_todo !== false ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_1e6729c7c0e6e4"," Create a project review to-do when approval is required") ?? " Create a project review to-do when approval is required")}</label>
                 </div>
               </article>
               <article class="ss-card ${String(portalFeature ? '' : 'ss-disabled')}">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_46ba04ea07c935","Customer portal") ?? "Customer portal")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_d2b65128e14c17","Show a polished Reschedule button on eligible upcoming appointments.") ?? "Show a polished Reschedule button on eligible upcoming appointments.")}</span></div><label class="li-switch"><input data-ss-portal type="checkbox" ${String(selfService.portal_enabled === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
-                ${String(portalFeature ? '' : '<div class="ss-cap-note">Enable Customer Self-Scheduling in Features to expose this surface.</div>')}
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_46ba04ea07c935","Customer portal") ?? "Customer portal")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_d2b65128e14c17","Show a polished Reschedule button on eligible upcoming appointments.") ?? "Show a polished Reschedule button on eligible upcoming appointments.")}</span></div><label class="li-switch"><input data-ss-portal type="checkbox" ${String(selfService.portal_enabled === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
+                ${String(portalFeature ? '' : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_542257a8f4f947","Enable Customer Self-Scheduling in Features to expose this surface.") ?? "Enable Customer Self-Scheduling in Features to expose this surface.")}</div>`)}
               </article>
               <article class="ss-card ${String(guidedFeature ? '' : 'ss-disabled')}">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_44cdd9ed011c58","Guided SMS & email") ?? "Guided SMS & email")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_6de450cdcdaa5e","Offer numbered choices and process replies without requiring an AI agent.") ?? "Offer numbered choices and process replies without requiring an AI agent.")}</span></div><label class="li-switch"><input data-ss-guided type="checkbox" ${String(selfService.deterministic_workflow === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
-                ${String(guidedFeature ? '' : '<div class="ss-cap-note">Enable Guided SMS & Email Rescheduling in Features to use this workflow.</div>')}
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_44cdd9ed011c58","Guided SMS & email") ?? "Guided SMS & email")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_6de450cdcdaa5e","Offer numbered choices and process replies without requiring an AI agent.") ?? "Offer numbered choices and process replies without requiring an AI agent.")}</span></div><label class="li-switch"><input data-ss-guided type="checkbox" ${String(selfService.deterministic_workflow === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
+                ${String(guidedFeature ? '' : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_7717bf7b3c535c","Enable Guided SMS & Email Rescheduling in Features to use this workflow.") ?? "Enable Guided SMS & Email Rescheduling in Features to use this workflow.")}</div>`)}
               </article>
               <article class="ss-card ${String(agentFeature ? '' : 'ss-disabled')}">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_57c303f9035449","Agent access") ?? "Agent access")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_617b520fbfb0b9","Keep reading availability and committing changes as separate permissions.") ?? "Keep reading availability and committing changes as separate permissions.")}</span></div></div>
-                <div class="ss-fields"><label class="wf-check"><input data-ss-agent-read type="checkbox" ${String(selfService.agent_read_enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_eb93261c1dc6e7"," Read available times") ?? " Read available times")}</label><label class="wf-check"><input data-ss-agent-write type="checkbox" ${String(selfService.agent_write_enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_f64cf8081dc8f0"," Commit reschedules") ?? " Commit reschedules")}</label></div>
-                ${String(agentFeature ? '' : '<div class="ss-cap-note">Enable Agent Scheduling Tools in Features before these controls take effect.</div>')}
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_57c303f9035449","Agent access") ?? "Agent access")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_617b520fbfb0b9","Keep reading availability and committing changes as separate permissions.") ?? "Keep reading availability and committing changes as separate permissions.")}</span></div></div>
+                <div class="ss-fields"><label class="wf-check"><input data-ss-agent-read type="checkbox" ${String(selfService.agent_read_enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_eb93261c1dc6e7"," Read available times") ?? " Read available times")}</label><label class="wf-check"><input data-ss-agent-write type="checkbox" ${String(selfService.agent_write_enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_f64cf8081dc8f0"," Commit reschedules") ?? " Commit reschedules")}</label></div>
+                ${String(agentFeature ? '' : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_07d951ea2e4612","Enable Agent Scheduling Tools in Features before these controls take effect.") ?? "Enable Agent Scheduling Tools in Features before these controls take effect.")}</div>`)}
               </article>
               <article class="ss-card ${String(travelFeature ? '' : 'ss-disabled')}">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_65b8f4e4a9984d","Travel-aware slots") ?? "Travel-aware slots")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_d0228085bf9527","Protect the drive window before and after assigned appointments.") ?? "Protect the drive window before and after assigned appointments.")}</span></div><label class="li-switch"><input data-ss-travel type="checkbox" ${String(travelPolicy.enabled === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
-                <div class="ss-fields"><label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_f2aae9a8c1b99c","Average speed (mph)") ?? "Average speed (mph)")}<input data-ss-speed type="number" min="5" max="80" value="${String(escapeHtml(Number(travelPolicy.average_speed_mph || 28)))}"></label><label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_d9f78e5082b671","Road multiplier") ?? "Road multiplier")}<input data-ss-multiplier type="number" min="1" max="3" step=".05" value="${String(escapeHtml(Number(travelPolicy.multiplier || 1.25)))}"></label></div>
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_65b8f4e4a9984d","Travel-aware slots") ?? "Travel-aware slots")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_d0228085bf9527","Protect the drive window before and after assigned appointments.") ?? "Protect the drive window before and after assigned appointments.")}</span></div><label class="li-switch"><input data-ss-travel type="checkbox" ${String(travelPolicy.enabled === true ? 'checked' : '')}><span class="li-slider"></span></label></div>
+                <div class="ss-fields"><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2aae9a8c1b99c","Average speed (mph)") ?? "Average speed (mph)")}<input data-ss-speed type="number" min="5" max="80" value="${String(escapeHtml(Number(travelPolicy.average_speed_mph || 28)))}"></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_d9f78e5082b671","Road multiplier") ?? "Road multiplier")}<input data-ss-multiplier type="number" min="1" max="3" step=".05" value="${String(escapeHtml(Number(travelPolicy.multiplier || 1.25)))}"></label></div>
               </article>
               <article class="ss-card wide">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_24b340317f63b4","Guided workflow copy") ?? "Guided workflow copy")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_9926cfcd85dd2d","Standardized language used by the deterministic workflow. The agent can use the same wording as guidance.") ?? "Standardized language used by the deterministic workflow. The agent can use the same wording as guidance.")}</span></div></div>
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_24b340317f63b4","Guided workflow copy") ?? "Guided workflow copy")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_9926cfcd85dd2d","Standardized language used by the deterministic workflow. The agent can use the same wording as guidance.") ?? "Standardized language used by the deterministic workflow. The agent can use the same wording as guidance.")}</span></div></div>
                 <div class="ss-fields">
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_633f7365b32e3c","Introduction") ?? "Introduction")}<textarea data-ss-copy="intro">${String(escapeHtml(selfMessages.intro || "Let's find another time that works."))}</textarea></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_c38d80de16c203","Choice prompt") ?? "Choice prompt")}<textarea data-ss-copy="slot_prompt">${String(escapeHtml(selfMessages.slot_prompt || 'Reply with the number of the time you prefer, or use your project portal.'))}</textarea></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_c1330d34366e71","Success message") ?? "Success message")}<textarea data-ss-copy="success">${String(escapeHtml(selfMessages.success || "You're all set. Your appointment has been moved to {{appointment_time}}."))}</textarea></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_bd585f0df980a6","Request submitted") ?? "Request submitted")}<textarea data-ss-copy="requested">${String(escapeHtml(selfMessages.requested || 'Your request has been submitted. Your original appointment stays in place until our team reviews the change.'))}</textarea></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_d1705775bd4abd","Request approved") ?? "Request approved")}<textarea data-ss-copy="approved">${String(escapeHtml(selfMessages.approved || 'Your appointment change has been confirmed for {{appointment_time}}.'))}</textarea></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_e8fb402621c180","Request declined") ?? "Request declined")}<textarea data-ss-copy="declined">${String(escapeHtml(selfMessages.declined || "We couldn't approve the requested appointment change. Your original appointment is still reserved."))}</textarea></label>
-                  <label class="ss-field">${(globalThis.PlatformLanguage?.text("settings","m_432be520abf01c","No openings message") ?? "No openings message")}<textarea data-ss-copy="no_slots">${String(escapeHtml(selfMessages.no_slots || "We couldn't find an open time in that range. Our team will follow up."))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_633f7365b32e3c","Introduction") ?? "Introduction")}<textarea data-ss-copy="intro">${String(escapeHtml(selfMessages.intro || "Let's find another time that works."))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_c38d80de16c203","Choice prompt") ?? "Choice prompt")}<textarea data-ss-copy="slot_prompt">${String(escapeHtml(selfMessages.slot_prompt || 'Reply with the number of the time you prefer, or use your project portal.'))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_c1330d34366e71","Success message") ?? "Success message")}<textarea data-ss-copy="success">${String(escapeHtml(selfMessages.success || "You're all set. Your appointment has been moved to {{appointment_time}}."))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_bd585f0df980a6","Request submitted") ?? "Request submitted")}<textarea data-ss-copy="requested">${String(escapeHtml(selfMessages.requested || 'Your request has been submitted. Your original appointment stays in place until our team reviews the change.'))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_d1705775bd4abd","Request approved") ?? "Request approved")}<textarea data-ss-copy="approved">${String(escapeHtml(selfMessages.approved || 'Your appointment change has been confirmed for {{appointment_time}}.'))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_e8fb402621c180","Request declined") ?? "Request declined")}<textarea data-ss-copy="declined">${String(escapeHtml(selfMessages.declined || "We couldn't approve the requested appointment change. Your original appointment is still reserved."))}</textarea></label>
+                  <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_432be520abf01c","No openings message") ?? "No openings message")}<textarea data-ss-copy="no_slots">${String(escapeHtml(selfMessages.no_slots || "We couldn't find an open time in that range. Our team will follow up."))}</textarea></label>
                 </div>
               </article>
               <article class="ss-card wide ${String(resourceFeature ? '' : 'ss-disabled')}">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_3552de79d04b76","Crew and group capacity") ?? "Crew and group capacity")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_59d7346851509a","Schedule a group as one unit, by available members, or by a configured concurrent quantity.") ?? "Schedule a group as one unit, by available members, or by a configured concurrent quantity.")}</span></div></div>
-                ${String(resourceRows.length ? `<div class="ss-resource-list">${resourceRows.map((row) => `<div class="ss-resource" data-ss-resource="${escapeHtml(row.key)}"><label class="ss-field"><span>${escapeHtml(row.name)}</span><small>${escapeHtml(row.key)}</small></label><label class="ss-field">Capacity mode<select data-ss-resource-mode><option value="unit" ${row.rule.capacity_mode !== 'members' && row.rule.capacity_mode !== 'quantity' ? 'selected' : ''}>One crew/unit</option><option value="members" ${row.rule.capacity_mode === 'members' ? 'selected' : ''}>Available members</option><option value="quantity" ${row.rule.capacity_mode === 'quantity' ? 'selected' : ''}>Fixed quantity</option></select></label><label class="ss-field">Capacity<input data-ss-resource-capacity type="number" min="1" max="100" value="${escapeHtml(Number(row.rule.capacity || 1))}"></label><label class="ss-field">Extra buffer<input data-ss-resource-buffer type="number" min="0" max="240" step="5" value="${escapeHtml(Number(row.rule.buffer_minutes || 0))}"></label></div>`).join('')}</div>` : '<div class="ss-cap-note">Create a crew or resource group to configure group-specific capacity.</div>')}
-                ${String(resourceFeature ? '' : '<div class="ss-cap-note">Enable Resource Availability Rules in Features before these controls take effect.</div>')}
+                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_3552de79d04b76","Crew and group capacity") ?? "Crew and group capacity")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_59d7346851509a","Schedule a group as one unit, by available members, or by a configured concurrent quantity.") ?? "Schedule a group as one unit, by available members, or by a configured concurrent quantity.")}</span></div></div>
+                ${String(resourceRows.length ? `<div class="ss-resource-list">${resourceRows.map((row) => `<div class="ss-resource" data-ss-resource="${escapeHtml(row.key)}"><label class="ss-field"><span>${escapeHtml(row.name)}</span><small>${escapeHtml(row.key)}</small></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_3de8a43e413ae1","Capacity mode") ?? "Capacity mode")}<select data-ss-resource-mode><option value="unit" ${row.rule.capacity_mode !== 'members' && row.rule.capacity_mode !== 'quantity' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_d4cdd638a9c724","One crew/unit") ?? "One crew/unit")}</option><option value="members" ${row.rule.capacity_mode === 'members' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_209b57cc87cef1","Available members") ?? "Available members")}</option><option value="quantity" ${row.rule.capacity_mode === 'quantity' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e4b87b81619561","Fixed quantity") ?? "Fixed quantity")}</option></select></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_e7335dc464c357","Capacity") ?? "Capacity")}<input data-ss-resource-capacity type="number" min="1" max="100" value="${escapeHtml(Number(row.rule.capacity || 1))}"></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_7faade94d753e9","Extra buffer") ?? "Extra buffer")}<input data-ss-resource-buffer type="number" min="0" max="240" step="5" value="${escapeHtml(Number(row.rule.buffer_minutes || 0))}"></label></div>`).join('')}</div>` : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_31bf1b8d096f43","Create a crew or resource group to configure group-specific capacity.") ?? "Create a crew or resource group to configure group-specific capacity.")}</div>`)}
+                ${String(resourceFeature ? '' : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_e6bed00d4f6f15","Enable Resource Availability Rules in Features before these controls take effect.") ?? "Enable Resource Availability Rules in Features before these controls take effect.")}</div>`)}
               </article>
             </div>
           </div>
           <div class="cs-section">
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_b6fa7292eb3357","Assignable subjects by event type") ?? "Assignable subjects by event type")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_dd6eb3e27b814b","Choose whether each event accepts people, resource groups, or external organizations. Person roles, group kinds, and required tags are combined within a rule; the subject-type rules are alternatives.") ?? "Choose whether each event accepts people, resource groups, or external organizations. Person roles, group kinds, and required tags are combined within a rule; the subject-type rules are alternatives.")}</p>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_b6fa7292eb3357","Assignable subjects by event type") ?? "Assignable subjects by event type")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd6eb3e27b814b","Choose whether each event accepts people, resource groups, or external organizations. Person roles, group kinds, and required tags are combined within a rule; the subject-type rules are alternatives.") ?? "Choose whether each event accepts people, resource groups, or external organizations. Person roles, group kinds, and required tags are combined within a rule; the subject-type rules are alternatives.")}</p>
             <div class="wf-group-list">${String(Object.entries(schedulingConfig?.scheduling?.event_types || schedulingConfig?.event_types || {}).map(([eventTypeId, eventType]) => eventAssignmentPolicyHtml(eventTypeId, eventType)).join(''))}</div>
           </div>
-          <div class="cs-section" id="csApptConfirmSection"><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_36a4ecd5471235","Loading appointment confirmation settings...") ?? "Loading appointment confirmation settings...")}</div></div>
+          <div class="cs-section" id="csApptConfirmSection"><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_36a4ecd5471235","Loading appointment confirmation settings...") ?? "Loading appointment confirmation settings...")}</div></div>
         `;
         renderAppointmentConfirmations(paneScheduling, orgId, branchId).catch(() => null);
         const collectSelfService = () => ({
@@ -11858,7 +11649,7 @@
         label:workforceText(role.label, role.name, role.title, role.id)
       })).filter((role) => role.id);
       return roles.map((role) => `<button class="cw-chip ${draft.assigned_role_ids.includes(role.id) ? 'selected' : ''}" type="button" data-cw-role="${escapeHtml(role.id)}">${escapeHtml(role.label)}</button>`).join('')
-        || `<span class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_9d9788085ac33f","No access roles are configured yet. You can still enter role IDs below.") ?? "No access roles are configured yet. You can still enter role IDs below.")}</span>`;
+        || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_9d9788085ac33f","No access roles are configured yet. You can still enter role IDs below.") ?? "No access roles are configured yet. You can still enter role IDs below.")}</span>`;
     }
     function callWorkflowUserChoices(draft){
       const users = workforceUi.allUsers.filter((user) => workforceText(user.status).toLowerCase() !== 'disabled').slice(0, 60);
@@ -11866,7 +11657,7 @@
         const id = workforceText(user.id, user.user_id);
         const label = workforceText(user.name, user.display_name, user.email, id);
         return `<button class="cw-chip ${draft.assigned_user_ids.includes(id) ? 'selected' : ''}" type="button" data-cw-user="${escapeHtml(id)}" title="${escapeHtml(workforceText(user.email))}">${escapeHtml(label)}</button>`;
-      }).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_f019015e9b8cac","No active people were found.") ?? "No active people were found.")}</span>`;
+      }).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_f019015e9b8cac","No active people were found.") ?? "No active people were found.")}</span>`;
     }
     function renderCallWorkflowWorkspace(){
       const lists = callWorkflowUi.lists;
@@ -11877,33 +11668,33 @@
       const filtered = lists.filter((list) => !callWorkflowUi.search || `${list.title} ${list.key} ${list.kind}`.toLowerCase().includes(callWorkflowUi.search.toLowerCase()));
       const listMarkup = filtered.map((list) => `<div class="cw-list-item ${callWorkflowUi.selectedKey === list.key ? 'active' : ''}" data-cw-list="${escapeHtml(list.key)}" data-tone="${escapeHtml(list.tone)}" data-search="${escapeHtml(`${list.title} ${list.key} ${list.kind}`.toLowerCase())}" role="button" tabindex="0">
         <span class="cw-list-icon"><i class="fas ${escapeHtml(list.icon || 'fa-phone')}"></i></span><span class="cw-list-copy"><strong>${escapeHtml(list.title)}</strong><span>${escapeHtml(callListKindLabel(list.kind))} · ${list.status === 'active' ? escapeHtml(callListAssignmentLabel(list)) : 'Inactive'}</span></span><span class="cw-count ${Number(list.pending_count || 0) ? 'has-calls' : ''}">${Number(list.pending_count || 0)}</span>
-      </div>`).join('') || `<div class="cw-empty" style="min-height:180px"><div><i class="fas fa-magnifying-glass"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_35c4be17ab5530","No matching lists") ?? "No matching lists")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_c8284dfd7645f8","Try a different search or create a new list.") ?? "Try a different search or create a new list.")}</span></div></div>`;
-      let editor = `<div class="cw-empty"><div><i class="fas fa-list-check"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_0e77465d2df6c0","Select a call list") ?? "Select a call list")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_463f28d47865a2","Choose a list to control who sees it and how it appears in Calls.") ?? "Choose a list to control who sees it and how it appears in Calls.")}</span></div></div>`;
+      </div>`).join('') || `<div class="cw-empty" style="min-height:180px"><div><i class="fas fa-magnifying-glass"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_35c4be17ab5530","No matching lists") ?? "No matching lists")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c8284dfd7645f8","Try a different search or create a new list.") ?? "Try a different search or create a new list.")}</span></div></div>`;
+      let editor = `<div class="cw-empty"><div><i class="fas fa-list-check"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_0e77465d2df6c0","Select a call list") ?? "Select a call list")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_463f28d47865a2","Choose a list to control who sees it and how it appears in Calls.") ?? "Choose a list to control who sees it and how it appears in Calls.")}</span></div></div>`;
       if (draft) {
         const isNew = callWorkflowUi.selectedKey === '__new__';
         const managed = workforceText(draft.metadata?.managed_by) === 'scope_automation';
-        editor = `<div class="cw-editor-head"><div class="cw-editor-title"><span class="cw-list-icon"><i class="fas ${String(escapeHtml(draft.icon || 'fa-phone'))}"></i></span><div><h4>${String(escapeHtml(draft.title || 'New call list'))}</h4><p>${String(isNew ? 'Create an organization-wide queue.' : `${Number(draft.pending_count || 0)} pending call${Number(draft.pending_count || 0) === 1 ? '' : 's'} · ${escapeHtml(callListAssignmentLabel(draft))}`)}</p></div></div><div class="cw-switch-row"><span>${String(draft.status === 'active' ? 'Active' : 'Inactive')}</span><button class="cw-switch ${String(draft.status === 'active' ? 'on' : '')}" type="button" data-cw-active aria-label="${(globalThis.PlatformLanguage?.text("settings","m_058412d3e429ee","Toggle list status") ?? "Toggle list status")}" aria-pressed="${String(draft.status === 'active')}"></button></div></div>
-          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_4939d2238bc1e0","List details") ?? "List details")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_ab20966c7dc4ac","The name and appearance callers see in the Calls tab.") ?? "The name and appearance callers see in the Calls tab.")}</span></div></div><div class="cw-form-grid">
-            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_48a52dec920f8b","List name") ?? "List name")}</span><input data-cw-field="title" value="${String(escapeHtml(draft.title))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_6c62aae02ca220","Mid-project check-ins") ?? "Mid-project check-ins")}"></label>
-            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_cab566faf07d28","List key") ?? "List key")}</span><input data-cw-field="key" value="${String(escapeHtml(draft.key))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_999150047f9ffd","mid_project_checkins") ?? "mid_project_checkins")}" ${String(isNew ? '' : 'readonly')}></label>
-            <label class="cw-field wide"><span>${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea data-cw-field="description" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_bc621d59c73e9f","Explain when a call belongs here.") ?? "Explain when a call belongs here.")}">${String(escapeHtml(draft.description))}</textarea></label>
-            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_64d67127744574","Call type") ?? "Call type")}</span><select data-cw-field="kind">${String([['lead','Lead intake'],['follow_up','Scheduled follow-up'],['signature','Signed customer'],['production','Production'],['customer','Customer care'],['general','General']].map(([value,label]) => `<option value="${value}" ${draft.kind === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
-            <div class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_444eb2577d10b1","Display icon") ?? "Display icon")}</span><div class="cw-visual-row">${String([['fa-phone','Phone'],['fa-phone-volume','Outgoing call'],['fa-clock','Clock'],['fa-handshake','Handshake'],['fa-helmet-safety','Production'],['fa-headset','Customer care'],['fa-list-check','Checklist']].map(([value,label]) => `<button class="cw-visual-option ${draft.icon === value ? 'selected' : ''}" type="button" data-cw-icon="${value}" aria-label="${label}" title="${label}" aria-pressed="${draft.icon === value}"><i class="fas ${value}"></i></button>`).join(''))}</div></div>
-            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_9faac7258df0a0","Color treatment") ?? "Color treatment")}</span><select data-cw-field="tone">${String([['default','Blue'],['lead','Blue · Leads'],['followup','Purple · Follow-ups'],['customer','Green · Customers'],['production','Orange · Production']].map(([value,label]) => `<option value="${value}" ${draft.tone === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
-            <div class="cw-field cw-tone-picker"><span>${(globalThis.PlatformLanguage?.text("settings","m_9faac7258df0a0","Color treatment") ?? "Color treatment")}</span><div class="cw-visual-row">${String([['default','Blue','#2563eb'],['lead','Lead blue','#3538cd'],['followup','Purple','#7f56d9'],['customer','Green','#079455'],['production','Orange','#c2410c']].map(([value,label,color]) => `<button class="cw-visual-option tone ${draft.tone === value ? 'selected' : ''}" style="--call-tone:${color}" type="button" data-cw-tone="${value}" aria-label="${label}" title="${label}" aria-pressed="${draft.tone === value}"></button>`).join(''))}</div></div>
-            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_0505c57e04e7ce","Display order") ?? "Display order")}</span><input type="number" data-cw-field="sort_order" value="${String(Number(draft.sort_order || 0))}" min="0" step="10"></label>
+        editor = `<div class="cw-editor-head"><div class="cw-editor-title"><span class="cw-list-icon"><i class="fas ${String(escapeHtml(draft.icon || 'fa-phone'))}"></i></span><div><h4>${String(escapeHtml(draft.title || (globalThis.PlatformLanguage?.text("settings","m_d2459194a46e7e","New call list") ?? "New call list")))}</h4><p>${String(isNew ? 'Create an organization-wide queue.' : `${Number(draft.pending_count || 0)} pending call${Number(draft.pending_count || 0) === 1 ? '' : 's'} · ${escapeHtml(callListAssignmentLabel(draft))}`)}</p></div></div><div class="cw-switch-row"><span>${String(draft.status === 'active' ? 'Active' : 'Inactive')}</span><button class="cw-switch ${String(draft.status === 'active' ? 'on' : '')}" type="button" data-cw-active aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_058412d3e429ee","Toggle list status") ?? "Toggle list status")}" aria-pressed="${String(draft.status === 'active')}"></button></div></div>
+          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4939d2238bc1e0","List details") ?? "List details")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab20966c7dc4ac","The name and appearance callers see in the Calls tab.") ?? "The name and appearance callers see in the Calls tab.")}</span></div></div><div class="cw-form-grid">
+            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_48a52dec920f8b","List name") ?? "List name")}</span><input data-cw-field="title" value="${String(escapeHtml(draft.title))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6c62aae02ca220","Mid-project check-ins") ?? "Mid-project check-ins")}"></label>
+            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_cab566faf07d28","List key") ?? "List key")}</span><input data-cw-field="key" value="${String(escapeHtml(draft.key))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_999150047f9ffd","mid_project_checkins") ?? "mid_project_checkins")}" ${String(isNew ? '' : 'readonly')}></label>
+            <label class="cw-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea data-cw-field="description" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_bc621d59c73e9f","Explain when a call belongs here.") ?? "Explain when a call belongs here.")}">${String(escapeHtml(draft.description))}</textarea></label>
+            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_64d67127744574","Call type") ?? "Call type")}</span><select data-cw-field="kind">${String([['lead','Lead intake'],['follow_up','Scheduled follow-up'],['signature','Signed customer'],['production','Production'],['customer','Customer care'],['general','General']].map(([value,label]) => `<option value="${value}" ${draft.kind === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
+            <div class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_444eb2577d10b1","Display icon") ?? "Display icon")}</span><div class="cw-visual-row">${String([['fa-phone','Phone'],['fa-phone-volume','Outgoing call'],['fa-clock','Clock'],['fa-handshake','Handshake'],['fa-helmet-safety','Production'],['fa-headset','Customer care'],['fa-list-check','Checklist']].map(([value,label]) => `<button class="cw-visual-option ${draft.icon === value ? 'selected' : ''}" type="button" data-cw-icon="${value}" aria-label="${label}" title="${label}" aria-pressed="${draft.icon === value}"><i class="fas ${value}"></i></button>`).join(''))}</div></div>
+            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_9faac7258df0a0","Color treatment") ?? "Color treatment")}</span><select data-cw-field="tone">${String([['default','Blue'],['lead','Blue · Leads'],['followup','Purple · Follow-ups'],['customer','Green · Customers'],['production','Orange · Production']].map(([value,label]) => `<option value="${value}" ${draft.tone === value ? 'selected' : ''}>${label}</option>`).join(''))}</select></label>
+            <div class="cw-field cw-tone-picker"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_9faac7258df0a0","Color treatment") ?? "Color treatment")}</span><div class="cw-visual-row">${String([['default','Blue','#2563eb'],['lead','Lead blue','#3538cd'],['followup','Purple','#7f56d9'],['customer','Green','#079455'],['production','Orange','#c2410c']].map(([value,label,color]) => `<button class="cw-visual-option tone ${draft.tone === value ? 'selected' : ''}" style="--call-tone:${color}" type="button" data-cw-tone="${value}" aria-label="${label}" title="${label}" aria-pressed="${draft.tone === value}"></button>`).join(''))}</div></div>
+            <label class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0505c57e04e7ce","Display order") ?? "Display order")}</span><input type="number" data-cw-field="sort_order" value="${String(Number(draft.sort_order || 0))}" min="0" step="10"></label>
           </div></section>
-          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_dc49c965d875f0","Who handles these calls?") ?? "Who handles these calls?")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_81d376e79d4d54","Leave the list open to everyone, or route it to specific roles and people.") ?? "Leave the list open to everyone, or route it to specific roles and people.")}</span></div><div class="cw-assignment-summary"><button class="cw-mode ${String(!draft.assigned_role_ids.length && !draft.assigned_user_ids.length ? 'active' : '')}" type="button" data-cw-everyone><i class="fas fa-users"></i>${(globalThis.PlatformLanguage?.text("settings","m_7997fdde9802e5"," Everyone") ?? " Everyone")}</button><button class="cw-mode ${String(draft.assigned_role_ids.length || draft.assigned_user_ids.length ? 'active' : '')}" type="button" data-cw-restricted><i class="fas fa-user-lock"></i>${(globalThis.PlatformLanguage?.text("settings","m_9102fddfe2fd7b"," Assigned only") ?? " Assigned only")}</button></div></div>
-            <div class="cw-choice-group"><span class="cw-choice-label">${(globalThis.PlatformLanguage?.text("settings","m_0728ce1a29afca","Roles") ?? "Roles")}</span><div class="cw-chips">${String(callWorkflowRoleChoices(draft))}</div><label class="cw-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_88aa87a29a7174","Role IDs") ?? "Role IDs")}</span><input data-cw-role-ids value="${String(escapeHtml(draft.assigned_role_ids.join(', ')))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_8faa76bd574917","office, production") ?? "office, production")}"></label></div>
-            <div class="cw-choice-group"><span class="cw-choice-label">${(globalThis.PlatformLanguage?.text("settings","m_290e094a10f572","Specific people") ?? "Specific people")}</span><div class="cw-chips">${String(callWorkflowUserChoices(draft))}</div></div>
+          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_dc49c965d875f0","Who handles these calls?") ?? "Who handles these calls?")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_81d376e79d4d54","Leave the list open to everyone, or route it to specific roles and people.") ?? "Leave the list open to everyone, or route it to specific roles and people.")}</span></div><div class="cw-assignment-summary"><button class="cw-mode ${String(!draft.assigned_role_ids.length && !draft.assigned_user_ids.length ? 'active' : '')}" type="button" data-cw-everyone><i class="fas fa-users"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7997fdde9802e5"," Everyone") ?? " Everyone")}</button><button class="cw-mode ${String(draft.assigned_role_ids.length || draft.assigned_user_ids.length ? 'active' : '')}" type="button" data-cw-restricted><i class="fas fa-user-lock"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9102fddfe2fd7b"," Assigned only") ?? " Assigned only")}</button></div></div>
+            <div class="cw-choice-group"><span class="cw-choice-label">${(globalThis.PlatformLanguage?.htmlText("settings","m_0728ce1a29afca","Roles") ?? "Roles")}</span><div class="cw-chips">${String(callWorkflowRoleChoices(draft))}</div><label class="cw-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_88aa87a29a7174","Role IDs") ?? "Role IDs")}</span><input data-cw-role-ids value="${String(escapeHtml(draft.assigned_role_ids.join(', ')))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_8faa76bd574917","office, production") ?? "office, production")}"></label></div>
+            <div class="cw-choice-group"><span class="cw-choice-label">${(globalThis.PlatformLanguage?.htmlText("settings","m_290e094a10f572","Specific people") ?? "Specific people")}</span><div class="cw-chips">${String(callWorkflowUserChoices(draft))}</div></div>
           </section>
-          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_5cd547e56ead7c","Workflow connection") ?? "Workflow connection")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_1067e5ca14f97a","Scopes and automations add work to this list by its stable key.") ?? "Scopes and automations add work to this list by its stable key.")}</span></div></div><div class="cw-origin"><i class="fas ${String(managed ? 'fa-wand-magic-sparkles' : 'fa-code-branch')}"></i><div><strong>${String(managed ? 'Managed by scope automation' : 'Ready for scopes and automations')}</strong><span>${String(managed ? 'Completing a call completes its linked scope work item.' : 'Use crm.callLists.add.v1 on a work node’s onReady hook.')}</span></div><button class="cw-key" type="button" data-cw-copy title="${(globalThis.PlatformLanguage?.text("settings","m_b1d41127305f1f","Copy list key") ?? "Copy list key")}">${String(escapeHtml(draft.key || 'set_a_key'))}</button></div></section>
-          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_265cb02467b2cb","Caller flow") ?? "Caller flow")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_bbcb89676c6ce9","Every list shares the fast, consistent disposition flow.") ?? "Every list shares the fast, consistent disposition flow.")}</span></div></div><div class="cw-flow"><div class="cw-flow-step"><i class="fas fa-phone"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_8d4eaa0da004be","Call") ?? "Call")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_37bf5f28ecf6fc","Work through the queue one contact at a time.") ?? "Work through the queue one contact at a time.")}</span></div><div class="cw-flow-step"><i class="fas fa-clipboard-check"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_f303d69f775dc0","Record outcome") ?? "Record outcome")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_41fadcef284d5a","Answered, voicemail, no answer, or skip.") ?? "Answered, voicemail, no answer, or skip.")}</span></div><div class="cw-flow-step"><i class="fas fa-check-double"></i><strong>${(globalThis.PlatformLanguage?.text("settings","m_288a893aca6efa","Complete or follow up") ?? "Complete or follow up")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_db3adb9e5481e3","Finish linked work or schedule the next call.") ?? "Finish linked work or schedule the next call.")}</span></div></div></section>
-          <div class="cw-editor-actions"><span class="cw-status" id="cwStatus"></span><div class="cw-action-row"><button class="cw-btn" type="button" data-cw-reset>${(globalThis.PlatformLanguage?.text("settings","m_955ed36bc1820f","Discard changes") ?? "Discard changes")}</button><button class="cw-btn primary" type="button" data-cw-save ${String(callWorkflowUi.saving ? 'disabled' : '')}><i class="fas fa-floppy-disk"></i> ${String(callWorkflowUi.saving ? 'Saving…' : isNew ? 'Create list' : 'Save list')}</button></div></div>`;
+          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_5cd547e56ead7c","Workflow connection") ?? "Workflow connection")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_1067e5ca14f97a","Scopes and automations add work to this list by its stable key.") ?? "Scopes and automations add work to this list by its stable key.")}</span></div></div><div class="cw-origin"><i class="fas ${String(managed ? 'fa-wand-magic-sparkles' : 'fa-code-branch')}"></i><div><strong>${String(managed ? 'Managed by scope automation' : 'Ready for scopes and automations')}</strong><span>${String(managed ? 'Completing a call completes its linked scope work item.' : 'Use crm.callLists.add.v1 on a work node’s onReady hook.')}</span></div><button class="cw-key" type="button" data-cw-copy title="${(globalThis.PlatformLanguage?.htmlText("settings","m_b1d41127305f1f","Copy list key") ?? "Copy list key")}">${String(escapeHtml(draft.key || 'set_a_key'))}</button></div></section>
+          <section class="cw-section"><div class="cw-section-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_265cb02467b2cb","Caller flow") ?? "Caller flow")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_bbcb89676c6ce9","Every list shares the fast, consistent disposition flow.") ?? "Every list shares the fast, consistent disposition flow.")}</span></div></div><div class="cw-flow"><div class="cw-flow-step"><i class="fas fa-phone"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_8d4eaa0da004be","Call") ?? "Call")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_37bf5f28ecf6fc","Work through the queue one contact at a time.") ?? "Work through the queue one contact at a time.")}</span></div><div class="cw-flow-step"><i class="fas fa-clipboard-check"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_f303d69f775dc0","Record outcome") ?? "Record outcome")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_41fadcef284d5a","Answered, voicemail, no answer, or skip.") ?? "Answered, voicemail, no answer, or skip.")}</span></div><div class="cw-flow-step"><i class="fas fa-check-double"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_288a893aca6efa","Complete or follow up") ?? "Complete or follow up")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_db3adb9e5481e3","Finish linked work or schedule the next call.") ?? "Finish linked work or schedule the next call.")}</span></div></div></section>
+          <div class="cw-editor-actions"><span class="cw-status" id="cwStatus"></span><div class="cw-action-row"><button class="cw-btn" type="button" data-cw-reset>${(globalThis.PlatformLanguage?.htmlText("settings","m_955ed36bc1820f","Discard changes") ?? "Discard changes")}</button><button class="cw-btn primary" type="button" data-cw-save ${String(callWorkflowUi.saving ? 'disabled' : '')}><i class="fas fa-floppy-disk"></i> ${String(callWorkflowUi.saving ? 'Saving…' : isNew ? 'Create list' : 'Save list')}</button></div></div>`;
       }
-      paneCallWorkflows.innerHTML = `<div class="cw-page"><header class="cw-top"><div><div class="cw-eyebrow">${(globalThis.PlatformLanguage?.text("settings","m_68f1423b4d6f83","CRM · Calls") ?? "CRM · Calls")}</div><h3>${(globalThis.PlatformLanguage?.text("settings","m_45e0ea42bd7f61","Call workflows") ?? "Call workflows")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_6e2d092e708a09","Organize calls into real queues, control which team handles each one, and connect project scopes to the right list.") ?? "Organize calls into real queues, control which team handles each one, and connect project scopes to the right list.")}</p></div><div class="cw-top-actions"><button class="cw-btn" type="button" data-cw-refresh><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button><button class="cw-btn" type="button" data-cw-open><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.text("settings","m_07e64910ede841"," Open Calls") ?? " Open Calls")}</button><button class="cw-btn primary" type="button" data-cw-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_9307f6f8b8e9f1"," New call list") ?? " New call list")}</button></div></header>
-        <div class="cw-overview"><div class="cw-stat"><span>${(globalThis.PlatformLanguage?.text("settings","m_cdce2be16f3cc8","Total lists") ?? "Total lists")}</span><strong>${String(lists.length)}</strong></div><div class="cw-stat live"><span>${(globalThis.PlatformLanguage?.text("settings","m_3689c34b89cd39","Active lists") ?? "Active lists")}</span><strong>${String(activeCount)}</strong></div><div class="cw-stat calls"><span>${(globalThis.PlatformLanguage?.text("settings","m_dad4a2bcff697f","Calls waiting") ?? "Calls waiting")}</span><strong>${String(pendingCount)}</strong></div><div class="cw-stat assigned"><span>${(globalThis.PlatformLanguage?.text("settings","m_f6bf476d818cc0","Team-routed lists") ?? "Team-routed lists")}</span><strong>${String(assignedCount)}</strong></div></div>
-        <div class="cw-workspace"><aside class="cw-rail"><div class="cw-rail-head"><div class="cw-rail-title"><strong>${(globalThis.PlatformLanguage?.text("settings","m_81df0d1019af98","Call lists") ?? "Call lists")}</strong><span>${((v4) => globalThis.PlatformLanguage?.text("settings","m_de53f50a4d51f6",`${v4} configured`,{v4}) ?? `${v4} configured`)(lists.length)}</span></div><label class="cw-search"><i class="fas fa-magnifying-glass"></i><input value="${String(escapeHtml(callWorkflowUi.search))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_c28f246d7741d6","Find a list") ?? "Find a list")}" data-cw-search></label></div><div class="cw-list">${String(listMarkup)}</div></aside><main class="cw-editor">${String(editor)}</main></div></div>`;
+      paneCallWorkflows.innerHTML = `<div class="cw-page"><header class="cw-top"><div><div class="cw-eyebrow">${(globalThis.PlatformLanguage?.htmlText("settings","m_68f1423b4d6f83","CRM · Calls") ?? "CRM · Calls")}</div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_45e0ea42bd7f61","Call workflows") ?? "Call workflows")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_6e2d092e708a09","Organize calls into real queues, control which team handles each one, and connect project scopes to the right list.") ?? "Organize calls into real queues, control which team handles each one, and connect project scopes to the right list.")}</p></div><div class="cw-top-actions"><button class="cw-btn" type="button" data-cw-refresh><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button><button class="cw-btn" type="button" data-cw-open><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_07e64910ede841"," Open Calls") ?? " Open Calls")}</button><button class="cw-btn primary" type="button" data-cw-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9307f6f8b8e9f1"," New call list") ?? " New call list")}</button></div></header>
+        <div class="cw-overview"><div class="cw-stat"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_cdce2be16f3cc8","Total lists") ?? "Total lists")}</span><strong>${String(lists.length)}</strong></div><div class="cw-stat live"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_3689c34b89cd39","Active lists") ?? "Active lists")}</span><strong>${String(activeCount)}</strong></div><div class="cw-stat calls"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_dad4a2bcff697f","Calls waiting") ?? "Calls waiting")}</span><strong>${String(pendingCount)}</strong></div><div class="cw-stat assigned"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_f6bf476d818cc0","Team-routed lists") ?? "Team-routed lists")}</span><strong>${String(assignedCount)}</strong></div></div>
+        <div class="cw-workspace"><aside class="cw-rail"><div class="cw-rail-head"><div class="cw-rail-title"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_81df0d1019af98","Call lists") ?? "Call lists")}</strong><span>${((v4) => globalThis.PlatformLanguage?.htmlText("settings","m_de53f50a4d51f6",`${v4} configured`,{v4}) ?? `${v4} configured`)(lists.length)}</span></div><label class="cw-search"><i class="fas fa-magnifying-glass"></i><input value="${String(escapeHtml(callWorkflowUi.search))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c28f246d7741d6","Find a list") ?? "Find a list")}" data-cw-search></label></div><div class="cw-list">${String(listMarkup)}</div></aside><main class="cw-editor">${String(editor)}</main></div></div>`;
       bindCallWorkflowWorkspace();
     }
     function bindCallWorkflowWorkspace(){
@@ -11955,15 +11746,15 @@
     async function renderCallWorkflows(options = {}){
       if (!paneCallWorkflows) return;
       if (!callWorkflowUi.loaded || options.refresh) {
-        paneCallWorkflows.innerHTML=`<div class="cw-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_74c4de2aa80926"," Loading call lists…") ?? " Loading call lists…")}</span></div>`;
+        paneCallWorkflows.innerHTML=`<div class="cw-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_74c4de2aa80926"," Loading call lists…") ?? " Loading call lists…")}</span></div>`;
         try { await loadCallWorkflowLists({ refresh:options.refresh === true }); }
-        catch(error){ paneCallWorkflows.innerHTML=`<div class="cw-error"><strong>${(globalThis.PlatformLanguage?.text("settings","m_56fd06d812e322","Call workflows unavailable.") ?? "Call workflows unavailable.")}</strong><br>${String(escapeHtml(error?.message || 'Could not load call lists.'))}</div>`; return; }
+        catch(error){ paneCallWorkflows.innerHTML=`<div class="cw-error"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_56fd06d812e322","Call workflows unavailable.") ?? "Call workflows unavailable.")}</strong><br>${String(escapeHtml(error?.message || 'Could not load call lists.'))}</div>`; return; }
       }
       renderCallWorkflowWorkspace();
     }
     async function openStorageCheckoutModal(){
       const billing=window.FirstMatePlatformBilling;
-      if(!billing?.isEnabled() || !canPlatformBilling){ window.alert('Ask a billing administrator to enable storage subscriptions for your organization.');return; }
+      if(!billing?.isEnabled() || !canPlatformBilling){ window.alert((globalThis.PlatformLanguage?.text("settings","m_335dad2bd6cab9","Ask a billing administrator to enable storage subscriptions for your organization.") ?? "Ask a billing administrator to enable storage subscriptions for your organization."));return; }
       try { if(await billing.choose({orgId:currentOrgId(),productId:'storage'}))await renderStorage(); }
       catch(error){ window.alert(error.message || 'Could not load storage plans.'); }
     }
@@ -11972,7 +11763,7 @@
       const orgId = String(window.__APP?.userOrgId || '').trim();
       const limitBytes = storageLimitBytes();
       const purchasable = purchasableStorageEnabled() || window.FirstMatePlatformBilling?.configured('platform','purchasable_storage');
-      paneStorage.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8ab7baf4c8b004","Loading media storage usage...") ?? "Loading media storage usage...")}</p></div>`;
+      paneStorage.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8ab7baf4c8b004","Loading media storage usage...") ?? "Loading media storage usage...")}</p></div>`;
       let usage = null;
       try {
         usage = await window.PlatformAPI?.mediaStorage?.get?.(orgId, { refresh: true });
@@ -11988,32 +11779,32 @@
       paneStorage.innerHTML = `
         <div class="cs-section storage-card">
           <div>
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage")}</h3>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage")}</h3>
           </div>
           <div class="storage-hero">
             <div class="storage-row">
               <div>
-                <div class="storage-total">${String(escapeHtml(formatStorageBytes(usedBytes)))} <span>${(globalThis.PlatformLanguage?.text("settings","m_577ab4f8255e6a","used") ?? "used")}</span></div>
-                <div class="cs-note">${((v1,v2) => globalThis.PlatformLanguage?.text("settings","m_4f874892073fba",`Limit: ${v1} (${v2} GB included)`,{v1,v2}) ?? `Limit: ${v1} (${v2} GB included)`)(escapeHtml(formatStorageBytes(limitBytes)),escapeHtml(String(freeStorageGB())))}</div>
+                <div class="storage-total">${String(escapeHtml(formatStorageBytes(usedBytes)))} <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_577ab4f8255e6a","used") ?? "used")}</span></div>
+                <div class="cs-note">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_4f874892073fba",`Limit: ${v1} (${v2} GB included)`,{v1,v2}) ?? `Limit: ${v1} (${v2} GB included)`)(escapeHtml(formatStorageBytes(limitBytes)),escapeHtml(String(freeStorageGB())))}</div>
               </div>
               <div class="li-actions" style="margin-top:0">
-                <button class="cs-btn ghost" id="storageRefresh" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
-                ${String(purchasable ? `<button class="cs-btn primary" id="storageBuy" type="button"><i class="fas fa-plus"></i> Get More Storage</button>` : '')}
+                <button class="cs-btn ghost" id="storageRefresh" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
+                ${String(purchasable ? `<button class="cs-btn primary" id="storageBuy" type="button"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_78bdab1b2bb741"," Get More Storage") ?? " Get More Storage")}</button>` : '')}
               </div>
             </div>
-            <div class="storage-bar" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_7207c1637ea6c1","Storage usage") ?? "Storage usage")}"><div class="storage-bar-fill" style="width:${String(pct)}%"></div></div>
+            <div class="storage-bar" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_7207c1637ea6c1","Storage usage") ?? "Storage usage")}"><div class="storage-bar-fill" style="width:${String(pct)}%"></div></div>
             <div class="storage-meta">
-              <span>${((v5) => globalThis.PlatformLanguage?.text("settings","m_307a17987b1328",`${v5}% used`,{v5}) ?? `${v5}% used`)(escapeHtml(pctRaw.toFixed(pctRaw >= 10 ? 0 : 1)))}</span>
-              <span>${((v6) => globalThis.PlatformLanguage?.text("settings","m_cfa1e5e88545b7",`${v6} available`,{v6}) ?? `${v6} available`)(escapeHtml(formatStorageBytes(Math.max(0, limitBytes - usedBytes))))}</span>
+              <span>${((v5) => globalThis.PlatformLanguage?.htmlText("settings","m_307a17987b1328",`${v5}% used`,{v5}) ?? `${v5}% used`)(escapeHtml(pctRaw.toFixed(pctRaw >= 10 ? 0 : 1)))}</span>
+              <span>${((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_cfa1e5e88545b7",`${v6} available`,{v6}) ?? `${v6} available`)(escapeHtml(formatStorageBytes(Math.max(0, limitBytes - usedBytes))))}</span>
             </div>
             <div class="storage-trash">
               <div>
-                <strong>${(globalThis.PlatformLanguage?.text("settings","m_2d388bb64c08d8","Trash") ?? "Trash")}</strong>
-                <span>${((v7,v8,v9) => globalThis.PlatformLanguage?.text("settings","m_28971edd836b10",`${v7} media item${v8} still using ${v9}`,{v7,v8,v9}) ?? `${v7} media item${v8} still using ${v9}`)(escapeHtml(String(trash.count || 0)),Number(trash.count || 0) === 1 ? '' : 's',escapeHtml(formatStorageBytes(trash.bytes || 0)))}</span>
+                <strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_2d388bb64c08d8","Trash") ?? "Trash")}</strong>
+                <span>${((v7,v8,v9) => globalThis.PlatformLanguage?.htmlText("settings","m_28971edd836b10",`${v7} media item${v8} still using ${v9}`,{v7,v8,v9}) ?? `${v7} media item${v8} still using ${v9}`)(escapeHtml(String(trash.count || 0)),Number(trash.count || 0) === 1 ? '' : 's',escapeHtml(formatStorageBytes(trash.bytes || 0)))}</span>
               </div>
               <div class="li-actions" style="margin-top:0">
-                <button class="cs-btn ghost" id="storageOpenTrash" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("settings","m_7fb50b2303347b"," Go to Trash") ?? " Go to Trash")}</button>
-                <button class="cs-btn danger" id="storageEmptyTrash" type="button"><i class="fas fa-trash-can"></i>${(globalThis.PlatformLanguage?.text("settings","m_fe9f87c79c5388"," Empty Trash") ?? " Empty Trash")}</button>
+                <button class="cs-btn ghost" id="storageOpenTrash" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7fb50b2303347b"," Go to Trash") ?? " Go to Trash")}</button>
+                <button class="cs-btn danger" id="storageEmptyTrash" type="button"><i class="fas fa-trash-can"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_fe9f87c79c5388"," Empty Trash") ?? " Empty Trash")}</button>
               </div>
             </div>
           </div>
@@ -12061,9 +11852,9 @@
         @media(max-width:620px){.scope-editor-nav{flex-wrap:nowrap;scrollbar-width:thin}.scope-editor-nav button{flex:0 0 auto}.scope-installment,.scope-commission-role,.scope-commission-role-add{grid-template-columns:minmax(0,1fr)}.scope-commission-summary{flex-wrap:wrap}.scope-commission-fold>summary span{display:block;margin:6px 0 0 16px}}
         @media(max-width:620px){.scope-template-list,.scope-add-choice,.scope-library-grid,.scope-library-hero{grid-template-columns:1fr}.scope-template-row{grid-template-columns:40px minmax(0,1fr)}.scope-template-icon{width:40px;height:40px}.scope-template-meta{grid-column:1/-1;justify-content:flex-start}.scope-template-arrow{display:none}.scope-editor-grid,.scope-commission-library,.scope-routing-mode{grid-template-columns:1fr}.scope-editor-grid .wide{grid-column:auto}.scope-bucket-edit,.scope-routing-rule-head,.scope-formula-condition{grid-template-columns:1fr}}
       `);
-      paneScopeTemplates.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_ab25d3ca922f21"," Loading project scopes...") ?? " Loading project scopes...")}</div>`;
+      paneScopeTemplates.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab25d3ca922f21"," Loading project scopes...") ?? " Loading project scopes...")}</div>`;
       if (!orgId || !window.PlatformAPI?.scopes?.list || !window.PlatformAPI?.scopes?.save) {
-        paneScopeTemplates.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_7f1ebb67080316","Project Scopes API is unavailable.") ?? "Project Scopes API is unavailable.")}</div>`;
+        paneScopeTemplates.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_7f1ebb67080316","Project Scopes API is unavailable.") ?? "Project Scopes API is unavailable.")}</div>`;
         return;
       }
       let templates = [];
@@ -12162,11 +11953,11 @@
         const groups = configuredBuckets.map((bucket) => ({ ...bucket, templates:filtered.filter((template) => bucketForTemplate(template)?.id === bucket.id) }));
         const ungrouped = filtered.filter((template) => !bucketForTemplate(template));
         if (ungrouped.length) groups.push({ id:'__ungrouped', name:'Other Scopes', description:(globalThis.PlatformLanguage?.text("settings","m_296a9a745cec3f","Enabled scopes that have not been assigned to a group.") ?? "Enabled scopes that have not been assigned to a group."), templates:ungrouped });
-        const scopeCard = (template) => { const stats = templateStats(template); const entry = template.id === routingConfig.default_template_id; return `<button class="scope-template-row" type="button" data-scope-open="${String(escapeHtml(template.id))}" style="--scope-color:${String(escapeHtml(safeColor(template.color)))}"><span class="scope-template-icon"><i class="fas ${String(escapeHtml(iconClass(template.icon)))}"></i></span><span class="scope-template-row-copy"><strong>${String(escapeHtml(template.name || template.id))}${String(entry ? '<i class="fas fa-star scope-entry-star" title="Default entry scope"></i>' : '')}</strong><span>${String(escapeHtml(template.description || 'No description yet'))}</span></span><span class="scope-template-meta">${String(entry ? '<span class="scope-template-pill scope-entry-pill">New lead fallback</span>' : '<span class="scope-template-pill">Enabled</span>')}<span class="scope-template-pill">v${String(escapeHtml(String(template.version || template.current_version || 1)))}</span><span class="scope-template-pill">${((v8,v9) => globalThis.PlatformLanguage?.text("settings","m_9d2087adeb7185",`${v8} to-do${v9}`,{v8,v9}) ?? `${v8} to-do${v9}`)(stats.todos,stats.todos === 1 ? '' : 's')}</span><span class="scope-template-arrow"><i class="fas fa-chevron-right"></i></span></span></button>`; };
+        const scopeCard = (template) => { const stats = templateStats(template); const entry = template.id === routingConfig.default_template_id; return `<button class="scope-template-row" type="button" data-scope-open="${String(escapeHtml(template.id))}" style="--scope-color:${String(escapeHtml(safeColor(template.color)))}"><span class="scope-template-icon"><i class="fas ${String(escapeHtml(iconClass(template.icon)))}"></i></span><span class="scope-template-row-copy"><strong>${String(escapeHtml(template.name || template.id))}${String(entry ? `<i class="fas fa-star scope-entry-star" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_22b23eeb11de02","Default entry scope") ?? "Default entry scope")}"></i>` : '')}</strong><span>${String(escapeHtml(template.description || 'No description yet'))}</span></span><span class="scope-template-meta">${String(entry ? `<span class="scope-template-pill scope-entry-pill">${(globalThis.PlatformLanguage?.htmlText("settings","m_8ce59f5a5ea286","New lead fallback") ?? "New lead fallback")}</span>` : `<span class="scope-template-pill">${(globalThis.PlatformLanguage?.htmlText("settings","m_c2148f600b3d3b","Enabled") ?? "Enabled")}</span>`)}<span class="scope-template-pill">v${String(escapeHtml(String(template.version || template.current_version || 1)))}</span><span class="scope-template-pill">${((v8,v9) => globalThis.PlatformLanguage?.htmlText("settings","m_9d2087adeb7185",`${v8} to-do${v9}`,{v8,v9}) ?? `${v8} to-do${v9}`)(stats.todos,stats.todos === 1 ? '' : 's')}</span><span class="scope-template-arrow"><i class="fas fa-chevron-right"></i></span></span></button>`; };
         paneScopeTemplates.innerHTML = `<div class="scope-templates-page">
-          <header class="scope-templates-head"><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes")}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_cc9fbcdab7dcf0","Choose a scope to configure everything specific to that kind of project. Groups and new-lead routing are configurable by branch.") ?? "Choose a scope to configure everything specific to that kind of project. Groups and new-lead routing are configurable by branch.")}</div></div><div class="scope-templates-actions"><button class="cs-btn ghost" type="button" data-scope-advanced><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc53f80c48fa4b"," Advanced") ?? " Advanced")}</button><button class="cs-btn ghost" type="button" data-scope-refresh><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button><button class="cs-btn primary" type="button" data-scope-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_74bc5bc92a0cce"," Add Project Scope") ?? " Add Project Scope")}</button></div></header>
-          <div class="scope-template-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_ee23e92243ae56",`Search ${v0} enabled scope${v1}…`,{v0,v1}) ?? `Search ${v0} enabled scope${v1}…`)(enabled.length,enabled.length === 1 ? '' : 's')}" value="${String(escapeHtml(query))}" data-scope-search></div>
-          <div class="scope-buckets">${String(groups.map((group) => `<section><div class="scope-bucket-head"><div><h4>${escapeHtml(group.name)}</h4>${group.description ? `<p>${escapeHtml(group.description)}</p>` : ''}</div><span class="scope-template-pill">${group.templates.length} scope${group.templates.length === 1 ? '' : 's'}</span></div><div class="scope-template-list">${group.templates.map(scopeCard).join('') || '<div class="scope-group-empty">No matching scopes in this group.</div>'}</div></section>`).join('') || '<div class="scope-empty">No enabled project scopes match this search. Add one from the library or create one from scratch.</div>')}</div>
+          <header class="scope-templates-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes")}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_cc9fbcdab7dcf0","Choose a scope to configure everything specific to that kind of project. Groups and new-lead routing are configurable by branch.") ?? "Choose a scope to configure everything specific to that kind of project. Groups and new-lead routing are configurable by branch.")}</div></div><div class="scope-templates-actions"><button class="cs-btn ghost" type="button" data-scope-advanced><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc53f80c48fa4b"," Advanced") ?? " Advanced")}</button><button class="cs-btn ghost" type="button" data-scope-refresh><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button><button class="cs-btn primary" type="button" data-scope-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_74bc5bc92a0cce"," Add Project Scope") ?? " Add Project Scope")}</button></div></header>
+          <div class="scope-template-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ee23e92243ae56",`Search ${v0} enabled scope${v1}…`,{v0,v1}) ?? `Search ${v0} enabled scope${v1}…`)(enabled.length,enabled.length === 1 ? '' : 's')}" value="${String(escapeHtml(query))}" data-scope-search></div>
+          <div class="scope-buckets">${String(groups.map((group) => `<section><div class="scope-bucket-head"><div><h4>${escapeHtml(group.name)}</h4>${group.description ? `<p>${escapeHtml(group.description)}</p>` : ''}</div><span class="scope-template-pill">${((v2,v3) => globalThis.PlatformLanguage?.htmlText("settings","m_37a3ec57dec673",`${v2} scope${v3}`,{v2,v3}) ?? `${v2} scope${v3}`)(group.templates.length,group.templates.length === 1 ? '' : 's')}</span></div><div class="scope-template-list">${group.templates.map(scopeCard).join('') || `<div class="scope-group-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_924bb8d0a06645","No matching scopes in this group.") ?? "No matching scopes in this group.")}</div>`}</div></section>`).join('') || `<div class="scope-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_d6fb906e8a70fc","No enabled project scopes match this search. Add one from the library or create one from scratch.") ?? "No enabled project scopes match this search. Add one from the library or create one from scratch.")}</div>`)}</div>
         </div>`;
         paneScopeTemplates.querySelector('[data-scope-search]')?.addEventListener('input', (event) => { query = event.currentTarget.value || ''; drawList(); paneScopeTemplates.querySelector('[data-scope-search]')?.focus(); });
         paneScopeTemplates.querySelectorAll('[data-scope-open]').forEach((button) => button.addEventListener('click', () => {
@@ -12190,15 +11981,15 @@
         const optionList = (selected = '') => enabled.map((template) => `<option value="${escapeHtml(template.id)}" ${template.id === selected ? 'selected' : ''}>${escapeHtml(template.name || template.id)}</option>`).join('');
         const operatorOptions = (selected) => [['equals','Equals'],['not_equals','Does not equal'],['contains','Contains'],['in','Is one of (comma-separated)'],['is_present','Is present'],['is_missing','Is missing']].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
         paneScopeTemplates.innerHTML = `<div class="scope-templates-page scope-advanced">
-          <header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-advanced-back aria-label="${(globalThis.PlatformLanguage?.text("settings","m_659a1740710975","Back to project scopes") ?? "Back to project scopes")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_2d0c49323fa962","Advanced Project Scope Settings") ?? "Advanced Project Scope Settings")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_08c02022421901","Configure how scopes are grouped and where every new project begins.") ?? "Configure how scopes are grouped and where every new project begins.")}</p></div></div><div><div class="scope-templates-actions"><button class="cs-btn primary" type="button" data-scope-advanced-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_23fcdd1fb5e601"," Save Settings") ?? " Save Settings")}</button></div><div class="scope-editor-status" data-scope-advanced-status>${String(escapeHtml(statusText))}</div></div></header>
+          <header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-advanced-back aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_659a1740710975","Back to project scopes") ?? "Back to project scopes")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_2d0c49323fa962","Advanced Project Scope Settings") ?? "Advanced Project Scope Settings")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_08c02022421901","Configure how scopes are grouped and where every new project begins.") ?? "Configure how scopes are grouped and where every new project begins.")}</p></div></div><div><div class="scope-templates-actions"><button class="cs-btn primary" type="button" data-scope-advanced-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_23fcdd1fb5e601"," Save Settings") ?? " Save Settings")}</button></div><div class="scope-editor-status" data-scope-advanced-status>${String(escapeHtml(statusText))}</div></div></header>
           <div class="scope-advanced-grid">
-            <section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.text("settings","m_661908ada0402d","Scope groups") ?? "Scope groups")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.text("settings","m_ddd3552fe9e199","Groups control the sections on the Project Scopes landing page. Sales and Production are the defaults, not fixed system concepts.") ?? "Groups control the sections on the Project Scopes landing page. Sales and Production are the defaults, not fixed system concepts.")}</p><div class="scope-bucket-editor">${String(routingConfig.buckets.map((bucket, index) => `<div class="scope-bucket-edit" data-scope-bucket="${index}"><label>Name<input value="${escapeHtml(bucket.name)}" data-bucket-field="name"></label><label>Description<input value="${escapeHtml(bucket.description)}" data-bucket-field="description"></label><button class="cs-btn ghost" type="button" data-bucket-remove="${index}" aria-label="Remove group"><i class="fas fa-trash"></i></button></div>`).join(''))}</div><button class="cs-btn ghost" type="button" data-bucket-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_d4b602d0dff6ec"," Add group") ?? " Add group")}</button></section>
-            <section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.text("settings","m_22f4d0ca7858eb","Assign scopes to groups") ?? "Assign scopes to groups")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.text("settings","m_2044878ce4c149","Each enabled scope can appear in one group. New scopes still fall into a matching default kind until explicitly assigned.") ?? "Each enabled scope can appear in one group. New scopes still fall into a matching default kind until explicitly assigned.")}</p><div class="scope-assignment-list">${String(enabled.map((template) => { const bucket = bucketForTemplate(template); return `<label class="scope-assignment-row"><strong>${escapeHtml(template.name || template.id)}</strong><select data-scope-assignment="${escapeHtml(template.id)}"><option value="">Use automatic group</option>${routingConfig.buckets.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === bucket?.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label>`; }).join(''))}</div></section>
+            <section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_661908ada0402d","Scope groups") ?? "Scope groups")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_ddd3552fe9e199","Groups control the sections on the Project Scopes landing page. Sales and Production are the defaults, not fixed system concepts.") ?? "Groups control the sections on the Project Scopes landing page. Sales and Production are the defaults, not fixed system concepts.")}</p><div class="scope-bucket-editor">${String(routingConfig.buckets.map((bucket, index) => `<div class="scope-bucket-edit" data-scope-bucket="${index}"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}<input value="${escapeHtml(bucket.name)}" data-bucket-field="name"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_aa136ecb65672f","Description") ?? "Description")}<input value="${escapeHtml(bucket.description)}" data-bucket-field="description"></label><button class="cs-btn ghost" type="button" data-bucket-remove="${index}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_a1da01affaa0b2","Remove group") ?? "Remove group")}"><i class="fas fa-trash"></i></button></div>`).join(''))}</div><button class="cs-btn ghost" type="button" data-bucket-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d4b602d0dff6ec"," Add group") ?? " Add group")}</button></section>
+            <section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_22f4d0ca7858eb","Assign scopes to groups") ?? "Assign scopes to groups")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_2044878ce4c149","Each enabled scope can appear in one group. New scopes still fall into a matching default kind until explicitly assigned.") ?? "Each enabled scope can appear in one group. New scopes still fall into a matching default kind until explicitly assigned.")}</p><div class="scope-assignment-list">${String(enabled.map((template) => { const bucket = bucketForTemplate(template); return `<label class="scope-assignment-row"><strong>${escapeHtml(template.name || template.id)}</strong><select data-scope-assignment="${escapeHtml(template.id)}"><option value="">${(globalThis.PlatformLanguage?.htmlText("settings","m_f600cf97e7d65f","Use automatic group") ?? "Use automatic group")}</option>${routingConfig.buckets.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === bucket?.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label>`; }).join(''))}</div></section>
           </div>
-          <section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.text("settings","m_2b23e7933b06c5","New project entry behavior") ?? "New project entry behavior")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.text("settings","m_d3ee0ae7330dc8","Every new project receives a scope. Choose a fixed entry scope, or evaluate ordered field rules first and use the starred scope as the fallback.") ?? "Every new project receives a scope. Choose a fixed entry scope, or evaluate ordered field rules first and use the starred scope as the fallback.")}</p>
-            <div class="scope-editor-grid"><label class="wide">${(globalThis.PlatformLanguage?.text("settings","m_ab67a80962dc24","Default / fallback scope") ?? "Default / fallback scope")}<select data-routing-default>${String(optionList(routingConfig.default_template_id))}</select></label></div>
-            <div class="scope-routing-mode"><button type="button" class="${String(routingConfig.routing_mode === 'default' ? 'on' : '')}" data-routing-mode="default"><strong>${(globalThis.PlatformLanguage?.text("settings","m_b8ea863fbad9e2","Always use the default scope") ?? "Always use the default scope")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_ae5db00adaf400","Every new lead starts in the starred scope.") ?? "Every new lead starts in the starred scope.")}</span></button><button type="button" class="${String(routingConfig.routing_mode === 'formula' ? 'on' : '')}" data-routing-mode="formula"><strong>${(globalThis.PlatformLanguage?.text("settings","m_3992bec69b7ffc","Determine scope from lead fields") ?? "Determine scope from lead fields")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_32057ce3fb1039","Try the rules below in order, then fall back to the starred scope.") ?? "Try the rules below in order, then fall back to the starred scope.")}</span></button></div>
-            ${String(routingConfig.routing_mode === 'formula' ? `<div class="scope-routing-note"><i class="fas fa-circle-info"></i> Rules run top to bottom. Field paths can target any initial project data, such as <code>lead_source.kind</code> or <code>lead.interest</code>.</div><div class="scope-routing-rules">${routingConfig.rules.map((rule, ruleIndex) => `<article class="scope-routing-rule" data-routing-rule="${ruleIndex}"><div class="scope-routing-rule-head"><label class="scope-routing-field">Rule name<input value="${escapeHtml(rule.title)}" data-rule-field="title"></label><label class="scope-routing-field">Send to<select data-rule-field="template_id">${optionList(rule.template_id)}</select></label><button class="cs-btn ghost" type="button" data-rule-remove="${ruleIndex}" aria-label="Remove rule"><i class="fas fa-trash"></i></button></div><label class="scope-routing-field" style="margin-top:8px;max-width:180px">Match<select data-rule-match><option value="all" ${rule.formula.match !== 'any' ? 'selected' : ''}>All conditions</option><option value="any" ${rule.formula.match === 'any' ? 'selected' : ''}>Any condition</option></select></label><div class="scope-formula-conditions">${rule.formula.conditions.map((condition, conditionIndex) => `<div class="scope-formula-condition" data-rule-condition="${conditionIndex}"><label class="scope-routing-field">Project field<input value="${escapeHtml(condition.field)}" placeholder="lead.interest" data-condition-field="field"></label><label class="scope-routing-field">Operator<select data-condition-field="operator">${operatorOptions(condition.operator)}</select></label><label class="scope-routing-field">Value<input value="${escapeHtml(condition.value)}" data-condition-field="value" ${['is_present','is_missing'].includes(condition.operator) ? 'disabled' : ''}></label><button class="cs-btn ghost" type="button" data-condition-remove="${ruleIndex}:${conditionIndex}" aria-label="Remove condition"><i class="fas fa-xmark"></i></button></div>`).join('')}</div><button class="cs-btn ghost" type="button" data-condition-add="${ruleIndex}" style="margin-top:8px"><i class="fas fa-plus"></i> Add condition</button></article>`).join('') || '<div class="scope-group-empty">No field rules yet. The fallback scope will be used.</div>'}</div><button class="cs-btn ghost" type="button" data-rule-add style="margin-top:10px"><i class="fas fa-plus"></i> Add routing rule</button>` : '')}
+          <section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_2b23e7933b06c5","New project entry behavior") ?? "New project entry behavior")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_d3ee0ae7330dc8","Every new project receives a scope. Choose a fixed entry scope, or evaluate ordered field rules first and use the starred scope as the fallback.") ?? "Every new project receives a scope. Choose a fixed entry scope, or evaluate ordered field rules first and use the starred scope as the fallback.")}</p>
+            <div class="scope-editor-grid"><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_ab67a80962dc24","Default / fallback scope") ?? "Default / fallback scope")}<select data-routing-default>${String(optionList(routingConfig.default_template_id))}</select></label></div>
+            <div class="scope-routing-mode"><button type="button" class="${String(routingConfig.routing_mode === 'default' ? 'on' : '')}" data-routing-mode="default"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_b8ea863fbad9e2","Always use the default scope") ?? "Always use the default scope")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae5db00adaf400","Every new lead starts in the starred scope.") ?? "Every new lead starts in the starred scope.")}</span></button><button type="button" class="${String(routingConfig.routing_mode === 'formula' ? 'on' : '')}" data-routing-mode="formula"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_3992bec69b7ffc","Determine scope from lead fields") ?? "Determine scope from lead fields")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_32057ce3fb1039","Try the rules below in order, then fall back to the starred scope.") ?? "Try the rules below in order, then fall back to the starred scope.")}</span></button></div>
+            ${String(routingConfig.routing_mode === 'formula' ? `<div class="scope-routing-note"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f4dd8c54ee169c"," Rules run top to bottom. Field paths can target any initial project data, such as ") ?? " Rules run top to bottom. Field paths can target any initial project data, such as ")}<code>${(globalThis.PlatformLanguage?.htmlText("settings","m_27d19ac0b61dab","lead_source.kind") ?? "lead_source.kind")}</code>${(globalThis.PlatformLanguage?.htmlText("settings","m_14fc42a8d9805b"," or ") ?? " or ")}<code>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c8da029db57e0","lead.interest") ?? "lead.interest")}</code>.</div><div class="scope-routing-rules">${routingConfig.rules.map((rule, ruleIndex) => `<article class="scope-routing-rule" data-routing-rule="${ruleIndex}"><div class="scope-routing-rule-head"><label class="scope-routing-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_96ec0f428fd44d","Rule name") ?? "Rule name")}<input value="${escapeHtml(rule.title)}" data-rule-field="title"></label><label class="scope-routing-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_8ea15c3c9b6b15","Send to") ?? "Send to")}<select data-rule-field="template_id">${optionList(rule.template_id)}</select></label><button class="cs-btn ghost" type="button" data-rule-remove="${ruleIndex}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_a87220739b51f5","Remove rule") ?? "Remove rule")}"><i class="fas fa-trash"></i></button></div><label class="scope-routing-field" style="margin-top:8px;max-width:180px">${(globalThis.PlatformLanguage?.htmlText("settings","m_e3fbd46ed1ed15","Match") ?? "Match")}<select data-rule-match><option value="all" ${rule.formula.match !== 'any' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_2850cdd91ef21b","All conditions") ?? "All conditions")}</option><option value="any" ${rule.formula.match === 'any' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_f4f45b054cd13d","Any condition") ?? "Any condition")}</option></select></label><div class="scope-formula-conditions">${rule.formula.conditions.map((condition, conditionIndex) => `<div class="scope-formula-condition" data-rule-condition="${conditionIndex}"><label class="scope-routing-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_ff784893bd09c3","Project field") ?? "Project field")}<input value="${escapeHtml(condition.field)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_0c8da029db57e0","lead.interest") ?? "lead.interest")}" data-condition-field="field"></label><label class="scope-routing-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_58115ff5785d0b","Operator") ?? "Operator")}<select data-condition-field="operator">${operatorOptions(condition.operator)}</select></label><label class="scope-routing-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_ec6b76d100b0ec","Value") ?? "Value")}<input value="${escapeHtml(condition.value)}" data-condition-field="value" ${['is_present','is_missing'].includes(condition.operator) ? 'disabled' : ''}></label><button class="cs-btn ghost" type="button" data-condition-remove="${ruleIndex}:${conditionIndex}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_8261c51a7fc95c","Remove condition") ?? "Remove condition")}"><i class="fas fa-xmark"></i></button></div>`).join('')}</div><button class="cs-btn ghost" type="button" data-condition-add="${ruleIndex}" style="margin-top:8px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_42882b0e5b46b3"," Add condition") ?? " Add condition")}</button></article>`).join('') || `<div class="scope-group-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_b2f7a6ae01ecc8","No field rules yet. The fallback scope will be used.") ?? "No field rules yet. The fallback scope will be used.")}</div>`}</div><button class="cs-btn ghost" type="button" data-rule-add style="margin-top:10px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2520371f6ccf3f"," Add routing rule") ?? " Add routing rule")}</button>` : '')}
           </section>
         </div>`;
         const updateStatus = (text) => { const status = paneScopeTemplates.querySelector('[data-scope-advanced-status]'); if (status) status.textContent = text; };
@@ -12252,13 +12043,13 @@
         const matches = libraryTemplates.filter((template) => `${template.name} ${template.description} ${template.category} ${(template.keywords || []).join(' ')}`.toLowerCase().includes(libraryQuery.toLowerCase()));
         const suggested = matches.filter((template) => template.suggested);
         const remaining = matches.filter((template) => !template.suggested);
-        const tile = (template, isSuggested = false) => `<button class="scope-library-tile" type="button" data-library-template="${escapeHtml(template.id)}" style="--scope-color:${escapeHtml(safeColor(template.color))}"><span class="scope-library-tile-icon"><i class="fas ${escapeHtml(iconClass(template.icon))}"></i></span><h5>${escapeHtml(template.name)}</h5><p>${escapeHtml(template.description || 'Start with this scope template and customize it for your organization.')}</p><span class="scope-library-tile-meta">${isSuggested ? `<span class="scope-library-badge suggested">${(globalThis.PlatformLanguage?.text("settings","m_ee7c3c2186e90c","Suggested") ?? "Suggested")}</span>` : ''}<span class="scope-library-badge">${escapeHtml(template.category || (template.kind === 'pipeline' ? 'Sales' : 'Production'))}</span>${Number(template.enabled_count || 0) ? `<span class="scope-library-badge installed"><i class="fas fa-check"></i>${((v0) => globalThis.PlatformLanguage?.text("settings","m_41bc0c9fac8e68",` Enabled${v0}`,{v0}) ?? ` Enabled${v0}`)(Number(template.enabled_count) > 1 ? ` · ${Number(template.enabled_count)} versions` : '')}</span>` : Number(template.installed_count || 0) ? `<span class="scope-library-badge">${(globalThis.PlatformLanguage?.text("settings","m_f0a343cccd4ead","Previously added") ?? "Previously added")}</span>` : ''}</span></button>`;
-        paneScopeTemplates.innerHTML = `<div class="scope-templates-page"><header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-add-back aria-label="${(globalThis.PlatformLanguage?.text("settings","m_659a1740710975","Back to project scopes") ?? "Back to project scopes")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_a248ccca7edbcf","Add Project Scope") ?? "Add Project Scope")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_40a9fa7fe1f564","Choose a starting point, customize it, then create a new scope.") ?? "Choose a starting point, customize it, then create a new scope.")}</p></div></div></header>
-          <div class="scope-library-hero"><div><h4>${(globalThis.PlatformLanguage?.text("settings","m_f7ccb26292f655","Build a scope your way") ?? "Build a scope your way")}</h4><p>${(globalThis.PlatformLanguage?.text("settings","m_e3d16576a7611b","Every library choice creates a separate scope. Existing scopes stay unchanged, even when you start from the same template again.") ?? "Every library choice creates a separate scope. Existing scopes stay unchanged, even when you start from the same template again.")}</p></div><button type="button" class="cs-btn primary" data-library-scratch><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.text("settings","m_e3386b8c852a28"," Create from scratch") ?? " Create from scratch")}</button></div>
-          <div class="scope-template-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_c455be7fce0e37","Search scope templates…") ?? "Search scope templates…")}" value="${String(escapeHtml(libraryQuery))}" data-library-search></div>
-          ${String(suggested.length ? `<section class="scope-library-section"><div class="scope-library-section-head"><div><h4>Suggested for you</h4><p>Common starting points based on the workflows available to your organization.</p></div></div><div class="scope-library-grid">${suggested.map((template) => tile(template, true)).join('')}</div></section>` : '')}
-          ${String(remaining.length ? `<section class="scope-library-section"><div class="scope-library-section-head"><div><h4>All templates</h4><p>Use any template as a base, whether or not you already have a version enabled.</p></div><span class="scope-template-pill">${remaining.length} template${remaining.length === 1 ? '' : 's'}</span></div><div class="scope-library-grid">${remaining.map((template) => tile(template)).join('')}</div></section>` : '')}
-          ${String(!matches.length ? '<div class="scope-empty">No library templates match this search. You can still create a scope from scratch.</div>' : '')}</div>`;
+        const tile = (template, isSuggested = false) => `<button class="scope-library-tile" type="button" data-library-template="${escapeHtml(template.id)}" style="--scope-color:${escapeHtml(safeColor(template.color))}"><span class="scope-library-tile-icon"><i class="fas ${escapeHtml(iconClass(template.icon))}"></i></span><h5>${escapeHtml(template.name)}</h5><p>${escapeHtml(template.description || 'Start with this scope template and customize it for your organization.')}</p><span class="scope-library-tile-meta">${isSuggested ? `<span class="scope-library-badge suggested">${(globalThis.PlatformLanguage?.htmlText("settings","m_ee7c3c2186e90c","Suggested") ?? "Suggested")}</span>` : ''}<span class="scope-library-badge">${escapeHtml(template.category || (template.kind === 'pipeline' ? 'Sales' : 'Production'))}</span>${Number(template.enabled_count || 0) ? `<span class="scope-library-badge installed"><i class="fas fa-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_41bc0c9fac8e68",` Enabled${v0}`,{v0}) ?? ` Enabled${v0}`)(Number(template.enabled_count) > 1 ? ` · ${Number(template.enabled_count)} versions` : '')}</span>` : Number(template.installed_count || 0) ? `<span class="scope-library-badge">${(globalThis.PlatformLanguage?.htmlText("settings","m_f0a343cccd4ead","Previously added") ?? "Previously added")}</span>` : ''}</span></button>`;
+        paneScopeTemplates.innerHTML = `<div class="scope-templates-page"><header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-add-back aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_659a1740710975","Back to project scopes") ?? "Back to project scopes")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_a248ccca7edbcf","Add Project Scope") ?? "Add Project Scope")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_40a9fa7fe1f564","Choose a starting point, customize it, then create a new scope.") ?? "Choose a starting point, customize it, then create a new scope.")}</p></div></div></header>
+          <div class="scope-library-hero"><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_f7ccb26292f655","Build a scope your way") ?? "Build a scope your way")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_e3d16576a7611b","Every library choice creates a separate scope. Existing scopes stay unchanged, even when you start from the same template again.") ?? "Every library choice creates a separate scope. Existing scopes stay unchanged, even when you start from the same template again.")}</p></div><button type="button" class="cs-btn primary" data-library-scratch><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e3386b8c852a28"," Create from scratch") ?? " Create from scratch")}</button></div>
+          <div class="scope-template-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c455be7fce0e37","Search scope templates…") ?? "Search scope templates…")}" value="${String(escapeHtml(libraryQuery))}" data-library-search></div>
+          ${String(suggested.length ? `<section class="scope-library-section"><div class="scope-library-section-head"><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_26f464891dc563","Suggested for you") ?? "Suggested for you")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_f1ada39218659d","Common starting points based on the workflows available to your organization.") ?? "Common starting points based on the workflows available to your organization.")}</p></div></div><div class="scope-library-grid">${suggested.map((template) => tile(template, true)).join('')}</div></section>` : '')}
+          ${String(remaining.length ? `<section class="scope-library-section"><div class="scope-library-section-head"><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_2e9f0ba3103b8b","All templates") ?? "All templates")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_44a5ff56b668ac","Use any template as a base, whether or not you already have a version enabled.") ?? "Use any template as a base, whether or not you already have a version enabled.")}</p></div><span class="scope-template-pill">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_6816641c8be5cb",`${v0} template${v1}`,{v0,v1}) ?? `${v0} template${v1}`)(remaining.length,remaining.length === 1 ? '' : 's')}</span></div><div class="scope-library-grid">${remaining.map((template) => tile(template)).join('')}</div></section>` : '')}
+          ${String(!matches.length ? `<div class="scope-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_7b6c48a953be29","No library templates match this search. You can still create a scope from scratch.") ?? "No library templates match this search. You can still create a scope from scratch.")}</div>` : '')}</div>`;
         paneScopeTemplates.querySelector('[data-scope-add-back]')?.addEventListener('click', () => { if (!window.Portal?.navigation?.applying) window.Portal?.navigation?.backOrClose?.(['settingsView'], { settingsView:null, settingsEntity:null, scopeTemplateView:null }, { source:'project-scope-library-close' }); drawList(); });
         paneScopeTemplates.querySelector('[data-library-search]')?.addEventListener('input', (event) => { libraryQuery = event.currentTarget.value || ''; drawAddScope(); paneScopeTemplates.querySelector('[data-library-search]')?.focus(); });
         paneScopeTemplates.querySelector('[data-library-scratch]')?.addEventListener('click', () => beginScopeCreation('scratch'));
@@ -12268,7 +12059,7 @@
         if (!newScopeDraft) return drawAddScope();
         const definition = newScopeDraft.definition;
         const stats = templateStats({ ...definition, definition });
-        paneScopeTemplates.innerHTML = `<div class="scope-templates-page"><header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-create-back aria-label="${(globalThis.PlatformLanguage?.text("settings","m_98b2080925f5ef","Back to scope library") ?? "Back to scope library")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_ffbb027ad4e3cf","Customize New Project Scope") ?? "Customize New Project Scope")}</h3><p>${((v0) => globalThis.PlatformLanguage?.text("settings","m_d1ef0af1a457f3",`Starting from ${v0}. Your source template will not be changed.`,{v0}) ?? `Starting from ${v0}. Your source template will not be changed.`)(escapeHtml(newScopeDraft.library_name))}</p></div></div></header><div class="scope-create-review"><section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.text("settings","m_ece2db8b31bae9","Scope details") ?? "Scope details")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.text("settings","m_a13dfd4cec15cb","Give this version a distinct name and adjust its basic identity before creating it. Its board, automations, fields, resources, checklists, and commissions will carry over from the selected template.") ?? "Give this version a distinct name and adjust its basic identity before creating it. Its board, automations, fields, resources, checklists, and commissions will carry over from the selected template.")}</p><div class="scope-editor-grid"><label>${(globalThis.PlatformLanguage?.text("settings","m_8cf345002184e5","Name") ?? "Name")}<input data-new-scope-field="name" value="${String(escapeHtml(definition.name))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_bfbafdc3391e00","Alternate Roof Replacement") ?? "Alternate Roof Replacement")}"></label><label>${(globalThis.PlatformLanguage?.text("settings","m_0ee0cc62880974","Scope type") ?? "Scope type")}<select data-new-scope-field="kind"><option value="pipeline" ${String(definition.kind === 'pipeline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_2680c31facb03d","Sales") ?? "Sales")}</option><option value="production" ${String(definition.kind !== 'pipeline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_c2e6380e130020","Production") ?? "Production")}</option></select></label><label class="wide">${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}<input data-new-scope-field="description" value="${String(escapeHtml(definition.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_f8b91fd2c37a55","What this project scope is used for") ?? "What this project scope is used for")}"></label><label class="wide">${(globalThis.PlatformLanguage?.text("settings","m_515f3d2c295b19","Detailed instructions") ?? "Detailed instructions")}<textarea data-new-scope-field="details">${String(escapeHtml(definition.details || ''))}</textarea></label><label>${(globalThis.PlatformLanguage?.text("settings","m_db7002926d9977","Color") ?? "Color")}<span class="scope-color-field"><input type="color" data-new-scope-color-picker value="${String(escapeHtml(safeColor(definition.color)))}"><input data-new-scope-field="color" value="${String(escapeHtml(safeColor(definition.color)))}"></span></label><label>${(globalThis.PlatformLanguage?.text("settings","m_3e4ee0ace818e7","Icon") ?? "Icon")}<input data-new-scope-field="icon" value="${String(escapeHtml(definition.icon || 'fa-diagram-project'))}"></label><label class="wide">${(globalThis.PlatformLanguage?.text("settings","m_c91b758ee373df","Scope group") ?? "Scope group")}<select data-new-scope-bucket>${String(routingConfig.buckets.map((bucket) => `<option value="${escapeHtml(bucket.id)}" ${bucket.id === newScopeDraft.bucket_id ? 'selected' : ''}>${escapeHtml(bucket.name)}</option>`).join(''))}</select></label><div class="wide scope-templates-actions" style="justify-content:flex-start"><button type="button" class="cs-btn primary" data-new-scope-submit><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_9e9dc47bf0d9a6"," Create Project Scope") ?? " Create Project Scope")}</button><span class="cs-note" data-new-scope-status>${String(escapeHtml(statusText))}</span></div></div></section><aside class="scope-create-summary" style="--scope-color:${String(escapeHtml(safeColor(definition.color)))}"><span class="scope-create-summary-icon"><i class="fas ${String(escapeHtml(iconClass(definition.icon)))}"></i></span><h4>${String(escapeHtml(newScopeDraft.library_name))}</h4><p>${String(newScopeDraft.library_id === 'scratch' ? 'A clean scope with one starting stage.' : 'A reusable library template copied into a brand-new project scope.')}</p><ul><li>${((v15,v16) => globalThis.PlatformLanguage?.text("settings","m_30c35c25a41278",`${v15} existing to-do${v16}`,{v15,v16}) ?? `${v15} existing to-do${v16}`)(stats.todos,stats.todos === 1 ? '' : 's')}</li><li>${((v17,v18) => globalThis.PlatformLanguage?.text("settings","m_15bdc83d5cc466",`${v17} custom field${v18}`,{v17,v18}) ?? `${v17} custom field${v18}`)(stats.fields,stats.fields === 1 ? '' : 's')}</li><li>${((v19,v20) => globalThis.PlatformLanguage?.text("settings","m_2ad0caa2cf428a",`${v19} resource list${v20}`,{v19,v20}) ?? `${v19} resource list${v20}`)(stats.resourceLists,stats.resourceLists === 1 ? '' : 's')}</li><li>${(globalThis.PlatformLanguage?.text("settings","m_5450868afb6124","All template automations preserved") ?? "All template automations preserved")}</li></ul></aside></div></div>`;
+        paneScopeTemplates.innerHTML = `<div class="scope-templates-page"><header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-create-back aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_98b2080925f5ef","Back to scope library") ?? "Back to scope library")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_ffbb027ad4e3cf","Customize New Project Scope") ?? "Customize New Project Scope")}</h3><p>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_d1ef0af1a457f3",`Starting from ${v0}. Your source template will not be changed.`,{v0}) ?? `Starting from ${v0}. Your source template will not be changed.`)(escapeHtml(newScopeDraft.library_name))}</p></div></div></header><div class="scope-create-review"><section class="scope-editor-card"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_ece2db8b31bae9","Scope details") ?? "Scope details")}</h4><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_a13dfd4cec15cb","Give this version a distinct name and adjust its basic identity before creating it. Its board, automations, fields, resources, checklists, and commissions will carry over from the selected template.") ?? "Give this version a distinct name and adjust its basic identity before creating it. Its board, automations, fields, resources, checklists, and commissions will carry over from the selected template.")}</p><div class="scope-editor-grid"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}<input data-new-scope-field="name" value="${String(escapeHtml(definition.name))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_bfbafdc3391e00","Alternate Roof Replacement") ?? "Alternate Roof Replacement")}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_0ee0cc62880974","Scope type") ?? "Scope type")}<select data-new-scope-field="kind"><option value="pipeline" ${String(definition.kind === 'pipeline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_2680c31facb03d","Sales") ?? "Sales")}</option><option value="production" ${String(definition.kind !== 'pipeline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_c2e6380e130020","Production") ?? "Production")}</option></select></label><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_aa136ecb65672f","Description") ?? "Description")}<input data-new-scope-field="description" value="${String(escapeHtml(definition.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_f8b91fd2c37a55","What this project scope is used for") ?? "What this project scope is used for")}"></label><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_515f3d2c295b19","Detailed instructions") ?? "Detailed instructions")}<textarea data-new-scope-field="details">${String(escapeHtml(definition.details || ''))}</textarea></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_db7002926d9977","Color") ?? "Color")}<span class="scope-color-field"><input type="color" data-new-scope-color-picker value="${String(escapeHtml(safeColor(definition.color)))}"><input data-new-scope-field="color" value="${String(escapeHtml(safeColor(definition.color)))}"></span></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e4ee0ace818e7","Icon") ?? "Icon")}<input data-new-scope-field="icon" value="${String(escapeHtml(definition.icon || 'fa-diagram-project'))}"></label><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_c91b758ee373df","Scope group") ?? "Scope group")}<select data-new-scope-bucket>${String(routingConfig.buckets.map((bucket) => `<option value="${escapeHtml(bucket.id)}" ${bucket.id === newScopeDraft.bucket_id ? 'selected' : ''}>${escapeHtml(bucket.name)}</option>`).join(''))}</select></label><div class="wide scope-templates-actions" style="justify-content:flex-start"><button type="button" class="cs-btn primary" data-new-scope-submit><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9e9dc47bf0d9a6"," Create Project Scope") ?? " Create Project Scope")}</button><span class="cs-note" data-new-scope-status>${String(escapeHtml(statusText))}</span></div></div></section><aside class="scope-create-summary" style="--scope-color:${String(escapeHtml(safeColor(definition.color)))}"><span class="scope-create-summary-icon"><i class="fas ${String(escapeHtml(iconClass(definition.icon)))}"></i></span><h4>${String(escapeHtml(newScopeDraft.library_name))}</h4><p>${String(newScopeDraft.library_id === 'scratch' ? 'A clean scope with one starting stage.' : 'A reusable library template copied into a brand-new project scope.')}</p><ul><li>${((v15,v16) => globalThis.PlatformLanguage?.htmlText("settings","m_30c35c25a41278",`${v15} existing to-do${v16}`,{v15,v16}) ?? `${v15} existing to-do${v16}`)(stats.todos,stats.todos === 1 ? '' : 's')}</li><li>${((v17,v18) => globalThis.PlatformLanguage?.htmlText("settings","m_15bdc83d5cc466",`${v17} custom field${v18}`,{v17,v18}) ?? `${v17} custom field${v18}`)(stats.fields,stats.fields === 1 ? '' : 's')}</li><li>${((v19,v20) => globalThis.PlatformLanguage?.htmlText("settings","m_2ad0caa2cf428a",`${v19} resource list${v20}`,{v19,v20}) ?? `${v19} resource list${v20}`)(stats.resourceLists,stats.resourceLists === 1 ? '' : 's')}</li><li>${(globalThis.PlatformLanguage?.htmlText("settings","m_5450868afb6124","All template automations preserved") ?? "All template automations preserved")}</li></ul></aside></div></div>`;
         const status = () => paneScopeTemplates.querySelector('[data-new-scope-status]');
         paneScopeTemplates.querySelector('[data-scope-create-back]')?.addEventListener('click', () => { if (!window.Portal?.navigation?.applying) window.Portal?.navigation?.backOrClose?.(['settingsEntity'], { settingsView:'library', settingsEntity:null, scopeTemplateView:null }, { source:'project-scope-create-close' }); drawAddScope(); });
         paneScopeTemplates.querySelectorAll('[data-new-scope-field]').forEach((input) => input.addEventListener('input', () => { definition[input.dataset.newScopeField] = input.value; if (status()) status().textContent = ''; }));
@@ -12351,7 +12142,7 @@
       };
       const checklistAssignmentsMarkup = (definition) => {
         const checklists = Array.isArray(definition?.checklists) ? definition.checklists : [];
-        if (!checklists.length) return `<div class="scope-commission-empty">${(globalThis.PlatformLanguage?.text("settings","m_313a8b1aef9e37","This template does not create any project checklists.") ?? "This template does not create any project checklists.")}</div>`;
+        if (!checklists.length) return `<div class="scope-commission-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_313a8b1aef9e37","This template does not create any project checklists.") ?? "This template does not create any project checklists.")}</div>`;
         return `<div class="scope-checklist-assignments">${checklists.map((checklist, index) => {
           const preset = checklistAssignmentPreset(checklist);
           const policy = checklist?.assignment_policy && typeof checklist.assignment_policy === 'object' ? checklist.assignment_policy : {};
@@ -12363,22 +12154,22 @@
           return `<div class="scope-checklist-assignment" data-scope-checklist-assignment="${String(index)}">
             <div class="scope-checklist-assignment-head"><i class="fas fa-clipboard-check"></i><span><strong>${String(escapeHtml(checklist?.title || checklist?.name || `Checklist ${index + 1}`))}</strong><span>${String(escapeHtml(checklist?.description || 'Assignment defaults for each project created from this scope.'))}</span></span></div>
             <div class="scope-editor-grid">
-              <label>${(globalThis.PlatformLanguage?.text("settings","m_39b74b7fcdf59f","Eligible people or groups") ?? "Eligible people or groups")}<select data-checklist-assignment-preset>
-                <option value="everyone" ${String(preset === 'everyone' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_aed3c56cc9dd24","Everyone with checklist access") ?? "Everyone with checklist access")}</option>
-                <option value="crew" ${String(preset === 'crew' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_c8503649127552","Crew members and crews") ?? "Crew members and crews")}</option>
+              <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_39b74b7fcdf59f","Eligible people or groups") ?? "Eligible people or groups")}<select data-checklist-assignment-preset>
+                <option value="everyone" ${String(preset === 'everyone' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_aed3c56cc9dd24","Everyone with checklist access") ?? "Everyone with checklist access")}</option>
+                <option value="crew" ${String(preset === 'crew' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_c8503649127552","Crew members and crews") ?? "Crew members and crews")}</option>
                 ${String(roleOptions)}
                 ${String(preset.startsWith('role:') && !roleOptions.includes(`value="${escapeHtml(preset)}"`) ? `<option value="${escapeHtml(preset)}" selected>${escapeHtml(preset.slice(5))}</option>` : '')}
-                ${String(preset === 'custom' ? '<option value="custom" selected>Custom policy (Advanced definition)</option>' : '')}
+                ${String(preset === 'custom' ? `<option value="custom" selected>${(globalThis.PlatformLanguage?.htmlText("settings","m_559432023f1af1","Custom policy (Advanced definition)") ?? "Custom policy (Advanced definition)")}</option>` : '')}
               </select></label>
-              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_e7439c3f872f97","Require a specific assignment") ?? "Require a specific assignment")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_06739365790af2","Off allows any eligible person or group to complete it.") ?? "Off allows any eligible person or group to complete it.")}</small></span><button type="button" class="scope-switch ${String(policy.allow_unassigned === false ? 'on' : '')}" data-checklist-assignment-required aria-pressed="${String(policy.allow_unassigned === false)}"></button></div>
+              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_e7439c3f872f97","Require a specific assignment") ?? "Require a specific assignment")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_06739365790af2","Off allows any eligible person or group to complete it.") ?? "Off allows any eligible person or group to complete it.")}</small></span><button type="button" class="scope-switch ${String(policy.allow_unassigned === false ? 'on' : '')}" data-checklist-assignment-required aria-pressed="${String(policy.allow_unassigned === false)}"></button></div>
             </div>
-            <p class="scope-checklist-assignment-note">${(globalThis.PlatformLanguage?.text("settings","m_3f5a2417f3b063","The scope controls eligibility. The project checklist can then be assigned to a specific eligible person or crew.") ?? "The scope controls eligibility. The project checklist can then be assigned to a specific eligible person or crew.")}</p>
+            <p class="scope-checklist-assignment-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_3f5a2417f3b063","The scope controls eligibility. The project checklist can then be assigned to a specific eligible person or crew.") ?? "The scope controls eligibility. The project checklist can then be assigned to a specific eligible person or crew.")}</p>
             <div class="scope-checklist-switches">
-              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_c9ea2900a89892","Show on customer portal") ?? "Show on customer portal")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_0715fd1bab5fcb","Off keeps the checklist completely private.") ?? "Off keeps the checklist completely private.")}</small></span><button type="button" class="scope-switch ${String(customer.visible === true ? 'on' : '')}" data-checklist-customer-visible></button></div>
-              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_9d23f07afae878","Customer can complete items") ?? "Customer can complete items")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_a33399f93ae5cf","Allows completion, notes, ratings, and evidence.") ?? "Allows completion, notes, ratings, and evidence.")}</small></span><button type="button" class="scope-switch ${String(customer.can_complete === true ? 'on' : '')}" data-checklist-customer-complete ${String(customer.visible === true ? '' : 'disabled')}></button></div>
-              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_2f266c7c0e1337","Customer can edit the list") ?? "Customer can edit the list")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_e1962faac1384a","Allows adding, renaming, and removing items.") ?? "Allows adding, renaming, and removing items.")}</small></span><button type="button" class="scope-switch ${String(customer.can_edit_items === true ? 'on' : '')}" data-checklist-customer-edit ${String(customer.visible === true ? '' : 'disabled')}></button></div>
-              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_4218736b5cd820","Customer voice access") ?? "Customer voice access")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_385d8a50c4a2b6","Requires customer completion access.") ?? "Requires customer completion access.")}</small></span><button type="button" class="scope-switch ${String(customer.voice_mode && customer.voice_mode !== 'off' ? 'on' : '')}" data-checklist-customer-voice ${String(customer.visible === true && customer.can_complete === true ? '' : 'disabled')}></button></div>
-              ${String(customer.voice_mode && customer.voice_mode !== 'off' ? `<div class="scope-toggle-row"><span><strong>Voice behavior</strong><small>Editing by voice also requires list editing.</small></span><div class="scope-voice-mode"><button type="button" class="${customer.voice_mode !== 'edit' ? 'on' : ''}" data-checklist-voice-mode="complete">Complete only</button><button type="button" class="${customer.voice_mode === 'edit' ? 'on' : ''}" data-checklist-voice-mode="edit" ${customer.can_edit_items === true ? '' : 'disabled'}>Complete + edit</button></div></div>` : '')}
+              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_c9ea2900a89892","Show on customer portal") ?? "Show on customer portal")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_0715fd1bab5fcb","Off keeps the checklist completely private.") ?? "Off keeps the checklist completely private.")}</small></span><button type="button" class="scope-switch ${String(customer.visible === true ? 'on' : '')}" data-checklist-customer-visible></button></div>
+              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_9d23f07afae878","Customer can complete items") ?? "Customer can complete items")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_a33399f93ae5cf","Allows completion, notes, ratings, and evidence.") ?? "Allows completion, notes, ratings, and evidence.")}</small></span><button type="button" class="scope-switch ${String(customer.can_complete === true ? 'on' : '')}" data-checklist-customer-complete ${String(customer.visible === true ? '' : 'disabled')}></button></div>
+              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_2f266c7c0e1337","Customer can edit the list") ?? "Customer can edit the list")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_e1962faac1384a","Allows adding, renaming, and removing items.") ?? "Allows adding, renaming, and removing items.")}</small></span><button type="button" class="scope-switch ${String(customer.can_edit_items === true ? 'on' : '')}" data-checklist-customer-edit ${String(customer.visible === true ? '' : 'disabled')}></button></div>
+              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4218736b5cd820","Customer voice access") ?? "Customer voice access")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_385d8a50c4a2b6","Requires customer completion access.") ?? "Requires customer completion access.")}</small></span><button type="button" class="scope-switch ${String(customer.voice_mode && customer.voice_mode !== 'off' ? 'on' : '')}" data-checklist-customer-voice ${String(customer.visible === true && customer.can_complete === true ? '' : 'disabled')}></button></div>
+              ${String(customer.voice_mode && customer.voice_mode !== 'off' ? `<div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_b34bc38922c9c5","Voice behavior") ?? "Voice behavior")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae98c60b8482aa","Editing by voice also requires list editing.") ?? "Editing by voice also requires list editing.")}</small></span><div class="scope-voice-mode"><button type="button" class="${customer.voice_mode !== 'edit' ? 'on' : ''}" data-checklist-voice-mode="complete">${(globalThis.PlatformLanguage?.htmlText("settings","m_ae59d279066e5c","Complete only") ?? "Complete only")}</button><button type="button" class="${customer.voice_mode === 'edit' ? 'on' : ''}" data-checklist-voice-mode="edit" ${customer.can_edit_items === true ? '' : 'disabled'}>${(globalThis.PlatformLanguage?.htmlText("settings","m_9f2ea34fbdb3b1","Complete + edit") ?? "Complete + edit")}</button></div></div>` : '')}
             </div>
           </div>`;
         }).join('')}</div>`;
@@ -12393,33 +12184,33 @@
         const installments = Array.isArray(rule.installments) ? rule.installments : [];
         const dollars = (value) => Number.isFinite(Number(value)) ? (Number(value) / 100).toFixed(2) : '';
         const csv = (value) => Array.isArray(value) ? value.join(', ') : '';
-        return `<details class="scope-commission-rule scope-commission-fold" data-commission-rule="${String(index)}" ${String(index===0?'open':'')}><summary>${String(escapeHtml(rule.title || `Rule ${index+1}`))}<span>${String(escapeHtml(roleOptions.find(role=>role.key===payeeRole)?.label || commissionRoleLabel(payeeRole)))} · ${String(mode==='code'?'Custom calculation':preset==='discount_tiered'?'Tiered rates':preset==='fixed'?`$${dollars(calculation.fixed_amount_cents)}`:`${Number(calculation.rate_bps || 0)/100}%`)} · ${String(rule.enabled===false?'Disabled':'Enabled')}</span></summary><header class="scope-commission-rule-head"><label class="scope-commission-check"><input type="checkbox" data-cr="enabled" ${String(rule.enabled === false ? '' : 'checked')}><strong>${(globalThis.PlatformLanguage?.text("settings","m_fedcd55fa394f3","Enable rule") ?? "Enable rule")}</strong></label><button type="button" class="cs-btn ghost" data-commission-remove="${String(index)}"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("settings","m_09a65903b3217c"," Remove") ?? " Remove")}</button></header><div class="scope-commission-rule-body"><div class="scope-editor-grid">
-          <input type="hidden" data-cr="id" value="${String(escapeHtml(rule.id || ''))}"><label class="wide">${(globalThis.PlatformLanguage?.text("settings","m_025584181cebdf","Rule title") ?? "Rule title")}<input data-cr="title" value="${String(escapeHtml(rule.title || ''))}"></label>
-          <label>${(globalThis.PlatformLanguage?.text("settings","m_c0b56937efb395","Recipient role") ?? "Recipient role")}<select data-cr="payee_role"><option value="">${(globalThis.PlatformLanguage?.text("settings","m_21f0f0b74ed53e","Choose a role…") ?? "Choose a role…")}</option>${String(roleOptions.map((role) => `<option value="${escapeHtml(role.key)}" ${payeeRole === role.key ? 'selected' : ''}>${escapeHtml(role.label || commissionRoleLabel(role.key))}</option>`).join(''))}</select></label><label>${(globalThis.PlatformLanguage?.text("settings","m_c25137487d78f8","Entry state") ?? "Entry state")}<select data-cr="entry_state"><option value="projected" ${String(rule.entry_state !== 'accrued' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_b70868e44ab174","Projected / upcoming") ?? "Projected / upcoming")}</option><option value="accrued" ${String(rule.entry_state === 'accrued' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_ab2bdfb0d2c6b6","Accrued immediately") ?? "Accrued immediately")}</option></select></label>
-          <label>${(globalThis.PlatformLanguage?.text("settings","m_8d84fb6ac8bc79","Allocation") ?? "Allocation")}<select data-cr="allocation"><option value="split_evenly" ${String(rule.allocation !== 'each' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_501d4acb579f2d","Split pool evenly") ?? "Split pool evenly")}</option><option value="each" ${String(rule.allocation === 'each' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_267ba4a955d540","Full amount for each") ?? "Full amount for each")}</option></select></label><label>${(globalThis.PlatformLanguage?.text("settings","m_493159f7771ebc","When") ?? "When")}<select data-cr="trigger_hook">${String(['onCreated','onStarted','onReady','onCompleted','onCanceled'].map((hook) => `<option value="${hook}" ${(rule.trigger?.hook || 'onStarted') === hook ? 'selected' : ''}>${({onCreated:'Created',onStarted:'Starts',onReady:'Becomes ready',onCompleted:'Completes',onCanceled:'Is canceled'})[hook]}</option>`).join(''))}</select></label>
-          <label class="wide">${(globalThis.PlatformLanguage?.text("settings","m_7b27447fdce391","Workflow step") ?? "Workflow step")}<select data-cr="trigger_node_id">${String(workflowNodeOptions(rule.trigger?.node_id))}</select></label>
+        return `<details class="scope-commission-rule scope-commission-fold" data-commission-rule="${String(index)}" ${String(index===0?'open':'')}><summary>${String(escapeHtml(rule.title || ((v0) => globalThis.PlatformLanguage?.text("settings","m_5add49ec578635",`Rule ${v0}`,{v0}) ?? `Rule ${v0}`)(index+1)))}<span>${String(escapeHtml(roleOptions.find(role=>role.key===payeeRole)?.label || commissionRoleLabel(payeeRole)))} · ${String(mode==='code'?'Custom calculation':preset==='discount_tiered'?'Tiered rates':preset==='fixed'?`$${dollars(calculation.fixed_amount_cents)}`:`${Number(calculation.rate_bps || 0)/100}%`)} · ${String(rule.enabled===false?'Disabled':'Enabled')}</span></summary><header class="scope-commission-rule-head"><label class="scope-commission-check"><input type="checkbox" data-cr="enabled" ${String(rule.enabled === false ? '' : 'checked')}><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_fedcd55fa394f3","Enable rule") ?? "Enable rule")}</strong></label><button type="button" class="cs-btn ghost" data-commission-remove="${String(index)}"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_09a65903b3217c"," Remove") ?? " Remove")}</button></header><div class="scope-commission-rule-body"><div class="scope-editor-grid">
+          <input type="hidden" data-cr="id" value="${String(escapeHtml(rule.id || ''))}"><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_025584181cebdf","Rule title") ?? "Rule title")}<input data-cr="title" value="${String(escapeHtml(rule.title || ''))}"></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_c0b56937efb395","Recipient role") ?? "Recipient role")}<select data-cr="payee_role"><option value="">${(globalThis.PlatformLanguage?.htmlText("settings","m_21f0f0b74ed53e","Choose a role…") ?? "Choose a role…")}</option>${String(roleOptions.map((role) => `<option value="${escapeHtml(role.key)}" ${payeeRole === role.key ? 'selected' : ''}>${escapeHtml(role.label || commissionRoleLabel(role.key))}</option>`).join(''))}</select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_c25137487d78f8","Entry state") ?? "Entry state")}<select data-cr="entry_state"><option value="projected" ${String(rule.entry_state !== 'accrued' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_b70868e44ab174","Projected / upcoming") ?? "Projected / upcoming")}</option><option value="accrued" ${String(rule.entry_state === 'accrued' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab2bdfb0d2c6b6","Accrued immediately") ?? "Accrued immediately")}</option></select></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_8d84fb6ac8bc79","Allocation") ?? "Allocation")}<select data-cr="allocation"><option value="split_evenly" ${String(rule.allocation !== 'each' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_501d4acb579f2d","Split pool evenly") ?? "Split pool evenly")}</option><option value="each" ${String(rule.allocation === 'each' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_267ba4a955d540","Full amount for each") ?? "Full amount for each")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_493159f7771ebc","When") ?? "When")}<select data-cr="trigger_hook">${String(['onCreated','onStarted','onReady','onCompleted','onCanceled'].map((hook) => `<option value="${hook}" ${(rule.trigger?.hook || 'onStarted') === hook ? 'selected' : ''}>${({onCreated:'Created',onStarted:'Starts',onReady:'Becomes ready',onCompleted:'Completes',onCanceled:'Is canceled'})[hook]}</option>`).join(''))}</select></label>
+          <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_7b27447fdce391","Workflow step") ?? "Workflow step")}<select data-cr="trigger_node_id">${String(workflowNodeOptions(rule.trigger?.node_id))}</select></label>
           <input type="hidden" data-cr="mode" value="${String(mode)}">
-          ${String(mode === 'code' ? `<div class="wide scope-commission-warning">Custom calculation · maintained in Developer <button type="button" class="cs-btn ghost" data-scope-section-link="developer">Open Developer</button></div><textarea hidden data-cr="code">${escapeHtml(calculation.code || defaultCommissionCode())}</textarea>` : `
-            <label>Preset<select data-cr="preset"><option value="percentage" ${preset === 'percentage' ? 'selected' : ''}>Percentage of basis</option><option value="percentage_after_discount" ${preset === 'percentage_after_discount' ? 'selected' : ''}>Percentage after discounts</option><option value="discount_tiered" ${preset === 'discount_tiered' ? 'selected' : ''}>Discount-tiered</option><option value="fixed" ${preset === 'fixed' ? 'selected' : ''}>Fixed amount</option><option value="selected_line_items" ${preset === 'selected_line_items' ? 'selected' : ''}>Selected line items</option></select></label>
-            ${preset === 'fixed' ? `<label>Fixed amount ($)<input type="number" min="0" step="0.01" data-cr="fixed_amount" value="${escapeHtml(dollars(calculation.fixed_amount_cents))}"></label>` : `<label>Basis<select data-cr="basis"><option value="proposal_total" ${calculation.basis === 'proposal_total' ? 'selected' : ''}>Proposal total</option><option value="proposal_subtotal" ${calculation.basis === 'proposal_subtotal' ? 'selected' : ''}>Proposal subtotal</option><option value="collected_revenue" ${calculation.basis === 'collected_revenue' ? 'selected' : ''}>Collected revenue</option><option value="forecast_profit" ${calculation.basis === 'forecast_profit' ? 'selected' : ''}>Forecast profit</option><option value="selected_line_items" ${calculation.basis === 'selected_line_items' ? 'selected' : ''}>Selected line items</option></select></label><label>Rate (%)<input type="number" min="0" step="0.01" data-cr="rate_percent" value="${escapeHtml(String(Number(calculation.rate_bps || 0) / 100))}"></label>`}
-            <details class="wide scope-commission-options"><summary>Limits, adjustments & eligible items</summary><div class="scope-editor-grid"><label>Minimum ($)<input type="number" min="0" step="0.01" data-cr="minimum" value="${escapeHtml(dollars(calculation.minimum_cents))}"></label><label>Maximum ($)<input type="number" min="0" step="0.01" data-cr="maximum" value="${escapeHtml(dollars(calculation.maximum_cents))}"></label>
-            <label>Fixed adjustment ($)<input type="number" step="0.01" data-cr="fixed_adjustment" value="${escapeHtml(dollars(calculation.fixed_adjustment_cents))}"></label><label class="scope-commission-check"><input type="checkbox" data-cr="subtract_discounts" ${calculation.subtract_discounts === true ? 'checked' : ''}>Subtract proposal discounts from basis</label>
-            <label class="wide">Include line item IDs<input data-cr="item_ids" value="${escapeHtml(csv(selector.item_ids))}" placeholder="Comma-separated; blank includes all"></label><label class="wide">Exclude line item IDs<input data-cr="exclude_item_ids" value="${escapeHtml(csv(selector.exclude_item_ids))}" placeholder="permit, financing_fee"></label>
-            <label>Exclude categories<input data-cr="exclude_categories" value="${escapeHtml(csv(selector.exclude_categories))}" placeholder="Permits, Financing"></label><label>Exclude tags<input data-cr="exclude_tags" value="${escapeHtml(csv(selector.exclude_tags))}" placeholder="noncommissionable"></label>
-            ${preset === 'discount_tiered' ? `<div class="wide"><strong>Discount tiers</strong>${(calculation.tiers || []).map(t=>`<p>${Number(t.min_discount_bps || 0)/100}%–${t.max_discount_bps==null?'above':Number(t.max_discount_bps)/100+'%'} discount → ${Number(t.rate_bps || 0)/100}% commission</p>`).join('')}<button type="button" class="cs-btn ghost" data-scope-section-link="developer">Edit tiers in Developer</button><textarea hidden data-cr="tiers">${escapeHtml(JSON.stringify(calculation.tiers || [], null, 2))}</textarea></div>` : ''}
+          ${String(mode === 'code' ? `<div class="wide scope-commission-warning">${(globalThis.PlatformLanguage?.htmlText("settings","m_e3db7b9f3bfbce","Custom calculation · maintained in Developer ") ?? "Custom calculation · maintained in Developer ")}<button type="button" class="cs-btn ghost" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.htmlText("settings","m_9a9ac18eccfd93","Open Developer") ?? "Open Developer")}</button></div><textarea hidden data-cr="code">${escapeHtml(calculation.code || defaultCommissionCode())}</textarea>` : `
+            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_401488cd49adb7","Preset") ?? "Preset")}<select data-cr="preset"><option value="percentage" ${preset === 'percentage' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_629eaaf9caef92","Percentage of basis") ?? "Percentage of basis")}</option><option value="percentage_after_discount" ${preset === 'percentage_after_discount' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_1f866df0898207","Percentage after discounts") ?? "Percentage after discounts")}</option><option value="discount_tiered" ${preset === 'discount_tiered' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_40874c1a8e0f28","Discount-tiered") ?? "Discount-tiered")}</option><option value="fixed" ${preset === 'fixed' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_6c4835f9ae892e","Fixed amount") ?? "Fixed amount")}</option><option value="selected_line_items" ${preset === 'selected_line_items' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_256869f39b5ac2","Selected line items") ?? "Selected line items")}</option></select></label>
+            ${preset === 'fixed' ? `<label>${(globalThis.PlatformLanguage?.htmlText("settings","m_56cc7fcbed29ba","Fixed amount ($)") ?? "Fixed amount ($)")}<input type="number" min="0" step="0.01" data-cr="fixed_amount" value="${escapeHtml(dollars(calculation.fixed_amount_cents))}"></label>` : `<label>${(globalThis.PlatformLanguage?.htmlText("settings","m_344f9a56adce24","Basis") ?? "Basis")}<select data-cr="basis"><option value="proposal_total" ${calculation.basis === 'proposal_total' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_eed2f2b0590056","Proposal total") ?? "Proposal total")}</option><option value="proposal_subtotal" ${calculation.basis === 'proposal_subtotal' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_88510d98e03db0","Proposal subtotal") ?? "Proposal subtotal")}</option><option value="collected_revenue" ${calculation.basis === 'collected_revenue' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_10f5f33a0b49a0","Collected revenue") ?? "Collected revenue")}</option><option value="forecast_profit" ${calculation.basis === 'forecast_profit' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_0655e4b3743f9a","Forecast profit") ?? "Forecast profit")}</option><option value="selected_line_items" ${calculation.basis === 'selected_line_items' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_256869f39b5ac2","Selected line items") ?? "Selected line items")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_24c904032f348c","Rate (%)") ?? "Rate (%)")}<input type="number" min="0" step="0.01" data-cr="rate_percent" value="${escapeHtml(String(Number(calculation.rate_bps || 0) / 100))}"></label>`}
+            <details class="wide scope-commission-options"><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_403efd8bd83f5b","Limits, adjustments & eligible items") ?? "Limits, adjustments & eligible items")}</summary><div class="scope-editor-grid"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a11f94d22d6fd9","Minimum ($)") ?? "Minimum ($)")}<input type="number" min="0" step="0.01" data-cr="minimum" value="${escapeHtml(dollars(calculation.minimum_cents))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_b5785f150fc836","Maximum ($)") ?? "Maximum ($)")}<input type="number" min="0" step="0.01" data-cr="maximum" value="${escapeHtml(dollars(calculation.maximum_cents))}"></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_2b0f820ba8bc39","Fixed adjustment ($)") ?? "Fixed adjustment ($)")}<input type="number" step="0.01" data-cr="fixed_adjustment" value="${escapeHtml(dollars(calculation.fixed_adjustment_cents))}"></label><label class="scope-commission-check"><input type="checkbox" data-cr="subtract_discounts" ${calculation.subtract_discounts === true ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_a24e1dd0661041","Subtract proposal discounts from basis") ?? "Subtract proposal discounts from basis")}</label>
+            <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_48363c67b24212","Include line item IDs") ?? "Include line item IDs")}<input data-cr="item_ids" value="${escapeHtml(csv(selector.item_ids))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_13c5d009a4501d","Comma-separated; blank includes all") ?? "Comma-separated; blank includes all")}"></label><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_231689dd880d1f","Exclude line item IDs") ?? "Exclude line item IDs")}<input data-cr="exclude_item_ids" value="${escapeHtml(csv(selector.exclude_item_ids))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_3bf08acd7526ca","permit, financing_fee") ?? "permit, financing_fee")}"></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_523a8deb2ddb22","Exclude categories") ?? "Exclude categories")}<input data-cr="exclude_categories" value="${escapeHtml(csv(selector.exclude_categories))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_35eadf90ecae3d","Permits, Financing") ?? "Permits, Financing")}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_b0f397577697c2","Exclude tags") ?? "Exclude tags")}<input data-cr="exclude_tags" value="${escapeHtml(csv(selector.exclude_tags))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_89718d924c2aae","noncommissionable") ?? "noncommissionable")}"></label>
+            ${preset === 'discount_tiered' ? `<div class="wide"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_ca33cc0403fa69","Discount tiers") ?? "Discount tiers")}</strong>${(calculation.tiers || []).map(t=>`<p>${((v0,v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_2cdb9154dbfb8c",`${v0}%–${v1} discount → ${v2}% commission`,{v0,v1,v2}) ?? `${v0}%–${v1} discount → ${v2}% commission`)(Number(t.min_discount_bps || 0)/100,t.max_discount_bps==null?'above':Number(t.max_discount_bps)/100+'%',Number(t.rate_bps || 0)/100)}</p>`).join('')}<button type="button" class="cs-btn ghost" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.htmlText("settings","m_9be2bf7021df3e","Edit tiers in Developer") ?? "Edit tiers in Developer")}</button><textarea hidden data-cr="tiers">${escapeHtml(JSON.stringify(calculation.tiers || [], null, 2))}</textarea></div>` : ''}
           </div></details>`)}
-          <div class="wide"><div class="scope-editor-card-intro"><strong>${(globalThis.PlatformLanguage?.text("settings","m_f0f7bfc2fb1b87","Payout schedule") ?? "Payout schedule")}</strong><br>${String(installments.length ? 'The total commission above is projected immediately and divided across these lifecycle events.' : 'No split schedule: this rule is recognized at its trigger hook.')}</div><div class="scope-installment-list">${String(installments.map((installment, installmentIndex) => `<div class="scope-installment" data-commission-installment="${installmentIndex}"><label>Payment label<input data-ci="title" value="${escapeHtml(installment.title || '')}"></label><label>Share (%)<input type="number" min="0.01" max="100" step="0.01" data-ci="share_percent" value="${escapeHtml(String(Number(installment.share_bps || 0) / 100))}"></label><label>Workflow step<select data-ci="node_id">${workflowNodeOptions(installment.recognition?.node_id)}</select></label><label>Due event<select data-ci="hook"><option value="onCompleted" ${(installment.recognition?.hook || 'onCompleted') === 'onCompleted' ? 'selected' : ''}>Completed</option><option value="onStarted" ${installment.recognition?.hook === 'onStarted' ? 'selected' : ''}>Started</option></select></label><button type="button" class="cs-btn ghost" aria-label="Remove scheduled payment" data-installment-remove="${index}:${installmentIndex}"><i class="fas fa-trash"></i></button><div class="scope-installment-note">${escapeHtml(installment.metadata?.description || `Upcoming until ${commissionRoleLabel(installment.recognition?.node_id || 'the event')} is completed.`)}</div></div>`).join(''))}</div><button type="button" class="cs-btn ghost" data-installment-add="${String(index)}" style="margin-top:8px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_65f1bdcbe4a17c"," Add scheduled payment") ?? " Add scheduled payment")}</button></div>
+          <div class="wide"><div class="scope-editor-card-intro"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_f0f7bfc2fb1b87","Payout schedule") ?? "Payout schedule")}</strong><br>${String(installments.length ? 'The total commission above is projected immediately and divided across these lifecycle events.' : 'No split schedule: this rule is recognized at its trigger hook.')}</div><div class="scope-installment-list">${String(installments.map((installment, installmentIndex) => `<div class="scope-installment" data-commission-installment="${installmentIndex}"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a5facc76d24f93","Payment label") ?? "Payment label")}<input data-ci="title" value="${escapeHtml(installment.title || '')}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_fc9978bb0c9be1","Share (%)") ?? "Share (%)")}<input type="number" min="0.01" max="100" step="0.01" data-ci="share_percent" value="${escapeHtml(String(Number(installment.share_bps || 0) / 100))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_7b27447fdce391","Workflow step") ?? "Workflow step")}<select data-ci="node_id">${workflowNodeOptions(installment.recognition?.node_id)}</select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_0ff4f256371726","Due event") ?? "Due event")}<select data-ci="hook"><option value="onCompleted" ${(installment.recognition?.hook || 'onCompleted') === 'onCompleted' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_3c4d2141b2fa1c","Completed") ?? "Completed")}</option><option value="onStarted" ${installment.recognition?.hook === 'onStarted' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_705b16f536b804","Started") ?? "Started")}</option></select></label><button type="button" class="cs-btn ghost" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b1c83e1c455163","Remove scheduled payment") ?? "Remove scheduled payment")}" data-installment-remove="${index}:${installmentIndex}"><i class="fas fa-trash"></i></button><div class="scope-installment-note">${escapeHtml(installment.metadata?.description || `Upcoming until ${commissionRoleLabel(installment.recognition?.node_id || 'the event')} is completed.`)}</div></div>`).join(''))}</div><button type="button" class="cs-btn ghost" data-installment-add="${String(index)}" style="margin-top:8px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_65f1bdcbe4a17c"," Add scheduled payment") ?? " Add scheduled payment")}</button></div>
         </div></div></details>`;
       };
       const commissionsMarkup = (definition) => {
         const commissions = commissionDefinition(definition);
-        return `<div class="scope-commission-summary"><label class="scope-commission-check"><input type="checkbox" data-commissions-enabled ${String(commissions.enabled?'checked':'')}>${(globalThis.PlatformLanguage?.text("settings","m_7d736de334a54d"," Enable commissions") ?? " Enable commissions")}</label><span>${((v1,v2) => globalThis.PlatformLanguage?.text("settings","m_1cb8c18eb110d4",`${v1} rules · ${v2} recipient roles`,{v1,v2}) ?? `${v1} rules · ${v2} recipient roles`)(commissions.rules.length,commissions.roles.length)}</span></div>
-        <div class="scope-commission-rules">${String(commissions.rules.map((rule,index)=>commissionRuleMarkup(rule,index,commissions.roles)).join('') || '<div class="scope-commission-empty">No commission rules. Add a rule below.</div>')}</div>
-        <details class="scope-commission-options" ${String(commissions.rules.length?'':'open')}><summary>${(globalThis.PlatformLanguage?.text("settings","m_fcb0ff057647db","Add commission rule") ?? "Add commission rule")}</summary>
+        return `<div class="scope-commission-summary"><label class="scope-commission-check"><input type="checkbox" data-commissions-enabled ${String(commissions.enabled?'checked':'')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_7d736de334a54d"," Enable commissions") ?? " Enable commissions")}</label><span>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_1cb8c18eb110d4",`${v1} rules · ${v2} recipient roles`,{v1,v2}) ?? `${v1} rules · ${v2} recipient roles`)(commissions.rules.length,commissions.roles.length)}</span></div>
+        <div class="scope-commission-rules">${String(commissions.rules.map((rule,index)=>commissionRuleMarkup(rule,index,commissions.roles)).join('') || `<div class="scope-commission-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_a053838ddccdfa","No commission rules. Add a rule below.") ?? "No commission rules. Add a rule below.")}</div>`)}</div>
+        <details class="scope-commission-options" ${String(commissions.rules.length?'':'open')}><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_fcb0ff057647db","Add commission rule") ?? "Add commission rule")}</summary>
         <section class="scope-editor-card"><div class="scope-commission-library">${String([
           ['percentage','Percentage of contract','Flat percentage of a financial basis.'],['percentage_after_discount','After discounts','Subtract discounts before applying the rate.'],['discount_tiered','Discount tiers','Change the rate as the discount grows.'],['fixed','Fixed amount','Pay a fixed pool or amount per recipient.'],['selected_line_items','Selected line items','Commission only selected scope items.']
         ].map(([id,title,description]) => `<button type="button" class="scope-commission-preset" data-commission-add="${id}"><strong>${title}</strong><span>${description}</span></button>`).join(''))}</div></section></details>
-        <details class="scope-commission-options"><summary>${(globalThis.PlatformLanguage?.text("settings","m_5135e8c0a8b00a","Recipient roles & automatic assignment") ?? "Recipient roles & automatic assignment")}</summary><section class="scope-editor-card"><div class="scope-commission-role-list">${String(commissions.roles.map((role, roleIndex) => `<div class="scope-commission-role" data-commission-role="${roleIndex}" data-role-key="${escapeHtml(role.key)}"><label>Role name<input data-role-label value="${escapeHtml(role.label || commissionRoleLabel(role.key))}"></label><label>Automatically assign<select data-role-source><option value="manual" ${!role.assignment_source || role.assignment_source === 'manual' ? 'selected' : ''}>Manually on each project</option><option value="sales_appointment_assignee" ${role.assignment_source === 'sales_appointment_assignee' ? 'selected' : ''}>Person assigned to the sales appointment</option><option value="sales_appointment_scheduler" ${role.assignment_source === 'sales_appointment_scheduler' ? 'selected' : ''}>Person who scheduled the sales appointment</option></select></label>${role.metadata?.stable_role === true ? '<span class="scope-template-pill">Default role</span>' : `<button type="button" class="cs-btn ghost" aria-label="Remove recipient role" data-role-remove="${roleIndex}"><i class="fas fa-trash"></i></button>`}</div>`).join('') || '<div class="scope-commission-empty">No scope-level roles yet.</div>')}</div><div class="scope-commission-role-add"><input data-commission-new-role placeholder="${(globalThis.PlatformLanguage?.text("settings","m_6e938ea18cabaa","Custom role title") ?? "Custom role title")}"><button type="button" class="cs-btn ghost" data-role-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_73874dd6c488f4"," Add custom role") ?? " Add custom role")}</button></div></section></details>`;
+        <details class="scope-commission-options"><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_5135e8c0a8b00a","Recipient roles & automatic assignment") ?? "Recipient roles & automatic assignment")}</summary><section class="scope-editor-card"><div class="scope-commission-role-list">${String(commissions.roles.map((role, roleIndex) => `<div class="scope-commission-role" data-commission-role="${roleIndex}" data-role-key="${escapeHtml(role.key)}"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_31e35037ebeb35","Role name") ?? "Role name")}<input data-role-label value="${escapeHtml(role.label || commissionRoleLabel(role.key))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a8385ff2b17195","Automatically assign") ?? "Automatically assign")}<select data-role-source><option value="manual" ${!role.assignment_source || role.assignment_source === 'manual' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec752a2e856fc","Manually on each project") ?? "Manually on each project")}</option><option value="sales_appointment_assignee" ${role.assignment_source === 'sales_appointment_assignee' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_fa37d49652896a","Person assigned to the sales appointment") ?? "Person assigned to the sales appointment")}</option><option value="sales_appointment_scheduler" ${role.assignment_source === 'sales_appointment_scheduler' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_8a28d061ce0f90","Person who scheduled the sales appointment") ?? "Person who scheduled the sales appointment")}</option></select></label>${role.metadata?.stable_role === true ? `<span class="scope-template-pill">${(globalThis.PlatformLanguage?.htmlText("settings","m_b5c97212f374f0","Default role") ?? "Default role")}</span>` : `<button type="button" class="cs-btn ghost" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_67a684215c78f2","Remove recipient role") ?? "Remove recipient role")}" data-role-remove="${roleIndex}"><i class="fas fa-trash"></i></button>`}</div>`).join('') || `<div class="scope-commission-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_a154366ca56b94","No scope-level roles yet.") ?? "No scope-level roles yet.")}</div>`)}</div><div class="scope-commission-role-add"><input data-commission-new-role placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6e938ea18cabaa","Custom role title") ?? "Custom role title")}"><button type="button" class="cs-btn ghost" data-role-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_73874dd6c488f4"," Add custom role") ?? " Add custom role")}</button></div></section></details>`;
       };
       const readCommissionEditor = (strict = false) => {
         const current = commissionDefinition(draftDefinition || {});
@@ -12482,7 +12273,7 @@
       };
       const workflowNodeOptions = (selected, empty='Whole scope') => {
         const items=scopeWorkItems(draftDefinition || {});
-        return `<option value="">${escapeHtml(empty)}</option>${selected && !items.some(item=>item.node.id===selected) ? ("<option selected value=\"" + String(escapeHtml(selected)) + "\">" + ((v1) => globalThis.PlatformLanguage?.text("settings","m_5f36f44b828492",`Unavailable work item (${v1})`,{v1}) ?? `Unavailable work item (${v1})`)(escapeHtml(selected)) + "</option>") : ''}${items.map(({node})=>`<option value="${escapeHtml(node.id)}" ${node.id===selected?'selected':''}>${escapeHtml(node.title || node.id)}</option>`).join('')}`;
+        return `<option value="">${escapeHtml(empty)}</option>${selected && !items.some(item=>item.node.id===selected) ? ("<option selected value=\"" + String(escapeHtml(selected)) + "\">" + ((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_5f36f44b828492",`Unavailable work item (${v1})`,{v1}) ?? `Unavailable work item (${v1})`)(escapeHtml(selected)) + "</option>") : ''}${items.map(({node})=>`<option value="${escapeHtml(node.id)}" ${node.id===selected?'selected':''}>${escapeHtml(node.title || node.id)}</option>`).join('')}`;
       };
       const boardStructureMarkup = (definition) => {
         const plan=definition.work_plan || {},root=plan.root_nodes?.[0] || {};
@@ -12495,14 +12286,14 @@
           const isTodo=node.actionable===true || node.show_in_todo_list===true;
           const event=node.external_triggers?.find(trigger=>trigger.event)?.event;
           const target=isTodo?`data-board-artifact="todos:${escapeHtml(path.join('/'))}"`:event?`data-board-event="${escapeHtml(event)}"`:'data-scope-section-link="developer"';
-          return `<button type="button" class="scope-board-task" ${target}><i class="fas ${isTodo?'fa-list-check':'fa-circle-check'}" aria-hidden="true"></i><span>${escapeHtml(node.title || node.id)}${isTodo?'':`<small>${(globalThis.PlatformLanguage?.text("settings","m_2a3b74748b9335","Workflow milestone") ?? "Workflow milestone")}</small>`}</span><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></button>`;
+          return `<button type="button" class="scope-board-task" ${target}><i class="fas ${isTodo?'fa-list-check':'fa-circle-check'}" aria-hidden="true"></i><span>${escapeHtml(node.title || node.id)}${isTodo?'':`<small>${(globalThis.PlatformLanguage?.htmlText("settings","m_2a3b74748b9335","Workflow milestone") ?? "Workflow milestone")}</small>`}</span><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></button>`;
         };
         const column=node=>{
           const entry=items.find(item=>item.node===node);
           const work=items.filter(item=>entry && item.path.length>=entry.path.length && entry.path.every((part,i)=>item.path[i]===part) && (item.node.actionable===true || item.node.show_in_todo_list===true || (item.path.length>entry.path.length && !item.node.children?.length)));
-          return `<section class="scope-board-column" style="--column-color:${escapeHtml(safeColor(node.color || node.metadata?.color || color))}"><header><strong>${escapeHtml(node.title || node.id)}</strong><span>${work.length}</span></header>${node.description?`<p>${escapeHtml(node.description)}</p>`:''}${node.depends_on?.length?`<div class="scope-board-after">After ${node.depends_on.map(id=>escapeHtml(titles.get(id)||id)).join(', ')}</div>`:''}<div class="scope-board-work">${work.map(card).join('') || `<span class="scope-board-empty">${(globalThis.PlatformLanguage?.text("settings","m_24d48cd76307bc","No preset work or milestones") ?? "No preset work or milestones")}</span>`}</div></section>`;
+          return `<section class="scope-board-column" style="--column-color:${escapeHtml(safeColor(node.color || node.metadata?.color || color))}"><header><strong>${escapeHtml(node.title || node.id)}</strong><span>${work.length}</span></header>${node.description?`<p>${escapeHtml(node.description)}</p>`:''}${node.depends_on?.length?`<div class="scope-board-after">After ${node.depends_on.map(id=>escapeHtml(titles.get(id)||id)).join(', ')}</div>`:''}<div class="scope-board-work">${work.map(card).join('') || `<span class="scope-board-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_24d48cd76307bc","No preset work or milestones") ?? "No preset work or milestones")}</span>`}</div></section>`;
         };
-        return `<div class="scope-data-bar"><strong>${String(escapeHtml(definition.name))}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_2fd6a81ab9cbd7","1 board") ?? "1 board")}</span><span>${String(columnCount)} ${String(columnCount===1?'column':'columns')}</span><span>${(globalThis.PlatformLanguage?.text("settings","m_8b9dca4e5a1a18","Configuration preview") ?? "Configuration preview")}</span></div><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.text("settings","m_48b0d3789ce295","Projects appear as cards in these stage columns. Each column shows its preset work and workflow milestones.") ?? "Projects appear as cards in these stage columns. Each column shows its preset work and workflow milestones.")}</p><div class="scope-board-preview">${String(columns.map(column).join(''))}${String(canceled?.id && !columns.some(n=>n.id===canceled.id)?`<section class="scope-board-column" style="--column-color:${escapeHtml(safeColor(canceled.color))}"><header><strong>${escapeHtml(canceled.title || 'Cancelled')}</strong></header><p>${escapeHtml(canceled.description || 'Cancelled projects appear here.')}</p></section>`:'')}${String(!columns.length?'<div class="scope-empty">No board columns are configured. Stage nodes under the first work-plan root define the columns.</div>':'')}</div><div class="scope-board-links"><button class="cs-btn ghost" type="button" data-scope-section-link="todos">${(globalThis.PlatformLanguage?.text("settings","m_b21c9d45067b73","All work items") ?? "All work items")}</button><button class="cs-btn ghost" type="button" data-scope-section-link="automations">${(globalThis.PlatformLanguage?.text("settings","m_e3f53b6cfc3225","Stage transition rules") ?? "Stage transition rules")}</button><button class="cs-btn ghost" type="button" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.text("settings","m_05e0c5c240e16f","Board configuration") ?? "Board configuration")}</button></div>`;
+        return `<div class="scope-data-bar"><strong>${String(escapeHtml(definition.name))}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_2fd6a81ab9cbd7","1 board") ?? "1 board")}</span><span>${String(columnCount)} ${String(columnCount===1?'column':'columns')}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8b9dca4e5a1a18","Configuration preview") ?? "Configuration preview")}</span></div><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_48b0d3789ce295","Projects appear as cards in these stage columns. Each column shows its preset work and workflow milestones.") ?? "Projects appear as cards in these stage columns. Each column shows its preset work and workflow milestones.")}</p><div class="scope-board-preview">${String(columns.map(column).join(''))}${String(canceled?.id && !columns.some(n=>n.id===canceled.id)?`<section class="scope-board-column" style="--column-color:${escapeHtml(safeColor(canceled.color))}"><header><strong>${escapeHtml(canceled.title || (globalThis.PlatformLanguage?.text("settings","m_9863f11d60b2fa","Cancelled") ?? "Cancelled"))}</strong></header><p>${escapeHtml(canceled.description || 'Cancelled projects appear here.')}</p></section>`:'')}${String(!columns.length?`<div class="scope-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_b0f8e6e3f8102d","No board columns are configured. Stage nodes under the first work-plan root define the columns.") ?? "No board columns are configured. Stage nodes under the first work-plan root define the columns.")}</div>`:'')}</div><div class="scope-board-links"><button class="cs-btn ghost" type="button" data-scope-section-link="todos">${(globalThis.PlatformLanguage?.htmlText("settings","m_b21c9d45067b73","All work items") ?? "All work items")}</button><button class="cs-btn ghost" type="button" data-scope-section-link="automations">${(globalThis.PlatformLanguage?.htmlText("settings","m_e3f53b6cfc3225","Stage transition rules") ?? "Stage transition rules")}</button><button class="cs-btn ghost" type="button" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.htmlText("settings","m_05e0c5c240e16f","Board configuration") ?? "Board configuration")}</button></div>`;
       };
       const setScopeSaveStatus = (message) => {
         scopeSaveStatus = message;
@@ -12560,37 +12351,37 @@
         const scopeScheduling = definition.customer_scheduling && typeof definition.customer_scheduling === 'object' ? definition.customer_scheduling : {};
         const scopeSchedulingFeature = window.Portal?.can?.('scheduling.customer_rescheduling') === true;
         paneScopeTemplates.innerHTML = `<div class="scope-templates-page scope-template-editor">
-          <header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-back aria-label="${(globalThis.PlatformLanguage?.text("settings","m_659a1740710975","Back to project scopes") ?? "Back to project scopes")}"><i class="fas fa-arrow-left"></i></button><div><h3>${String(escapeHtml(template.name || template.id))}</h3><p>${((v1,v2) => globalThis.PlatformLanguage?.text("settings","m_1660f1905eb85b",`${v1} &middot; Version ${v2}`,{v1,v2}) ?? `${v1} &middot; Version ${v2}`)(escapeHtml(template.id),version)}</p></div></div><div class="scope-editor-controls"><span class="scope-editor-status" data-scope-status role="status" aria-live="polite">${String(escapeHtml(scopeSaveStatus))}</span><button class="cs-btn ghost" type="button" data-scope-disable><i class="fas fa-toggle-off"></i>${(globalThis.PlatformLanguage?.text("settings","m_a0dc1e7b9e6e25"," Disable scope") ?? " Disable scope")}</button></div></header>
-          <nav class="scope-editor-nav" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_71efbd50182ef7","Project scope settings") ?? "Project scope settings")}">${String([
+          <header class="scope-editor-head"><div class="scope-editor-title"><button class="scope-editor-back" type="button" data-scope-back aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_659a1740710975","Back to project scopes") ?? "Back to project scopes")}"><i class="fas fa-arrow-left"></i></button><div><h3>${String(escapeHtml(template.name || template.id))}</h3><p>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_1660f1905eb85b",`${v1} &middot; Version ${v2}`,{v1,v2}) ?? `${v1} &middot; Version ${v2}`)(escapeHtml(template.id),version)}</p></div></div><div class="scope-editor-controls"><span class="scope-editor-status" data-scope-status role="status" aria-live="polite">${String(escapeHtml(scopeSaveStatus))}</span><button class="cs-btn ghost" type="button" data-scope-disable><i class="fas fa-toggle-off"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a0dc1e7b9e6e25"," Disable scope") ?? " Disable scope")}</button></div></header>
+          <nav class="scope-editor-nav" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_71efbd50182ef7","Project scope settings") ?? "Project scope settings")}">${String([
             ['details','Details','fa-sliders'],['boards','Boards','fa-table-columns'],['scheduling','Customer Scheduling','fa-calendar-check'],['automations','Automations','fa-bolt'],
             ...Object.entries(window.FirstMateScopeArtifacts?.TYPES || {}).map(([id, info]) => [id, info[0], info[1]]),
             ['commissions','Commissions','fa-percent'],['developer','Developer','fa-code'],...(canAutomations ? [['assistant','Assistant','fa-wand-magic-sparkles']] : [])
           ].map(([id,label,icon]) => `<button type="button" id="scope-editor-tab-${id}" role="tab" aria-controls="scope-editor-panel-${id}" aria-selected="${editorSection === id}" data-scope-editor-section="${id}" class="${editorSection === id ? 'active' : ''}"><i class="fas ${icon}"></i> ${escapeHtml(label)}<span data-scope-artifact-count="${id}"></span></button>`).join(''))}</nav>
           <div class="scope-editor-layout automation"><main class="scope-editor-main">${String(editorSection === 'details' ? `<div id="scope-editor-panel-details" role="tabpanel" aria-labelledby="scope-editor-tab-details" data-scope-details class="scope-basics">
             <div class="scope-editor-grid">
-              <label class="wide">Scope name<input data-scope-field="name" value="${escapeHtml(definition.name || '')}"></label>
-              <label class="wide">Short description<input data-scope-field="description" value="${escapeHtml(definition.description || '')}"></label>
-              <label class="wide">Instructions & notes<textarea data-scope-field="details" rows="4">${escapeHtml(definition.details || '')}</textarea></label>
-              <label>Color<span class="scope-color-field"><input type="color" value="${escapeHtml(safeColor(definition.color))}" data-scope-color><input data-scope-field="color" value="${escapeHtml(definition.color || '')}" aria-label="Scope color"></span></label>
+              <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_92e98ae6a8fe9b","Scope name") ?? "Scope name")}<input data-scope-field="name" value="${escapeHtml(definition.name || '')}"></label>
+              <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_931f0950e047a8","Short description") ?? "Short description")}<input data-scope-field="description" value="${escapeHtml(definition.description || '')}"></label>
+              <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_d85a941de2dd2c","Instructions & notes") ?? "Instructions & notes")}<textarea data-scope-field="details" rows="4">${escapeHtml(definition.details || '')}</textarea></label>
+              <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_db7002926d9977","Color") ?? "Color")}<span class="scope-color-field"><input type="color" value="${escapeHtml(safeColor(definition.color))}" data-scope-color><input data-scope-field="color" value="${escapeHtml(definition.color || '')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_2d60b0c7f80b48","Scope color") ?? "Scope color")}"></span></label>
             </div>
-            <fieldset class="scope-icon-field"><legend>Icon</legend><div class="scope-icon-grid" aria-label="Scope icon">${scopeIconChoices(definition.icon).map(([icon,label])=>`<button type="button" data-scope-icon="${escapeHtml(icon)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${iconClass(definition.icon)===icon}"><i class="fas ${escapeHtml(icon)}" aria-hidden="true"></i><span>${escapeHtml(label)}</span></button>`).join('')}</div></fieldset>
-          </div>` : editorSection === 'scheduling' ? `<div id="scope-editor-panel-scheduling" role="tabpanel" aria-labelledby="scope-editor-tab-scheduling" class="scope-scheduling-settings"><section class="scope-editor-card ${scopeSchedulingFeature ? '' : 'ss-disabled'}"><p class="scope-editor-card-intro">Let customers reschedule their appointments. Individual appointments can override these defaults.</p>
-              ${scopeSchedulingFeature ? '' : '<div class="scope-editor-note" style="margin-bottom:12px"><strong>Feature disabled</strong>Enable Customer Self-Scheduling in Features before this scope default takes effect.</div>'}
-              <div class="scope-toggle-row"><span><strong>Customer can reschedule by default</strong><small>Applies live availability, assignment, capacity, buffer, and travel rules.</small></span><button type="button" class="scope-switch ${scopeScheduling.enabled === true ? 'on' : ''}" data-scope-scheduling-enabled aria-label="Customer can reschedule by default" aria-pressed="${scopeScheduling.enabled === true}"></button></div>
+            <fieldset class="scope-icon-field"><legend>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e4ee0ace818e7","Icon") ?? "Icon")}</legend><div class="scope-icon-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_c495752f4558ae","Scope icon") ?? "Scope icon")}">${scopeIconChoices(definition.icon).map(([icon,label])=>`<button type="button" data-scope-icon="${escapeHtml(icon)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${iconClass(definition.icon)===icon}"><i class="fas ${escapeHtml(icon)}" aria-hidden="true"></i><span>${escapeHtml(label)}</span></button>`).join('')}</div></fieldset>
+          </div>` : editorSection === 'scheduling' ? `<div id="scope-editor-panel-scheduling" role="tabpanel" aria-labelledby="scope-editor-tab-scheduling" class="scope-scheduling-settings"><section class="scope-editor-card ${scopeSchedulingFeature ? '' : 'ss-disabled'}"><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_1e5a266eb26011","Let customers reschedule their appointments. Individual appointments can override these defaults.") ?? "Let customers reschedule their appointments. Individual appointments can override these defaults.")}</p>
+              ${scopeSchedulingFeature ? '' : `<div class="scope-editor-note" style="margin-bottom:12px"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_0380f01d8a8266","Feature disabled") ?? "Feature disabled")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_73b0c8c3bf826d","Enable Customer Self-Scheduling in Features before this scope default takes effect.") ?? "Enable Customer Self-Scheduling in Features before this scope default takes effect.")}</div>`}
+              <div class="scope-toggle-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_47efc69cb47f31","Customer can reschedule by default") ?? "Customer can reschedule by default")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_50b01da4e1a5de","Applies live availability, assignment, capacity, buffer, and travel rules.") ?? "Applies live availability, assignment, capacity, buffer, and travel rules.")}</small></span><button type="button" class="scope-switch ${scopeScheduling.enabled === true ? 'on' : ''}" data-scope-scheduling-enabled aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_47efc69cb47f31","Customer can reschedule by default") ?? "Customer can reschedule by default")}" aria-pressed="${scopeScheduling.enabled === true}"></button></div>
               <div class="scope-editor-grid" style="margin-top:12px">
-                <label>Minimum notice (minutes)<input type="number" min="0" step="15" data-scope-scheduling-field="min_notice_minutes" value="${escapeHtml(String(scopeScheduling.min_notice_minutes ?? 120))}"></label>
-                <label>Booking horizon (days)<input type="number" min="1" max="365" data-scope-scheduling-field="booking_horizon_days" value="${escapeHtml(String(scopeScheduling.booking_horizon_days ?? 45))}"></label>
-                <label>Maximum customer changes<input type="number" min="0" max="20" data-scope-scheduling-field="max_reschedules" value="${escapeHtml(String(scopeScheduling.max_reschedules ?? 3))}"></label>
-                <label>Assignment behavior<select data-scope-scheduling-field="assignment_mode"><option value="best_available" ${scopeScheduling.assignment_mode !== 'preserve' && scopeScheduling.assignment_mode !== 'customer_choice' ? 'selected' : ''}>Best available</option><option value="preserve" ${scopeScheduling.assignment_mode === 'preserve' ? 'selected' : ''}>Keep current assignment</option><option value="customer_choice" ${scopeScheduling.assignment_mode === 'customer_choice' ? 'selected' : ''}>Customer chooses resource</option></select></label>
-                <label>Change review<select data-scope-scheduling-field="reschedule_approval"><option value="automatic" ${scopeScheduling.reschedule_approval !== 'required' ? 'selected' : ''}>Apply immediately</option><option value="required" ${scopeScheduling.reschedule_approval === 'required' ? 'selected' : ''}>Require staff approval</option></select></label>
-                <label>Customer decision update<select data-scope-scheduling-field="reschedule_customer_notification"><option value="none" ${!scopeScheduling.reschedule_customer_notification || scopeScheduling.reschedule_customer_notification === 'none' ? 'selected' : ''}>Portal only</option><option value="sms" ${scopeScheduling.reschedule_customer_notification === 'sms' ? 'selected' : ''}>Text message</option><option value="email" ${scopeScheduling.reschedule_customer_notification === 'email' ? 'selected' : ''}>Email</option><option value="both" ${scopeScheduling.reschedule_customer_notification === 'both' ? 'selected' : ''}>Text and email</option></select></label>
-                <div class="wide scope-editor-card-intro">${scopeScheduling.reschedule_review_role_ids?.length ? `${scopeScheduling.reschedule_review_role_ids.length} configured staff roles can review requests.` : 'All eligible staff can review requests.'} <button type="button" class="cs-btn ghost" data-scope-section-link="developer">Review configuration</button></div>
-                <label class="wide"><span class="wf-check"><input type="checkbox" data-scope-scheduling-field="reschedule_staff_notification" ${scopeScheduling.reschedule_staff_notification === true ? 'checked' : ''}> Notify staff whenever a customer reschedules</span></label>
-                <label class="wide"><span class="wf-check"><input type="checkbox" data-scope-scheduling-field="reschedule_review_todo" ${scopeScheduling.reschedule_review_todo !== false ? 'checked' : ''}> Add a project to-do when approval is required</span></label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_21532e44a7c420","Minimum notice (minutes)") ?? "Minimum notice (minutes)")}<input type="number" min="0" step="15" data-scope-scheduling-field="min_notice_minutes" value="${escapeHtml(String(scopeScheduling.min_notice_minutes ?? 120))}"></label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_14300528593037","Booking horizon (days)") ?? "Booking horizon (days)")}<input type="number" min="1" max="365" data-scope-scheduling-field="booking_horizon_days" value="${escapeHtml(String(scopeScheduling.booking_horizon_days ?? 45))}"></label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c5d84545b19af","Maximum customer changes") ?? "Maximum customer changes")}<input type="number" min="0" max="20" data-scope-scheduling-field="max_reschedules" value="${escapeHtml(String(scopeScheduling.max_reschedules ?? 3))}"></label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_8619503856a0ce","Assignment behavior") ?? "Assignment behavior")}<select data-scope-scheduling-field="assignment_mode"><option value="best_available" ${scopeScheduling.assignment_mode !== 'preserve' && scopeScheduling.assignment_mode !== 'customer_choice' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_daeed1c0def75c","Best available") ?? "Best available")}</option><option value="preserve" ${scopeScheduling.assignment_mode === 'preserve' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_92c96961d02fca","Keep current assignment") ?? "Keep current assignment")}</option><option value="customer_choice" ${scopeScheduling.assignment_mode === 'customer_choice' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_7b14070e3b44d2","Customer chooses resource") ?? "Customer chooses resource")}</option></select></label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_d404ebcd52b855","Change review") ?? "Change review")}<select data-scope-scheduling-field="reschedule_approval"><option value="automatic" ${scopeScheduling.reschedule_approval !== 'required' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_18cf443d1817db","Apply immediately") ?? "Apply immediately")}</option><option value="required" ${scopeScheduling.reschedule_approval === 'required' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_d7948ea88e21e1","Require staff approval") ?? "Require staff approval")}</option></select></label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_c81e87da4442c7","Customer decision update") ?? "Customer decision update")}<select data-scope-scheduling-field="reschedule_customer_notification"><option value="none" ${!scopeScheduling.reschedule_customer_notification || scopeScheduling.reschedule_customer_notification === 'none' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_c397a240c1f8c1","Portal only") ?? "Portal only")}</option><option value="sms" ${scopeScheduling.reschedule_customer_notification === 'sms' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_def279b4381c15","Text message") ?? "Text message")}</option><option value="email" ${scopeScheduling.reschedule_customer_notification === 'email' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</option><option value="both" ${scopeScheduling.reschedule_customer_notification === 'both' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_9543ea7e37ff8d","Text and email") ?? "Text and email")}</option></select></label>
+                <div class="wide scope-editor-card-intro">${scopeScheduling.reschedule_review_role_ids?.length ? `${scopeScheduling.reschedule_review_role_ids.length} configured staff roles can review requests.` : 'All eligible staff can review requests.'} <button type="button" class="cs-btn ghost" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.htmlText("settings","m_b3c55cbce7a7de","Review configuration") ?? "Review configuration")}</button></div>
+                <label class="wide"><span class="wf-check"><input type="checkbox" data-scope-scheduling-field="reschedule_staff_notification" ${scopeScheduling.reschedule_staff_notification === true ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_b83ec893c3ca17"," Notify staff whenever a customer reschedules") ?? " Notify staff whenever a customer reschedules")}</span></label>
+                <label class="wide"><span class="wf-check"><input type="checkbox" data-scope-scheduling-field="reschedule_review_todo" ${scopeScheduling.reschedule_review_todo !== false ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c00990fe70135"," Add a project to-do when approval is required") ?? " Add a project to-do when approval is required")}</span></label>
               </div>
             </section></div>` : editorSection === 'developer' ? `<div id="scope-editor-panel-developer" role="tabpanel" aria-labelledby="scope-editor-tab-developer">
-            <div class="scope-data-bar"><span>${stats.nodes} work nodes</span><span>${stats.fields} proposal inputs</span><span>${stats.resourceLists} resource lists</span><span>Version ${version}</span></div>
-            <div class="scope-json-wrap"><label for="scope-definition-json">Scope definition</label><p class="scope-editor-card-intro">Stable IDs, custom functions, metadata, and configuration. Valid changes auto-save.</p><textarea id="scope-definition-json" spellcheck="false" aria-label="Scope definition JSON" data-scope-json>${escapeHtml(JSON.stringify(definition, null, 2))}</textarea><div class="scope-json-state" data-scope-json-state role="status">Valid JSON</div></div>
+            <div class="scope-data-bar"><span>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_93359c06cccfee",`${v0} work nodes`,{v0}) ?? `${v0} work nodes`)(stats.nodes)}</span><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_f361e1c250ff11",`${v1} proposal inputs`,{v1}) ?? `${v1} proposal inputs`)(stats.fields)}</span><span>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_023342e9dffd00",`${v2} resource lists`,{v2}) ?? `${v2} resource lists`)(stats.resourceLists)}</span><span>${((v3) => globalThis.PlatformLanguage?.htmlText("settings","m_29c733afb70414",`Version ${v3}`,{v3}) ?? `Version ${v3}`)(version)}</span></div>
+            <div class="scope-json-wrap"><label for="scope-definition-json">${(globalThis.PlatformLanguage?.htmlText("settings","m_4fe20dd434f3aa","Scope definition") ?? "Scope definition")}</label><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_2847bce37ce3cc","Stable IDs, custom functions, metadata, and configuration. Valid changes auto-save.") ?? "Stable IDs, custom functions, metadata, and configuration. Valid changes auto-save.")}</p><textarea id="scope-definition-json" spellcheck="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e28c52ce582afc","Scope definition JSON") ?? "Scope definition JSON")}" data-scope-json>${escapeHtml(JSON.stringify(definition, null, 2))}</textarea><div class="scope-json-state" data-scope-json-state role="status">${(globalThis.PlatformLanguage?.htmlText("settings","m_b56f31932be2d3","Valid JSON") ?? "Valid JSON")}</div></div>
           </div>` : editorSection === 'boards' ? `<div id="scope-editor-panel-boards" role="tabpanel" aria-labelledby="scope-editor-tab-boards">${boardStructureMarkup(definition)}</div>` : editorSection === 'automations' ? `<div id="scope-editor-panel-automations" role="tabpanel" aria-labelledby="scope-editor-tab-automations" data-scope-events-host></div>` : editorSection === 'assistant' ? `<div id="scope-editor-panel-assistant" role="tabpanel" aria-labelledby="scope-editor-tab-assistant" class="scope-automation-host" data-scope-automation-host></div>` : window.FirstMateScopeArtifacts?.TYPES?.[editorSection] ? `<div id="scope-editor-panel-${editorSection}" role="tabpanel" aria-labelledby="scope-editor-tab-${editorSection}" data-scope-artifacts-host></div>` : `<div id="scope-editor-panel-commissions" role="tabpanel" aria-labelledby="scope-editor-tab-commissions" data-scope-commissions style="display:grid;gap:14px">${commissionsMarkup(definition)}</div>`)}</main></div>
         </div>`;
         const scopeNav = paneScopeTemplates.querySelector('.scope-editor-nav');
@@ -12628,12 +12419,12 @@
             filter:window.Portal?.navigation?.read?.().scopeEventFilter || 'all',
             onFilter:({ filter }) => { if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'project_scopes', settingsView:'editor', settingsEntity:`scope:${selectedId}`, scopeTemplateView:'automations', scopeEventFilter:filter }, { history:'replace', source:'scope-events-filter', ownedKeys:['scopeEventFilter'] }); }
           });
-          else eventsHost.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_e89034651fe2ee","Scope events failed to load. Refresh to try again.") ?? "Scope events failed to load. Refresh to try again.")}</div>`;
+          else eventsHost.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_e89034651fe2ee","Scope events failed to load. Refresh to try again.") ?? "Scope events failed to load. Refresh to try again.")}</div>`;
         }
         const automationHost = paneScopeTemplates.querySelector('[data-scope-automation-host]');
         if (automationHost) {
           if (window.FirstMateAutomationsSettings?.mount) window.FirstMateAutomationsSettings.mount(automationHost, { orgId, branchId, templateId:template.id, routeSub:'project_scopes', showToast });
-          else automationHost.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_27b2d1395677a6","Automation settings failed to load.") ?? "Automation settings failed to load.")}</div>`;
+          else automationHost.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_27b2d1395677a6","Automation settings failed to load.") ?? "Automation settings failed to load.")}</div>`;
         }
         const markDirty = () => { dirty = true; scopeEditRevision++; setScopeSaveStatus('Saving changes…'); clearTimeout(scopeSaveTimer); scopeSaveTimer = setTimeout(() => void saveScopeDraft(), 700); };
         paneScopeTemplates.querySelectorAll('[data-scope-editor-section]').forEach((button) => button.addEventListener('click', async () => {
@@ -12802,7 +12593,7 @@
 
       };
       const load = async (showMessage = false) => {
-        paneScopeTemplates.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_ab25d3ca922f21"," Loading project scopes...") ?? " Loading project scopes...")}</div>`;
+        paneScopeTemplates.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab25d3ca922f21"," Loading project scopes...") ?? " Loading project scopes...")}</div>`;
         try {
           const [result, flagsResult, routingResult, libraryResult] = await Promise.all([
             window.PlatformAPI.scopes.list(orgId, branchId, { include_disabled:true, includeDisabled:true, include_archived:true, includeArchived:true }),
@@ -12829,7 +12620,7 @@
           else if (routed.settingsView === 'advanced') drawAdvanced();
           else drawList();
           if (showMessage) showToast((globalThis.PlatformLanguage?.text("settings","m_1c5bcbffd3fe03","Reloaded") ?? "Reloaded"), (globalThis.PlatformLanguage?.text("settings","m_466e8688f24c19","Project scopes refreshed.") ?? "Project scopes refreshed."), true);
-        } catch (error) { paneScopeTemplates.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.text("settings","m_0f75e9e98b3921",`Could not load project scopes. ${v0}`,{v0}) ?? `Could not load project scopes. ${v0}`)(escapeHtml(error?.message || ''))}</div>`; }
+        } catch (error) { paneScopeTemplates.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_0f75e9e98b3921",`Could not load project scopes. ${v0}`,{v0}) ?? `Could not load project scopes. ${v0}`)(escapeHtml(error?.message || ''))}</div>`; }
       };
       await load();
     }
@@ -12851,9 +12642,9 @@
         .scope-flag-switch{width:44px;height:25px;border-radius:999px;background:#d0d5dd;padding:3px;display:flex;align-items:center;transition:.15s ease}.scope-flag-switch:after{content:"";width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.22);transition:.15s ease}.scope-flag-card.on .scope-flag-switch{background:var(--primary,#d93025)}.scope-flag-card.on .scope-flag-switch:after{transform:translateX(19px)}
         @media(max-width:720px){.scope-flags-head{flex-direction:column}.scope-flags-actions{justify-content:flex-start}.scope-flags-grid{grid-template-columns:1fr}}
       `);
-      paneScopeFlags.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_071e2ad2425d1e"," Loading scope flags...") ?? " Loading scope flags...")}</div>`;
+      paneScopeFlags.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_071e2ad2425d1e"," Loading scope flags...") ?? " Loading scope flags...")}</div>`;
       if (!orgId || !window.PlatformAPI?.scopes?.flags || !window.PlatformAPI?.scopes?.list) {
-        paneScopeFlags.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8491c36f8037f0","Scope Flags API is unavailable.") ?? "Scope Flags API is unavailable.")}</div>`;
+        paneScopeFlags.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8491c36f8037f0","Scope Flags API is unavailable.") ?? "Scope Flags API is unavailable.")}</div>`;
         return;
       }
       try {
@@ -12880,8 +12671,8 @@
         const draw = (statusText = '') => {
           paneScopeFlags.innerHTML = `<div class="scope-flags-page">
             <header class="scope-flags-head">
-              <div><h3>${(globalThis.PlatformLanguage?.text("settings","m_f6edb5f58a75dd","Scope Flags") ?? "Scope Flags")}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_803aa694692948","Choose the work templates this company offers. These choices control new proposals and resource capabilities without changing the underlying template definitions.") ?? "Choose the work templates this company offers. These choices control new proposals and resource capabilities without changing the underlying template definitions.")}</div></div>
-              <div class="scope-flags-actions"><button type="button" class="cs-btn ghost" data-scope-flags-all>${(globalThis.PlatformLanguage?.text("settings","m_f33bc3906ee6be","Enable all") ?? "Enable all")}</button><button type="button" class="cs-btn primary" data-scope-flags-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_3eea248894145b"," Save Scope Flags") ?? " Save Scope Flags")}</button></div>
+              <div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_f6edb5f58a75dd","Scope Flags") ?? "Scope Flags")}</h3><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_803aa694692948","Choose the work templates this company offers. These choices control new proposals and resource capabilities without changing the underlying template definitions.") ?? "Choose the work templates this company offers. These choices control new proposals and resource capabilities without changing the underlying template definitions.")}</div></div>
+              <div class="scope-flags-actions"><button type="button" class="cs-btn ghost" data-scope-flags-all>${(globalThis.PlatformLanguage?.htmlText("settings","m_f33bc3906ee6be","Enable all") ?? "Enable all")}</button><button type="button" class="cs-btn primary" data-scope-flags-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3eea248894145b"," Save Scope Flags") ?? " Save Scope Flags")}</button></div>
             </header>
             <div class="scope-flags-grid">${String(templates.map((template) => {
               const enabled = enabledFor(template.id);
@@ -12889,7 +12680,7 @@
                 <span class="scope-flag-color"></span><span class="scope-flag-copy"><strong>${escapeHtml(template.name || template.id)}</strong><span>${escapeHtml(template.description || 'Available project scope template')}</span></span>
                 <input type="checkbox" data-scope-flag="${escapeHtml(template.id)}" ${enabled ? 'checked' : ''} hidden><span class="scope-flag-switch" aria-hidden="true"></span>
               </label>`;
-            }).join('') || '<div class="cs-note">No scope templates are configured for this branch.</div>')}</div>
+            }).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_9fcd284c27613f","No scope templates are configured for this branch.") ?? "No scope templates are configured for this branch.")}</div>`)}</div>
             <div class="cs-note" data-scope-flags-status>${String(escapeHtml(statusText))}</div>
           </div>`;
           paneScopeFlags.querySelectorAll('.scope-flag-card').forEach((card) => {
@@ -12929,7 +12720,7 @@
         };
         draw();
       } catch (error) {
-        paneScopeFlags.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.text("settings","m_36ad658d7e23ac",`Could not load scope flags. ${v0}`,{v0}) ?? `Could not load scope flags. ${v0}`)(escapeHtml(error?.message || ''))}</div>`;
+        paneScopeFlags.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_36ad658d7e23ac",`Could not load scope flags. ${v0}`,{v0}) ?? `Could not load scope flags. ${v0}`)(escapeHtml(error?.message || ''))}</div>`;
       }
     }
     // ------------------------------------------------------------------
@@ -13049,7 +12840,7 @@
         <div class="cap-modal" role="dialog" aria-modal="true" aria-label="${String(escapeHtml(title))}">
           <div class="cap-modal-head">
             <h4>${String(escapeHtml(title))}</h4>
-            <button type="button" class="cap-modal-close" data-cap-modal-close aria-label="${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}">${(globalThis.PlatformLanguage?.text("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
+            <button type="button" class="cap-modal-close" data-cap-modal-close aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd0c616953d455","&times;") ?? "&times;")}</button>
           </div>
           <div class="cap-modal-body">${String(bodyHtml)}</div>
           ${String(footHtml ? `<div class="cap-modal-foot">${footHtml}</div>` : '')}
@@ -13142,7 +12933,7 @@
       `);
       target.innerHTML = `
         <section class="manage-apps">
-          <header class="manage-apps-head"><h3>${(globalThis.PlatformLanguage?.text("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_5c531e1977f96a","Everything available to your organization. Add apps to start using them, or turn off the ones you don't need.") ?? "Everything available to your organization. Add apps to start using them, or turn off the ones you don't need.")}</p></header>
+          <header class="manage-apps-head"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_5c531e1977f96a","Everything available to your organization. Add apps to start using them, or turn off the ones you don't need.") ?? "Everything available to your organization. Add apps to start using them, or turn off the ones you don't need.")}</p></header>
           <div class="manage-apps-grid">${String(catalog.map((entry) => {
             const setup = entry.setup || {};
             const setupIncomplete = entry.enabled && setup.mode !== 'none' && setup.status !== 'complete' && setup.launchable;
@@ -13162,7 +12953,7 @@
               </div>
               <button type="button" class="cs-btn ${entry.enabled ? 'ghost' : ''}" data-manage-app-action="${action}" data-manage-app-key="${escapeHtml(entry.key)}" tabindex="-1">${actionLabel}</button>
             </article>`;
-          }).join('') || '<div class="cs-note">No apps are available for this organization.</div>')}</div>
+          }).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_39239cb31c7b5e","No apps are available for this organization.") ?? "No apps are available for this organization.")}</div>`)}</div>
         </section>`;
       const openAppModal = (key) => window.Portal?.appCatalog?.open?.(key, { source:'manage-apps', onChange: () => renderAppFlags() });
       target.querySelectorAll('[data-manage-app]').forEach((card) => {
@@ -13186,9 +12977,9 @@
       if (!target) return;
       const flagState = window.Portal?.appFlags?.current?.();
       if (!flagState) {
-        target.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_10076ff4561396","Loading app locations...") ?? "Loading app locations...")}</div>`;
+        target.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_10076ff4561396","Loading app locations...") ?? "Loading app locations...")}</div>`;
         window.Portal?.appFlags?.load?.().then(() => renderAppLocations(target)).catch(() => {
-          target.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_b0b3889ea8996d","Could not load app locations.") ?? "Could not load app locations.")}</div>`;
+          target.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_b0b3889ea8996d","Could not load app locations.") ?? "Could not load app locations.")}</div>`;
         });
         return;
       }
@@ -13203,7 +12994,7 @@
       `);
       target.innerHTML = `
         <section class="app-locations">
-          <header class="app-locations-head"><h3>${(globalThis.PlatformLanguage?.text("settings","m_536d6b65f599fc","App Locations") ?? "App Locations")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_0407c7a762a186","Choose where each full app appears for this organization.") ?? "Choose where each full app appears for this organization.")}</p></header>
+          <header class="app-locations-head"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_536d6b65f599fc","App Locations") ?? "App Locations")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_0407c7a762a186","Choose where each full app appears for this organization.") ?? "Choose where each full app appears for this organization.")}</p></header>
           <div class="app-location-list">${String(apps.map((app) => {
             const configured = placements[app.id] || 'sidebar';
             // 'more' is a legacy placement (the More Apps menu is now the
@@ -13212,12 +13003,12 @@
             const locationButton = (placement, label, available = true) => `<button type="button" class="app-location-option ${current === placement ? 'active' : ''}" data-app-location="${escapeHtml(app.id)}" data-placement="${placement}" aria-pressed="${current === placement ? 'true' : 'false'}" ${available ? '' : 'data-unavailable disabled'}>${label}</button>`;
             return `<article class="app-location-row">
               <span class="app-location-app"><i class="fas ${escapeHtml(app.icon)}" aria-hidden="true"></i><span><strong>${escapeHtml(app.title)}</strong><small>${escapeHtml(app.id)}</small></span></span>
-              <span class="app-location-options" role="group" aria-label="Location for ${escapeHtml(app.title)}">
+              <span class="app-location-options" role="group" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("settings","m_cf464174e488f8",`Location for ${v3}`,{v3}) ?? `Location for ${v3}`)(escapeHtml(app.title))}">
                 ${locationButton('sidebar', 'Left column')}
                 ${locationButton('settings', 'Settings', !!app.settingsTabId)}
               </span>
             </article>`;
-          }).join('') || '<div class="cs-note" style="padding:14px">No full apps are available for this organization.</div>')}</div>
+          }).join('') || `<div class="cs-note" style="padding:14px">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e0816cc65cb74","No full apps are available for this organization.") ?? "No full apps are available for this organization.")}</div>`)}</div>
           <div class="app-location-status" data-app-location-status></div>
         </section>`;
       target.querySelectorAll('[data-app-location][data-placement]').forEach((button) => {
@@ -13257,11 +13048,11 @@
       ensureCapabilityStyles();
       const capState = window.Portal?.capabilities?.current?.();
       if (!capState) {
-        paneAppFlags.innerHTML = `<div class="cap-loading">${(globalThis.PlatformLanguage?.text("settings","m_fd5e232ee96d03","Loading features…") ?? "Loading features…")}</div>`;
+        paneAppFlags.innerHTML = `<div class="cap-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_fd5e232ee96d03","Loading features…") ?? "Loading features…")}</div>`;
         window.Portal?.capabilities?.load?.()
           .then(() => renderAppFlags())
           .catch((error) => {
-            paneAppFlags.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.text("settings","m_58a7fbfbf6ef58",`Could not load features. ${v0}`,{v0}) ?? `Could not load features. ${v0}`)(escapeHtml(error?.message || ''))}</div>`;
+            paneAppFlags.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_58a7fbfbf6ef58",`Could not load features. ${v0}`,{v0}) ?? `Could not load features. ${v0}`)(escapeHtml(error?.message || ''))}</div>`;
           });
         return;
       }
@@ -13271,19 +13062,19 @@
       paneAppFlags.innerHTML = `
         <div class="cs-section cap-wrap">
           <div>
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_cc445c917318c1","Features &amp; Apps") ?? "Features &amp; Apps")}</h3>
-            <p class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_fafd60cc144cf8","Apps, features, and settings for this organization. Dependencies resolve automatically: anything whose requirements are off stays off until they are met.") ?? "Apps, features, and settings for this organization. Dependencies resolve automatically: anything whose requirements are off stays off until they are met.")}</p>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc445c917318c1","Features &amp; Apps") ?? "Features &amp; Apps")}</h3>
+            <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fafd60cc144cf8","Apps, features, and settings for this organization. Dependencies resolve automatically: anything whose requirements are off stays off until they are met.") ?? "Apps, features, and settings for this organization. Dependencies resolve automatically: anything whose requirements are off stays off until they are met.")}</p>
           </div>
           <div class="cap-toolbar">
             <div class="cap-views">
-              <button type="button" data-cap-view="features" class="${String(view === 'features' ? 'active' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_cc445c917318c1","Features &amp; Apps") ?? "Features &amp; Apps")}</button>
-              <button type="button" data-cap-view="manage_apps" class="${String(view === 'manage_apps' ? 'active' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps")}</button>
-              <button type="button" data-cap-view="app_locations" class="${String(view === 'app_locations' ? 'active' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_536d6b65f599fc","App Locations") ?? "App Locations")}</button>
-              <button type="button" data-cap-view="presets" class="${String(view === 'presets' ? 'active' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_2b261343a7bbd4","Presets") ?? "Presets")}</button>
-              <button type="button" data-cap-view="permissions" class="${String(view === 'permissions' ? 'active' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_9864b866a47464","Permission Sets") ?? "Permission Sets")}</button>
+              <button type="button" data-cap-view="features" class="${String(view === 'features' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_cc445c917318c1","Features &amp; Apps") ?? "Features &amp; Apps")}</button>
+              <button type="button" data-cap-view="manage_apps" class="${String(view === 'manage_apps' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps")}</button>
+              <button type="button" data-cap-view="app_locations" class="${String(view === 'app_locations' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_536d6b65f599fc","App Locations") ?? "App Locations")}</button>
+              <button type="button" data-cap-view="presets" class="${String(view === 'presets' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_2b261343a7bbd4","Presets") ?? "Presets")}</button>
+              <button type="button" data-cap-view="permissions" class="${String(view === 'permissions' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_9864b866a47464","Permission Sets") ?? "Permission Sets")}</button>
             </div>
-            ${String(view === 'features' ? `<input class="cs-in cap-search" type="search" placeholder="Search features…" value="${escapeHtml(capabilityUi.search)}" data-cap-search>` : '')}
-            <button class="cs-btn ghost" type="button" data-cap-reload><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
+            ${String(view === 'features' ? `<input class="cs-in cap-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_05ab2afef176e7","Search features…") ?? "Search features…")}" value="${escapeHtml(capabilityUi.search)}" data-cap-search>` : '')}
+            <button class="cs-btn ghost" type="button" data-cap-reload><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
           </div>
           <div data-cap-body></div>
         </div>
@@ -13383,8 +13174,8 @@
         const badges = [
           type === 'boolean' ? `<span class="cap-badge ${effectiveOn ? 'on' : 'off'}">${effectiveOn ? 'On' : 'Off'}</span>` : '',
           blocked ? ("<span class=\"cap-badge blocked\" title=\"" + String(escapeHtml(reason)) + "\">" + ((v1) => globalThis.PlatformLanguage?.text("settings","m_626b83b215aa4e",`Waiting on ${v1}`,{v1}) ?? `Waiting on ${v1}`)(escapeHtml(labelFor(blockedDep) || reason)) + "</span>") : '',
-          dirty ? `<span class="cap-badge dirty">${(globalThis.PlatformLanguage?.text("settings","m_0d897f67e96343","Unsaved") ?? "Unsaved")}</span>` : '',
-          depth === 0 && node.kind === 'app' ? `<span class="cap-badge kind">${(globalThis.PlatformLanguage?.text("settings","m_cf04168685f1aa","App") ?? "App")}</span>` : ''
+          dirty ? `<span class="cap-badge dirty">${(globalThis.PlatformLanguage?.htmlText("settings","m_0d897f67e96343","Unsaved") ?? "Unsaved")}</span>` : '',
+          depth === 0 && node.kind === 'app' ? `<span class="cap-badge kind">${(globalThis.PlatformLanguage?.htmlText("settings","m_cf04168685f1aa","App") ?? "App")}</span>` : ''
         ].filter(Boolean).join('');
         return `
           <div class="cap-node ${effectiveOn ? '' : 'cap-off'}" data-cap-node="${escapeHtml(node.key)}">
@@ -13396,9 +13187,9 @@
               ${control}
             </div>
             ${multiControl}
-            ${crossRequires.length ? `<div class="cap-req">${crossRequires.map((requirement) => `<button type="button" data-cap-focus="${String(escapeHtml(requirement))}"><i class="fas fa-link"></i>${((v1) => globalThis.PlatformLanguage?.text("settings","m_f91a3ed884be7a",` Requires ${v1}`,{v1}) ?? ` Requires ${v1}`)(escapeHtml(labelFor(requirement)))}</button>`).join('')}</div>` : ''}
+            ${crossRequires.length ? `<div class="cap-req">${crossRequires.map((requirement) => `<button type="button" data-cap-focus="${String(escapeHtml(requirement))}"><i class="fas fa-link"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_f91a3ed884be7a",` Requires ${v1}`,{v1}) ?? ` Requires ${v1}`)(escapeHtml(labelFor(requirement)))}</button>`).join('')}</div>` : ''}
             ${children.length ? `
-              ${!effectiveOn && type === 'boolean' ? `<div class="cap-inactive-note">${((v0) => globalThis.PlatformLanguage?.text("settings","m_34a728220e520e",`Sub-features stay inactive while ${v0} is off.`,{v0}) ?? `Sub-features stay inactive while ${v0} is off.`)(escapeHtml(node.label))}</div>` : ''}
+              ${!effectiveOn && type === 'boolean' ? `<div class="cap-inactive-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_34a728220e520e",`Sub-features stay inactive while ${v0} is off.`,{v0}) ?? `Sub-features stay inactive while ${v0} is off.`)(escapeHtml(node.label))}</div>` : ''}
               <div class="cap-children">${children.map((child) => renderNode(child, depth + 1)).join('')}</div>
             ` : ''}
           </div>
@@ -13417,12 +13208,12 @@
       body.innerHTML = `
         <div class="cap-sections" data-settings-autosave="off">
           ${sectionsHtml}
-          ${!sectionsHtml ? `<div class="cap-empty">${((v0) => globalThis.PlatformLanguage?.text("settings","m_140b21df39aab8",`No features match "${v0}".`,{v0}) ?? `No features match "${v0}".`)(escapeHtml(capabilityUi.search))}</div>` : ''}
+          ${!sectionsHtml ? `<div class="cap-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_140b21df39aab8",`No features match "${v0}".`,{v0}) ?? `No features match "${v0}".`)(escapeHtml(capabilityUi.search))}</div>` : ''}
           ${dirtyKeys.length ? `
             <div class="cap-savebar">
-              <span class="cap-savebar-note">${((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_6493550710bc40",`${v0} unsaved ${v1}`,{v0,v1}) ?? `${v0} unsaved ${v1}`)(dirtyKeys.length,dirtyKeys.length === 1 ? 'change' : 'changes')}</span>
-              <button class="cs-btn ghost" type="button" data-cap-discard>${(globalThis.PlatformLanguage?.text("settings","m_4ab5419992b0f7","Discard") ?? "Discard")}</button>
-              <button class="cs-btn primary" type="button" data-cap-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_7a98b2e4a838fe"," Save Changes") ?? " Save Changes")}</button>
+              <span class="cap-savebar-note">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_6493550710bc40",`${v0} unsaved ${v1}`,{v0,v1}) ?? `${v0} unsaved ${v1}`)(dirtyKeys.length,dirtyKeys.length === 1 ? 'change' : 'changes')}</span>
+              <button class="cs-btn ghost" type="button" data-cap-discard>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ab5419992b0f7","Discard") ?? "Discard")}</button>
+              <button class="cs-btn primary" type="button" data-cap-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7a98b2e4a838fe"," Save Changes") ?? " Save Changes")}</button>
               <div class="cap-violations" data-cap-violations></div>
             </div>
           ` : ''}
@@ -13525,7 +13316,7 @@
       const overlay = capModal(
         `Apply "${preset.name}"`,
         `
-          <div class="cap-card-desc">${((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_649a46a7377444",`${v0} ${v1} to this organization's features. Nothing is saved until you confirm.`,{v0,v1}) ?? `${v0} ${v1} to this organization's features. Nothing is saved until you confirm.`)(changed,changed === 1 ? 'change' : 'changes')}</div>
+          <div class="cap-card-desc">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_649a46a7377444",`${v0} ${v1} to this organization's features. Nothing is saved until you confirm.`,{v0,v1}) ?? `${v0} ${v1} to this organization's features. Nothing is saved until you confirm.`)(changed,changed === 1 ? 'change' : 'changes')}</div>
           <div class="cap-diff-columns">
             ${String(column('Turning on', diff.enable.map((node) => `<li style="color:#067647">+ ${escapeHtml(node.label)}</li>`)))}
             ${String(column('Turning off', diff.disable.map((node) => `<li style="color:#b42318">− ${escapeHtml(node.label)}</li>`)))}
@@ -13533,8 +13324,8 @@
           </div>
         `,
         `
-          <button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.text("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-          <button class="cs-btn primary" type="button" data-cap-modal-apply><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("settings","m_5b225f1281ed82"," Confirm &amp; Apply") ?? " Confirm &amp; Apply")}</button>
+          <button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button class="cs-btn primary" type="button" data-cap-modal-apply><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_5b225f1281ed82"," Confirm &amp; Apply") ?? " Confirm &amp; Apply")}</button>
         `
       );
       overlay.querySelector('[data-cap-modal-cancel]')?.addEventListener('click', closeCapModal);
@@ -13560,13 +13351,13 @@
       const overlay = capModal(
         'New preset from current configuration',
         `
-          <div class="cap-card-desc">${(globalThis.PlatformLanguage?.text("settings","m_15fffb85f07437","Captures every feature, app, and setting value as a reusable set you can apply here or hand to new organizations at signup.") ?? "Captures every feature, app, and setting value as a reusable set you can apply here or hand to new organizations at signup.")}</div>
-          <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_0d5150f680542b","Preset name") ?? "Preset name")}" data-cap-preset-name>
-          <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_696f7079a6c3c9","Description (optional)") ?? "Description (optional)")}" data-cap-preset-desc>
+          <div class="cap-card-desc">${(globalThis.PlatformLanguage?.htmlText("settings","m_15fffb85f07437","Captures every feature, app, and setting value as a reusable set you can apply here or hand to new organizations at signup.") ?? "Captures every feature, app, and setting value as a reusable set you can apply here or hand to new organizations at signup.")}</div>
+          <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_0d5150f680542b","Preset name") ?? "Preset name")}" data-cap-preset-name>
+          <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_696f7079a6c3c9","Description (optional)") ?? "Description (optional)")}" data-cap-preset-desc>
         `,
         `
-          <button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.text("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-          <button class="cs-btn primary" type="button" data-cap-modal-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_6a3f466b1ac429"," Save Preset") ?? " Save Preset")}</button>
+          <button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button class="cs-btn primary" type="button" data-cap-modal-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_6a3f466b1ac429"," Save Preset") ?? " Save Preset")}</button>
         `
       );
       overlay.querySelector('[data-cap-preset-name]')?.focus();
@@ -13599,19 +13390,19 @@
         return `
           <div class="cap-card" data-cap-preset="${String(escapeHtml(preset.id))}">
             <h4>${String(escapeHtml(preset.name))}
-              ${String(preset.builtin ? '<span class="cap-badge kind">Built-in</span>' : '<span class="cap-badge dirty">Custom</span>')}
-              ${String(isSignup ? '<span class="cap-badge on">Signup default</span>' : '')}
-              ${String(changed === 0 ? '<span class="cap-badge on">Active</span>' : '')}
+              ${String(preset.builtin ? `<span class="cap-badge kind">${(globalThis.PlatformLanguage?.htmlText("settings","m_2f10650fabf493","Built-in") ?? "Built-in")}</span>` : `<span class="cap-badge dirty">${(globalThis.PlatformLanguage?.htmlText("settings","m_6edcf7d7d41112","Custom") ?? "Custom")}</span>`)}
+              ${String(isSignup ? `<span class="cap-badge on">${(globalThis.PlatformLanguage?.htmlText("settings","m_8982ea068adaf1","Signup default") ?? "Signup default")}</span>` : '')}
+              ${String(changed === 0 ? `<span class="cap-badge on">${(globalThis.PlatformLanguage?.htmlText("settings","m_46e47f1706df0c","Active") ?? "Active")}</span>` : '')}
             </h4>
             ${String(preset.description ? `<div class="cap-card-desc">${escapeHtml(preset.description)}</div>` : '')}
-            <div class="cap-card-desc">${((v6,v7) => globalThis.PlatformLanguage?.text("settings","m_66582881d8b086",`${v6} features on · ${v7}`,{v6,v7}) ?? `${v6} features on · ${v7}`)(onCount,changed === 0 ? 'matches current configuration' : `${changed} ${changed === 1 ? 'change' : 'changes'} from current`)}</div>
+            <div class="cap-card-desc">${((v6,v7) => globalThis.PlatformLanguage?.htmlText("settings","m_66582881d8b086",`${v6} features on · ${v7}`,{v6,v7}) ?? `${v6} features on · ${v7}`)(onCount,changed === 0 ? 'matches current configuration' : `${changed} ${changed === 1 ? 'change' : 'changes'} from current`)}</div>
             <div class="cap-card-actions">
-              <button class="cs-btn primary" type="button" data-cap-preset-apply="${String(escapeHtml(preset.id))}" ${String(changed === 0 ? 'disabled' : '')}><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("settings","m_e3454aac557316"," Apply") ?? " Apply")}</button>
-              <button class="cs-btn ghost" type="button" data-cap-preset-load="${String(escapeHtml(preset.id))}">${(globalThis.PlatformLanguage?.text("settings","m_90c1cbad9013ee","Load into editor") ?? "Load into editor")}</button>
-              ${String(!isSignup ? `<button class="cs-btn ghost" type="button" data-cap-preset-signup="${escapeHtml(preset.id)}">Use at signup</button>` : '')}
+              <button class="cs-btn primary" type="button" data-cap-preset-apply="${String(escapeHtml(preset.id))}" ${String(changed === 0 ? 'disabled' : '')}><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e3454aac557316"," Apply") ?? " Apply")}</button>
+              <button class="cs-btn ghost" type="button" data-cap-preset-load="${String(escapeHtml(preset.id))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_90c1cbad9013ee","Load into editor") ?? "Load into editor")}</button>
+              ${String(!isSignup ? `<button class="cs-btn ghost" type="button" data-cap-preset-signup="${escapeHtml(preset.id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_4b9ac6e109db0a","Use at signup") ?? "Use at signup")}</button>` : '')}
               ${String(!preset.builtin ? `
-                <button class="cs-btn ghost" type="button" data-cap-preset-update="${escapeHtml(preset.id)}">Update from current</button>
-                <button class="cs-btn ghost" type="button" data-cap-preset-delete="${escapeHtml(preset.id)}" style="color:#b42318">Delete</button>
+                <button class="cs-btn ghost" type="button" data-cap-preset-update="${escapeHtml(preset.id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_deb10a9a4158b1","Update from current") ?? "Update from current")}</button>
+                <button class="cs-btn ghost" type="button" data-cap-preset-delete="${escapeHtml(preset.id)}" style="color:#b42318">${(globalThis.PlatformLanguage?.htmlText("settings","m_4fc60207629a44","Delete") ?? "Delete")}</button>
               ` : '')}
             </div>
           </div>
@@ -13620,7 +13411,7 @@
       body.innerHTML = `
         <div class="cap-sections">
           <div class="cap-toolbar">
-            <button class="cs-btn primary" type="button" data-cap-preset-form-open><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_14ce6410516ce5"," New Preset from Current") ?? " New Preset from Current")}</button>
+            <button class="cs-btn primary" type="button" data-cap-preset-form-open><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_14ce6410516ce5"," New Preset from Current") ?? " New Preset from Current")}</button>
           </div>
           <div class="cap-cards">${String(presets.map(presetCard).join(''))}</div>
         </div>
@@ -13699,7 +13490,7 @@
             if (capabilityUi.view === 'permissions') renderAppFlags();
           });
         }
-        body.innerHTML = `<div class="cap-loading">${(globalThis.PlatformLanguage?.text("settings","m_39badf982585b4","Loading permission sets…") ?? "Loading permission sets…")}</div>`;
+        body.innerHTML = `<div class="cap-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_39badf982585b4","Loading permission sets…") ?? "Loading permission sets…")}</div>`;
         return;
       }
       const { roles, me, error } = capabilityUi.access;
@@ -13749,16 +13540,16 @@
         return `
           <div class="cap-card" data-cap-role="${String(escapeHtml(role.id))}">
             <h4>${String(escapeHtml(role.name))}
-              ${String(role.is_system ? '<span class="cap-badge kind">System</span>' : '<span class="cap-badge dirty">Custom</span>')}
-              ${String(isMine ? '<span class="cap-badge on">Your set</span>' : '')}
+              ${String(role.is_system ? `<span class="cap-badge kind">${(globalThis.PlatformLanguage?.htmlText("settings","m_9df9882cf648fb","System") ?? "System")}</span>` : `<span class="cap-badge dirty">${(globalThis.PlatformLanguage?.htmlText("settings","m_6edcf7d7d41112","Custom") ?? "Custom")}</span>`)}
+              ${String(isMine ? `<span class="cap-badge on">${(globalThis.PlatformLanguage?.htmlText("settings","m_24bfd239048801","Your set") ?? "Your set")}</span>` : '')}
             </h4>
             ${String(role.description ? `<div class="cap-card-desc">${escapeHtml(role.description)}</div>` : '')}
             <div class="cap-card-desc">${String(escapeHtml(applicationsById[role.application_id] || role.application_id))} · ${String(role.permissions?.['*'] === true ? 'Full access' : `${grantCount} ${grantCount === 1 ? 'grant' : 'grants'}`)}</div>
             <div class="cap-card-actions">
-              ${String(!isMine ? `<button class="cs-btn primary" type="button" data-cap-role-switch="${escapeHtml(role.id)}">Switch to this set</button>` : '')}
+              ${String(!isMine ? `<button class="cs-btn primary" type="button" data-cap-role-switch="${escapeHtml(role.id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_446edd2609d8ee","Switch to this set") ?? "Switch to this set")}</button>` : '')}
               <button class="cs-btn ghost" type="button" data-cap-role-view="${String(escapeHtml(role.id))}">${String(role.is_system ? 'View' : 'Edit')}</button>
-              <button class="cs-btn ghost" type="button" data-cap-role-duplicate="${String(escapeHtml(role.id))}">${(globalThis.PlatformLanguage?.text("settings","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}</button>
-              ${String(!role.is_system ? `<button class="cs-btn ghost" type="button" data-cap-role-archive="${escapeHtml(role.id)}" style="color:#b42318">Archive</button>` : '')}
+              <button class="cs-btn ghost" type="button" data-cap-role-duplicate="${String(escapeHtml(role.id))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}</button>
+              ${String(!role.is_system ? `<button class="cs-btn ghost" type="button" data-cap-role-archive="${escapeHtml(role.id)}" style="color:#b42318">${(globalThis.PlatformLanguage?.htmlText("settings","m_5546a92389e386","Archive") ?? "Archive")}</button>` : '')}
             </div>
           </div>
         `;
@@ -13777,21 +13568,21 @@
             mode === 'create' ? 'Create a permission set' : mode === 'edit' ? `Edit "${role.name}"` : `"${role.name}" permissions`,
             `
               ${mode === 'create' ? `
-                <div class="cap-card-desc">${(globalThis.PlatformLanguage?.text("settings","m_fcda8b2158981c","Sets are reusable groups of permissions. Assign users to a set for mass management; per-user overrides always take precedence.") ?? "Sets are reusable groups of permissions. Assign users to a set for mass management; per-user overrides always take precedence.")}</div>
+                <div class="cap-card-desc">${(globalThis.PlatformLanguage?.htmlText("settings","m_fcda8b2158981c","Sets are reusable groups of permissions. Assign users to a set for mass management; per-user overrides always take precedence.") ?? "Sets are reusable groups of permissions. Assign users to a set for mass management; per-user overrides always take precedence.")}</div>
                 <div class="cap-form-row" style="display:flex;gap:8px;flex-wrap:wrap">
-                  <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_4ab899aa9e2850","Set name") ?? "Set name")}" data-cap-role-name style="flex:1;min-width:160px">
+                  <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4ab899aa9e2850","Set name") ?? "Set name")}" data-cap-role-name style="flex:1;min-width:160px">
                   <select class="cs-in" data-cap-role-app style="max-width:180px">
-                    <option value="management" ${String(appId === 'management' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_ee37529aee018c","Management") ?? "Management")}</option>
-                    <option value="field" ${String(appId === 'field' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_e873514a9a11df","Crew / Field") ?? "Crew / Field")}</option>
+                    <option value="management" ${String(appId === 'management' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_ee37529aee018c","Management") ?? "Management")}</option>
+                    <option value="field" ${String(appId === 'field' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e873514a9a11df","Crew / Field") ?? "Crew / Field")}</option>
                   </select>
                 </div>
               ` : ''}
               ${permissionChecklist(options, selected, 'cap-role-perm')}
             `,
             editable ? `
-              <button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.text("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+              <button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
               <button class="cs-btn primary" type="button" data-cap-modal-save><i class="fas fa-save"></i> ${String(mode === 'create' ? 'Create Set' : 'Save Set')}</button>
-            ` : `<button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>`
+            ` : `<button class="cs-btn ghost" type="button" data-cap-modal-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}</button>`
           );
           overlay.querySelectorAll('[data-cap-role-perm]').forEach((input) => {
             if (!editable) input.disabled = true;
@@ -13852,21 +13643,21 @@
       body.innerHTML = `
         <div class="cap-sections">
           ${String(error ? `<div class="cs-note">${escapeHtml(error)}</div>` : '')}
-          <div class="cap-section-title">${(globalThis.PlatformLanguage?.text("settings","m_42eb81f5ccdead","Your Access") ?? "Your Access")}</div>
+          <div class="cap-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_42eb81f5ccdead","Your Access") ?? "Your Access")}</div>
           <div class="cap-card" style="border-style:dashed">
-            <div class="cap-card-desc">${(globalThis.PlatformLanguage?.text("settings","m_214c1d1cb8dec6","Signed in as ") ?? "Signed in as ")}<b>${String(escapeHtml(window.Portal?.currentUser?.name || window.Portal?.currentUser?.email || 'you'))}</b>${String(myRoleIds.length ? ` · permission ${myRoleIds.length === 1 ? 'set' : 'sets'}: ${myRoleIds.map((id) => escapeHtml(roleName(id))).join(', ')}` : ' · no explicit permission set (legacy role defaults apply)')}</div>
-            <div class="cap-card-desc">${(globalThis.PlatformLanguage?.text("settings","m_1f5a6ae6ee6696","Switching sets below changes what you can see and do. Individual overrides set by an admin still win over the set.") ?? "Switching sets below changes what you can see and do. Individual overrides set by an admin still win over the set.")}</div>
+            <div class="cap-card-desc">${(globalThis.PlatformLanguage?.htmlText("settings","m_214c1d1cb8dec6","Signed in as ") ?? "Signed in as ")}<b>${String(escapeHtml(window.Portal?.currentUser?.name || window.Portal?.currentUser?.email || 'you'))}</b>${String(myRoleIds.length ? ` · permission ${myRoleIds.length === 1 ? 'set' : 'sets'}: ${myRoleIds.map((id) => escapeHtml(roleName(id))).join(', ')}` : ' · no explicit permission set (legacy role defaults apply)')}</div>
+            <div class="cap-card-desc">${(globalThis.PlatformLanguage?.htmlText("settings","m_1f5a6ae6ee6696","Switching sets below changes what you can see and do. Individual overrides set by an admin still win over the set.") ?? "Switching sets below changes what you can see and do. Individual overrides set by an admin still win over the set.")}</div>
           </div>
           <div class="cap-myperm-groups">${String(myPermissionGroupsHtml)}</div>
           <div class="cap-toolbar" style="margin-top:4px">
-            <div class="cap-section-title" style="flex:1">${(globalThis.PlatformLanguage?.text("settings","m_9864b866a47464","Permission Sets") ?? "Permission Sets")}</div>
-            <button class="cs-btn primary" type="button" data-cap-role-form-open><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_9f813ee3470349"," New Permission Set") ?? " New Permission Set")}</button>
+            <div class="cap-section-title" style="flex:1">${(globalThis.PlatformLanguage?.htmlText("settings","m_9864b866a47464","Permission Sets") ?? "Permission Sets")}</div>
+            <button class="cs-btn primary" type="button" data-cap-role-form-open><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9f813ee3470349"," New Permission Set") ?? " New Permission Set")}</button>
           </div>
           ${String(['management', 'field'].map((applicationId) => {
             const appRoles = activeRoles.filter((role) => role.application_id === applicationId);
             if (!appRoles.length) return '';
             return `
-              <div class="cap-section-title">${escapeHtml(applicationsById[applicationId])} Sets</div>
+              <div class="cap-section-title">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_0090d5b8755954",`${v0} Sets`,{v0}) ?? `${v0} Sets`)(escapeHtml(applicationsById[applicationId]))}</div>
               <div class="cap-cards">${appRoles.map(roleCard).join('')}</div>
             `;
           }).join(''))}
@@ -13932,7 +13723,7 @@
     async function renderDomainsSettings(){
       if (!paneDomains) return;
       if (!window.FirstMateDomainsSettings?.mount || !window.DomainsAPI) {
-        paneDomains.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_828a54557c4595","The domains workflow could not be loaded.") ?? "The domains workflow could not be loaded.")}</div>`;
+        paneDomains.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_828a54557c4595","The domains workflow could not be loaded.") ?? "The domains workflow could not be loaded.")}</div>`;
         return;
       }
       const usersResult = await usersList().catch(() => ({ ok:false, users:[] }));
@@ -14025,7 +13816,7 @@
     async function renderNotificationSettings(){
       if (!paneNotifications) return;
       paneNotifications.__notificationResize?.disconnect();
-      paneNotifications.innerHTML='<div class="my-settings-status" role="status">Loading notification preferences…</div>';
+      paneNotifications.innerHTML=`<div class="my-settings-status" role="status">${(globalThis.PlatformLanguage?.htmlText("settings","m_09f5582d192f36","Loading notification preferences…") ?? "Loading notification preferences…")}</div>`;
       const notificationOrgId=currentOrgId(),notificationBranchId=currentBranchId();
       try {
         const result=await window.PlatformAPI.notifications.preferences(notificationOrgId,notificationBranchId);
@@ -14086,7 +13877,7 @@
             if(event)selected.push({...definition,label,description});else grouped.get(destination).definitions.push({...definition,label,description});
           }
         }
-        return [...grouped.values()].filter(g=>g.definitions.length).map(g=>({...g,kind:'general'})).concat((result.catalog||[]).filter(g=>g.kind!=='app'&&g.definitions?.length).map(g=>({...g,kind:g.id.startsWith('scope.')?'workflow':g.kind,definitions:g.definitions.map(d=>({...d,label:notificationLabel(d.label),description:notificationLabel(d.description)}))})),selected.length?[{id:'custom-triggers',label:'Selected triggers',kind:'custom',definitions:selected}]:[]);
+        return [...grouped.values()].filter(g=>g.definitions.length).map(g=>({...g,kind:'general'})).concat((result.catalog||[]).filter(g=>g.kind!=='app'&&g.definitions?.length).map(g=>({...g,kind:g.id.startsWith('scope.')?'workflow':g.kind,definitions:g.definitions.map(d=>({...d,label:notificationLabel(d.label),description:notificationLabel(d.description)}))})),selected.length?[{id:'custom-triggers',label:(globalThis.PlatformLanguage?.text("settings","m_830d26ef67ddef","Selected triggers") ?? "Selected triggers"),kind:'custom',definitions:selected}]:[]);
         };
         let groups=buildGroups(result);
         const preferences=result.preferences||{in_app:{},push:{}};
@@ -14167,10 +13958,10 @@
           #csPaneNotifications [hidden]{display:none!important}
           @media(prefers-reduced-motion:reduce){#csPaneNotifications .nc-track,#csPaneNotifications .nc-track:after{transition:none}}
         </style><div class="nc-shell" data-settings-autosave="off">
-          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups">${[['all','All'],['general','General'],['workflow','Workflows & scopes'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label><select data-nc-sort aria-label="Sort notifications"><option value="default">Default order</option><option value="name">Name A–Z</option><option value="enabled">Enabled first</option></select><button type="button" class="cs-btn" data-nc-add>Add custom</button></div>
-          <div class="nc-body"><div class="nc-results"><div class="nc-list"></div></div><aside class="nc-assistant" aria-label="Notification assistant"><header><span class="nc-logo" aria-hidden="true"></span><strong>FirstMate assistant</strong><button type="button" data-nc-new title="New conversation" aria-label="New conversation">+</button></header><div class="nc-conversation" role="log" aria-label="Notification conversation" aria-live="polite"></div><form class="nc-compose"><div class="nc-compose-shell"><textarea id="nc-prompt" rows="1" aria-label="Describe your custom notification" placeholder="Describe your notification…" required maxlength="4000"></textarea><button type="submit" class="nc-send" aria-label="Send" title="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div><div class="nc-chat-status" role="status"></div></form></aside></div>
-          <div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>Retry saving</button>
-          ${window.PlatformPush?.available?.()?'<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>Enable push on this phone</button><button class="cs-btn" type="button" data-nc-disable>Disable on this phone</button></div>':''}
+          <div class="nc-toolbar"><div class="nc-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_17663ddda6cb68","Notification groups") ?? "Notification groups")}">${[['all','All'],['general','General'],['workflow','Workflows & scopes'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6cf855fe25eb63","Search notifications…") ?? "Search notifications…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9a4e62cc36b0a5","Search notifications and categories") ?? "Search notifications and categories")}"></label><select data-nc-sort aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b61a549dc0bd64","Sort notifications") ?? "Sort notifications")}"><option value="default">${(globalThis.PlatformLanguage?.htmlText("settings","m_234080acc28117","Default order") ?? "Default order")}</option><option value="name">${(globalThis.PlatformLanguage?.htmlText("settings","m_bc2e8c60e0a22b","Name A–Z") ?? "Name A–Z")}</option><option value="enabled">${(globalThis.PlatformLanguage?.htmlText("settings","m_3c1fce6ec7289b","Enabled first") ?? "Enabled first")}</option></select><button type="button" class="cs-btn" data-nc-add>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab990404258fda","Add custom") ?? "Add custom")}</button></div>
+          <div class="nc-body"><div class="nc-results"><div class="nc-list"></div></div><aside class="nc-assistant" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_5b25a812504adc","Notification assistant") ?? "Notification assistant")}"><header><span class="nc-logo" aria-hidden="true"></span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_675cdc60e59266","FirstMate assistant") ?? "FirstMate assistant")}</strong><button type="button" data-nc-new title="${(globalThis.PlatformLanguage?.htmlText("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}">+</button></header><div class="nc-conversation" role="log" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_92897a3e307a52","Notification conversation") ?? "Notification conversation")}" aria-live="polite"></div><form class="nc-compose"><div class="nc-compose-shell"><textarea id="nc-prompt" rows="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_40ecd11f3f31cb","Describe your custom notification") ?? "Describe your custom notification")}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_79e509d3cc58f8","Describe your notification…") ?? "Describe your notification…")}" required maxlength="4000"></textarea><button type="submit" class="nc-send" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a056552a09f","Send") ?? "Send")}" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a056552a09f","Send") ?? "Send")}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div><div class="nc-chat-status" role="status"></div></form></aside></div>
+          <div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>${(globalThis.PlatformLanguage?.htmlText("settings","m_5ede774dc3f22a","Retry saving") ?? "Retry saving")}</button>
+          ${window.PlatformPush?.available?.()?`<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>${(globalThis.PlatformLanguage?.htmlText("settings","m_c7fc7c3f3d684d","Enable push on this phone") ?? "Enable push on this phone")}</button><button class="cs-btn" type="button" data-nc-disable>${(globalThis.PlatformLanguage?.htmlText("settings","m_d93434462ad831","Disable on this phone") ?? "Disable on this phone")}</button></div>`:''}
         </div>`;
         const shell=paneNotifications.querySelector('.nc-shell'),list=shell.querySelector('.nc-list'),status=shell.querySelector('.nc-status'),retry=shell.querySelector('[data-nc-retry]');
         const draw=()=>{
@@ -14180,8 +13971,8 @@
           shown.sort((a,b)=>Object.keys(sectionNames).indexOf(a.kind)-Object.keys(sectionNames).indexOf(b.kind));
           list.innerHTML=shown.map((g,index)=>{
             const open=query||!collapsed.has(g.id),count=g.visible.length,n=columns,size=Math.floor(count/n),extra=count%n;
-            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>Notification</span><span>In app</span><span>Push</span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="About ${escapeHtml(d.label)}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:'<div class="nc-empty">No notifications declared in this workflow yet.</div>'}</div></section>`;
-          }).join('')||'<div class="nc-empty">No notifications here yet. Describe what you need to the FirstMate assistant to add one.</div>';
+            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8afbfeae955a57","Notification") ?? "Notification")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ac1052388993fc","In app") ?? "In app")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_beeb4b3fee68a1","Push") ?? "Push")}</span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ad67aa00bf8277",`About ${v1}`,{v1}) ?? `About ${v1}`)(escapeHtml(d.label))}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_72b107c03a2294","No notifications declared in this workflow yet.") ?? "No notifications declared in this workflow yet.")}</div>`}</div></section>`;
+          }).join('')||`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_d88f1fd665ce8e","No notifications here yet. Describe what you need to the FirstMate assistant to add one.") ?? "No notifications here yet. Describe what you need to the FirstMate assistant to add one.")}</div>`;
         };
         const save=async()=>{
           if(saving)return;saving=true;retry.hidden=true;
@@ -14189,11 +13980,11 @@
             while(Object.keys(pending.in_app).length||Object.keys(pending.push).length){
               const patch={in_app:{...pending.in_app},push:{...pending.push},custom_keys:[...new Set([...Object.keys(pending.in_app),...Object.keys(pending.push)].filter(key=>key.startsWith('event.')))]};
               Object.keys(patch.in_app).forEach(k=>delete pending.in_app[k]);Object.keys(patch.push).forEach(k=>delete pending.push[k]);
-              status.textContent='Saving…';status.dataset.error='false';
+              status.textContent=(globalThis.PlatformLanguage?.text("settings","m_ea600c018fb36c","Saving…") ?? "Saving…");status.dataset.error='false';
               try{await window.PlatformAPI.notifications.savePreferences(notificationOrgId,patch,notificationBranchId);}
               catch(error){for(const surface of ['in_app','push'])pending[surface]={...patch[surface],...pending[surface]};throw error;}
             }
-            status.textContent='Saved';
+            status.textContent=(globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved");
             window.PlatformNotifications?.load?.(currentOrgId(),{branchId:currentBranchId(),includeDismissed:true,silent:true})?.catch?.(()=>{});
           }catch(error){status.textContent=error?.message||'Could not save notification preferences.';status.dataset.error='true';retry.hidden=false;}
           finally{saving=false;}
@@ -14215,10 +14006,10 @@
         paneNotifications.__notificationChat=chat;
         const renderChat=()=>{
           if(!shell.isConnected)return;
-          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):'<div class="nc-welcome"><span class="nc-logo" aria-hidden="true"></span><strong>Describe a notification you&#39;d like to receive</strong> I’ll check what already exists, then help you configure it.</div>';
+          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):`<div class="nc-welcome"><span class="nc-logo" aria-hidden="true"></span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_df3c479fb5f083","Describe a notification you&#39;d like to receive") ?? "Describe a notification you&#39;d like to receive")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_cd644ee227567f"," I’ll check what already exists, then help you configure it.") ?? " I’ll check what already exists, then help you configure it.")}</div>`;
           window.FirstMateAgentChat?.bindActions?.(chatLog,chat.messages);
           send.disabled=chat.pending||!chat.ready;prompt.disabled=!chat.ready; shell.querySelector('[data-nc-new]').disabled=chat.pending;
-          if(chat.pending)chatStatus.textContent='FirstMate is working…';
+          if(chat.pending)chatStatus.textContent=(globalThis.PlatformLanguage?.text("settings","m_b683b7eadfeb6e","FirstMate is working…") ?? "FirstMate is working…");
           chatLog.scrollTop=chatLog.scrollHeight;
         };
         chat.render=renderChat;window.FirstMateAgentChat?.injectBaseCss?.('nc');renderChat();
@@ -14231,7 +14022,7 @@
         };
         shell.querySelector('.nc-compose').addEventListener('submit',async event=>{
           event.preventDefault();const message=prompt.value.trim();if(!message||chat.pending||!chat.ready)return;
-          if(saving){chatStatus.textContent='Wait for your notification choices to finish saving, then send.';return;}
+          if(saving){chatStatus.textContent=(globalThis.PlatformLanguage?.text("settings","m_249d1f14fb2a4d","Wait for your notification choices to finish saving, then send.") ?? "Wait for your notification choices to finish saving, then send.");return;}
           chat.pending=true;prompt.value='';resizePrompt();chat.messages.push({id:'local-'+Date.now(),role:'user',content:message});renderChat();
           try{
             if(!chat.threadId){const created=await window.PlatformAPI.notificationAssistant.createThread(notificationOrgId,{branch_id:notificationBranchId,subject_id:'notifications'});chat.threadId=created.thread.id;try{sessionStorage.setItem(chatKey,chat.threadId);}catch{}}
@@ -14282,7 +14073,7 @@
     async function renderMySettings(){
       if (!paneMySettings || paneMySettings.dataset.mySettingsLoading === '1') return;
       paneMySettings.dataset.mySettingsLoading = '1';
-      paneMySettings.innerHTML = `<div class="my-settings-status"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_5dfbfde9b4da49"," Loading your settings…") ?? " Loading your settings…")}</div>`;
+      paneMySettings.innerHTML = `<div class="my-settings-status"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_5dfbfde9b4da49"," Loading your settings…") ?? " Loading your settings…")}</div>`;
       try {
         const result = await window.PlatformAPI?.preferences?.get?.();
         const preferences = result?.preferences || { language:null, auto_translate_messages:false, sidebar_width:250 };
@@ -14293,47 +14084,47 @@
           <div class="my-settings-shell">
             <div class="my-settings-hero">
               <div class="my-settings-icon"><i class="fas fa-user-gear"></i></div>
-              <div><h3>${(globalThis.PlatformLanguage?.text("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_e7887f91707b25","Personal preferences for your account. These do not change settings for anyone else.") ?? "Personal preferences for your account. These do not change settings for anyone else.")}</p></div>
+              <div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_6e5a74a20b5ea1","My Settings") ?? "My Settings")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_e7887f91707b25","Personal preferences for your account. These do not change settings for anyone else.") ?? "Personal preferences for your account. These do not change settings for anyone else.")}</p></div>
             </div>
             <div class="my-settings-group">
-              <h4>${(globalThis.PlatformLanguage?.text("settings","m_7be4e66b6de94c","Language &amp; translation") ?? "Language &amp; translation")}</h4>
-              <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_6a345cd0072503","Interface language") ?? "Interface language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_338ca4c4d53ee1","Use the company language or choose your own. Reports use the company language.") ?? "Use the company language or choose your own. Reports use the company language.")}</small></span>
+              <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_7be4e66b6de94c","Language &amp; translation") ?? "Language &amp; translation")}</h4>
+              <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_6a345cd0072503","Interface language") ?? "Interface language")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_338ca4c4d53ee1","Use the company language or choose your own. Reports use the company language.") ?? "Use the company language or choose your own. Reports use the company language.")}</small></span>
                 <select class="cs-in" data-interface-locale>${languageOptions(preferences.interface_locale, {inherit:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
-                <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_1c783adbd1d4a5","Message translation language") ?? "Message translation language")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_c7cb58bc75e592","Messages in other detected languages can be translated into this language.") ?? "Messages in other detected languages can be translated into this language.")}</small></span>
+                <span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_1c783adbd1d4a5","Message translation language") ?? "Message translation language")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_c7cb58bc75e592","Messages in other detected languages can be translated into this language.") ?? "Messages in other detected languages can be translated into this language.")}</small></span>
                 <select class="cs-in" data-my-language>${languageOptions(preferences.language, {inherit:true, translation:true, companyLocale:preferences.company_locale})}</select>
               </label>
               <label class="my-settings-row">
-                <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_c4030f56eb495c","Show translations automatically") ?? "Show translations automatically")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_4405a3f8c91aac","Foreign-language messages open translated. You can still toggle each message back to its original text.") ?? "Foreign-language messages open translated. You can still toggle each message back to its original text.")}</small></span>
+                <span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_c4030f56eb495c","Show translations automatically") ?? "Show translations automatically")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_4405a3f8c91aac","Foreign-language messages open translated. You can still toggle each message back to its original text.") ?? "Foreign-language messages open translated. You can still toggle each message back to its original text.")}</small></span>
                 <span style="display:flex;justify-content:flex-end"><span class="li-switch"><input type="checkbox" data-my-auto-translate ${String(preferences.auto_translate_messages ? 'checked' : '')}><span class="li-slider"></span></span></span>
               </label>
             </div>
             <div class="my-settings-group">
-              <h4>${(globalThis.PlatformLanguage?.text("settings","m_2805026f294644","Appearance") ?? "Appearance")}</h4>
+              <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_2805026f294644","Appearance") ?? "Appearance")}</h4>
               <label class="my-settings-row">
-                <span><strong>${(globalThis.PlatformLanguage?.text("settings","m_7af6be7c241afb","Left column width") ?? "Left column width")}</strong><small>${(globalThis.PlatformLanguage?.text("settings","m_579ea823971e41","Adjust the global navigation column. Changes preview immediately and apply to every portal app.") ?? "Adjust the global navigation column. Changes preview immediately and apply to every portal app.")}</small></span>
+                <span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_7af6be7c241afb","Left column width") ?? "Left column width")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_579ea823971e41","Adjust the global navigation column. Changes preview immediately and apply to every portal app.") ?? "Adjust the global navigation column. Changes preview immediately and apply to every portal app.")}</small></span>
                 <span class="my-settings-range">
-                  <input type="range" min="${String(sidebarWidthApi?.min || 220)}" max="${String(sidebarWidthApi?.max || 420)}" step="1" value="${String(sidebarWidth)}" data-my-sidebar-width aria-label="${(globalThis.PlatformLanguage?.text("settings","m_7af6be7c241afb","Left column width") ?? "Left column width")}">
-                  <output data-my-sidebar-width-output>${((v8) => globalThis.PlatformLanguage?.text("settings","m_ef860388a2f75f",`${v8}px`,{v8}) ?? `${v8}px`)(sidebarWidth)}</output>
+                  <input type="range" min="${String(sidebarWidthApi?.min || 220)}" max="${String(sidebarWidthApi?.max || 420)}" step="1" value="${String(sidebarWidth)}" data-my-sidebar-width aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_7af6be7c241afb","Left column width") ?? "Left column width")}">
+                  <output data-my-sidebar-width-output>${((v8) => globalThis.PlatformLanguage?.htmlText("settings","m_ef860388a2f75f",`${v8}px`,{v8}) ?? `${v8}px`)(sidebarWidth)}</output>
                 </span>
               </label>
             </div>
             <div class="my-settings-group">
-              <h4>Left column</h4>
-              <p class="cs-note">Choose the tabs and layout you see. These preferences only affect your account.</p>
+              <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_292b7ebd649d77","Left column") ?? "Left column")}</h4>
+              <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d14f58ab8ec89a","Choose the tabs and layout you see. These preferences only affect your account.") ?? "Choose the tabs and layout you see. These preferences only affect your account.")}</p>
               ${leftColumnSwitch('left-column-apps', 'Apps', 'Show your app navigation.', preferences.left_column_apps !== false)}
               ${leftColumnSwitch('left-column-todo-list', 'To Dos', 'Show your action items.', preferences.left_column_todo_list === true)}
               ${leftColumnSwitch('left-column-channels', 'Channels', 'Show channel conversations on desktop when Channels is available.', preferences.left_column_channels === true)}
               ${leftColumnSwitch('left-column-agents', 'Agents', 'Show agent conversations on desktop when the assistant is available.', preferences.left_column_agents === true)}
-              <label class="my-settings-row"><span><strong>Default tab</strong><small>Opens when you enter the portal, if available.</small></span><select class="cs-in" data-my-left-column-default-mode><option value="apps">Apps</option><option value="todo">To Dos</option><option value="channels">Channels</option><option value="agents">Agents</option></select></label>
+              <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_1a291e7380a4b2","Default tab") ?? "Default tab")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_8e6a32a6e55da1","Opens when you enter the portal, if available.") ?? "Opens when you enter the portal, if available.")}</small></span><select class="cs-in" data-my-left-column-default-mode><option value="apps">${(globalThis.PlatformLanguage?.htmlText("settings","m_66652419b041ca","Apps") ?? "Apps")}</option><option value="todo">${(globalThis.PlatformLanguage?.htmlText("settings","m_4bec39f8fa90dd","To Dos") ?? "To Dos")}</option><option value="channels">${(globalThis.PlatformLanguage?.htmlText("settings","m_dc8b4f6c066b30","Channels") ?? "Channels")}</option><option value="agents">${(globalThis.PlatformLanguage?.htmlText("settings","m_4380914ceeac71","Agents") ?? "Agents")}</option></select></label>
               ${leftColumnSwitch('always-collapsible-left-column', 'Compact left column', 'Start each app with the narrow rail.', preferences.always_collapsible_left_column === true)}
               ${leftColumnSwitch('resizable-left-column', 'Drag to resize', 'Drag the column edge to adjust its width.', preferences.resizable_left_column !== false)}
-              <label class="my-settings-row"><span><strong>Temporary expansion</strong><small>Choose how the compact rail expands on hover.</small></span><select class="cs-in" data-my-left-column-expansion-mode><option value="resize">Resize page</option><option value="overlap">Overlap page</option></select></label>
+              <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c565950971cc1","Temporary expansion") ?? "Temporary expansion")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc91515ec0ede8","Choose how the compact rail expands on hover.") ?? "Choose how the compact rail expands on hover.")}</small></span><select class="cs-in" data-my-left-column-expansion-mode><option value="resize">${(globalThis.PlatformLanguage?.htmlText("settings","m_2bb9b8e0d8a0ae","Resize page") ?? "Resize page")}</option><option value="overlap">${(globalThis.PlatformLanguage?.htmlText("settings","m_a974f0e4a935ab","Overlap page") ?? "Overlap page")}</option></select></label>
             </div>
-            ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
+            ${canAssistant ? `<div class="my-settings-group"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_55d8ae7dbe87c6","AI assistant") ?? "AI assistant")}</h4><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_f0ed135b34b3ad","Manage your instructions and saved memories.") ?? "Manage your instructions and saved memories.")}</p><button class="cs-btn" type="button" data-my-assistant-settings>${(globalThis.PlatformLanguage?.htmlText("settings","m_198e9b07255891","Open assistant settings") ?? "Open assistant settings")}</button></div>` : ''}
             <div class="li-actions">
-              <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
+              <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
@@ -14395,7 +14186,7 @@
     function renderCallsSettings(){
       if (!paneCalls || paneCalls.dataset.crmMounted === '1') return;
       if (!window.FirstMateCrmSettings?.mount) {
-        paneCalls.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_3d508053781a89","Calls settings failed to load.") ?? "Calls settings failed to load.")}</div>`;
+        paneCalls.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_3d508053781a89","Calls settings failed to load.") ?? "Calls settings failed to load.")}</div>`;
         return;
       }
       window.FirstMateCrmSettings.mount(paneCalls, {
@@ -14423,7 +14214,7 @@
         const matches = catalog.filter((entry) => !needle || `${entry.label || ''} ${entry.description || ''} ${entry.stub || ''} ${entry.category || ''} ${entry.key || ''}`.toLowerCase().includes(needle));
         const list = host.querySelector('[data-configuration-app-list]');
         if (!list) return;
-        list.innerHTML = matches.map((entry) => `<button class="configuration-app" type="button" data-configuration-app="${escapeHtml(entry.key)}"><span class="configuration-app-icon"><i class="fas ${escapeHtml(entry.icon || 'fa-circle')}"></i></span><span class="configuration-app-copy"><strong>${escapeHtml(entry.label || entry.key)}</strong><span>${escapeHtml(entry.stub || entry.description || entry.category || '')}</span></span><span class="configuration-app-action">${entry.enabled && entry.tabId ? 'Open' : 'View'}</span></button>`).join('') || `<div class="configuration-app-empty">${(globalThis.PlatformLanguage?.text("settings","m_31c05eed47e0eb","No apps match this search.") ?? "No apps match this search.")}</div>`;
+        list.innerHTML = matches.map((entry) => `<button class="configuration-app" type="button" data-configuration-app="${escapeHtml(entry.key)}"><span class="configuration-app-icon"><i class="fas ${escapeHtml(entry.icon || 'fa-circle')}"></i></span><span class="configuration-app-copy"><strong>${escapeHtml(entry.label || entry.key)}</strong><span>${escapeHtml(entry.stub || entry.description || entry.category || '')}</span></span><span class="configuration-app-action">${entry.enabled && entry.tabId ? 'Open' : 'View'}</span></button>`).join('') || `<div class="configuration-app-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_31c05eed47e0eb","No apps match this search.") ?? "No apps match this search.")}</div>`;
         list.querySelectorAll('[data-configuration-app]').forEach((button) => button.addEventListener('click', () => {
           const entry = catalog.find((item) => item.key === button.dataset.configurationApp);
           if (!entry) return;
@@ -14432,7 +14223,7 @@
           else window.Portal?.appCatalog?.open?.(entry.key, { source:'configuration-apps' });
         }));
       };
-      host.innerHTML = `<section class="configuration-apps"><header class="configuration-apps-head"><h3>${(globalThis.PlatformLanguage?.text("settings","m_66652419b041ca","Apps") ?? "Apps")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_4b67fa8b0a0635","Search the apps available to your organization and open the one you need.") ?? "Search the apps available to your organization and open the one you need.")}</p></header><label class="configuration-app-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_8561fb5599f851","Search apps, like Canvassing or Web Editor") ?? "Search apps, like Canvassing or Web Editor")}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_76dcd11f27c6fe","Search apps") ?? "Search apps")}" data-configuration-app-search></label><div class="configuration-app-list" data-configuration-app-list></div></section>`;
+      host.innerHTML = `<section class="configuration-apps"><header class="configuration-apps-head"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_66652419b041ca","Apps") ?? "Apps")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_4b67fa8b0a0635","Search the apps available to your organization and open the one you need.") ?? "Search the apps available to your organization and open the one you need.")}</p></header><label class="configuration-app-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_8561fb5599f851","Search apps, like Canvassing or Web Editor") ?? "Search apps, like Canvassing or Web Editor")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_76dcd11f27c6fe","Search apps") ?? "Search apps")}" data-configuration-app-search></label><div class="configuration-app-list" data-configuration-app-list></div></section>`;
       const search = host.querySelector('[data-configuration-app-search]');
       search?.addEventListener('input', () => draw(search.value));
       draw();
@@ -14453,7 +14244,7 @@
         : (availableViews.some((view) => view.id === configurationView) ? configurationView : availableViews[0].id);
       if (paneConfiguration.dataset.configurationMounted !== '1') {
         paneConfiguration.dataset.configurationMounted = '1';
-        paneConfiguration.innerHTML = `<nav class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_030b523f2428e2","Configuration settings") ?? "Configuration settings")}">${String(availableViews.map((view) => `<button class="fm-settings-subtab" type="button" data-configuration-view="${view.id}">${view.label}</button>`).join(''))}</nav><div data-configuration-pane="custom_fields" ${String(canCustomFields ? '' : 'hidden')}></div><div data-configuration-pane="terminology" ${String(canTerminology ? '' : 'hidden')}></div><div data-configuration-pane="projects"></div><div data-configuration-pane="celebrations"></div><div data-configuration-pane="insights"></div><div data-configuration-pane="apps"></div>`;
+        paneConfiguration.innerHTML = `<nav class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_030b523f2428e2","Configuration settings") ?? "Configuration settings")}">${String(availableViews.map((view) => `<button class="fm-settings-subtab" type="button" data-configuration-view="${view.id}">${view.label}</button>`).join(''))}</nav><div data-configuration-pane="custom_fields" ${String(canCustomFields ? '' : 'hidden')}></div><div data-configuration-pane="terminology" ${String(canTerminology ? '' : 'hidden')}></div><div data-configuration-pane="projects"></div><div data-configuration-pane="celebrations"></div><div data-configuration-pane="insights"></div><div data-configuration-pane="apps"></div>`;
         paneCustomFields = paneConfiguration.querySelector('[data-configuration-pane="custom_fields"]');
         paneTerminology = paneConfiguration.querySelector('[data-configuration-pane="terminology"]');
         paneConfiguration.querySelectorAll('[data-configuration-view]').forEach((button) => button.addEventListener('click', () => {
@@ -14477,12 +14268,12 @@
       if (nextView === 'projects') {
         const host = paneConfiguration.querySelector('[data-configuration-pane="projects"]');
         if (window.FirstMateCrmSettings?.mount) window.FirstMateCrmSettings.mount(host, { orgId:currentOrgId(), branchId:currentBranchId(), showToast, fixedView:'projects', views:['projects'], routeSub:'configuration' });
-        else host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_ffe4aada26b473","Project configuration failed to load.") ?? "Project configuration failed to load.")}</div>`;
+        else host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_ffe4aada26b473","Project configuration failed to load.") ?? "Project configuration failed to load.")}</div>`;
       }
       if (nextView === 'celebrations') {
         const host = paneConfiguration.querySelector('[data-configuration-pane="celebrations"]');
         if (window.FirstMateCrmSettings?.mount) window.FirstMateCrmSettings.mount(host, { orgId:currentOrgId(), branchId:currentBranchId(), showToast, fixedView:'misc', views:['misc'], routeSub:'configuration' });
-        else host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_f3f0eff9948a2f","Celebration configuration failed to load.") ?? "Celebration configuration failed to load.")}</div>`;
+        else host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_f3f0eff9948a2f","Celebration configuration failed to load.") ?? "Celebration configuration failed to load.")}</div>`;
       }
       if (nextView === 'insights') {
         const host = paneConfiguration.querySelector('[data-configuration-pane="insights"]');
@@ -14491,7 +14282,7 @@
           if (window.FirstMateInsights?.mountSettings) {
             window.FirstMateInsights.mountSettings(host, { orgId:currentOrgId(), branchId:currentBranchId() });
           } else {
-            host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_2665fd40acaa87","Insights settings failed to load.") ?? "Insights settings failed to load.")}</div>`;
+            host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_2665fd40acaa87","Insights settings failed to load.") ?? "Insights settings failed to load.")}</div>`;
           }
         }
       }
@@ -14505,7 +14296,7 @@
     function renderContactsSettings(){
       if (!paneContacts || paneContacts.dataset.contactsMounted === '1') return;
       if (!window.FirstMateContactsSettings?.mount) {
-        paneContacts.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_c4d1f243ee3e79","Contacts settings failed to load.") ?? "Contacts settings failed to load.")}</div>`;
+        paneContacts.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_c4d1f243ee3e79","Contacts settings failed to load.") ?? "Contacts settings failed to load.")}</div>`;
         return;
       }
       window.FirstMateContactsSettings.mount(paneContacts, {
@@ -14518,7 +14309,7 @@
     function renderAutomationsSettings(){
       if (!paneAutomations || paneAutomations.dataset.automationsMounted === '1') return;
       if (!window.FirstMateAutomationsSettings?.mount) {
-        paneAutomations.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_27b2d1395677a6","Automation settings failed to load.") ?? "Automation settings failed to load.")}</div>`;
+        paneAutomations.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_27b2d1395677a6","Automation settings failed to load.") ?? "Automation settings failed to load.")}</div>`;
         return;
       }
       window.FirstMateAutomationsSettings.mount(paneAutomations, {
@@ -14535,7 +14326,7 @@
         return;
       }
       if (!window.FirstMateFeedbackSettings?.mount) {
-        paneFeedback.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_ad36fd39310972","Feedback settings failed to load.") ?? "Feedback settings failed to load.")}</div>`;
+        paneFeedback.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_ad36fd39310972","Feedback settings failed to load.") ?? "Feedback settings failed to load.")}</div>`;
         return;
       }
       window.FirstMateFeedbackSettings.mount(paneFeedback, {
@@ -14552,7 +14343,7 @@
     function renderEquipmentSettings(){
       if (!paneEquipment || paneEquipment.dataset.equipmentMounted === '1') return;
       if (!window.FirstMateEquipmentSettings?.mount) {
-        paneEquipment.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_6442436a311e15","Equipment settings failed to load.") ?? "Equipment settings failed to load.")}</div>`;
+        paneEquipment.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_6442436a311e15","Equipment settings failed to load.") ?? "Equipment settings failed to load.")}</div>`;
         return;
       }
       paneEquipment.dataset.equipmentMounted = '1';
@@ -14570,7 +14361,7 @@
         return;
       }
       if (!window.FirstMateLiveChatSettings?.mount) {
-        paneLiveChat.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_ec40fb2c1bd43b","Live chat settings failed to load.") ?? "Live chat settings failed to load.")}</div>`;
+        paneLiveChat.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_ec40fb2c1bd43b","Live chat settings failed to load.") ?? "Live chat settings failed to load.")}</div>`;
         return;
       }
       paneLiveChat.dataset.liveChatMounted = '1';
@@ -14592,7 +14383,7 @@
         return;
       }
       if (!window.FirstMateCommsSettings?.mount) {
-        paneComms.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_7ece649be9adf9","Communications settings failed to load.") ?? "Communications settings failed to load.")}</div>`;
+        paneComms.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_7ece649be9adf9","Communications settings failed to load.") ?? "Communications settings failed to load.")}</div>`;
         return;
       }
       paneComms.dataset.commsMounted = '1';
@@ -14627,7 +14418,7 @@
         return;
       }
       if (!window.AssistantAPI) {
-        paneAssistant.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_509d484132439c","Assistant settings failed to load.") ?? "Assistant settings failed to load.")}</div>`;
+        paneAssistant.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_509d484132439c","Assistant settings failed to load.") ?? "Assistant settings failed to load.")}</div>`;
         return;
       }
       if (!canCompany) {
@@ -14635,7 +14426,7 @@
         renderAssistantPersonalization(paneAssistant);
         return;
       }
-      paneAssistant.innerHTML = `<div class="cs-note" style="padding:18px;">${(globalThis.PlatformLanguage?.text("settings","m_0637168da6416c","Loading assistant settings...") ?? "Loading assistant settings...")}</div>`;
+      paneAssistant.innerHTML = `<div class="cs-note" style="padding:18px;">${(globalThis.PlatformLanguage?.htmlText("settings","m_0637168da6416c","Loading assistant settings...") ?? "Loading assistant settings...")}</div>`;
       const toggleRow = (key, label, hint, checked) => `
         <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f2f4f7;cursor:pointer;">
           <input type="checkbox" role="switch" data-assistant-key="${key}" ${checked ? 'checked' : ''}>
@@ -14649,26 +14440,26 @@
         const scope = s.data_scope || {};
         paneAssistant.innerHTML = `
           <div class="cs-card">
-            <h3 style="display:flex;align-items:center;gap:10px;margin-top:0;"><i class="fas fa-wand-magic-sparkles" style="color:var(--primary-readable, var(--primary,#175cd3));"></i>${(globalThis.PlatformLanguage?.text("settings","m_4c5192272146ed"," AI Assistant") ?? " AI Assistant")}</h3>
-            <div class="cs-note" style="margin-bottom:14px;">The company-wide assistant in the top bar. Powered by GPT-6 Luna. Its published data and actions follow each user's permissions.</div>
+            <h3 style="display:flex;align-items:center;gap:10px;margin-top:0;"><i class="fas fa-wand-magic-sparkles" style="color:var(--primary-readable, var(--primary,#175cd3));"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c5192272146ed"," AI Assistant") ?? " AI Assistant")}</h3>
+            <div class="cs-note" style="margin-bottom:14px;">${(globalThis.PlatformLanguage?.htmlText("settings","m_1a243695cb00b1","The company-wide assistant in the top bar. Powered by GPT-6 Luna. Its published data and actions follow each user's permissions.") ?? "The company-wide assistant in the top bar. Powered by GPT-6 Luna. Its published data and actions follow each user's permissions.")}</div>
             ${String(toggleRow('enabled', 'Assistant enabled', 'Master switch — when off, the assistant refuses to run for everyone.', s.enabled !== false))}
             <div class="cs-field" style="margin:14px 0;">
-              <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">${(globalThis.PlatformLanguage?.text("settings","m_809927621a5934","Assistant name") ?? "Assistant name")}</label>
+              <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">${(globalThis.PlatformLanguage?.htmlText("settings","m_809927621a5934","Assistant name") ?? "Assistant name")}</label>
               <input type="text" data-assistant-field="assistant_name" value="${String(escapeHtml(s.assistant_name || ''))}" maxlength="80" style="width:100%;max-width:360px;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;font:inherit;box-sizing:border-box;">
             </div>
             <div class="cs-field" style="margin:14px 0;">
-              <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">Organization instructions</label>
-              <textarea data-assistant-field="custom_instructions" rows="4" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_8c9dc285156665","Anything the assistant should always know or do for your company...") ?? "Anything the assistant should always know or do for your company...")}" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;font:inherit;box-sizing:border-box;resize:vertical;">${String(escapeHtml(s.custom_instructions || ''))}</textarea>
+              <label style="display:block;font-size:12px;font-weight:800;color:#475467;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;">${(globalThis.PlatformLanguage?.htmlText("settings","m_e83b9355dd6244","Organization instructions") ?? "Organization instructions")}</label>
+              <textarea data-assistant-field="custom_instructions" rows="4" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_8c9dc285156665","Anything the assistant should always know or do for your company...") ?? "Anything the assistant should always know or do for your company...")}" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;font:inherit;box-sizing:border-box;resize:vertical;">${String(escapeHtml(s.custom_instructions || ''))}</textarea>
             </div>
           </div>
           <div class="cs-card">
-            <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.text("settings","m_bda1d0ed0e9469","What it can do") ?? "What it can do")}</h3>
+            <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_bda1d0ed0e9469","What it can do") ?? "What it can do")}</h3>
             ${String(toggleRow('allow_actions', 'Take actions', 'Create and complete to-dos, move pipeline stages, schedule project events, fire automation events.', s.allow_actions !== false))}
             ${String(toggleRow('allow_notes', 'Post project notes', 'Write internal notes on projects when asked.', s.allow_notes !== false))}
             ${String(toggleRow('allow_messaging', 'Send customer messages', 'Send SMS/email to customers (always confirmed in the chat first). Also requires the Assistant Customer Messaging feature in Features & Apps.', s.allow_messaging === true))}
           </div>
           <div class="cs-card">
-            <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.text("settings","m_a4de02818ea054","What it can see") ?? "What it can see")}</h3>
+            <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_a4de02818ea054","What it can see") ?? "What it can see")}</h3>
             ${String(toggleRow('scope.projects', 'Projects', 'Project details, stages, contacts on projects.', scope.projects !== false))}
             ${String(toggleRow('scope.contacts', 'Contacts', 'Customer and contact search.', scope.contacts !== false))}
             ${String(toggleRow('scope.stats', 'Stats', 'Metrics from the stats warehouse.', scope.stats !== false))}
@@ -14676,7 +14467,7 @@
             ${String(toggleRow('scope.schedule', 'Schedule', 'Calendar and project events.', scope.schedule !== false))}
             ${String(toggleRow('scope.activity', 'Activity feed', 'Recent platform activity/events.', scope.activity !== false))}
             <div style="margin-top:16px;display:flex;align-items:center;gap:10px;">
-              <button type="button" class="cs-btn primary" data-assistant-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_11eb16cbb649ff"," Save Assistant Settings") ?? " Save Assistant Settings")}</button>
+              <button type="button" class="cs-btn primary" data-assistant-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_11eb16cbb649ff"," Save Assistant Settings") ?? " Save Assistant Settings")}</button>
               <span class="cs-note" data-assistant-status></span>
             </div>
           </div>
@@ -14731,13 +14522,13 @@
       if (!host) return;
       try {
         const result = await window.AssistantAPI.globalInstructions.load(currentOrgId());
-        host.innerHTML = `<div class="cs-card"><h3>Platform-wide instructions</h3><p class="cs-note">These apply to the global assistant in every company. Only a platform administrator can edit them.</p><textarea data-global-instructions rows="4" maxlength="8000" ${result.can_edit ? '' : 'readonly'} style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(result.instructions || '')}</textarea>${result.can_edit ? '<button type="button" class="cs-btn primary" data-global-save>Save platform instructions</button>' : ''}<span class="cs-note" data-global-status></span></div>`;
+        host.innerHTML = `<div class="cs-card"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_8bad1d5a384a61","Platform-wide instructions") ?? "Platform-wide instructions")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_2eb20eed245d34","These apply to the global assistant in every company. Only a platform administrator can edit them.") ?? "These apply to the global assistant in every company. Only a platform administrator can edit them.")}</p><textarea data-global-instructions rows="4" maxlength="8000" ${result.can_edit ? '' : 'readonly'} style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(result.instructions || '')}</textarea>${result.can_edit ? `<button type="button" class="cs-btn primary" data-global-save>${(globalThis.PlatformLanguage?.htmlText("settings","m_384a9ef1063a0c","Save platform instructions") ?? "Save platform instructions")}</button>` : ''}<span class="cs-note" data-global-status></span></div>`;
         host.querySelector('[data-global-save]')?.addEventListener('click', async (event) => {
           const button = event.currentTarget;
           button.disabled = true;
           try {
             await window.AssistantAPI.globalInstructions.save(currentOrgId(), host.querySelector('[data-global-instructions]').value);
-            host.querySelector('[data-global-status]').textContent = 'Saved.';
+            host.querySelector('[data-global-status]').textContent = (globalThis.PlatformLanguage?.text("settings","m_47bbabb50774cf","Saved.") ?? "Saved.");
           } catch (error) { host.querySelector('[data-global-status]').textContent = error?.message || 'Save failed.'; }
           finally { button.disabled = false; }
         });
@@ -14746,7 +14537,7 @@
 
     async function renderAssistantPersonalization(host){
       if (!host) return;
-      host.innerHTML = '<div class="cs-card">Loading your assistant preferences...</div>';
+      host.innerHTML = `<div class="cs-card">${(globalThis.PlatformLanguage?.htmlText("settings","m_15fa0ce01cb4c7","Loading your assistant preferences...") ?? "Loading your assistant preferences...")}</div>`;
       try {
         const [profileResult, memoryResult] = await Promise.all([
           window.AssistantAPI.profile.load(currentOrgId()),
@@ -14754,10 +14545,10 @@
         ]);
         const profile = profileResult.profile || {};
         const memories = Array.isArray(memoryResult.memories) ? memoryResult.memories : [];
-        host.innerHTML = `<div class="cs-card"><h3>Your assistant instructions</h3><p class="cs-note">These apply only when the assistant talks with you. Platform rules and company instructions still apply.</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;">Use saved memories in my conversations<input type="checkbox" role="switch" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}></label><button type="button" class="cs-btn primary" data-profile-save>Save my preferences</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>Saved memories</h3><p class="cs-note">You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">Save</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">Delete</button></div>`).join('') : '<p class="cs-note">No saved memories.</p>'}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="Add a memory" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>Add</button>${memories.length ? '<button type="button" class="cs-btn" data-memory-clear>Clear all</button>' : ''}</div><span class="cs-note" data-memory-status></span></div>`;
+        host.innerHTML = `<div class="cs-card"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_085c989e5be0a9","Your assistant instructions") ?? "Your assistant instructions")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_b40faf5a1d330e","These apply only when the assistant talks with you. Platform rules and company instructions still apply.") ?? "These apply only when the assistant talks with you. Platform rules and company instructions still apply.")}</p><textarea data-user-instructions rows="4" maxlength="4000" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:8px 11px;box-sizing:border-box;resize:vertical;">${escapeHtml(profile.instructions || '')}</textarea><label style="display:flex;align-items:center;gap:8px;margin:12px 0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_13afa1aaa54ff7","Use saved memories in my conversations") ?? "Use saved memories in my conversations")}<input type="checkbox" role="switch" data-memory-enabled ${profile.memory_enabled !== false ? 'checked' : ''}></label><button type="button" class="cs-btn primary" data-profile-save>${(globalThis.PlatformLanguage?.htmlText("settings","m_5fba4c5fcd5a8e","Save my preferences") ?? "Save my preferences")}</button><span class="cs-note" data-profile-status></span></div><div class="cs-card"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_eb56489e082fd9","Saved memories") ?? "Saved memories")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_46f9598265937b","You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.") ?? "You control what the assistant remembers about you. Turning memory off keeps entries stored but leaves them out of conversations.")}</p><div data-memory-list>${memories.length ? memories.map((m) => `<div style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input data-memory-text="${escapeHtml(m.id)}" value="${escapeHtml(m.content)}" maxlength="500" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-update="${escapeHtml(m.id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_5bab3e72de1ebf","Save") ?? "Save")}</button><button type="button" class="cs-btn" data-memory-delete="${escapeHtml(m.id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_4fc60207629a44","Delete") ?? "Delete")}</button></div>`).join('') : `<p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_06d02b720eb265","No saved memories.") ?? "No saved memories.")}</p>`}</div><div style="display:flex;gap:8px;"><input data-memory-new maxlength="500" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_0a3f7a80f1c622","Add a memory") ?? "Add a memory")}" style="flex:1;min-width:0;border:1px solid #d0d5dd;border-radius:8px;padding:8px;"><button type="button" class="cs-btn" data-memory-add>${(globalThis.PlatformLanguage?.htmlText("settings","m_c807a71e1c06f5","Add") ?? "Add")}</button>${memories.length ? `<button type="button" class="cs-btn" data-memory-clear>${(globalThis.PlatformLanguage?.htmlText("settings","m_df4c9025f9cc03","Clear all") ?? "Clear all")}</button>` : ''}</div><span class="cs-note" data-memory-status></span></div>`;
         host.querySelector('[data-profile-save]')?.addEventListener('click', async () => {
           const status = host.querySelector('[data-profile-status]');
-          try { await window.AssistantAPI.profile.save(currentOrgId(), { instructions:host.querySelector('[data-user-instructions]').value, memory_enabled:host.querySelector('[data-memory-enabled]').checked }); status.textContent = 'Saved.'; }
+          try { await window.AssistantAPI.profile.save(currentOrgId(), { instructions:host.querySelector('[data-user-instructions]').value, memory_enabled:host.querySelector('[data-memory-enabled]').checked }); status.textContent = (globalThis.PlatformLanguage?.text("settings","m_47bbabb50774cf","Saved.") ?? "Saved."); }
           catch (error) { status.textContent = error?.message || 'Save failed.'; }
         });
         host.querySelector('[data-memory-add]')?.addEventListener('click', async () => {
@@ -14775,7 +14566,7 @@
           catch (error) { host.querySelector('[data-memory-status]').textContent = error?.message || 'Could not delete memory.'; }
         }));
         host.querySelector('[data-memory-clear]')?.addEventListener('click', async () => {
-          if (!window.confirm('Delete all your saved assistant memories?')) return;
+          if (!window.confirm((globalThis.PlatformLanguage?.text("settings","m_6c1b290f1ddee9","Delete all your saved assistant memories?") ?? "Delete all your saved assistant memories?"))) return;
           try { await window.AssistantAPI.memories.clear(currentOrgId()); renderAssistantPersonalization(host); }
           catch (error) { host.querySelector('[data-memory-status]').textContent = error?.message || 'Could not clear memories.'; }
         });
@@ -14800,8 +14591,8 @@
         if (!agents.length) return;
         host.innerHTML = `
           <div class="cs-card">
-            <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.text("settings","m_a882d4f7f98af4","All AI agents") ?? "All AI agents")}</h3>
-            <div class="cs-note" style="margin-bottom:8px;">${(globalThis.PlatformLanguage?.text("settings","m_85d3672bed1ccc","Every agent on the platform runs on one shared engine with centralized settings. Common controls here; agent-specific settings stay on their own tabs.") ?? "Every agent on the platform runs on one shared engine with centralized settings. Common controls here; agent-specific settings stay on their own tabs.")}</div>
+            <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_a882d4f7f98af4","All AI agents") ?? "All AI agents")}</h3>
+            <div class="cs-note" style="margin-bottom:8px;">${(globalThis.PlatformLanguage?.htmlText("settings","m_85d3672bed1ccc","Every agent on the platform runs on one shared engine with centralized settings. Common controls here; agent-specific settings stay on their own tabs.") ?? "Every agent on the platform runs on one shared engine with centralized settings. Common controls here; agent-specific settings stay on their own tabs.")}</div>
             ${String(agents.map((agent) => {
               const settings = agent.settings || {};
               const meta = AGENT_META[agent.id] || {};
@@ -14816,7 +14607,7 @@
                     <button type="button" class="cs-btn" data-agent-save><i class="fas fa-save"></i></button>
                   </div>
                   <small style="color:#667085;">${escapeHtml(agent.description || '')}</small>
-                  <textarea data-agent-instructions rows="2" placeholder="Company instructions for this agent..." style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;resize:vertical;">${escapeHtml(settings.custom_instructions || '')}</textarea>
+                  <textarea data-agent-instructions rows="2" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_960f70cf4ed64a","Company instructions for this agent...") ?? "Company instructions for this agent...")}" style="width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;resize:vertical;">${escapeHtml(settings.custom_instructions || '')}</textarea>
                   ${meta.hint ? `<small style="color:#98a2b3;">${escapeHtml(meta.hint)}</small>` : ''}
                   <span class="cs-note" data-agent-status></span>
                 </div>
@@ -14857,7 +14648,7 @@
     function renderChannelsSettings(){
       if (!paneChannels || paneChannels.dataset.channelsMounted === '1') return;
       if (!window.FirstMateChannelsSettings?.mount) {
-        paneChannels.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_b756c17d5cd088","Channels settings failed to load.") ?? "Channels settings failed to load.")}</div>`;
+        paneChannels.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_b756c17d5cd088","Channels settings failed to load.") ?? "Channels settings failed to load.")}</div>`;
         return;
       }
       paneChannels.dataset.channelsMounted = '1';
@@ -14872,7 +14663,7 @@
       if (!paneCustomFields || paneCustomFields.dataset.customFieldsMounted === '1') return;
       paneCustomFields.dataset.customFieldsMounted = '1';
       if (!window.FirstMateCustomFields?.mountSettings) {
-        paneCustomFields.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_363893ab04d742","Custom field settings failed to load.") ?? "Custom field settings failed to load.")}</div>`;
+        paneCustomFields.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_363893ab04d742","Custom field settings failed to load.") ?? "Custom field settings failed to load.")}</div>`;
         return;
       }
       window.FirstMateCustomFields.mountSettings(paneCustomFields, {
@@ -14885,7 +14676,7 @@
     function renderPayrollSettings(){
       if (!panePayroll || panePayroll.dataset.payrollSettingsMounted === '1') return;
       if (!window.FirstMatePayrollSettings?.mount) {
-        panePayroll.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.text("settings","m_f95dc81fcba26e","Payroll settings failed to load.") ?? "Payroll settings failed to load.")}</div>`;
+        panePayroll.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_f95dc81fcba26e","Payroll settings failed to load.") ?? "Payroll settings failed to load.")}</div>`;
         return;
       }
       window.FirstMatePayrollSettings.mount(panePayroll, {
@@ -14909,7 +14700,7 @@
       flags.canvassing = false;
       const firstPane = flags.website ? 'website' : (flags.email ? 'email' : '');
       if (!orgId || !firstPane || ((flags.email && !window.EmailAPI?.leadImport) || (flags.website && !window.LeadIntakeAPI?.settings))) {
-        leadPane.innerHTML = `<div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_7bd18b4fc6179c","Lead import settings are unavailable.") ?? "Lead import settings are unavailable.")}</div>`;
+        leadPane.innerHTML = `<div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_7bd18b4fc6179c","Lead import settings are unavailable.") ?? "Lead import settings are unavailable.")}</div>`;
         return;
       }
       const fontOptions = ['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3'];
@@ -15365,17 +15156,17 @@
         const email = leadSettings?.inbound_email || 'Unavailable';
         panelEmail.innerHTML = `
           <div class="cs-row">
-            <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_e75166ba736127","Unique Lead Inbox") ?? "Unique Lead Inbox")}</div>
+            <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e75166ba736127","Unique Lead Inbox") ?? "Unique Lead Inbox")}</div>
             <div class="li-emailBox">
               <div class="li-emailCopyBox">
                 <div class="li-emailText" id="liInboundEmail">${String(escapeHtml(email))}</div>
                 <button class="li-copyIcon" id="liCopyEmail" type="button" data-fm-tooltip="Copy lead inbox email"><i class="fas fa-copy"></i></button>
               </div>
-              <div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_b7c6e6fdcb1dc0","Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.") ?? "Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.")}</div>
+              <div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_b7c6e6fdcb1dc0","Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.") ?? "Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.")}</div>
             </div>
             <div class="li-actions">
-              <button class="cs-btn ghost" id="liRefresh" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
-              <button class="cs-btn ghost" id="liRegenerate" type="button"><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_b9d6199d2904c0"," Regenerate") ?? " Regenerate")}</button>
+              <button class="cs-btn ghost" id="liRefresh" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
+              <button class="cs-btn ghost" id="liRegenerate" type="button"><i class="fas fa-arrows-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b9d6199d2904c0"," Regenerate") ?? " Regenerate")}</button>
             </div>
             <div class="li-muted" id="liStatus">${String(leadSettings?.enabled === false ? 'Email lead import is disabled.' : '')}</div>
           </div>
@@ -15628,7 +15419,7 @@
             case 'welcome':
               return `<div class="li-estimate-brand">${logo}<div><h3>${escapeHtml(copy.headline || step.title)}</h3><p>${escapeHtml(copy.subheadline || '')}</p></div><button type="button" class="li-estimate-primary" data-estimate-next>${escapeHtml(copy.start_label || 'Get started')} <i class="fas fa-arrow-right"></i></button></div>`;
             case 'address':
-              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))}</h3><div class="li-estimate-map-wrap"><div class="li-estimate-map" id="liEstimateMap"></div>${String(maskImageHtml)}<div class="li-estimate-addressbar"><input id="liEstimateAddress" value="${String(escapeHtml(addressText))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_e6eb8828753699","Enter your street address") ?? "Enter your street address")}" autocomplete="off"><button type="button" class="li-estimate-primary ghost" data-estimate-next>${String(escapeHtml(st.previewLoading ? 'Loading...' : 'Continue'))}</button></div></div>${String(previewUnavailable ? `<div class="li-estimate-note">${escapeHtml(previewUnavailable)}</div>` : '')}</div>`;
+              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))}</h3><div class="li-estimate-map-wrap"><div class="li-estimate-map" id="liEstimateMap"></div>${String(maskImageHtml)}<div class="li-estimate-addressbar"><input id="liEstimateAddress" value="${String(escapeHtml(addressText))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_e6eb8828753699","Enter your street address") ?? "Enter your street address")}" autocomplete="off"><button type="button" class="li-estimate-primary ghost" data-estimate-next>${String(escapeHtml(st.previewLoading ? 'Loading...' : 'Continue'))}</button></div></div>${String(previewUnavailable ? `<div class="li-estimate-note">${escapeHtml(previewUnavailable)}</div>` : '')}</div>`;
             case 'slope':
             case 'roof_age':
             case 'damage':
@@ -15646,17 +15437,17 @@
               return `<div class="li-estimate-body"><h3 class="li-estimate-title">${escapeHtml(page.title || step.title)}</h3><div class="li-estimate-image-grid">${options.map((opt) => estimateImageChoice(field, opt.value || slugLabel(opt.label), opt.label || opt.value, opt.image || estimateMaterialImages[opt.value] || estimateMaterialImages.asphalt)).join('')}</div></div>`;
             }
             case 'project_info':
-              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))} <span style="font-weight:800;color:#667085">${(globalThis.PlatformLanguage?.text("settings","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></h3><textarea class="li-estimate-input wide" id="liEstimateProjectInfo" rows="7" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_00b3390b9f0e69","Provide any additional details which will help us prepare your roofing estimate") ?? "Provide any additional details which will help us prepare your roofing estimate")}">${String(escapeHtml(st.answers.projectInfo || ''))}</textarea><button type="button" class="li-estimate-primary" data-estimate-next>${(globalThis.PlatformLanguage?.text("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>`;
+              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))} <span style="font-weight:800;color:#667085">${(globalThis.PlatformLanguage?.htmlText("settings","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></h3><textarea class="li-estimate-input wide" id="liEstimateProjectInfo" rows="7" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_00b3390b9f0e69","Provide any additional details which will help us prepare your roofing estimate") ?? "Provide any additional details which will help us prepare your roofing estimate")}">${String(escapeHtml(st.answers.projectInfo || ''))}</textarea><button type="button" class="li-estimate-primary" data-estimate-next>${(globalThis.PlatformLanguage?.htmlText("settings","m_55ff00ed9ff361","Continue") ?? "Continue")}</button></div>`;
             case 'contact':
-              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))}</h3><div class="li-estimate-form"><input class="li-estimate-input wide" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_6566cc5c5e7040","Enter your full name") ?? "Enter your full name")}"><input class="li-estimate-input" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_2d4c0bc5bf63a2","Enter your email") ?? "Enter your email")}"><input class="li-estimate-input" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_7d117e3bad4b60","Enter your phone number") ?? "Enter your phone number")}"><label class="li-estimate-note wide"><input type="checkbox">${(globalThis.PlatformLanguage?.text("settings","m_05da9f48d1adc3"," I agree to be contacted about my roofing estimate.") ?? " I agree to be contacted about my roofing estimate.")}</label></div><button type="button" class="li-estimate-primary" data-estimate-next>${String(escapeHtml(copy.submit_label || 'Get my estimate'))}</button></div>`;
+              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))}</h3><div class="li-estimate-form"><input class="li-estimate-input wide" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6566cc5c5e7040","Enter your full name") ?? "Enter your full name")}"><input class="li-estimate-input" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_2d4c0bc5bf63a2","Enter your email") ?? "Enter your email")}"><input class="li-estimate-input" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_7d117e3bad4b60","Enter your phone number") ?? "Enter your phone number")}"><label class="li-estimate-note wide"><input type="checkbox">${(globalThis.PlatformLanguage?.htmlText("settings","m_05da9f48d1adc3"," I agree to be contacted about my roofing estimate.") ?? " I agree to be contacted about my roofing estimate.")}</label></div><button type="button" class="li-estimate-primary" data-estimate-next>${String(escapeHtml(copy.submit_label || 'Get my estimate'))}</button></div>`;
             default:
-              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))}</h3><div class="li-estimate-results"><div class="li-estimate-result-card"><div class="li-estimate-note">${(globalThis.PlatformLanguage?.text("settings","m_6aaade1a5b6e2c","Estimated replacement range") ?? "Estimated replacement range")}</div><div class="li-estimate-price">${String(low && high ? `$${low.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} - $${high.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())}` : 'Preview unavailable')}</div><p class="li-estimate-sub">${String(escapeHtml(previewUnavailable || 'A project specialist can confirm materials, measurements, and final pricing.'))}</p><button type="button" class="li-estimate-primary">${(globalThis.PlatformLanguage?.text("settings","m_bb3cf3d520f72c","Request proposal") ?? "Request proposal")}</button></div><div class="li-estimate-summary"><div><span>${(globalThis.PlatformLanguage?.text("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><b>${String(escapeHtml(addressText || 'Selected address'))}</b></div><div><span>${(globalThis.PlatformLanguage?.text("settings","m_b4a198f9d6044c","Roof area") ?? "Roof area")}</span><b>${String(sqft ? `${sqft.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} sq ft` : 'Unavailable')}</b></div></div></div></div>`;
+              return `<div class="li-estimate-body"><h3 class="li-estimate-title">${String(escapeHtml(step.title))}</h3><div class="li-estimate-results"><div class="li-estimate-result-card"><div class="li-estimate-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_6aaade1a5b6e2c","Estimated replacement range") ?? "Estimated replacement range")}</div><div class="li-estimate-price">${String(low && high ? `$${low.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} - $${high.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())}` : 'Preview unavailable')}</div><p class="li-estimate-sub">${String(escapeHtml(previewUnavailable || 'A project specialist can confirm materials, measurements, and final pricing.'))}</p><button type="button" class="li-estimate-primary">${(globalThis.PlatformLanguage?.htmlText("settings","m_bb3cf3d520f72c","Request proposal") ?? "Request proposal")}</button></div><div class="li-estimate-summary"><div><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><b>${String(escapeHtml(addressText || 'Selected address'))}</b></div><div><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_b4a198f9d6044c","Roof area") ?? "Roof area")}</span><b>${String(sqft ? `${sqft.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} sq ft` : 'Unavailable')}</b></div></div></div></div>`;
           }
         })();
         return `
           <div class="li-estimate-shell" style="--ie-primary:${escapeHtml(primary)};--ie-text:${escapeHtml(textColor)};--li-preview-font:${escapeHtml(fontStack(style.font_family))}">
             <div class="li-estimate-card">
-              ${stepIndex > 0 ? `<div class="li-estimate-top"><button type="button" class="li-estimate-back" data-estimate-back><i class="fas fa-chevron-left"></i></button><div class="li-estimate-step">${((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_bdc261aa498369",`Step ${v0} of ${v1}`,{v0,v1}) ?? `Step ${v0} of ${v1}`)(stepIndex + 1,flowSteps.length)}</div></div><div class="li-estimate-progress"><span style="width:${String(progress)}%"></span></div>` : ''}
+              ${stepIndex > 0 ? `<div class="li-estimate-top"><button type="button" class="li-estimate-back" data-estimate-back><i class="fas fa-chevron-left"></i></button><div class="li-estimate-step">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_bdc261aa498369",`Step ${v0} of ${v1}`,{v0,v1}) ?? `Step ${v0} of ${v1}`)(stepIndex + 1,flowSteps.length)}</div></div><div class="li-estimate-progress"><span style="width:${String(progress)}%"></span></div>` : ''}
               ${body}
             </div>
           </div>
@@ -15845,11 +15636,11 @@
             </div>
             <div class="li-preview-body">
               <div class="li-preview-contact">
-                <input class="li-preview-field" value="Jane Homeowner" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_8cf345002184e5","Name") ?? "Name")}">
-                <input class="li-preview-field" value="(555) 123-4567" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_ed04c65845180f","Phone") ?? "Phone")}">
-                <input class="li-preview-field" value="jane@example.com" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_5d2b9327181e33","Email") ?? "Email")}">
+                <input class="li-preview-field" value="Jane Homeowner" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}">
+                <input class="li-preview-field" value="(555) 123-4567" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_ed04c65845180f","Phone") ?? "Phone")}">
+                <input class="li-preview-field" value="jane@example.com" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}">
               </div>
-              <input class="li-preview-field wide" value="123 Main Street" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_53d803cdbe9ab1","Address") ?? "Address")}">
+              <input class="li-preview-field wide" value="123 Main Street" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}">
               <div class="li-preview-booking">
                 <div class="li-preview-mobile-days">${String(mobileDays)}</div>
                 <div class="li-preview-calendar">
@@ -15858,7 +15649,7 @@
                 </div>
                 <div class="li-preview-timepanel">
                   <div class="li-preview-time-title">${String(escapeHtml(selected.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</div>
-                  <div class="li-preview-slots" data-preview-slots="${String(escapeHtml(form.id || ''))}"><div class="li-preview-slot">${(globalThis.PlatformLanguage?.text("settings","m_284e580b5cc6ed","Loading") ?? "Loading")}</div></div>
+                  <div class="li-preview-slots" data-preview-slots="${String(escapeHtml(form.id || ''))}"><div class="li-preview-slot">${(globalThis.PlatformLanguage?.htmlText("settings","m_284e580b5cc6ed","Loading") ?? "Loading")}</div></div>
                   <div class="li-preview-note" data-preview-note></div>
                   <button type="button" class="li-preview-submit wide" data-preview-submit style="background:${String(escapeHtml(style.primary_color || DEFAULT_PRIMARY))}">${String(stateForForm.submitted ? 'Preview submitted' : escapeHtml(copy.submit_label || 'Submit'))}</button>
                 </div>
@@ -15923,7 +15714,7 @@
               if (!stateForForm.selectedStart && index === 0) stateForForm.selectedStart = slot.start;
               return `<button type="button" class="li-preview-slot ${active ? 'active' : ''}" data-preview-start="${escapeHtml(slot.start)}">${escapeHtml(slot.label || slot.time || '')}</button>`;
             }).join('')
-            : `<button type="button" class="li-preview-slot" disabled>${(globalThis.PlatformLanguage?.text("settings","m_566647346b8f17","No times") ?? "No times")}</button>`;
+            : `<button type="button" class="li-preview-slot" disabled>${(globalThis.PlatformLanguage?.htmlText("settings","m_566647346b8f17","No times") ?? "No times")}</button>`;
           if (noteEl) noteEl.textContent = slots.length
             ? ''
             : 'No appointment times are open in the next two weeks.';
@@ -15968,12 +15759,12 @@
             return `
               <div class="li-page-editor" data-page-kind="welcome">
                 <div class="li-page-editor-head">
-                  <div class="li-page-editor-title">${(globalThis.PlatformLanguage?.text("settings","m_811e4fc9814499","Start page") ?? "Start page")}</div>
+                  <div class="li-page-editor-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_811e4fc9814499","Start page") ?? "Start page")}</div>
                 </div>
                 <div class="li-formgrid">
-                  <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</div><input class="cs-in" id="liEstimateHeadline" value="${String(escapeHtml(copy.headline || 'Get a free instant estimate'))}"></div>
-                  <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_4c6486b2745b2d","Subheadline") ?? "Subheadline")}</div><textarea class="cs-in" id="liEstimateSubheadline" rows="3">${String(escapeHtml(copy.subheadline || ''))}</textarea></div>
-                  <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_f66b3b6fac8cc5","Start Button Text") ?? "Start Button Text")}</div><input class="cs-in" id="liEstimateStart" value="${String(escapeHtml(copy.start_label || 'Get started'))}"></div>
+                  <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</div><input class="cs-in" id="liEstimateHeadline" value="${String(escapeHtml(copy.headline || 'Get a free instant estimate'))}"></div>
+                  <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_4c6486b2745b2d","Subheadline") ?? "Subheadline")}</div><textarea class="cs-in" id="liEstimateSubheadline" rows="3">${String(escapeHtml(copy.subheadline || ''))}</textarea></div>
+                  <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_f66b3b6fac8cc5","Start Button Text") ?? "Start Button Text")}</div><input class="cs-in" id="liEstimateStart" value="${String(escapeHtml(copy.start_label || 'Get started'))}"></div>
                 </div>
               </div>
             `;
@@ -15981,16 +15772,16 @@
           if (active?.kind === 'address') {
             return `
               <div class="li-page-editor" data-page-kind="address">
-                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.text("settings","m_f477940b88e2fe","Property map page") ?? "Property map page")}</div></div>
-                <div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_9b59a85bcfcdcb","The address is collected on the first page. This page confirms the property using the satellite roof overlay.") ?? "The address is collected on the first page. This page confirms the property using the satellite roof overlay.")}</div>
+                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_f477940b88e2fe","Property map page") ?? "Property map page")}</div></div>
+                <div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_9b59a85bcfcdcb","The address is collected on the first page. This page confirms the property using the satellite roof overlay.") ?? "The address is collected on the first page. This page confirms the property using the satellite roof overlay.")}</div>
               </div>
             `;
           }
           if (active?.kind === 'measurements') {
             return `
               <div class="li-page-editor" data-page-kind="measurements">
-                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.text("settings","m_dfd681fa9903dc","Automatic measurements page") ?? "Automatic measurements page")}</div></div>
-                <div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_0143ca8207f4bb","Roof area, predominant steepness, and detected flat-roof share are calculated from the property imagery.") ?? "Roof area, predominant steepness, and detected flat-roof share are calculated from the property imagery.")}</div>
+                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_dfd681fa9903dc","Automatic measurements page") ?? "Automatic measurements page")}</div></div>
+                <div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_0143ca8207f4bb","Roof area, predominant steepness, and detected flat-roof share are calculated from the property imagery.") ?? "Roof area, predominant steepness, and detected flat-roof share are calculated from the property imagery.")}</div>
               </div>
             `;
           }
@@ -15998,20 +15789,20 @@
             return `
               <div class="li-page-editor" data-page-kind="project_info">
                 <div class="li-page-editor-head">
-                  <div class="li-page-editor-title">${(globalThis.PlatformLanguage?.text("settings","m_1bd9d0be3bbfe3","Project details page") ?? "Project details page")}</div>
+                  <div class="li-page-editor-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_1bd9d0be3bbfe3","Project details page") ?? "Project details page")}</div>
                   <label class="li-switch"><input id="liProjectInfoEnabled" type="checkbox" ${String(form.estimate?.page_toggles?.project_info !== false ? 'checked' : '')}><span class="li-slider"></span></label>
                 </div>
-                <div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_01566361134a7f","This optional page collects any extra project notes before contact information.") ?? "This optional page collects any extra project notes before contact information.")}</div>
+                <div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_01566361134a7f","This optional page collects any extra project notes before contact information.") ?? "This optional page collects any extra project notes before contact information.")}</div>
               </div>
             `;
           }
           if (active?.kind === 'contact') {
             return `
               <div class="li-page-editor" data-page-kind="contact">
-                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.text("settings","m_4e4ebcf43e1a25","Contact page") ?? "Contact page")}</div></div>
+                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_4e4ebcf43e1a25","Contact page") ?? "Contact page")}</div></div>
                 <div class="li-formgrid">
-                  <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_923fb8f399c388","Submit Button Text") ?? "Submit Button Text")}</div><input class="cs-in" id="liEstimateSubmit" value="${String(escapeHtml(copy.submit_label || 'Get my estimate'))}"></div>
-                  <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_291c87b6d706e4","Fine Print") ?? "Fine Print")}</div><textarea class="cs-in" id="liEstimateFine" rows="3">${String(escapeHtml(copy.fine_print || ''))}</textarea></div>
+                  <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_923fb8f399c388","Submit Button Text") ?? "Submit Button Text")}</div><input class="cs-in" id="liEstimateSubmit" value="${String(escapeHtml(copy.submit_label || 'Get my estimate'))}"></div>
+                  <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_291c87b6d706e4","Fine Print") ?? "Fine Print")}</div><textarea class="cs-in" id="liEstimateFine" rows="3">${String(escapeHtml(copy.fine_print || ''))}</textarea></div>
                 </div>
               </div>
             `;
@@ -16019,8 +15810,8 @@
           if (active?.kind === 'results') {
             return `
               <div class="li-page-editor" data-page-kind="results">
-                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.text("settings","m_632151bb6ae667","Results page") ?? "Results page")}</div></div>
-                <div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_c24208ac29fe34","This page shows the estimated replacement range from the pricing table.") ?? "This page shows the estimated replacement range from the pricing table.")}</div>
+                <div class="li-page-editor-head"><div class="li-page-editor-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_632151bb6ae667","Results page") ?? "Results page")}</div></div>
+                <div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_c24208ac29fe34","This page shows the estimated replacement range from the pricing table.") ?? "This page shows the estimated replacement range from the pricing table.")}</div>
               </div>
             `;
           }
@@ -16029,21 +15820,21 @@
           return `
             <div class="li-page-editor" data-page-index="${String(pageIndex)}">
               <div class="li-page-editor-head">
-                <div class="li-page-editor-title">${String(escapeHtml(page?.title || `Question ${pageIndex + 1}`))}</div>
+                <div class="li-page-editor-title">${String(escapeHtml(page?.title || ((v0) => globalThis.PlatformLanguage?.text("settings","m_f578a27cb0861b",`Question ${v0}`,{v0}) ?? `Question ${v0}`)(pageIndex + 1)))}</div>
                 <div style="display:flex;align-items:center;gap:9px">
                   <label class="li-switch" data-fm-tooltip="Show this page"><input data-page-enabled="${String(pageIndex)}" type="checkbox" ${String(page?.enabled !== false ? 'checked' : '')}><span class="li-slider"></span></label>
                   <button class="cs-btn ghost" type="button" data-page-remove="${String(pageIndex)}" ${String(pages.length <= 1 ? 'disabled' : '')}><i class="fas fa-trash"></i></button>
                 </div>
               </div>
               <div class="li-formgrid">
-                <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_bc5c2002760d4b","Question") ?? "Question")}</div><input class="cs-in" data-page-title="${String(pageIndex)}" value="${String(escapeHtml(page?.title || ''))}"></div>
+                <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_bc5c2002760d4b","Question") ?? "Question")}</div><input class="cs-in" data-page-title="${String(pageIndex)}" value="${String(escapeHtml(page?.title || ''))}"></div>
               </div>
               <div class="li-option-grid">
                 <div class="li-option-row head ${String(materialPage ? 'image' : '')}">
-                  ${String(materialPage ? '<div>Image</div>' : '')}
-                  <div>${(globalThis.PlatformLanguage?.text("settings","m_9fd79f4276d659","Label") ?? "Label")}</div>
-                  <div>${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</div>
-                  ${String(materialPage ? '<div>Use</div>' : '')}
+                  ${String(materialPage ? `<div>${(globalThis.PlatformLanguage?.htmlText("settings","m_54eb8e1b237591","Image") ?? "Image")}</div>` : '')}
+                  <div>${(globalThis.PlatformLanguage?.htmlText("settings","m_9fd79f4276d659","Label") ?? "Label")}</div>
+                  <div>${(globalThis.PlatformLanguage?.htmlText("settings","m_aa136ecb65672f","Description") ?? "Description")}</div>
+                  ${String(materialPage ? `<div>${(globalThis.PlatformLanguage?.htmlText("settings","m_fccaa3fc954540","Use") ?? "Use")}</div>` : '')}
                 </div>
                 ${String((page?.options || []).map((opt, optIndex) => `
                   <div class="li-option-row ${materialPage ? 'image' : ''}" data-option-row>
@@ -16051,12 +15842,12 @@
                     <input class="cs-in" data-option-label="${pageIndex}:${optIndex}" value="${escapeHtml(opt.label || '')}">
                     <input class="cs-in" data-option-description="${pageIndex}:${optIndex}" value="${escapeHtml(opt.description || '')}">
                     ${materialPage
-                      ? `<label class="li-option-enabled"><input type="checkbox" data-option-enabled="${pageIndex}:${optIndex}" ${opt.enabled !== false ? 'checked' : ''}><span>On</span></label>`
+                      ? `<label class="li-option-enabled"><input type="checkbox" data-option-enabled="${pageIndex}:${optIndex}" ${opt.enabled !== false ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4706f0b38fd6b6","On") ?? "On")}</span></label>`
                       : ''}
                   </div>
                 `).join(''))}
               </div>
-              <button class="cs-btn ghost" type="button" data-option-add="${String(pageIndex)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_d9a5613dc88001"," Add custom option") ?? " Add custom option")}</button>
+              <button class="cs-btn ghost" type="button" data-option-add="${String(pageIndex)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d9a5613dc88001"," Add custom option") ?? " Add custom option")}</button>
             </div>
           `;
         })();
@@ -16064,7 +15855,7 @@
           <div class="li-page-builder" id="liEstimatePageBuilder">
             ${String(activeEditor)}
             ${String(nav)}
-            <button class="cs-btn ghost" type="button" id="liAddEstimatePage"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_e3e6ca83af1875"," Add question page") ?? " Add question page")}</button>
+            <button class="cs-btn ghost" type="button" id="liAddEstimatePage"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e3e6ca83af1875"," Add question page") ?? " Add question page")}</button>
           </div>
         `;
       };
@@ -16094,7 +15885,7 @@
         if (!panelWebsite) return;
         const availableKinds = Object.keys(allowedFormKindMeta());
         if (!availableKinds.length) {
-          panelWebsite.innerHTML = `<div class="li-muted">${(globalThis.PlatformLanguage?.text("settings","m_00b77017cb3626","No website form types are enabled for this organization.") ?? "No website form types are enabled for this organization.")}</div>`;
+          panelWebsite.innerHTML = `<div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_00b77017cb3626","No website form types are enabled for this organization.") ?? "No website form types are enabled for this organization.")}</div>`;
           return;
         }
         if (!formKindMeta[activeFormKind] || !formKindAllowed(activeFormKind)) activeFormKind = availableKinds[0];
@@ -16139,7 +15930,7 @@
           }
         };
         if (!form) {
-          panelWebsite.innerHTML = `<div class="li-muted">${((v0) => globalThis.PlatformLanguage?.text("settings","m_ea40912a9c72c2",`Creating ${v0}...`,{v0}) ?? `Creating ${v0}...`)(escapeHtml((formKindMeta[activeFormKind]?.label || 'form').toLowerCase()))}</div>`;
+          panelWebsite.innerHTML = `<div class="li-muted">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_ea40912a9c72c2",`Creating ${v0}...`,{v0}) ?? `Creating ${v0}...`)(escapeHtml((formKindMeta[activeFormKind]?.label || 'form').toLowerCase()))}</div>`;
           createWebsiteForm(null, activeFormKind).catch((e) => {
             panelWebsite.innerHTML = `<div class="li-muted">${escapeHtml(e?.message || 'Could not create form instance.')}</div>`;
           });
@@ -16166,7 +15957,7 @@
               <div class="cs-card" style="margin-top:0">
                 <div class="li-form-section ${String(form.enabled === false ? 'disabled' : '')}">
                   <div class="li-section-head">
-                    <div class="li-section-title">${(globalThis.PlatformLanguage?.text("settings","m_fa27f146b32324","Form") ?? "Form")}</div>
+                    <div class="li-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_fa27f146b32324","Form") ?? "Form")}</div>
                     <label class="li-switch" data-fm-tooltip="Turn this embedded form on or off">
                       <input id="liFormEnabled" type="checkbox" ${String(form.enabled !== false ? 'checked' : '')}>
                       <span class="li-slider"></span>
@@ -16174,46 +15965,46 @@
                   </div>
                   <div class="li-formgrid">
                     <div class="cs-row wide">
-                      <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_706fa584155588","Form Name") ?? "Form Name")}</div>
+                      <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_706fa584155588","Form Name") ?? "Form Name")}</div>
                       <input class="cs-in" id="liFormName" value="${String(escapeHtml(form.name || ''))}">
                     </div>
                   </div>
                 </div>
                 <div class="li-form-section" style="${String(form.mode === 'instant_estimate' ? 'display:none' : '')}">
-                  <div class="li-section-title">${(globalThis.PlatformLanguage?.text("settings","m_89f6b80ae9b0fe","Content") ?? "Content")}</div>
+                  <div class="li-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_89f6b80ae9b0fe","Content") ?? "Content")}</div>
                   <div class="li-formgrid">
-                    <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</div><input class="cs-in" id="liFormHeadline" value="${String(escapeHtml(copy.headline || ''))}"></div>
-                    <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_4c6486b2745b2d","Subheadline") ?? "Subheadline")}</div><textarea class="cs-in" id="liFormSubheadline" rows="3">${String(escapeHtml(copy.subheadline || ''))}</textarea></div>
-                    <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_923fb8f399c388","Submit Button Text") ?? "Submit Button Text")}</div><input class="cs-in" id="liFormSubmit" value="${String(escapeHtml(copy.submit_label || ''))}"></div>
-                    <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_291c87b6d706e4","Fine Print") ?? "Fine Print")}</div><textarea class="cs-in" id="liFormFine" rows="3">${String(escapeHtml(copy.fine_print || ''))}</textarea></div>
+                    <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</div><input class="cs-in" id="liFormHeadline" value="${String(escapeHtml(copy.headline || ''))}"></div>
+                    <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_4c6486b2745b2d","Subheadline") ?? "Subheadline")}</div><textarea class="cs-in" id="liFormSubheadline" rows="3">${String(escapeHtml(copy.subheadline || ''))}</textarea></div>
+                    <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_923fb8f399c388","Submit Button Text") ?? "Submit Button Text")}</div><input class="cs-in" id="liFormSubmit" value="${String(escapeHtml(copy.submit_label || ''))}"></div>
+                    <div class="cs-row wide"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_291c87b6d706e4","Fine Print") ?? "Fine Print")}</div><textarea class="cs-in" id="liFormFine" rows="3">${String(escapeHtml(copy.fine_print || ''))}</textarea></div>
                   </div>
                 </div>
                 <div class="li-form-section">
-                  <div class="li-section-title">${(globalThis.PlatformLanguage?.text("settings","m_c26fb3f116b49f","Styling") ?? "Styling")}</div>
+                  <div class="li-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_c26fb3f116b49f","Styling") ?? "Styling")}</div>
                   <div class="li-formgrid">
                     <div class="li-switch-row">
-                      <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_404da01386d8a3","Show Logo") ?? "Show Logo")}</div>
+                      <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_404da01386d8a3","Show Logo") ?? "Show Logo")}</div>
                       <label class="li-switch"><input id="liFormLogoEnabled" type="checkbox" ${String(style.logo_enabled !== false ? 'checked' : '')}><span class="li-slider"></span></label>
                     </div>
                     <div class="li-switch-row">
-                      <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_8fddaed3dac07a","Use Company Colors") ?? "Use Company Colors")}</div>
+                      <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_8fddaed3dac07a","Use Company Colors") ?? "Use Company Colors")}</div>
                       <label class="li-switch"><input id="liUseCompanyColors" type="checkbox" ${String(style.use_company_colors !== false ? 'checked' : '')}><span class="li-slider"></span></label>
                     </div>
                     <div class="li-style-custom ${String(style.use_company_colors === false ? 'active' : '')}" id="liCustomColors">
-                      <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_0aa208bdeba069","Primary Color") ?? "Primary Color")}</div>${String(colorControl('liFormPrimary', style.primary_color || DEFAULT_PRIMARY))}</div>
-                      <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_54c35dfe196a31","Text Color") ?? "Text Color")}</div>${String(colorControl('liFormText', style.text_color || '#111827'))}</div>
+                      <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_0aa208bdeba069","Primary Color") ?? "Primary Color")}</div>${String(colorControl('liFormPrimary', style.primary_color || DEFAULT_PRIMARY))}</div>
+                      <div class="cs-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_54c35dfe196a31","Text Color") ?? "Text Color")}</div>${String(colorControl('liFormText', style.text_color || '#111827'))}</div>
                     </div>
-                    <div class="cs-row li-font-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_ce1ba13960e5a4","Font") ?? "Font")}</div><select class="cs-in" id="liFormFont">${String(fontOptions.map((font) => `<option value="${escapeHtml(font)}" ${style.font_family === font ? 'selected' : ''}>${escapeHtml(font)}</option>`).join(''))}</select></div>
+                    <div class="cs-row li-font-row"><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_ce1ba13960e5a4","Font") ?? "Font")}</div><select class="cs-in" id="liFormFont">${String(fontOptions.map((font) => `<option value="${escapeHtml(font)}" ${style.font_family === font ? 'selected' : ''}>${escapeHtml(font)}</option>`).join(''))}</select></div>
                   </div>
                 </div>
                 <div class="li-form-section li-estimate-only" id="liEstimateSettings" style="${String(form.mode === 'instant_estimate' ? '' : 'display:none')}">
-                  <div class="li-section-title">${(globalThis.PlatformLanguage?.text("settings","m_beb4f500cf5d11","Question Pages") ?? "Question Pages")}</div>
+                  <div class="li-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_beb4f500cf5d11","Question Pages") ?? "Question Pages")}</div>
                   ${String(renderEstimatePageBuilder(form))}
                 </div>
                 <div class="li-form-section li-estimate-only" style="${String(form.mode === 'instant_estimate' ? '' : 'display:none')}">
-                  <div class="li-section-title">${(globalThis.PlatformLanguage?.text("settings","m_d9a8c9c7287681","Pricing") ?? "Pricing")}</div>
+                  <div class="li-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_d9a8c9c7287681","Pricing") ?? "Pricing")}</div>
                   <div class="li-pricing-table">
-                    <div class="li-pricing-row head"><div>${(globalThis.PlatformLanguage?.text("settings","m_1dba4b49c98069","Roof Type") ?? "Roof Type")}</div><div>${(globalThis.PlatformLanguage?.text("settings","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div><div>${(globalThis.PlatformLanguage?.text("settings","m_899e96ae2cdf1d","Low $/Sq Ft") ?? "Low $/Sq Ft")}</div><div>${(globalThis.PlatformLanguage?.text("settings","m_ebb64d528e4d93","High $/Sq Ft") ?? "High $/Sq Ft")}</div></div>
+                    <div class="li-pricing-row head"><div>${(globalThis.PlatformLanguage?.htmlText("settings","m_1dba4b49c98069","Roof Type") ?? "Roof Type")}</div><div>${(globalThis.PlatformLanguage?.htmlText("settings","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div><div>${(globalThis.PlatformLanguage?.htmlText("settings","m_899e96ae2cdf1d","Low $/Sq Ft") ?? "Low $/Sq Ft")}</div><div>${(globalThis.PlatformLanguage?.htmlText("settings","m_ebb64d528e4d93","High $/Sq Ft") ?? "High $/Sq Ft")}</div></div>
                     ${String(estimatePricingRowsFor(form).map((row, index) => `
                       <div class="li-pricing-row">
                         ${pricingSelect('data-pricing-roof', index, row.roof_type, pricingRoofOptions)}
@@ -16225,21 +16016,21 @@
                   </div>
                 </div>
                 <div class="li-form-section">
-                  <div class="li-section-title">${(globalThis.PlatformLanguage?.text("settings","m_22cab731e65c79","Embed") ?? "Embed")}</div>
+                  <div class="li-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_22cab731e65c79","Embed") ?? "Embed")}</div>
                   <div class="li-embed-row">
                     <textarea class="li-code" id="liEmbedCode" readonly>${String(escapeHtml(embedCode(form)))}</textarea>
-                    <button class="cs-btn ghost" id="liCopyEmbed" type="button"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.text("settings","m_40b219ea66d2c4"," Copy Embed") ?? " Copy Embed")}</button>
+                    <button class="cs-btn ghost" id="liCopyEmbed" type="button"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_40b219ea66d2c4"," Copy Embed") ?? " Copy Embed")}</button>
                   </div>
                 </div>
                 <div class="li-actions">
-                  <button class="cs-btn" id="liSaveForm" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_727bb37dcb7493"," Save Form") ?? " Save Form")}</button>
-                  <button class="cs-btn ghost" id="liDeleteForm" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("settings","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
+                  <button class="cs-btn" id="liSaveForm" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_727bb37dcb7493"," Save Form") ?? " Save Form")}</button>
+                  <button class="cs-btn ghost" id="liDeleteForm" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
                 </div>
               </div>
               <div class="li-preview">
                 <div class="li-preview-toolbar">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.text("settings","m_afff48796c3165","Preview") ?? "Preview")}</div>
-                  <div class="li-device-toggle" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_a0f75fb293ba06","Preview size") ?? "Preview size")}">
+                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_afff48796c3165","Preview") ?? "Preview")}</div>
+                  <div class="li-device-toggle" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_a0f75fb293ba06","Preview size") ?? "Preview size")}">
                     ${String(['desktop','tablet','mobile'].map((mode) => `<button type="button" data-preview-mode="${mode}" class="${previewMode === mode ? 'active' : ''}">${mode === 'desktop' ? 'Desktop' : (mode === 'tablet' ? 'Tablet' : 'Phone')}</button>`).join(''))}
                   </div>
                 </div>
@@ -16474,10 +16265,10 @@
         <div class="company-settings">
           <header class="company-settings-head">
             <div class="company-settings-title">
-              <h3>${(globalThis.PlatformLanguage?.text("settings","m_ef5b1440dd1a80","Company information") ?? "Company information")}</h3>
+              <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_ef5b1440dd1a80","Company information") ?? "Company information")}</h3>
             </div>
             <div class="cs-actions">
-              <button class="cs-btn primary" id="csSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
+              <button class="cs-btn primary" id="csSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
             </div>
           </header>
           <div class="cs-note" id="csStatus" role="status"></div>
@@ -16486,20 +16277,20 @@
             <section class="company-settings-card company-info-card">
               <div class="company-settings-card-body">
                 <div class="company-info-grid">
-                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_e17c4838e115e8","Company name") ?? "Company name")}</span><input id="csName" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_c23a205ed97c61","Your company name") ?? "Your company name")}"></label>
-                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_4d7b96eb4bf8b4","Company email") ?? "Company email")}</span><input id="csCompanyEmail" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_4665fb43c24164","billing@company.com") ?? "billing@company.com")}" inputmode="email" autocomplete="email"></label>
-                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.text("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel"></label>
+                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e17c4838e115e8","Company name") ?? "Company name")}</span><input id="csName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a205ed97c61","Your company name") ?? "Your company name")}"></label>
+                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d7b96eb4bf8b4","Company email") ?? "Company email")}</span><input id="csCompanyEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4665fb43c24164","billing@company.com") ?? "billing@company.com")}" inputmode="email" autocomplete="email"></label>
+                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel"></label>
 ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
-                    <span>Business address</span>
+                    <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_6e9ebf535758d8","Business address") ?? "Business address")}</span>
                     <div class="address">
-                      <input class="wide" id="csCompanyAddress1" placeholder="Street address" autocomplete="address-line1">
-                      <input class="wide" id="csCompanyAddress2" placeholder="Suite, unit, etc. (optional)" autocomplete="address-line2">
-                      <input id="csCompanyCity" placeholder="City" autocomplete="address-level2">
-                      <input id="csCompanyState" placeholder="State / region" autocomplete="address-level1">
-                      <input id="csCompanyPostalCode" placeholder="Postal code" autocomplete="postal-code">
-                      <input id="csCompanyCountry" placeholder="Country" autocomplete="country" maxlength="2">
+                      <input class="wide" id="csCompanyAddress1" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_ac137f394a3447","Street address") ?? "Street address")}" autocomplete="address-line1">
+                      <input class="wide" id="csCompanyAddress2" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c549239597ab7a","Suite, unit, etc. (optional)") ?? "Suite, unit, etc. (optional)")}" autocomplete="address-line2">
+                      <input id="csCompanyCity" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_38e1463e6f0488","City") ?? "City")}" autocomplete="address-level2">
+                      <input id="csCompanyState" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_841a63c7373720","State / region") ?? "State / region")}" autocomplete="address-level1">
+                      <input id="csCompanyPostalCode" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_3e2f364a929ac7","Postal code") ?? "Postal code")}" autocomplete="postal-code">
+                      <input id="csCompanyCountry" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_a9a13ce3e2d181","Country") ?? "Country")}" autocomplete="country" maxlength="2">
                     </div>
-                    <div class="cs-note">Used to prefill domain registration and 10DLC business verification.</div>
+                    <div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_bbe1447b5d3e67","Used to prefill domain registration and 10DLC business verification.") ?? "Used to prefill domain registration and 10DLC business verification.")}</div>
                   </div>` : '')}
                 </div>
               </div>
@@ -16508,22 +16299,22 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <section class="company-settings-card" aria-labelledby="csLocalizationHeading">
               <div class="company-settings-card-head"><strong id="csLocalizationHeading">${escapeHtml(window.PlatformLanguage.text('settings','company_language_heading','Company language and measurements'))}</strong><i class="fas fa-circle-info company-settings-card-help" tabindex="0" role="button" aria-label="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help_label','About company language and measurements'))}" data-fm-tooltip="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}" title="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}"></i></div>
               <div class="company-settings-card-body company-localization-grid">
-                <label class="cs-field"><span>Measurements</span><select id="csMeasurementSystem"><option value="imperial">Imperial (feet and squares)</option><option value="metric">Metric (metres and square metres)</option></select></label>
+                <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae873abaa56707","Measurements") ?? "Measurements")}</span><select id="csMeasurementSystem"><option value="imperial">${(globalThis.PlatformLanguage?.htmlText("settings","m_455c24bfeb9092","Imperial (feet and squares)") ?? "Imperial (feet and squares)")}</option><option value="metric">${(globalThis.PlatformLanguage?.htmlText("settings","m_ef3e6a234d5a73","Metric (metres and square metres)") ?? "Metric (metres and square metres)")}</option></select></label>
                 <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
               </div>
             </section>` : '')}
-            <div class="company-brand-heading">Brand Kit</div>
+            <div class="company-brand-heading">${(globalThis.PlatformLanguage?.htmlText("settings","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</div>
             ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos })}
             </div>
             ${String(reportsEnabled ? `<aside class="company-document-preview">
-              <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i> Report preview</span></div>
+              <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ca221574beb0d"," Report preview") ?? " Report preview")}</span></div>
               <div class="cs-previewWrap">
                 <div class="cs-page" id="csPage">
                   <div class="cs-barPrimary"></div>
                   <div class="cs-barSecondary"></div>
                   <div class="cs-pageInner">
-                    <div class="cs-pageLogo"><img id="csPrevLogoImg" data-company-logo-preview alt="Company logo in report preview"></div>
-                    <div class="cs-centerZone"><img id="csSampleDiagram" alt="Sample roof diagram"></div>
+                    <div class="cs-pageLogo"><img id="csPrevLogoImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_a09f6a051adb2f","Company logo in report preview") ?? "Company logo in report preview")}"></div>
+                    <div class="cs-centerZone"><img id="csSampleDiagram" alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_8eec608d18828f","Sample roof diagram") ?? "Sample roof diagram")}"></div>
                   </div>
                 </div>
               </div>
@@ -16545,47 +16336,47 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         <div class="cu-page">
           <header class="cu-top">
             <div>
-              <div class="cu-eyebrow">${(globalThis.PlatformLanguage?.text("settings","m_fb4a39644e0a8f","Company access") ?? "Company access")}</div>
-              <div class="cu-title">${(globalThis.PlatformLanguage?.text("settings","m_429600569fe533","People &amp; access") ?? "People &amp; access")}</div>
-              <div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_7c524367299b47","Invite people, organize how they work, and control what they can access.") ?? "Invite people, organize how they work, and control what they can access.")}</div>
+              <div class="cu-eyebrow">${(globalThis.PlatformLanguage?.htmlText("settings","m_fb4a39644e0a8f","Company access") ?? "Company access")}</div>
+              <div class="cu-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_429600569fe533","People &amp; access") ?? "People &amp; access")}</div>
+              <div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_7c524367299b47","Invite people, organize how they work, and control what they can access.") ?? "Invite people, organize how they work, and control what they can access.")}</div>
             </div>
             <div class="cu-actions">
-              ${String(canAddDelete ? `<button class="cu-btn primary" id="cuAdd"><i class="fas fa-user-plus"></i> Invite person</button>` : '')}
-              <button class="cu-btn icon" id="cuReload" type="button" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_e20129c37b7f62","Reload users") ?? "Reload users")}" title="${(globalThis.PlatformLanguage?.text("settings","m_286f235cc79de7","Reload") ?? "Reload")}"><i class="fas fa-rotate"></i></button>
+              ${String(canAddDelete ? `<button class="cu-btn primary" id="cuAdd"><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3cfab293c8c008"," Invite person") ?? " Invite person")}</button>` : '')}
+              <button class="cu-btn icon" id="cuReload" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e20129c37b7f62","Reload users") ?? "Reload users")}" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_286f235cc79de7","Reload") ?? "Reload")}"><i class="fas fa-rotate"></i></button>
             </div>
           </header>
 
-          <div class="cu-overview" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_9be0a594b70443","People overview") ?? "People overview")}">
-            <div class="cu-stat"><span>${(globalThis.PlatformLanguage?.text("settings","m_237a692dd090c8","Total people") ?? "Total people")}</span><strong data-users-stat="total">0</strong></div>
-            <div class="cu-stat good"><span>${(globalThis.PlatformLanguage?.text("settings","m_46e47f1706df0c","Active") ?? "Active")}</span><strong data-users-stat="active">0</strong></div>
-            <div class="cu-stat pending"><span>${(globalThis.PlatformLanguage?.text("settings","m_52371723a1b848","Invited") ?? "Invited")}</span><strong data-users-stat="invited">0</strong></div>
+          <div class="cu-overview" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9be0a594b70443","People overview") ?? "People overview")}">
+            <div class="cu-stat"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_237a692dd090c8","Total people") ?? "Total people")}</span><strong data-users-stat="total">0</strong></div>
+            <div class="cu-stat good"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_46e47f1706df0c","Active") ?? "Active")}</span><strong data-users-stat="active">0</strong></div>
+            <div class="cu-stat pending"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_52371723a1b848","Invited") ?? "Invited")}</span><strong data-users-stat="invited">0</strong></div>
             <div class="cu-stat field"><span>${String(escapeHtml(normalizeWorkforceTerminology(workforceUi.configuration.terminology).field_application))}</span><strong data-users-stat="field">0</strong></div>
           </div>
 
-          <nav class="cu-subnav" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_11bb3908df0f4e","User administration") ?? "User administration")}" role="tablist">
+          <nav class="cu-subnav" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_11bb3908df0f4e","User administration") ?? "User administration")}" role="tablist">
             <button type="button" class="cu-subtab ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view="people" role="tab" aria-selected="${String(viewState.usersSubtab === 'people')}"><i class="fas fa-users"></i><span>${String(escapeHtml(terminologyLabel('settings.people_view', 'People')))}</span></button>
             ${String(canManageAccess ? `<button type="button" class="cu-subtab ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view="access" role="tab" aria-selected="${viewState.usersSubtab === 'access'}"><i class="fas fa-user-shield"></i><span>${escapeHtml(terminologyLabel('settings.roles_access_view', 'Roles & access'))}</span><small data-access-role-count>0</small></button>` : '')}
           </nav>
 
           <section class="cu-view ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view-panel="people" ${String(viewState.usersSubtab === 'people' ? '' : 'hidden')}>
             <div class="cu-list-toolbar">
-              <label class="cu-search"><i class="fas fa-magnifying-glass"></i><input id="cuSearch" type="search" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_9865f895e4d747","Search people or roles") ?? "Search people or roles")}" autocomplete="off" value="${String(escapeHtml(usersState.query))}"><span class="sr-only">${(globalThis.PlatformLanguage?.text("settings","m_0b00bfad983f3f","Search people") ?? "Search people")}</span></label>
-              <select class="cu-filter" id="cuStatusFilter" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_2bdbf82a5cce63","Filter people by status") ?? "Filter people by status")}">
-                <option value="all" ${String(usersState.statusFilter === 'all' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option>
-                <option value="active" ${String(usersState.statusFilter === 'active' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_46e47f1706df0c","Active") ?? "Active")}</option>
-                <option value="invited" ${String(usersState.statusFilter === 'invited' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_52371723a1b848","Invited") ?? "Invited")}</option>
-                <option value="suspended" ${String(usersState.statusFilter === 'suspended' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_32e214c3072fe2","Suspended") ?? "Suspended")}</option>
+              <label class="cu-search"><i class="fas fa-magnifying-glass"></i><input id="cuSearch" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_9865f895e4d747","Search people or roles") ?? "Search people or roles")}" autocomplete="off" value="${String(escapeHtml(usersState.query))}"><span class="sr-only">${(globalThis.PlatformLanguage?.htmlText("settings","m_0b00bfad983f3f","Search people") ?? "Search people")}</span></label>
+              <select class="cu-filter" id="cuStatusFilter" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_2bdbf82a5cce63","Filter people by status") ?? "Filter people by status")}">
+                <option value="all" ${String(usersState.statusFilter === 'all' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option>
+                <option value="active" ${String(usersState.statusFilter === 'active' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_46e47f1706df0c","Active") ?? "Active")}</option>
+                <option value="invited" ${String(usersState.statusFilter === 'invited' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_52371723a1b848","Invited") ?? "Invited")}</option>
+                <option value="suspended" ${String(usersState.statusFilter === 'suspended' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_32e214c3072fe2","Suspended") ?? "Suspended")}</option>
               </select>
-              <button class="cu-btn toggle ${String(usersState.showPerms ? 'on' : '')}" id="cuPerms" type="button" aria-pressed="${String(usersState.showPerms ? 'true' : 'false')}"><i class="fas ${String(usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off')}"></i>${((v16) => globalThis.PlatformLanguage?.text("settings","m_84fd6e827b99b3",` ${v16} organization permissions`,{v16}) ?? ` ${v16} organization permissions`)(usersState.showPerms ? 'Hide' : 'Show')}</button>
+              <button class="cu-btn toggle ${String(usersState.showPerms ? 'on' : '')}" id="cuPerms" type="button" aria-pressed="${String(usersState.showPerms ? 'true' : 'false')}"><i class="fas ${String(usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off')}"></i>${((v16) => globalThis.PlatformLanguage?.htmlText("settings","m_84fd6e827b99b3",` ${v16} organization permissions`,{v16}) ?? ` ${v16} organization permissions`)(usersState.showPerms ? 'Hide' : 'Show')}</button>
             </div>
             <div id="cuMsg" class="cu-list-message" role="status"></div>
             <div class="cu-table-shell">
               <table class="cu-table">
                 <thead><tr>
-                  <th class="cu-th userHead">${(globalThis.PlatformLanguage?.text("settings","m_23d5e0c82a8304","Person") ?? "Person")}</th>
-                  <th class="cu-th">${(globalThis.PlatformLanguage?.text("settings","m_dda2709a990fad","Admin level") ?? "Admin level")}</th>
-                  <th class="cu-th">${(globalThis.PlatformLanguage?.text("settings","m_1352cafa75b8da","Status") ?? "Status")}</th>
-                  <th class="cu-th" style="width:56px;"><span class="sr-only">${(globalThis.PlatformLanguage?.text("settings","m_6067958dea3386","Actions") ?? "Actions")}</span></th>
+                  <th class="cu-th userHead">${(globalThis.PlatformLanguage?.htmlText("settings","m_23d5e0c82a8304","Person") ?? "Person")}</th>
+                  <th class="cu-th">${(globalThis.PlatformLanguage?.htmlText("settings","m_dda2709a990fad","Admin level") ?? "Admin level")}</th>
+                  <th class="cu-th">${(globalThis.PlatformLanguage?.htmlText("settings","m_1352cafa75b8da","Status") ?? "Status")}</th>
+                  <th class="cu-th" style="width:56px;"><span class="sr-only">${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}</span></th>
                 </tr></thead>
                 <tbody id="cuBody"></tbody>
               </table>
@@ -16594,8 +16385,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
 
           ${String(canManageAccess ? `<section class="cu-view ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view-panel="access" ${viewState.usersSubtab === 'access' ? '' : 'hidden'}>
             <div class="cu-access-manager cu-admin-panel" id="cuAccessRolesManager">
-              <header class="cu-manager-head"><span class="cu-manager-icon access"><i class="fas fa-user-shield"></i></span><div><h3>Roles &amp; default access</h3><p>Create reusable starting points for app visibility and permissions.</p></div></header>
-              <div class="cu-access-manager-body" data-access-role-body><div class="cs-note">Loading access roles...</div></div>
+              <header class="cu-manager-head"><span class="cu-manager-icon access"><i class="fas fa-user-shield"></i></span><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae615734419eb6","Roles &amp; default access") ?? "Roles &amp; default access")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_91244bdaa8204c","Create reusable starting points for app visibility and permissions.") ?? "Create reusable starting points for app visibility and permissions.")}</p></div></header>
+              <div class="cu-access-manager-body" data-access-role-body><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1f1ad34d149fdf","Loading access roles...") ?? "Loading access roles...")}</div></div>
             </div>
           </section>` : '')}
         </div>
@@ -16606,11 +16397,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       paneReports.innerHTML = `
         <div class="rp-wrap">
           <div class="rp-card">
-            <h3 class="rp-h">${(globalThis.PlatformLanguage?.text("settings","m_76942f70f2c0d6","Customer Report Settings") ?? "Customer Report Settings")}</h3>
+            <h3 class="rp-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_76942f70f2c0d6","Customer Report Settings") ?? "Customer Report Settings")}</h3>
             <div class="rp-tgrid" id="rpToggles"></div>
             <div class="cs-actions" style="margin-top:14px;">
-              <button class="cs-btn primary" id="rpSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
-              <button class="cs-btn ghost" id="rpReset"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_f915937425dda7"," Reset") ?? " Reset")}</button>
+              <button class="cs-btn primary" id="rpSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
+              <button class="cs-btn ghost" id="rpReset"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f915937425dda7"," Reset") ?? " Reset")}</button>
             </div>
             <div class="cs-note" id="rpStatus"></div>
           </div>
@@ -16624,41 +16415,41 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <div class="bl-card" style="margin-bottom:16px;">
             <div class="bl-row" style="align-items:center;">
               <div class="bl-left">
-                <span class="bl-pill"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("settings","m_f406e9348b023b"," Measurement credit") ?? " Measurement credit")}</span>
-                <span class="cs-note credits-sub-target" style="margin:0;">${(globalThis.PlatformLanguage?.text("settings","m_0f620c04296518","Available balance for measurement orders.") ?? "Available balance for measurement orders.")}</span>
+                <span class="bl-pill"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f406e9348b023b"," Measurement credit") ?? " Measurement credit")}</span>
+                <span class="cs-note credits-sub-target" style="margin:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_0f620c04296518","Available balance for measurement orders.") ?? "Available balance for measurement orders.")}</span>
               </div>
               <div class="bl-ctrl" style="gap:14px;">
                 <div class="credits-value" style="font-size:28px; line-height:1;"><span class="credits-val-target">-</span></div>
-                <button class="cs-btn primary" type="button" data-buy-credits="settings_billing"><i class="fas fa-credit-card"></i>${(globalThis.PlatformLanguage?.text("settings","m_99595f2dbe1f82"," Add Credit") ?? " Add Credit")}</button>
+                <button class="cs-btn primary" type="button" data-buy-credits="settings_billing"><i class="fas fa-credit-card"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99595f2dbe1f82"," Add Credit") ?? " Add Credit")}</button>
               </div>
             </div>
           </div>
           <div class="bl-grid">
             <!-- LEFT: existing controls -->
             <div class="bl-card">
-              <h3 class="bl-h">${(globalThis.PlatformLanguage?.text("settings","m_d18853df3ac9a2","Auto Top-Up") ?? "Auto Top-Up")}</h3>
-              <div class="bl-sub" id="blSubCopy">${(globalThis.PlatformLanguage?.text("settings","m_8110adde8a99f5","Use the card on file to keep your account funded automatically.") ?? "Use the card on file to keep your account funded automatically.")}</div>
+              <h3 class="bl-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_d18853df3ac9a2","Auto Top-Up") ?? "Auto Top-Up")}</h3>
+              <div class="bl-sub" id="blSubCopy">${(globalThis.PlatformLanguage?.htmlText("settings","m_8110adde8a99f5","Use the card on file to keep your account funded automatically.") ?? "Use the card on file to keep your account funded automatically.")}</div>
               <div class="bl-toggleLine">
                 <div class="bl-left">
-                  <span class="bl-pill"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("settings","m_3c82ce40c8ef79"," Auto top-up") ?? " Auto top-up")}</span>
-                  <span class="cs-note" id="blEnabledNote" style="margin:0;">${(globalThis.PlatformLanguage?.text("settings","m_273e689aeb0785","Off") ?? "Off")}</span>
+                  <span class="bl-pill"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3c82ce40c8ef79"," Auto top-up") ?? " Auto top-up")}</span>
+                  <span class="cs-note" id="blEnabledNote" style="margin:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_273e689aeb0785","Off") ?? "Off")}</span>
                 </div>
                 <button class="bl-switch" id="blEnableToggle" type="button">
                   <span class="dot"></span>
-                  <span id="blEnableText">${(globalThis.PlatformLanguage?.text("settings","m_378b5cb886ce9e","Disabled") ?? "Disabled")}</span>
+                  <span id="blEnableText">${(globalThis.PlatformLanguage?.htmlText("settings","m_378b5cb886ce9e","Disabled") ?? "Disabled")}</span>
                 </button>
               </div>
               <div class="bl-divider"></div>
               <div id="blControls">
-                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.text("settings","m_1fdb99fa4f7bbb_currency",`
+                <div class="cs-note" id="blMinimumNote" style="margin:0 0 12px 0;">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_1fdb99fa4f7bbb_currency",`
                   Minimum auto top-up values are ${v0}.
                 `,{v0}) ?? `
                   Minimum auto top-up values are ${v0}.
                 `)(window.PlatformCommerce.credit(BILL_MIN))}</div>
                 <div class="bl-row">
                   <div class="bl-left">
-                    <span class="bl-pill"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.text("settings","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</span>
-                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.text("settings","m_071c9a0b381c08_currency",`Minimum ${v1}`,{v1}) ?? `Minimum ${v1}`)(window.PlatformCommerce.credit(BILL_MIN))}</span>
+                    <span class="bl-pill"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</span>
+                    <span class="cs-note" style="margin:0;">${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_071c9a0b381c08_currency",`Minimum ${v1}`,{v1}) ?? `Minimum ${v1}`)(window.PlatformCommerce.credit(BILL_MIN))}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blThMinus" type="button"><i class="fas fa-minus"></i></button>
@@ -16671,8 +16462,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 </div>
                 <div class="bl-row">
                   <div class="bl-left">
-                    <span class="bl-pill"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</span>
-                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.text("settings","m_5d2d756d517aa8_currency",`Minimum ${v3}`,{v3}) ?? `Minimum ${v3}` )(window.PlatformCommerce.credit(BILL_MIN))}</span>
+                    <span class="bl-pill"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</span>
+                    <span class="cs-note" style="margin:0;">${((v3) => globalThis.PlatformLanguage?.htmlText("settings","m_5d2d756d517aa8_currency",`Minimum ${v3}`,{v3}) ?? `Minimum ${v3}` )(window.PlatformCommerce.credit(BILL_MIN))}</span>
                   </div>
                   <div class="bl-ctrl">
                     <button class="bl-stepBtn" id="blAmtMinus" type="button"><i class="fas fa-minus"></i></button>
@@ -16688,16 +16479,16 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               <div class="bl-divider"></div>
               <div class="bl-row">
                 <div class="bl-left">
-                  <span class="bl-pill"><i class="fas fa-credit-card"></i>${(globalThis.PlatformLanguage?.text("settings","m_97ab161f87a9af"," Payment method") ?? " Payment method")}</span>
-                  <span class="cs-note" id="blCardNote" style="margin:0;">${(globalThis.PlatformLanguage?.text("settings","m_c5b498e80d4065","Not set") ?? "Not set")}</span>
+                  <span class="bl-pill"><i class="fas fa-credit-card"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_97ab161f87a9af"," Payment method") ?? " Payment method")}</span>
+                  <span class="cs-note" id="blCardNote" style="margin:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_c5b498e80d4065","Not set") ?? "Not set")}</span>
                 </div>
                 <div class="bl-ctrl">
-                  <button class="cs-btn ghost" id="blUpdateCard" type="button"><i class="fas fa-credit-card"></i>${(globalThis.PlatformLanguage?.text("settings","m_b728516578bffb"," Add card") ?? " Add card")}</button>
+                  <button class="cs-btn ghost" id="blUpdateCard" type="button"><i class="fas fa-credit-card"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b728516578bffb"," Add card") ?? " Add card")}</button>
                 </div>
               </div>
               <div class="cs-actions" style="margin-top:14px;">
-                <button class="cs-btn primary" id="blSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
-                <button class="cs-btn ghost" id="blReload"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
+                <button class="cs-btn primary" id="blSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
+                <button class="cs-btn ghost" id="blReload"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
               </div>
               <div class="cs-note" id="blStatus"></div>
             </div>
@@ -16705,13 +16496,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="bh-card">
               <div class="bh-top">
                 <div>
-                  <div class="bh-h">${(globalThis.PlatformLanguage?.text("settings","m_fdacf3f09dfad1","Billing history") ?? "Billing history")}</div>
-                  <div class="bh-sub">${(globalThis.PlatformLanguage?.text("settings","m_56202be1224399","Recent billing + top-up events for this organization.") ?? "Recent billing + top-up events for this organization.")}</div>
+                  <div class="bh-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_fdacf3f09dfad1","Billing history") ?? "Billing history")}</div>
+                  <div class="bh-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_56202be1224399","Recent billing + top-up events for this organization.") ?? "Recent billing + top-up events for this organization.")}</div>
                 </div>
-                <button class="cs-btn ghost bh-btn" id="bhReload" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
+                <button class="cs-btn ghost bh-btn" id="bhReload" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
               </div>
               <div class="bh-list" id="bhList">
-                <div class="bh-empty">${(globalThis.PlatformLanguage?.text("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>
+                <div class="bh-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>
               </div>
               <div class="cs-note" id="bhStatus" style="margin-top:10px;"></div>
             </div>
@@ -16720,8 +16511,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <div class="ms-card" id="msCard">
             <div class="ms-top">
               <div>
-                <div class="ms-h"><i class="fas fa-file-invoice-dollar"></i>${(globalThis.PlatformLanguage?.text("settings","m_4f82a9467aef26"," Monthly Statement") ?? " Monthly Statement")}</div>
-                <div class="ms-sub">${(globalThis.PlatformLanguage?.text("settings","m_33b376cea5c707","Monthly billing ledger with payments, orders, credits, and refunds.") ?? "Monthly billing ledger with payments, orders, credits, and refunds.")}</div>
+                <div class="ms-h"><i class="fas fa-file-invoice-dollar"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f82a9467aef26"," Monthly Statement") ?? " Monthly Statement")}</div>
+                <div class="ms-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_33b376cea5c707","Monthly billing ledger with payments, orders, credits, and refunds.") ?? "Monthly billing ledger with payments, orders, credits, and refunds.")}</div>
               </div>
               <div class="ms-nav">
                 <button class="ms-navBtn" id="msPrev" type="button"><i class="fas fa-chevron-left"></i></button>
@@ -16730,11 +16521,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               </div>
             </div>
             <div class="ms-summary" id="msSummary">
-              <div class="ms-loading">${(globalThis.PlatformLanguage?.text("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>
+              <div class="ms-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>
             </div>
             <div class="ms-actions" id="msActions" style="display:none;">
-              <button class="cs-btn ghost" id="msViewDetail" type="button"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.text("settings","m_96bf392a9114ac"," View Details") ?? " View Details")}</button>
-              <button class="cs-btn ghost" id="msExportCsv" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
+              <button class="cs-btn ghost" id="msViewDetail" type="button"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_96bf392a9114ac"," View Details") ?? " View Details")}</button>
+              <button class="cs-btn ghost" id="msExportCsv" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
             </div>
           </div>
         </div>
@@ -16812,13 +16603,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       `);
       const grid=paneBilling.querySelector('.bl-grid');
       const summary=document.createElement('div');summary.className='fm-credit-settings';
-      summary.innerHTML='<span data-credit-topup-summary>Credit auto top-up</span><button type="button" class="cs-btn ghost" data-credit-settings>Manage</button>';
+      summary.innerHTML=`<span data-credit-topup-summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_8f492e9d154d37","Credit auto top-up") ?? "Credit auto top-up")}</span><button type="button" class="cs-btn ghost" data-credit-settings>${(globalThis.PlatformLanguage?.htmlText("settings","m_0e74f1bca1ead4","Manage") ?? "Manage")}</button>`;
       grid.prepend(summary);
       summary.querySelector('button').onclick=()=>{
         const card=grid.querySelector('.bl-card');if(!card)return;
-        const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Credit auto top-up');
+        const dialog=document.createElement('dialog');dialog.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("settings","m_8f492e9d154d37","Credit auto top-up") ?? "Credit auto top-up"));
         dialog.setAttribute('data-settings-autosave','off');
-        dialog.innerHTML='<button type="button" class="cs-btn ghost" data-close>Done</button>';
+        dialog.innerHTML=`<button type="button" class="cs-btn ghost" data-close>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cb6b086a0e69c","Done") ?? "Done")}</button>`;
         paneBilling.appendChild(dialog);dialog.appendChild(card);
         dialog.querySelector('[data-close]').onclick=()=>dialog.close();
         dialog.addEventListener('close',()=>{grid.insertBefore(card,grid.querySelector('.bh-card'));dialog.remove();updateCreditFitSummary();},{once:true});
@@ -16981,7 +16772,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           div.style.marginTop = '10px';
           div.style.marginBottom = '12px';
           div.innerHTML = `
-            Changing report settings only applies to <b>${(globalThis.PlatformLanguage?.text("settings","m_55a5ffa19f5eea","future") ?? "future")}</b>${(globalThis.PlatformLanguage?.text("settings","m_b56d2ac3394699"," measurement reports.\n            It does ") ?? " measurement reports.\n            It does ")}<b>${(globalThis.PlatformLanguage?.text("settings","m_ccb5ad288aed2d","not") ?? "not")}</b> change reports that have already been ordered.
+            Changing report settings only applies to <b>${(globalThis.PlatformLanguage?.htmlText("settings","m_55a5ffa19f5eea","future") ?? "future")}</b>${(globalThis.PlatformLanguage?.htmlText("settings","m_b56d2ac3394699"," measurement reports.\n            It does ") ?? " measurement reports.\n            It does ")}<b>${(globalThis.PlatformLanguage?.htmlText("settings","m_ccb5ad288aed2d","not") ?? "not")}</b> change reports that have already been ordered.
           `;
           const h3 = card.querySelector('h3.rp-h');
           if (h3 && h3.parentNode){
@@ -17240,12 +17031,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       }
       // Loading state
       msState.loading = true;
-      if (summaryEl) summaryEl.innerHTML = `<div class="ms-loading">${(globalThis.PlatformLanguage?.text("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>`;
+      if (summaryEl) summaryEl.innerHTML = `<div class="ms-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>`;
       if (actionsEl) actionsEl.style.display = 'none';
       const result = await fetchMonthlyStatement(month, year);
       msState.loading = false;
       if (!result.ok){
-        if (summaryEl) summaryEl.innerHTML = `<div class="ms-loading">${(globalThis.PlatformLanguage?.text("settings","m_f0a85f09c9685a","Could not load statement.") ?? "Could not load statement.")}</div>`;
+        if (summaryEl) summaryEl.innerHTML = `<div class="ms-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_f0a85f09c9685a","Could not load statement.") ?? "Could not load statement.")}</div>`;
         return;
       }
       msState.data = result;
@@ -17258,7 +17049,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const summaryEl = $('#msSummary', paneBilling);
       const actionsEl = $('#msActions', paneBilling);
       if (!d){
-        if (summaryEl) summaryEl.innerHTML = `<div class="ms-loading">${(globalThis.PlatformLanguage?.text("settings","m_c3ebc95d5c864c","No data.") ?? "No data.")}</div>`;
+        if (summaryEl) summaryEl.innerHTML = `<div class="ms-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_c3ebc95d5c864c","No data.") ?? "No data.")}</div>`;
         if (actionsEl) actionsEl.style.display = 'none';
         return;
       }
@@ -17272,27 +17063,27 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (summaryEl){
         summaryEl.innerHTML = `
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_ad68f8741d9002","Transactions") ?? "Transactions")}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_ad68f8741d9002","Transactions") ?? "Transactions")}</div>
             <div class="ms-statVal">${String(transactions.length)}</div>
           </div>
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
             <div class="ms-statVal">+${String(window.PlatformCommerce.credit(totalIn))}</div>
           </div>
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_84a960ac02e33a","Orders / Debits") ?? "Orders / Debits")}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_84a960ac02e33a","Orders / Debits") ?? "Orders / Debits")}</div>
             <div class="ms-statVal">${String(window.PlatformCommerce.credit(totalOut))}</div>
           </div>
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_705ca6f25ef6d8","Net Change") ?? "Net Change")}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_705ca6f25ef6d8","Net Change") ?? "Net Change")}</div>
             <div class="ms-statVal">${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</div>
           </div>
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_320155f7cd8ad0","Order Count") ?? "Order Count")}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_320155f7cd8ad0","Order Count") ?? "Order Count")}</div>
             <div class="ms-statVal">${String(orderCount)}</div>
           </div>
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.text("settings","m_2eedb890028422","Payment Count") ?? "Payment Count")}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_2eedb890028422","Payment Count") ?? "Payment Count")}</div>
             <div class="ms-statVal">${String(paymentCount)}</div>
           </div>
         `;
@@ -17320,7 +17111,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
 
       let tableHtml = '';
       if (!orders.length){
-        tableHtml = `<div class="ms-mEmpty"><i class="fas fa-inbox"></i>${(globalThis.PlatformLanguage?.text("settings","m_266ebb424b785c"," No reports ordered this month.") ?? " No reports ordered this month.")}</div>`;
+        tableHtml = `<div class="ms-mEmpty"><i class="fas fa-inbox"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_266ebb424b785c"," No reports ordered this month.") ?? " No reports ordered this month.")}</div>`;
       } else {
         const rows = orders.map((o, idx) => {
           const stCls = msStatusClass(o.status);
@@ -17363,12 +17154,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <table class="ms-table">
             <thead><tr>
               <th style="width:40px;">#</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_2a0b11100c22a4","Date") ?? "Date")}</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_2e88df13ca7101","Type") ?? "Type")}</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_1352cafa75b8da","Status") ?? "Status")}</th>
-              <th class="right">${(globalThis.PlatformLanguage?.text("settings","m_272ede761be170","Cost") ?? "Cost")}</th>
-              <th class="right">${(globalThis.PlatformLanguage?.text("settings","m_54833ca7291df9","Reimbursed") ?? "Reimbursed")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_2a0b11100c22a4","Date") ?? "Date")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_2e88df13ca7101","Type") ?? "Type")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_1352cafa75b8da","Status") ?? "Status")}</th>
+              <th class="right">${(globalThis.PlatformLanguage?.htmlText("settings","m_272ede761be170","Cost") ?? "Cost")}</th>
+              <th class="right">${(globalThis.PlatformLanguage?.htmlText("settings","m_54833ca7291df9","Reimbursed") ?? "Reimbursed")}</th>
             </tr></thead>
             <tbody>${String(rows)}</tbody>
           </table>
@@ -17383,15 +17174,15 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       back.innerHTML = `
         <div class="ms-modal">
           <div class="ms-mHeader">
-            <div class="ms-mTitle"><i class="fas fa-file-invoice-dollar"></i>${((v0) => globalThis.PlatformLanguage?.text("settings","m_a22b1aeb23e4aa",` Statement - ${v0}`,{v0}) ?? ` Statement - ${v0}`)(escapeHtml(monthLabel))}</div>
+            <div class="ms-mTitle"><i class="fas fa-file-invoice-dollar"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_a22b1aeb23e4aa",` Statement - ${v0}`,{v0}) ?? ` Statement - ${v0}`)(escapeHtml(monthLabel))}</div>
             <button class="ms-mClose" type="button"><i class="fas fa-xmark"></i></button>
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_9326cc9c9e8c32_currency",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.htmlText("settings","m_9326cc9c9e8c32_currency",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
-              <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
+              <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
+              <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}</button>
             </div>
           </div>
         </div>
@@ -17465,7 +17256,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
 
       let tableHtml = '';
       if (!transactions.length){
-        tableHtml = `<div class="ms-mEmpty"><i class="fas fa-inbox"></i>${(globalThis.PlatformLanguage?.text("settings","m_a289561ff24546"," No billing transactions this month.") ?? " No billing transactions this month.")}</div>`;
+        tableHtml = `<div class="ms-mEmpty"><i class="fas fa-inbox"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a289561ff24546"," No billing transactions this month.") ?? " No billing transactions this month.")}</div>`;
       } else {
         const rows = transactions.map((row, idx) => {
           const amount = msLedgerAmountText(row);
@@ -17488,10 +17279,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <table class="ms-table">
             <thead><tr>
               <th style="width:40px;">#</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_5694d10a9d286e","Transaction") ?? "Transaction")}</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_2a0b11100c22a4","Date") ?? "Date")}</th>
-              <th>${(globalThis.PlatformLanguage?.text("settings","m_6480ed19528b5a","Reason") ?? "Reason")}</th>
-              <th class="right">${(globalThis.PlatformLanguage?.text("settings","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_5694d10a9d286e","Transaction") ?? "Transaction")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_2a0b11100c22a4","Date") ?? "Date")}</th>
+              <th>${(globalThis.PlatformLanguage?.htmlText("settings","m_6480ed19528b5a","Reason") ?? "Reason")}</th>
+              <th class="right">${(globalThis.PlatformLanguage?.htmlText("settings","m_2b8c3448fa87a1","Amount") ?? "Amount")}</th>
             </tr></thead>
             <tbody>${String(rows)}</tbody>
           </table>
@@ -17502,15 +17293,15 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       back.innerHTML = `
         <div class="ms-modal">
           <div class="ms-mHeader">
-            <div class="ms-mTitle"><i class="fas fa-file-invoice-dollar"></i>${((v0) => globalThis.PlatformLanguage?.text("settings","m_a22b1aeb23e4aa",` Statement - ${v0}`,{v0}) ?? ` Statement - ${v0}`)(escapeHtml(monthLabel))}</div>
+            <div class="ms-mTitle"><i class="fas fa-file-invoice-dollar"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_a22b1aeb23e4aa",` Statement - ${v0}`,{v0}) ?? ` Statement - ${v0}`)(escapeHtml(monthLabel))}</div>
             <button class="ms-mClose" type="button"><i class="fas fa-xmark"></i></button>
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.text("settings","m_c3d1a4a6bbeb5e_currency",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
+            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.htmlText("settings","m_c3d1a4a6bbeb5e_currency",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
-              <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.text("settings","m_3742924668fb10","Close") ?? "Close")}</button>
+              <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
+              <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}</button>
             </div>
           </div>
         </div>
@@ -17685,7 +17476,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
         elSummary.style.display = '';
         elSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_f38174b09afe58_currency",`If your balance falls below ${v0}, we will automatically add ${v1} to your account.`,{v0,v1}) ?? `If your balance falls below ${v0}, we will automatically add ${v1} to your account.`)(window.PlatformCommerce.credit(thNow),window.PlatformCommerce.credit(amtNow));
-        elSummary.textContent += ` Each top-up charges ${window.PlatformCommerce.cash(amtNow)}. ${window.PlatformCommerce.estimate(amtNow)}`;
+        elSummary.textContent += ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_ae9d8c44e49371",` Each top-up charges ${v0}. ${v1}`,{v0,v1}) ?? ` Each top-up charges ${v0}. ${v1}`)(window.PlatformCommerce.cash(amtNow),window.PlatformCommerce.estimate(amtNow));
       }
       // Payment method row behavior
       const cardNote = $('#blCardNote', paneBilling);
@@ -18152,14 +17943,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         items.sort((a,b)=> (parseTs(b.ts) - parseTs(a.ts)));
         const top = items.slice(0, 200);
         if (!top.length){
-          bhList.innerHTML = `<div class="bh-empty">${(globalThis.PlatformLanguage?.text("settings","m_43db26b822fbe4","No billing transactions yet.") ?? "No billing transactions yet.")}</div>`;
+          bhList.innerHTML = `<div class="bh-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_43db26b822fbe4","No billing transactions yet.") ?? "No billing transactions yet.")}</div>`;
           return;
         }
         const head = `
           <div class="bh-head">
-            <div>${(globalThis.PlatformLanguage?.text("settings","m_493159f7771ebc","When") ?? "When")}</div>
-            <div>${(globalThis.PlatformLanguage?.text("settings","m_086faf6834e434","What happened") ?? "What happened")}</div>
-            <div style="text-align:right;">${(globalThis.PlatformLanguage?.text("settings","m_2b8c3448fa87a1","Amount") ?? "Amount")}</div>
+            <div>${(globalThis.PlatformLanguage?.htmlText("settings","m_493159f7771ebc","When") ?? "When")}</div>
+            <div>${(globalThis.PlatformLanguage?.htmlText("settings","m_086faf6834e434","What happened") ?? "What happened")}</div>
+            <div style="text-align:right;">${(globalThis.PlatformLanguage?.htmlText("settings","m_2b8c3448fa87a1","Amount") ?? "Amount")}</div>
           </div>
         `;
         const rows = top.map(it=>{
@@ -18194,12 +17985,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if (H.loading) return;
         H.loading = true;
         if (bhStatus) bhStatus.textContent = '';
-        bhList.innerHTML = `<div class="bh-empty">${(globalThis.PlatformLanguage?.text("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>`;
+        bhList.innerHTML = `<div class="bh-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_cf106559e52254","Loading...") ?? "Loading...")}</div>`;
         const ret = await billingFetchHistory(200);
         H.loading = false;
         if (!ret.ok){
           H.loaded = false;
-          bhList.innerHTML = `<div class="bh-empty">${(globalThis.PlatformLanguage?.text("settings","m_2b9269536ebac8","Could not load billing history.") ?? "Could not load billing history.")}</div>`;
+          bhList.innerHTML = `<div class="bh-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_2b9269536ebac8","Could not load billing history.") ?? "Could not load billing history.")}</div>`;
           return;
         }
         H.events = ret.events || [];
@@ -18259,7 +18050,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       let brandSaveQueue = Promise.resolve();
       const scheduleBrandSave = () => {
         clearTimeout(brandSaveTimer);
-        csStatus.textContent = 'Saving Brand Kit…';
+        csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_6fd299432247c1","Saving Brand Kit…") ?? "Saving Brand Kit…");
         brandSaveTimer = window.setTimeout(() => {
           const snapshot = {
             name:state.name, primary:state.primary, secondary:state.secondary,
@@ -18271,10 +18062,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           };
           brandSaveQueue = brandSaveQueue.catch(() => {}).then(() => saveOrg(snapshot)).then((result) => {
             if (!result.ok) throw new Error(result.error || 'Could not save Brand Kit.');
-            csStatus.textContent = 'Brand Kit saved';
+            csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_600e1e15c4efd9","Brand Kit saved") ?? "Brand Kit saved");
           }, (error) => {
             csStatus.textContent = error?.message || 'Could not save Brand Kit.';
-            showToast('Brand Kit save failed', csStatus.textContent, false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_569b229b85507e","Brand Kit save failed") ?? "Brand Kit save failed"), csStatus.textContent, false);
           });
         }, 400);
       };
@@ -18423,7 +18214,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           state.palette = [state.primary, state.secondary, ...fallbacks.map((fallback,index)=>supporting[index] || fallback)];
           renderBrandPalette();
           scheduleBrandSave();
-          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), 'Four supporting colors were pulled from your logo and saved.', true);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), (globalThis.PlatformLanguage?.text("settings","m_eb048f8fda1f67","Four supporting colors were pulled from your logo and saved.") ?? "Four supporting colors were pulled from your logo and saved."), true);
         } catch(e) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || 'The logo colors could not be read.', false);
         } finally {
@@ -18436,12 +18227,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       };
       const loadAlternateLogos = async ()=>{
         if (!csAlternateLogoList || !window.PlatformAPI?.brandingMedia?.list || !currentOrgId()) return;
-        csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.text("settings","m_23a4b0d6924747","Loading logos...") ?? "Loading logos...")}</span>`;
+        csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_23a4b0d6924747","Loading logos...") ?? "Loading logos...")}</span>`;
         try {
           const result = await window.PlatformAPI.brandingMedia.list(currentOrgId(), { imageOnly:true });
           renderAlternateLogos(Array.isArray(result?.media) ? result.media : []);
         } catch(e) {
-          csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.text("settings","m_1d7fbbb2b69c1a","Could not load alternate logos.") ?? "Could not load alternate logos.")}</span>`;
+          csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_1d7fbbb2b69c1a","Could not load alternate logos.") ?? "Could not load alternate logos.")}</span>`;
         }
       };
       csAlternateLogoFiles?.addEventListener('change', async ()=>{
@@ -18451,7 +18242,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           showToast((globalThis.PlatformLanguage?.text("settings","m_920aa9d1b0216a","Upload unavailable") ?? "Upload unavailable"), (globalThis.PlatformLanguage?.text("settings","m_c8b608a944e9e5","Alternate logo storage is not available.") ?? "Alternate logo storage is not available."), false);
           return;
         }
-        csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_8c144291b89e6a",`Uploading ${v0} logo${v1}...`,{v0,v1}) ?? `Uploading ${v0} logo${v1}...`)(files.length,files.length === 1 ? '' : 's')}</span>`;
+        csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_8c144291b89e6a",`Uploading ${v0} logo${v1}...`,{v0,v1}) ?? `Uploading ${v0} logo${v1}...`)(files.length,files.length === 1 ? '' : 's')}</span>`;
         try {
           for (const file of files) {
             await window.PlatformAPI.brandingMedia.upload(currentOrgId(), file, {
@@ -18568,17 +18359,17 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               const sourceLabel = explicit
                 ? `Role default: ${enabled ? 'shown' : 'hidden'}`
                 : `Catalog default: ${catalogEnabled ? 'shown' : 'hidden'}`;
-              return `<label class="cu-role-toggle"><input type="checkbox" data-role-app-default="${String(escapeHtml(appId))}" data-catalog-default="${String(catalogEnabled ? 'show' : 'hide')}" ${String(enabled ? 'checked' : '')}><span><b>${String(escapeHtml(workforceCatalogTitle(app)))}</b><span>${((v4,v5) => globalThis.PlatformLanguage?.text("settings","m_169d6ddc858b57",`${v4} &middot; ${v5}`,{v4,v5}) ?? `${v4} &middot; ${v5}`)(escapeHtml(workforceText(app.description, appId)),escapeHtml(sourceLabel))}</span></span></label>`;
+              return `<label class="cu-role-toggle"><input type="checkbox" data-role-app-default="${String(escapeHtml(appId))}" data-catalog-default="${String(catalogEnabled ? 'show' : 'hide')}" ${String(enabled ? 'checked' : '')}><span><b>${String(escapeHtml(workforceCatalogTitle(app)))}</b><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("settings","m_169d6ddc858b57",`${v4} &middot; ${v5}`,{v4,v5}) ?? `${v4} &middot; ${v5}`)(escapeHtml(workforceText(app.description, appId)),escapeHtml(sourceLabel))}</span></span></label>`;
             }).join('')}</div>`;
         }).join('');
-        return rendered || `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_ff15d19edbde25","No injectable app experiences are registered.") ?? "No injectable app experiences are registered.")}</div>`;
+        return rendered || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_ff15d19edbde25","No injectable app experiences are registered.") ?? "No injectable app experiences are registered.")}</div>`;
       };
       const permissionsMarkup = (role = {}) => {
         const permissions = workforceObject(role.permissions || role.permission_defaults);
         return `<div class="cu-role-perm-grid">${permissionKeys.map((key) => {
           const allowed = permissions[key] === false ? false : permissions[key] === true || permissions['*'] === true;
           return `<label class="cu-role-toggle"><input type="checkbox" data-role-permission="${escapeHtml(key)}" ${allowed ? 'checked' : ''}><span><b>${escapeHtml(workforceAccessPermissionLabel(key))}</b><span>${escapeHtml(workforceAccessPermissionDescription(key))}</span></span></label>`;
-        }).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_8b26bd70e01dd0","No data or action permissions are registered.") ?? "No data or action permissions are registered.")}</div>`}</div>`;
+        }).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8b26bd70e01dd0","No data or action permissions are registered.") ?? "No data or action permissions are registered.")}</div>`}</div>`;
       };
       const roleCardMarkup = (role = {}, draft = false) => {
         const roleId = workforceText(role.id, role.role_id);
@@ -18594,29 +18385,29 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <summary>
             <span class="cu-role-icon"><i class="fas ${String(applicationMode === 'hybrid' ? 'fa-layer-group' : applicationMode === 'field' ? 'fa-mobile-screen-button' : 'fa-desktop')}"></i></span>
             <span class="cu-role-summary"><b>${String(escapeHtml(workforceText(role.name, draft ? 'New role' : roleId)))}</b><span>${String(escapeHtml(draft ? 'Configure a reusable role' : `${applicationLabel} / ${systemRole ? 'System role' : roleId}`))}</span></span>
-            <span class="cu-role-counts"><span>${((v5) => globalThis.PlatformLanguage?.text("settings","m_fc34c12e76b6c1",`${v5} views`,{v5}) ?? `${v5} views`)(appCount)}</span><span>${String(rolePermissions['*'] === true ? 'All permissions' : `${permissionCount} permissions`)}</span>${String(!draft ? `<span>rev ${escapeHtml(String(role.revision || 0))}</span>` : '')}</span>
+            <span class="cu-role-counts"><span>${((v5) => globalThis.PlatformLanguage?.htmlText("settings","m_fc34c12e76b6c1",`${v5} views`,{v5}) ?? `${v5} views`)(appCount)}</span><span>${String(rolePermissions['*'] === true ? 'All permissions' : `${permissionCount} permissions`)}</span>${String(!draft ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_b9b9bca729d6db",`rev ${v0}`,{v0}) ?? `rev ${v0}`)(escapeHtml(String(role.revision || 0)))}</span>` : '')}</span>
           </summary>
             <div class="cu-role-editor">
             <div class="cu-role-editor-grid">
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_31e35037ebeb35","Role name") ?? "Role name")}</span><input class="cs-in" data-role-name value="${String(escapeHtml(role.name || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_ff57c5e033bf46","Crew member") ?? "Crew member")}"></label>
-              <div class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_b08bf56c8979ef","Application families") ?? "Application families")}</span><div class="cu-choice-list">
+              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_31e35037ebeb35","Role name") ?? "Role name")}</span><input class="cs-in" data-role-name value="${String(escapeHtml(role.name || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_ff57c5e033bf46","Crew member") ?? "Crew member")}"></label>
+              <div class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_b08bf56c8979ef","Application families") ?? "Application families")}</span><div class="cu-choice-list">
                 ${String(['management', 'field'].map((application) => `<label class="cu-workforce-choice"><input type="checkbox" data-role-application-id="${application}" ${applications.includes(application) ? 'checked' : ''} ${systemRole ? 'disabled title="System role application families cannot be changed."' : ''}> ${escapeHtml(workforceApplicationLabel(application))}</label>`).join(''))}
               </div></div>
-              <label class="cu-row wide"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea class="cs-in" data-role-description placeholder="${(globalThis.PlatformLanguage?.text("settings","m_2cf91f4abee660","Who should receive this role and what it enables") ?? "Who should receive this role and what it enables")}">${String(escapeHtml(role.description || ''))}</textarea></label>
+              <label class="cu-row wide"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_aa136ecb65672f","Description") ?? "Description")}</span><textarea class="cs-in" data-role-description placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_2cf91f4abee660","Who should receive this role and what it enables") ?? "Who should receive this role and what it enables")}">${String(escapeHtml(role.description || ''))}</textarea></label>
             </div>
-            <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_64fb5b5e093e03","Default app experience") ?? "Default app experience")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_3e099da1ba6813","These views appear by default. Individual users can still inherit, show, or hide each one.") ?? "These views appear by default. Individual users can still inherit, show, or hide each one.")}</div></div>
+            <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_64fb5b5e093e03","Default app experience") ?? "Default app experience")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_3e099da1ba6813","These views appear by default. Individual users can still inherit, show, or hide each one.") ?? "These views appear by default. Individual users can still inherit, show, or hide each one.")}</div></div>
             ${String(surfaceMarkup(role))}
-            <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_275ff357425e43","Default data &amp; actions") ?? "Default data &amp; actions")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_949c4257bb016e","Role permissions control capability. App visibility and permissions are intentionally separate.") ?? "Role permissions control capability. App visibility and permissions are intentionally separate.")}</div></div>
+            <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_275ff357425e43","Default data &amp; actions") ?? "Default data &amp; actions")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_949c4257bb016e","Role permissions control capability. App visibility and permissions are intentionally separate.") ?? "Role permissions control capability. App visibility and permissions are intentionally separate.")}</div></div>
             ${String(permissionsMarkup(role))}
             <div class="cu-role-actions">
-              ${String(draft ? '<button type="button" class="cs-btn ghost" data-role-cancel>Cancel</button>' : `<button type="button" class="cs-btn ghost" data-role-archive ${systemRole ? 'disabled title="System roles cannot be archived."' : ''}><i class="fas fa-box-archive"></i> Archive</button>`)}
+              ${String(draft ? `<button type="button" class="cs-btn ghost" data-role-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>` : `<button type="button" class="cs-btn ghost" data-role-archive ${systemRole ? 'disabled title="System roles cannot be archived."' : ''}><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}
               <button type="button" class="cs-btn primary" data-role-save><i class="fas fa-save"></i> ${String(draft ? 'Create role' : 'Save role')}</button>
             </div>
             <div class="cu-role-status" data-role-status></div>
           </div>
         </details>`;
       };
-      body.innerHTML = (String(workforceAccessIntroMarkup()) + "\n        <div class=\"cu-section-toolbar\"><div><strong>" + ((v1,v2) => globalThis.PlatformLanguage?.text("settings","m_abdd4d7921870b",`${v1} active ${v2}`,{v1,v2}) ?? `${v1} active ${v2}`)(roles.length,roles.length === 1 ? 'role' : 'roles') + "</strong><span>" + (globalThis.PlatformLanguage?.text("settings","m_13ede0d4cc3b2e","Roles are reusable defaults. Individual people can still receive explicit overrides.") ?? "Roles are reusable defaults. Individual people can still receive explicit overrides.") + "</span></div><button type=\"button\" class=\"cs-btn primary\" data-role-new " + String(accessRoleDraftOpen ? 'disabled' : '') + "><i class=\"fas fa-plus\"></i>" + (globalThis.PlatformLanguage?.text("settings","m_174b2acffbcf7c"," New role") ?? " New role") + "</button></div>\n        <div class=\"cu-role-manager-list\">" + String(roles.map((role) => roleCardMarkup(role)).join('') || '<div class="cs-note">No active access roles.</div>') + String(accessRoleDraftOpen ? roleCardMarkup({ application_ids:['field'], permissions:{}, app_defaults:{} }, true) : '') + "</div>\n        <div class=\"cs-note\" data-role-manager-status>" + String(escapeHtml(statusText)) + "</div>");
+      body.innerHTML = (String(workforceAccessIntroMarkup()) + "\n        <div class=\"cu-section-toolbar\"><div><strong>" + ((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_abdd4d7921870b",`${v1} active ${v2}`,{v1,v2}) ?? `${v1} active ${v2}`)(roles.length,roles.length === 1 ? 'role' : 'roles') + "</strong><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_13ede0d4cc3b2e","Roles are reusable defaults. Individual people can still receive explicit overrides.") ?? "Roles are reusable defaults. Individual people can still receive explicit overrides.") + "</span></div><button type=\"button\" class=\"cs-btn primary\" data-role-new " + String(accessRoleDraftOpen ? 'disabled' : '') + "><i class=\"fas fa-plus\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_174b2acffbcf7c"," New role") ?? " New role") + "</button></div>\n        <div class=\"cu-role-manager-list\">" + String(roles.map((role) => roleCardMarkup(role)).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_e889b6955038fb","No active access roles.") ?? "No active access roles.")}</div>`) + String(accessRoleDraftOpen ? roleCardMarkup({ application_ids:['field'], permissions:{}, app_defaults:{} }, true) : '') + "</div>\n        <div class=\"cs-note\" data-role-manager-status>" + String(escapeHtml(statusText)) + "</div>");
       const refreshRoleSurfaces = async (message = '') => {
         workforceUi.loaded = false;
         await loadWorkforceContext({ refresh:true });
@@ -18816,7 +18607,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="cu-row">
               <div class="cu-lbl">Email</div>
               <input class="cs-in" id="cuEditEmail" placeholder="jane.doe@company.com" autocomplete="off" inputmode="email" value="${escapeHtml(String(u?.email || ''))}" ${isSuperAdmin || !canAddDelete ? 'readonly aria-readonly="true"' : ''}>
-              ${isSuperAdmin ? `<div class="cs-note" style="margin-top:2px;">${escapeHtml(lockedEmailMsg)}</div>` : !canAddDelete ? `<div class="cs-note" style="margin-top:2px;">${(globalThis.PlatformLanguage?.text("settings","m_2f10501d76d694","Identity changes require user administration.") ?? "Identity changes require user administration.")}</div>` : ''}
+              ${isSuperAdmin ? `<div class="cs-note" style="margin-top:2px;">${escapeHtml(lockedEmailMsg)}</div>` : !canAddDelete ? `<div class="cs-note" style="margin-top:2px;">${(globalThis.PlatformLanguage?.htmlText("settings","m_2f10501d76d694","Identity changes require user administration.") ?? "Identity changes require user administration.")}</div>` : ''}
             </div>
           </div>
           ${workforceAccessIntroMarkup()}
@@ -18824,10 +18615,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="cu-workforce-title">Role &amp; assignment</div>
             <div class="cs-note">Roles control application access and permissions. ${escapeHtml(normalizeWorkforceTerminology(workforceUi.configuration.terminology).resource_group_singular)} assignment is managed independently.</div>
             <div class="cu-access-role-grid">${workforceRoleChoicesMarkup([...currentRoleIds], { disabled:!canManageAccess })}</div>
-            ${!canManageAccess ? `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_d2d6c29c0de152","You can view role assignment, but changing access roles requires user administration.") ?? "You can view role assignment, but changing access roles requires user administration.")}</div>` : ''}
+            ${!canManageAccess ? `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d2d6c29c0de152","You can view role assignment, but changing access roles requires user administration.") ?? "You can view role assignment, but changing access roles requires user administration.")}</div>` : ''}
             <div class="cu-workforce-grid">
               <label class="cu-row wide"><span class="cu-lbl">Primary ${escapeHtml(normalizeWorkforceTerminology(workforceUi.configuration.terminology).resource_group_singular)} assignment</span><select class="cs-in" id="cuEditResourceGroup" ${!canAddDelete ? 'disabled' : ''}><option value="">No primary group</option>${workforceUi.resourceGroups.filter((group) => group.status !== 'archived' && !group.archived_at).map((group) => `<option value="${escapeHtml(group.id)}" ${workforceText(group.id) === workforceText(currentGroupId) ? 'selected' : ''}>${escapeHtml(group.name || group.id)}</option>`).join('')}</select><span class="cs-note">${!canAddDelete ? 'Group changes require user administration.' : currentGroups.length > 1 ? `${currentGroups.length} current group memberships. Changing this selection preserves the others and their lead/member roles.` : 'Additional group memberships and lead/member roles are managed in Crews and Subcontractors.'}</span></label>
-              <div class="cu-row wide"><span class="cu-lbl">Assignment tags</span><div class="wf-inline-toggle">${activeAssignmentTags.map((tag) => `<label class="wf-check"><input type="checkbox" data-user-assignment-tag="${escapeHtml(tag.id)}" ${currentAssignmentTagIds.includes(workforceText(tag.id)) ? 'checked' : ''} ${!canManageAccess ? 'disabled' : ''}> ${escapeHtml(tag.name || tag.id)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_d7a7f68064052e","No assignment tags defined.") ?? "No assignment tags defined.")}</span>`}</div></div>
+              <div class="cu-row wide"><span class="cu-lbl">Assignment tags</span><div class="wf-inline-toggle">${activeAssignmentTags.map((tag) => `<label class="wf-check"><input type="checkbox" data-user-assignment-tag="${escapeHtml(tag.id)}" ${currentAssignmentTagIds.includes(workforceText(tag.id)) ? 'checked' : ''} ${!canManageAccess ? 'disabled' : ''}> ${escapeHtml(tag.name || tag.id)}</label>`).join('') || `<span class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d7a7f68064052e","No assignment tags defined.") ?? "No assignment tags defined.")}</span>`}</div></div>
             </div>
           </section>
           <details class="cu-access-section" open>
@@ -18839,14 +18630,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="cu-access-body">${workforcePermissionOverrideMarkup(currentPermissionOverrides, { disabled:!canManageAccess })}</div>
           </details>
           ${canAddDelete ? `<section class="cu-workforce-section">
-            <div class="cu-workforce-title">${(globalThis.PlatformLanguage?.text("settings","m_510424838bcfea","Optional user compensation") ?? "Optional user compensation")}</div>
-            <label class="cu-workforce-choice"><input type="checkbox" id="cuEditCompEnabled" ${String(currentCompensation.enabled ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("settings","m_8456b172ac7367"," Store compensation on this user") ?? " Store compensation on this user")}</label>
+            <div class="cu-workforce-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_510424838bcfea","Optional user compensation") ?? "Optional user compensation")}</div>
+            <label class="cu-workforce-choice"><input type="checkbox" id="cuEditCompEnabled" ${String(currentCompensation.enabled ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_8456b172ac7367"," Store compensation on this user") ?? " Store compensation on this user")}</label>
             <div class="cu-workforce-grid">
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="cs-in" id="cuEditCompType">${String(['hourly','salary','piece_rate','hybrid'].map((type) => `<option value="${type}" ${currentCompensation.type === type ? 'selected' : ''}>${escapeHtml(type.replace(/_/g, ' '))}</option>`).join(''))}</select></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_c6dafd1ef27e19","Hourly rate") ?? "Hourly rate")}</span><input class="cs-in" id="cuEditCompHourly" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.hourly_rate_cents)))}" placeholder="0.00"></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_a1d615ae0871ea","Salary amount") ?? "Salary amount")}</span><input class="cs-in" id="cuEditCompSalary" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.salary_rate_cents)))}" placeholder="0.00"></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_d599dad8ed2b1b","Salary period") ?? "Salary period")}</span><select class="cs-in" id="cuEditCompSalaryPeriod">${String(salaryPeriodOptionsHtml(currentCompensation.salary_period))}</select></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.text("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="cs-in" id="cuEditCompPiece" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
+              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="cs-in" id="cuEditCompType">${String(['hourly','salary','piece_rate','hybrid'].map((type) => `<option value="${type}" ${currentCompensation.type === type ? 'selected' : ''}>${escapeHtml(type.replace(/_/g, ' '))}</option>`).join(''))}</select></label>
+              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_c6dafd1ef27e19","Hourly rate") ?? "Hourly rate")}</span><input class="cs-in" id="cuEditCompHourly" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.hourly_rate_cents)))}" placeholder="0.00"></label>
+              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_a1d615ae0871ea","Salary amount") ?? "Salary amount")}</span><input class="cs-in" id="cuEditCompSalary" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.salary_rate_cents)))}" placeholder="0.00"></label>
+              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_d599dad8ed2b1b","Salary period") ?? "Salary period")}</span><select class="cs-in" id="cuEditCompSalaryPeriod">${String(salaryPeriodOptionsHtml(currentCompensation.salary_period))}</select></label>
+              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="cs-in" id="cuEditCompPiece" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
             </div>
           </section>` : ''}
           <div class="cs-note" id="cuEditStatus" style="margin-top:10px;"></div>
@@ -18857,8 +18648,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const footer = document.createElement('div');
       footer.className = 'cu-mactions';
       footer.innerHTML = `
-        <button class="cs-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
-        <button class="cs-btn primary" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_bfcbd339764266"," Save changes") ?? " Save changes")}</button>
+        <button class="cs-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
+        <button class="cs-btn primary" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_bfcbd339764266"," Save changes") ?? " Save changes")}</button>
       `;
       m.el.querySelector('.cu-modal').appendChild(footer);
       const elName = m.el.querySelector('#cuEditName');
@@ -18946,11 +18737,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const suspendIcon  = u?.disabled ? 'fa-play' : 'fa-pause';
       floatingMenu.innerHTML = `
         <button class="cu-mi ${String(canEdit ? '' : 'disabled')}" type="button" data-act="edit" ${String(canEdit ? '' : 'disabled')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_5b9378df7220c1","Edit") ?? "Edit")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5b9378df7220c1","Edit") ?? "Edit")}</span>
           <i class="fas fa-pen"></i>
         </button>
         <button class="cu-mi ${String(canResend ? '' : 'disabled')}" type="button" data-act="resend" ${String(canResend ? '' : 'disabled')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_ff95e546b6a785","Resend invite") ?? "Resend invite")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ff95e546b6a785","Resend invite") ?? "Resend invite")}</span>
           <i class="fas fa-paper-plane"></i>
         </button>
         <button class="cu-mi ${String(canSuspend ? '' : 'disabled')}" type="button" data-act="suspend" ${String(canSuspend ? '' : 'disabled')}>
@@ -18958,7 +18749,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <i class="fas ${String(suspendIcon)}"></i>
         </button>
         <button class="cu-mi ${String(canDelete ? '' : 'disabled')}" type="button" data-act="delete" ${String(canDelete ? '' : 'disabled')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_4fc60207629a44","Delete") ?? "Delete")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4fc60207629a44","Delete") ?? "Delete")}</span>
           <i class="fas fa-trash"></i>
         </button>
       `;
@@ -19046,8 +18837,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           const footer = document.createElement('div');
           footer.className = 'cu-mactions';
           footer.innerHTML = `
-            <button class="cs-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
-            <button class="cs-btn primary" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("settings","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
+            <button class="cs-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
+            <button class="cs-btn primary" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
           `;
           m.el.querySelector('.cu-modal').appendChild(footer);
           const [btnCancel, btnDo] = footer.querySelectorAll('button');
@@ -19164,7 +18955,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                    <div class="cu-userEmail">${String(escapeHtml(email))}</div>
                    ${String(workforceChips ? `<div class="cu-userMetaChips">${workforceChips}</div>` : '')}
                 </div>
-                ${String(isMe ? `<span class="cu-tag you"><i class="fas fa-user"></i> You</span>` : '')}
+                ${String(isMe ? `<span class="cu-tag you"><i class="fas fa-user"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_77a0c5b9d8ac90"," You") ?? " You")}</span>` : '')}
               </div>
             </td>
             <td class="cu-td cu-centerCell">
@@ -19174,7 +18965,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               <span class="cu-pill ${String(st.cls)}"><i class="fas ${String(st.ico)}"></i> ${String(escapeHtml(st.t))}</span>
             </td>
             <td class="cu-td cu-actionsCell">
-              ${String(canShowKebab ? `<button class="cu-kebab" type="button" data-act="kebab" aria-label="Actions"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
+              ${String(canShowKebab ? `<button class="cu-kebab" type="button" data-act="kebab" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
             </td>
           </tr>
           <tr class="cu-trPerm ${String(isMe ? 'me' : '')}" data-user-id="${String(escapeHtml(id))}" data-deleted="${String(isDeleted ? '1' : '0')}" style="${String(isDeleted || !usersState.showPerms ? 'display:none;' : '')}">
@@ -19190,7 +18981,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                     </div>
                   </div>
                   <div class="cu-permGrid">
-                    <div class="cu-permLabel">${(globalThis.PlatformLanguage?.text("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
+                    <div class="cu-permLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
                     ${String(permBtns)}
                   </div>
                 </div>
@@ -19563,7 +19354,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                       <div class="cu-workforce-title">Initial role &amp; assignment</div>
                       <div class="cs-note">The default role is selected automatically. Choose another role or an initial ${escapeHtml(normalizeWorkforceTerminology(workforceUi.configuration.terminology).resource_group_singular)} only when needed.</div>
                       <div class="cu-access-role-grid">${workforceRoleChoicesMarkup(inviteState.accessRoleIds, { disabled:!canManageAccess })}</div>
-                      ${!canManageAccess ? `<div class="cs-note">${(globalThis.PlatformLanguage?.text("settings","m_115d9cd7a974ab","User administration is required to choose another role.") ?? "User administration is required to choose another role.")}</div>` : ''}
+                      ${!canManageAccess ? `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_115d9cd7a974ab","User administration is required to choose another role.") ?? "User administration is required to choose another role.")}</div>` : ''}
                       <div class="cu-workforce-grid"><label class="cu-row wide"><span class="cu-lbl">Initial ${escapeHtml(normalizeWorkforceTerminology(workforceUi.configuration.terminology).resource_group_singular)}</span><select class="cs-in" id="cuNewResourceGroup"><option value="">No group</option>${workforceUi.resourceGroups.filter((group) => group.status !== 'archived' && !group.archived_at).map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.name || group.id)}</option>`).join('')}</select></label></div>
                     </section>
                     <section class="cu-workforce-section">
@@ -19587,8 +19378,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           const footer = document.createElement('div');
           footer.className = 'cu-mactions';
           footer.innerHTML = `
-            <button class="cs-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
-            <button class="cs-btn primary" type="button"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("settings","m_45e3a1c4c7599a"," Send invite") ?? " Send invite")}</button>
+            <button class="cs-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
+            <button class="cs-btn primary" type="button"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_45e3a1c4c7599a"," Send invite") ?? " Send invite")}</button>
           `;
           m.el.querySelector('.cu-modal').appendChild(footer);
           const elName = m.el.querySelector('#cuNewName');
@@ -19606,7 +19397,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             if (elAvatarInitial) elAvatarInitial.textContent = fallback;
             if (!elAvatarBtn) return;
             if (avatarState.previewUrl){
-              elAvatarBtn.innerHTML = `<img src="${String(escapeHtml(avatarState.previewUrl))}" alt="${(globalThis.PlatformLanguage?.text("settings","m_01681f36aa7ae4","Profile picture") ?? "Profile picture")}"><span class="cu-userAvatarEdit"><i class="fas fa-camera"></i></span>`;
+              elAvatarBtn.innerHTML = `<img src="${String(escapeHtml(avatarState.previewUrl))}" alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_01681f36aa7ae4","Profile picture") ?? "Profile picture")}"><span class="cu-userAvatarEdit"><i class="fas fa-camera"></i></span>`;
             } else {
               elAvatarBtn.innerHTML = `<span id="cuNewAvatarInitial">${escapeHtml(fallback)}</span><span class="cu-userAvatarEdit"><i class="fas fa-camera"></i></span>`;
             }
@@ -19615,7 +19406,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             if (elRolePresets) elRolePresets.innerHTML = renderRolePresetButtons(inviteState.level, false);
             if (elPermHint) elPermHint.textContent = permissionHintText(inviteState.level, true);
             if (elPermGrid) {
-              elPermGrid.innerHTML = `<div class="cu-permLabel">${(globalThis.PlatformLanguage?.text("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>${String(renderPermissionButtons(effectivePermsForLevel(inviteState.level, inviteState.perms), false))}`;
+              elPermGrid.innerHTML = `<div class="cu-permLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>${String(renderPermissionButtons(effectivePermsForLevel(inviteState.level, inviteState.perms), false))}`;
               if (inviteState.level === 'custom') elPermGrid.closest('details').open = true;
             }
             elRolePresets?.querySelectorAll('button[data-role]').forEach(btn=>{

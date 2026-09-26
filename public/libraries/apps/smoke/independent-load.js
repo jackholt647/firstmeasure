@@ -20,8 +20,8 @@
       <tr data-app-id="${String(escapeHtml(app.id))}">
         <td><code>${String(escapeHtml(app.id))}</code><div>${String(escapeHtml(app.title || ''))}</div></td>
         <td>${String(escapeHtml(app.kind || ''))}</td>
-        <td>${String((app.dependencies || []).map((id) => `<code>${escapeHtml(id)}</code>`).join(', ') || '<span class="pending">none</span>')}</td>
-        <td class="status pending">${(globalThis.PlatformLanguage?.text("smoke","m_2175240180a38e","Pending") ?? "Pending")}</td>
+        <td>${String((app.dependencies || []).map((id) => `<code>${escapeHtml(id)}</code>`).join(', ') || `<span class="pending">${(globalThis.PlatformLanguage?.htmlText("smoke","m_2abd9c35cff819","none") ?? "none")}</span>`)}</td>
+        <td class="status pending">${(globalThis.PlatformLanguage?.htmlText("smoke","m_2175240180a38e","Pending") ?? "Pending")}</td>
         <td class="details"></td>
       </tr>
     `).join('');

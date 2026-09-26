@@ -158,7 +158,7 @@
   function cardStatusSelect(unit){
     const current = clean(obj(unit).status) || 'available';
     const meta = STATUS_META[current] || STATUS_META.available;
-    return `<span class="eq-card-status-wrap" style="background:${String(meta.bg)};color:${String(meta.color)}"><select class="eq-card-status" data-eq-card-status="${String(esc(obj(unit).id))}" aria-label="${((v3) => globalThis.PlatformLanguage?.text("equipment","m_68e30b7c4cdf7c",`Status for ${v3}`,{v3}) ?? `Status for ${v3}`)(esc(obj(unit).name || 'unit'))}">${String(Object.entries(STATUS_META).filter(([key]) => key !== 'in_use' || current === 'in_use').map(([key, option]) => `<option value="${esc(key)}" ${current === key ? 'selected' : ''} ${key === 'in_use' ? 'disabled' : ''}>${esc(terminology(option.term, option.label))}</option>`).join(''))}</select><i class="fas fa-chevron-down"></i></span>`;
+    return `<span class="eq-card-status-wrap" style="background:${String(meta.bg)};color:${String(meta.color)}"><select class="eq-card-status" data-eq-card-status="${String(esc(obj(unit).id))}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("equipment","m_68e30b7c4cdf7c",`Status for ${v3}`,{v3}) ?? `Status for ${v3}`)(esc(obj(unit).name || 'unit'))}">${String(Object.entries(STATUS_META).filter(([key]) => key !== 'in_use' || current === 'in_use').map(([key, option]) => `<option value="${esc(key)}" ${current === key ? 'selected' : ''} ${key === 'in_use' ? 'disabled' : ''}>${esc(terminology(option.term, option.label))}</option>`).join(''))}</select><i class="fas fa-chevron-down"></i></span>`;
   }
 
   function mountEquipment(root, context = {}){
@@ -251,13 +251,13 @@
 
     function utilizationHtml(){
       const data = state.utilization;
-      if (!data || data.loading) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.text("equipment","m_a011562e78fc6c","Crunching utilization…") ?? "Crunching utilization…")}</div></div>`;
-      if (data.error) return `<div class="eq-empty"><div><i class="fas fa-chart-column"></i><strong>${(globalThis.PlatformLanguage?.text("equipment","m_df75f7ce73c51f","Utilization unavailable") ?? "Utilization unavailable")}</strong><p>${String(esc(data.error))}</p></div></div>`;
+      if (!data || data.loading) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.htmlText("equipment","m_a011562e78fc6c","Crunching utilization…") ?? "Crunching utilization…")}</div></div>`;
+      if (data.error) return `<div class="eq-empty"><div><i class="fas fa-chart-column"></i><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_df75f7ce73c51f","Utilization unavailable") ?? "Utilization unavailable")}</strong><p>${String(esc(data.error))}</p></div></div>`;
       const dollars = (cents) => `$${(Number(cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
       const rows = arr(data.units);
-      if (!rows.length) return `<div class="eq-empty"><div><i class="fas fa-chart-column"></i><strong>${(globalThis.PlatformLanguage?.text("equipment","m_c180ae952a55b0","No utilization yet") ?? "No utilization yet")}</strong><p>${(globalThis.PlatformLanguage?.text("equipment","m_807bcf642a7214","Book units on the schedule and this view compares booked vs. idle, costs, and rent-vs-own.") ?? "Book units on the schedule and this view compares booked vs. idle, costs, and rent-vs-own.")}</p></div></div>`;
+      if (!rows.length) return `<div class="eq-empty"><div><i class="fas fa-chart-column"></i><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_c180ae952a55b0","No utilization yet") ?? "No utilization yet")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("equipment","m_807bcf642a7214","Book units on the schedule and this view compares booked vs. idle, costs, and rent-vs-own.") ?? "Book units on the schedule and this view compares booked vs. idle, costs, and rent-vs-own.")}</p></div></div>`;
       return `
-        <div style="color:#667085;font-size:11.5px;font-weight:750;margin-bottom:10px">${((v0) => globalThis.PlatformLanguage?.text("equipment","m_c3713163b695f1",`Last ${v0} days`,{v0}) ?? `Last ${v0} days`)(esc(String(data.window_days || 30)))}</div>
+        <div style="color:#667085;font-size:11.5px;font-weight:750;margin-bottom:10px">${((v0) => globalThis.PlatformLanguage?.htmlText("equipment","m_c3713163b695f1",`Last ${v0} days`,{v0}) ?? `Last ${v0} days`)(esc(String(data.window_days || 30)))}</div>
         <div style="border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead><tr style="text-align:left;color:#667085;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em">
@@ -267,14 +267,14 @@
               ${String(rows.map((row) => `
                 <tr>
                   <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9;font-weight:850">${esc(row.name)}<div style="color:#98a2b3;font-size:10.5px;font-weight:750">${esc(row.type_name || '')}</div></td>
-                  <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${esc(String(row.booked_hours))} hrs · ${esc(String(row.bookings))} booking${row.bookings === 1 ? '' : 's'}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("equipment","m_9dcf532652aff4",`${v2} hrs · ${v3} booking${v4}`,{v2,v3,v4}) ?? `${v2} hrs · ${v3} booking${v4}`)(esc(String(row.booked_hours)),esc(String(row.bookings)),row.bookings === 1 ? '' : 's')}</td>
                   <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">
                     <div style="display:flex;align-items:center;gap:8px">
                       <div style="flex:0 0 90px;height:7px;border-radius:99px;background:#eef0f5;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(100, Number(row.utilization_percent || 0))}%;background:var(--primary-readable,var(--primary,#d93025))"></i></div>
                       <span style="font-weight:850">${esc(String(row.utilization_percent))}%</span>
                     </div>
                   </td>
-                  <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${esc(String(row.downtime_hours))} hrs</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${((v7) => globalThis.PlatformLanguage?.htmlText("equipment","m_c36ee4d32d5250",`${v7} hrs`,{v7}) ?? `${v7} hrs`)(esc(String(row.downtime_hours)))}</td>
                   <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${esc(dollars(row.projected_cost_cents))}</td>
                   <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${esc(dollars(row.service_cost_cents))}</td>
                   <td style="padding:10px 14px;border-bottom:1px solid #f4f6f9">${esc(dollars(row.fuel_cost_cents))}</td>
@@ -312,8 +312,8 @@
 
     function maintenanceHtml(){
       const data = state.maintenance;
-      if (!data || data.loading) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.text("equipment","m_c8cddb1ba558cd","Loading maintenance…") ?? "Loading maintenance…")}</div></div>`;
-      if (data.error) return `<div class="eq-empty"><div><i class="fas fa-wrench"></i><strong>${(globalThis.PlatformLanguage?.text("equipment","m_ad03b2fb4f2eeb","Maintenance unavailable") ?? "Maintenance unavailable")}</strong><p>${String(esc(data.error))}</p></div></div>`;
+      if (!data || data.loading) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.htmlText("equipment","m_c8cddb1ba558cd","Loading maintenance…") ?? "Loading maintenance…")}</div></div>`;
+      if (data.error) return `<div class="eq-empty"><div><i class="fas fa-wrench"></i><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_ad03b2fb4f2eeb","Maintenance unavailable") ?? "Maintenance unavailable")}</strong><p>${String(esc(data.error))}</p></div></div>`;
       const unitName = (id) => clean(arr(state.units).find((unit) => clean(unit.id) === clean(id))?.name) || clean(id);
       const orderStatusChip = (status) => {
         const meta = {
@@ -339,22 +339,22 @@
             </span>
             ${orderStatusChip(order.status)}
             ${actionable ? `
-              <button type="button" class="eq-mini" data-eq-wo-schedule="${String(esc(order.id))}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.text("equipment","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>
-              <button type="button" class="eq-mini" data-eq-wo-complete="${String(esc(order.id))}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("equipment","m_94c1150743bc9c"," Complete") ?? " Complete")}</button>
+              <button type="button" class="eq-mini" data-eq-wo-schedule="${String(esc(order.id))}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>
+              <button type="button" class="eq-mini" data-eq-wo-complete="${String(esc(order.id))}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_94c1150743bc9c"," Complete") ?? " Complete")}</button>
               <button type="button" class="eq-mini" data-eq-wo-cancel="${String(esc(order.id))}"><i class="fas fa-xmark"></i></button>` : ''}
             ${scheduling ? `
               <div style="flex-basis:100%;display:flex;gap:8px;align-items:center;margin-top:8px">
                 <input type="datetime-local" class="eq-filter" data-eq-wo-start>
                 <input type="datetime-local" class="eq-filter" data-eq-wo-end>
-                <button type="button" class="eq-btn primary" data-eq-wo-schedule-save="${String(esc(order.id))}">${(globalThis.PlatformLanguage?.text("equipment","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
-                <button type="button" class="eq-btn" data-eq-wo-schedule-cancel>${(globalThis.PlatformLanguage?.text("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+                <button type="button" class="eq-btn primary" data-eq-wo-schedule-save="${String(esc(order.id))}">${(globalThis.PlatformLanguage?.htmlText("equipment","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+                <button type="button" class="eq-btn" data-eq-wo-schedule-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
               </div>` : ''}
           </div>`;
       };
       return `
         <div style="display:grid;gap:16px">
           <div>
-            <h3 style="margin:0 0 8px;font-size:14px"><i class="fas fa-bell" style="color:var(--primary-readable,var(--primary,#d93025))"></i>${(globalThis.PlatformLanguage?.text("equipment","m_0cc9e4f8ed7068"," Due soon") ?? " Due soon")}</h3>
+            <h3 style="margin:0 0 8px;font-size:14px"><i class="fas fa-bell" style="color:var(--primary-readable,var(--primary,#d93025))"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0cc9e4f8ed7068"," Due soon") ?? " Due soon")}</h3>
             <div class="eq-types-list">
               ${String(arr(data.due).map((entry) => `
                 <div class="eq-type-row">
@@ -364,23 +364,23 @@
                     <span>${esc(entry.detail)}</span>
                   </span>
                   <button type="button" class="eq-mini" data-eq-due-open="${esc(entry.unit_id)}::${esc(entry.program_id)}"><i class="fas fa-plus"></i> ${esc(terminology('equipment.work_order', 'Work Order'))}</button>
-                </div>`).join('') || '<div class="eq-empty" style="min-height:100px"><div><strong>Nothing due</strong><p>Service programs surface here as units come due.</p></div></div>')}
+                </div>`).join('') || `<div class="eq-empty" style="min-height:100px"><div><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_9dca7208c23ebd","Nothing due") ?? "Nothing due")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e7ed7f9a36d69f","Service programs surface here as units come due.") ?? "Service programs surface here as units come due.")}</p></div></div>`)}
             </div>
           </div>
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
               <h3 style="margin:0;font-size:14px"><i class="fas fa-wrench" style="color:var(--primary-readable,var(--primary,#d93025))"></i> ${String(esc(terminology('equipment.work_orders', 'Work Orders')))}</h3>
-              <button type="button" class="eq-btn" data-eq-wo-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("equipment","m_5fe01108f83039"," New") ?? " New")}</button>
+              <button type="button" class="eq-btn" data-eq-wo-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_5fe01108f83039"," New") ?? " New")}</button>
             </div>
             <div class="eq-types-list">
-              ${String(activeOrders.map(orderRow).join('') || '<div class="eq-empty" style="min-height:100px"><div><strong>No open work orders</strong><p>Repairs and scheduled service live here.</p></div></div>')}
-              ${String(closedOrders.length ? `<div style="margin-top:6px;font-size:10.5px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3">Recently closed</div>${closedOrders.map(orderRow).join('')}` : '')}
+              ${String(activeOrders.map(orderRow).join('') || `<div class="eq-empty" style="min-height:100px"><div><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e4c782cff2c193","No open work orders") ?? "No open work orders")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("equipment","m_9e7d3c417a9f0a","Repairs and scheduled service live here.") ?? "Repairs and scheduled service live here.")}</p></div></div>`)}
+              ${String(closedOrders.length ? `<div style="margin-top:6px;font-size:10.5px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b062ab3bae8734","Recently closed") ?? "Recently closed")}</div>${closedOrders.map(orderRow).join('')}` : '')}
             </div>
           </div>
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
               <h3 style="margin:0;font-size:14px"><i class="fas fa-arrows-rotate" style="color:var(--primary-readable,var(--primary,#d93025))"></i> ${String(esc(terminology('equipment.service_program', 'Service Program')))}s</h3>
-              <button type="button" class="eq-btn" data-eq-program-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("equipment","m_5fe01108f83039"," New") ?? " New")}</button>
+              <button type="button" class="eq-btn" data-eq-program-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_5fe01108f83039"," New") ?? " New")}</button>
             </div>
             <div class="eq-types-list">
               ${String(arr(data.programs).map((program) => {
@@ -395,7 +395,7 @@
                     </span>
                     <button type="button" class="eq-mini" data-eq-program-archive="${esc(program.id)}"><i class="fas fa-box-archive"></i></button>
                   </div>`;
-              }).join('') || '<div class="eq-empty" style="min-height:100px"><div><strong>No programs yet</strong><p>Programs generate due-service reminders by days or meter intervals.</p></div></div>')}
+              }).join('') || `<div class="eq-empty" style="min-height:100px"><div><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_64f0a4bd315670","No programs yet") ?? "No programs yet")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("equipment","m_4ce644341d17a4","Programs generate due-service reminders by days or meter intervals.") ?? "Programs generate due-service reminders by days or meter intervals.")}</p></div></div>`)}
             </div>
           </div>
         </div>`;
@@ -955,11 +955,11 @@
     function cropHtml(){
       if (!state.crop) return '';
       return `<div class="eq-crop-back" data-eq-crop-back>
-        <div class="eq-crop-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("equipment","m_b52de3b6c09007","Crop equipment photo") ?? "Crop equipment photo")}">
-          <div class="eq-crop-head"><strong>${(globalThis.PlatformLanguage?.text("equipment","m_9c6af7bfdf7c5a","Crop unit photo") ?? "Crop unit photo")}</strong><button type="button" class="eq-drawer-close" data-eq-crop-close><i class="fas fa-xmark"></i></button></div>
+        <div class="eq-crop-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b52de3b6c09007","Crop equipment photo") ?? "Crop equipment photo")}">
+          <div class="eq-crop-head"><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_9c6af7bfdf7c5a","Crop unit photo") ?? "Crop unit photo")}</strong><button type="button" class="eq-drawer-close" data-eq-crop-close><i class="fas fa-xmark"></i></button></div>
           <div class="eq-crop-body"><div class="eq-crop-stage" data-eq-crop-stage><canvas width="640" height="480" data-eq-crop-canvas></canvas></div></div>
-          <div class="eq-crop-tools"><i class="fas fa-image"></i><input type="range" min="1" max="3" step="0.01" value="${String(Number(state.crop.zoom || 1))}" data-eq-crop-zoom><i class="fas fa-magnifying-glass-plus"></i><span>${(globalThis.PlatformLanguage?.text("equipment","m_766e52b36ba38b","Drag to reposition") ?? "Drag to reposition")}</span></div>
-          <div class="eq-crop-foot"><button type="button" class="eq-btn" data-eq-crop-close>${(globalThis.PlatformLanguage?.text("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-crop-apply ${String(state.crop.saving ? 'disabled' : '')}><i class="fas ${String(state.crop.saving ? 'fa-circle-notch fa-spin' : 'fa-crop-simple')}"></i> ${String(state.crop.saving ? 'Uploading…' : 'Use photo')}</button></div>
+          <div class="eq-crop-tools"><i class="fas fa-image"></i><input type="range" min="1" max="3" step="0.01" value="${String(Number(state.crop.zoom || 1))}" data-eq-crop-zoom><i class="fas fa-magnifying-glass-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("equipment","m_766e52b36ba38b","Drag to reposition") ?? "Drag to reposition")}</span></div>
+          <div class="eq-crop-foot"><button type="button" class="eq-btn" data-eq-crop-close>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-crop-apply ${String(state.crop.saving ? 'disabled' : '')}><i class="fas ${String(state.crop.saving ? 'fa-circle-notch fa-spin' : 'fa-crop-simple')}"></i> ${String(state.crop.saving ? 'Uploading…' : 'Use photo')}</button></div>
         </div></div>`;
     }
 
@@ -1078,7 +1078,7 @@
       const meter = obj(unit.current_meter);
       const meterText = [meter.hours ? `${Number(meter.hours).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} hrs` : '', meter.miles ? `${Number(meter.miles).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} mi` : ''].filter(Boolean).join(' · ');
       return `
-        <article class="eq-card" data-eq-open="${String(esc(unit.id))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.text("equipment","m_ab0d5cb8a59853",`Open ${v1}`,{v1}) ?? `Open ${v1}`)(esc(unit.name || 'unit'))}"${String(unitColor ? ` style="border-left:4px solid ${esc(unitColor)}"` : '')}>
+        <article class="eq-card" data-eq-open="${String(esc(unit.id))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_ab0d5cb8a59853",`Open ${v1}`,{v1}) ?? `Open ${v1}`)(esc(unit.name || 'unit'))}"${String(unitColor ? ` style="border-left:4px solid ${esc(unitColor)}"` : '')}>
           <div class="eq-card-media" ${String(photoUrl ? `style="background-image:url('${esc(photoUrl)}')"` : '')}>${String(photoUrl ? '' : `<i class="fas ${esc(icon)}"${cssColor(unit.color) ? ` style="color:${esc(cssColor(unit.color))}"` : ''}></i>`)}</div>
           <div class="eq-card-content">
             <div class="eq-card-top">
@@ -1093,29 +1093,29 @@
               ${String(meterText ? `<div><i class="fas fa-gauge-high"></i><span>${esc(meterText)}</span></div>` : '')}
               ${String(clean(unit.license_plate) ? `<div><i class="fas fa-rectangle-list"></i><span>${esc(unit.license_plate)}</span></div>` : '')}
               ${String(clean(unit.ownership) !== 'owned' ? `<div><i class="fas fa-file-contract"></i><span>${esc(clean(unit.ownership).replace(/^./, (char) => char.toUpperCase()))}</span></div>` : '')}
-              ${String(clean(obj(unit.custody).user_id) ? `<div><i class="fas fa-hand-holding"></i><span>Checked out${clean(obj(unit.custody).user_name) ? ` to ${esc(obj(unit.custody).user_name)}` : ''}</span></div>` : '')}
+              ${String(clean(obj(unit.custody).user_id) ? `<div><i class="fas fa-hand-holding"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("equipment","m_74ebb184b114fb",`Checked out${v0}`,{v0}) ?? `Checked out${v0}`)(clean(obj(unit.custody).user_name) ? ` to ${esc(obj(unit.custody).user_name)}` : '')}</span></div>` : '')}
             </div>
           </div>
         </article>`;
     }
 
     function fleetHtml(){
-      if (state.loading && !state.units) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.text("equipment","m_baabdd88b91c20","Loading the fleet…") ?? "Loading the fleet…")}</div></div>`;
+      if (state.loading && !state.units) return `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.htmlText("equipment","m_baabdd88b91c20","Loading the fleet…") ?? "Loading the fleet…")}</div></div>`;
       const units = arr(state.units);
       const unitTerm = terminology('equipment.equipment_units', 'Units');
       const filterOptions = `
         <div class="eq-filters">
-          <div class="eq-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.text("equipment","m_bf817b162b2c81","Search name, asset #, plate, VIN…") ?? "Search name, asset #, plate, VIN…")}" value="${String(esc(state.filters.query))}" data-eq-filter="query"></div>
+          <div class="eq-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_bf817b162b2c81","Search name, asset #, plate, VIN…") ?? "Search name, asset #, plate, VIN…")}" value="${String(esc(state.filters.query))}" data-eq-filter="query"></div>
           <select class="eq-filter" data-eq-filter="categoryId">
-            <option value="">${(globalThis.PlatformLanguage?.text("equipment","m_0abe1295afa55b","All categories") ?? "All categories")}</option>
+            <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_0abe1295afa55b","All categories") ?? "All categories")}</option>
             ${String(arr(state.categories).map((category) => `<option value="${esc(category.id)}" ${state.filters.categoryId === clean(category.id) ? 'selected' : ''}>${esc(category.name)}</option>`).join(''))}
           </select>
           <select class="eq-filter" data-eq-filter="typeId">
-            <option value="">${(globalThis.PlatformLanguage?.text("equipment","m_51faf42a72af3e","All types") ?? "All types")}</option>
+            <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_51faf42a72af3e","All types") ?? "All types")}</option>
             ${String(activeRecords(state.types).map((type) => `<option value="${esc(type.id)}" ${state.filters.typeId === clean(type.id) ? 'selected' : ''}>${esc(type.name)}</option>`).join(''))}
           </select>
           <select class="eq-filter" data-eq-filter="status">
-            <option value="">${(globalThis.PlatformLanguage?.text("equipment","m_ca4e6bcaf98610","Any status") ?? "Any status")}</option>
+            <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_ca4e6bcaf98610","Any status") ?? "Any status")}</option>
             ${String(Object.entries(STATUS_META).filter(([key]) => key !== 'in_use').map(([key, meta]) => `<option value="${esc(key)}" ${state.filters.status === key ? 'selected' : ''}>${esc(meta.label)}</option>`).join(''))}
           </select>
           <span class="eq-count">${String(units.length)} ${String(esc(unitTerm.toLowerCase()))}</span>
@@ -1161,7 +1161,7 @@
       const dollars = (cents) => (Number(cents || 0) ? (Number(cents) / 100).toFixed(2) : '');
       let body;
       if (drawer.loading) {
-        body = `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.text("equipment","m_d2da77452877dd","Loading…") ?? "Loading…")}</div></div>`;
+        body = `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.htmlText("equipment","m_d2da77452877dd","Loading…") ?? "Loading…")}</div></div>`;
       } else {
         const photo = primaryPhoto(unit);
         const photoUrl = photo ? mediaReferenceUrl(photo, 'original') : '';
@@ -1172,34 +1172,34 @@
             <div class="eq-unit-identity">
               <div class="eq-photo-tile ${String(photoUrl ? 'has-photo' : '')}" data-eq-photo-pick role="button" tabindex="0" aria-label="${String(photoUrl ? 'Replace unit photo' : 'Upload unit photo')}" title="${String(photoUrl ? 'Click to replace' : 'Click to upload')}">
                 ${String(photoUrl ? `<img src="${esc(photoUrl)}" alt="${esc(unit.name || 'Unit photo')}">` : '')}
-                <span class="eq-photo-tile-copy"><i class="fas fa-camera"></i><span>${(globalThis.PlatformLanguage?.text("equipment","m_726a55d8501a84","Click to upload") ?? "Click to upload")}</span></span>
-                ${String(photoUrl ? '<button type="button" class="eq-photo-crop" data-eq-photo-crop title="Crop photo" aria-label="Crop photo"><i class="fas fa-crop-simple"></i></button>' : '')}
+                <span class="eq-photo-tile-copy"><i class="fas fa-camera"></i><span>${(globalThis.PlatformLanguage?.htmlText("equipment","m_726a55d8501a84","Click to upload") ?? "Click to upload")}</span></span>
+                ${String(photoUrl ? `<button type="button" class="eq-photo-crop" data-eq-photo-crop title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_77e68572349ca5","Crop photo") ?? "Crop photo")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("equipment","m_77e68572349ca5","Crop photo") ?? "Crop photo")}"><i class="fas fa-crop-simple"></i></button>` : '')}
               </div>
               <div class="eq-identity-fields">
                 ${String(field('Name', 'name', unit.name, { required:true }))}
-                <div class="eq-field eq-identity-color"><label>${(globalThis.PlatformLanguage?.text("equipment","m_db7002926d9977","Color") ?? "Color")}</label><input class="eq-color-input" type="color" data-eq-input="color" value="${String(esc(/^#[0-9a-f]{6}$/i.test(clean(unit.color)) ? unit.color : '#667085'))}" title="${(globalThis.PlatformLanguage?.text("equipment","m_1f68f509e5b4a3","Unit color") ?? "Unit color")}"></div>
+                <div class="eq-field eq-identity-color"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_db7002926d9977","Color") ?? "Color")}</label><input class="eq-color-input" type="color" data-eq-input="color" value="${String(esc(/^#[0-9a-f]{6}$/i.test(clean(unit.color)) ? unit.color : '#667085'))}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_1f68f509e5b4a3","Unit color") ?? "Unit color")}"></div>
               </div>
             </div>
-            <div class="eq-field"><label>${(globalThis.PlatformLanguage?.text("equipment","m_2e88df13ca7101","Type") ?? "Type")}</label><div class="eq-inline-select"><select data-eq-input="type_id">${String(typeOptions.map(([value,label]) => `<option value="${esc(value)}" ${clean(unit.type_id) === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}<option value="__new__">${(globalThis.PlatformLanguage?.text("equipment","m_7165ea381347ad","+ Add new type…") ?? "+ Add new type…")}</option></select></div></div>
-            <div class="eq-field"><label>${(globalThis.PlatformLanguage?.text("equipment","m_cb7c55478a40a3","Home facility") ?? "Home facility")}</label><div class="eq-inline-select"><select data-eq-input="yard_id">${String(yardOptions.map(([value,label]) => `<option value="${esc(value)}" ${selectedYardId === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}<option value="__new__">${(globalThis.PlatformLanguage?.text("equipment","m_0f3537c9bb311a","+ Add new facility…") ?? "+ Add new facility…")}</option></select></div></div>
-            ${String(drawer.mode === 'view' && facilityAccessInstructions ? `<div class="eq-field eq-readonly-field"><label>Facility access instructions</label><div class="eq-readonly-value" role="note"><i class="fas fa-lock"></i>${esc(facilityAccessInstructions)}</div></div>` : '')}
+            <div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_2e88df13ca7101","Type") ?? "Type")}</label><div class="eq-inline-select"><select data-eq-input="type_id">${String(typeOptions.map(([value,label]) => `<option value="${esc(value)}" ${clean(unit.type_id) === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}<option value="__new__">${(globalThis.PlatformLanguage?.htmlText("equipment","m_7165ea381347ad","+ Add new type…") ?? "+ Add new type…")}</option></select></div></div>
+            <div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cb7c55478a40a3","Home facility") ?? "Home facility")}</label><div class="eq-inline-select"><select data-eq-input="yard_id">${String(yardOptions.map(([value,label]) => `<option value="${esc(value)}" ${selectedYardId === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}<option value="__new__">${(globalThis.PlatformLanguage?.htmlText("equipment","m_0f3537c9bb311a","+ Add new facility…") ?? "+ Add new facility…")}</option></select></div></div>
+            ${String(drawer.mode === 'view' && facilityAccessInstructions ? `<div class="eq-field eq-readonly-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_feb926c42d3f6e","Facility access instructions") ?? "Facility access instructions")}</label><div class="eq-readonly-value" role="note"><i class="fas fa-lock"></i>${esc(facilityAccessInstructions)}</div></div>` : '')}
             ${String(field('Ownership', 'ownership', unit.ownership || 'owned', { select:OWNERSHIPS }))}
             ${String(field('Driver requirement', 'driver_requirement', driverRequirementId(unit), { select:DRIVER_REQUIREMENTS }))}
             ${String(drawer.mode !== 'create' ? field('Status', 'status', unit.status || 'available', { select:Object.entries(STATUS_META).filter(([key]) => key !== 'in_use').map(([key, meta]) => [key, meta.label]) }) : '')}
-            ${String(vehicleType ? `<div class="eq-dynamic-panel"><div class="eq-section-label">Vehicle details</div>${field('License plate', 'license_plate', unit.license_plate)}${field('Year', 'year', unit.year)}${field('Make', 'make', unit.make)}${field('Model', 'model', unit.model)}${field('VIN', 'vin', unit.vin)}</div>` : '')}
-            ${String(ownership === 'owned' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">Purchase details</div>${field('Purchased on (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Estimated value ($)', 'estimated_value', dollars(acquisition.estimated_value_cents), { type:'number', step:'0.01' })}</div>` : '')}
-            ${String(ownership === 'leased' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">Lease details</div>${field('Lease start (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Lease term (months)', 'lease_term_months', acquisition.lease_term_months, { type:'number', step:'1' })}${field('Monthly lease cost ($)', 'lease_monthly_cost', dollars(acquisition.monthly_cost_cents), { type:'number', step:'0.01' })}</div>` : '')}
+            ${String(vehicleType ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_113d0683ef8084","Vehicle details") ?? "Vehicle details")}</div>${field('License plate', 'license_plate', unit.license_plate)}${field('Year', 'year', unit.year)}${field('Make', 'make', unit.make)}${field('Model', 'model', unit.model)}${field('VIN', 'vin', unit.vin)}</div>` : '')}
+            ${String(ownership === 'owned' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_250d080790e059","Purchase details") ?? "Purchase details")}</div>${field('Purchased on (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Estimated value ($)', 'estimated_value', dollars(acquisition.estimated_value_cents), { type:'number', step:'0.01' })}</div>` : '')}
+            ${String(ownership === 'leased' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b01d4473f12ba7","Lease details") ?? "Lease details")}</div>${field('Lease start (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Lease term (months)', 'lease_term_months', acquisition.lease_term_months, { type:'number', step:'1' })}${field('Monthly lease cost ($)', 'lease_monthly_cost', dollars(acquisition.monthly_cost_cents), { type:'number', step:'0.01' })}</div>` : '')}
             ${String(ownership === 'rented' ? `
               <div class="eq-dynamic-panel">
-                <div class="eq-section-label">Rental details</div>
+                <div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_d6855debf20509","Rental details") ?? "Rental details")}</div>
                 ${field('Pickup date (optional)', 'rental_date', acquisition.rental_date || pickupCondition.date, { type:'date' })}${field('Pickup time (optional)', 'pickup_time', acquisition.pickup_time || pickupCondition.time, { type:'time' })}${field('Rental return date (optional)', 'return_date', acquisition.return_date || pickupCondition.return_date, { type:'date' })}${field('Return time (optional)', 'return_time', acquisition.return_time || pickupCondition.return_time, { type:'time' })}${field('Rental cost ($)', 'rental_cost', dollars(acquisition.rental_cost_cents), { type:'number', step:'0.01' })}
-                <div class="eq-section-label">Pickup condition</div>
-                <div class="eq-condition-list"><label style="font-size:10px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#667085">Condition notes</label>${pickupNotes.map((note,index) => `<div class="eq-condition-note"><textarea rows="2" data-eq-pickup-note="${index}" placeholder="Describe existing damage or condition…">${esc(note)}</textarea><button type="button" class="eq-icon-remove" data-eq-pickup-note-remove="${index}" title="Remove note"><i class="fas fa-xmark"></i></button></div>`).join('')}<button type="button" class="eq-btn" data-eq-pickup-note-add><i class="fas fa-plus"></i> Add condition note</button></div>
-                <div class="eq-condition-media">${pickupMedia.map((media,index) => { const src = mediaReferenceUrl(media, 'thumb_320'); const isVideo = clean(obj(media).content_type).startsWith('video/'); return `<div class="eq-condition-media-item">${isVideo ? `<video src="${esc(mediaReferenceUrl(media))}" muted preload="metadata"></video>` : `<img src="${esc(src)}" alt="Pickup condition ${index + 1}">`}<button type="button" class="eq-icon-remove" data-eq-pickup-media-remove="${index}" title="Remove"><i class="fas fa-xmark"></i></button></div>`; }).join('')}</div>
-                <div class="eq-field wide"><button type="button" class="eq-btn" data-eq-pickup-media-add><i class="fas fa-photo-film"></i> Add pictures or videos</button></div>
+                <div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_09b6f65ba14e08","Pickup condition") ?? "Pickup condition")}</div>
+                <div class="eq-condition-list"><label style="font-size:10px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#667085">${(globalThis.PlatformLanguage?.htmlText("equipment","m_e9231d9e50eeb6","Condition notes") ?? "Condition notes")}</label>${pickupNotes.map((note,index) => `<div class="eq-condition-note"><textarea rows="2" data-eq-pickup-note="${index}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b0bf3a608a0071","Describe existing damage or condition…") ?? "Describe existing damage or condition…")}">${esc(note)}</textarea><button type="button" class="eq-icon-remove" data-eq-pickup-note-remove="${index}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_4b4ba3b5b6d01b","Remove note") ?? "Remove note")}"><i class="fas fa-xmark"></i></button></div>`).join('')}<button type="button" class="eq-btn" data-eq-pickup-note-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_b78805965a7319"," Add condition note") ?? " Add condition note")}</button></div>
+                <div class="eq-condition-media">${pickupMedia.map((media,index) => { const src = mediaReferenceUrl(media, 'thumb_320'); const isVideo = clean(obj(media).content_type).startsWith('video/'); return `<div class="eq-condition-media-item">${isVideo ? `<video src="${esc(mediaReferenceUrl(media))}" muted preload="metadata"></video>` : `<img src="${esc(src)}" alt="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_6ad3acf5f9a1a2",`Pickup condition ${v1}`,{v1}) ?? `Pickup condition ${v1}`)(index + 1)}">`}<button type="button" class="eq-icon-remove" data-eq-pickup-media-remove="${index}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button></div>`; }).join('')}</div>
+                <div class="eq-field wide"><button type="button" class="eq-btn" data-eq-pickup-media-add><i class="fas fa-photo-film"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_c3609786a5300a"," Add pictures or videos") ?? " Add pictures or videos")}</button></div>
               </div>
             ` : '')}
-            <div class="eq-section-label">${(globalThis.PlatformLanguage?.text("equipment","m_b0928a4b3f46b9","Identifiers and notes") ?? "Identifiers and notes")}</div>
+            <div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b0928a4b3f46b9","Identifiers and notes") ?? "Identifiers and notes")}</div>
             ${String(field('Serial number', 'serial_number', unit.serial_number))}
             ${String(field('Asset # (optional)', 'identifier', unit.identifier))}
             ${String(field('Notes', 'notes', unit.notes, { wide:true, textarea:true }))}
@@ -1219,14 +1219,14 @@
             </div>
             <div class="eq-drawer-body" data-eq-unit-scroll>${body}</div>
             <div class="eq-drawer-foot">
-              ${existingUnit && !drawer.loading ? `<button type="button" class="eq-danger" data-eq-drawer-archive><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.text("equipment","m_e92b7354d81c5d"," Retire unit") ?? " Retire unit")}</button>` : ''}
+              ${existingUnit && !drawer.loading ? `<button type="button" class="eq-danger" data-eq-drawer-archive><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e92b7354d81c5d"," Retire unit") ?? " Retire unit")}</button>` : ''}
               ${drawer.loading ? '' : drawer.mode === 'create'
-                ? `<button type="button" class="eq-btn" data-eq-drawer-cancel>${(globalThis.PlatformLanguage?.text("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-drawer-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("equipment","m_e1f035ff60288f"," Add unit") ?? " Add unit")}</button>`
+                ? `<button type="button" class="eq-btn" data-eq-drawer-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-drawer-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e1f035ff60288f"," Add unit") ?? " Add unit")}</button>`
                 : (String(capabilityOn('equipment', 'custody')
                     ? (clean(obj(unit.custody).user_id)
-                      ? '<button type="button" class="eq-btn" data-eq-drawer-checkin><i class="fas fa-rotate-left"></i> Check in</button>'
-                      : '<button type="button" class="eq-btn" data-eq-drawer-checkout><i class="fas fa-hand-holding"></i> Check out</button>')
-                    : '') + "<button type=\"button\" class=\"eq-btn primary\" data-eq-drawer-save><i class=\"fas fa-check\"></i>" + (globalThis.PlatformLanguage?.text("equipment","m_bfcbd339764266"," Save changes") ?? " Save changes") + "</button>")}
+                      ? `<button type="button" class="eq-btn" data-eq-drawer-checkin><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_9cb588baa72829"," Check in") ?? " Check in")}</button>`
+                      : `<button type="button" class="eq-btn" data-eq-drawer-checkout><i class="fas fa-hand-holding"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_243d5332cd629a"," Check out") ?? " Check out")}</button>`)
+                    : '') + "<button type=\"button\" class=\"eq-btn primary\" data-eq-drawer-save><i class=\"fas fa-check\"></i>" + (globalThis.PlatformLanguage?.htmlText("equipment","m_bfcbd339764266"," Save changes") ?? " Save changes") + "</button>")}
             </div>
           </div>
         </div>`;
@@ -1244,7 +1244,7 @@
               <span class="eq-drawer-title single-line">
                 <h3>${String(state.typesShowArchived ? 'Archived equipment types' : esc(terminology('equipment.equipment_types', 'Equipment Types')))}</h3>
               </span>
-              <button type="button" class="eq-drawer-close" data-eq-types-close title="${(globalThis.PlatformLanguage?.text("equipment","m_1da70ddf2a99ce","Close equipment types") ?? "Close equipment types")}" aria-label="${(globalThis.PlatformLanguage?.text("equipment","m_1da70ddf2a99ce","Close equipment types") ?? "Close equipment types")}"><i class="fas fa-xmark"></i></button>
+              <button type="button" class="eq-drawer-close" data-eq-types-close title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_1da70ddf2a99ce","Close equipment types") ?? "Close equipment types")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("equipment","m_1da70ddf2a99ce","Close equipment types") ?? "Close equipment types")}"><i class="fas fa-xmark"></i></button>
             </div>
             <div class="eq-drawer-body" data-eq-manager-scroll="types">
               <div class="eq-types-list">
@@ -1256,15 +1256,15 @@
                       <span>${esc((clean(type.kind) || 'other').replace(/^./, (char) => char.toUpperCase()))} · ${esc(categoryName(type.category_id))} · ${esc(clean(type.tracking) === 'quantity' ? `Pool of ${Number(type.pool_quantity || 0)}` : 'Serialized units')}</span>
                     </span>
                     ${state.typesShowArchived
-                      ? `<button type="button" class="eq-mini" data-eq-type-restore="${esc(type.id)}" title="Restore type" aria-label="Restore ${esc(type.name)}"><i class="fas fa-rotate-left"></i></button>`
-                      : `<button type="button" class="eq-mini" data-eq-type-edit="${esc(type.id)}" title="Edit type" aria-label="Edit ${esc(type.name)}"><i class="fas fa-pen"></i></button><button type="button" class="eq-mini" data-eq-type-archive="${esc(type.id)}" title="Archive type" aria-label="Archive ${esc(type.name)}"><i class="fas fa-box-archive"></i></button>`}
+                      ? `<button type="button" class="eq-mini" data-eq-type-restore="${esc(type.id)}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_2320e2a7e9e439","Restore type") ?? "Restore type")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_5d91136e35ab88",`Restore ${v1}`,{v1}) ?? `Restore ${v1}`)(esc(type.name))}"><i class="fas fa-rotate-left"></i></button>`
+                      : `<button type="button" class="eq-mini" data-eq-type-edit="${esc(type.id)}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_86fa9ca9739918","Edit type") ?? "Edit type")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_eb14156d1fca4c",`Edit ${v1}`,{v1}) ?? `Edit ${v1}`)(esc(type.name))}"><i class="fas fa-pen"></i></button><button type="button" class="eq-mini" data-eq-type-archive="${esc(type.id)}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_470e4e0712ef94","Archive type") ?? "Archive type")}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("equipment","m_3a8f16229de187",`Archive ${v3}`,{v3}) ?? `Archive ${v3}`)(esc(type.name))}"><i class="fas fa-box-archive"></i></button>`}
                   </div>`).join('') || `<div class="eq-empty" style="min-height:160px"><div><strong>${state.typesShowArchived ? 'No archived types' : 'No types yet'}</strong></div></div>`)}
               </div>
             </div>
             <div class="eq-drawer-foot">
-              ${String(state.typesShowArchived ? '<button type="button" class="eq-btn" data-eq-types-active><i class="fas fa-arrow-left"></i> Active types</button>' : '<button type="button" class="eq-btn primary" data-eq-type-add><i class="fas fa-plus"></i> New type</button>')}
+              ${String(state.typesShowArchived ? `<button type="button" class="eq-btn" data-eq-types-active><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_f4c0b2cd481788"," Active types") ?? " Active types")}</button>` : `<button type="button" class="eq-btn primary" data-eq-type-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_7cef72fe83add5"," New type") ?? " New type")}</button>`)}
               <span class="eq-foot-spacer"></span>
-              ${String(state.typesShowArchived ? '' : '<button type="button" class="eq-btn" data-eq-types-archive-view><i class="fas fa-box-archive"></i> Archive</button>')}
+              ${String(state.typesShowArchived ? '' : `<button type="button" class="eq-btn" data-eq-types-archive-view><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}
             </div>
           </div>
         </div>`;
@@ -1274,9 +1274,9 @@
       if (!state.yardsOpen) return '';
       const records = arr(state.yards).filter((yard) => (clean(yard.status || 'active') === 'archived') === state.yardsShowArchived);
       return `<div class="eq-drawer-back" data-eq-yards-back><div class="eq-drawer" role="dialog" aria-modal="true">
-        <div class="eq-drawer-head"><span class="eq-card-icon"><i class="fas fa-warehouse"></i></span><span class="eq-drawer-title single-line"><h3>${String(state.yardsShowArchived ? 'Archived facilities' : 'Facilities')}</h3></span><button type="button" class="eq-drawer-close" data-eq-yards-close title="${(globalThis.PlatformLanguage?.text("equipment","m_17153adf64b080","Close facilities") ?? "Close facilities")}" aria-label="${(globalThis.PlatformLanguage?.text("equipment","m_17153adf64b080","Close facilities") ?? "Close facilities")}"><i class="fas fa-xmark"></i></button></div>
-        <div class="eq-drawer-body" data-eq-manager-scroll="yards"><div class="eq-types-list">${String(records.map((yard) => `<div class="eq-type-row"><span class="eq-card-icon"><i class="fas fa-location-dot"></i></span><span class="eq-type-row-copy"><strong>${esc(yard.name)}</strong><span>${esc(obj(yard.address).formatted || 'No address')}${clean(obj(yard.address).access_instructions) ? ` · ${esc(obj(yard.address).access_instructions)}` : ''}</span></span>${state.yardsShowArchived ? `<button type="button" class="eq-mini" data-eq-yard-restore="${esc(yard.id)}" title="Restore facility" aria-label="Restore ${esc(yard.name)}"><i class="fas fa-rotate-left"></i></button>` : `<button type="button" class="eq-mini" data-eq-yard-edit="${esc(yard.id)}" title="Edit facility" aria-label="Edit ${esc(yard.name)}"><i class="fas fa-pen"></i></button><button type="button" class="eq-mini" data-eq-yard-archive="${esc(yard.id)}" title="Archive facility" aria-label="Archive ${esc(yard.name)}"><i class="fas fa-box-archive"></i></button>`}</div>`).join('') || `<div class="eq-empty" style="min-height:160px"><div><strong>${state.yardsShowArchived ? 'No archived facilities' : 'No facilities yet'}</strong></div></div>`)}</div></div>
-        <div class="eq-drawer-foot">${String(state.yardsShowArchived ? '<button type="button" class="eq-btn" data-eq-yards-active><i class="fas fa-arrow-left"></i> Active facilities</button>' : '<button type="button" class="eq-btn primary" data-eq-yard-add><i class="fas fa-plus"></i> New facility</button>')}<span class="eq-foot-spacer"></span>${String(state.yardsShowArchived ? '' : '<button type="button" class="eq-btn" data-eq-yards-archive-view><i class="fas fa-box-archive"></i> Archive</button>')}</div>
+        <div class="eq-drawer-head"><span class="eq-card-icon"><i class="fas fa-warehouse"></i></span><span class="eq-drawer-title single-line"><h3>${String(state.yardsShowArchived ? 'Archived facilities' : 'Facilities')}</h3></span><button type="button" class="eq-drawer-close" data-eq-yards-close title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_17153adf64b080","Close facilities") ?? "Close facilities")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("equipment","m_17153adf64b080","Close facilities") ?? "Close facilities")}"><i class="fas fa-xmark"></i></button></div>
+        <div class="eq-drawer-body" data-eq-manager-scroll="yards"><div class="eq-types-list">${String(records.map((yard) => `<div class="eq-type-row"><span class="eq-card-icon"><i class="fas fa-location-dot"></i></span><span class="eq-type-row-copy"><strong>${esc(yard.name)}</strong><span>${esc(obj(yard.address).formatted || 'No address')}${clean(obj(yard.address).access_instructions) ? ` · ${esc(obj(yard.address).access_instructions)}` : ''}</span></span>${state.yardsShowArchived ? `<button type="button" class="eq-mini" data-eq-yard-restore="${esc(yard.id)}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_dfa94b8d6efc4d","Restore facility") ?? "Restore facility")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_5d91136e35ab88",`Restore ${v1}`,{v1}) ?? `Restore ${v1}`)(esc(yard.name))}"><i class="fas fa-rotate-left"></i></button>` : `<button type="button" class="eq-mini" data-eq-yard-edit="${esc(yard.id)}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_74805cc67e2143","Edit facility") ?? "Edit facility")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_eb14156d1fca4c",`Edit ${v1}`,{v1}) ?? `Edit ${v1}`)(esc(yard.name))}"><i class="fas fa-pen"></i></button><button type="button" class="eq-mini" data-eq-yard-archive="${esc(yard.id)}" title="${(globalThis.PlatformLanguage?.htmlText("equipment","m_bb24a8500b97f7","Archive facility") ?? "Archive facility")}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("equipment","m_3a8f16229de187",`Archive ${v3}`,{v3}) ?? `Archive ${v3}`)(esc(yard.name))}"><i class="fas fa-box-archive"></i></button>`}</div>`).join('') || `<div class="eq-empty" style="min-height:160px"><div><strong>${state.yardsShowArchived ? 'No archived facilities' : 'No facilities yet'}</strong></div></div>`)}</div></div>
+        <div class="eq-drawer-foot">${String(state.yardsShowArchived ? `<button type="button" class="eq-btn" data-eq-yards-active><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_ba02871d0ed562"," Active facilities") ?? " Active facilities")}</button>` : `<button type="button" class="eq-btn primary" data-eq-yard-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_6468e0ad5b1770"," New facility") ?? " New facility")}</button>`)}<span class="eq-foot-spacer"></span>${String(state.yardsShowArchived ? '' : `<button type="button" class="eq-btn" data-eq-yards-archive-view><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}</div>
       </div></div>`;
     }
 
@@ -1296,13 +1296,13 @@
               <button type="button" class="eq-drawer-close" data-eq-catalog-cancel><i class="fas fa-xmark"></i></button>
             </div>
             <div class="eq-catalog-body">
-              <div class="eq-field"><label>${(globalThis.PlatformLanguage?.text("equipment","m_8cf345002184e5","Name") ?? "Name")}</label><input type="text" data-eq-catalog-name value="${String(esc(editor.name ?? editor.entity?.name))}" placeholder="${String(typeEditor ? 'e.g. Dump trailer' : 'e.g. North facility')}" autofocus><span class="eq-field-error" data-eq-field-error></span></div>
-              ${String(typeEditor ? `<div class="eq-field"><label>Classification</label><div class="eq-kind-options">
+              <div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_8cf345002184e5","Name") ?? "Name")}</label><input type="text" data-eq-catalog-name value="${String(esc(editor.name ?? editor.entity?.name))}" placeholder="${String(typeEditor ? 'e.g. Dump trailer' : 'e.g. North facility')}" autofocus><span class="eq-field-error" data-eq-field-error></span></div>
+              ${String(typeEditor ? `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ee677e8200886","Classification") ?? "Classification")}</label><div class="eq-kind-options">
                 ${[['vehicle','fa-truck-pickup','Vehicle'],['trailer','fa-trailer','Trailer'],['tool','fa-screwdriver-wrench','Tool'],['other','fa-box','Other']].map(([value,icon,label]) => `<label><input type="radio" name="eq-catalog-kind" data-eq-catalog-kind value="${value}" ${currentKind === value ? 'checked' : ''}><span><i class="fas ${icon}"></i><b>${label}</b></span></label>`).join('')}
-              </div></div>` : `<div class="eq-field"><label>Address (optional)</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="Start typing an address" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>Access instructions (optional)</label><textarea rows="3" data-eq-catalog-access placeholder="Gate code, entrance, parking, or check-in details">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
+              </div></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
               <div class="eq-modal-error" data-eq-catalog-save-error></div>
             </div>
-            <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>${(globalThis.PlatformLanguage?.text("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-catalog-save ${String(editor.saving ? 'disabled' : '')}><i class="fas ${String(editor.saving ? 'fa-spinner fa-spin' : 'fa-check')}"></i> ${String(editor.saving ? 'Saving…' : 'Save')}</button></div>
+            <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-catalog-save ${String(editor.saving ? 'disabled' : '')}><i class="fas ${String(editor.saving ? 'fa-spinner fa-spin' : 'fa-check')}"></i> ${String(editor.saving ? 'Saving…' : 'Save')}</button></div>
           </div>
         </div>`;
     }
@@ -1311,7 +1311,7 @@
       const pending = state.archiveConfirm;
       if (!pending) return '';
       const noun = pending.kind === 'type' ? 'equipment type' : 'facility';
-      return `<div class="eq-catalog-back" data-eq-archive-back><div class="eq-catalog-modal" role="alertdialog" aria-modal="true" aria-label="${((v0) => globalThis.PlatformLanguage?.text("equipment","m_62ff85645577a3",`Archive ${v0}`,{v0}) ?? `Archive ${v0}`)(esc(noun))}"><div class="eq-drawer-head"><span class="eq-card-icon"><i class="fas fa-box-archive"></i></span><span class="eq-drawer-title"><h3>${((v1) => globalThis.PlatformLanguage?.text("equipment","m_db3dbf943a90ce",`Archive ${v1}?`,{v1}) ?? `Archive ${v1}?`)(esc(pending.entity.name))}</h3><span>${(globalThis.PlatformLanguage?.text("equipment","m_c6144099a0ec83","It will stop appearing in unit selectors, but existing unit records stay intact.") ?? "It will stop appearing in unit selectors, but existing unit records stay intact.")}</span></span></div><div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-archive-cancel>${(globalThis.PlatformLanguage?.text("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><span class="eq-foot-spacer"></span><button type="button" class="eq-btn danger" data-eq-archive-confirm><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.text("equipment","m_d248c450100477"," Archive") ?? " Archive")}</button></div></div></div>`;
+      return `<div class="eq-catalog-back" data-eq-archive-back><div class="eq-catalog-modal" role="alertdialog" aria-modal="true" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("equipment","m_62ff85645577a3",`Archive ${v0}`,{v0}) ?? `Archive ${v0}`)(esc(noun))}"><div class="eq-drawer-head"><span class="eq-card-icon"><i class="fas fa-box-archive"></i></span><span class="eq-drawer-title"><h3>${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_db3dbf943a90ce",`Archive ${v1}?`,{v1}) ?? `Archive ${v1}?`)(esc(pending.entity.name))}</h3><span>${(globalThis.PlatformLanguage?.htmlText("equipment","m_c6144099a0ec83","It will stop appearing in unit selectors, but existing unit records stay intact.") ?? "It will stop appearing in unit selectors, but existing unit records stay intact.")}</span></span></div><div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-archive-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><span class="eq-foot-spacer"></span><button type="button" class="eq-btn danger" data-eq-archive-confirm><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_d248c450100477"," Archive") ?? " Archive")}</button></div></div></div>`;
     }
 
     function closeArchiveConfirm(){
@@ -1400,10 +1400,10 @@
       if (state.view === 'fleet') bodyHtml = fleetHtml();
       else if (state.view === 'timeline') {
         bodyHtml = state.timeline?.error
-          ? `<div class="eq-empty"><div><i class="fas fa-chart-gantt"></i><strong>${(globalThis.PlatformLanguage?.text("equipment","m_f338d62ad81d90","Timeline unavailable") ?? "Timeline unavailable")}</strong><p>${String(esc(state.timeline.error))}</p></div></div>`
+          ? `<div class="eq-empty"><div><i class="fas fa-chart-gantt"></i><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_f338d62ad81d90","Timeline unavailable") ?? "Timeline unavailable")}</strong><p>${String(esc(state.timeline.error))}</p></div></div>`
           : (state.timeline && !state.timeline.loading
             ? '<div data-eq-timeline style="min-height:420px"></div>'
-            : `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.text("equipment","m_501c7f15eada0a","Loading the timeline…") ?? "Loading the timeline…")}</div></div>`);
+            : `<div class="eq-loading"><div><div class="eq-spinner"></div>${(globalThis.PlatformLanguage?.htmlText("equipment","m_501c7f15eada0a","Loading the timeline…") ?? "Loading the timeline…")}</div></div>`);
       }
       else if (state.view === 'maintenance') bodyHtml = maintenanceHtml();
       else if (state.view === 'utilization') bodyHtml = utilizationHtml();
@@ -1420,9 +1420,9 @@
               ${views.map((view) => `<button type="button" class="${state.view === view.id ? 'on' : ''}" data-eq-view="${esc(view.id)}"><i class="fas ${esc(view.icon)}"></i> ${esc(view.label)}</button>`).join('')}
             </div>
             ${state.view === 'fleet' ? `
-              <button type="button" class="eq-btn" data-eq-types-open><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("equipment","m_659c109b30c152"," Types") ?? " Types")}</button>
-              <button type="button" class="eq-btn" data-eq-yards-open><i class="fas fa-warehouse"></i>${(globalThis.PlatformLanguage?.text("equipment","m_c6b212605c230d"," Facilities") ?? " Facilities")}</button>
-              <button type="button" class="eq-btn primary" data-eq-add-unit><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("equipment","m_e1f035ff60288f"," Add unit") ?? " Add unit")}</button>` : ''}
+              <button type="button" class="eq-btn" data-eq-types-open><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_659c109b30c152"," Types") ?? " Types")}</button>
+              <button type="button" class="eq-btn" data-eq-yards-open><i class="fas fa-warehouse"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_c6b212605c230d"," Facilities") ?? " Facilities")}</button>
+              <button type="button" class="eq-btn primary" data-eq-add-unit><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e1f035ff60288f"," Add unit") ?? " Add unit")}</button>` : ''}
           </div>
           <div class="eq-body">${bodyHtml}</div>
           ${drawerHtml()}

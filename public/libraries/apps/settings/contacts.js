@@ -247,22 +247,22 @@
       return `
         <div class="cti-head">
           <div>
-            <div class="cti-kicker">${(globalThis.PlatformLanguage?.text("settings","m_f652711330f9fa","Contacts · Import") ?? "Contacts · Import")}</div>
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_dd7c09f845edda","Import contacts") ?? "Import contacts")}</h3>
-            <p>${(globalThis.PlatformLanguage?.text("settings","m_3a5c4099f28772","Bring an entire contact book into FirstMate. Drop in an export from any major contacts app — duplicates are detected before anything is written, and every import can be undone.") ?? "Bring an entire contact book into FirstMate. Drop in an export from any major contacts app — duplicates are detected before anything is written, and every import can be undone.")}</p>
+            <div class="cti-kicker">${(globalThis.PlatformLanguage?.htmlText("settings","m_f652711330f9fa","Contacts · Import") ?? "Contacts · Import")}</div>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd7c09f845edda","Import contacts") ?? "Import contacts")}</h3>
+            <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_3a5c4099f28772","Bring an entire contact book into FirstMate. Drop in an export from any major contacts app — duplicates are detected before anything is written, and every import can be undone.") ?? "Bring an entire contact book into FirstMate. Drop in an export from any major contacts app — duplicates are detected before anything is written, and every import can be undone.")}</p>
           </div>
         </div>
         <div class="cti-block">
-          <div class="cti-drop" data-cti-drop role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_b57aeb22381727","Choose a contact file") ?? "Choose a contact file")}">
+          <div class="cti-drop" data-cti-drop role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b57aeb22381727","Choose a contact file") ?? "Choose a contact file")}">
             <i class="fas fa-file-import"></i>
             <strong>${String(state.busy ? 'Reading file...' : 'Drop a contact file here, or click to browse')}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("settings","m_875b636e51160c",".vcf (vCard), .csv, or .tsv · up to 25,000 contacts per file") ?? ".vcf (vCard), .csv, or .tsv · up to 25,000 contacts per file")}</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_875b636e51160c",".vcf (vCard), .csv, or .tsv · up to 25,000 contacts per file") ?? ".vcf (vCard), .csv, or .tsv · up to 25,000 contacts per file")}</span>
             <input type="file" data-cti-file accept=".vcf,.csv,.tsv,.txt,text/vcard,text/csv,text/plain" hidden>
           </div>
           <div class="cti-formats">
-            <div class="cti-format"><i class="fab fa-apple"></i><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_bcb79a20aeb319","Apple Contacts") ?? "Apple Contacts")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_9f5e0b71577398","Select contacts, then File &gt; Export &gt; Export vCard (.vcf).") ?? "Select contacts, then File &gt; Export &gt; Export vCard (.vcf).")}</span></div></div>
-            <div class="cti-format"><i class="fab fa-google"></i><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_56fadcddead076","Google Contacts") ?? "Google Contacts")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_2cf379758e466f","Export as Google CSV or vCard from contacts.google.com.") ?? "Export as Google CSV or vCard from contacts.google.com.")}</span></div></div>
-            <div class="cti-format"><i class="fas fa-envelope"></i><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_e956f072a7a2a7","Outlook &amp; everything else") ?? "Outlook &amp; everything else")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_70443ebd875827","Outlook CSV, Yahoo CSV, or any spreadsheet with name, email, and phone columns.") ?? "Outlook CSV, Yahoo CSV, or any spreadsheet with name, email, and phone columns.")}</span></div></div>
+            <div class="cti-format"><i class="fab fa-apple"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_bcb79a20aeb319","Apple Contacts") ?? "Apple Contacts")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_9f5e0b71577398","Select contacts, then File &gt; Export &gt; Export vCard (.vcf).") ?? "Select contacts, then File &gt; Export &gt; Export vCard (.vcf).")}</span></div></div>
+            <div class="cti-format"><i class="fab fa-google"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_56fadcddead076","Google Contacts") ?? "Google Contacts")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_2cf379758e466f","Export as Google CSV or vCard from contacts.google.com.") ?? "Export as Google CSV or vCard from contacts.google.com.")}</span></div></div>
+            <div class="cti-format"><i class="fas fa-envelope"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_e956f072a7a2a7","Outlook &amp; everything else") ?? "Outlook &amp; everything else")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_70443ebd875827","Outlook CSV, Yahoo CSV, or any spreadsheet with name, email, and phone columns.") ?? "Outlook CSV, Yahoo CSV, or any spreadsheet with name, email, and phone columns.")}</span></div></div>
           </div>
         </div>
         ${String(state.status ? `<div class="cti-warnings"><div class="cti-warning">${esc(state.status)}</div></div>` : '')}
@@ -275,8 +275,8 @@
       const fields = array(preview.mapping_fields).length ? preview.mapping_fields : Object.keys(MAPPING_FIELD_LABELS);
       return `
         <div class="cti-block">
-          <h4>${(globalThis.PlatformLanguage?.text("settings","m_a5b45045826851","Column mapping") ?? "Column mapping")}</h4>
-          <p>${(globalThis.PlatformLanguage?.text("settings","m_101cc692b62f6e","Columns were matched automatically. Adjust any that were missed, then re-run the preview.") ?? "Columns were matched automatically. Adjust any that were missed, then re-run the preview.")}</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_a5b45045826851","Column mapping") ?? "Column mapping")}</h4>
+          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_101cc692b62f6e","Columns were matched automatically. Adjust any that were missed, then re-run the preview.") ?? "Columns were matched automatically. Adjust any that were missed, then re-run the preview.")}</p>
           <div class="cti-map-grid">
             ${String(preview.headers.map((header, index) => `
               <label class="cti-map-row">
@@ -289,7 +289,7 @@
           </div>
           <div class="cti-footer">
             <span></span>
-            <button class="cti-btn" type="button" data-cti-remap ${String(state.busy ? 'disabled' : '')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_2ff538bc47e4ef"," Re-run preview with this mapping") ?? " Re-run preview with this mapping")}</button>
+            <button class="cti-btn" type="button" data-cti-remap ${String(state.busy ? 'disabled' : '')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2ff538bc47e4ef"," Re-run preview with this mapping") ?? " Re-run preview with this mapping")}</button>
           </div>
         </div>
       `;
@@ -308,26 +308,26 @@
       return `
         <div class="cti-head">
           <div>
-            <div class="cti-kicker">${(globalThis.PlatformLanguage?.text("settings","m_f652711330f9fa","Contacts · Import") ?? "Contacts · Import")}</div>
-            <h3>${(globalThis.PlatformLanguage?.text("settings","m_fabdad74b5d57e","Review &amp; import") ?? "Review &amp; import")}</h3>
+            <div class="cti-kicker">${(globalThis.PlatformLanguage?.htmlText("settings","m_f652711330f9fa","Contacts · Import") ?? "Contacts · Import")}</div>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_fabdad74b5d57e","Review &amp; import") ?? "Review &amp; import")}</h3>
             <p><strong>${String(esc(preview.source_label || 'Contact file'))}</strong> · ${String(esc(text(state.file?.name)))}</p>
           </div>
           <div class="cti-actions">
-            <button class="cti-btn" type="button" data-cti-cancel ${String(state.busy ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_579e54971fc141"," Start over") ?? " Start over")}</button>
+            <button class="cti-btn" type="button" data-cti-cancel ${String(state.busy ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_579e54971fc141"," Start over") ?? " Start over")}</button>
           </div>
         </div>
         ${String(array(preview.warnings).length ? `<div class="cti-warnings">${preview.warnings.map((warning) => `<div class="cti-warning">${esc(warning)}</div>`).join('')}</div>` : '')}
         <div class="cti-stats">
-          <div class="cti-stat"><span>${(globalThis.PlatformLanguage?.text("settings","m_896170f0b5552d","Contacts in file") ?? "Contacts in file")}</span><strong>${String(Number(summary.total || 0))}</strong></div>
-          <div class="cti-stat new"><span>${(globalThis.PlatformLanguage?.text("settings","m_96834d2fc9c9a5","New") ?? "New")}</span><strong>${String(Number(summary.new_count || 0))}</strong></div>
-          <div class="cti-stat duplicate"><span>${(globalThis.PlatformLanguage?.text("settings","m_8e10e9eec3f012","Duplicates") ?? "Duplicates")}</span><strong>${String(Number(summary.duplicate_count || 0))}</strong></div>
-          <div class="cti-stat invalid"><span>${(globalThis.PlatformLanguage?.text("settings","m_5fdd400f627557","Unreadable") ?? "Unreadable")}</span><strong>${String(Number(summary.invalid_count || 0))}</strong></div>
+          <div class="cti-stat"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_896170f0b5552d","Contacts in file") ?? "Contacts in file")}</span><strong>${String(Number(summary.total || 0))}</strong></div>
+          <div class="cti-stat new"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_96834d2fc9c9a5","New") ?? "New")}</span><strong>${String(Number(summary.new_count || 0))}</strong></div>
+          <div class="cti-stat duplicate"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8e10e9eec3f012","Duplicates") ?? "Duplicates")}</span><strong>${String(Number(summary.duplicate_count || 0))}</strong></div>
+          <div class="cti-stat invalid"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5fdd400f627557","Unreadable") ?? "Unreadable")}</span><strong>${String(Number(summary.invalid_count || 0))}</strong></div>
         </div>
         ${String(mappingMarkup())}
         ${String(Number(summary.duplicate_count || 0) ? `
         <div class="cti-block">
-          <h4>Duplicates</h4>
-          <p>${Number(summary.duplicate_count || 0)} contact${Number(summary.duplicate_count || 0) === 1 ? '' : 's'} in this file match contacts you already have (by email, phone, or name).</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_8e10e9eec3f012","Duplicates") ?? "Duplicates")}</h4>
+          <p>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_dbbdf490d785ff",`${v0} contact${v1} in this file match contacts you already have (by email, phone, or name).`,{v0,v1}) ?? `${v0} contact${v1} in this file match contacts you already have (by email, phone, or name).`)(Number(summary.duplicate_count || 0),Number(summary.duplicate_count || 0) === 1 ? '' : 's')}</p>
           <div class="cti-option-grid">
             ${duplicateOptions.map(([id, label, description]) => `
               <button class="cti-option ${state.duplicateAction === id ? 'active' : ''}" data-cti-duplicate="${id}" type="button"><strong>${label}</strong><span>${description}</span></button>
@@ -335,22 +335,22 @@
           </div>
         </div>` : '')}
         <div class="cti-block">
-          <h4>${(globalThis.PlatformLanguage?.text("settings","m_bc4c06df6d4499","Tag these contacts") ?? "Tag these contacts")}</h4>
-          <p>${(globalThis.PlatformLanguage?.text("settings","m_8063fbcd381e1d","Tags are applied to every imported contact and are searchable from My Contacts — e.g. \"Gutter customers\" or where the list came from.") ?? "Tags are applied to every imported contact and are searchable from My Contacts — e.g. \"Gutter customers\" or where the list came from.")}</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_bc4c06df6d4499","Tag these contacts") ?? "Tag these contacts")}</h4>
+          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_8063fbcd381e1d","Tags are applied to every imported contact and are searchable from My Contacts — e.g. \"Gutter customers\" or where the list came from.") ?? "Tags are applied to every imported contact and are searchable from My Contacts — e.g. \"Gutter customers\" or where the list came from.")}</p>
           <div class="cti-tag-row">
-            ${String(state.tags.map((tag) => `<span class="cti-tag" data-cti-tag="${esc(tag)}">${esc(tag)}<button type="button" aria-label="Remove tag ${esc(tag)}"><i class="fas fa-times"></i></button></span>`).join(''))}
-            <input class="cti-tag-input" data-cti-tag-input type="text" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_cfa7743c211ea0","Add a tag...") ?? "Add a tag...")}">
+            ${String(state.tags.map((tag) => `<span class="cti-tag" data-cti-tag="${esc(tag)}">${esc(tag)}<button type="button" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_69337ba9a988cf",`Remove tag ${v2}`,{v2}) ?? `Remove tag ${v2}`)(esc(tag))}"><i class="fas fa-times"></i></button></span>`).join(''))}
+            <input class="cti-tag-input" data-cti-tag-input type="text" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_cfa7743c211ea0","Add a tag...") ?? "Add a tag...")}">
             ${String(['Imported from ' + text(preview.source_label, 'contact file'), 'Imported ' + new Date().toLocaleDateString(undefined, { month:'short', year:'numeric' })]
               .filter((suggestion) => !state.tags.some((tag) => tag.toLowerCase() === suggestion.toLowerCase()))
               .map((suggestion) => `<button class="cti-tag-suggest" type="button" data-cti-tag-suggest="${esc(suggestion)}"><i class="fas fa-plus"></i>${esc(suggestion)}</button>`).join(''))}
           </div>
         </div>
         <div class="cti-block">
-          <h4>${(globalThis.PlatformLanguage?.text("settings","m_afff48796c3165","Preview") ?? "Preview")}</h4>
-          <p>${((v12,v13) => globalThis.PlatformLanguage?.text("settings","m_152570a89b70d1",`The first ${v12} of ${v13} contacts read from the file.`,{v12,v13}) ?? `The first ${v12} of ${v13} contacts read from the file.`)(sample.length,Number(summary.total || 0))}</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_afff48796c3165","Preview") ?? "Preview")}</h4>
+          <p>${((v12,v13) => globalThis.PlatformLanguage?.htmlText("settings","m_152570a89b70d1",`The first ${v12} of ${v13} contacts read from the file.`,{v12,v13}) ?? `The first ${v12} of ${v13} contacts read from the file.`)(sample.length,Number(summary.total || 0))}</p>
           <div class="cti-table-wrap">
             <table class="cti-table">
-              <thead><tr><th>${(globalThis.PlatformLanguage?.text("settings","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.text("settings","m_8cf345002184e5","Name") ?? "Name")}</th><th>${(globalThis.PlatformLanguage?.text("settings","m_5d2b9327181e33","Email") ?? "Email")}</th><th>${(globalThis.PlatformLanguage?.text("settings","m_ed04c65845180f","Phone") ?? "Phone")}</th><th>${(globalThis.PlatformLanguage?.text("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</th><th>${(globalThis.PlatformLanguage?.text("settings","m_562d2cd3a48b8f","Tags") ?? "Tags")}</th><th>${(globalThis.PlatformLanguage?.text("settings","m_25ccde60a3236c","Detail") ?? "Detail")}</th></tr></thead>
+              <thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</th><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</th><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_ed04c65845180f","Phone") ?? "Phone")}</th><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</th><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_562d2cd3a48b8f","Tags") ?? "Tags")}</th><th>${(globalThis.PlatformLanguage?.htmlText("settings","m_25ccde60a3236c","Detail") ?? "Detail")}</th></tr></thead>
               <tbody>
                 ${String(sample.map((row) => {
                   const contact = object(row.contact);
@@ -393,12 +393,12 @@
         <div class="cti-block cti-done">
           <div>
             <i class="fas fa-circle-check"></i>
-            <h4>${(globalThis.PlatformLanguage?.text("settings","m_8a7ec9254c9426","Import complete") ?? "Import complete")}</h4>
+            <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_8a7ec9254c9426","Import complete") ?? "Import complete")}</h4>
             <p>${String(esc(parts))}${String(state.tags.length ? ` · tagged ${state.tags.map((tag) => `"${tag}"`).join(', ')}` : '')}</p>
             <div class="cti-actions" style="justify-content:center">
-              <button class="cti-btn" type="button" data-cti-again><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.text("settings","m_a2d721c1b88e56"," Import another file") ?? " Import another file")}</button>
-              <button class="cti-btn" type="button" data-cti-history><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_bcea80956c5d70"," View import history") ?? " View import history")}</button>
-              <button class="cti-btn primary" type="button" data-cti-open-contacts><i class="fas fa-address-book"></i>${(globalThis.PlatformLanguage?.text("settings","m_cf7d1de3c1d5f9"," Open My Contacts") ?? " Open My Contacts")}</button>
+              <button class="cti-btn" type="button" data-cti-again><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a2d721c1b88e56"," Import another file") ?? " Import another file")}</button>
+              <button class="cti-btn" type="button" data-cti-history><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_bcea80956c5d70"," View import history") ?? " View import history")}</button>
+              <button class="cti-btn primary" type="button" data-cti-open-contacts><i class="fas fa-address-book"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cf7d1de3c1d5f9"," Open My Contacts") ?? " Open My Contacts")}</button>
             </div>
           </div>
         </div>
@@ -406,10 +406,10 @@
     }
 
     function historyMarkup(){
-      if (state.historyLoading) return `<div class="cti-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_f0125556e9c81e"," Loading imports…") ?? " Loading imports…")}</span></div>`;
+      if (state.historyLoading) return `<div class="cti-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f0125556e9c81e"," Loading imports…") ?? " Loading imports…")}</span></div>`;
       if (state.historyError) return `<div class="cti-error">${esc(state.historyError)}</div>`;
       const imports = state.imports.filter((record) => text(record.status) !== 'pending');
-      if (!imports.length) return `<div class="cti-empty">${(globalThis.PlatformLanguage?.text("settings","m_05bc75074ce912","No imports yet. Contact books you import will be listed here with their tags and an undo option.") ?? "No imports yet. Contact books you import will be listed here with their tags and an undo option.")}</div>`;
+      if (!imports.length) return `<div class="cti-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_05bc75074ce912","No imports yet. Contact books you import will be listed here with their tags and an undo option.") ?? "No imports yet. Contact books you import will be listed here with their tags and an undo option.")}</div>`;
       return imports.map((record) => {
         const counts = object(record.counts);
         const summary = object(record.summary);
@@ -426,10 +426,10 @@
               ${status === 'undone' ? `Undone · ${Number(undoCounts.removed || 0)} removed${Number(undoCounts.kept || 0) ? `, ${Number(undoCounts.kept)} kept (in use)` : ''}` : ''}
               ${status === 'pending' ? `${Number(summary.total || 0)} contacts previewed` : ''}
             </div>
-            <div class="cti-tag-row">${array(record.tags).map((tag) => `<span class="cti-tag">${esc(tag)}</span>`).join('') || `<span class="cti-history-counts">${(globalThis.PlatformLanguage?.text("settings","m_5e2e4552539fe2","No tags") ?? "No tags")}</span>`}</div>
+            <div class="cti-tag-row">${array(record.tags).map((tag) => `<span class="cti-tag">${esc(tag)}</span>`).join('') || `<span class="cti-history-counts">${(globalThis.PlatformLanguage?.htmlText("settings","m_5e2e4552539fe2","No tags") ?? "No tags")}</span>`}</div>
             <div class="cti-actions">
               <span class="cti-badge ${esc(status)}">${esc(status === 'committed' ? 'Imported' : status === 'undone' ? 'Undone' : 'Pending')}</span>
-              ${status === 'committed' ? `<button class="cti-btn danger" type="button" data-cti-undo="${String(esc(record.id))}"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_d085255851a912"," Undo") ?? " Undo")}</button>` : ''}
+              ${status === 'committed' ? `<button class="cti-btn danger" type="button" data-cti-undo="${String(esc(record.id))}"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d085255851a912"," Undo") ?? " Undo")}</button>` : ''}
             </div>
           </div>
         `;
@@ -518,12 +518,12 @@
 
     function render(){
       if (!api) {
-        page.innerHTML = (String(subTabs()) + "<div class=\"cti-error\">" + (globalThis.PlatformLanguage?.text("settings","m_4d69c2b47d6b55","Contact imports are unavailable — the platform API client is missing.") ?? "Contact imports are unavailable — the platform API client is missing.") + "</div>");
+        page.innerHTML = (String(subTabs()) + "<div class=\"cti-error\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_4d69c2b47d6b55","Contact imports are unavailable — the platform API client is missing.") ?? "Contact imports are unavailable — the platform API client is missing.") + "</div>");
         bindSubTabs();
         return;
       }
       if (state.subtab === 'history') {
-        page.innerHTML = (String(subTabs()) + "\n          <div class=\"cti-head\">\n            <div>\n              <div class=\"cti-kicker\">" + (globalThis.PlatformLanguage?.text("settings","m_f73fef8a7642ab","Contacts · History") ?? "Contacts · History") + "</div>\n              <h3>" + (globalThis.PlatformLanguage?.text("settings","m_57107f62fe4923","Import history") ?? "Import history") + "</h3>\n              <p>" + (globalThis.PlatformLanguage?.text("settings","m_4f2549d8012644","Every committed contact import, who ran it, what it created, and the tags it applied. Undo removes the contacts an import created as long as they have not been used on a project.") ?? "Every committed contact import, who ran it, what it created, and the tags it applied. Undo removes the contacts an import created as long as they have not been used on a project.") + "</p>\n            </div>\n            <div class=\"cti-actions\"><button class=\"cti-btn\" type=\"button\" data-cti-refresh-history><i class=\"fas fa-rotate\"></i>" + (globalThis.PlatformLanguage?.text("settings","m_4f524800833039"," Refresh") ?? " Refresh") + "</button></div>\n          </div>\n          " + String(historyMarkup()));
+        page.innerHTML = (String(subTabs()) + "\n          <div class=\"cti-head\">\n            <div>\n              <div class=\"cti-kicker\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_f73fef8a7642ab","Contacts · History") ?? "Contacts · History") + "</div>\n              <h3>" + (globalThis.PlatformLanguage?.htmlText("settings","m_57107f62fe4923","Import history") ?? "Import history") + "</h3>\n              <p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_4f2549d8012644","Every committed contact import, who ran it, what it created, and the tags it applied. Undo removes the contacts an import created as long as they have not been used on a project.") ?? "Every committed contact import, who ran it, what it created, and the tags it applied. Undo removes the contacts an import created as long as they have not been used on a project.") + "</p>\n            </div>\n            <div class=\"cti-actions\"><button class=\"cti-btn\" type=\"button\" data-cti-refresh-history><i class=\"fas fa-rotate\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh") + "</button></div>\n          </div>\n          " + String(historyMarkup()));
         bindSubTabs();
         bindHistory();
         if (!state.historyLoaded && !state.historyLoading && !state.historyError) loadHistory();
