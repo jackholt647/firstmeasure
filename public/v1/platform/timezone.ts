@@ -34,18 +34,24 @@ export function systemTimezone() {
   }
 }
 
-/** Wall-clock fields of an instant in a given zone. */
+const zonedFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** Wall-clock fields of an instant in a given zone. Formatters are cached; building one is costly. */
 export function zonedParts(instant: Date, timezone: string) {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
+  let formatter = zonedFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    if (zonedFormatters.size < 500) zonedFormatters.set(timezone, formatter);
+  }
   const parts = Object.fromEntries(formatter.formatToParts(instant)
     .filter((part) => part.type !== "literal")
     .map((part) => [part.type, Number(part.value)]));

@@ -9,7 +9,7 @@ import { ZodError, z } from "zod";
 import "./capabilities.js";
 import "./agent/definition.js";
 import { requirePlatformAuth } from "../platform/auth.js";
-import { PlatformError } from "../platform/errors.js";
+import { PlatformError, badRequest } from "../platform/errors.js";
 import { loadAgentSettings, saveAgentSettings } from "../agents/settings.js";
 import {
   deleteAgentThread, importLegacyThreads, listAssistantDashboard, readAgentThread, removeAssistantDashboardItem, updateAgentSchedule
@@ -39,6 +39,7 @@ import {
 
 const objectSchema = z.object({}).passthrough();
 
+const MAX_MESSAGE_CHARACTERS = 32_000;
 const USE_PERMISSION = "use_assistant|view_projects|manage_projects|manage_company_settings";
 const SETTINGS_PERMISSION = "manage_company_settings";
 const profileSchema = z.object({ instructions: z.string().max(4000), memory_enabled: z.boolean() });
@@ -299,13 +300,17 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
     const body = objectSchema.parse(request.body ?? {});
     const threadId = getParam(request.params, "threadId");
+    const rawMessage = body.message ?? body.text ?? "";
+    if (typeof rawMessage !== "string") throw badRequest("invalid_message", "Send the message as text.");
+    if (rawMessage.length > MAX_MESSAGE_CHARACTERS) throw badRequest("message_too_long", `Messages can be up to ${MAX_MESSAGE_CHARACTERS.toLocaleString("en-US")} characters.`);
+    if (!rawMessage.trim()) throw badRequest("empty_message", "Type a message first.");
     const { thread } = await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, threadId, ctx.userId);
     const turnNote = agentIdFromSubject(thread.subject_id) ? await agentConfigurationTurnNote(orgId, ctx.userId, thread) : "";
     const result = await runAgentTurn(ASSISTANT_AGENT_ID, {
       orgId,
       branchId: cleanText(body.branch_id) || ctx.branchId || "default",
       threadId,
-      message: String(body.message ?? body.text ?? ""),
+      message: rawMessage,
       ctx,
       actorUserId: ctx.userId,
       actorName: cleanText((ctx.user as Record<string, unknown> | undefined)?.name),
