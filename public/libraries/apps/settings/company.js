@@ -14170,7 +14170,7 @@
           if(saving)return;saving=true;retry.hidden=true;
           try{
             while(Object.keys(pending.in_app).length||Object.keys(pending.push).length){
-              const patch={in_app:{...pending.in_app},push:{...pending.push}};
+              const patch={in_app:{...pending.in_app},push:{...pending.push},custom_keys:[...new Set([...Object.keys(pending.in_app),...Object.keys(pending.push)].filter(key=>key.startsWith('event.')))]};
               Object.keys(patch.in_app).forEach(k=>delete pending.in_app[k]);Object.keys(patch.push).forEach(k=>delete pending.push[k]);
               status.textContent='Saving…';status.dataset.error='false';
               try{await window.PlatformAPI.notifications.savePreferences(notificationOrgId,patch,notificationBranchId);}
