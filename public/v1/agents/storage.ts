@@ -42,7 +42,7 @@ export function getAgentsDatabase() {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   void closeAgentsDatabase();
-  database = openSqlStore({ id: "agents", schemaVersion: 5, filename: nextPath, initialize: initializeSchema });
+  database = openSqlStore({ id: "agents", schemaVersion: 6, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -175,10 +175,32 @@ async function initializeSchema(db: SqlStore) {
     );
     CREATE INDEX IF NOT EXISTS agent_schedules_due_idx ON agent_schedules(status, kind, fire_at);
     CREATE INDEX IF NOT EXISTS agent_schedules_thread_idx ON agent_schedules(organization_id, origin_thread_id, status);
+
+    -- Artifacts pinned beside the global assistant's chat. source_key lets a
+    -- recurring agent replace yesterday's chart instead of stacking copies.
+    CREATE TABLE IF NOT EXISTS assistant_dashboard_items (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      source_key TEXT NOT NULL DEFAULT '',
+      thread_id TEXT NOT NULL DEFAULT '',
+      message_id TEXT NOT NULL DEFAULT '',
+      artifact_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS assistant_dashboard_owner_idx ON assistant_dashboard_items(organization_id, user_id, updated_at);
   `));
   const columns = [
     ["agent_awaits", "created_by_user_id", "TEXT NOT NULL DEFAULT ''"],
     ["agent_schedules", "timezone", "TEXT NOT NULL DEFAULT ''"],
+    // Assistant agents: user-facing identity and the outcome of the latest run.
+    ["agent_schedules", "surface", "TEXT NOT NULL DEFAULT ''"],
+    ["agent_schedules", "title", "TEXT NOT NULL DEFAULT ''"],
+    ["agent_schedules", "summary", "TEXT NOT NULL DEFAULT ''"],
+    ["agent_schedules", "last_run_at", "TEXT NOT NULL DEFAULT ''"],
+    ["agent_schedules", "last_run_status", "TEXT NOT NULL DEFAULT ''"],
+    ["agent_schedules", "last_result", "TEXT NOT NULL DEFAULT ''"],
     ["agent_threads", "run_token", "TEXT NOT NULL DEFAULT ''"],
     ["agent_threads", "run_lease_until", "TEXT NOT NULL DEFAULT ''"]
   ];
@@ -377,8 +399,9 @@ export async function createAgentSchedule(input: JsonObject) {
   const id = `agent_schedule_${randomUUID().replace(/-/g, "")}`;
   const now = nowIso();
   (await db.prepare(`INSERT INTO agent_schedules (id, agent_id, organization_id, branch_id, origin_thread_id, origin_channel_id,
-      created_by_user_id, kind, instructions, fire_at, cron, timezone, last_fired_at, fire_count, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 'active', ?, ?)`)
+      created_by_user_id, kind, instructions, fire_at, cron, timezone, last_fired_at, fire_count, status, created_at, updated_at,
+      surface, title, summary)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 'active', ?, ?, ?, ?, ?)`)
     .run(
       id, cleanText(input.agent_id), cleanText(input.organization_id),
       cleanText(input.branch_id || "default") || "default",
@@ -387,7 +410,7 @@ export async function createAgentSchedule(input: JsonObject) {
       cleanText(input.kind) === "recurring" ? "recurring" : "once",
       String(input.instructions ?? ""), cleanText(input.fire_at), cleanText(input.cron),
       cleanText(input.timezone),
-      now, now
+      now, now, cleanText(input.surface), cleanText(input.title), cleanText(input.summary)
     ));
   return (await readAgentSchedule(id));
 }
@@ -399,10 +422,15 @@ export async function readAgentSchedule(scheduleId: string) {
 
 export async function updateAgentSchedule(scheduleId: string, patch: JsonObject) {
   const db = getAgentsDatabase();
+  const text = (key: string) => patch[key] == null ? null : cleanText(patch[key]);
   await db.prepare(`UPDATE agent_schedules SET status=COALESCE(?,status), instructions=COALESCE(?,instructions),
-    fire_at=COALESCE(?,fire_at), cron=COALESCE(?,cron), updated_at=? WHERE id=?`)
+    fire_at=COALESCE(?,fire_at), cron=COALESCE(?,cron), kind=COALESCE(?,kind), title=COALESCE(?,title), summary=COALESCE(?,summary),
+    last_fired_at=COALESCE(?,last_fired_at), last_run_at=COALESCE(?,last_run_at), last_run_status=COALESCE(?,last_run_status),
+    last_result=COALESCE(?,last_result), updated_at=? WHERE id=?`)
     .run(patch.status == null ? null : cleanText(patch.status) || "active", patch.instructions == null ? null : String(patch.instructions),
-      patch.fire_at == null ? null : cleanText(patch.fire_at), patch.cron == null ? null : cleanText(patch.cron), nowIso(), cleanText(scheduleId));
+      text("fire_at"), text("cron"), patch.kind == null ? null : (cleanText(patch.kind) === "recurring" ? "recurring" : "once"),
+      text("title"), text("summary"), text("last_fired_at"), text("last_run_at"), text("last_run_status"), text("last_result"),
+      nowIso(), cleanText(scheduleId));
   return readAgentSchedule(scheduleId);
 }
 
@@ -416,6 +444,18 @@ export async function listAgentSchedules(agentId: string, orgId: string, options
   if (cleanText(options.status)) {
     where.push("status = ?");
     params.push(cleanText(options.status));
+  }
+  if (Array.isArray(options.statuses) && options.statuses.length) {
+    where.push(`status IN (${options.statuses.map(() => "?").join(",")})`);
+    params.push(...options.statuses.map(cleanText));
+  }
+  if (options.surface !== undefined) {
+    where.push("surface = ?");
+    params.push(cleanText(options.surface));
+  }
+  if (cleanText(options.created_by_user_id)) {
+    where.push("created_by_user_id = ?");
+    params.push(cleanText(options.created_by_user_id));
   }
   params.push(Math.min(200, Math.max(1, Number(options.limit || 50))));
   return (await getAgentsDatabase()
@@ -498,6 +538,52 @@ export async function renewAgentWakeup(id: string, token: string, leaseMs = 1200
 export async function finishAgentWakeup(id: string, token: string, state: "succeeded" | "uncertain" | "cancelled", error = "") {
   return (await getAgentsDatabase().prepare("UPDATE agent_wakeup_jobs SET state=?,error=?,updated_at=? WHERE id=? AND lease_owner=? AND state='running' AND lease_until>?")
     .run(state, error.slice(0,2000), nowIso(), id, token, nowIso())).changes === 1;
+}
+
+// ── Assistant dashboard (artifacts beside the chat) ───────────────────────
+
+const MAX_DASHBOARD_ITEMS = 12;
+
+function dashboardItemFromRow(row: unknown) {
+  const entry = asObject(row);
+  return {
+    id: cleanText(entry.id), source_key: cleanText(entry.source_key), thread_id: cleanText(entry.thread_id),
+    message_id: cleanText(entry.message_id), artifact: asObject(parseJson(entry.artifact_json)),
+    created_at: cleanText(entry.created_at), updated_at: cleanText(entry.updated_at)
+  };
+}
+
+export async function listAssistantDashboard(orgId: string, userId: string) {
+  return (await getAgentsDatabase().prepare(`SELECT * FROM assistant_dashboard_items WHERE organization_id=? AND user_id=?
+    ORDER BY updated_at DESC, id DESC LIMIT ?`).all(orgId, cleanText(userId), MAX_DASHBOARD_ITEMS)).map(dashboardItemFromRow);
+}
+
+/** Pins an artifact. An item with the same source key is replaced rather than stacked. */
+export async function pinAssistantDashboardItem(orgId: string, userId: string, input: JsonObject) {
+  return (await getAgentsDatabase().transaction(async db => {
+    const now = nowIso();
+    const owner = cleanText(userId);
+    const sourceKey = cleanText(input.source_key);
+    const existing = sourceKey ? asObject(await db.prepare("SELECT id FROM assistant_dashboard_items WHERE organization_id=? AND user_id=? AND source_key=?")
+      .get(orgId, owner, sourceKey)) : {};
+    const id = cleanText(existing.id) || `assistant_dash_${randomUUID().replace(/-/g, "")}`;
+    if (cleanText(existing.id)) {
+      await db.prepare("UPDATE assistant_dashboard_items SET thread_id=?, message_id=?, artifact_json=?, updated_at=? WHERE id=?")
+        .run(cleanText(input.thread_id), cleanText(input.message_id), json(input.artifact), now, id);
+    } else {
+      await db.prepare(`INSERT INTO assistant_dashboard_items (id, organization_id, user_id, source_key, thread_id, message_id, artifact_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, orgId, owner, sourceKey, cleanText(input.thread_id), cleanText(input.message_id), json(input.artifact), now, now);
+    }
+    const stale = await db.prepare(`SELECT id FROM assistant_dashboard_items WHERE organization_id=? AND user_id=?
+      ORDER BY updated_at DESC, id DESC LIMIT 1000 OFFSET ?`).all(orgId, owner, MAX_DASHBOARD_ITEMS);
+    for (const row of stale) await db.prepare("DELETE FROM assistant_dashboard_items WHERE id=?").run(cleanText(asObject(row).id));
+    return id;
+  }));
+}
+
+export async function removeAssistantDashboardItem(orgId: string, userId: string, itemId: string) {
+  return Number((await getAgentsDatabase().prepare("DELETE FROM assistant_dashboard_items WHERE organization_id=? AND user_id=? AND id=?")
+    .run(orgId, cleanText(userId), cleanText(itemId))).changes || 0) > 0;
 }
 
 /**

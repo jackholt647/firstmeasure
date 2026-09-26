@@ -76,7 +76,7 @@ const MAX_ACTIVE_SCHEDULES_PER_THREAD = 12;
  * given timezone, or "" when nothing matches within maxDays (invalid or
  * never-firing expressions).
  */
-function nextCronFire(expression: string, timezone: string, from = new Date(), maxDays = MAX_SCHEDULE_DAYS) {
+export function nextCronFire(expression: string, timezone: string, from = new Date(), maxDays = MAX_SCHEDULE_DAYS) {
   if (String(expression || "").trim().split(/\s+/).length !== 5) return "";
   const start = Math.floor(from.getTime() / 60_000) * 60_000 + 60_000;
   const end = from.getTime() + maxDays * 86_400_000;
@@ -94,7 +94,7 @@ const WALL_CLOCK_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))
  * the company's timezone so the model never does timezone math itself;
  * explicit offsets are honored as written.
  */
-function parseScheduleAt(value: string, timezone: string) {
+export function parseScheduleAt(value: string, timezone: string) {
   if (EXPLICIT_OFFSET_RE.test(value)) return Date.parse(value);
   const match = WALL_CLOCK_RE.exec(value);
   if (!match) return NaN;
@@ -345,7 +345,7 @@ function buildChannelTools(options: {
       allowSystem: true,
       async execute(_run, args) {
         const schedules = (await listAgentSchedules(options.agentId, options.orgId, {
-          status: "active",
+          status: "active", surface: "",
           ...(args.all_conversations === true ? {} : { origin_thread_id: options.originThreadId })
         }));
         return { ok: true, wakeups: schedules.map(describeSchedule) };
@@ -367,7 +367,8 @@ function buildChannelTools(options: {
         const schedule = (await readAgentSchedule(scheduleId));
         if (!schedule
           || cleanText(schedule.organization_id) !== options.orgId
-          || cleanText(schedule.agent_id) !== options.agentId) {
+          || cleanText(schedule.agent_id) !== options.agentId
+          || cleanText(schedule.surface) === "assistant") {
           return toolError("No such wakeup schedule.");
         }
         if (cleanText(schedule.status) !== "active") {
@@ -625,6 +626,11 @@ export async function drainChannelAgentJobs() {
   const count = await drainAgentWakeups(async job => {
     const payload = asObject(job.payload), entry = asObject(payload.record), event = asObject(payload.event);
     const orgId = cleanText(entry.organization_id);
+    // Personal assistant agents deliver to the assistant's main thread, not a channel.
+    if (job.kind === "schedule" && cleanText(entry.surface) === "assistant") {
+      const { runAssistantAgentJob } = await import("../assistant/agent/agents.js");
+      return await runAssistantAgentJob(entry, event);
+    }
     if (!await isCapabilityEnabled(orgId, "apps.channels")) return "cancelled";
     assertAgentWakeupLease();
     if (job.kind === "schedule") {

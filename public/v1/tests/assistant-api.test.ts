@@ -472,3 +472,115 @@ test('focused terminology chat drafts locale-specific labels without saving or e
  assert.equal((await other.raw('GET',base+'/threads/'+thread.thread.id)).statusCode,403);
  assert.equal((await other.raw('GET',`/v1/platform/organizations/${orgId}/terminology-assistant/threads/${thread.thread.id}`)).statusCode,404);
 });
+
+test("the assistant creates a personal agent that runs on schedule into the main thread and dashboard", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const context = await client.request("GET", `${base}/context`);
+  const mainThreadId = context.main_thread.id as string;
+  assert.equal(context.main_thread.subject_id, "main");
+  assert.equal((await client.request("GET", `${base}/context`)).main_thread.id, mainThreadId, "one main thread per user");
+  assert.deepEqual(context.agents, []);
+
+  const created = await client.request("POST", `${base}/threads`, {});
+  const tooLong = "A Very Long Agent Name That Will Not Fit";
+  const mock = mockOpenAI([
+    { output: [functionCall("create_agent", { title: tooLong, summary: "x", instructions: "x", cron: "0 11 * * *" }, "c0")] },
+    { output: [functionCall("create_agent", { title: "Daily Profit Tracker", summary: "Reports yesterday's profit every morning at 11 AM.", instructions: "Report yesterday's profit with a donut chart.", cron: "* * * * *" }, "c1")] },
+    { output: [functionCall("create_agent", { title: "Daily Profit Tracker", summary: "Reports yesterday's profit every morning at 11 AM.", instructions: "Report yesterday's profit with a donut chart.", cron: "0 11 * * *" }, "c2")] },
+    { output: [functionCall("report_result", { status: "success", summary: "Set up." }, "c3")] },
+    { output: [messageOutput("Done. Daily Profit Tracker will report every day at 11:00 AM.")] }
+  ]);
+  let agentId = "";
+  try {
+    const reply = await client.request("POST", `${base}/threads/${created.thread.id}/messages`, { message: "Text me every morning at 11 how the business did yesterday" });
+    const outputs = mock.calls.slice(1, 3).map((call: any) => JSON.parse(call.input.at(-1).output));
+    assert.match(outputs[0].errors[0], /at most 32 characters/);
+    assert.match(outputs[1].errors[0], /every 15 minutes/);
+    assert.equal(reply.status, "success");
+    assert.equal(reply.actions[0].kind, "agent");
+    agentId = reply.actions[0].agent_id;
+  } finally { mock.restore(); }
+
+  const agents = (await client.request("GET", `${base}/agents`)).agents;
+  assert.equal(agents.length, 1);
+  assert.equal(agents[0].title, "Daily Profit Tracker");
+  assert.equal(agents[0].schedule_label, "Every day at 11:00 AM");
+  assert.ok(agents[0].next_run_at);
+  const detail = await client.request("GET", `${base}/agents/${agentId}`);
+  assert.match(detail.messages[0].content, /I'm set up/);
+
+  // Agents are personal.
+  const other = createSessionClient();
+  await register(other);
+  assert.ok((await other.raw("GET", `${base}/agents/${agentId}`)).statusCode >= 400);
+
+  // Pausing stops the sweep; resuming does not replay missed runs.
+  assert.equal((await client.request("PATCH", `${base}/agents/${agentId}`, { status: "paused" })).agent.status, "paused");
+  const { sweepAgentSchedules, drainChannelAgentJobs } = await import("../channels/agent.js");
+  const { readAgentSchedule, updateAgentSchedule, getAgentsDatabase } = await import("../agents/storage.js");
+  const tomorrowNoon = new Date(Date.now() + 36 * 3_600_000);
+  assert.equal(await sweepAgentSchedules(tomorrowNoon), 0);
+  await client.request("PATCH", `${base}/agents/${agentId}`, { status: "active" });
+  await updateAgentSchedule(agentId, { last_fired_at: new Date(Date.now() - 48 * 3_600_000).toISOString() });
+
+  // A due occurrence runs through the shared wakeup queue even without Channels.
+  await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, { values: { "apps.channels": false } });
+  assert.equal(await sweepAgentSchedules(new Date()), 1);
+  const run = mockOpenAI([
+    { output: [functionCall("create_artifact", { kind: "donut", title: "Yesterday's profit by job", key: "daily-profit", unit: "currency", labels: ["Roof", "Siding"], series: [{ name: "Profit", values: [700, 300] }] }, "r1")] },
+    { output: [functionCall("report_result", { status: "success", summary: "Reported." }, "r2")] },
+    { output: [messageOutput("You made $1,000 profit yesterday.\nRoofing led with $700.")] }
+  ]);
+  try { assert.equal(await drainChannelAgentJobs(), 1); } finally { run.restore(); }
+  const job = await getAgentsDatabase().prepare("SELECT state, error FROM agent_wakeup_jobs WHERE id LIKE ?").get(`schedule:${agentId}:%`);
+  assert.equal(job?.state, "succeeded", String(job?.error));
+
+  const main = await client.request("GET", `${base}/threads/${mainThreadId}`);
+  const delivered = main.messages.at(-1);
+  assert.equal(delivered.content, "You made $1,000 profit yesterday.\nRoofing led with $700.");
+  assert.equal(delivered.data.source, "agent");
+  assert.equal(delivered.data.agent_title, "Daily Profit Tracker");
+  assert.equal(delivered.data.renders[0].kind, "donut");
+  const dashboard = (await client.request("GET", `${base}/dashboard`)).dashboard;
+  assert.equal(dashboard.length, 1);
+  assert.equal(dashboard[0].artifact.source_label, "Daily Profit Tracker");
+  const schedule = await readAgentSchedule(agentId);
+  assert.equal(schedule?.last_result, "You made $1,000 profit yesterday.");
+  const { readDocument } = await import("../platform/storage.js");
+  const note = await readDocument(orgId, "notifications", `assistant_agent_${delivered.id}`);
+  assert.equal((note.data as any).title, "Daily Profit Tracker");
+  assert.equal((note.data as any).frontend_action.kind, "open_assistant");
+
+  // Scheduled runs stay out of the configuration chat; they are listed as runs.
+  const afterRun = await client.request("GET", `${base}/agents/${agentId}`);
+  assert.equal(afterRun.runs.length, 1);
+  assert.ok(afterRun.messages.every((message: any) => message.data?.kind !== "agent_run"));
+
+  // Closing an artifact removes it; deleting the agent stops it.
+  assert.deepEqual((await client.request("DELETE", `${base}/dashboard/${dashboard[0].id}`)).dashboard, []);
+  await client.request("DELETE", `${base}/agents/${agentId}`);
+  assert.deepEqual((await client.request("GET", `${base}/agents`)).agents, []);
+});
+
+test("chat artifacts are validated and pinned to the dashboard", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const created = await client.request("POST", `${base}/threads`, {});
+  const mock = mockOpenAI([
+    { output: [functionCall("create_artifact", { kind: "pie", title: "Bad", labels: ["A"], series: [{ name: "x", values: [-1] }] }, "a0")] },
+    { output: [functionCall("create_artifact", { kind: "metrics", title: "This week", metrics: [{ label: "Revenue", value: 4200, unit: "currency", delta: "+8% vs last week" }] }, "a1")] },
+    { output: [functionCall("report_result", { status: "success", summary: "Shown." }, "a2")] },
+    { output: [messageOutput("Revenue is up 8% this week.")] }
+  ]);
+  try {
+    const reply = await client.request("POST", `${base}/threads/${created.thread.id}/messages`, { message: "How is revenue this week?" });
+    assert.match(JSON.parse((mock.calls[1] as any).input.at(-1).output).errors[0], /zero or greater/);
+    assert.equal(reply.renders.length, 1);
+    assert.equal(reply.dashboard.length, 1);
+    assert.equal(reply.dashboard[0].artifact.metrics[0].value, 4200);
+    assert.equal(reply.assistant_message.data.renders[0].kind, "metrics");
+  } finally { mock.restore(); }
+});

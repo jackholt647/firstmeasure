@@ -540,6 +540,13 @@
     return true;
   }
 
+  function openAssistantNotification(item = {}){
+    const action = item?.frontend_action && typeof item.frontend_action === 'object' ? item.frontend_action : {};
+    if (String(action.kind || '').trim() !== 'open_assistant' || !window.PlatformAssistant?.openConversation) return false;
+    void window.PlatformAssistant.openConversation({ thread_id: String(action.thread_id || '').trim(), agent_id: String(action.agent_id || '').trim() });
+    return true;
+  }
+
   function openMerchantPortalNotification(item = {}){
     const action = item?.frontend_action && typeof item.frontend_action === 'object' ? item.frontend_action : {};
     if (String(action.kind || '').trim() !== 'open_merchant_portal') return false;
@@ -865,7 +872,7 @@
   async function openNotificationItem(item){
     if (!item) return;
     window.PlatformNotifications?.markSeen(orgId(), item.id, notificationLoadOptions({ reload:true })).catch(() => null);
-    if (openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
+    if (openAssistantNotification(item) || openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
       closeNotificationMenus();
     } else if (notificationOpensProject(item) || isLeadNotification(item)) {
       await openNotificationProject(item);
