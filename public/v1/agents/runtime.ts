@@ -51,7 +51,7 @@ const REPORT_RESULT_TOOL: AgentTool = {
 
 function declaredTools(definition: AgentDefinition, run: AgentRun): AgentTool[] {
   const local = typeof definition.tools === "function" ? definition.tools(run) : definition.tools;
-  const tools = run.ctx ? [...local, ...platformAgentTools] : local;
+  const tools = run.ctx && definition.platformTools !== false ? [...local, ...platformAgentTools] : local;
   const withReport = definition.loop?.reportResult === false
     ? tools
     : [...tools.filter((tool) => tool.name !== "report_result"), REPORT_RESULT_TOOL];
@@ -226,8 +226,6 @@ export type AgentTurnInput = {
   branchId?: string;
   threadId: string;
   message: string;
-  /** Validated multimodal parts for the current user turn only. */
-  contentParts?: JsonObject[];
   ctx?: PlatformAuthContext | null;
   actorUserId?: string;
   actorName?: string;
@@ -321,15 +319,9 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
   if (last && cleanText(turn.turnNote) && last.role === "user") {
     last.content = `${last.content}${turn.turnNote}`;
   }
-  if (last && last.role === "user" && turn.contentParts?.length) {
-    (last as { role: string; content: string | JsonObject[] }).content = [
-      { type: "input_text", text: last.content },
-      ...turn.contentParts
-    ];
-  }
 
   const conversation: JsonObject[] = [
-    { role: "system", content: `${await definition.systemPrompt(run)}${run.ctx ? `\n\n${platformAgentInstructions}` : ""}` },
+    { role: "system", content: `${await definition.systemPrompt(run)}${run.ctx && definition.platformTools !== false ? `\n\n${platformAgentInstructions}` : ""}` },
     ...history
   ];
 
@@ -462,7 +454,7 @@ export async function runAgentOnce(agentId: string, input: AgentOnceInput) {
   const tools = [...declaredTools(definition, run), ...(input.extraTools ?? [])];
   const loop = definition.loop ?? {};
   const conversation: JsonObject[] = [
-    { role: "system", content: `${await definition.systemPrompt(run)}${run.ctx ? `\n\n${platformAgentInstructions}` : ""}` },
+    { role: "system", content: `${await definition.systemPrompt(run)}${run.ctx && definition.platformTools !== false ? `\n\n${platformAgentInstructions}` : ""}` },
     ...input.messages.map((message) => ({ role: cleanText(message.role) || "user", content: String(message.content ?? "") }))
   ];
 
