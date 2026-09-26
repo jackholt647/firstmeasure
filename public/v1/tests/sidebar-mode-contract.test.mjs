@@ -54,13 +54,10 @@ test('the arrow lock state persists locally per organization and user', () => {
   assert.doesNotMatch(portalCore, /if \(!compact\) sidebarCompactExpanded = false/);
 });
 
-test('Company Settings exposes both left-column layout controls', () => {
-  for (const source of [capabilityDefs, companySettings]) {
-    assert.match(source, /platform\.left_column_expansion_mode/);
-    assert.match(source, /platform\.always_collapsible_left_column/);
-  }
-  assert.match(capabilityDefs, /key: "platform\.left_column_expansion_mode"[\s\S]*?default: "resize"[\s\S]*?\["overlap", "Overlap page"\]/);
-  assert.match(companySettings, /key: 'platform\.always_collapsible_left_column'[\s\S]*?defaultValue: false/);
+test('My Settings owns left-column layout controls', () => {
+  assert.doesNotMatch(capabilityDefs, /key: "platform\.left_column_expansion_mode"/);
+  assert.match(companySettings, /data-my-left-column-expansion-mode/);
+  assert.match(companySettings, /data-my-always-collapsible-left-column/);
 });
 
 test('compact sidebar ignores a pointer exit through the browser left edge', () => {

@@ -1369,25 +1369,7 @@ test("Manual action items with the same title get separate records", async () =>
   assert.deepEqual(visible.action_items.map((item: any) => item.title), ["Follow up with Sam", "Follow up with Sam"]);
 });
 
-test("Left column to-do list app flag persists in platform flag state", async () => {
-  const client = createSessionClient();
-  const { orgId } = await register(client);
-  const { saveGlobal } = await import("../platform/storage.js");
-  await saveGlobal(orgId, {
-    data: {
-      app_flags: {
-        platform: { expanded_access: true, left_column_todo_list: true }
-      }
-    }
-  }, { replace: false });
-
-  const flags = await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`);
-  assert.equal(flags.raw.platform.left_column_todo_list, true);
-  assert.equal(flags.effective.platform.left_column_todo_list, true);
-  assert.equal(flags.enabled.platform.includes("left_column_todo_list"), true);
-});
-
-test("Left column to-do list app flag saves through app flag API", async () => {
+test("Remaining platform flags save through app flag API", async () => {
   const client = createSessionClient();
   const suffix = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const registered = await client.request("POST", "/v1/platform/auth/register", {
@@ -1410,7 +1392,6 @@ test("Left column to-do list app flag saves through app flag API", async () => {
   const saved = await client.request("PUT", `/v1/platform/organizations/${orgId}/app-flags`, {
     app_flags: {
       platform: {
-        left_column_todo_list: true,
         storage_limits: true,
         free_storage_gb: 2.5,
         proposals: true,
@@ -1421,9 +1402,6 @@ test("Left column to-do list app flag saves through app flag API", async () => {
     }
   });
 
-  assert.equal(saved.raw.platform.left_column_todo_list, true);
-  assert.equal(saved.effective.platform.left_column_todo_list, true);
-  assert.equal(saved.enabled.platform.includes("left_column_todo_list"), true);
   assert.equal(saved.raw.platform.free_storage_gb, 2.5);
   assert.equal(saved.effective.platform.free_storage_gb, 2.5);
   assert.equal(saved.raw.platform.proposal_agent, true);
@@ -1435,8 +1413,6 @@ test("Left column to-do list app flag saves through app flag API", async () => {
   assert.equal(saved.enabled.platform.includes("new_button_mode"), false);
 
   const reloaded = await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`);
-  assert.equal(reloaded.raw.platform.left_column_todo_list, true);
-  assert.equal(reloaded.effective.platform.left_column_todo_list, true);
   assert.equal(reloaded.raw.platform.free_storage_gb, 2.5);
   assert.equal(reloaded.effective.platform.free_storage_gb, 2.5);
   assert.equal(reloaded.raw.platform.proposal_agent, true);

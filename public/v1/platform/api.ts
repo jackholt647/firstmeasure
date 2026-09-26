@@ -185,7 +185,14 @@ const userPreferencesSchema = z.object({
   interface_locale: localeSchema.nullable().optional(),
   language: z.union([z.enum(TRANSLATION_CODES), z.literal("en")]).nullable().optional(),
   auto_translate_messages: z.boolean().optional(),
-  sidebar_width: z.number().int().min(220).max(420).optional()
+  sidebar_width: z.number().int().min(220).max(420).optional(),
+  left_column_apps: z.boolean().optional(),
+  left_column_todo_list: z.boolean().optional(),
+  left_column_channels: z.boolean().optional(),
+  left_column_agents: z.boolean().optional(),
+  left_column_default_mode: z.enum(["apps", "todo", "channels", "agents"]).optional(),
+  left_column_expansion_mode: z.enum(["resize", "overlap"]).optional(),
+  always_collapsible_left_column: z.boolean().optional()
 }).strict();
 const pricebookGenerationSchema = z.object({
   samples: z.array(z.object({
@@ -940,7 +947,14 @@ app.get("/auth/google/config", async () => ({
         interface_locale: preferences.interface_locale ?? null,
         ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)),
         auto_translate_messages: preferences.auto_translate_messages === true,
-        sidebar_width: Number.isInteger(preferences.sidebar_width) ? preferences.sidebar_width : 250
+        sidebar_width: Number.isInteger(preferences.sidebar_width) ? preferences.sidebar_width : 250,
+        left_column_apps: preferences.left_column_apps !== false,
+        left_column_todo_list: preferences.left_column_todo_list === true,
+        left_column_channels: preferences.left_column_channels === true,
+        left_column_agents: preferences.left_column_agents === true,
+        left_column_default_mode: ["apps", "todo", "channels", "agents"].includes(String(preferences.left_column_default_mode)) ? preferences.left_column_default_mode : "apps",
+        left_column_expansion_mode: preferences.left_column_expansion_mode === "overlap" ? "overlap" : "resize",
+        always_collapsible_left_column: preferences.always_collapsible_left_column === true
       }
     };
   });
@@ -955,7 +969,14 @@ app.get("/auth/google/config", async () => ({
       interface_locale: patch.interface_locale !== undefined ? patch.interface_locale : current.interface_locale ?? null,
       language: patch.language === undefined ? current.language ?? null : patch.language === null ? null : normalizeTranslationLanguage(patch.language),
       auto_translate_messages: patch.auto_translate_messages ?? current.auto_translate_messages === true,
-      sidebar_width: patch.sidebar_width ?? (Number.isInteger(current.sidebar_width) ? current.sidebar_width : 250)
+      sidebar_width: patch.sidebar_width ?? (Number.isInteger(current.sidebar_width) ? current.sidebar_width : 250),
+      left_column_apps: patch.left_column_apps ?? (current.left_column_apps !== false),
+      left_column_todo_list: patch.left_column_todo_list ?? (current.left_column_todo_list === true),
+      left_column_channels: patch.left_column_channels ?? (current.left_column_channels === true),
+      left_column_agents: patch.left_column_agents ?? (current.left_column_agents === true),
+      left_column_default_mode: patch.left_column_default_mode ?? (["apps", "todo", "channels", "agents"].includes(String(current.left_column_default_mode)) ? current.left_column_default_mode : "apps"),
+      left_column_expansion_mode: patch.left_column_expansion_mode ?? (current.left_column_expansion_mode === "overlap" ? "overlap" : "resize"),
+      always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true)
     };
     await patchIdentity(ctx.identityId, { preferences });
     return { ok: true, preferences: { ...preferences, ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)) } };

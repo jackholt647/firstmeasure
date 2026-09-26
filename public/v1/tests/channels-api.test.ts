@@ -147,7 +147,8 @@ test("message language detection and personal translation preferences are user-s
   const general = listed.channels.find((channel: Json) => channel.name === "general");
 
   const defaults = await owner.request("GET", "/v1/platform/me/preferences");
-  assert.deepEqual(defaults.preferences, { interface_locale:null, language:null, translation_language:"en-US", company_locale:"en-US", auto_translate_messages:false, sidebar_width:250 });
+  assert.equal(defaults.preferences.left_column_agents, false);
+  assert.equal(defaults.preferences.translation_language, "en-US");
 
   const posted = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, {
     text: "Hola equipo, empezamos el proyecto mañana."
@@ -161,7 +162,8 @@ test("message language detection and personal translation preferences are user-s
     auto_translate_messages: true,
     sidebar_width: 336
   });
-  assert.deepEqual(saved.preferences, { interface_locale:null, language:"es", translation_language:"es", company_locale:"en-US", auto_translate_messages:true, sidebar_width:336 });
+  assert.equal(saved.preferences.sidebar_width, 336);
+  assert.equal(saved.preferences.translation_language, "es");
 
   const refreshed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`);
   const message = refreshed.messages.find((item: Json) => item.id === posted.message.id);

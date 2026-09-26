@@ -106,7 +106,7 @@ test("registry is structurally valid and includes every legacy flag plus new app
     "platform.project_photos", "platform.photos_feed", "platform.proposals", "platform.project_docs",
     "platform.project_stages_view", "platform.project_assignments", "platform.proposal_agent", "platform.terminology_agent", "platform.materials",
     "platform.manual_project_stage_movement",
-    "platform.money", "platform.top_bar", "platform.left_column_apps", "platform.left_column_todo_list", "platform.cobrand_sidebar_logo",
+    "platform.money", "platform.top_bar", "platform.cobrand_sidebar_logo",
     "platform.new_button_mode", "platform.configuration", "platform.pricebook", "platform.user_modals",
     "platform.user_activity", "platform.storage_limits", "platform.free_storage_gb", "platform.customer_portal",
     "platform.customer_portal_media", "platform.sms_settings", "platform.purchasable_storage",
@@ -122,12 +122,9 @@ test("registry is structurally valid and includes every legacy flag plus new app
   for (const key of ["apps.projects", "apps.crm", "apps.payroll", "apps.crew", "apps.checklists", "apps.training", "apps.referrals", "apps.billing", "apps.messaging", "apps.channels", "apps.firstmeasure"]) {
     assert.ok(keys.has(key), `missing app node ${key}`);
   }
-  assert.ok(keys.has("channels.sidebar_tab"), "missing integrated Channels sidebar capability");
-  assert.ok(keys.has("assistant.sidebar_tab"), "missing integrated Agents sidebar capability");
-  assert.equal(definitions.find((definition) => definition.key === "assistant.sidebar_tab")?.default, false);
-  const leftColumnDefault = definitions.find((definition) => definition.key === "platform.left_column_default_mode");
-  assert.equal(leftColumnDefault?.default, "apps", "Default Left Column should preserve Apps for existing organizations");
-  assert.deepEqual(leftColumnDefault?.options?.map(([value]) => value), ["apps", "todo", "channels", "agents"]);
+  for (const key of ["channels.sidebar_tab", "assistant.sidebar_tab", "platform.left_column_apps", "platform.left_column_todo_list", "platform.left_column_default_mode", "platform.left_column_expansion_mode", "platform.always_collapsible_left_column"]) {
+    assert.ok(!keys.has(key), `${key} should be a personal preference, not a capability`);
+  }
   assert.equal(definitions.find((definition) => definition.key === "platform.cobrand_sidebar_logo")?.default, true);
   assert.equal(definitions.find((definition) => definition.key === "platform.project_assignments")?.default, true);
   assert.equal(definitions.find((definition) => definition.key === "platform.separate_user_section")?.default, false);
@@ -260,15 +257,13 @@ test("capabilities API returns definitions, resolves values, and persists flat w
       "platform.proposals": true,
       "platform.proposal_agent": true,
       "platform.advanced_app_menu": true,
-      "platform.materials": true,
-      "platform.left_column_default_mode": "channels"
+      "platform.materials": true
     }
   });
   assert.equal(updated.effective_by_key["platform.proposals"], true);
   assert.equal(updated.effective_by_key["platform.proposal_agent"], true);
   assert.equal(updated.effective["platform.advanced_app_menu"], true);
   assert.equal(updated.effective_by_key["platform.materials"], false);
-  assert.equal(updated.effective["platform.left_column_default_mode"], "channels");
   assert.equal(updated.reasons["platform.materials"], "requires platform.pricebook");
   assert.ok(updated.violations.some((violation: any) => violation.key === "platform.materials"));
   // The same values must be visible through the legacy API (shared storage).
@@ -276,7 +271,6 @@ test("capabilities API returns definitions, resolves values, and persists flat w
   assert.equal(legacy.effective.platform.proposals, true);
   assert.equal(legacy.raw.platform.materials, true);
   assert.equal(legacy.effective.platform.materials, false);
-  assert.equal(legacy.effective.platform.left_column_default_mode, "channels");
   // Validate endpoint previews without persisting.
   const preview = await client.request("POST", `/v1/platform/organizations/${orgId}/capabilities/validate`, {
     values: { "platform.pricebook": true }
@@ -284,24 +278,26 @@ test("capabilities API returns definitions, resolves values, and persists flat w
   assert.equal(preview.effective_by_key["platform.materials"], true);
   const unchanged = await client.request("GET", `/v1/platform/organizations/${orgId}/capabilities`);
   assert.equal(unchanged.effective_by_key["platform.materials"], false);
-  assert.equal(unchanged.effective["platform.left_column_default_mode"], "channels");
   assert.equal(unchanged.raw["platform.advanced_app_menu"], true);
   assert.equal(unchanged.effective["platform.advanced_app_menu"], true);
 });
 
-test("Agents left-column mode is opt-in and projects through the shared flags API", async () => {
+test("left-column choices are saved as personal preferences without operator access", async () => {
   const client = createSessionClient();
-  const { orgId } = await register(client);
-  const initial = await client.request("GET", `/v1/platform/organizations/${orgId}/capabilities`);
-  assert.equal(initial.effective_by_key["assistant.sidebar_tab"], false);
-  const updated = await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
-    values: { "assistant.sidebar_tab": true, "platform.left_column_default_mode": "agents" }
+  await register(client);
+  const initial = await client.request("GET", "/v1/platform/me/preferences");
+  assert.equal(initial.preferences.left_column_agents, false);
+  assert.equal(initial.preferences.left_column_apps, true);
+  const saved = await client.request("PATCH", "/v1/platform/me/preferences", {
+    left_column_agents: true,
+    left_column_channels: true,
+    left_column_default_mode: "agents"
   });
-  assert.equal(updated.effective_by_key["assistant.sidebar_tab"], true);
-  assert.equal(updated.effective["platform.left_column_default_mode"], "agents");
-  const legacy = await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`);
-  assert.equal(legacy.effective.assistant.sidebar_tab, true);
-  assert.equal(legacy.effective.platform.left_column_default_mode, "agents");
+  assert.equal(saved.preferences.left_column_agents, true);
+  assert.equal(saved.preferences.left_column_default_mode, "agents");
+  const reloaded = await client.request("GET", "/v1/platform/me/preferences");
+  assert.equal(reloaded.preferences.left_column_agents, true);
+  assert.equal(reloaded.preferences.left_column_channels, true);
 });
 
 test("built-in presets exist and applying proposals_only reshapes the org", async () => {

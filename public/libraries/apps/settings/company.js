@@ -1770,14 +1770,7 @@
       label: (globalThis.PlatformLanguage?.text("settings","m_87d1844aa0e8e0","Project Docs") ?? "Project Docs"),
       description: (globalThis.PlatformLanguage?.text("settings","m_12c75f5e1fcb08","Enables project document storage, required documents, and document markup workflows.") ?? "Enables project document storage, required documents, and document markup workflows.")
     },
-    {
-      key: 'platform.left_column_apps',
-      group: 'platform',
-      flag: 'left_column_apps',
-      defaultValue: true,
-      label: (globalThis.PlatformLanguage?.text("settings","m_f2d255fc8e6011","Left Column Apps") ?? "Left Column Apps"),
-      description: (globalThis.PlatformLanguage?.text("settings","m_60915cbeb35f1a","Show the Apps navigation mode in the portal left column. A sole remaining mode displays without a tab header.") ?? "Show the Apps navigation mode in the portal left column. A sole remaining mode displays without a tab header.")
-    },
+
     {
       key: 'platform.separate_user_section',
       group: 'platform',
@@ -1785,58 +1778,6 @@
       defaultValue: false,
       label: (globalThis.PlatformLanguage?.text("settings","m_f893f224c33918","Separate User Section") ?? "Separate User Section"),
       description: (globalThis.PlatformLanguage?.text("settings","m_290c28d4fa9275","Keep the account switcher in its own section instead of the shared Settings, Apps, and User footer row.") ?? "Keep the account switcher in its own section instead of the shared Settings, Apps, and User footer row.")
-    },
-    {
-      key: 'platform.left_column_todo_list',
-      group: 'platform',
-      flag: 'left_column_todo_list',
-      defaultValue: false,
-      label: (globalThis.PlatformLanguage?.text("settings","m_5aa43fe89e61e6","Left Column To Do List") ?? "Left Column To Do List"),
-      description: (globalThis.PlatformLanguage?.text("settings","m_08c15cae3c4b7b","Show the Apps/To Do switcher and today's action-item list in the portal left column.") ?? "Show the Apps/To Do switcher and today's action-item list in the portal left column.")
-    },
-    {
-      key: 'assistant.sidebar_tab',
-      group: 'assistant',
-      flag: 'sidebar_tab',
-      defaultValue: false,
-      label: 'Agents in Left Column',
-      description: 'Show agent conversations in an Agents tab in the desktop portal left column.'
-    },
-    {
-      key: 'platform.left_column_default_mode',
-      group: 'platform',
-      flag: 'left_column_default_mode',
-      type: 'select',
-      defaultValue: 'apps',
-      label: (globalThis.PlatformLanguage?.text("settings","m_30a488632b6609","Default Left Column") ?? "Default Left Column"),
-      description: (globalThis.PlatformLanguage?.text("settings","m_d4045d57c410c7","Choose which enabled left-column mode opens by default. If it is unavailable, the first enabled mode is used.") ?? "Choose which enabled left-column mode opens by default. If it is unavailable, the first enabled mode is used."),
-      options: [
-        ['apps', 'Apps'],
-        ['todo', 'To Do'],
-        ['channels', 'Channels'],
-        ['agents', 'Agents']
-      ]
-    },
-    {
-      key: 'platform.left_column_expansion_mode',
-      group: 'platform',
-      flag: 'left_column_expansion_mode',
-      type: 'select',
-      defaultValue: 'resize',
-      label: (globalThis.PlatformLanguage?.text("settings","m_3e5959fd613f5f","Collapsed Left Column Expansion") ?? "Collapsed Left Column Expansion"),
-      description: (globalThis.PlatformLanguage?.text("settings","m_ce23b347ca20f4","Choose whether a temporary expansion resizes the page or overlaps it. Locking the rail open with its arrow always resizes the page.") ?? "Choose whether a temporary expansion resizes the page or overlaps it. Locking the rail open with its arrow always resizes the page."),
-      options: [
-        ['resize', 'Resize page'],
-        ['overlap', 'Overlap page']
-      ]
-    },
-    {
-      key: 'platform.always_collapsible_left_column',
-      group: 'platform',
-      flag: 'always_collapsible_left_column',
-      defaultValue: false,
-      label: (globalThis.PlatformLanguage?.text("settings","m_7e9327c8176df6","Always Collapsible Left Column") ?? "Always Collapsible Left Column"),
-      description: (globalThis.PlatformLanguage?.text("settings","m_2d894b062b10e8","Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.") ?? "Start every app with the compact left rail. Use the rail arrow to lock it open or collapse it again.")
     },
     {
       key: 'platform.cobrand_sidebar_logo',
@@ -2208,7 +2149,7 @@
     let firstMeasureUsersController = null;
     panel.__firstMeasureUsers?.destroy?.();
     delete panel.__firstMeasureUsers;
-    const canMySettings = appFlag('platform', 'expanded_access') && appFlag('platform', 'my_settings');
+    const canMySettings = true;
     const canCompany = hasPerm('manage_company_settings');
     const extendedPalette = appFlag('platform', 'company_extended_palette');
     const companyBusinessAddress = appFlag('platform', 'company_business_address');
@@ -14209,6 +14150,7 @@
       try {
         const result = await window.PlatformAPI?.preferences?.get?.();
         const preferences = result?.preferences || { language:null, auto_translate_messages:false, sidebar_width:250 };
+        const leftColumnSwitch = (key, label, description, enabled) => `<label class="my-settings-row"><span><strong>${label}</strong><small>${description}</small></span><span style="display:flex;justify-content:flex-end"><span class="li-switch"><input type="checkbox" data-my-${key} ${enabled ? 'checked' : ''}><span class="li-slider"></span></span></span></label>`;
         const sidebarWidthApi = window.Portal?.sidebarWidth;
         const sidebarWidth = sidebarWidthApi?.normalize?.(preferences.sidebar_width) || 250;
         paneMySettings.innerHTML = `
@@ -14241,12 +14183,25 @@
                 </span>
               </label>
             </div>
+            <div class="my-settings-group">
+              <h4>Left column</h4>
+              <p class="cs-note">Choose the tabs and layout you see. These preferences only affect your account.</p>
+              ${leftColumnSwitch('left-column-apps', 'Apps', 'Show your app navigation.', preferences.left_column_apps !== false)}
+              ${leftColumnSwitch('left-column-todo-list', 'To Dos', 'Show your action items.', preferences.left_column_todo_list === true)}
+              ${leftColumnSwitch('left-column-channels', 'Channels', 'Show channel conversations on desktop when Channels is available.', preferences.left_column_channels === true)}
+              ${leftColumnSwitch('left-column-agents', 'Agents', 'Show agent conversations on desktop when the assistant is available.', preferences.left_column_agents === true)}
+              <label class="my-settings-row"><span><strong>Default tab</strong><small>Opens when you enter the portal, if available.</small></span><select class="cs-in" data-my-left-column-default-mode><option value="apps">Apps</option><option value="todo">To Dos</option><option value="channels">Channels</option><option value="agents">Agents</option></select></label>
+              ${leftColumnSwitch('always-collapsible-left-column', 'Compact left column', 'Start each app with the narrow rail.', preferences.always_collapsible_left_column === true)}
+              <label class="my-settings-row"><span><strong>Temporary expansion</strong><small>Choose how the compact rail expands on hover.</small></span><select class="cs-in" data-my-left-column-expansion-mode><option value="resize">Resize page</option><option value="overlap">Overlap page</option></select></label>
+            </div>
             ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
             <div class="li-actions">
               <button class="cs-btn primary" type="button" data-my-settings-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("settings","m_c4dc5a216e70af"," Save my settings") ?? " Save my settings")}</button>
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
+        paneMySettings.querySelector('[data-my-left-column-default-mode]').value = preferences.left_column_default_mode || 'apps';
+        paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value = preferences.left_column_expansion_mode || 'resize';
         paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
           window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
         });
@@ -14268,7 +14223,14 @@
               ...(paneMySettings.querySelector('[data-interface-locale]') ? { interface_locale: paneMySettings.querySelector('[data-interface-locale]').value || null } : {}),
               language: paneMySettings.querySelector('[data-my-language]').value || null,
               auto_translate_messages: paneMySettings.querySelector('[data-my-auto-translate]').checked,
-              sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth)
+              sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth),
+              left_column_apps: paneMySettings.querySelector('[data-my-left-column-apps]').checked,
+              left_column_todo_list: paneMySettings.querySelector('[data-my-left-column-todo-list]').checked,
+              left_column_channels: paneMySettings.querySelector('[data-my-left-column-channels]').checked,
+              left_column_agents: paneMySettings.querySelector('[data-my-left-column-agents]').checked,
+              left_column_default_mode: paneMySettings.querySelector('[data-my-left-column-default-mode]').value,
+              always_collapsible_left_column: paneMySettings.querySelector('[data-my-always-collapsible-left-column]').checked,
+              left_column_expansion_mode: paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value
             });
             if (window.Portal?.currentUser?.identity) {
               window.Portal.currentUser.identity.preferences = saved.preferences;

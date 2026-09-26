@@ -356,12 +356,11 @@ test('left-column modes support a configurable default and can collapse to a hea
     readFile(new URL('v1/platform/capability_defs.ts', root), 'utf8'),
     readFile(new URL('libraries/apps/settings/company.js', root), 'utf8')
   ]);
-  assert.match(definitions, /key: "platform\.left_column_apps"[\s\S]*?default: true/);
-  assert.match(definitions, /key: "platform\.left_column_default_mode"[\s\S]*?default: "apps"[\s\S]*?\["channels", "Channels"\]/);
-  assert.match(company, /key: 'platform\.left_column_apps'/);
-  assert.match(company, /key: 'platform\.left_column_default_mode'[\s\S]*?\['channels', 'Channels'\]/);
-  assert.match(core, /flags\.has\?\.\('platform', 'left_column_apps', true\)/);
-  assert.match(core, /flags\?\.value\?\.\('platform', 'left_column_default_mode', 'apps'\)/);
+  assert.doesNotMatch(definitions, /key: "platform\.left_column_apps"/);
+  assert.match(company, /data-my-left-column-apps/);
+  assert.match(company, /data-my-left-column-default-mode/);
+  assert.match(core, /sidebarPreference\('left_column_apps', true\)/);
+  assert.match(core, /sidebarPreference\('left_column_default_mode', 'apps'\)/);
   assert.match(core, /sidebarModeUserSelected && available\.some/);
   assert.match(core, /sidebar-modes-switchable', available\.length > 1/);
   assert.match(portal, /\.sidebar\.sidebar-modes-switchable \.sidebar-mode-tabs/);

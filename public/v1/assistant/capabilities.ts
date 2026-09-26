@@ -16,14 +16,7 @@ registerCapabilities([
     default: true,
     runtime_app_id: "assistant"
   },
-  {
-    key: "assistant.sidebar_tab",
-    kind: "feature",
-    parent: "apps.assistant",
-    label: "Agents in Left Column",
-    description: "Show agent conversations in an Agents tab in the portal left column on desktop; opening a conversation uses the full assistant workspace.",
-    default: false
-  },
+
   {
     key: "assistant.actions",
     kind: "feature",

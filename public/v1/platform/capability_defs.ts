@@ -533,14 +533,7 @@ const definitions: CapabilityDefinition[] = [
     description: "The project notes surfaces run on channels: per-project message threads with replies and history.",
     default: true
   },
-  {
-    key: "channels.sidebar_tab",
-    kind: "feature",
-    parent: "apps.channels",
-    label: "Integrated Sidebar Tab",
-    description: "Show channels as a tab in the portal left column instead of a standalone app; conversations open over whatever app is on screen.",
-    default: false
-  },
+
   {
     key: "apps.billing",
     kind: "app",
@@ -1309,14 +1302,7 @@ const definitions: CapabilityDefinition[] = [
     description: "Federated external direct messages and shared channels with restricted resource sharing.",
     default: false
   },
-  {
-    key: "platform.left_column_apps",
-    kind: "setting",
-    category: "Platform & Appearance",
-    label: "Left Column Apps",
-    description: "Show the Apps navigation mode in the portal left column. When only one left-column mode is enabled, its tab header is hidden.",
-    default: true
-  },
+
   {
     key: "platform.separate_user_section",
     kind: "setting",
@@ -1333,50 +1319,10 @@ const definitions: CapabilityDefinition[] = [
     description: "Replace the More Apps pop-up with the full-screen app launcher and sidebar pinning experience.",
     default: false
   },
-  {
-    key: "platform.left_column_todo_list",
-    kind: "setting",
-    category: "Platform & Appearance",
-    label: "Left Column To Do List",
-    description: "The Apps/To Do switcher and today's action-item list in the portal left column.",
-    default: false
-  },
-  {
-    key: "platform.left_column_default_mode",
-    kind: "setting",
-    category: "Platform & Appearance",
-    type: "select",
-    label: "Default Left Column",
-    description: "Which enabled left-column mode opens by default. If that mode is unavailable, the first enabled mode is used.",
-    default: "apps",
-    options: [
-      ["apps", "Apps"],
-      ["todo", "To Do"],
-      ["channels", "Channels"],
-      ["agents", "Agents"]
-    ]
-  },
-  {
-    key: "platform.left_column_expansion_mode",
-    kind: "setting",
-    category: "Platform & Appearance",
-    type: "select",
-    label: "Collapsed Left Column Expansion",
-    description: "Choose whether a temporary expansion resizes the page or overlaps it. An expansion locked with the rail arrow always resizes the page.",
-    default: "resize",
-    options: [
-      ["resize", "Resize page"],
-      ["overlap", "Overlap page"]
-    ]
-  },
-  {
-    key: "platform.always_collapsible_left_column",
-    kind: "setting",
-    category: "Platform & Appearance",
-    label: "Always Collapsible Left Column",
-    description: "Start the portal with a compact left rail on every app. Use the rail arrow to lock it open or collapse it again.",
-    default: false
-  },
+
+
+
+
   {
     key: "platform.cobrand_sidebar_logo",
     kind: "setting",

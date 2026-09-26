@@ -85,13 +85,12 @@
     }
   }
 
-  function sidebarFlagValue(flag, fallback){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    return flags?.value?.('platform', flag, fallback) ?? fallback;
+  function sidebarPreference(key, fallback){
+    return window.Portal?.currentUser?.identity?.preferences?.[key] ?? fallback;
   }
 
   function sidebarTemporaryExpansionMode(){
-    return String(sidebarFlagValue('left_column_expansion_mode', 'resize')).trim().toLowerCase() === 'overlap'
+    return String(sidebarPreference('left_column_expansion_mode', 'resize')).trim().toLowerCase() === 'overlap'
       ? 'overlap'
       : 'resize';
   }
@@ -120,6 +119,7 @@
         window.Portal.currentUser.identity.preferences = preferences;
       }
       applySidebarWidth(preferences.sidebar_width);
+      applySidebarFeatureFlags();
     } catch (_) {
       // The wider default remains usable when preferences cannot be loaded.
     }
@@ -187,7 +187,7 @@
   }
 
   function applySidebarLayoutFeatureFlags(){
-    const nextGlobal = sidebarFlagValue('always_collapsible_left_column', false) === true;
+    const nextGlobal = sidebarPreference('always_collapsible_left_column', false) === true;
     if (nextGlobal !== sidebarGlobalCompactEnabled) {
       sidebarGlobalCompactEnabled = nextGlobal;
       if (nextGlobal) {
@@ -226,7 +226,9 @@
     }
   });
   window.addEventListener('fm:user-preferences:updated', (event) => {
+    if (window.Portal?.currentUser?.identity && event?.detail?.preferences) window.Portal.currentUser.identity.preferences = event.detail.preferences;
     applySidebarWidth(event?.detail?.preferences?.sidebar_width);
+    applySidebarFeatureFlags();
   });
 
   function syncVisualViewportVars(){
@@ -2475,15 +2477,12 @@
   }
 
   function sidebarDefaultMode(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    const configured = String(flags?.value?.('platform', 'left_column_default_mode', 'apps') || 'apps').trim().toLowerCase();
+    const configured = String(sidebarPreference('left_column_default_mode', 'apps') || 'apps').trim().toLowerCase();
     return ['apps', 'todo', 'channels', 'agents'].includes(configured) ? configured : 'apps';
   }
 
   function sidebarAppsFeatureEnabled(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return true;
-    return !!flags.has?.('platform', 'left_column_apps', true);
+    return sidebarPreference('left_column_apps', true) !== false;
   }
 
   function applySidebarAppsFeatureFlag(){
@@ -2494,14 +2493,12 @@
   }
 
   function sidebarTodoFeatureEnabled(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
     const currentUser = window.Portal?.currentUser;
     const hasManagementAccess = currentUser?.canAccessApplication?.('management') === true;
     const canViewProjects = window.Portal?.util?.hasPerm?.('view_projects') === true;
     return hasManagementAccess
       && canViewProjects
-      && !!flags.has?.('platform', 'left_column_todo_list');
+      && sidebarPreference('left_column_todo_list', false) === true;
   }
 
   function applySidebarTodoFeatureFlag(){
@@ -2548,11 +2545,10 @@
   function sidebarChannelsFeatureEnabled(){
     // On phones the sidebar is a pop-out drawer, so the left-column channels
     // integration only adds indirection: mobile always uses the standalone
-    // channels tab, as if the sidebar_tab toggle were off.
+    // channels tab, regardless of the desktop preference.
     if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
-    return !!flags.has?.('channels', 'sidebar_tab');
+    if (window.Portal?.can?.('apps.channels') === false) return false;
+    return sidebarPreference('left_column_channels', false) === true;
   }
 
   function applySidebarChannelsFeatureFlag(){
@@ -2568,13 +2564,11 @@
 
   function sidebarAgentsFeatureEnabled(){
     if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
     if (window.Portal?.can?.('apps.assistant') === false) return false;
     const user = window.Portal?.currentUser;
     if (user?.canAccessApplication && !user.canAccessApplication('management') && !user.canAccessApplication('field')) return false;
     if (!['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'].some((permission) => window.Portal?.util?.hasPerm?.(permission))) return false;
-    return !!flags.has?.('assistant', 'sidebar_tab');
+    return sidebarPreference('left_column_agents', false) === true;
   }
 
   function applySidebarAgentsFeatureFlag(){
@@ -2655,6 +2649,10 @@
       { key: 'channels', enabled: applySidebarChannelsFeatureFlag(), tab: document.getElementById('sidebarChannelsTab') },
       { key: 'agents', enabled: applySidebarAgentsFeatureFlag(), tab: document.getElementById('sidebarAgentsTab') }
     ];
+    if (!modes.some((mode) => mode.enabled)) {
+      modes[0].enabled = true;
+      sidebar?.classList.add('apps-list-enabled');
+    }
     const available = modes.filter((mode) => mode.enabled);
     sidebar?.classList.toggle('sidebar-modes-switchable', available.length > 1);
     for (const mode of modes) {
@@ -2676,10 +2674,8 @@
     const agentsTab = document.getElementById('sidebarAgentsTab');
     if (!appsTab || !todoTab) return;
     appsTab.addEventListener('click', () => {
-      if (sidebarAppsFeatureEnabled()) {
-        sidebarModeUserSelected = true;
-        setSidebarPanel('apps');
-      }
+      sidebarModeUserSelected = true;
+      setSidebarPanel('apps');
     });
     todoTab.addEventListener('click', () => {
       if (sidebarTodoFeatureEnabled()) {
