@@ -1,3 +1,4 @@
+import { notifyWorkEvent, workflowNotificationInput } from "../platform/notification_events.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { env } from "../src/config/env.js";
 import { randomUUID } from "node:crypto";
@@ -169,7 +170,7 @@ async function executeBinding(event: JsonObject, executable: ExecutableBinding, 
       services: {
         patchProject: async (patch) => (await assertEventLease(event), await patchProjectDocument(orgId, cleanText(project.id || plan.project_id), patch)),
         createScheduleRequirement: async (input) => await createProjectScheduleRequirement(orgId, cleanText(project.id || plan.project_id), input),
-        createNotification: async (input) => await createWorkNotification(orgId, cleanText(event.branch_id), cleanText(project.id || plan.project_id), input),
+        createNotification: async (input) => await createWorkNotification(orgId, cleanText(event.branch_id), cleanText(project.id || plan.project_id), await workflowNotificationInput(event,plan,node,binding,bindingId,input)),
         transitionNode: async (nodeId, status, input = {}) => {
           const { transitionWorkNode } = await import("./service.js");
           await assertEventLease(event);
@@ -216,6 +217,9 @@ async function executeEvent(event: JsonObject) {
   const plan: JsonObject = cleanText(event.plan_id) ? (await readPlanRecord(orgId, cleanText(event.plan_id))) || {} : {};
   const node: JsonObject = cleanText(event.node_id) ? (await readNodeRecord(orgId, cleanText(event.node_id))) || {} : {};
   let project = await projectForEvent(event, plan);
+
+  await notifyWorkEvent(event);
+  await assertEventLease(event);
 
   // 1. Organization automation rules — the always-on layer above every scope
   //    set. Evaluated first so org policy supersedes scope behavior.

@@ -14022,122 +14022,93 @@
     panel.querySelectorAll('[data-settings-section]').forEach((button) => button.addEventListener('click', () => setSubTab(button.dataset.settingsSection)));
     async function renderNotificationSettings(){
       if (!paneNotifications) return;
-      paneNotifications.innerHTML = '<div class="my-settings-status">Loading notification preferences…</div>';
+      paneNotifications.__notificationResize?.disconnect();
+      paneNotifications.innerHTML='<div class="my-settings-status" role="status">Loading notification preferences…</div>';
       try {
-        const result = await window.PlatformAPI.notifications.preferences(currentOrgId());
-        const preferences = result.preferences || {};
-        const categories = window.PlatformPush?.categories || [
-          ['leads','Leads'],['messages','Messages'],['mentions','Mentions'],['tasks','Tasks'],
-          ['scheduling','Scheduling'],['payments','Payments'],['celebrations','Celebrations'],['system','System']
-        ];
-        const measurements = appFlag('apps', 'firstmeasure') ? [
-          ['measurements.report_delivered','Report delivered'],
-          ['measurements.report_revised','Corrected report delivered'],
-          ['measurements.report_canceled','Order canceled'],
-          ['measurements.report_rejected','Order rejected'],
-          ['measurements.report_status','Order progress']
-        ] : [];
-        const otherUpdates = appFlag('platform', 'expanded_access') ? categories.filter(([id]) => ({
-          leads:appFlag('apps','crm'), messages:appFlag('apps','messaging') || appFlag('apps','channels'),
-          mentions:appFlag('apps','projects'), tasks:appFlag('apps','projects'),
-          scheduling:appFlag('platform','scheduling'), payments:appFlag('apps','billing'),
-          celebrations:appFlag('apps','projects'), system:true
-        })[id]) : [];
-        const descriptions = {
-          'measurements.report_delivered':'Your report is ready to view and download.',
-          'measurements.report_revised':'An updated version of your report is ready.',
-          'measurements.report_canceled':'An order has been canceled.',
-          'measurements.report_rejected':'An order could not be accepted.',
-          'measurements.report_status':'Your order moves to the next stage.',
-          leads:'New leads and updates to your pipeline.', messages:'New conversations and replies.',
-          mentions:'Someone mentions you in a project.', tasks:'Assignments and updates to your tasks.',
-          scheduling:'Updates to appointments and schedules.', payments:'Payment and billing activity.',
-          celebrations:'Milestones and team achievements.', system:'Updates about your account and the platform.'
-        };
-        const preferenceRows = (rows) => `<div class="ns-columns" aria-hidden="true"><span>Notify me about</span><span>In app</span><span>Push</span></div><div class="ns-rows">
-          ${rows.map(([id,label]) => `<div class="ns-row"><div class="ns-event"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(descriptions[id] || 'Updates from this app.')}</p></div>${['in_app','push'].map(surface => `<label class="ns-switch"><span class="ns-mobile-label">${surface === 'in_app' ? 'In app' : 'Push'}</span><input type="checkbox" role="switch" aria-label="${escapeHtml(label)} — ${surface === 'in_app' ? 'In app' : 'Push'}" data-notification-surface="${surface}" data-notification-key="${id}" ${(surface === 'in_app' ? preferences.in_app?.[id] !== false : preferences.push?.[id]) ? 'checked' : ''}><span class="ns-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`;
-        paneNotifications.innerHTML = `<style>
-          #csPaneNotifications .ns-shell{max-width:980px;display:grid;gap:24px;color:#182230}
-          #csPaneNotifications .ns-intro h3{font-size:24px;letter-spacing:-.6px;line-height:1.25;margin:0 0 8px;font-weight:700}
-          #csPaneNotifications .ns-intro p{font-size:14px;color:#667085;line-height:1.6;margin:0}
-          #csPaneNotifications .ns-channels{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 24px;background:#f8fafb;border:1px solid #eaecf0;border-radius:14px}
-          #csPaneNotifications .ns-channel{display:flex;gap:12px;align-items:flex-start}
-          #csPaneNotifications .ns-channel>i{color:var(--primary-readable,#18794e);font-size:17px;margin-top:3px;width:20px;text-align:center}
-          #csPaneNotifications .ns-channel strong{font-size:13px;font-weight:650}
-          #csPaneNotifications .ns-channel p{margin:5px 0 0;color:#667085;font-size:12px;line-height:1.6}
-          #csPaneNotifications .ns-card{border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;background:#fff}
-          #csPaneNotifications .ns-card-header{display:flex;gap:14px;align-items:center;padding:24px}
-          #csPaneNotifications .ns-app-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafb;color:var(--primary-readable,#18794e);font-size:18px;flex-shrink:0}
-          #csPaneNotifications .ns-card h4{font-size:16px;letter-spacing:-.2px;margin:0;font-weight:700}
-          #csPaneNotifications .ns-card-header p{font-size:12px;line-height:1.5;color:#667085;margin:5px 0 0}
-          #csPaneNotifications .ns-columns,#csPaneNotifications .ns-row{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px;column-gap:12px;align-items:center;padding:0 24px}
-          #csPaneNotifications .ns-columns{min-height:40px;background:#f8fafb;border-top:1px solid #eaecf0;border-bottom:1px solid #eaecf0;font-size:11px;font-weight:650;color:#667085}
-          #csPaneNotifications .ns-columns span:not(:first-child){text-align:center}
-          #csPaneNotifications .ns-row{min-height:86px;padding-top:15px;padding-bottom:15px}
-          #csPaneNotifications .ns-row+.ns-row{border-top:1px solid #f0f2f5}
-          #csPaneNotifications .ns-event strong{font-size:13px;line-height:1.5;font-weight:650}
-          #csPaneNotifications .ns-event p{font-size:12px;line-height:1.5;color:#667085;margin:5px 0 0}
-          #csPaneNotifications .ns-switch{position:relative;display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;cursor:pointer;margin:0;gap:12px}
-          #csPaneNotifications .ns-switch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer;z-index:1}
-          #csPaneNotifications .ns-track{display:block;width:38px;height:22px;flex-shrink:0;border-radius:20px;background:#d0d5dd;position:relative;transition:background .15s ease}
-          #csPaneNotifications .ns-track:after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 3px #10182826;transition:transform .15s ease}
-          #csPaneNotifications .ns-switch input:checked+.ns-track{background:var(--primary-readable,#18794e)}
-          #csPaneNotifications .ns-switch input:checked+.ns-track:after{transform:translateX(16px)}
-          #csPaneNotifications .ns-switch input:focus-visible+.ns-track{outline:3px solid var(--primary-readable,#18794e);outline-offset:4px}
-          #csPaneNotifications .ns-mobile-label{display:none}
-          #csPaneNotifications .ns-footer{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:#667085;font-size:12px;line-height:1.6}
-          #csPaneNotifications .ns-footer>i{color:#98a2b3}
-          #csPaneNotifications .ns-status{font-size:12px;color:var(--primary-readable,#18794e)}
-          #csPaneNotifications .ns-status:empty{display:none}
-          #csPaneNotifications .ns-device{padding:20px 24px;border:1px solid #e4e7ec;border-radius:14px;display:grid;gap:12px}
-          #csPaneNotifications .ns-device p{font-size:12px;line-height:1.6;color:#667085;margin:0}
-          @media(max-width:600px){
-            #csPaneNotifications .ns-shell{gap:20px}
-            #csPaneNotifications .ns-intro h3{font-size:21px}
-            #csPaneNotifications .ns-intro p{font-size:13px}
-            #csPaneNotifications .ns-channels{padding:16px;gap:16px;grid-template-columns:1fr}
-            #csPaneNotifications .ns-card-header{padding:18px 16px}
-            #csPaneNotifications .ns-columns{display:none}
-            #csPaneNotifications .ns-row{grid-template-columns:1fr 1fr;padding:16px;gap:8px 24px;border-top:1px solid #f0f2f5}
-            #csPaneNotifications .ns-event{grid-column:1/-1}
-            #csPaneNotifications .ns-mobile-label{display:block;font-size:12px;color:#667085}
-            #csPaneNotifications .ns-switch{justify-content:space-between}
-            #csPaneNotifications .ns-device{padding:16px}
-          }
-          @media(prefers-reduced-motion:reduce){#csPaneNotifications .ns-track,#csPaneNotifications .ns-track:after{transition:none}}
-        </style><div class="ns-shell">
-          <header class="ns-intro"><h3>Stay in the loop.</h3><p>Choose the updates you want and where you receive them.</p></header>
-          <div class="ns-channels"><div class="ns-channel"><i class="far fa-bell" aria-hidden="true"></i><div><strong>In app</strong><p>In your notification center, on any device.</p></div></div><div class="ns-channel"><i class="fas fa-mobile-alt" aria-hidden="true"></i><div><strong>Push notifications</strong><p>On your phone, even when FirstMate is closed.</p></div></div></div>
-          ${measurements.length ? `<section class="ns-card" aria-label="Measurements notifications"><div class="ns-card-header"><span class="ns-app-icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></span><div><h4>Measurements</h4><p>From order updates to your finished report.</p></div></div>${preferenceRows(measurements)}</section>` : ''}
-          ${otherUpdates.length ? `<section class="ns-card" aria-label="Other notifications"><div class="ns-card-header"><span class="ns-app-icon"><i class="far fa-bell" aria-hidden="true"></i></span><div><h4>Other updates</h4><p>Activity across your enabled apps.</p></div></div>${preferenceRows(otherUpdates)}</section>` : ''}
-          <div class="ns-footer"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>These preferences apply to your account across all devices.</span></div>
-          ${window.PlatformPush?.available?.() ? '<div class="ns-device" data-settings-autosave="off"><strong>Push on this phone</strong><p>Allow FirstMate notifications in your phone settings to receive push updates.</p><div class="li-actions"><button class="cs-btn" type="button" data-notification-enable>Enable phone push</button><button class="cs-btn" type="button" data-notification-disable>Disable on this phone</button></div></div>' : '<div class="ns-footer">To receive push notifications, allow notifications in the FirstMate app on your phone.</div>'}
-          <button class="cs-btn primary" type="button" data-notification-save>Save notification settings</button><span class="ns-status" data-notification-status role="status" aria-live="polite"></span>
+        const result=await window.PlatformAPI.notifications.preferences(currentOrgId(),currentBranchId());
+        const groups=result.catalog||[], preferences=result.preferences||{in_app:{},push:{}};
+        const collapsed=new Set(), pending={in_app:{},push:{}};
+        let section='app',query='',saving=false,columns=1;
+        paneNotifications.innerHTML=`<style>
+          #csPaneNotifications .nc-shell{container-type:inline-size;display:grid;gap:12px;color:#182230}
+          #csPaneNotifications .nc-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+          #csPaneNotifications .nc-tabs{display:flex;gap:4px;padding:3px;border-radius:9px;background:#f2f4f7}
+          #csPaneNotifications .nc-tabs button{border:0;background:transparent;color:#667085;border-radius:6px;padding:8px 12px;font:600 12px inherit;cursor:pointer}
+          #csPaneNotifications .nc-tabs button[aria-pressed=true]{background:#fff;color:var(--primary-readable,#18794e);box-shadow:0 1px 3px #10182815}
+          #csPaneNotifications .nc-search{flex:1;min-width:180px;position:relative}
+          #csPaneNotifications .nc-search i{position:absolute;left:12px;top:12px;color:#98a2b3;font-size:12px}
+          #csPaneNotifications .nc-search input{width:100%;height:38px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:8px 12px 8px 34px;font:inherit;font-size:12px;box-sizing:border-box}
+          #csPaneNotifications .nc-list{display:grid;gap:12px}
+          #csPaneNotifications .nc-card{border:1px solid #e4e7ec;border-radius:12px;background:#fff}
+          #csPaneNotifications .nc-heading{width:100%;display:flex;align-items:center;gap:9px;padding:13px 16px;border:0;border-radius:12px;background:#f8fafb;color:#182230;text-align:left;font:inherit;cursor:pointer}
+          #csPaneNotifications .nc-heading strong{font-size:13px;font-weight:650;flex:1}
+          #csPaneNotifications .nc-heading small{font-size:11px;color:#667085}
+          #csPaneNotifications .nc-heading i{font-size:10px;color:#667085;transition:transform .15s}
+          #csPaneNotifications .nc-heading[aria-expanded=false] i{transform:rotate(-90deg)}
+          #csPaneNotifications .nc-grid{display:grid;grid-template-columns:repeat(var(--nc-columns,1),minmax(0,1fr));padding:0 12px 8px;column-gap:20px}
+          #csPaneNotifications .nc-col{min-width:0}
+          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 48px;align-items:center;gap:4px}
+          #csPaneNotifications .nc-colhead{height:30px;color:#667085;font-size:10px;border-bottom:1px solid #eaecf0}
+          #csPaneNotifications .nc-colhead span:not(:first-child){text-align:center}
+          #csPaneNotifications .nc-row{min-height:44px;border-bottom:1px solid #f2f4f7}
+          #csPaneNotifications .nc-row:last-child{border-bottom:0}
+          #csPaneNotifications .nc-label{display:flex;gap:4px;align-items:center;min-width:0;font-size:12px;line-height:1.4}
+          #csPaneNotifications .nc-info{position:relative;display:inline-flex;flex-shrink:0}
+          #csPaneNotifications .nc-info button{border:0;background:none;color:#98a2b3;padding:10px 5px;cursor:help;font-size:12px}
+          #csPaneNotifications .nc-info button i{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid currentColor;border-radius:50%;font:italic 10px Georgia,serif}
+          #csPaneNotifications .nc-info button i:before{content:'i';font:italic 10px Georgia,serif}
+          #csPaneNotifications .nc-tip{position:fixed;z-index:1000;display:none;width:210px;max-width:calc(100vw - 24px);padding:9px 11px;border:1px solid #e4e7ec;border-radius:8px;background:#182230;color:#fff;font-size:12px;line-height:1.5;box-shadow:0 4px 12px #10182820}
+          #csPaneNotifications .nc-info:hover .nc-tip,#csPaneNotifications .nc-info:focus-within .nc-tip{display:block}
+          #csPaneNotifications .nc-switch{display:flex;justify-content:center;align-items:center;position:relative;min-height:44px;min-width:44px;margin:0;cursor:pointer}
+          #csPaneNotifications .nc-switch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer;z-index:1}
+          #csPaneNotifications .nc-track{width:30px;height:18px;border-radius:12px;background:#d0d5dd;position:relative;transition:background .15s}
+          #csPaneNotifications .nc-track:after{content:'';position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #10182820;transition:transform .15s}
+          #csPaneNotifications input:checked+.nc-track{background:var(--primary-readable,#18794e)}
+          #csPaneNotifications input:checked+.nc-track:after{transform:translateX(12px)}
+          #csPaneNotifications input:focus-visible+.nc-track{outline:2px solid var(--primary-readable,#18794e);outline-offset:3px}
+          #csPaneNotifications .nc-empty{font-size:12px;line-height:1.6;color:#667085;padding:14px 16px}
+          #csPaneNotifications .nc-status{font-size:12px;min-height:18px;color:#667085}
+          #csPaneNotifications .nc-status[data-error=true]{color:#b42318}
+          #csPaneNotifications [hidden]{display:none!important}
+          @media(prefers-reduced-motion:reduce){#csPaneNotifications .nc-track,#csPaneNotifications .nc-track:after{transition:none}}
+        </style><div class="nc-shell" data-settings-autosave="off">
+          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups"><button type="button" data-nc-tab="app" aria-pressed="true">Apps</button><button type="button" data-nc-tab="workflow" aria-pressed="false">Workflows & scopes</button></div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label></div>
+          <div class="nc-list"></div><div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>Retry saving</button>
+          ${window.PlatformPush?.available?.()?'<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>Enable push on this phone</button><button class="cs-btn" type="button" data-nc-disable>Disable on this phone</button></div>':''}
         </div>`;
-        paneNotifications.querySelector('[data-notification-save]')?.addEventListener('click', async (event) => {
-          const button = event.currentTarget;
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          const patch = { in_app:{}, push:{} };
-          paneNotifications.querySelectorAll('[data-notification-key]').forEach((input) => { patch[input.dataset.notificationSurface][input.dataset.notificationKey] = input.checked; });
-          try {
-            button.disabled = true;
-            await window.PlatformAPI.notifications.savePreferences(currentOrgId(), patch);
-            await window.PlatformNotifications?.load?.(currentOrgId(), { branchId:currentBranchId(), includeDismissed:true, silent:true });
-            status.textContent = 'Saved';
-          } catch (error) { status.textContent = error?.message || 'Could not save preferences.'; }
-          finally { button.disabled = false; }
-        });
-        paneNotifications.querySelector('[data-notification-enable]')?.addEventListener('click', async () => {
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          try { const result = await window.PlatformPush.enable(); status.textContent = result.granted ? 'Phone push enabled' : (result.reason || 'Allow notifications in your phone settings.'); }
-          catch (error) { status.textContent = error?.message || 'Phone push could not be enabled.'; }
-        });
-        paneNotifications.querySelector('[data-notification-disable]')?.addEventListener('click', async () => {
-          const status = paneNotifications.querySelector('[data-notification-status]');
-          try { await window.PlatformPush.disable(); status.textContent = 'Phone push disabled on this device'; }
-          catch (error) { status.textContent = error?.message || 'Could not disable phone push.'; }
-        });
-      } catch (error) { paneNotifications.innerHTML = `<div class="my-settings-status" style="color:#b42318">${escapeHtml(error?.message || 'Notification settings could not be loaded.')}</div>`; }
+        const shell=paneNotifications.querySelector('.nc-shell'),list=shell.querySelector('.nc-list'),status=shell.querySelector('.nc-status'),retry=shell.querySelector('[data-nc-retry]');
+        const draw=()=>{
+          const shown=groups.filter(g=>query||g.kind===section).map(g=>({...g,visible:g.definitions.filter(d=>`${g.label} ${d.label} ${d.description}`.toLowerCase().includes(query))})).filter(g=>!query||g.visible.length||g.label.toLowerCase().includes(query));
+          list.innerHTML=shown.map((g,index)=>{
+            const open=query||!collapsed.has(g.id),count=g.visible.length,n=Math.min(columns,Math.max(1,count)),size=Math.ceil(count/n);
+            return `<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>Notification</span><span>In app</span><span>Push</span></div>${g.visible.slice(col*size,(col+1)*size).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="About ${escapeHtml(d.label)}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:'<div class="nc-empty">No notifications declared in this workflow yet.</div>'}</div></section>`;
+          }).join('')||'<div class="nc-empty">No matching notification categories.</div>';
+        };
+        const save=async()=>{
+          if(saving)return;saving=true;retry.hidden=true;
+          try{
+            while(Object.keys(pending.in_app).length||Object.keys(pending.push).length){
+              const patch={in_app:{...pending.in_app},push:{...pending.push}};
+              Object.keys(patch.in_app).forEach(k=>delete pending.in_app[k]);Object.keys(patch.push).forEach(k=>delete pending.push[k]);
+              status.textContent='Saving…';status.dataset.error='false';
+              try{await window.PlatformAPI.notifications.savePreferences(currentOrgId(),patch,currentBranchId());}
+              catch(error){for(const surface of ['in_app','push'])pending[surface]={...patch[surface],...pending[surface]};throw error;}
+            }
+            status.textContent='Saved';
+            window.PlatformNotifications?.load?.(currentOrgId(),{branchId:currentBranchId(),includeDismissed:true,silent:true})?.catch?.(()=>{});
+          }catch(error){status.textContent=error?.message||'Could not save notification preferences.';status.dataset.error='true';retry.hidden=false;}
+          finally{saving=false;}
+        };
+        shell.addEventListener('change',event=>{const input=event.target.closest('[data-notification-key]');if(!input)return;const key=input.dataset.notificationKey,surface=input.dataset.notificationSurface;preferences[surface]??={};preferences[surface][key]=input.checked;pending[surface][key]=input.checked;void save();});
+        shell.addEventListener('click',event=>{const tab=event.target.closest('[data-nc-tab]'),group=event.target.closest('[data-nc-group]');if(tab){section=tab.dataset.ncTab;shell.querySelectorAll('[data-nc-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b===tab)));draw();}if(group){const id=group.dataset.ncGroup;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);draw();}});
+        shell.querySelector('input[type=search]').addEventListener('input',event=>{query=event.target.value.trim().toLowerCase();draw();});
+        const positionTip=event=>{const info=event.target.closest('.nc-info');if(!info)return;const tip=info.querySelector('.nc-tip'),rect=info.getBoundingClientRect();tip.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-222))+'px';tip.style.top=Math.max(12,rect.top-(tip.offsetHeight||80)-6)+'px';};
+        shell.addEventListener('mouseover',positionTip);shell.addEventListener('focusin',positionTip);shell.addEventListener('click',positionTip);
+        retry.addEventListener('click',save);
+        for(const action of ['enable','disable'])shell.querySelector(`[data-nc-${action}]`)?.addEventListener('click',async event=>{event.currentTarget.disabled=true;try{const result=await window.PlatformPush[action]();status.textContent=action==='disable'?'Push disabled on this phone.':result?.granted?'Push enabled on this phone.':result?.reason||'Allow notifications in your phone settings.';}catch(error){status.textContent=error?.message||'Could not update phone notifications.';}finally{event.target.disabled=false;}});
+        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.clientWidth/340)));if(next!==columns){columns=next;draw();}};
+        paneNotifications.__notificationResize=new ResizeObserver(resize);paneNotifications.__notificationResize.observe(shell);draw();resize();
+      }catch(error){paneNotifications.innerHTML=`<div class="my-settings-status" role="alert">${escapeHtml(error?.message||'Notification settings could not be loaded.')}</div>`;}
     }
     window.Portal?.navigation?.registerHandler?.('company-settings', {
       priority:350,

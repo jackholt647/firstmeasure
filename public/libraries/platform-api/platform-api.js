@@ -478,8 +478,8 @@
     dismiss(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { dismissed: true }); },
     restore(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { dismissed: false }); },
     complete(orgId, notificationId){ return notifications.setUserState(orgId, notificationId, { completed: true }); },
-    preferences(orgId){ return request(orgPath(orgId, '/notification-preferences')); },
-    savePreferences(orgId, preferences){ return request(orgPath(orgId, '/notification-preferences'), { method: 'PATCH', body: preferences }); },
+    preferences(orgId, branchId='default'){ return request(orgPath(orgId, '/notification-preferences')+'?branch_id='+encodeURIComponent(branchId)); },
+    savePreferences(orgId, preferences, branchId='default'){ return request(orgPath(orgId, '/notification-preferences')+'?branch_id='+encodeURIComponent(branchId), { method: 'PATCH', body: preferences }); },
     registerDevice(orgId, device){ return request(orgPath(orgId, '/notification-devices'), { method: 'POST', body: device }); },
     unregisterDevice(orgId, deviceId){ return request(orgPath(orgId, `/notification-devices/${enc(deviceId)}`), { method: 'DELETE' }); },
   };

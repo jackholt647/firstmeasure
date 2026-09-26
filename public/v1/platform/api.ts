@@ -75,7 +75,8 @@ import {
   switchRememberedPlatformAccount
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
-import { categoryForNotification, deliverNotificationPush, normalizeNotificationPreferences, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
+import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
+import { notificationPreferenceEnabled, categoryForNotification, deliverNotificationPush, normalizeNotificationPreferences, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
 import { customerPortalDocumentId as portalDocumentIdFor, normalizePortalSettings, publicPortalSettings, type PortalSettings } from "./portal_settings.js";
 // Side-effect import: registers the portal.* server widget resolvers into the
@@ -2380,13 +2381,16 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId });
     const user = await readDocument(orgId, "users", ctx.userId);
-    return { ok: true, preferences: normalizeNotificationPreferences(asObject(user.data).notification_preferences) };
+    const query=asObject(request.query);
+    const branchId=String(query.branch_id || ctx.branchId || "default");
+    const catalog=await notificationCatalog(orgId,branchId,ctx);
+    return { ok:true,catalog,preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
   });
 
   app.patch("/organizations/:orgId/notification-preferences", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
-    return { ok: true, preferences: await saveNotificationPreferences(orgId, ctx.userId, objectBodySchema.parse(request.body ?? {})) };
+    return { ok: true, preferences: await saveNotificationPreferences(orgId, ctx.userId, objectBodySchema.parse(request.body ?? {}), String(asObject(request.query).branch_id || ctx.branchId || "default")) };
   });
 
   app.post("/organizations/:orgId/notification-devices", async (request, reply) => {
@@ -3922,6 +3926,7 @@ function normalizeNotification(input: Record<string, unknown>) {
     kind: String(input.kind || "passive"),
     category: categoryForNotification(input),
     preference_key: String(input.preference_key || input.preferenceKey || ""),
+    preference_defaults: asObject(input.preference_defaults),
     push: input.push === true,
     passive: input.passive !== false,
     manual_dismissible: input.manual_dismissible !== false && input.manualDismissible !== false,
@@ -4028,7 +4033,7 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
     .filter(({ data }) => data.passive !== false)
     .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
-    .filter(({ data }) => options.ignorePreferences || preferences.in_app[preferenceKeyForNotification(data)])
+    .filter(({ data }) => options.ignorePreferences || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
     .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
     .filter(({ data }) => {
       const targetUserIds = normalizeStringArray(data.target_user_ids);

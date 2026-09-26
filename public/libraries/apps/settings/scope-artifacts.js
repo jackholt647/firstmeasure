@@ -28,7 +28,7 @@
     calls:{title:(globalThis.PlatformLanguage?.text("settings","m_7cf42392a179bc","New call") ?? "New call"),list:{key:'',title:''}}, transitions:{template_id:'',instance_key:''}
   };
   const listFields = ['assigned_role_ids','assigned_user_ids','assigned_resource_group_ids','target_role_ids','target_user_ids','order_source_ids'];
-  const jsonFields = ['selector','rule','items','steps','values','params','ui','default_from','default_value','compensation','controls','customer_access','customer_scheduling','confirmation','assignment_policy','celebration','frontend_action','recipients','list','target','config','labels','depends_on'];
+  const jsonFields = ['selector','rule','items','steps','values','params','ui','default_from','default_value','compensation','controls','customer_access','customer_scheduling','confirmation','assignment_policy','celebration','defaults','frontend_action','recipients','list','target','config','labels','depends_on'];
   function styles() {
     if (document.getElementById('scope-artifact-style')) return;
     const style = document.createElement('style'); style.id='scope-artifact-style';

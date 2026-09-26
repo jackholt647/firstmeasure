@@ -770,8 +770,8 @@ export function registerBuiltinWorkAutomations() {
     input: { values: "Object of fields to set; values support {{template}} interpolation." }
   });
   registerWorkAutomation("notification.create.v1", createNotification, {
-    description: "Creates an in-app notification (or celebration) for users or roles.",
-    input: { id: "Stable id for dedupe.", title: "Headline.", body: "Body text.", target_role_ids: "Roles to notify.", target_user_ids: "Specific users.", kind: "passive | celebration.", celebration: "Celebration payload {size, reason, text}.", frontend_action: "Click-through action {kind, ...}." }
+    description: "Creates a declared, individually configurable notification (or celebration) for users or roles. Scope code must supply notification_id from the scope notification declarations.",
+    input: { notification_id: "Declared notification ID for scope code; visual notification actions are discovered automatically.", id: "Stable id for dedupe.", title: "Headline.", body: "Body text.", target_role_ids: "Roles to notify.", target_user_ids: "Specific users.", kind: "passive | celebration.", celebration: "Celebration payload {size, reason, text}.", frontend_action: "Click-through action {kind, ...}." }
   });
   registerWorkAutomation("communications.sendSms.v1", sendSms, {
     description: "Sends an SMS through the org's messaging service (respects consent and compliance).",
@@ -932,6 +932,9 @@ export async function createWorkNotification(orgId: string, branchId: string, pr
     target_role_ids: asArray(input.target_role_ids).map(cleanText).filter(Boolean),
     branch_id: branchId || "default",
     source: cleanText(input.source || "work.automation"),
+    category: cleanText(input.category || "tasks"),
+    preference_key: cleanText(input.preference_key),
+    preference_defaults: asObject(input.preference_defaults),
     celebration: asObject(input.celebration),
     celebration_size: cleanText(input.celebration_size || input.celebrationSize || asObject(input.celebration).size),
     frontend_action: asObject(input.frontend_action || input.frontendAction || input.action),

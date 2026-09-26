@@ -5,12 +5,14 @@ import { badRequest } from "./errors.js";
 import { isAppFlagEnabled } from "./app_flags.js";
 import { deleteDocument, listDocuments, readDocument, upsertDocument } from "./storage.js";
 
+import { builtInEventDefinitions, notificationCatalog, catalogDefinitions } from "./notification_catalog.js";
+
 type Json = Record<string, unknown>;
 export const notificationCategories = ["leads", "messages", "mentions", "tasks", "scheduling", "payments", "celebrations", "measurements", "system"] as const;
 export type NotificationCategory = typeof notificationCategories[number];
 const categorySet = new Set<string>(notificationCategories);
 export const measurementNotificationEvents = ["report_delivered", "report_revised", "report_canceled", "report_rejected", "report_status"] as const;
-const preferenceKeys = new Set<string>([...notificationCategories, ...measurementNotificationEvents.map((event) => `measurements.${event}`)]);
+const preferenceKeys = new Set<string>([...builtInEventDefinitions().map(d=>d.key), ...notificationCategories, ...measurementNotificationEvents.map((event) => `measurements.${event}`)]);
 const object = (value: unknown): Json => value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.map((item) => String(item || "").trim()).filter(Boolean) : [];
 const pushTitle = (note: Json) => String(note.title || "Notification").slice(0, 140);
@@ -34,7 +36,7 @@ export function categoryForNotification(note: Json): NotificationCategory {
 
 export function preferenceKeyForNotification(note: Json): string {
   const key = String(note.preference_key || "").trim().toLowerCase();
-  return preferenceKeys.has(key) ? key : categoryForNotification(note);
+  return preferenceKeys.has(key) || /^workflow\.[a-f0-9]{64}$/.test(key) ? key : categoryForNotification(note);
 }
 
 export type NotificationPreferences = { in_app: Record<string, boolean>; push: Record<string, boolean> };
@@ -43,19 +45,26 @@ export function normalizeNotificationPreferences(raw: unknown): NotificationPref
   const inApp = object(value.in_app);
   const push = object(value.push);
   return {
-    in_app: Object.fromEntries([...preferenceKeys].map((key) => [key, inApp[key] !== false])),
-    push: Object.fromEntries([...preferenceKeys].map((key) => [key, key === "celebrations" || key === "measurements.report_status" ? push[key] === true : push[key] !== false]))
+    in_app: Object.fromEntries([...preferenceKeys, ...Object.keys(inApp).filter(k=>/^workflow\.[a-f0-9]{64}$/.test(k))].map((key) => [key, key.startsWith("event.") ? inApp[key] === true : inApp[key] !== false])),
+    push: Object.fromEntries([...preferenceKeys, ...Object.keys(push).filter(k=>/^workflow\.[a-f0-9]{64}$/.test(k))].map((key) => [key, key.startsWith("event.") || key.startsWith("workflow.") || key === "celebrations" || key === "measurements.report_status" ? push[key] === true : push[key] !== false]))
   };
 }
 
-export async function saveNotificationPreferences(orgId: string, userId: string, patch: Json) {
+export function notificationPreferenceEnabled(raw:unknown, note:Json, surface:"in_app"|"push") {
+ const key=preferenceKeyForNotification(note);
+ if(key.startsWith("workflow.")){const explicit=object(object(raw)[surface])[key];return typeof explicit === "boolean" ? explicit : object(object(raw)[surface])[categoryForNotification(note)] === false ? false : object(note.preference_defaults)[surface] === true;}
+ return normalizeNotificationPreferences(raw)[surface][key] === true;
+}
+
+export async function saveNotificationPreferences(orgId: string, userId: string, patch: Json, branch="default") {
+  const allowed=new Set(catalogDefinitions(await notificationCatalog(orgId,branch)).map(d=>d.key));
   const doc = await readDocument(orgId, "users", userId);
   const data = object(doc.data);
-  const current = normalizeNotificationPreferences(data.notification_preferences);
+  const current = {in_app:{...object(object(data.notification_preferences).in_app)},push:{...object(object(data.notification_preferences).push)}};
   for (const surface of ["in_app", "push"] as const) {
     const updates = object(patch[surface]);
     for (const [key, enabled] of Object.entries(updates)) {
-      if (!preferenceKeys.has(key) || typeof enabled !== "boolean") throw badRequest("invalid_notification_preference", "Use a known notification setting and a boolean value.");
+      if (!allowed.has(key) || typeof enabled !== "boolean") throw badRequest("invalid_notification_preference", "Use a known notification setting and a boolean value.");
       current[surface][key] = enabled;
     }
   }
@@ -146,7 +155,7 @@ export async function deliverNotificationPush(orgId: string, note: Json) {
     const roles = strings(user.roles);
     if (!roles.length && ["owner", "admin", "super_admin"].includes(String(user.role || ""))) roles.push("inside_sales", "sales_appointments");
     return (targetUsers.size === 0 && targetRoles.size === 0 || targetUsers.has(doc.id) || roles.some((role) => targetRoles.has(role)))
-      && normalizeNotificationPreferences(user.notification_preferences).push[preferenceKeyForNotification(note)];
+      && notificationPreferenceEnabled(user.notification_preferences,note,"push");
   }).map((doc) => doc.id));
   const log: Json[] = [];
   for (const doc of devices) {
