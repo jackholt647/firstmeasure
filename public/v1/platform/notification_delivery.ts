@@ -68,7 +68,7 @@ export async function saveNotificationPreferences(orgId: string, userId: string,
       current[surface][key] = enabled;
     }
   }
-  await upsertDocument(orgId, "users", { id: userId, data: { ...data, notification_preferences: current }, metadata: doc.metadata, expected_revision: doc.revision }, { replace: true });
+  await upsertDocument(orgId, "users", { id: userId, data: { ...data, notification_preferences: { ...object(data.notification_preferences), ...current, ...(Array.isArray(patch.custom_keys) ? {custom_keys: [...new Set([...strings(object(data.notification_preferences).custom_keys), ...strings(patch.custom_keys).filter(k=>allowed.has(k))])]} : {}) } }, metadata: doc.metadata, expected_revision: doc.revision }, { replace: true });
   return current;
 }
 

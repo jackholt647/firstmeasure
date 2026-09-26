@@ -916,6 +916,20 @@ export async function createProjectScheduleRequirement(orgId: string, projectId:
 }
 
 export async function createWorkNotification(orgId: string, branchId: string, projectId: string, input: JsonObject) {
+  if (input.custom_notification === true) {
+    const { backgroundAuthContext, hasPermission } = await import('../../platform/auth.js');
+    const { builtInEventDefinitions, eventGroups } = await import('../../platform/notification_catalog.js');
+    const { isAppFlagEnabled } = await import('../../platform/app_flags.js');
+    const definition = builtInEventDefinitions().find(d => d.event === input.custom_event);
+    const recipients = asArray(input.target_user_ids).map(cleanText);
+    const auth = recipients.length === 1 ? await backgroundAuthContext(orgId, recipients[0]!).catch(() => null) : null;
+    const app = (eventGroups[String(input.custom_event).split('.')[0]!] || eventGroups.project!).app;
+    if (!definition || !auth || !hasPermission(auth, definition.permission) || String(auth.branchId || 'default') !== branchId
+      || !await isAppFlagEnabled(orgId, 'apps', 'notifications') || (app && !await isAppFlagEnabled(orgId, 'apps', app))) {
+      return { id: cleanText(input.id), suppressed: true };
+    }
+  }
+
   const now = new Date().toISOString();
   const id = cleanText(input.id) || stableId("notification", `${projectId}:${JSON.stringify(input)}`);
   const data = {
