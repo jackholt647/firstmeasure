@@ -12048,7 +12048,7 @@
         .scope-editor-layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:18px;align-items:start;margin-top:18px}.scope-editor-layout.automation{grid-template-columns:minmax(0,1fr)}.scope-editor-main{display:grid;gap:14px}.scope-editor-card{border:1px solid #e4e7ec;border-radius:15px;background:#fff;padding:16px}.scope-editor-card h4{margin:0 0 4px;font-size:14px;font-weight:1000}.scope-editor-card-intro{margin:0 0 14px;color:#667085;font-size:11px;font-weight:750;line-height:1.5}.scope-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.scope-editor-grid .wide{grid-column:1/-1}.scope-editor-grid label{display:grid;gap:6px;color:#344054;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.25px}.scope-editor-grid input,.scope-editor-grid select,.scope-editor-grid textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:10px 11px;color:#101828;font:inherit;font-size:12px;outline:none}.scope-editor-grid textarea{min-height:76px;resize:vertical;line-height:1.45}.scope-editor-grid input:focus,.scope-editor-grid select:focus,.scope-editor-grid textarea:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.07)}.scope-color-field{display:grid;grid-template-columns:42px minmax(0,1fr);gap:7px}.scope-color-field input[type=color]{height:38px;padding:3px;cursor:pointer}
         .scope-editor-nav{display:flex;flex-wrap:wrap;gap:5px;width:100%;box-sizing:border-box;border-bottom:1px solid #e4e7ec;margin:6px 0 0;overflow-x:auto}.scope-editor-nav button{border:0;border-bottom:3px solid transparent;background:transparent;padding:10px 13px;color:#667085;font:900 12px/1 inherit;cursor:pointer;white-space:nowrap}.scope-editor-nav button.active{border-bottom-color:var(--primary,#d93025);color:#101828}
         .scope-add-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}.scope-add-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;padding:16px;text-align:left;color:#344054;cursor:pointer}.scope-add-card:hover{border-color:#b2ddff;background:#f5fbff}.scope-add-card i{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:#eff8ff;color:#175cd3;margin-bottom:12px}.scope-add-card strong{display:block;font-size:13px}.scope-add-card span{display:block;margin-top:4px;color:#667085;font-size:10.5px;line-height:1.45}.scope-library-list{display:grid;gap:9px}.scope-library-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:11px;align-items:center;border:1px solid #e4e7ec;border-radius:12px;padding:12px;background:#fff}.scope-create-form{display:grid;gap:12px;max-width:680px}.scope-automation-host{min-height:520px}.scope-automation-host .au-root{min-height:520px}.scope-automation-host .au-workspace{margin-top:0}
-        .scope-library-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;border:1px solid #b2ddff;border-radius:16px;background:linear-gradient(135deg,#eff8ff,#fff);padding:18px;margin-bottom:18px}.scope-library-hero h4{margin:0 0 4px;font-size:16px}.scope-library-hero p{margin:0;color:#475467;font-size:11px;font-weight:750;line-height:1.5}.scope-library-section{display:grid;gap:10px;margin-top:18px}.scope-library-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}.scope-library-section-head h4{margin:0;font-size:15px}.scope-library-section-head p{margin:3px 0 0;color:#667085;font-size:10px;font-weight:750}.scope-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:11px}.scope-library-tile{position:relative;min-height:175px;border:1px solid #e4e7ec;border-radius:15px;background:#fff;padding:15px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;color:#344054;cursor:pointer;transition:.15s}.scope-library-tile:hover{border-color:#84caff;box-shadow:0 8px 24px rgba(16,24,40,.08);transform:translateY(-1px)}.scope-library-tile-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:var(--scope-color,#667085);background:color-mix(in srgb,var(--scope-color,#667085) 12%,white);font-size:16px}.scope-library-tile h5{margin:12px 0 4px;color:#101828;font-size:13px;font-weight:1000}.scope-library-tile p{margin:0;color:#667085;font-size:10px;font-weight:750;line-height:1.45}.scope-library-tile-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:12px}.scope-library-badge{border-radius:999px;background:#f2f4f7;color:#475467;padding:4px 7px;font-size:9px;font-weight:950}.scope-library-badge.installed{background:#ecfdf3;color:#067647}.scope-library-badge.suggested{background:#fffaeb;color:#b54708}.scope-create-review{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start;margin-top:18px}.scope-create-summary{position:sticky;top:10px;border:1px solid #e4e7ec;border-radius:15px;background:#f9fafb;padding:15px}.scope-create-summary-icon{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;color:var(--scope-color,#667085);background:color-mix(in srgb,var(--scope-color,#667085) 12%,white);font-size:19px}.scope-create-summary h4{margin:12px 0 4px}.scope-create-summary p{margin:0;color:#667085;font-size:10px;font-weight:750;line-height:1.5}.scope-create-summary ul{margin:13px 0 0;padding:12px 0 0 17px;border-top:1px solid #e4e7ec;color:#475467;font-size:10px;font-weight:800;line-height:1.7}
+        .scope-library-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;border:1px solid #b2ddff;border-radius:16px;background:linear-gradient(135deg,#eff8ff,#fff);padding:18px;margin-bottom:18px}.scope-library-hero h4{margin:0 0 4px;font-size:16px}.scope-library-hero p{margin:0;color:#475467;font-size:11px;font-weight:750;line-height:1.5}.scope-library-section{display:grid;gap:10px;margin-top:18px}.scope-library-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}.scope-library-section-head h4{margin:0;font-size:15px}.scope-library-section-head p{margin:3px 0 0;color:#667085;font-size:10px;font-weight:750}.scope-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:11px}.scope-library-tile{position:relative;min-height:175px;border:1px solid #e4e7ec;border-radius:15px;background:#fff;padding:15px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;color:#344054;cursor:pointer;transition:.15s}.scope-library-tile:hover{border-color:#84caff;box-shadow:0 8px 24px rgba(16,24,40,.08);transform:translateY(-1px)}.scope-library-tile-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:var(--scope-color,#667085);background:color-mix(in srgb,var(--scope-color,#667085) 12%,white);font-size:16px}.scope-library-tile h5{margin:12px 0 4px;color:#101828;font-size:13px;font-weight:1000}.scope-library-tile p{margin:0;color:#667085;font-size:10px;font-weight:750;line-height:1.45}.scope-library-tile-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:12px}.scope-library-badge{border-radius:999px;background:#f2f4f7;color:#475467;padding:4px 7px;font-size:9px;font-weight:950}.scope-library-badge.installed{background:#ecfdf3;color:#067647}.scope-library-badge.suggested{background:#fffaeb;color:#b54708}.scope-create-review{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;align-items:start;margin-top:18px}.scope-create-summary{position:sticky;top:10px;border:1px solid #e4e7ec;border-radius:15px;background:#f9fafb;padding:15px}.scope-create-summary-icon{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;color:var(--scope-color,#667085);background:color-mix(in srgb,var(--scope-color,#667085) 12%,white);font-size:19px}.scope-create-summary h4{margin:12px 0 4px}.scope-create-summary p{margin:0;color:#667085;font-size:10px;font-weight:750;line-height:1.5}.scope-create-summary ul{margin:13px 0 0;padding:12px 0 0 17px;border-top:1px solid #e4e7ec;color:#475467;font-size:10px;font-weight:800;line-height:1.7}
         .scope-commission-library{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.scope-commission-preset{border:1px solid #e4e7ec;border-radius:11px;background:#f9fafb;padding:11px;text-align:left;color:#344054;cursor:pointer}.scope-commission-preset:hover{border-color:#b2ddff;background:#eff8ff}.scope-commission-preset strong{display:block;font-size:11px}.scope-commission-preset span{display:block;margin-top:3px;color:#667085;font-size:9px;font-weight:750;line-height:1.4}.scope-commission-rules{display:grid;gap:10px}.scope-commission-rule{border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden}.scope-commission-rule-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;background:#f9fafb;border-bottom:1px solid #eaecf0}.scope-commission-rule-head strong{font-size:12px}.scope-commission-rule-body{padding:12px}.scope-commission-code{min-height:300px!important;background:#101828!important;color:#d1fadf!important;font:11px/1.55 Consolas,Monaco,monospace!important;tab-size:2}.scope-commission-check{display:flex!important;grid-column:1/-1;grid-template-columns:auto 1fr!important;align-items:center;justify-content:flex-start;gap:8px!important;text-transform:none!important}.scope-commission-check input{width:auto!important}.scope-commission-warning{border:1px solid #fedf89;border-radius:10px;background:#fffaeb;color:#93370d;padding:10px 11px;font-size:10px;font-weight:800;line-height:1.45}.scope-commission-empty{border:1px dashed #d0d5dd;border-radius:11px;padding:24px;text-align:center;color:#667085;font-size:11px;font-weight:800}.scope-commission-role-list,.scope-installment-list{display:grid;gap:8px}.scope-commission-role,.scope-installment{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1.4fr) auto;gap:8px;align-items:end;border:1px solid #eaecf0;border-radius:10px;background:#f9fafb;padding:10px}.scope-commission-role label,.scope-installment label{display:grid;gap:5px;color:#667085;font-size:9px;font-weight:950;text-transform:uppercase}.scope-commission-role-add{display:grid;grid-template-columns:minmax(200px,1fr) auto;gap:8px;margin-top:10px}.scope-installment{grid-template-columns:minmax(180px,1.4fr) 100px minmax(180px,1fr) 135px auto}.scope-installment-note{grid-column:1/-1;color:#667085;font-size:9px;font-weight:750}
         .scope-structure-list{display:grid;gap:8px}.scope-structure-item{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #eaecf0;border-radius:11px;padding:10px;background:#f9fafb}.scope-structure-item i{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid #eaecf0;display:grid;place-items:center;color:#667085}.scope-structure-item strong{display:block;font-size:12px}.scope-structure-item span{display:block;font-size:10px;color:#667085;font-weight:800;margin-top:2px}.scope-structure-item b{font-size:17px;color:#344054}
         .scope-checklist-assignments{display:grid;gap:9px}.scope-checklist-assignment{border:1px solid #eaecf0;border-radius:12px;background:#f9fafb;padding:11px}.scope-checklist-assignment-head{display:flex;align-items:flex-start;gap:9px;margin-bottom:10px}.scope-checklist-assignment-head i{width:30px;height:30px;border:1px solid #eaecf0;border-radius:9px;background:#fff;color:#667085;display:grid;place-items:center;flex:0 0 auto}.scope-checklist-assignment-head strong{display:block;font-size:12px}.scope-checklist-assignment-head span{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:750;line-height:1.4}.scope-checklist-assignment .scope-editor-grid{gap:8px}.scope-checklist-assignment-note{margin:9px 0 0;color:#667085;font-size:9px;font-weight:750;line-height:1.45}.scope-checklist-switches{display:grid;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid #e4e7ec}.scope-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:9px 10px}.scope-toggle-row strong{display:block;color:#344054;font-size:10px}.scope-toggle-row small{display:block;margin-top:2px;color:#667085;font-size:9px;font-weight:750;line-height:1.4}.scope-switch{width:38px;height:22px;flex:none;border:0;border-radius:999px;background:#d0d5dd;padding:3px;cursor:pointer}.scope-switch:before{content:"";display:block;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.24);transition:transform .18s}.scope-switch.on{background:#12b76a}.scope-switch.on:before{transform:translateX(16px)}.scope-switch:disabled{opacity:.42;cursor:not-allowed}.scope-voice-mode{display:flex;border:1px solid #d0d5dd;border-radius:8px;padding:2px;background:#f8fafc}.scope-voice-mode button{border:0;border-radius:6px;background:transparent;color:#667085;padding:5px 7px;font:inherit;font-size:8px;font-weight:950;cursor:pointer}.scope-voice-mode button.on{background:#fff;color:#101828;box-shadow:0 1px 3px rgba(16,24,40,.12)}
@@ -13976,6 +13976,7 @@
       if (options.updateRoute !== false && !window.Portal?.navigation?.applying) writeSettingsRoute({ sub:which, settingsView:'', settingsEntity:'', scopeTemplateView:'', terminologyQuery:'', terminologySection:'', terminologyStatus:'', workflow:'', workflow_step:'' }, { history:options.history || 'push', source:'settings-tab' });
       if (settingsWrap) settingsWrap.classList.toggle('pricebook-wide', which === 'pricebook');
       if (settingsWrap) settingsWrap.classList.toggle('forms-wide', which === 'forms');
+      if (settingsWrap) settingsWrap.classList.toggle('notifications-wide', which === 'notifications');
       panel.querySelectorAll('[data-settings-section]').forEach((button) => {
         const selected = button.dataset.settingsSection === which;
         button.classList.toggle('active', selected);
@@ -14025,8 +14026,11 @@
       if (!paneNotifications) return;
       paneNotifications.__notificationResize?.disconnect();
       paneNotifications.innerHTML='<div class="my-settings-status" role="status">Loading notification preferences…</div>';
+      const notificationOrgId=currentOrgId(),notificationBranchId=currentBranchId();
       try {
-        const result=await window.PlatformAPI.notifications.preferences(currentOrgId(),currentBranchId());
+        const result=await window.PlatformAPI.notifications.preferences(notificationOrgId,notificationBranchId);
+        const buildGroups=result=>{
+        const customKeys=new Set(result.custom_keys||[]),selected=[];
         // Presentation groups are independent of app ownership and delivery keys.
         // Only regroup the authorized catalog returned by the server.
         const activityGroups=[
@@ -14065,31 +14069,54 @@
           'feedback.rating.recorded':'A customer submitted their rating and feedback.'
         };
         for(const group of result.catalog||[]){
-          if(group.kind==='workflow')continue;
+          if(group.kind!=='app')continue;
           for(const definition of group.definitions){
             const event=definition.event||(definition.key.startsWith('event.')?definition.key.slice(6):'');
             if(event==='time.cron'||event==='proposal.payment.mock_succeeded')continue;
+            if(event&&!customKeys.has(definition.key)&&!result.preferences?.in_app?.[definition.key]&&!result.preferences?.push?.[definition.key])continue;
             const prefix=event.split('.')[0];
             const destination=group.id==='measurements'?'measurements':event?(activityGroups.find(([, ,prefixes])=>prefixes.includes(prefix))?.[0]||'miscellaneous'):'miscellaneous';
             const label=eventLabels[event]||definition.label.replace(/^Work plan\b/i,'Workflow').replace(/^Work node\b/i,'Task').replace(/^Organization\b/i,'Company');
             const description=eventDescriptions[event]||definition.description.replace(' Receive these events in your branch, subject to your access permissions.','');
-            grouped.get(destination).definitions.push({...definition,label,description});
+            if(event)selected.push({...definition,label,description});else grouped.get(destination).definitions.push({...definition,label,description});
           }
         }
-        const groups=[...grouped.values()].filter(g=>g.definitions.length).concat((result.catalog||[]).filter(g=>g.kind==='workflow'));
+        return [...grouped.values()].filter(g=>g.definitions.length).map(g=>({...g,kind:'general'})).concat((result.catalog||[]).filter(g=>g.kind!=='app').map(g=>({...g,kind:g.id.startsWith('scope.')?'scope':g.kind})),selected.length?[{id:'custom-triggers',label:'Selected triggers',kind:'custom',definitions:selected}]:[]);
+        };
+        let groups=buildGroups(result);
         const preferences=result.preferences||{in_app:{},push:{}};
         const collapsed=new Set(), pending={in_app:{},push:{}};
-        let section='app',query='',saving=false,columns=1;
+        let section='all',query='',saving=false,columns=1,sort='default';
         paneNotifications.innerHTML=`<style>
-          #csPaneNotifications .nc-shell{container-type:inline-size;display:grid;gap:12px;color:#182230}
+          .cs-wrap.notifications-wide .cs-main>.cs-card{overflow:hidden!important}
+          #csPaneNotifications{height:100%;min-height:0}
+          #csPaneNotifications .nc-shell{container-type:inline-size;display:flex;flex-direction:column;height:100%;min-height:0;gap:12px;color:#182230}
+          #csPaneNotifications .nc-body{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;flex:1;min-height:0}
+          #csPaneNotifications .nc-results{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:6px}
+          #csPaneNotifications .nc-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#667085;margin:8px 0 0}
+          #csPaneNotifications .nc-assistant{min-height:0;display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafb;overflow:hidden}
+          #csPaneNotifications .nc-assistant header{padding:14px;border-bottom:1px solid #e4e7ec;display:flex;justify-content:space-between;align-items:center;font-size:13px}
+          #csPaneNotifications .nc-assistant header button{border:0;background:none;color:#667085;font:inherit;cursor:pointer}
+          #csPaneNotifications .nc-conversation{flex:1;min-height:0;overflow:auto;padding:14px;overscroll-behavior:contain;font-size:12px;line-height:1.6}
+          #csPaneNotifications .nc-msg{padding:10px 12px;margin:0 0 12px;border-radius:10px;overflow-wrap:anywhere}
+          #csPaneNotifications .nc-msg.user{background:#e7efea;margin-left:14px}
+          #csPaneNotifications .nc-msg.assistant{background:white;border:1px solid #e4e7ec}
+          #csPaneNotifications .nc-compose{padding:12px;border-top:1px solid #e4e7ec;display:grid;gap:8px}
+          #csPaneNotifications .nc-compose textarea{width:100%;min-height:72px;max-height:130px;resize:vertical;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:8px;padding:9px;font:12px/1.5 inherit}
+          #csPaneNotifications .nc-compose button{justify-self:end}
+          #csPaneNotifications .nc-chat-status{font-size:11px;color:#667085;overflow-wrap:anywhere}
+          #csPaneNotifications .nc-toolbar select{border:1px solid #d0d5dd;border-radius:8px;padding:8px;font:12px inherit;background:#fff}
+          #csPaneNotifications .nc-toolbar{flex-shrink:0}
+          @container(max-width:740px){#csPaneNotifications .nc-body{grid-template-columns:minmax(0,1fr)}#csPaneNotifications .nc-assistant{display:none}#csPaneNotifications .nc-body.chat-open .nc-results{display:none}#csPaneNotifications .nc-body.chat-open .nc-assistant{display:flex}}
+
           #csPaneNotifications .nc-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-          #csPaneNotifications .nc-tabs{display:flex;gap:4px;padding:3px;border-radius:9px;background:#f2f4f7}
-          #csPaneNotifications .nc-tabs button{border:0;background:transparent;color:#667085;border-radius:6px;padding:8px 12px;font:600 12px inherit;cursor:pointer}
+          #csPaneNotifications .nc-tabs{max-width:100%;overflow-x:auto;flex-shrink:1;display:flex;gap:4px;padding:3px;border-radius:9px;background:#f2f4f7}
+          #csPaneNotifications .nc-tabs button{border:0;background:transparent;color:#667085;border-radius:6px;padding:8px 8px;font:600 12px inherit;cursor:pointer}
           #csPaneNotifications .nc-tabs button[aria-pressed=true]{background:#fff;color:var(--primary-readable,#18794e);box-shadow:0 1px 3px #10182815}
           #csPaneNotifications .nc-search{flex:1;min-width:180px;position:relative}
           #csPaneNotifications .nc-search i{position:absolute;left:12px;top:12px;color:#98a2b3;font-size:12px}
           #csPaneNotifications .nc-search input{width:100%;height:38px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:8px 12px 8px 34px;font:inherit;font-size:12px;box-sizing:border-box}
-          #csPaneNotifications .nc-list{display:grid;gap:12px}
+          #csPaneNotifications .nc-list{display:grid;gap:12px;align-content:start}
           #csPaneNotifications .nc-card{border:1px solid #e4e7ec;border-radius:12px;background:#fff}
           #csPaneNotifications .nc-heading{width:100%;display:flex;align-items:center;gap:9px;padding:13px 16px;border:0;border-radius:12px;background:#f8fafb;color:#182230;text-align:left;font:inherit;cursor:pointer}
           #csPaneNotifications .nc-heading strong{font-size:13px;font-weight:650;flex:1}
@@ -14124,26 +14151,30 @@
           #csPaneNotifications [hidden]{display:none!important}
           @media(prefers-reduced-motion:reduce){#csPaneNotifications .nc-track,#csPaneNotifications .nc-track:after{transition:none}}
         </style><div class="nc-shell" data-settings-autosave="off">
-          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups"><button type="button" data-nc-tab="app" aria-pressed="true">General</button><button type="button" data-nc-tab="workflow" aria-pressed="false">Workflows & scopes</button></div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label></div>
-          <div class="nc-list"></div><div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>Retry saving</button>
+          <div class="nc-toolbar"><div class="nc-tabs" aria-label="Notification groups">${[['all','All'],['general','General'],['workflow','Workflows'],['scope','Scopes'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search notifications…" aria-label="Search notifications and categories"></label><select data-nc-sort aria-label="Sort notifications"><option value="default">Default order</option><option value="name">Name A–Z</option><option value="enabled">Enabled first</option></select><button type="button" class="cs-btn" data-nc-add>Add custom</button></div>
+          <div class="nc-body"><div class="nc-results"><div class="nc-list"></div></div><aside class="nc-assistant" aria-label="Notification assistant"><header><strong>FirstMate assistant</strong><button type="button" data-nc-new>New chat</button></header><div class="nc-conversation" role="log" aria-label="Notification conversation" aria-live="polite"></div><form class="nc-compose"><label for="nc-prompt" style="font-size:12px">Describe your custom notification</label><textarea id="nc-prompt" placeholder="Notify me when the roofing crew finishes the shingles…" required maxlength="4000"></textarea><div class="nc-chat-status" role="status"></div><button type="submit" class="cs-btn">Send</button></form></aside></div>
+          <div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>Retry saving</button>
           ${window.PlatformPush?.available?.()?'<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>Enable push on this phone</button><button class="cs-btn" type="button" data-nc-disable>Disable on this phone</button></div>':''}
         </div>`;
         const shell=paneNotifications.querySelector('.nc-shell'),list=shell.querySelector('.nc-list'),status=shell.querySelector('.nc-status'),retry=shell.querySelector('[data-nc-retry]');
         const draw=()=>{
-          const shown=groups.filter(g=>query||g.kind===section).map(g=>({...g,visible:g.definitions.filter(d=>`${g.label} ${d.label} ${d.description}`.toLowerCase().includes(query))})).filter(g=>!query||g.visible.length||g.label.toLowerCase().includes(query));
+          const shown=groups.filter(g=>query||section==='all'||g.kind===section).map(g=>({...g,visible:g.definitions.filter(d=>`${g.label} ${d.label} ${d.description}`.toLowerCase().includes(query))})).filter(g=>!query||g.visible.length||g.label.toLowerCase().includes(query));
+          if(sort!=='default')for(const group of shown)group.visible.sort((a,b)=>sort==='enabled'?(Number(!!(preferences.in_app[b.key]||preferences.push[b.key]))-Number(!!(preferences.in_app[a.key]||preferences.push[a.key]))||a.label.localeCompare(b.label)):a.label.localeCompare(b.label));
+          const sectionNames={general:'General',workflow:'Workflows',scope:'Scopes',custom:'Custom'};
+          shown.sort((a,b)=>Object.keys(sectionNames).indexOf(a.kind)-Object.keys(sectionNames).indexOf(b.kind));
           list.innerHTML=shown.map((g,index)=>{
             const open=query||!collapsed.has(g.id),count=g.visible.length,n=columns,size=Math.floor(count/n),extra=count%n;
-            return `<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>Notification</span><span>In app</span><span>Push</span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="About ${escapeHtml(d.label)}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:'<div class="nc-empty">No notifications declared in this workflow yet.</div>'}</div></section>`;
-          }).join('')||'<div class="nc-empty">No matching notification categories.</div>';
+            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>Notification</span><span>In app</span><span>Push</span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="About ${escapeHtml(d.label)}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div>${['in_app','push'].map(surface=>`<label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(g.label)}: ${escapeHtml(d.label)} — ${surface==='in_app'?'In app':'Push'}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface]?.[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label>`).join('')}</div>`).join('')}</div>`).join('')}</div>`:'<div class="nc-empty">No notifications declared in this workflow yet.</div>'}</div></section>`;
+          }).join('')||'<div class="nc-empty">No notifications here yet. Describe what you need to the FirstMate assistant to add one.</div>';
         };
         const save=async()=>{
           if(saving)return;saving=true;retry.hidden=true;
           try{
             while(Object.keys(pending.in_app).length||Object.keys(pending.push).length){
-              const patch={in_app:{...pending.in_app},push:{...pending.push}};
+              const patch={in_app:{...pending.in_app},push:{...pending.push},custom_keys:[...new Set([...Object.keys(pending.in_app),...Object.keys(pending.push)].filter(key=>key.startsWith('event.')))]};
               Object.keys(patch.in_app).forEach(k=>delete pending.in_app[k]);Object.keys(patch.push).forEach(k=>delete pending.push[k]);
               status.textContent='Saving…';status.dataset.error='false';
-              try{await window.PlatformAPI.notifications.savePreferences(currentOrgId(),patch,currentBranchId());}
+              try{await window.PlatformAPI.notifications.savePreferences(notificationOrgId,patch,notificationBranchId);}
               catch(error){for(const surface of ['in_app','push'])pending[surface]={...patch[surface],...pending[surface]};throw error;}
             }
             status.textContent='Saved';
@@ -14158,7 +14189,62 @@
         shell.addEventListener('mouseover',positionTip);shell.addEventListener('focusin',positionTip);shell.addEventListener('click',positionTip);
         retry.addEventListener('click',save);
         for(const action of ['enable','disable'])shell.querySelector(`[data-nc-${action}]`)?.addEventListener('click',async event=>{event.currentTarget.disabled=true;try{const result=await window.PlatformPush[action]();status.textContent=action==='disable'?'Push disabled on this phone.':result?.granted?'Push enabled on this phone.':result?.reason||'Allow notifications in your phone settings.';}catch(error){status.textContent=error?.message||'Could not update phone notifications.';}finally{event.target.disabled=false;}});
-        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.clientWidth/280)));if(next!==columns){columns=next;draw();}};
+        shell.querySelector('[data-nc-sort]').addEventListener('change',event=>{sort=event.target.value;draw();});
+        const body=shell.querySelector('.nc-body'),prompt=shell.querySelector('#nc-prompt'),chatLog=shell.querySelector('.nc-conversation'),chatStatus=shell.querySelector('.nc-chat-status'),send=shell.querySelector('.nc-compose button');
+        const chatKey=`notification-chat-v2:${notificationOrgId}:${notificationBranchId}:${window.Portal?.currentUser?.id||window.__APP?.userId||''}`;
+        const chat=paneNotifications.__notificationChat?.key===chatKey?paneNotifications.__notificationChat:{key:chatKey,threadId:'',messages:[],pending:false,ready:false};
+        paneNotifications.__notificationChat=chat;
+        const renderChat=()=>{
+          if(!shell.isConnected)return;
+          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):'<div class="nc-msg assistant">What would you like to be notified about? I’ll check what already exists, then help you configure it.</div>';
+          window.FirstMateAgentChat?.bindActions?.(chatLog,chat.messages);
+          send.disabled=chat.pending||!chat.ready;prompt.disabled=!chat.ready; shell.querySelector('[data-nc-new]').disabled=chat.pending;
+          if(chat.pending)chatStatus.textContent='FirstMate is working…';
+          chatLog.scrollTop=chatLog.scrollHeight;
+        };
+        chat.render=renderChat;window.FirstMateAgentChat?.injectBaseCss?.('nc');renderChat();
+        shell.querySelector('[data-nc-add]').addEventListener('click',event=>{if(shell.clientWidth<=740){const opened=body.classList.toggle('chat-open');event.currentTarget.textContent=opened?'Back to notifications':'Add custom';}prompt.focus();});
+        shell.querySelector('[data-nc-new]').addEventListener('click',()=>{if(chat.pending)return;chat.threadId='';chat.messages=[];try{sessionStorage.removeItem(chatKey);}catch{}chatStatus.textContent='';renderChat();prompt.focus();});
+        const refreshNotifications=async()=>{
+          const fresh=await window.PlatformAPI.notifications.preferences(notificationOrgId,notificationBranchId);
+          if(!shell.isConnected)return;
+          groups=buildGroups(fresh);Object.assign(preferences.in_app,fresh.preferences.in_app);Object.assign(preferences.push,fresh.preferences.push);draw();
+        };
+        shell.querySelector('.nc-compose').addEventListener('submit',async event=>{
+          event.preventDefault();const message=prompt.value.trim();if(!message||chat.pending||!chat.ready)return;
+          if(saving){chatStatus.textContent='Wait for your notification choices to finish saving, then send.';return;}
+          chat.pending=true;prompt.value='';chat.messages.push({id:'local-'+Date.now(),role:'user',content:message});renderChat();
+          try{
+            if(!chat.threadId){const created=await window.PlatformAPI.notificationAssistant.createThread(notificationOrgId,{branch_id:notificationBranchId,subject_id:'notifications'});chat.threadId=created.thread.id;try{sessionStorage.setItem(chatKey,chat.threadId);}catch{}}
+            const reply=await window.PlatformAPI.notificationAssistant.send(notificationOrgId,chat.threadId,{message,branch_id:notificationBranchId},{signal:AbortSignal.timeout(300000)});
+            if(reply.assistant_message)chat.messages.push(reply.assistant_message);
+            chatStatus.textContent=reply.status==='failed'?'The assistant could not finish. You can continue the conversation.':'';
+            await refreshNotifications();
+          }catch(error){
+            chatStatus.textContent=error?.message||'Could not reach the assistant. Your conversation is kept.';
+            // Refresh durable history after an uncertain response before the user retries.
+            if(chat.threadId)try{const saved=await window.PlatformAPI.notificationAssistant.thread(notificationOrgId,chat.threadId);chat.messages=saved.messages||chat.messages;}catch{}
+            prompt.value=message;
+          }finally{chat.pending=false;chat.render?.();}
+        });
+        void (async()=>{
+          if(chat.ready){renderChat();return;}
+          try{
+            // Basic portal pages do not preload the expanded assistant assets.
+            for(const [globalName,path] of [['FirstMateAgentChat','agent-chat/agent-chat.js']]){
+              if(window[globalName])continue;
+              await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/'+path;script.onload=resolve;script.onerror=()=>reject(Error('Could not load the assistant. Reload the page to try again.'));document.head.appendChild(script);});
+            }
+            window.FirstMateAgentChat.injectBaseCss('nc');
+            const context=await window.PlatformAPI.notificationAssistant.context(notificationOrgId);
+            if(context.settings?.enabled===false)throw Error('The FirstMate assistant is disabled in company settings.');
+            try{chat.threadId=sessionStorage.getItem(chatKey)||'';}catch{}
+            if(chat.threadId){try{const saved=await window.PlatformAPI.notificationAssistant.thread(notificationOrgId,chat.threadId);chat.messages=saved.messages||[];}catch(error){if(error?.status===404||error?.status===403){chat.threadId='';try{sessionStorage.removeItem(chatKey);}catch{}}else throw error;}}
+            chat.ready=true;chatStatus.textContent='';
+          }catch(error){chatStatus.textContent=error?.message||'The assistant is unavailable for this account.';}
+          renderChat();
+        })();
+        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.querySelector('.nc-results').clientWidth/280)));if(next!==columns){columns=next;draw();}};
         paneNotifications.__notificationResize=new ResizeObserver(resize);paneNotifications.__notificationResize.observe(shell);draw();resize();
       }catch(error){paneNotifications.innerHTML=`<div class="my-settings-status" role="alert">${escapeHtml(error?.message||'Notification settings could not be loaded.')}</div>`;}
     }
