@@ -212,6 +212,13 @@ session_write_close();
       .sidebar.sidebar-compact.sidebar-compact-edge-held .sidebar-compact-toggle i,
       .sidebar.sidebar-compact.sidebar-compact-expanded .sidebar-compact-toggle i{transform:rotate(180deg)}
       .sidebar-compact-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}
+      .sidebar-resize-edge{display:none}
+      .sidebar.sidebar-resize-enabled .sidebar-resize-edge{display:block;position:absolute;top:0;bottom:0;right:-4px;width:8px;z-index:3;cursor:ew-resize;touch-action:none}
+      .sidebar-resize-edge::before{content:'';position:absolute;top:0;bottom:0;right:3px;width:1px;background:var(--border);pointer-events:none;transition:width .16s ease,right .16s ease,background-color .16s ease}
+      .sidebar-resize-edge:hover::before,.sidebar.sidebar-resizing .sidebar-resize-edge::before{right:1px;width:4px;background:var(--primary-readable,var(--primary,#d93025))}
+      .sidebar.sidebar-resize-enabled .sidebar-compact-toggle{touch-action:none}
+      .sidebar.sidebar-resizing{transition:none!important}
+      .sidebar.sidebar-resizing .sidebar-compact-toggle{cursor:ew-resize}
 
       .sidebar.sidebar-compact .logo-area{position:relative}
       .sidebar.sidebar-compact .logo-area>.firstmate-color-logo,
@@ -316,6 +323,7 @@ session_write_close();
     }
 
     @media (prefers-reduced-motion:reduce){
+      .sidebar-resize-edge::before,
       .sidebar,.sidebar-compact-toggle i,
       .sidebar.sidebar-compact .logo-area>*,
       .sidebar.sidebar-compact .sidebar-scroll,
@@ -2049,6 +2057,7 @@ session_write_close();
         </button>
       </div>
     </div>
+    <div class="sidebar-resize-edge" id="sidebarResizeEdge" role="separator" aria-label="Resize left column" aria-orientation="vertical"></div>
     <button type="button" class="sidebar-compact-toggle" id="sidebarCompactToggle" aria-label="Keep sidebar expanded" aria-pressed="false" title="Keep sidebar expanded"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
   </aside>
 

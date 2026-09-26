@@ -192,7 +192,8 @@ const userPreferencesSchema = z.object({
   left_column_agents: z.boolean().optional(),
   left_column_default_mode: z.enum(["apps", "todo", "channels", "agents"]).optional(),
   left_column_expansion_mode: z.enum(["resize", "overlap"]).optional(),
-  always_collapsible_left_column: z.boolean().optional()
+  always_collapsible_left_column: z.boolean().optional(),
+  resizable_left_column: z.boolean().optional()
 }).strict();
 const pricebookGenerationSchema = z.object({
   samples: z.array(z.object({
@@ -954,7 +955,8 @@ app.get("/auth/google/config", async () => ({
         left_column_agents: preferences.left_column_agents === true,
         left_column_default_mode: ["apps", "todo", "channels", "agents"].includes(String(preferences.left_column_default_mode)) ? preferences.left_column_default_mode : "apps",
         left_column_expansion_mode: preferences.left_column_expansion_mode === "overlap" ? "overlap" : "resize",
-        always_collapsible_left_column: preferences.always_collapsible_left_column === true
+        always_collapsible_left_column: preferences.always_collapsible_left_column === true,
+        resizable_left_column: preferences.resizable_left_column !== false
       }
     };
   });
@@ -976,7 +978,8 @@ app.get("/auth/google/config", async () => ({
       left_column_agents: patch.left_column_agents ?? (current.left_column_agents === true),
       left_column_default_mode: patch.left_column_default_mode ?? (["apps", "todo", "channels", "agents"].includes(String(current.left_column_default_mode)) ? current.left_column_default_mode : "apps"),
       left_column_expansion_mode: patch.left_column_expansion_mode ?? (current.left_column_expansion_mode === "overlap" ? "overlap" : "resize"),
-      always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true)
+      always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true),
+      resizable_left_column: patch.resizable_left_column ?? (current.resizable_left_column !== false)
     };
     await patchIdentity(ctx.identityId, { preferences });
     return { ok: true, preferences: { ...preferences, ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)) } };

@@ -4689,6 +4689,14 @@
     // Grab references
     const paneMySettings = $('#csPaneMySettings', panel);
     const paneNotifications = $('#csPaneNotifications', panel);
+    window.addEventListener('fm:user-preferences:updated', (event) => {
+      const width = window.Portal?.sidebarWidth?.normalize?.(event?.detail?.preferences?.sidebar_width);
+      const input = paneMySettings?.querySelector('[data-my-sidebar-width]');
+      const output = paneMySettings?.querySelector('[data-my-sidebar-width-output]');
+      if (!width || !input || !output) return;
+      input.value = String(width);
+      output.textContent = `${width}px`;
+    });
     const paneCompany = $('#csPaneCompany', panel);
     let panePayments = null;
     const paneMoney = $('#csPaneMoney', panel);
@@ -14192,6 +14200,7 @@
               ${leftColumnSwitch('left-column-agents', 'Agents', 'Show agent conversations on desktop when the assistant is available.', preferences.left_column_agents === true)}
               <label class="my-settings-row"><span><strong>Default tab</strong><small>Opens when you enter the portal, if available.</small></span><select class="cs-in" data-my-left-column-default-mode><option value="apps">Apps</option><option value="todo">To Dos</option><option value="channels">Channels</option><option value="agents">Agents</option></select></label>
               ${leftColumnSwitch('always-collapsible-left-column', 'Compact left column', 'Start each app with the narrow rail.', preferences.always_collapsible_left_column === true)}
+              ${leftColumnSwitch('resizable-left-column', 'Drag to resize', 'Drag the column edge to adjust its width.', preferences.resizable_left_column !== false)}
               <label class="my-settings-row"><span><strong>Temporary expansion</strong><small>Choose how the compact rail expands on hover.</small></span><select class="cs-in" data-my-left-column-expansion-mode><option value="resize">Resize page</option><option value="overlap">Overlap page</option></select></label>
             </div>
             ${canAssistant ? '<div class="my-settings-group"><h4>AI assistant</h4><p class="cs-note">Manage your instructions and saved memories.</p><button class="cs-btn" type="button" data-my-assistant-settings>Open assistant settings</button></div>' : ''}
@@ -14230,6 +14239,7 @@
               left_column_agents: paneMySettings.querySelector('[data-my-left-column-agents]').checked,
               left_column_default_mode: paneMySettings.querySelector('[data-my-left-column-default-mode]').value,
               always_collapsible_left_column: paneMySettings.querySelector('[data-my-always-collapsible-left-column]').checked,
+              resizable_left_column: paneMySettings.querySelector('[data-my-resizable-left-column]').checked,
               left_column_expansion_mode: paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value
             });
             if (window.Portal?.currentUser?.identity) {
