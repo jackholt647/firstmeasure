@@ -103,6 +103,8 @@ export type AgentDefinition = {
   id: string;
   title: string;
   description: string;
+  /** Focused entry points may deliberately omit cross-app tools. Defaults to true. */
+  platformTools?: boolean;
   /** Capability key gating this agent (checked at the route layer). */
   capability?: string;
   /** Pipe-delimited permission string required to chat with this agent. */
