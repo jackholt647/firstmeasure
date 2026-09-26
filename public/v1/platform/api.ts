@@ -2377,6 +2377,41 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, ...result };
   });
 
+
+  // Thin aliases over the shared agent runtime, scoped to Notifications.
+  app.get('/organizations/:orgId/notification-assistant', async request => {
+    const orgId=getParam(request.params,'orgId');
+    await requirePlatformAuth(request,{orgId,capability:'apps.notifications'});
+    await import('../assistant/agent/definition.js');
+    const {loadAgentSettings}=await import('../agents/settings.js');
+    const settings=await loadAgentSettings('notification_assistant',orgId,'default');
+    return {ok:true,settings:{enabled:settings.enabled!==false,assistant_name:settings.assistant_name}};
+  });
+  app.post('/organizations/:orgId/notification-assistant/threads', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,capability:'apps.notifications'});
+    await import('../assistant/agent/definition.js');
+    const {createThreadForAgent}=await import('../agents/runtime.js');
+    const body=z.object({branch_id:z.string().max(100).optional()}).passthrough().parse(request.body||{});
+    return {ok:true,thread:await createThreadForAgent('notification_assistant',{orgId,branchId:body.branch_id||ctx.branchId||'default',actorUserId:ctx.userId,subjectId:'notifications',title:'Notification setup'})};
+  });
+  app.get('/organizations/:orgId/notification-assistant/threads/:threadId', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,capability:'apps.notifications'});
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent}=await import('../agents/runtime.js');
+    return {ok:true,...await readThreadForAgent('notification_assistant',orgId,getParam(request.params,'threadId'),ctx.userId)};
+  });
+  app.post('/organizations/:orgId/notification-assistant/threads/:threadId/messages', async request => {
+    const orgId=getParam(request.params,'orgId'),threadId=getParam(request.params,'threadId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,capability:'apps.notifications'});
+    const body=z.object({message:z.string().trim().min(1).max(4000)}).parse(request.body);
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent,runAgentTurn}=await import('../agents/runtime.js');
+    await readThreadForAgent('notification_assistant',orgId,threadId,ctx.userId);
+    return {ok:true,...await runAgentTurn('notification_assistant',{orgId,threadId,branchId:ctx.branchId||'default',message:body.message,ctx,actorUserId:ctx.userId,actorName:String(asObject(ctx.user).name||'')})};
+  });
+
   app.get("/organizations/:orgId/notification-preferences", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId });
@@ -2384,7 +2419,7 @@ app.get("/auth/google/config", async () => ({
     const query=asObject(request.query);
     const branchId=String(query.branch_id || ctx.branchId || "default");
     const catalog=await notificationCatalog(orgId,branchId,ctx);
-    return { ok:true,catalog,preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
+    return { ok:true,catalog,custom_keys:Array.isArray(asObject(asObject(user.data).notification_preferences).custom_keys)?asObject(asObject(user.data).notification_preferences).custom_keys:[],preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
   });
 
   app.patch("/organizations/:orgId/notification-preferences", async (request) => {
