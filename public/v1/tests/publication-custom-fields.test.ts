@@ -26,7 +26,7 @@ test("custom fields publish all owners, enforce writes, reauthorize snapshots an
   process.env.PLATFORM_STORAGE_ROOT = path.join(root,"platform");
   process.env.PLATFORM_ACTIONS_DB_PATH = path.join(root,"actions.sqlite");
   process.env.NODE_ENV = "test";
-  if (process.env.TEST_POSTGRES_URL) Object.assign(process.env,{FIRSTMATE_ENV:"test",FIRSTMEASURE_DATABASE_MODE:"postgres",DATABASE_URL:process.env.TEST_POSTGRES_URL,POSTGRES_POOL_MAX:"8",POSTGRES_AUTO_MIGRATE:"false",FIRSTMEASURE_ARTIFACT_STORAGE:"local"});
+  if (process.env.TEST_POSTGRES_URL) Object.assign(process.env,{FIRSTMATE_ENV:"test",FIRSTMEASURE_DATABASE_MODE:"postgres",DATABASE_URL:process.env.TEST_POSTGRES_URL,POSTGRES_POOL_MAX:"1",POSTGRES_AUTO_MIGRATE:"false",FIRSTMEASURE_ARTIFACT_STORAGE:"local"});
   const storage = await import("../platform/storage.js");
   const { registerCustomFieldPublication } = await import("../custom_fields/publication.js");
   const { systemPublicationContext } = await import("../platform/publication/context.js");
