@@ -14215,7 +14215,7 @@
         paneNotifications.__notificationChat=chat;
         const renderChat=()=>{
           if(!shell.isConnected)return;
-          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):'<div class="nc-welcome"><span class="nc-logo" aria-hidden="true"></span><strong>What would you like to know?</strong>Describe a notification. I’ll check what already exists, then help you configure it.</div>';
+          chatLog.innerHTML=chat.messages.length?chat.messages.map(message=>window.FirstMateAgentChat?.messageHtml?.(message,{prefix:'nc'})||`<div class="nc-msg ${message.role==='user'?'user':'assistant'}">${escapeHtml(message.content)}</div>`).join(''):'<div class="nc-welcome"><span class="nc-logo" aria-hidden="true"></span><strong>Describe a notification you&#39;d like to receive</strong> I’ll check what already exists, then help you configure it.</div>';
           window.FirstMateAgentChat?.bindActions?.(chatLog,chat.messages);
           send.disabled=chat.pending||!chat.ready;prompt.disabled=!chat.ready; shell.querySelector('[data-nc-new]').disabled=chat.pending;
           if(chat.pending)chatStatus.textContent='FirstMate is working…';
