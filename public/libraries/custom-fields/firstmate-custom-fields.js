@@ -16,7 +16,7 @@
   const cleanText = (value) => String(value ?? '').trim();
   const projectAssignmentsEnabled = () => {
     const flags = root.Portal?.appFlags || root.PlatformAPI?.appFlags;
-    return flags?.value?.('platform', 'project_assignments', true) === true;
+    return flags?.value?.('platform', 'project_assignments', true) !== false;
   };
   const objectValue = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const clone = (value) => {
@@ -36,6 +36,9 @@
     { value:'phone', label:(globalThis.PlatformLanguage?.text("custom-fields","m_7ed66a4e107033","Phone number") ?? "Phone number"), dataType:'string', icon:'fa-phone', hint:'Phone number with a call-friendly input' },
     { value:'url', label:(globalThis.PlatformLanguage?.text("custom-fields","m_98de1ec0d6d171","Web address") ?? "Web address"), dataType:'string', icon:'fa-link', hint:'A website or shared link' },
     { value:'number', label:(globalThis.PlatformLanguage?.text("custom-fields","m_3e7027aa9d65ed","Number") ?? "Number"), dataType:'number', icon:'fa-hashtag', hint:'Amounts and measurements' },
+    { value:'integer', label:'Whole number', dataType:'number', icon:'fa-hashtag', hint:'A count without fractional values' },
+    { value:'object', label:'Structured dictionary', dataType:'object', icon:'fa-table-list', hint:'Named subfields with individual types and rules' },
+    { value:'array', label:'Structured array', dataType:'array', icon:'fa-list', hint:'Repeated typed values or records' },
     { value:'currency', label:(globalThis.PlatformLanguage?.text("custom-fields","m_c267b6350b9781","Currency") ?? "Currency"), dataType:'number', icon:'fa-dollar-sign', hint:'Money shown in your selected currency' },
     { value:'percentage', label:(globalThis.PlatformLanguage?.text("custom-fields","m_d47e6db8f73d11","Percentage") ?? "Percentage"), dataType:'number', icon:'fa-percent', hint:'A number displayed as a percent' },
     { value:'slider', label:(globalThis.PlatformLanguage?.text("custom-fields","m_4e136d1d9a48e4","Slider") ?? "Slider"), dataType:'number', icon:'fa-sliders', hint:'Choose a number from a clear range' },
@@ -88,6 +91,7 @@
       const number = Number(value);
       return Number.isFinite(number) ? number : '';
     }
+    if (type === 'array') return Array.isArray(value) ? clone(value) : [];
     if (dataType === 'array') return Array.isArray(value) ? value.map((item) => cleanText(item)).filter(Boolean) : cleanText(value).split(/[\n,]/).map(cleanText).filter(Boolean);
     if (dataType === 'object') return objectValue(value);
     if (dataType === 'json') return clone(value);
@@ -130,9 +134,119 @@
     return result;
   };
 
+  function validFormat(format, value) {
+    if (format === 'email') return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    if (format === 'phone') return /^[+\d\s().-]+$/.test(value) && value.replace(/\D/g,'').length >= 7 && value.replace(/\D/g,'').length <= 15;
+    if (format === 'url') { try { return ['http:','https:'].includes(new URL(value).protocol); } catch { return false; } }
+    if (format === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
+    if (format === 'datetime') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/.test(value) && validFormat('date',value.slice(0,10)) && Number.isFinite(Date.parse(value));
+    return false;
+  }
+
+  function schemaError(schema, value, path = 'Value', depth = 0) {
+    if (depth > 12) return `${path} is nested too deeply.`;
+    if (schema === false) return `${path} is not allowed.`;
+    const s = objectValue(schema), type = s.type;
+    const matches = (t) => t === 'null' ? value === null : t === 'array' ? Array.isArray(value) : t === 'object' ? value !== null && typeof value === 'object' && !Array.isArray(value) : t === 'integer' ? Number.isInteger(value) : t === 'number' ? typeof value === 'number' && Number.isFinite(value) : typeof value === t;
+    if (type && !(Array.isArray(type) ? type : [type]).some(matches)) return `${path} must be ${Array.isArray(type) ? type.join(' or ') : type}.`;
+    if (s.enum && !s.enum.some(v => JSON.stringify(v) === JSON.stringify(value))) return `${path} must be one of the declared choices.`;
+    if ('const' in s && JSON.stringify(s.const) !== JSON.stringify(value)) return `${path} must match its fixed value.`;
+    if (typeof value === 'number') {
+      if (s.minimum != null && value < s.minimum || s.maximum != null && value > s.maximum || s.exclusiveMinimum != null && value <= s.exclusiveMinimum || s.exclusiveMaximum != null && value >= s.exclusiveMaximum) return `${path} is outside its allowed range.`;
+      if (s.multipleOf && Math.abs(value / s.multipleOf - Math.round(value / s.multipleOf)) > 1e-8) return `${path} does not match its step.`;
+    }
+    if (typeof value === 'string') {
+      if (s.minLength != null && [...value].length < s.minLength || s.maxLength != null && [...value].length > s.maxLength) return `${path} has an invalid length.`;
+      if (s.format && !validFormat(s.format,value)) return `${path} must be a valid ${s.format}.`;
+    }
+    if (Array.isArray(value)) {
+      if (s.minItems != null && value.length < s.minItems || s.maxItems != null && value.length > s.maxItems) return `${path} has an invalid number of items.`;
+      for (let i=0;i<value.length;i++) { const error = schemaError(s.items ?? {},value[i],`${path}[${i+1}]`,depth+1); if (error) return error; }
+    } else if (value && typeof value === 'object') {
+      if (s.minProperties != null && Object.keys(value).length < s.minProperties || s.maxProperties != null && Object.keys(value).length > s.maxProperties) return `${path} has an invalid number of entries.`;
+      for (const key of s.required || []) if (!Object.hasOwn(value,key)) return `${path}.${key} is required.`;
+      for (const [key,v] of Object.entries(value)) {
+        if (['__proto__','constructor','prototype'].includes(key)) return `${path} contains a reserved key.`;
+        const error = schemaError(objectValue(s.properties)[key] ?? s.additionalProperties ?? {},v,`${path}.${key}`,depth+1); if (error) return error;
+      }
+    }
+    return '';
+  }
+
+  function structuredHtml(schema, value, disabled = false, depth = 0) {
+    if (depth > 12) return '<span>Maximum nesting reached.</span>';
+    const s = objectValue(schema), off = disabled ? ' disabled' : '';
+    const attrs = `data-cf-node="${escapeHtml(s.type || 'json')}" data-node-schema="${escapeHtml(JSON.stringify(s))}"`;
+    if (s.type === 'object' || s.type === 'array') {
+      const entries = s.type === 'array' ? (Array.isArray(value) ? value : []).map((v,i) => [String(i),v]) : Object.entries({ ...Object.fromEntries(Object.keys(objectValue(s.properties)).map(k => [k, undefined])), ...objectValue(value) });
+      const rows = entries.map(([key,v]) => {
+        const fixed = s.type === 'object' && Object.hasOwn(objectValue(s.properties),key);
+        const child = s.type === 'array' ? s.items || {} : objectValue(s.properties)[key] || s.additionalProperties || {};
+        return `<div data-cf-node-row style="display:grid;gap:6px;padding:8px;border:1px solid #e4e7ec;border-radius:8px">${s.type === 'object' ? `<label>${fixed ? escapeHtml(child.title || key) : 'Key'}<input data-node-key value="${escapeHtml(key)}"${fixed ? ' type="hidden"' : ''}${off}></label>` : `<span>Item ${Number(key)+1}</span>`}${structuredHtml(child,v,disabled,depth+1)}${!fixed && !disabled ? '<button type="button" data-node-remove>Remove</button>' : ''}</div>`;
+      }).join('');
+      return `<div ${attrs} style="display:grid;gap:8px">${rows}${!disabled && (s.type === 'array' || s.additionalProperties !== false) ? '<button type="button" data-node-add>Add entry</button>' : ''}</div>`;
+    }
+    if (s.type === 'boolean') return `<input ${attrs} type="checkbox"${value === true ? ' checked' : ''}${off}>`;
+    if (s.enum) return `<select ${attrs}${off}><option value="">Select…</option>${s.enum.map(v => `<option value="${escapeHtml(JSON.stringify(v))}"${JSON.stringify(v) === JSON.stringify(value) ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('')}</select>`;
+    if (!s.type || Array.isArray(s.type) || s.type === 'null') return `<textarea ${attrs}${off} placeholder="JSON value">${value === undefined ? '' : escapeHtml(JSON.stringify(value,null,2))}</textarea>`;
+    const type = ['number','integer'].includes(s.type) ? 'number' : ({date:'date',datetime:'datetime-local',email:'email',phone:'tel',url:'url'}[s.format] || 'text');
+    return `<input ${attrs} type="${type}" step="${s.type === 'integer' ? 1 : s.multipleOf || 'any'}"${s.minimum != null ? ` min="${s.minimum}"` : ''}${s.maximum != null ? ` max="${s.maximum}"` : ''} value="${escapeHtml(value ?? '')}"${off}>`;
+  }
+
+  function structuredValue(node) {
+    if (!node) return undefined;
+    delete node.dataset.nodeInvalid;
+    const schema = JSON.parse(node.dataset.nodeSchema || '{}'), type = node.dataset.cfNode;
+    if (['object','array'].includes(type)) {
+      const rows = [...node.children].filter(child => child.hasAttribute('data-cf-node-row'));
+      if (type === 'array') return rows.map(row => structuredValue([...row.children].find(c => c.hasAttribute('data-cf-node'))));
+      const entries = rows.map(row => [row.querySelector('[data-node-key]').value,structuredValue([...row.children].find(c => c.hasAttribute('data-cf-node')))]);
+      const names = entries.map(([key]) => key);
+      if (new Set(names).size !== names.length || names.some(key => !key || ['__proto__','constructor','prototype'].includes(key))) node.dataset.nodeInvalid = 'Dictionary keys must be unique, nonempty, and nonreserved.';
+      return Object.fromEntries(entries.filter(([key,v]) => key && v !== undefined));
+    }
+    if (type === 'boolean') return node.checked;
+    if (schema.enum) return node.value ? JSON.parse(node.value) : undefined;
+    if (['number','integer'].includes(type)) return node.value === '' ? undefined : Number(node.value);
+    if (type === 'json' || type === 'null' || Array.isArray(schema.type)) { try { return node.value.trim() ? JSON.parse(node.value) : undefined; } catch { node.dataset.nodeInvalid = 'Enter a valid JSON value.'; return node.value; } }
+    return node.value === '' ? undefined : node.value;
+  }
+
+  function wireStructured(container) {
+    if (container.dataset.cfStructuredWired) return;
+    container.dataset.cfStructuredWired = '1';
+    container.addEventListener('click',event => {
+      const remove = event.target.closest('[data-node-remove]');
+      if (remove) { remove.closest('[data-cf-node-row]').remove(); return; }
+      const add = event.target.closest('[data-node-add]'); if (!add) return;
+      const parent = add.parentElement, schema = JSON.parse(parent.dataset.nodeSchema), value = structuredValue(parent);
+      if (schema.type === 'array') value.push(null);
+      else { let key='new_key', n=1; while (Object.hasOwn(value,key)) key=`new_key_${++n}`; value[key]=null; }
+      parent.outerHTML = structuredHtml(schema,value);
+    });
+  }
+
+  async function mountOrganizationValues(container, options) {
+    const orgId = options.orgId || currentOrgId(), target = {scope:'organization',organizationId:orgId};
+    container.innerHTML = '<button type="button" data-cf-back>Back to field definitions</button><div data-cf-org-editor>Loading…</div>';
+    container.querySelector('[data-cf-back]').addEventListener('click',() => mountSettings(container,options));
+    const pane = container.querySelector('[data-cf-org-editor]');
+    try {
+      const [contractResult,valueResult] = await Promise.all(['contract','values'].map(name => root.PlatformAPI.publication.read(orgId,{provider:'custom-fields-organization',export:name,target})));
+      const contract = contractResult.result || contractResult, values = valueResult.result || valueResult;
+      if (contract.status !== 'ready' || values.status !== 'ready') throw Error(contract.message || values.message || 'Fields could not be loaded.');
+      let revision = contract.value.recordRevision;
+      await renderEditor(pane,{custom_field_values:values.value},'organization',{...options, definitions:contract.value.fields,onSave:async(next) => {
+        const changes = Object.fromEntries(contract.value.fields.filter(f => f.writable).map(f => [f.path,valueAtPath(next.custom_field_values,f.path)]).filter(([,v]) => v !== undefined));
+        const response = await root.PlatformAPI.publication.invoke(orgId,'custom-fields.organization.write',target,{values:changes,expectedRevision:revision},{idempotencyKey:uid()});
+        revision = (response.result || response).value.revision;
+      }});
+    } catch(error) { pane.textContent = error.message; }
+  }
+
   function normalizeDefinition(input = {}, index = 0){
     const source = objectValue(input);
-    const entity = source.entity === 'contact' ? 'contact' : 'project';
+    const entity = ['contact', 'organization'].includes(source.entity) ? source.entity : 'project';
     const requestedType = cleanText(source.type || source.presentation || source.widget);
     const type = TYPE_BY_VALUE.has(requestedType) ? requestedType : 'text';
     const typeInfo = TYPE_BY_VALUE.get(type);
@@ -140,7 +254,7 @@
     const key = normalizePath(source.path || source.key || label, `field_${index + 1}`);
     const backgroundOnly = source.background_only === true;
     const numeric = typeInfo.dataType === 'number' || typeInfo.dataType === 'boolean';
-    const layout = ['half', 'full'].includes(source.layout) ? source.layout : (['multiline', 'radio', 'multiselect', 'tags', 'list', 'key_value', 'json'].includes(type) ? 'full' : 'half');
+    const layout = ['half', 'full'].includes(source.layout) ? source.layout : (['object', 'array', 'multiline', 'radio', 'multiselect', 'tags', 'list', 'key_value', 'json'].includes(type) ? 'full' : 'half');
     return {
       id: cleanText(source.id) || uid(),
       key,
@@ -151,6 +265,10 @@
       entity,
       type,
       data_type: typeInfo.dataType,
+      schema:clone(objectValue(source.schema)),
+      private:source.private === true,
+      read_permission:cleanText(source.read_permission),
+      write_permission:cleanText(source.write_permission),
       required: source.required === true,
       enabled: source.enabled !== false,
       read_only: source.read_only === true || type === 'formula',
@@ -203,6 +321,11 @@
         if (!orgId || !root.PlatformAPI?.branchModules?.get) throw new Error('Custom fields API is unavailable.');
         const result = await root.PlatformAPI.branchModules.get(orgId, branchId, MODULE_ID);
         settings = normalizeModule(result?.module?.data || result?.data || result || {});
+        if (branchId !== 'default') {
+          const company = await root.PlatformAPI.branchModules.get(orgId, 'default', MODULE_ID).catch(error => { if (Number(error.status) === 404) return {}; throw error; });
+          const companyFields = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => f.entity === 'organization');
+          settings.fields = [...settings.fields.filter(f => f.entity !== 'organization'), ...companyFields];
+        }
       } catch (error) {
         if (Number(error?.status || 0) !== 404) throw error;
       }
@@ -220,7 +343,14 @@
     const branchId = cleanText(options.branchId || currentBranchId()) || 'default';
     if (!orgId || !root.PlatformAPI?.branchModules?.save) throw new Error('Custom fields API is unavailable.');
     const settings = normalizeModule({ fields });
-    await root.PlatformAPI.branchModules.save(orgId, branchId, MODULE_ID, settings, {
+    if (branchId !== 'default') {
+      const company = await root.PlatformAPI.branchModules.get(orgId, 'default', MODULE_ID).catch(error => { if (Number(error.status) === 404) return {}; throw error; });
+      const retained = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => f.entity !== 'organization');
+      const priorOrg = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => f.entity === 'organization');
+      const nextOrg = settings.fields.filter(f => f.entity === 'organization');
+      if (JSON.stringify(priorOrg) !== JSON.stringify(nextOrg)) await root.PlatformAPI.branchModules.save(orgId, 'default', MODULE_ID, { version:4, fields:[...retained, ...nextOrg] });
+    }
+    await root.PlatformAPI.branchModules.save(orgId, branchId, MODULE_ID, { ...settings, fields:settings.fields.filter(f => branchId === 'default' || f.entity !== 'organization') }, {
       kind:'branch_custom_fields', source:options.source || 'custom_fields_settings'
     });
     caches.set(cacheKey(orgId, branchId), settings);
@@ -248,7 +378,7 @@
   }
 
   function definitionsFor(entityType, entity = {}, options = {}){
-    const fields = [...cachedFields(options)];
+    const fields = [...(options.definitions || cachedFields(options))].filter(f => f.entity === entityType);
     if (entityType === 'project') fields.push(...projectSchema(entity).fields);
     const byPath = new Map();
     fields.forEach((field, index) => {
@@ -312,13 +442,13 @@
   function evaluateCalculated(definition, entity = {}, definitions = cachedFields(), seen = new Set()){
     const expression = cleanText(definition?.formula);
     if (!expression) return 0;
-    const definitionKey = slug(definition?.key);
+    const definitionKey = normalizePath(definition?.key);
     if (seen.has(definitionKey)) return 0;
     const nextSeen = new Set(seen).add(definitionKey);
     const values = rawValues(entity, definition?.entity);
     const byKey = new Map(definitions.map((field) => [field.key, field]));
-    const replaced = expression.replace(/\{\{\s*([a-zA-Z0-9_-]+)\s*\}\}/g, (_, key) => {
-      const referenced = byKey.get(slug(key));
+    const replaced = expression.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, key) => {
+      const referenced = byKey.get(normalizePath(key));
       if (referenced?.type === 'formula') return String(evaluateCalculated(referenced, entity, definitions, nextSeen));
       return String(numericValue(valueAtPath(values, normalizePath(key))));
     });
@@ -411,7 +541,7 @@
       .fm-cf-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px;border:1px solid #e4e7ec;border-radius:10px;padding:7px 9px;font-size:12px;font-weight:900;color:#344054}.fm-cf-switch{position:relative;width:38px;height:22px;flex:0 0 auto}.fm-cf-switch input{position:absolute;opacity:0}.fm-cf-switch span{position:absolute;inset:0;border-radius:999px;background:#d0d5dd;transition:.18s}.fm-cf-switch span:after{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #10182833;transition:.18s}.fm-cf-switch input:checked+span{background:var(--primary,#d93025)}.fm-cf-switch input:checked+span:after{transform:translateX(16px)}
       .fm-cf-options{display:flex;flex-wrap:wrap;gap:7px}.fm-cf-choice{position:relative}.fm-cf-choice input{position:absolute;opacity:0;pointer-events:none}.fm-cf-choice span{display:inline-flex;align-items:center;gap:6px;border:1px solid #d0d5dd;border-radius:9px;padding:8px 10px;background:#fff;color:#475467;font-size:11px;font-weight:900;cursor:pointer}.fm-cf-choice input:checked+span{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.08)}
       .fm-cf-kv{display:grid;gap:7px}.fm-cf-kv-row{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) 30px;gap:6px}.fm-cf-kv-remove,.fm-cf-kv-add{border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;cursor:pointer}.fm-cf-kv-add{justify-self:start;min-height:32px;padding:0 10px;font-size:10px;font-weight:950}.fm-cf-invalid{border-color:#f04438!important;box-shadow:0 0 0 3px rgba(240,68,56,.08)!important}.fm-cf-error{font-size:10px;font-weight:850;color:#b42318}
-      .fm-cf-save{justify-self:start;border:0;border-radius:9px;background:var(--primary,#d93025);color:var(--on-primary,#fff);min-height:36px;padding:0 13px;font-size:11px;font-weight:1000;cursor:pointer}.fm-cf-save:disabled{opacity:.6}.fm-cf-status{font-size:11px;font-weight:850;color:#667085}
+      .fm-cf-field{align-content:start}[data-cf-node] input,[data-cf-node] select,[data-cf-node] textarea{box-sizing:border-box;width:100%;min-height:34px;border:1px solid #d0d5dd;border-radius:6px;padding:6px;font:inherit}[data-cf-node] input[type=checkbox]{width:auto;min-height:0}[data-node-add],[data-node-remove]{border:1px solid #d0d5dd;border-radius:6px;background:#f8fafc;padding:6px 10px;cursor:pointer;font:inherit}.fm-cf-save{justify-self:start;border:0;border-radius:9px;background:var(--primary,#d93025);color:var(--on-primary,#fff);min-height:36px;padding:0 13px;font-size:11px;font-weight:1000;cursor:pointer}.fm-cf-save:disabled{opacity:.6}.fm-cf-status{font-size:11px;font-weight:850;color:#667085}
       .fm-cf-empty{font-size:12px;font-weight:850;color:#98a2b3}.fm-contact-left .fm-cf-panel{padding:0;border-top:0}.fm-contact-left .fm-cf-grid{grid-template-columns:1fr}.fm-contact-left .fm-cf-panel-head span{display:none}
       .fm-cf-flat{display:contents}.fm-cf-flat .fm-cf-field.wide{grid-column:auto}
       #fmContactCustomFields{display:contents}
@@ -430,10 +560,11 @@
   function inputHtml(definition, value, options = {}){
     const inputClass = cleanText(options.inputClass) || 'fm-cf-input';
     const def = normalizeDefinition(definition);
-    const bounds = `${def.min != null ? ` min="${def.min}"` : ''}${def.max != null ? ` max="${def.max}"` : ''}${def.step != null ? ` step="${def.step}"` : ''}`;
+    const bounds = `${def.type === 'integer' && def.step == null ? ' step="1"' : ''}${def.min != null ? ` min="${def.min}"` : ''}${def.max != null ? ` max="${def.max}"` : ''}${def.step != null ? ` step="${def.step}"` : ''}`;
     const textBounds = `${def.min_length != null ? ` minlength="${def.min_length}"` : ''}${def.max_length != null ? ` maxlength="${def.max_length}"` : ''}${def.pattern ? ` pattern="${escapeHtml(def.pattern)}"` : ''}`;
     const placeholder = def.placeholder ? ` placeholder="${escapeHtml(def.placeholder)}"` : '';
     const attrs = `class="${escapeHtml(inputClass)}" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="${escapeHtml(def.type)}"${placeholder}${def.read_only ? ' disabled' : ''}`;
+    if (['object', 'array'].includes(def.type)) return `<div ${attrs} data-cf-schema="${escapeHtml(JSON.stringify({ ...def.schema, type:def.type }))}">${structuredHtml({ ...def.schema, type:def.type }, value, def.read_only)}</div>`;
     if (def.type === 'formula') return `<div class="fm-cf-formula" data-fm-cf-calculated="${escapeHtml(def.key)}">${escapeHtml(formatValue(def, value))}</div>`;
     if (def.data_type === 'reference') {
       const selected = new Set((Array.isArray(value) ? value : [value]).map(objectValue)
@@ -468,28 +599,30 @@
       let json = ''; try { json = JSON.stringify(value, null, 2); } catch (_) {}
       return `<textarea ${attrs} spellcheck="false">${escapeHtml(json)}</textarea>`;
     }
-    const htmlType = def.type === 'date' ? 'date' : def.type === 'datetime' ? 'datetime-local' : ['number', 'currency', 'percentage', 'slider'].includes(def.type) ? (def.type === 'slider' ? 'range' : 'number') : ['email', 'url'].includes(def.type) ? def.type : def.type === 'phone' ? 'tel' : 'text';
-    return `<input type="${htmlType}" ${attrs}${['number', 'currency', 'percentage', 'slider'].includes(def.type) ? (bounds || ' step="any"') : textBounds} value="${escapeHtml(value)}">`;
+    const htmlType = def.type === 'date' ? 'date' : def.type === 'datetime' ? 'datetime-local' : ['integer', 'number', 'currency', 'percentage', 'slider'].includes(def.type) ? (def.type === 'slider' ? 'range' : 'number') : ['email', 'url'].includes(def.type) ? def.type : def.type === 'phone' ? 'tel' : 'text';
+    return `<input type="${htmlType}" ${attrs}${['integer', 'number', 'currency', 'percentage', 'slider'].includes(def.type) ? (bounds || ' step="any"') : textBounds} value="${escapeHtml(value)}">`;
   }
 
   function editorValues(container, entity = {}, entityType = 'project'){
     const values = rawValues(entity, entityType);
     const processed = new Set();
     container?.querySelectorAll?.('[data-fm-cf-input]').forEach((input) => {
+      if (input.disabled || input.hasAttribute?.('disabled')) return;
       const key = normalizePath(input.dataset.fmCfInput);
       const type = input.dataset.fmCfType || 'text';
       if (!key || (processed.has(`${key}:${type}`) && !['radio', 'multiselect'].includes(type))) return;
       processed.add(`${key}:${type}`);
       let nextValue;
-      if (['boolean', 'toggle'].includes(type)) nextValue = !!input.checked;
-      else if (['number', 'currency', 'percentage', 'slider'].includes(type)) nextValue = input.value === '' ? '' : Number(input.value);
+      if (['object', 'array'].includes(type)) nextValue = structuredValue(input.firstElementChild);
+      else if (['boolean', 'toggle'].includes(type)) nextValue = !!input.checked;
+      else if (['integer', 'number', 'currency', 'percentage', 'slider'].includes(type)) nextValue = input.value === '' ? '' : Number(input.value);
       else if (type === 'radio') nextValue = container.querySelector(`[data-fm-cf-input="${CSS.escape(key)}"][data-fm-cf-type="radio"]:checked`)?.value || '';
       else if (type === 'multiselect') nextValue = [...container.querySelectorAll(`[data-fm-cf-input="${CSS.escape(key)}"][data-fm-cf-type="multiselect"]:checked`)].map((item) => item.value);
       else if (type === 'tags') nextValue = input.value.split(',').map(cleanText).filter(Boolean);
       else if (type === 'list') nextValue = input.value.split('\n').map(cleanText).filter(Boolean);
       else if (type === 'key_value') nextValue = Object.fromEntries([...input.querySelectorAll('.fm-cf-kv-row')].map((row) => [cleanText(row.querySelector('[data-fm-cf-kv-key]')?.value), cleanText(row.querySelector('[data-fm-cf-kv-value]')?.value)]).filter(([name]) => name));
       else if (type === 'json') {
-        try { nextValue = input.value.trim() ? JSON.parse(input.value) : null; } catch (_) { nextValue = input.value; }
+        try { nextValue = input.value.trim() ? JSON.parse(input.value) : null; input.dataset.jsonInvalid = 'false'; } catch (_) { nextValue = input.value; input.dataset.jsonInvalid = 'true'; }
       } else if (['organization_user', 'resource_group', 'organization_connection', 'assignable_subject'].includes(type)) {
         const selectedOptions = input.multiple ? [...input.selectedOptions].map((option) => option.value).filter(Boolean) : [input.value].filter(Boolean);
         const references = selectedOptions.map((identity) => {
@@ -507,9 +640,10 @@
   }
 
   function applyValues(entity = {}, entityType = 'project', values = {}){
-    if (entityType === 'contact') return { ...entity, [CONTACT_VALUE_KEY]:deepMerge(rawValues(entity, entityType), values), [VALUE_KEY]:deepMerge(rawValues(entity, entityType), values) };
-    const merged = deepMerge(rawValues(entity, entityType), values);
-    return { ...entity, [VALUE_KEY]:merged, [PROJECT_COMPAT_VALUE_KEY]:{ ...merged } };
+
+    let merged = deepMerge(rawValues(entity, entityType), values);
+    for (const field of definitionsFor(entityType,entity)) { const value = valueAtPath(values,field.path); if (value !== undefined) merged = setValueAtPath(merged,field.path,value); }
+    return { ...entity, [VALUE_KEY]:merged, [entityType === 'contact' ? CONTACT_VALUE_KEY : PROJECT_COMPAT_VALUE_KEY]:{ ...merged } };
   }
 
   function emptyValue(value){
@@ -527,10 +661,14 @@
       if (definition.type === 'formula' || definition.read_only) return;
       const value = valueAtPath(values, definition.path);
       let message = '';
-      if (definition.required && emptyValue(value)) message = `${definition.label} is required.`;
-      else if (definition.type === 'json' && typeof value === 'string' && value) message = `${definition.label} must be valid JSON.`;
+      const structuredError = container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"] [data-node-invalid]`);
+      if (structuredError) message = structuredError.dataset.nodeInvalid;
+      if (!message && ['object', 'array', 'json'].includes(definition.type)) message = schemaError({ ...definition.schema, ...(definition.type !== 'json' ? {type:definition.type} : {}) }, value);
+      if (!message && definition.required && (value == null || value === '')) message = `${definition.label} is required.`;
+      else if (definition.type === 'json' && container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"]`)?.dataset.jsonInvalid === 'true') message = `${definition.label} must be valid JSON.`;
       else if (definition.data_type === 'number' && value !== '') {
-        if (!Number.isFinite(Number(value))) message = `${definition.label} must be a number.`;
+        if (definition.type === 'integer' && !Number.isInteger(value)) message = `${definition.label} must be a whole number.`;
+        else if (!Number.isFinite(Number(value))) message = `${definition.label} must be a number.`;
         else if (definition.min != null && Number(value) < definition.min) message = `${definition.label} must be at least ${definition.min}.`;
         else if (definition.max != null && Number(value) > definition.max) message = `${definition.label} must be no more than ${definition.max}.`;
       } else if (typeof value === 'string' && value) {
@@ -540,6 +678,9 @@
           try { if (!new RegExp(definition.pattern).test(value)) message = `${definition.label} does not match the expected format.`; } catch (_) {}
         }
       }
+      if (!message && value != null && value !== '') message = schemaError(definition.schema,value,definition.label);
+      if (!message && typeof value === 'string' && value && ['date','datetime','email','phone','url'].includes(definition.type) && !validFormat(definition.type,value)) message = `${definition.label} must be a valid ${definition.type}.`;
+      if (!message) { const native = container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"]`); if (native?.validity && !native.validity.valid) message = native.validationMessage; }
       if (!message) return;
       errors.push({ key:definition.key, message });
       const input = container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"]`);
@@ -619,7 +760,7 @@
     }).join('');
     const fieldsHtml = definitions.filter((definition) => !groupedFields.has(definition.path)).map(fieldHtml).join('');
     container.innerHTML = options.flat === true ? `<div class="fm-cf-flat">${groupHtml}${fieldsHtml}</div>` : `<section class="fm-cf-panel">
-      <div class="fm-cf-panel-head"><div><strong>${(globalThis.PlatformLanguage?.text("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</strong><span>${String(entityType === 'contact' ? 'Contact-specific information' : 'Project-specific information and formula variables')}</span></div></div>
+      <div class="fm-cf-panel-head"><div><strong>${(globalThis.PlatformLanguage?.text("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</strong><span>${String(entityType === 'organization' ? 'Organization-wide information' : entityType === 'contact' ? 'Contact-specific information' : 'Project-specific information and formula variables')}</span></div></div>
       <div class="fm-cf-grid">${String(groupHtml)}${String(fieldsHtml)}</div>
       ${String(options.showSave === false ? '' : '<div><button type="button" class="fm-cf-save" data-fm-cf-save>Save custom fields</button> <span class="fm-cf-status" data-fm-cf-status></span></div>')}
     </section>`;
@@ -646,6 +787,7 @@
         if (wrapper && event.target !== wrapper) wrapper.dispatchEvent(new Event('change', { bubbles:true }));
       });
     }
+    wireStructured(container);
     const saveButton = container.querySelector('[data-fm-cf-save]');
     saveButton?.addEventListener('click', async () => {
       const validation = validateEditor(container, entity, entityType, definitions);
@@ -711,19 +853,19 @@
       const selected = fields.find((field) => field.id === selectedId) || null;
       const selectedType = selected ? TYPE_BY_VALUE.get(selected.type) : null;
       const optionTypes = new Set(['select', 'radio', 'multiselect']);
-      const numericTypes = new Set(['number', 'currency', 'percentage', 'slider']);
+      const numericTypes = new Set(['integer', 'number', 'currency', 'percentage', 'slider']);
       container.innerHTML = `<div class="cf-settings">
-        <div class="cf-settings-head"><div><div class="cf-kicker">${(globalThis.PlatformLanguage?.text("custom-fields","m_f19ab212a33a17","Data builder") ?? "Data builder")}</div><h3>${(globalThis.PlatformLanguage?.text("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</h3><p>${(globalThis.PlatformLanguage?.text("custom-fields","m_b05272de450308","Create clear, reusable questions for projects and contacts. Choose how people answer and where the information appears—no technical setup required.") ?? "Create clear, reusable questions for projects and contacts. Choose how people answer and where the information appears—no technical setup required.")}</p></div><div class="cf-adds"><button type="button" class="cf-btn primary" data-cf-add="project"><i class="fas fa-folder-plus"></i>${(globalThis.PlatformLanguage?.text("custom-fields","m_9f53396a852a64"," Add project field") ?? " Add project field")}</button><button type="button" class="cf-btn" data-cf-add="contact"><i class="fas fa-address-book"></i>${(globalThis.PlatformLanguage?.text("custom-fields","m_e254bb26ce925c"," Add contact field") ?? " Add contact field")}</button></div></div>
+        <div class="cf-settings-head"><div><div class="cf-kicker">${(globalThis.PlatformLanguage?.text("custom-fields","m_f19ab212a33a17","Data builder") ?? "Data builder")}</div><h3>${(globalThis.PlatformLanguage?.text("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</h3><p>${(globalThis.PlatformLanguage?.text("custom-fields","m_b05272de450308","Create clear, reusable questions for projects and contacts. Choose how people answer and where the information appears—no technical setup required.") ?? "Create clear, reusable questions for projects and contacts. Choose how people answer and where the information appears—no technical setup required.")}</p></div><div class="cf-adds"><button type="button" class="cf-btn" data-cf-add="organization">Add organization field</button><button type="button" class="cf-btn" data-cf-organization-values>Organization values</button><button type="button" class="cf-btn primary" data-cf-add="project"><i class="fas fa-folder-plus"></i>${(globalThis.PlatformLanguage?.text("custom-fields","m_9f53396a852a64"," Add project field") ?? " Add project field")}</button><button type="button" class="cf-btn" data-cf-add="contact"><i class="fas fa-address-book"></i>${(globalThis.PlatformLanguage?.text("custom-fields","m_e254bb26ce925c"," Add contact field") ?? " Add contact field")}</button></div></div>
         <div class="cf-layout"><aside class="cf-list-shell"><div class="cf-list-title"><span>${(globalThis.PlatformLanguage?.text("custom-fields","m_b6878598aff8e0","Your fields") ?? "Your fields")}</span><span>${String(fields.length)}</span></div><div class="cf-list">${String(fields.length ? fields.map((field) => {
           const type = TYPE_BY_VALUE.get(field.type) || TYPE_BY_VALUE.get('text');
-          return `<button type="button" class="cf-card${field.id === selectedId ? ' active' : ''}" data-cf-select="${escapeHtml(field.id)}"><span class="cf-card-icon"><i class="fas ${escapeHtml(type.icon)}"></i></span><span class="cf-badge ${field.entity}">${field.entity === 'contact' ? 'Contact' : 'Project'}</span><strong>${escapeHtml(field.label)}</strong><span class="cf-card-meta">${escapeHtml(type.label)}${field.enabled ? '' : ' · Paused'}</span></button>`;
+          return `<button type="button" class="cf-card${field.id === selectedId ? ' active' : ''}" data-cf-select="${escapeHtml(field.id)}"><span class="cf-card-icon"><i class="fas ${escapeHtml(type.icon)}"></i></span><span class="cf-badge ${field.entity}">${escapeHtml(field.entity)}</span><strong>${escapeHtml(field.label)}</strong><span class="cf-card-meta">${escapeHtml(type.label)}${field.enabled ? '' : ' · Paused'}</span></button>`;
         }).join('') : '<div class="cf-empty-state"><i class="fas fa-wand-magic-sparkles"></i><strong>No fields yet</strong><span>Add a project or contact field to get started.</span></div>')}</div></aside>
         <div>${String(selected ? `<form class="cf-editor" data-cf-editor>
-          <div class="cf-editor-head"><div><h4>${escapeHtml(selected.label)}</h4><p>${escapeHtml(selectedType.hint)} · Stored as ${escapeHtml(selected.data_type)}</p></div><span class="cf-badge ${selected.entity}">${selected.entity === 'contact' ? 'Contact' : 'Project'}</span></div>
+          <div class="cf-editor-head"><div><h4>${escapeHtml(selected.label)}</h4><p>${escapeHtml(selectedType.hint)} · Stored as ${escapeHtml(selected.data_type)}</p></div><span class="cf-badge ${selected.entity}">${escapeHtml(selected.entity)}</span></div>
           <div class="cf-editor-body">
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-pen"></i> What should people see?</div><div class="cf-form-grid">
               <div class="cf-row"><label>Field name</label><input class="cf-in" name="label" value="${escapeHtml(selected.label)}" placeholder="Example: Roof material" required></div>
-              <div class="cf-row"><label>Used on</label><select class="cf-in" name="entity"><option value="project"${selected.entity === 'project' ? ' selected' : ''}>Projects</option><option value="contact"${selected.entity === 'contact' ? ' selected' : ''}>Contacts</option></select></div>
+              <div class="cf-row"><label>Used on</label><select class="cf-in" name="entity"><option value="project"${selected.entity === 'project' ? ' selected' : ''}>Projects</option><option value="organization"${selected.entity === 'organization' ? ' selected' : ''}>Organization</option><option value="contact"${selected.entity === 'contact' ? ' selected' : ''}>Contacts</option></select></div>
               <div class="cf-row wide"><label>Helpful description <span class="cf-help">(optional)</span></label><input class="cf-in" name="description" value="${escapeHtml(selected.description)}" placeholder="Explain what to enter or why it matters"></div>
               <div class="cf-row wide"><label>Placeholder or toggle wording <span class="cf-help">(optional)</span></label><input class="cf-in" name="placeholder" value="${escapeHtml(selected.placeholder)}" placeholder="Example answer or short instruction"></div>
             </div></section>
@@ -731,18 +873,19 @@
             <section class="cf-section" data-cf-options-row${optionTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-list"></i> Choices</div><div class="cf-choice-builder"><div class="cf-choice-head"><span></span><span>Choice shown to people</span><span>Saved value <em>(optional)</em></span><span></span></div><div data-cf-option-list>${selected.options.length ? selected.options.map((option) => `<div class="cf-choice-row" data-cf-option-row><span class="cf-choice-grip"><i class="fas fa-grip-vertical"></i></span><input class="cf-in" data-cf-option-label value="${escapeHtml(option.label)}" placeholder="Choice name"><input class="cf-in" data-cf-option-value value="${option.label === option.value ? '' : escapeHtml(option.value)}" placeholder="${escapeHtml(slug(option.label, 'saved_value'))}"><button type="button" class="cf-choice-remove" data-cf-option-remove aria-label="Remove ${escapeHtml(option.label)}"><i class="fas fa-trash"></i></button></div>`).join('') : '<div class="cf-choice-empty" data-cf-choice-empty>Add the first choice below.</div>'}</div><button type="button" class="cf-btn cf-choice-add" data-cf-option-add><i class="fas fa-plus"></i> Add choice</button><span class="cf-help">The saved value is filled automatically from the choice name unless you provide one.</span></div></section>
             <section class="cf-section" data-cf-formula-row${selected.type === 'formula' ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-calculator"></i> Calculation</div><div class="cf-row"><label>Formula</label><input class="cf-in" name="formula" value="${escapeHtml(selected.formula)}" placeholder="{{labor_hours}} * {{hourly_rate}}"><span class="cf-help">Use another numeric field’s key inside double braces. Basic arithmetic and parentheses are supported.</span></div></section>
             <section class="cf-section" data-cf-number-row${numericTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-ruler-combined"></i> Number limits <span class="cf-help">(optional)</span></div><div class="cf-form-grid"><div class="cf-row"><label>Minimum</label><input class="cf-in" type="number" step="any" name="min" value="${selected.min ?? ''}"></div><div class="cf-row"><label>Maximum</label><input class="cf-in" type="number" step="any" name="max" value="${selected.max ?? ''}"></div><div class="cf-row"><label>Step</label><input class="cf-in" type="number" step="any" min="0" name="step" value="${selected.step ?? ''}" placeholder="Any"></div><div class="cf-row" data-cf-currency${selected.type === 'currency' ? '' : ' hidden'}><label>Currency</label><select class="cf-in" name="currency">${['USD','CAD','EUR','GBP','AUD'].map((currency) => `<option value="${currency}"${selected.currency === currency ? ' selected' : ''}>${currency}</option>`).join('')}</select></div></div></section>
+            <section class="cf-section" data-cf-schema-row${['object','array','json'].includes(selected.type) ? '' : ' hidden'}><div class="cf-section-title">Subfields and item rules</div><label>JSON Schema<textarea class="cf-in" name="schema" rows="8" spellcheck="false">${escapeHtml(JSON.stringify(selected.schema,null,2))}</textarea></label><span class="cf-help">Dictionary example: {"properties":{"count":{"type":"integer","minimum":0}},"required":["count"],"additionalProperties":false}. Array example: {"items":{"type":"object","properties":{"name":{"type":"string"}}}}. Formats: date, datetime, email, phone, url.</span></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-eye"></i> Preview</div><div class="cf-preview"><div class="cf-preview-label">People will see</div><div class="fm-cf-field" data-cf-preview><label>${escapeHtml(selected.label)}${selected.required ? ' <em>*</em>' : ''}</label>${inputHtml(selected, selected.default_value)}</div></div></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-location-dot"></i> Where should it appear?</div><div class="cf-toggles">
               <label class="cf-toggle"><input type="checkbox" name="show_in_overview"${selected.show_in_overview ? ' checked' : ''}> <span><strong>Project or contact details</strong><br>Show this field while viewing and editing the record.</span></label>
               <label class="cf-toggle" data-cf-scope-toggle${selected.entity === 'project' ? '' : ' hidden'}><input type="checkbox" name="show_in_scope"${selected.show_in_scope ? ' checked' : ''}> <span><strong>Scope workspace</strong><br>Show a read-only value alongside measurements.</span></label>
               <label class="cf-toggle"><input type="checkbox" name="background_only"${selected.background_only ? ' checked' : ''}> <span><strong>Store in the background</strong><br>Keep integration data without showing an input.</span></label>
-              <label class="cf-toggle" data-cf-formula-toggle${['number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(selected.type) ? '' : ' hidden'}><input type="checkbox" name="formula_available"${selected.formula_available ? ' checked' : ''}> <span><strong>Available in calculations</strong><br>Use <code>${escapeHtml(selected.formula_key)}</code> in project formulas.</span></label>
+              <label class="cf-toggle" data-cf-formula-toggle${['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(selected.type) ? '' : ' hidden'}><input type="checkbox" name="formula_available"${selected.formula_available ? ' checked' : ''}> <span><strong>Available in calculations</strong><br>Use <code>${escapeHtml(selected.formula_key)}</code> in project formulas.</span></label>
               <label class="cf-toggle"><input type="checkbox" name="required"${selected.required ? ' checked' : ''}> <span><strong>Answer required</strong><br>Prompt for an answer when this field is shown.</span></label>
               <label class="cf-toggle"><input type="checkbox" name="read_only"${selected.read_only ? ' checked' : ''}${selected.type === 'formula' ? ' disabled' : ''}> <span><strong>Read only</strong><br>Show the value without allowing manual changes.</span></label>
               <label class="cf-toggle"><input type="checkbox" name="enabled"${selected.enabled ? ' checked' : ''}> <span><strong>Field is active</strong><br>Turn this off to hide it without deleting data.</span></label>
             </div></section>
             <details class="cf-advanced"><summary><span><i class="fas fa-gear"></i> Advanced setup</span><i class="fas fa-chevron-down"></i></summary><div class="cf-advanced-body"><div class="cf-form-grid">
-              <div class="cf-row"><label>Stable data path</label><input class="cf-in" name="key" value="${escapeHtml(selected.key)}" pattern="[a-z0-9_-]+(\.[a-z0-9_-]+)*" required><span class="cf-help">Dots create nested groups, such as <code>assignments.estimator</code>. Avoid changing this after launch.</span></div>
+              <div class="cf-row"><label>Read permission (optional)</label><input class="cf-in" name="read_permission" value="${escapeHtml(selected.read_permission)}"></div><div class="cf-row"><label>Write permission (optional)</label><input class="cf-in" name="write_permission" value="${escapeHtml(selected.write_permission)}"></div><label class="cf-toggle"><input type="checkbox" name="private"${selected.private ? ' checked' : ''}> Private publication (company settings permission unless a read permission is specified)</label><div class="cf-row"><label>Minimum length</label><input class="cf-in" type="number" min="0" name="min_length" value="${selected.min_length ?? ''}"></div><div class="cf-row"><label>Maximum length</label><input class="cf-in" type="number" min="1" name="max_length" value="${selected.max_length ?? ''}"></div><div class="cf-row"><label>Validation pattern (optional)</label><input class="cf-in" name="pattern" value="${escapeHtml(selected.pattern)}"></div><div class="cf-row"><label>Stable data path</label><input class="cf-in" name="key" value="${escapeHtml(selected.key)}" pattern="[a-z0-9_-]+(\.[a-z0-9_-]+)*" required><span class="cf-help">Dots create nested groups, such as <code>assignments.estimator</code>. Avoid changing this after launch.</span></div>
               <div class="cf-row"><label>Field width</label><select class="cf-in" name="layout"><option value="half"${selected.layout === 'half' ? ' selected' : ''}>Half row</option><option value="full"${selected.layout === 'full' ? ' selected' : ''}>Full row</option></select></div>
               <div class="cf-row" data-cf-scope-mode${selected.entity === 'project' ? '' : ' hidden'}><label>Which project scopes?</label><select class="cf-in" name="scope_mode"><option value="all"${selected.scope_mode === 'all' ? ' selected' : ''}>All scopes</option><option value="selected"${selected.scope_mode === 'selected' ? ' selected' : ''}>Only selected scopes</option></select></div>
               <div class="cf-row" data-cf-scopes${selected.entity === 'project' && selected.scope_mode === 'selected' ? '' : ' hidden'}><label>Scope IDs, keys, or names</label><input class="cf-in" name="scopes" value="${escapeHtml(selected.scopes.join(', '))}" placeholder="roofing, siding"></div>
@@ -752,10 +895,11 @@
         </form>` : '<div class="cf-editor"><div class="cf-empty-state"><i class="fas fa-arrow-left"></i><strong>Select a field</strong><span>Choose a field from the list or add a new one.</span></div></div>')}</div></div>
       </div>`;
 
+      container.querySelector('[data-cf-organization-values]')?.addEventListener('click', () => mountOrganizationValues(container, options));
       container.querySelectorAll('[data-cf-select]').forEach((button) => button.addEventListener('click', () => { selectedId = button.dataset.cfSelect; render(); }));
       container.querySelectorAll('[data-cf-add]').forEach((button) => button.addEventListener('click', () => {
-        const entity = button.dataset.cfAdd === 'contact' ? 'contact' : 'project';
-        const field = normalizeDefinition({ id:uid(), entity, label:entity === 'contact' ? 'New contact field' : 'New project field', key:`new_${entity}_field_${fields.length + 1}`, type:'text', show_in_overview:true, order:fields.length });
+        const entity = ['contact','organization'].includes(button.dataset.cfAdd) ? button.dataset.cfAdd : 'project';
+        const field = normalizeDefinition({ id:uid(), entity, label:`New ${entity} field`, key:`new_${entity}_field_${fields.length + 1}`, type:'text', show_in_overview:true, order:fields.length });
         fields.push(field); selectedId = field.id; render();
       }));
       const form = container.querySelector('[data-cf-editor]');
@@ -781,14 +925,15 @@
         const entity = form.elements.entity.value;
         const scopeMode = form.elements.scope_mode.value;
         const typeInfo = TYPE_BY_VALUE.get(type) || TYPE_BY_VALUE.get('text');
+        form.querySelector('[data-cf-schema-row]').hidden = !['object','array','json'].includes(type);
         form.querySelector('[data-cf-options-row]').hidden = !['select', 'radio', 'multiselect'].includes(type);
         form.querySelector('[data-cf-formula-row]').hidden = type !== 'formula';
-        form.querySelector('[data-cf-number-row]').hidden = !['number', 'currency', 'percentage', 'slider'].includes(type);
+        form.querySelector('[data-cf-number-row]').hidden = !['integer', 'number', 'currency', 'percentage', 'slider'].includes(type);
         form.querySelector('[data-cf-currency]').hidden = type !== 'currency';
         form.querySelector('[data-cf-scope-mode]').hidden = entity !== 'project';
         form.querySelector('[data-cf-scopes]').hidden = entity !== 'project' || scopeMode !== 'selected';
         form.querySelector('[data-cf-scope-toggle]').hidden = entity !== 'project';
-        form.querySelector('[data-cf-formula-toggle]').hidden = !['number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(type);
+        form.querySelector('[data-cf-formula-toggle]').hidden = !['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(type);
         const label = cleanText(form.elements.label.value) || 'Untitled field';
         const draft = normalizeDefinition({
           ...selected,
@@ -809,7 +954,7 @@
         if (subtitle) subtitle.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("custom-fields","m_c95b045aaafd44",`${v0} · Stored as ${v1}`,{v0,v1}) ?? `${v0} · Stored as ${v1}`)(typeInfo.hint,typeInfo.dataType);
       };
       form?.querySelectorAll('[name="type"]').forEach((input) => input.addEventListener('change', () => {
-        if (['number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(form.elements.type.value)) form.elements.formula_available.checked = true;
+        if (['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(form.elements.type.value)) form.elements.formula_available.checked = true;
         if (form.elements.type.value === 'formula') form.elements.read_only.checked = true;
         if (['select', 'radio', 'multiselect'].includes(form.elements.type.value) && !optionRows().length) addOptionRow();
         syncConditionalRows();
@@ -841,9 +986,10 @@
           form.querySelector('[data-cf-status]').textContent = (globalThis.PlatformLanguage?.text("custom-fields","m_b6dffbcdc9e835","That key is already used for this record type.") ?? "That key is already used for this record type."); return;
         }
         const current = fields.find((field) => field.id === selectedId);
+        let schema; try { schema = JSON.parse(String(data.get('schema') || '{}')); if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw Error(); } catch { form.querySelector('[data-cf-status]').textContent = 'The schema must be valid JSON.'; return; }
         const next = normalizeDefinition({
-          ...current,
-          label:data.get('label'), key, entity:data.get('entity'), type:data.get('type'), description:data.get('description'), placeholder:data.get('placeholder'),
+          ...current, schema, private:form.elements.private.checked, read_permission:data.get('read_permission'), write_permission:data.get('write_permission'), min_length:data.get('min_length'), max_length:data.get('max_length'), pattern:data.get('pattern'),
+          label:data.get('label'), key, path:key, entity:data.get('entity'), type:data.get('type'), description:data.get('description'), placeholder:data.get('placeholder'),
           options:readOptionRows(), formula:data.get('formula'), scope_mode:data.get('scope_mode'), scopes:cleanText(data.get('scopes')).split(','),
           layout:data.get('layout'), currency:data.get('currency'), min:data.get('min'), max:data.get('max'), step:data.get('step'),
           show_in_overview:form.elements.show_in_overview.checked, show_in_scope:form.elements.show_in_scope.checked,
@@ -876,6 +1022,7 @@
     PROJECT_COMPAT_VALUE_KEY,
     CONTACT_VALUE_KEY,
     TYPE_CATALOG:clone(TYPE_CATALOG),
+    schemaError, validFormat, structuredHtml, structuredValue, inputHtml, wireStructured, mountOrganizationValues,
     normalizeDefinition,
     normalizeModule,
     normalizePath,
