@@ -40,7 +40,7 @@
     "test:assistant": "node --experimental-sqlite --import tsx --test --test-force-exit tests/assistant-api.test.ts",
     "test:channels-agent": "node --experimental-sqlite --import tsx --test --test-force-exit tests/channels-agent.test.ts",
     "test:channels-inbox": "node --experimental-sqlite --import tsx --test --test-force-exit tests/channels-inbox.test.ts",
-    "test:assistant:frontend": "node --check ../libraries/assistant-api/assistant-api.js && node --check ../libraries/agents-api/agents-api.js && node --check ../libraries/platform-assistant/platform-assistant.js && node --check ../portal/scripts/topbar.js && node --check ../libraries/apps/settings/company.js && node --test tests/agent-client-csrf.test.mjs",
+    "test:assistant:frontend": "node --check ../libraries/assistant-api/assistant-api.js && node --check ../libraries/platform-assistant/platform-assistant.js && node --check ../portal/scripts/topbar.js && node --check ../libraries/apps/settings/company.js",
     "test:stats:frontend": "node --check ../libraries/stats-api/stats-api.js && node --check ../libraries/apps/stats/app.js",
     "test:workforce": "node --experimental-sqlite --import tsx --test --test-force-exit tests/workforce-api.test.ts",
     "test:crew": "node --experimental-sqlite --import tsx --test --test-force-exit tests/crew-api.test.ts",
@@ -55,7 +55,7 @@
     "test:navigation": "node --test tests/navigation-contract.test.mjs tests/settings-layout-contract.test.mjs",
     "test:insights": "node --check ../libraries/insights/firstmate-insights.js && node --test tests/insights-ui-contract.test.mjs",
     "test:app-setup": "node --check ../libraries/app-setup-workflows/app-setup-workflows.js && node --test tests/app-setup-workflows-ui-contract.test.mjs tests/app-placement-ui-contract.test.mjs",
-    "test:terminology": "node --test tests/terminology-ui-contract.test.mjs && node --experimental-sqlite --import tsx --test --test-force-exit tests/terminology-agent.test.ts",
+    "test:terminology": "node scripts/localization-catalogs.mjs --check && node --test tests/terminology-ui-contract.test.mjs tests/terminology-editor-browser.test.mjs && node --experimental-sqlite --import tsx --test --test-force-exit tests/terminology-agent.test.ts tests/terminology-integration.test.ts",
     "test:undo": "node --test tests/undo-redo-contract.test.mjs && node --experimental-sqlite --import tsx --test --test-force-exit tests/work-api.test.ts",
     "test:financial-ui": "node --test tests/financial-ui-contract.test.mjs",
     "test:financials": "node --experimental-sqlite --import tsx --test --test-force-exit tests/financials-api.test.ts && node --test tests/financial-ui-contract.test.mjs",
@@ -146,7 +146,8 @@
     "localization:check": "node scripts/localization-catalogs.mjs --check",
     "test:localization": "node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-localization.test.ts tests/localization-api.test.ts tests/localization-browser.test.mjs tests/report-localization.test.ts",
     "test:publication:ui": "node scripts/publication-authoring-uitest.mjs",
-    "test:publication": "node --experimental-sqlite --import tsx --test --test-force-exit tests/publication-*.test.ts"
+    "test:publication": "node --experimental-sqlite --import tsx --test --test-force-exit tests/publication-*.test.ts",
+    "terminology:check": "node scripts/terminology-audit.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1119.0",

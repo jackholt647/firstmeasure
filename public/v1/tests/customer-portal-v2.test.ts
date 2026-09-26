@@ -794,3 +794,10 @@ test("portal.team never shows a permission slug as a job title", async () => {
   // A real job title is exactly what this widget is for.
   assert.equal(byName["Sam Ortiz"], "Lead Estimator");
 });
+
+test('public portal sends only public label namespaces in its company language',async()=>{
+ const client=createSessionClient();const {orgId}=await registerOrg(client);await seedProject(orgId,'terminology_portal');
+ const {saveBranchModule}=await import('../platform/storage.js');await saveBranchModule(orgId,'default','variable_mappings',{data:{labels:{projects:{project:'Legacy job'},internal:{secret:'Not public'}},localized_labels:{'en-US':{projects:{project:'Job'},workforce:{worker_singular:'Technician',internal_secret:'Not public'}},'en-GB':{projects:{project:'Contract'}}}}},{replace:true});
+ const portal=await portalFor(client,orgId,'terminology_portal');const payload=await client.request('GET',`/v1/platform/customer-portals/${portal.public_uuid}`);
+ assert.equal(payload.language.context.locale,'en-US');assert.equal(payload.language.terminology.localized_labels['en-US'].projects.project,'Job');assert.equal(payload.language.terminology.localized_labels['en-GB'],undefined);assert.equal(payload.language.terminology.labels.internal,undefined);assert.equal(payload.language.terminology.localized_labels['en-US'].workforce.worker_singular,'Technician');assert.equal(payload.language.terminology.localized_labels['en-US'].workforce.internal_secret,undefined);
+});

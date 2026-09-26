@@ -112,9 +112,229 @@
     ])
   ];
 
+
+  CATALOG.find(group=>group.id==='financials').terms.push(term('reconcile_view','Reconcile','view'),term('payouts_view','Payouts','view'));
+  CATALOG.find(group=>group.id==='scheduling').terms.push(term('gantt_view','Gantt','view'));
+  CATALOG.find(group=>group.id==='contacts').terms.push(term('settings_tab','Contacts','navigation'));
+  CATALOG.find(group=>group.id==='settings').terms.push(...[['feedback_tab','Feedback'],['live_chat_tab','Live Chat'],['comms_tab','Communications'],['assistant_tab','AI Agents'],['channels_tab','Channels'],['domains_tab','Domains']].map(([key,label])=>term(key,label,'navigation')));
+  // Every registered surface and legacy domain noun belongs to this catalog.
+  const additions = {
+  "work": [
+    [
+      "phase",
+      "Phase"
+    ],
+    [
+      "phases",
+      "Phases"
+    ],
+    [
+      "stage",
+      "Stage"
+    ],
+    [
+      "stages",
+      "Stages"
+    ],
+    [
+      "task",
+      "To-do"
+    ],
+    [
+      "tasks",
+      "To-dos"
+    ],
+    [
+      "board",
+      "Board"
+    ],
+    [
+      "boards",
+      "Boards"
+    ]
+  ],
+  "workforce": [
+    [
+      "resource_group_singular",
+      "Crew"
+    ],
+    [
+      "resource_group_plural",
+      "Crews"
+    ],
+    [
+      "worker_singular",
+      "Crew Member"
+    ],
+    [
+      "worker_plural",
+      "Crew Members"
+    ],
+    [
+      "organization_connection_singular",
+      "Subcontractor"
+    ],
+    [
+      "organization_connection_plural",
+      "Subcontractors"
+    ],
+    [
+      "management_application",
+      "Main App"
+    ],
+    [
+      "field_application",
+      "Crew App"
+    ]
+  ],
+  "roles": [
+    [
+      "sales_appointments",
+      "Sales Appointments"
+    ],
+    [
+      "inside_sales",
+      "Inside Sales"
+    ]
+  ],
+  "event_types": [
+    [
+      "sales_appointment",
+      "Sales Appointment"
+    ],
+    [
+      "sales_follow_up",
+      "Sales Follow-up"
+    ],
+    [
+      "project_work",
+      "Project Work"
+    ],
+    [
+      "material_delivery",
+      "Material Delivery"
+    ]
+  ],
+  "web_editor": [
+    [
+      "tab",
+      "Web Editor"
+    ]
+  ],
+  "comms": [
+    [
+      "project_tab",
+      "Communications"
+    ]
+  ],
+  "checklists": [
+    [
+      "project_tab",
+      "Checklists"
+    ]
+  ],
+  "training": [
+    [
+      "portal_tab",
+      "Training"
+    ],
+    [
+      "studio_portal_tab",
+      "Training Studio"
+    ]
+  ],
+  "invoices": [
+    [
+      "portal_tab",
+      "Invoices"
+    ]
+  ],
+  "stats": [
+    [
+      "portal_tab",
+      "Stats"
+    ]
+  ],
+  "chat": [
+    [
+      "portal_tab",
+      "Chat"
+    ]
+  ],
+  "channels": [
+    [
+      "portal_tab",
+      "Channels"
+    ]
+  ],
+  "sales": [
+    [
+      "today_portal_tab",
+      "Today"
+    ],
+    [
+      "overview_tab",
+      "Overview"
+    ]
+  ],
+  "scheduling": [
+    [
+      "sales_portal_tab",
+      "Schedule"
+    ]
+  ],
+  "earnings": [
+    [
+      "sales_portal_tab",
+      "Earnings"
+    ]
+  ],
+  "assistant": [
+    [
+      "portal_tab",
+      "Assistant"
+    ]
+  ],
+  "feedback": [
+    [
+      "portal_tab",
+      "Feedback"
+    ]
+  ],
+  "crew": [
+    [
+      "overview_tab",
+      "Overview"
+    ]
+  ],
+  "contacts": [
+    [
+      "field_customer_tab",
+      "Customer"
+    ]
+  ],
+  "signatures": [
+    [
+      "crew_project_tab",
+      "Signatures"
+    ]
+  ]
+};
+  for (const [id, rows] of Object.entries(additions)) {
+    let group = CATALOG.find(entry => entry.id === id);
+    if (!group) { group = section(id, id.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase()), 'Shared display labels. Record identifiers and authored content stay unchanged.', []); CATALOG.push(group); }
+    for (const [key, label] of rows) if (!group.terms.some(item => item.key === key)) group.terms.push(term(key, label, key.endsWith('tab') || key === 'tab' ? 'navigation' : 'entity'));
+  }
+
+  // Preserve the labels of newly catalogued surfaces.
+  for(const [id,label] of Object.entries({'comms.project_tab':'Comms','chat.portal_tab':'Communications','assistant.portal_tab':'FirstMate Assistant','sales.overview_tab':'Visit','crew.overview_tab':'Visit','checklists.crew_project_tab':'Checklists','signatures.crew_project_tab':'Work','settings.domains_tab':'Domains & Hosting'})){
+    const [namespace,key]=id.split('.');const row=CATALOG.find(group=>group.id===namespace)?.terms.find(row=>row.key===key);if(row)row.label=label;
+  }
+
   const DEFAULT_LABELS = Object.fromEntries(CATALOG.map((entry) => [entry.id, Object.fromEntries(entry.terms.map((item) => [item.key, item.label]))]));
   let current = { orgId:'', branchId:'default', mappings:{ schema_version:1, labels:DEFAULT_LABELS }, config:null };
   let loading = null;
+  let loadingKey = '', loadSequence = 0;
 
   function clean(value){ return String(value ?? '').trim(); }
   function object(value){ return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
@@ -133,13 +353,12 @@
     return dot > 0 ? [value.slice(0, dot), value.slice(dot + 1)] : ['', value];
   }
   function get(path, fallback = '', options = {}){
+    if (!clean(path)) return clean(fallback);
     const [namespace, key] = splitKey(path);
     const source = mergedMappings(options.mappings || options.config?.mappings || current.mappings);
     const defaultLabel = clean(DEFAULT_LABELS?.[namespace]?.[key]) || clean(fallback) || key;
     const legacy = clean(source.labels?.[namespace]?.[key]);
-    return root.PlatformLanguage?.term?.(path, defaultLabel, {
-      ...source, labels: { [namespace]: { [key]: legacy !== defaultLabel ? legacy : '' } }
-    }) || legacy || defaultLabel;
+    return root.PlatformLanguage?.term?.(path, defaultLabel, source) || legacy || defaultLabel;
   }
   function appLabel(appOrMeta = {}, fallback = ''){
     const app = appOrMeta.app || appOrMeta;
@@ -153,6 +372,7 @@
       mappings:mergedMappings(config.mappings || options.mappings || config),
       config
     };
+    root.PlatformLanguage?.setTerminology?.(current.mappings);
     if (options.silent !== true) root.dispatchEvent(new CustomEvent('fm:terminology:updated', { detail:{ orgId:current.orgId, branchId:current.branchId, mappings:current.mappings } }));
     return current;
   }
@@ -160,10 +380,18 @@
     const organizationId = clean(orgId);
     const branch = clean(branchId || 'default') || 'default';
     if (!organizationId || !root.PlatformScheduling?.loadBranchConfig) return current;
-    if (loading && options.refresh !== true) return loading;
+    const key = `${organizationId}:${branch}`;
+    if (loading && loadingKey === key && options.refresh !== true) return loading;
+    const sequence = ++loadSequence;
+    loadingKey = key;
+    if(current.orgId !== organizationId || current.branchId !== branch) setConfig({mappings:{}},{orgId:organizationId,branchId:branch,silent:true});
     loading = root.PlatformScheduling.loadBranchConfig(organizationId, branch, { refresh:options.refresh === true })
-      .then((config) => setConfig(config, { orgId:organizationId, branchId:branch, silent:options.silent }))
-      .finally(() => { loading = null; });
+      .then(async (config) => {
+        const persisted=await root.PlatformAPI?.terminologyConfiguration?.(organizationId,branch);
+        if(sequence !== loadSequence) return current;
+        return setConfig({...config,mappings:persisted?.mappings || config.mappings || {}},{orgId:organizationId,branchId:branch,silent:options.silent});
+      })
+      .finally(() => { if(sequence === loadSequence) loading = null; });
     return loading;
   }
   function sections(mappings = current.mappings){

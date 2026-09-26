@@ -27,8 +27,9 @@ export async function frozenCatalogs(snapshot: LanguageSnapshot, namespaces: str
 /** Request/job-local instance: no mutable locale shared between tenants or workers. */
 export async function serverLanguage(context: LanguageContext = resolveContext(), namespaces = ["shared"], frozen?: LanguageSnapshot) {
   const language = createLanguage(frozen || context);
+  language.setTerminology(frozen?.terminology || {});
   const manifest = frozen ? null : await readCatalog("manifest.json");
-  for (const namespace of new Set(namespaces)) {
+  for (const namespace of new Set(['terminology', ...namespaces])) {
     if (!/^[a-z0-9_-]+$/.test(namespace)) throw new Error("Invalid language namespace");
     const version = frozen?.catalog_versions[namespace];
     if (version && !/^[a-f0-9]{16}$/.test(version)) throw new Error("Invalid language catalog version");

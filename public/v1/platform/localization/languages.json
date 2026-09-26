@@ -9,6 +9,81 @@
       "code": "en-GB",
       "label": "English (UK)",
       "direction": "ltr"
+    },
+    {
+      "code": "pt-BR",
+      "label": "Português (Brasil)",
+      "direction": "ltr"
+    },
+    {
+      "code": "es-ES",
+      "label": "Español (España)",
+      "direction": "ltr"
+    },
+    {
+      "code": "fr-FR",
+      "label": "Français",
+      "direction": "ltr"
+    },
+    {
+      "code": "it-IT",
+      "label": "Italiano",
+      "direction": "ltr"
+    },
+    {
+      "code": "el-GR",
+      "label": "Ελληνικά",
+      "direction": "ltr"
+    },
+    {
+      "code": "de-DE",
+      "label": "Deutsch",
+      "direction": "ltr"
+    },
+    {
+      "code": "da-DK",
+      "label": "Dansk",
+      "direction": "ltr"
+    },
+    {
+      "code": "pl-PL",
+      "label": "Polski",
+      "direction": "ltr"
+    },
+    {
+      "code": "cs-CZ",
+      "label": "Čeština",
+      "direction": "ltr"
+    },
+    {
+      "code": "nl-NL",
+      "label": "Nederlands",
+      "direction": "ltr"
+    },
+    {
+      "code": "nb-NO",
+      "label": "Norsk (bokmål)",
+      "direction": "ltr"
+    },
+    {
+      "code": "sv-SE",
+      "label": "Svenska",
+      "direction": "ltr"
+    },
+    {
+      "code": "lt-LT",
+      "label": "Lietuvių",
+      "direction": "ltr"
+    },
+    {
+      "code": "fi-FI",
+      "label": "Suomi",
+      "direction": "ltr"
+    },
+    {
+      "code": "ja-JP",
+      "label": "日本語",
+      "direction": "ltr"
     }
   ],
   "translation_targets": [

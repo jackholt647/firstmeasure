@@ -1,4 +1,4 @@
-import { readBranchModule } from "../storage.js";
+import { readTerminologyMappings } from "./terminology-settings.js";
 import { companyLocalization } from "./settings.js";
 import { snapshotLanguage } from "./server.js";
 
@@ -7,7 +7,7 @@ export const DOCUMENT_NAMESPACES = ["shared", "terminology", "doc-model", "doc-r
 export async function companyDocumentLanguage(orgId: string, branchId = "default") {
   const [settings, mappings] = await Promise.all([
     companyLocalization(orgId, branchId),
-    readBranchModule(orgId, branchId, "variable_mappings").catch(() => null)
+    readTerminologyMappings(orgId, branchId)
   ]);
-  return snapshotLanguage(settings.context, DOCUMENT_NAMESPACES, mappings?.data || {});
+  return snapshotLanguage(settings.context, DOCUMENT_NAMESPACES, mappings);
 }

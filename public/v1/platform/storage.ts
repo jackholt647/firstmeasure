@@ -1431,6 +1431,10 @@ export async function readBranchModule(orgId: string, branchId: string, moduleId
 }
 
 export async function saveBranchModule(orgId: string, branchId: string, moduleId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if(moduleId==='variable_mappings' && input.data!==undefined){
+    const {terminologyMappingsSchema}=await import('./localization/terminology-schema.js');
+    input={...input,data:terminologyMappingsSchema.parse(input.data)};
+  }
   if (moduleId === "custom_fields" && Array.isArray(asObject(input.data).fields)) {
     const fields = (await import("../custom_fields/contracts.js")).normalizeDefinitions(asObject(input.data).fields);
     if (branchId !== "default" && fields.some(f => f.entity === "organization")) throw badRequest("custom_field_organization_branch", "Organization definitions belong to the default branch.");
