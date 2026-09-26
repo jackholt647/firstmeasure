@@ -1,3 +1,4 @@
+import { notificationAssistantInstructions, notificationAssistantTools } from './notifications.js';
 // The global FirstMate assistant, declared as a framework agent. The tool
 // implementations are unchanged from the original service — what moved to
 // the shared runtime is the loop, trace, report_result contract, thread
@@ -27,7 +28,7 @@ import { sendCommunication } from "../../messaging/communications_service.js";
 import { sendCommunicationSchema } from "../../messaging/schemas.js";
 import { ensureProjectChannelRecord, postAgentMessage } from "../../channels/service.js";
 import { channelUserIdForAgent } from "../../agents/participants.js";
-import { registerAgent } from "../../agents/registry.js";
+import { registerAgent, requireAgentDefinition } from "../../agents/registry.js";
 import { searchAgentHistory } from "../../agents/storage.js";
 import { globalAssistantInstructions, listAssistantMemories, readAssistantProfile, saveAssistantMemory, deleteAssistantMemory } from "../personalization.js";
 import type { AgentRun, AgentTool } from "../../agents/types.js";
@@ -137,6 +138,7 @@ function compactDocument(document: JsonObject) {
 // ── Tools ──────────────────────────────────────────────────────────────────
 
 const TOOLS: AgentTool[] = [
+  ...notificationAssistantTools,
   {
     name: "search_my_conversation_history",
     description: "Search this user's prior assistant conversations when relevant context is older than the current chat window. Only this user's messages are searchable.",
@@ -664,6 +666,8 @@ registerAgent({
     return `You are ${current.assistant_name || "the FirstMate Assistant"}, the company-wide AI assistant for "${orgName || "this company"}" on the FirstMate platform. You are talking to ${run.userName || "a team member"} — a business owner, manager, or crew member, not a developer.
 
 ${buildAssistantManifest()}
+${notificationAssistantInstructions}
+${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
 
 ## What you are currently allowed to do
 ${abilities}
@@ -697,4 +701,26 @@ ${appInstructions}`;
     }
     return reverted;
   }
+});
+
+// A focused FirstMate entry point for the default-on Notifications feature.
+// It shares the global assistant's model, instructions, settings and runtime,
+// but cannot use global tools or broaden a FirstMeasure-only account's access.
+const sharedAssistant = requireAgentDefinition(ASSISTANT_AGENT_ID);
+registerAgent({
+  ...sharedAssistant,
+  id: 'notification_assistant',
+  title: 'FirstMate notification assistant',
+  description: 'Configure your own notification choices and personal notification automations.',
+  capability: 'apps.notifications',
+  usePermission: undefined,
+  platformTools: false,
+  // Notification preference edits belong to the Notifications feature; the
+  // global cross-app Assistant Actions flag is not required. Company-level
+  // assistant allow_actions remains enforced by each configuration tool.
+  prepare: run => { run.scratch.actionsAllowed = true; },
+  tools: notificationAssistantTools,
+  systemPrompt: async run => `${await sharedAssistant.systemPrompt(run)}
+This is the focused Notification settings conversation. Only inspect_notifications, configure_notification and report_result are available. Use the scope/task details returned by inspection. Do not attempt unrelated assistant operations or cross-app tools.`,
+  revert: undefined
 });
