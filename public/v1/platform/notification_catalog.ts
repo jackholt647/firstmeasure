@@ -9,7 +9,7 @@ type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => v && typeof v === "object" && !Array.isArray(v) ? v as Json : {};
 const rows = (v: unknown): Json[] => Array.isArray(v) ? v.map(obj) : [];
 export type NotificationDefinition = { key:string; label:string; description:string; category:string; defaults:{in_app:boolean;push:boolean}; event?:string; permission?:string };
-export type NotificationGroup = { id:string; label:string; kind:"app"|"workflow"; definitions:NotificationDefinition[]; disabled?:boolean };
+export type NotificationGroup = { id:string; label:string; kind:"app"|"workflow"|"custom"; definitions:NotificationDefinition[]; disabled?:boolean };
 const words = (s:string) => s.replace(/[._-]+/g," ").replace(/^./,c=>c.toUpperCase());
 export const eventGroups:Record<string,{label:string;app?:string;category:string;permission:string}> = {
  project:{label:"Projects",app:"projects",category:"tasks",permission:"view_projects"}, work:{label:"Tasks & scopes",app:"projects",category:"tasks",permission:"view_projects"},
@@ -68,11 +68,13 @@ export async function notificationCatalog(orgId:string,branch='default',auth?:Pl
   if(app&&!await isAppFlagEnabled(orgId,app==='scheduling'?'platform':'apps',app))continue;
   groups.push({id:`legacy.${key}`,label,kind:'app',definitions:[{key,label,description:'Notifications created directly by this app.',category:key,defaults:{in_app:true,push:key!=='celebrations'}}]});
  }
+ const {rules}=await readAutomationRules(orgId,branch);
  if(!auth||hasPermission(auth,'manage_company_settings')){
-  const {rules}=await readAutomationRules(orgId,branch);
-  const definitions=rules.filter(r=>r.automation==='notification.create.v1').map(r=>{const input=obj(r.input);return {key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title||input.title||r.id),description:String(r.explainer||input.body||'Company automation notification.'),category:'tasks',defaults:{in_app:input.passive!==false,push:input.push===true}};});
+  const definitions=rules.filter(r=>r.automation==='notification.create.v1'&&!String(r.id).startsWith('custom_notification_')).map(r=>{const input=obj(r.input);return {key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title||input.title||r.id),description:String(r.explainer||input.body||'Company automation notification.'),category:'tasks',defaults:{in_app:input.passive!==false,push:input.push===true}};});
   groups.push({id:'organization-automations',label:'Company automations',kind:'workflow',definitions});
  }
+  const custom=rules.filter(r=>r.automation==='notification.create.v1'&&String(r.id).startsWith('custom_notification_')&&(!auth||(obj(r.input).target_user_ids as unknown[]||[]).includes(auth.userId))).map(r=>({key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title),description:String(r.explainer||''),category:'tasks',defaults:{in_app:obj(r.input).passive!==false,push:obj(r.input).push===true}}));
+  if(custom.length)groups.push({id:'custom-automations',label:'Custom automations',kind:'custom',definitions:custom});
  if(auth&&!hasPermission(auth,'view_projects|manage_company_settings'))return groups;
  // Pure SQL projection: opening preferences must never install templates or change flags.
  const templates=await getWorkDatabase().prepare(`SELECT t.id,t.name,t.status,v.definition_json FROM scope_templates t JOIN scope_template_versions v ON v.organization_id=t.organization_id AND v.branch_id=t.branch_id AND v.template_id=t.id AND v.version=t.current_version WHERE t.organization_id=? AND t.branch_id=? ORDER BY t.sort_order,t.name`).all(orgId,branch);

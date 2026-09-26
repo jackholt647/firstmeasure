@@ -2953,6 +2953,12 @@
   };
 
   const api = {
+    notificationAssistant: {
+      context(orgId){return request(orgPath(orgId,'/notification-assistant'));},
+      createThread(orgId,body={}){return request(orgPath(orgId,'/notification-assistant/threads'),{method:'POST',body});},
+      thread(orgId,id){return request(orgPath(orgId,`/notification-assistant/threads/${enc(id)}`));},
+      send(orgId,id,body,options={}){return request(orgPath(orgId,`/notification-assistant/threads/${enc(id)}/messages`),{method:'POST',body,signal:options.signal});}
+    },
     publication,
     configure,
     baseUrl,
