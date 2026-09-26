@@ -55,9 +55,9 @@ import { isSpacesArtifactStorageEnabled } from "../src/storage/project_artifacts
 import { badRequest, conflict, notFound } from "./errors.js";
 
 export type JsonObject = Record<string, unknown>;
-export type PlatformCollection = "notification_devices" | "publication_executions" | "project_datasets" | "project_dataset_revisions" | "document_modules" | "document_module_versions" | "document_module_instances" | "document_module_executions" | "publication_bindings" | "publication_snapshots" | "users" | "projects" | "customers" | "branch" | "notifications" | "attention_banners" | "action_items" | "activity" | "customer_portals" | "public_links" | "calendar_events" | "onboarding_events" | "proposals" | "proposal_snapshots" | "proposal_events" | "material_lists" | "material_list_versions" | "material_orders" | "material_deliveries" | "material_events" | "recurrence_series" | "recurrence_occurrences" | "payment_schedules" | "payment_obligations" | "payment_transactions" | "payment_allocations" | "payment_intents" | "payment_payables" | "payment_disbursements" | "payment_ledger_events" | "payment_events" | "payment_expense_items" | "payment_expense_overrides" | "payment_receipts" | "payment_invoices" | "payment_merchant_config" | "payment_provider_events" | "payment_provider_mock" | "payment_payouts" | "payment_disputes" | "payment_saved_methods" | "payment_autopay" | "feedback_requests" | "document_templates" | "document_template_versions" | "documents" | "document_snapshots" | "document_events" | "document_themes" | "document_theme_versions" | "document_workflows" | "document_workflow_versions" | "document_folders" | "document_folder_items" | "document_folder_item_versions" | "contact_imports" | "websites" | "website_pages" | "website_page_versions" | "website_events" | "domain_quotes" | "domain_registrations" | "domain_events";
+export type PlatformCollection = "organization_custom_fields" | "notification_devices" | "publication_executions" | "project_datasets" | "project_dataset_revisions" | "document_modules" | "document_module_versions" | "document_module_instances" | "document_module_executions" | "publication_bindings" | "publication_snapshots" | "users" | "projects" | "customers" | "branch" | "notifications" | "attention_banners" | "action_items" | "activity" | "customer_portals" | "public_links" | "calendar_events" | "onboarding_events" | "proposals" | "proposal_snapshots" | "proposal_events" | "material_lists" | "material_list_versions" | "material_orders" | "material_deliveries" | "material_events" | "recurrence_series" | "recurrence_occurrences" | "payment_schedules" | "payment_obligations" | "payment_transactions" | "payment_allocations" | "payment_intents" | "payment_payables" | "payment_disbursements" | "payment_ledger_events" | "payment_events" | "payment_expense_items" | "payment_expense_overrides" | "payment_receipts" | "payment_invoices" | "payment_merchant_config" | "payment_provider_events" | "payment_provider_mock" | "payment_payouts" | "payment_disputes" | "payment_saved_methods" | "payment_autopay" | "feedback_requests" | "document_templates" | "document_template_versions" | "documents" | "document_snapshots" | "document_events" | "document_themes" | "document_theme_versions" | "document_workflows" | "document_workflow_versions" | "document_folders" | "document_folder_items" | "document_folder_item_versions" | "contact_imports" | "websites" | "website_pages" | "website_page_versions" | "website_events" | "domain_quotes" | "domain_registrations" | "domain_events";
 
-const COLLECTIONS: PlatformCollection[] = ["notification_devices","publication_executions","project_datasets","project_dataset_revisions","document_modules","document_module_versions","document_module_instances","document_module_executions","publication_bindings","publication_snapshots","users", "projects", "customers", "branch", "notifications", "attention_banners", "action_items", "activity", "customer_portals", "public_links", "calendar_events", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "recurrence_series", "recurrence_occurrences", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events", "payment_expense_items", "payment_expense_overrides", "payment_receipts", "payment_invoices", "payment_merchant_config", "payment_provider_events", "payment_provider_mock", "payment_payouts", "payment_disputes", "payment_saved_methods", "payment_autopay", "feedback_requests", "document_templates", "document_template_versions", "documents", "document_snapshots", "document_events", "document_themes", "document_theme_versions", "document_workflows", "document_workflow_versions", "document_folders", "document_folder_items", "document_folder_item_versions", "contact_imports", "websites", "website_pages", "website_page_versions", "website_events", "domain_quotes", "domain_registrations", "domain_events"];
+const COLLECTIONS: PlatformCollection[] = ["organization_custom_fields","notification_devices","publication_executions","project_datasets","project_dataset_revisions","document_modules","document_module_versions","document_module_instances","document_module_executions","publication_bindings","publication_snapshots","users", "projects", "customers", "branch", "notifications", "attention_banners", "action_items", "activity", "customer_portals", "public_links", "calendar_events", "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions", "material_orders", "material_deliveries", "material_events", "recurrence_series", "recurrence_occurrences", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements", "payment_ledger_events", "payment_events", "payment_expense_items", "payment_expense_overrides", "payment_receipts", "payment_invoices", "payment_merchant_config", "payment_provider_events", "payment_provider_mock", "payment_payouts", "payment_disputes", "payment_saved_methods", "payment_autopay", "feedback_requests", "document_templates", "document_template_versions", "documents", "document_snapshots", "document_events", "document_themes", "document_theme_versions", "document_workflows", "document_workflow_versions", "document_folders", "document_folder_items", "document_folder_item_versions", "contact_imports", "websites", "website_pages", "website_page_versions", "website_events", "domain_quotes", "domain_registrations", "domain_events"];
 const PLATFORM_SCHEMA_VERSION = 1;
 
 let postgresStoragePromise: Promise<typeof import("./storage_postgres.js")> | null = null;
@@ -574,6 +574,7 @@ function normalizedProjectContact(value: unknown) {
     notes: projectContactText(contact.notes),
     birthday: projectContactText(contact.birthday),
     tags: normalizedContactTags(contact.tags),
+    custom_field_values: asObject(contact.custom_field_values || contact.contact_custom_field_values),
     imported_at: projectContactText(contact.imported_at),
     import_id: projectContactText(contact.import_id),
     import_source: projectContactText(contact.import_source),
@@ -611,6 +612,7 @@ function mergeProjectContacts(
     notes: incoming.notes || current.notes,
     birthday: incoming.birthday || current.birthday,
     tags: normalizedContactTags([...current.tags, ...incoming.tags]),
+    custom_field_values: { ...current.custom_field_values, ...incoming.custom_field_values },
     imported_at: current.imported_at || incoming.imported_at,
     import_id: current.import_id || incoming.import_id,
     import_source: current.import_source || incoming.import_source,
@@ -1294,13 +1296,19 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
   return await withDocumentMutationLock(filePath, async () => {
     const exists = await pathExists(filePath);
     const now = nowIso();
-    const data = asObject(input.data);
+    let data = asObject(input.data);
     const metadata = asObject(input.metadata);
     const expectedRevision = Number(input.expected_revision ?? 0);
 
     if (exists && options.createOnly) throw conflict("document_exists", "This immutable record already exists.");
     if (!exists && expectedRevision) throw conflict("revision_conflict", "The expected document no longer exists.");
 
+    if (["projects", "customers", "organization_custom_fields"].includes(collection)) {
+      const previous = exists ? asObject((await readJsonFile<StoredDocument>(filePath)).data) : {};
+      const fields = await import("../custom_fields/records.js");
+      data = await fields.prepareStoredFields(orgId, collection, data, previous);
+      await fields.validateStoredFields(orgId, collection, data, previous, options.replace);
+    }
     if (!exists) {
       const created: StoredDocument = {
         schema_version: PLATFORM_SCHEMA_VERSION,
@@ -1423,6 +1431,20 @@ export async function readBranchModule(orgId: string, branchId: string, moduleId
 }
 
 export async function saveBranchModule(orgId: string, branchId: string, moduleId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if (moduleId === "custom_fields" && Array.isArray(asObject(input.data).fields)) {
+    const fields = (await import("../custom_fields/contracts.js")).normalizeDefinitions(asObject(input.data).fields);
+    if (branchId !== "default" && fields.some(f => f.entity === "organization")) throw badRequest("custom_field_organization_branch", "Organization definitions belong to the default branch.");
+    const previous = await (await import("../custom_fields/records.js")).optional(() => readBranchModule(orgId, branchId || "default", moduleId));
+    const prior = asObject(previous?.data);
+    const identity = (f:JsonObject) => `${String(f.entity || "project")}:${String(f.path || f.key)}`;
+    const active = new Set(fields.map(identity));
+    const retired = new Map<string,JsonObject>();
+    for (const raw of [...(Array.isArray(prior.retired_fields) ? prior.retired_fields : []), ...(Array.isArray(prior.fields) ? prior.fields : [])]) {
+      const field = asObject(raw);
+      if (!active.has(identity(field))) retired.set(identity(field),{...field,enabled:false,read_only:true,retired:true});
+    }
+    input = { ...input, data:{ ...asObject(input.data), fields, retired_fields:[...retired.values()] } };
+  }
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).saveBranchModule(orgId, branchId, moduleId, input, options) as Promise<BranchModuleDocument>;
   await readOrganization(orgId);
   const normalizedOrgId = sanitizeId(orgId, "organization_id");
