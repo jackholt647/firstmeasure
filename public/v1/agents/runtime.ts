@@ -36,11 +36,11 @@ import { asArray, asObject, cleanText, errorMessage, traceValue, truncateJson, t
 
 const REPORT_RESULT_TOOL: AgentTool = {
   name: "report_result",
-  description: "REQUIRED final call before answering: report whether the run succeeded. Use status 'failed' when you could not do what was asked — side effects from a failed run are rolled back where possible.",
+  description: "REQUIRED final call before answering. status 'success': you did what was asked. 'needs_input': you are asking a clarifying question, or you declined or adjusted because of a rule, limit, permission or setting, and nothing broke. 'failed': you tried and could not complete it because of an error; side effects from a failed run are rolled back where possible.",
   parameters: {
     type: "object",
     properties: {
-      status: { type: "string", enum: ["success", "failed"] },
+      status: { type: "string", enum: ["success", "needs_input", "failed"] },
       summary: { type: "string", description: "One or two plain-language sentences for the customer." }
     },
     required: ["status", "summary"],
@@ -218,7 +218,8 @@ async function executeLoop(
         args = asObject(JSON.parse(String(callObject.arguments || "{}")));
       } catch {}
       if (name === "report_result") {
-        outcome.reported = { status: cleanText(args.status) === "failed" ? "failed" : "success", summary: cleanText(args.summary) };
+        const reportedStatus = cleanText(args.status);
+        outcome.reported = { status: ["failed", "needs_input"].includes(reportedStatus) ? reportedStatus : "success", summary: cleanText(args.summary) };
       }
       outcome.toolCalls += 1;
       const toolOutput = await executeTool(run, tools, name, args, `${actionTurnId}:${cleanText(callObject.call_id) || outcome.toolCalls}`, definition.usePermission);
@@ -381,7 +382,7 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
     role: "assistant",
     content: finalText,
     data: {
-      status: failed ? "failed" : "success",
+      status: failed ? "failed" : reported?.status === "needs_input" ? "needs_input" : "success",
       changes: run.changeLog,
       actions: failed ? [] : run.actions,
       renders: failed ? [] : run.renders,
