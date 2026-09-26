@@ -83,6 +83,8 @@ export type AgentLoopConfig = {
   reportResult?: boolean;
   /** How much history to replay into the conversation. Default 40 messages. */
   historyLimit?: number;
+  /** Stop starting new model rounds after this long. Default 5 minutes. */
+  maxDurationMs?: number;
 };
 
 export type AgentSettingsAdapter = {

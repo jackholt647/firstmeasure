@@ -47,6 +47,7 @@ const SETTINGS_PERMISSION = "manage_company_settings";
 const profileSchema = z.object({ instructions: z.string().max(4000), memory_enabled: z.boolean() });
 const memorySchema = z.object({ content: z.string().trim().min(1).max(500) });
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const MAX_MESSAGE_CHARACTERS = 32_000;
 const inputFilePattern = /\.(pdf|txt|md|json|html|xml|csv|tsv|xls|xlsx|doc|docx|rtf|odt|ppt|pptx|js|ts|py|css|java|sql)$/i;
 const imageTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
@@ -355,6 +356,11 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
     const body = objectSchema.parse(request.body ?? {});
     const threadId = getParam(request.params, "threadId");
+    const rawMessage = body.message ?? body.text ?? "";
+    if (typeof rawMessage !== "string") throw badRequest("invalid_message", "Send the message as text.");
+    if (rawMessage.length > MAX_MESSAGE_CHARACTERS) throw badRequest("message_too_long", `Messages can be up to ${MAX_MESSAGE_CHARACTERS.toLocaleString("en-US")} characters. Attach longer text as a file.`);
+    const hasAttachments = Array.isArray(body.attachments) && body.attachments.length > 0;
+    if (!rawMessage.trim() && !hasAttachments) throw badRequest("empty_message", "Type a message first.");
     const { thread } = await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, threadId, ctx.userId);
     const turnNote = agentIdFromSubject(thread.subject_id) ? await agentConfigurationTurnNote(orgId, ctx.userId, thread) : "";
     const attachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
@@ -388,7 +394,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       orgId,
       branchId: cleanText(body.branch_id) || ctx.branchId || "default",
       threadId,
-      message: String(body.message ?? body.text ?? ""),
+      message: rawMessage,
       input: { attachments },
       contentParts,
       ctx,
