@@ -678,7 +678,7 @@
     {
       "file": "public/libraries/custom-fields/firstmate-custom-fields.js",
       "namespace": "custom-fields",
-      "references": 60,
+      "references": 54,
       "candidates": 0,
       "edits": 0
     },
