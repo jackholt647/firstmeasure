@@ -369,6 +369,11 @@
     .dash-event-equipment-chip button:hover{opacity:1}
     .dash-event-equipment-empty{font-size:11px;font-weight:750;color:#98a2b3}
     .dash-event-equipment-add{border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;padding:7px 9px;font-size:11.5px;font-weight:850;color:#344054;outline:none;font-family:inherit}
+    .dash-equipment-picker summary{cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none}.dash-equipment-picker summary::-webkit-details-marker{display:none}.dash-equipment-picker summary .fa-chevron-down{margin-left:auto}
+    .dash-equipment-options[hidden],.dash-equipment-confirm[hidden]{display:none}.dash-equipment-options{display:grid;gap:4px;max-height:240px;overflow:auto;margin-top:6px;padding:4px;border:1px solid #e4e7ec;border-radius:9px}
+    .dash-equipment-option{display:flex;align-items:center;gap:10px;width:100%;padding:9px;border:0;border-radius:6px;background:#fff;text-align:left;color:#344054;font:inherit;cursor:pointer}.dash-equipment-option:hover,.dash-equipment-option:focus-visible{background:#f2f4f7}.dash-equipment-option>i{width:22px;text-align:center}.dash-equipment-option span{min-width:0;display:grid;gap:3px;overflow-wrap:anywhere}.dash-equipment-option strong{font-size:12px}.dash-equipment-option small{font-size:11px;color:#667085}
+    .dash-equipment-option.down,.dash-event-equipment-chip.down{color:#b42318;background:#fef3f2}.dash-equipment-option.down small{color:#b42318}.dash-equipment-option.down strong,.dash-event-equipment-chip.down .dash-equipment-name{text-decoration:line-through}
+    .dash-equipment-confirm{padding:10px;border:1px solid #fda29b;border-radius:8px;background:#fef3f2;color:#b42318;font-size:12px}.dash-equipment-confirm p{margin:0 0 8px}.dash-equipment-confirm button{padding:7px 10px;border:1px solid #fda29b;border-radius:6px;background:#fff;color:#b42318;font:inherit;cursor:pointer}.dash-equipment-confirm button+button{margin-left:6px}.dash-equipment-confirm [data-equipment-confirm]{background:#b42318;color:#fff}
     .dash-event-equipment-require{display:grid;grid-template-columns:minmax(0,1fr) 72px 34px;gap:6px;align-items:end}.dash-event-equipment-require input{height:34px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:8px;padding:0 8px;font:850 11px/1 inherit}.dash-event-equipment-require button{height:34px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#475467;cursor:pointer}.dash-event-advanced-note{font-size:10px;font-weight:800;color:#667085;line-height:1.4}.dash-event-advanced-toggle{width:36px;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#667085;display:inline-grid;place-items:center;cursor:pointer}.dash-event-advanced-toggle.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}
     .dash-event-equipment-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:7px;border-radius:9px;background:#f8fafc}.dash-event-equipment-allocation strong{grid-column:1/-1;font-size:10px;color:#475467}.dash-event-equipment-allocation label{display:grid;gap:3px;font-size:8px;font-weight:950;color:#667085;text-transform:uppercase}.dash-event-equipment-allocation input{width:100%;min-width:0;height:30px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:7px;padding:0 6px;font:800 9px/1 inherit;color:#344054}.dash-event-requirement-alert{display:flex;gap:8px;align-items:flex-start;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850;line-height:1.35}.dash-event-requirement-alert ul{margin:0;padding-left:16px}.dash-routing-vehicles{height:30px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#667085;padding:0 9px;cursor:pointer}.dash-routing-vehicles.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}.dash-vehicle-bank{display:grid;gap:7px;padding:10px 12px;border-top:1px solid rgba(15,23,42,.08)}.dash-vehicle-bank-title{font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#667085}.dash-vehicle-bank-items{display:grid;gap:6px}.dash-vehicle-bank-item{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:8px;color:#344054;font-size:11px;font-weight:900;cursor:grab}.dash-vehicle-bank-item.active{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb),.08)}
     .dash-event-customer-panel{display:grid;border:1px solid rgba(15,23,42,.10);border-radius:11px;background:#f8fafc;overflow:hidden}.dash-event-customer-head{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center}.dash-event-customer-share{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:center;padding:11px;cursor:pointer}
@@ -1226,7 +1231,7 @@
   }
   function visibleTitle(){
     if (viewMode === 'appointment_schedule') return window.Portal?.terminology?.get?.('scheduling.routing_view', 'Routing') || 'Routing';
-    if (viewMode === 'gantt') return window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Gantt') || 'Gantt';
+    if (viewMode === 'gantt') return window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline';
     if (viewMode === 'day') return anchorDate.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric', year:'numeric' });
     if (viewMode === 'month') return anchorDate.toLocaleDateString([], { month:'long', year:'numeric' });
     const start = viewMode === '4day' ? startOfDay(anchorDate) : weekStart(anchorDate);
@@ -2840,6 +2845,9 @@
     render();
     setTimeout(() => renderEventDraftPopover(editorAnchorFor(event.id)), 0);
   }
+  function equipmentUnitDown(unit){
+    return ['down', 'retired'].includes(clean(unit?.status).toLowerCase());
+  }
   function eventEquipmentSectionHtml(ctx, draft, project){
     if (!equipmentSchedulingOn()) return '';
     const delivery = isMaterialEvent(draft) || eventTypeId(draft) === 'delivery';
@@ -2850,9 +2858,9 @@
     const chips = refs.map((ref) => {
       const unit = equipmentUnits.find((item) => clean(item.id) === clean(ref.id)) || null;
       const conflicted = ref.kind === 'equipment_unit' && equipmentUnitConflict(draft, ref.id);
-      return `<span class="dash-event-equipment-chip ${String(conflicted ? 'warn' : '')}">
+      return `<span class="dash-event-equipment-chip ${String(equipmentUnitDown(unit) ? 'down' : conflicted ? 'warn' : '')}">
         <i class="fas ${String(escapeHtml(clean(unit?.icon) || 'fa-truck-pickup'))}"></i>
-        <span>${String(escapeHtml(ref.name || unit?.name || ref.id))}</span>
+        <span class="dash-equipment-name">${String(escapeHtml(ref.name || unit?.name || ref.id))}</span>${equipmentUnitDown(unit) ? '<small>Down</small>' : ''}
         ${String(conflicted ? `<i class="fas fa-triangle-exclamation" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c71ee644be52a3","Booked elsewhere in this window") ?? "Booked elsewhere in this window")}"></i>` : '')}
         <button type="button" data-event-equipment-remove="${String(escapeHtml(ref.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e6c8bec001e544","Remove equipment") ?? "Remove equipment")}"><i class="fas fa-xmark"></i></button>
       </span>`;
@@ -2883,14 +2891,16 @@
       ${String(requirementsHtml ? `<div class="dash-event-equipment-chips">${requirementsHtml}</div>` : '')}
       <div class="dash-event-equipment-chips">${String(chips || `<span class="dash-event-equipment-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e97309f102e999","No equipment on this event.") ?? "No equipment on this event.")}</span>`)}</div>
       ${String(allocationsHtml)}
-      ${String(options.length ? `<select class="dash-event-equipment-add" data-event-equipment-add>
-        <option value="">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c637d35dfeb2ed","Add equipment…") ?? "Add equipment…")}</option>
-        ${options.map((unit) => {
+      ${String(options.length ? `<details class="dash-equipment-picker" data-equipment-picker>
+        <summary class="dash-event-equipment-add"><i class="fas fa-plus" aria-hidden="true"></i>Add equipment…<i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
+        <div class="dash-equipment-options" role="group" aria-label="Equipment to assign">${options.map((unit) => {
+          const type = equipmentTypes.find((item) => clean(item.id) === clean(unit.type_id));
+          const down = equipmentUnitDown(unit);
           const conflicted = equipmentUnitConflict(draft, unit.id);
-          const down = ['down', 'retired'].includes(clean(unit.status));
-          return `<option value="${escapeHtml(unit.id)}">${escapeHtml(unit.name)}${unit.type_name ? ` — ${escapeHtml(unit.type_name)}` : ''}${down ? ' (down)' : (conflicted ? ' (booked)' : '')}</option>`;
-        }).join('')}
-      </select>` : '')}
+          return `<button type="button" class="dash-equipment-option ${down ? 'down' : ''}" data-event-equipment-add="${escapeHtml(unit.id)}"><i class="fas ${escapeHtml(clean(unit.icon) || clean(type?.icon) || 'fa-truck-pickup')}" aria-hidden="true"></i><span><strong>${escapeHtml(unit.name || unit.id)}</strong><small>${escapeHtml(unit.type_name || type?.name || 'Equipment')}${down ? ' · Down' : ''}${conflicted ? ' · Booked elsewhere in this window' : ''}</small></span></button>`;
+        }).join('')}</div>
+        <div class="dash-equipment-confirm" data-equipment-warning hidden role="alert"><p data-equipment-warning-text></p><button type="button" data-equipment-cancel>Cancel</button><button type="button" data-equipment-confirm>Assign anyway</button></div>
+      </details>` : '')}
       ${String(eventAdvancedOpen ? `<div class="dash-event-advanced-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_f22c771a404a1e","Require a type without choosing a specific unit. Scope sets can populate the same requirement fields.") ?? "Require a type without choosing a specific unit. Scope sets can populate the same requirement fields.")}</div>
         <div class="dash-event-equipment-require">
           <select class="dash-event-equipment-add" data-event-equipment-require-type><option value="">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_9f3d23d05302f4","Required equipment type…") ?? "Required equipment type…")}</option>${requirementOptions.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.name || type.id)}</option>`).join('')}</select>
@@ -2934,17 +2944,60 @@
       applyEditorPatch({ resource_requirements:(Array.isArray(current.resource_requirements) ? current.resource_requirements : []).filter((item) => clean(item?.equipment_type_id) !== typeId) });
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
-    section.querySelector('[data-event-equipment-add]')?.addEventListener('change', (changeEvent) => {
-      const id = clean(changeEvent.target.value);
-      if (!id) return;
-      const unit = equipmentUnits.find((item) => clean(item.id) === id);
+    const picker = section.querySelector('[data-equipment-picker]');
+    const warning = section.querySelector('[data-equipment-warning]');
+    let pendingUnit = null;
+    let pendingButton = null;
+    const resetWarning = () => {
+      pendingUnit = null;
+      if (warning) warning.hidden = true;
+      const options = section.querySelector('.dash-equipment-options');
+      if (options) options.hidden = false;
+    };
+    const assignUnit = (unit) => {
+      const id = clean(unit.id);
       const current = eventEditorContext()?.event || draft;
       const otherRefs = (Array.isArray(current.resource_refs) ? current.resource_refs : []).filter((ref) => !(clean(ref?.kind) === 'equipment_unit' && clean(ref?.id) === id));
       applyEditorPatch({ resource_refs: [
         ...otherRefs,
-        { kind: 'equipment_unit', id, name: clean(unit?.name) || id, role: 'equipment', start_at:eventStart(current)?.toISOString?.() || '', end_at:eventEnd(current)?.toISOString?.() || '' }
+        { kind: 'equipment_unit', id, name: clean(unit.name) || id, role: 'equipment', start_at:eventStart(current)?.toISOString?.() || '', end_at:eventEnd(current)?.toISOString?.() || '' }
       ] });
-      setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
+      resetWarning();
+      setTimeout(() => {
+        renderEventDraftPopover(editorAnchorFor(current.id));
+        document.querySelector('[data-equipment-picker] summary')?.focus();
+      }, 0);
+    };
+    section.querySelectorAll('[data-event-equipment-add]').forEach((button) => button.addEventListener('click', () => {
+      const unit = equipmentUnits.find((item) => clean(item.id) === clean(button.dataset.eventEquipmentAdd));
+      if (!unit) return;
+      if (!equipmentUnitDown(unit)) return assignUnit(unit);
+      pendingUnit = unit;
+      pendingButton = button;
+      section.querySelector('[data-equipment-warning-text]').textContent = `${unit.name || unit.id} is down. Are you sure you want to assign this equipment to the event?`;
+      warning.hidden = false;
+      section.querySelector('[data-equipment-cancel]').focus();
+      section.querySelector('.dash-equipment-options').hidden = true;
+    }));
+    section.querySelector('[data-equipment-confirm]')?.addEventListener('click', () => {
+      if (pendingUnit) assignUnit(pendingUnit);
+    });
+    section.querySelector('[data-equipment-cancel]')?.addEventListener('click', () => {
+      section.querySelector('.dash-equipment-options').hidden = false;
+      pendingButton?.focus();
+      resetWarning();
+    });
+    picker?.addEventListener('toggle', () => { if (!picker.open) resetWarning(); });
+    picker?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      resetWarning();
+      picker.open = false;
+      picker.querySelector('summary')?.focus();
+    });
+    picker?.addEventListener('focusout', (event) => {
+      if (event.relatedTarget && !picker.contains(event.relatedTarget)) { picker.open = false; resetWarning(); }
     });
     section.querySelector('[data-event-equipment-require-add]')?.addEventListener('click', () => {
       const typeId = clean(section.querySelector('[data-event-equipment-require-type]')?.value);
@@ -5158,7 +5211,7 @@
       date: anchorDate,
       pxPerDay: ganttZoomPxPerDay || undefined,
       collapsedGroupIds: ganttCollapsedGroups,
-      modeLabel: window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Gantt') || 'Gantt',
+      modeLabel: window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline',
       toolbarLeadingHtml:groupControls,
       onZoomChange(next){
         ganttZoomPxPerDay = Number(next) || 0;
@@ -5437,7 +5490,7 @@
     const today = new Date();
     const mobileViewChoices = [
       ...(routingViewEnabled() ? [['appointment_schedule', routingLabel, 'fa-route']] : []),
-      ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Gantt') || 'Gantt', 'fa-chart-gantt']] : []),
+      ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline', 'fa-chart-gantt']] : []),
       ['day', window.Portal?.terminology?.get?.('scheduling.day_view', 'Day') || 'Day', 'fa-calendar-day'],
       ['4day', isMobileScheduleLayout() ? '3 Day' : (window.Portal?.terminology?.get?.('scheduling.four_day_view', '4 Day') || '4 Day'), 'fa-calendar-week'],
       ['week', window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week', 'fa-table-columns'],
@@ -5477,7 +5530,7 @@
             ['week',window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week'],
             ['month',window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month'],
             ...(routingViewEnabled() ? [['appointment_schedule',routingLabel]] : []),
-            ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Gantt') || 'Gantt']] : [])
+            ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline']] : [])
           ].map(([mode,label]) => `<button class="dash-btn ${viewMode === mode ? 'active' : ''}" data-dash-view="${mode}">${escapeHtml(label)}</button>`).join(''))}
           ${String(viewMode === 'gantt' ? '' : modeButtons)}
           ${String(viewMode !== 'appointment_schedule' ? displayButtons : '')}

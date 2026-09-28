@@ -796,7 +796,7 @@
     "kind": "entity"
   },
   "scheduling.gantt_view": {
-    "label": "Gantt",
+    "label": "Timeline",
     "kind": "view"
   },
   "scheduling.sales_portal_tab": {
